@@ -47,8 +47,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M3-09 Routes UI · [x] M3-10 Tunnels UI · [x] M3-11 Tests (nightly real-account job waits for a test token)
 
 ### M4: Discovery & Doctor (v0.4.0)
-- [x] M4-01 Processes/projects · [x] M4-02 Docker · [ ] M4-03 Import setups · [ ] M4-04 Adoption
-- [x] M4-05 Doctor framework · [ ] M4-06 Checks (log-based ones wait for M5) · [x] M4-07 Doctor UI · [ ] M4-08 Cleanup center · [ ] M4-09 Diagnostics export
+- [x] M4-01 Processes/projects · [x] M4-02 Docker · [x] M4-03 Import setups (service detection pending) · [x] M4-04 Adoption
+- [x] M4-05 Doctor framework · [ ] M4-06 Checks (log-based ones wait for M5) · [x] M4-07 Doctor UI · [ ] M4-08 Cleanup center · [x] M4-09 Diagnostics export
 
 ### M5: Observability & Always-on (v0.5.0)
 - [ ] M5-01 Metrics pipeline · [ ] M5-02 Charts · [ ] M5-03 Log viewer · [ ] M5-04 Activity view

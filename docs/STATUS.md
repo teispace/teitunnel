@@ -11,16 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M4-03 import** of existing `~/.cloudflared` setups (config.yml ingress + credentials): needs a YAML parser that preserves unknown keys; then "Manage as-is" vs "Migrate to remote-managed" through a plan.
-2. M4-04 adoption of foreign cloudflared processes (observe only / take over), M4-06 remaining checks (TLS origin, clock skew, UDP blocked need M5 logs), M4-07 inline issue markers on route rows, M4-08 cleanup center, M4-09 diagnostics export.
+1. Finish M4: cleanup center (M4-08: stale tunnels, old managed binaries, Quick Share history), remaining checks (origin.http_error, stale connections, duplicate local connectors), launchd/systemd detection for existing services (M4-03 last bullet).
+2. M5: metrics pipeline + charts (uPlot), full log viewer (virtualized, follow-tail, search), always-on via launchd, menu bar extra with routes, notification policy.
 3. Nightly real-account job (needs the maintainer's test token).
 4. **Maintainer:** review/merge PRs #1–#5 in order; v0.1 signing decision + tag; OAuth client; test token.
 
 ## In progress
-- **M4** on `milestone/m4-discovery-doctor`, draft PR #5. Done: framework/project discovery (M4-01), Docker containers (M4-02), Doctor framework + checks (binary, permissions, pending domains, DNS missing/not proxied/conflict/wrong target, orphans owned/foreign, connector stopped/crash loop/degraded, origin not listening, unused tunnel, drift, unreachable account), Doctor view with sidebar badge, fixes as reviewed plans, ignore, and "Fix Safe Issues".
-- **M3** complete, PR #4 ready for review (nightly real-account job waits for a test token). **M2** PR #3, **M1** PR #2, **M0** PR #1.
+- **M4** on `milestone/m4-discovery-doctor`, draft PR #5. Done: framework/project discovery, Docker containers, import from `config.yml` (ImportRoutes, D-044), foreign cloudflared processes (observe/stop), Doctor (checks incl. log-based, view, sidebar badge, fix-as-plan, ignore, Fix Safe Issues), diagnostics export. Also pulled forward: Overview with routes and problems, Activity timeline (M5-04 partial), connector logs in Tunnels (M5-03 partial).
+- **M3** complete, PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M4 import, foreign connectors, diagnostics, log checks; Overview/Activity/Tunnels logs.
 - 2026-09-23: M4 Doctor (checks, view, fix safe) and Docker/framework discovery.
 - 2026-09-23: M3 E2E against tools/fake-cloudflare; 31 planner scenarios; PR #4 ready.
 - 2026-09-23: M3 Routes and Tunnels UI (sheet: form → review → apply progress → verify; undo; drift banner).
