@@ -3,6 +3,7 @@
 Reading order for new contributors and agents:
 
 1. [STATUS.md](STATUS.md): where we are, what's next. **Start here every session.**
+1a. [AUTONOMOUS.md](AUTONOMOUS.md): the protocol for unattended "start/continue" sessions.
 2. [VISION.md](VISION.md): what we're building and why.
 3. [ARCHITECTURE.md](ARCHITECTURE.md): how it's built (crates, engine, runtime, IPC, frontend).
 4. [DESIGN.md](DESIGN.md): the native design system (macOS 27, materials, motion, tokens, components).

@@ -7,6 +7,9 @@
 **Phase:** Planning complete → starting **M0: Foundations**
 **Branch:** `main`. The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
+## Working mode: AUTONOMOUS
+The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
+
 ## Next up
 1. **M0-01 Workspace skeleton** ([plan](plans/M0-foundations.md#m0-01--workspace-skeleton))
 2. Then M0-02 → M0-12 in order. M0-06/07/08 (design) deserve the most care: screenshot-compare against macOS 27 System Settings.
@@ -31,6 +34,7 @@
 - v0.1 signing: unsigned developer preview vs waiting for a Developer ID? (decide at M1-13)
 
 ## Notes for the next session
+- **Exact resume point:** `main` @ docs-only state. The first step is `git checkout -b milestone/m0-foundations`, then implement M0-01, push, and open a draft PR to `main`.
 - Toolchain on the maintainer machine: macOS 27.0, rustc 1.98, Node 26.9, pnpm 12.4.1.
 - Stay on Tauri 2.11.x (not 3 alpha). Pin tauri-specta rc exactly.
 - **Do not** use `NSGlassEffectView` / `tauri-plugin-liquid-glass` (crashes packaged builds on macOS 27; D-021).

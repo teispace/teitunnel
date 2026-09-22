@@ -5,6 +5,9 @@
 2. Open the task's plan in [`docs/plans/`](docs/plans) and follow it.
 3. Consult [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DESIGN.md`](docs/DESIGN.md), [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) and [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) as needed. The reasoning behind past choices is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Autonomous sessions
+When the maintainer says "start" or "continue", follow [`docs/AUTONOMOUS.md`](docs/AUTONOMOUS.md): loop through tasks unattended (implement → validate → verify visually → commit → update docs), without stopping to ask.
+
 ## After every task (mandatory)
 1. Tick the task in its plan file and in `docs/ROADMAP.md`.
 2. Update `docs/STATUS.md`: next up, in progress, recently completed, blockers, notes for the next session.
