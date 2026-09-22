@@ -40,8 +40,8 @@
 - [x] Tests with the fake `CloudApi`: failure injected at every step index → the state is restored (property test).
 
 ### M3-06 · Verifier
-- [ ] Staged probe (DNS via DoH, edge, tunnel, origin) per ARCHITECTURE §4.5, with Cloudflare error-page detection (1033, 1016, 502, 530) mapped to stages.
-- [ ] Runs after apply and on demand ("Test route").
+- [x] Staged probe (DNS via the API — not DoH, D-040 — edge, tunnel, origin) per ARCHITECTURE §4.5, with Cloudflare error-page detection (1033, 1016, 502, 530) mapped to stages.
+- [x] Runs after apply and on demand ("Test route"). *(`Engine::verify`; wired to the UI in M3-09.)*
 
 ### M3-07 · Machine tunnel & connector integration
 - [x] `EnsureMachineTunnel`: find our tunnel for this machine (by `tunnels_local`), else create one named after the Mac's name ("Krishna's MacBook Pro", sanitised). Fetch the run token into the keychain. Start a Session connector (the supervisor from M1) with a stable metrics port. *(Named after the host name; a taken name gets " 2", " 3"… Never adopts an existing tunnel by name: another Mac with the same name would then share it.)*

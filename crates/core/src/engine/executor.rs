@@ -11,6 +11,7 @@ use cf_api::{DnsRecord, IngressRule, NewDnsRecord, TunnelConfig};
 use serde::Serialize;
 use tokio::time::Instant;
 
+use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
     cloud::{CloudApi, Connectors},
     local::Local,
@@ -18,6 +19,7 @@ use super::{
     planner::{PlanError, plan},
     types::{Intent, Plan, Snapshot, Step, TunnelRef, ownership_comment, tunnel_target},
 };
+use crate::domain::{Hostname, RouteOrigin};
 
 /// How long a preview may reuse an observation.
 const CACHE_TTL: Duration = Duration::from_secs(5);
@@ -38,6 +40,9 @@ pub enum EngineError {
     #[error("This change replaces DNS records Teitunnel didn't create. Confirm it first.")]
     NeedsConfirmation,
 }
+
+/// How often a transient verification failure is retried.
+const VERIFY_RETRY: Duration = Duration::from_secs(2);
 
 /// Who is asking: the account and this Mac's name for a new tunnel.
 #[derive(Debug, Clone, Copy)]
@@ -305,6 +310,50 @@ impl Engine {
     ) -> Result<Plan, EngineError> {
         let snapshot = self.snapshot(api, ctx, intent, true).await?;
         Ok(plan(intent, &snapshot)?)
+    }
+
+    /// Checks that `hostname` works end to end. Transient failures (a connector still
+    /// connecting, propagation) are retried for up to `patience`.
+    ///
+    /// # Errors
+    /// Observation errors.
+    pub async fn verify<C: CloudApi>(
+        &self,
+        api: &C,
+        ctx: Context<'_>,
+        hostname: &Hostname,
+        edge: Edge,
+        patience: Duration,
+    ) -> Result<Verification, EngineError> {
+        let snapshot = observe(
+            api,
+            &self.local,
+            ctx.account,
+            ctx.machine_name,
+            Some(&[hostname]),
+        )
+        .await?;
+        if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
+            return Ok(Verification {
+                hostname: hostname.to_string(),
+                status: None,
+                failure: Some(failure),
+            });
+        }
+        let origin = snapshot
+            .routes()
+            .into_iter()
+            .find(|r| r.hostname.as_deref() == Some(hostname.as_str()))
+            .and_then(|r| RouteOrigin::parse(&r.service).ok());
+        let deadline = Instant::now() + patience;
+        loop {
+            let result = probe(edge, hostname, origin.as_ref()).await;
+            let transient = result.failure.as_ref().is_some_and(Failure::is_transient);
+            if !transient || Instant::now() + VERIFY_RETRY > deadline {
+                return Ok(result);
+            }
+            tokio::time::sleep(VERIFY_RETRY).await;
+        }
     }
 
     /// Applies `intent`, which the user reviewed and approved.

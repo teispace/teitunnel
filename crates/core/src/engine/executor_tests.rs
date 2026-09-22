@@ -525,3 +525,51 @@ async fn a_connector_that_wont_stop_keeps_the_tunnel() {
             .is_some()
     );
 }
+
+#[tokio::test]
+async fn verifies_a_route_through_the_edge() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::any};
+
+    use super::verify::{Edge, Failure};
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let edge = MockServer::start().await;
+    Mock::given(any())
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&edge)
+        .await;
+    let host = Hostname::parse("app.xyz.com").unwrap();
+    let patience = std::time::Duration::ZERO;
+
+    let missing = engine
+        .verify(&cloud, CTX, &host, Edge::Test(*edge.address()), patience)
+        .await
+        .unwrap();
+    assert_eq!(missing.failure, Some(Failure::NoRecord));
+
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let ok = engine
+        .verify(&cloud, CTX, &host, Edge::Test(*edge.address()), patience)
+        .await
+        .unwrap();
+    assert!(ok.ok(), "{ok:?}");
+    assert_eq!(ok.status, Some(200));
+
+    // Someone repoints the record in the dashboard.
+    cloud
+        .state
+        .lock()
+        .unwrap()
+        .records
+        .get_mut("z-xyz")
+        .unwrap()[0]
+        .content = "elsewhere.example".into();
+    let moved = engine
+        .verify(&cloud, CTX, &host, Edge::Test(*edge.address()), patience)
+        .await
+        .unwrap();
+    assert!(
+        matches!(moved.failure, Some(Failure::RecordElsewhere { .. })),
+        "{moved:?}"
+    );
+}

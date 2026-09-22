@@ -159,3 +159,8 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-039 · 2026-09-23 · The active account is UI state
 **Decision:** Which account Domains/Routes show is remembered in the persisted UI store, not in the backend; the engine works with all accounts.
 **Why:** ARCHITECTURE §6 (all accounts active in the engine). Keeps commands stateless (`domains_list(accountId)`).
+
+### D-040 · 2026-09-23 · Route checks bypass DNS entirely
+**Decision:** The verifier confirms the DNS record through the Cloudflare API, then sends its HTTPS probe directly to a Cloudflare edge address (resolved from `api.cloudflare.com`) with the route's hostname as SNI/Host. It never resolves the route's hostname.
+**Why:** Same failure mode as D-037: resolving a brand-new name too early caches NXDOMAIN in the local and upstream resolvers for up to the zone's SOA minimum, breaking the URL the user is about to open. Cloudflare's edge serves any proxied hostname on any of its anycast addresses ("Addressing Agility"), so the probe exercises the real edge → tunnel → origin path without touching DNS.
+

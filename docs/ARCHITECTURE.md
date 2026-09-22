@@ -187,10 +187,12 @@ Planner rules:
 
 End-to-end probe for a hostname, reported by stage so failures are actionable:
 
-1. **DNS:** resolve via DoH (`1.1.1.1`) and confirm it's proxied through Cloudflare.
-2. **Edge → tunnel:** HTTPS GET. Cloudflare error 1033 means no connector; 530/1016 means DNS/tunnel mismatch.
+1. **DNS:** read the record through the API and confirm it's a proxied CNAME to this Mac's tunnel. The verifier never resolves the hostname itself: a lookup made before the record propagated caches NXDOMAIN for up to 30 minutes in the Mac's and ISP's resolvers (D-037, D-040).
+2. **Edge → tunnel:** HTTPS GET sent straight to a Cloudflare edge address (from resolving `api.cloudflare.com`) with the hostname as SNI and Host. Cloudflare error 1033 means no connector; 530/1016 means DNS/tunnel mismatch; 1001 means not on Cloudflare yet; a certificate error on a multi-level subdomain means Universal SSL doesn't cover it.
 3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening.
 4. **Origin:** any other status is a success, and the status code is shown.
+
+Transient failures (1033, 1016/530, 1001) are retried every 2 s for a short patience window after apply (`Engine::verify`).
 
 ### 4.6 Drift
 

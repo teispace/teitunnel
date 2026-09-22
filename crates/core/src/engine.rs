@@ -12,6 +12,7 @@ mod local;
 mod observe;
 mod planner;
 mod types;
+mod verify;
 
 #[cfg(test)]
 mod executor_tests;
@@ -32,3 +33,4 @@ pub use types::{
     Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,
     ZoneRef, ownership_comment, tunnel_target,
 };
+pub use verify::{Edge, Failure, Stage, Verification, classify};
