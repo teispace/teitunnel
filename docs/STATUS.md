@@ -11,17 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M1-08** local-service discovery (`listeners` + `sysinfo`), then **M1-09** Quick Share (core + IPC + UI + tray), **M1-02** managed install, **M1-10** onboarding, **M1-11** notifications, **M1-12** tests/E2E. Also the app exit hook (M1-07 leftover) when wiring the supervisor into the shell.
-2. **Maintainer:** review and merge PR #1 (M0), then retarget PR #2 to `main`.
+1. **M1-10** onboarding (first-run binary step; Settings → cloudflared pane), **M1-02 leftover** update check, **M1-12** E2E (`@wdio/tauri-service` on macOS CI with the fake binary; nightly real Quick Share), **M1-13** release workflow (tagging/publishing stays with the maintainer).
+2. **Maintainer:** review/merge PR #1 (M0), then retarget PR #2 to `main`. Decide v0.1 signing (unsigned developer preview vs Developer ID).
 
 ## In progress
-- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1). Done: M1-01 locate, M1-03 command builders, M1-04 log parser (+ real fixtures), M1-05 endpoints + metrics parser, M1-06 fake-cloudflared, M1-07 supervisor.
-- **M0** complete; PR #1 is ready for review (merging needs the maintainer, D-033). Only open item: native captures of the packaged app with an unlocked screen.
+- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1). Done: M1-01..09 (minus update check), M1-11, Quick Share flow tests. Quick Share works end to end against the fake binary; the real cloudflared command line was verified manually (2026-09-23) and the managed install was verified against the real GitHub release.
+- **M0** complete; PR #1 ready for review.
 
 ## Recently completed
-- 2026-09-23: M1-01/03/04/05/06/07 (73 Rust tests; supervisor integration tests with real processes are stable across repeated runs).
-- 2026-09-23: Packaged build verified at launch level (12 MB app, 92 MB RSS idle, no crash).
-- 2026-09-22: M0 complete (see `plans/M0-foundations.md`). CI green on macOS/Linux/Windows.
+- 2026-09-23: Quick Share (core, commands, UI with detected-services picker, QR, stats, log, auto-stop), menu bar share list, notifications, Overview, verified managed install (digest + checksum + Team ID), exit hook and orphan reaping, discovery.
+- 2026-09-23: M1-01/03/04/05/06/07; packaged build verified at launch level.
+- 2026-09-22: M0 complete. CI green on macOS/Linux/Windows.
 
 ## Blockers / maintainer actions needed
 | Item | Needed by | Notes |
@@ -42,4 +42,5 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - pnpm 12 rejects packages published < 1 day ago (D-027); pin the previous release.
 - Toolchain on the maintainer machine: macOS 27.0, rustc 1.98, Node 26.9, pnpm 12.4.1.
 - Stay on Tauri 2.11.x. **Do not** use `NSGlassEffectView` (D-021). Verify material work in a **packaged** build.
-- Commits: Conventional Commits, **no AI attribution**.
+- Commits: Conventional Commits, **no AI attribution**. Gate every commit on `pnpm verify` (exit code, not eyeballing output).
+- Push in batches: every push cancels the running CI (concurrency group), and Windows is only checked in CI.
