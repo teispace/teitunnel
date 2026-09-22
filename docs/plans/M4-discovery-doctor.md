@@ -65,4 +65,4 @@
 - [ ] A Doctor sub-view listing everything removable: owned orphans, stale tunnels, old managed binaries, old logs, Quick Share history. Multi-select, then one combined plan.
 
 ### M4-09 · Diagnostics export
-- [ ] Help → Export diagnostics: a redacted zip (app logs, Doctor report, versions, settings minus secrets, and optionally `cloudflared tunnel diag` for a selected connector). A preview of the contents is shown before saving.
+- [x] Help → Export diagnostics: a redacted zip (app logs, Doctor report, versions, settings minus secrets, and optionally `cloudflared tunnel diag` for a selected connector). A preview of the contents is shown before saving. *(A `.tar.gz` via the existing flate2/tar dependencies, saved to Downloads and revealed in Finder; entry point is Doctor's toolbar. `cloudflared tunnel diag` isn't included yet.)*

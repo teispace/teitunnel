@@ -134,6 +134,10 @@ export const commands = {
 	 *  through a fresh plan; the rest are left for the user.
 	 */
 	doctorFixSafe: () => __TAURI_INVOKE<FixReport>("doctor_fix_safe"),
+	/**  What a diagnostics export would contain (shown before saving). */
+	diagnosticsPreview: () => __TAURI_INVOKE<FileSummary[]>("diagnostics_preview"),
+	/**  Saves the diagnostics bundle to Downloads and shows it in Finder. Returns its path. */
+	diagnosticsExport: () => __TAURI_INVOKE<string>("diagnostics_export"),
 };
 
 /** Events */
@@ -426,6 +430,16 @@ message: string } |
 listening: boolean | null } | 
 /**  The origin didn't answer in time (504). */
 { type: "originTimeout" };
+
+/**  What the preview shows for a file. */
+export type FileSummary = {
+	/**  Path inside the archive. */
+	name: string,
+	/**  Size in bytes. */
+	size: number,
+	/**  The first lines, for a quick look. */
+	excerpt: string,
+};
 
 /**  A way to fix an issue. */
 export type Fix = 

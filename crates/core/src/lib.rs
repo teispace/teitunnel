@@ -7,6 +7,7 @@
 
 pub mod accounts;
 pub mod binary;
+pub mod diagnostics;
 pub mod discovery;
 pub mod doctor;
 pub mod domain;

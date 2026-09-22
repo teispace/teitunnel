@@ -17,6 +17,7 @@ import { useInstallBinary } from "@/features/binary/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { DiagnosticsDialog } from "./diagnostics-dialog";
 import { hasSafeCandidates, useFixSafe, useIssues } from "./queries";
 
 const severities: Record<Severity, { dot: Status; group: string; label: string }> = {
@@ -176,6 +177,7 @@ export function DoctorPage() {
           {fixSafe.isPending ? "Fixing…" : "Fix Safe Issues"}
         </Button>
       ) : null}
+      <DiagnosticsDialog />
       <IconButton
         icon={RefreshCw}
         label="Check again"

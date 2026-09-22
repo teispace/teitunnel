@@ -72,7 +72,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::foreign_list,
             routes::foreign_stop,
             doctor::doctor_run,
-            doctor::doctor_fix_safe
+            doctor::doctor_fix_safe,
+            doctor::diagnostics_preview,
+            doctor::diagnostics_export
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }
