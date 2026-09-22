@@ -25,6 +25,27 @@ macOS first (v1.0), then Windows and Linux.
 
 Tauri 2 · Rust · React · TypeScript · Tailwind CSS. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Development
+
+Requirements: macOS 14+ (Linux and Windows build too), Rust (pinned in `rust-toolchain.toml`, installed automatically by rustup), Node 26+ and pnpm 12.
+
+```sh
+git clone https://github.com/teispace/teitunnel && cd teitunnel
+pnpm install      # JS deps + git hooks
+pnpm dev          # run the app with hot reload
+```
+
+| Command | What it does |
+|---|---|
+| `pnpm dev` | Run the desktop app in development mode |
+| `pnpm build` | Build the packaged app (`target/release/bundle/`) |
+| `pnpm check` | Biome, TypeScript and Clippy |
+| `pnpm test` | Vitest and `cargo nextest` |
+| `pnpm fmt` | Format everything |
+| `pnpm bindings` | Regenerate the typed IPC bindings after changing Rust commands |
+
+Install `cargo-nextest` once with `cargo install cargo-nextest --locked`. The in-app component gallery is under **Developer → Gallery** in development builds.
+
 ## Contributing
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/README.md](docs/README.md).

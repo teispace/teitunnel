@@ -35,10 +35,12 @@ docs/                all project documentation
 ```
 
 ## Commands
-These are available once M0 is complete. Keep this section in sync with `package.json`.
-- `pnpm install`: install JS deps
+Keep this section in sync with `package.json`.
+- `pnpm install`: install JS deps and git hooks (lefthook)
 - `pnpm dev`: run the desktop app in dev mode
 - `pnpm check`: biome + tsc + clippy
 - `pnpm test`: vitest + cargo nextest
 - `pnpm bindings`: regenerate IPC bindings
-- `pnpm tauri build`: packaged app (use it to verify materials and native behaviour)
+- `pnpm build`: packaged app (use it to verify materials and native behaviour)
+- `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]`: WebKit screenshots in light and dark (D-030)
+- Before every commit: `pnpm check && pnpm test` must exit 0.

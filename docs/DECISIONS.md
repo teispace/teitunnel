@@ -112,3 +112,19 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-027 · 2026-09-22 · Respect pnpm's minimum release age
 **Decision:** Keep pnpm 12's default supply-chain policy (packages must be at least a day old). Pin the previous release when the latest is too new (e.g. motion 13.4.0, jsdom 30.1.0).
 **Why:** It's a cheap defence against compromised fresh releases, consistent with SECURITY_MODEL.
+
+### D-028 · 2026-09-22 · Settings is a separate native window
+**Decision:** ⌘, opens a dedicated Settings window (620×460, not resizable, overlay title bar) that loads the `/settings` route, instead of a page inside the main window.
+**Why:** That's the macOS convention (every native app's Settings is its own window). It also keeps preferences reachable while the main window is hidden.
+
+### D-029 · 2026-09-22 · Closing the window never stops tunnels; "Show in menu bar" controls the icon
+**Decision:** Closing the main window hides it; the app keeps running (Dock icon and menu bar item reopen it) and ⌘Q quits. The setting is `showInMenuBar` (default on), which only toggles the menu bar icon.
+**Why:** Matches Mail/Messages behaviour and avoids surprising tunnel shutdowns. The quit confirmation for running Session connectors lands with connectors in M1.
+
+### D-030 · 2026-09-22 · WebKit (Playwright) screenshots when the native window can't be captured
+**Decision:** `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]` renders routes in Playwright's WebKit (light and dark) with the measured sidebar material painted in. It's used for visual review in CI-like conditions and when the screen is locked during unattended sessions. Native captures remain the reference for vibrancy, traffic lights and accent.
+**Why:** macOS doesn't composite windows while the screen is locked, so `screencapture` returns blank content. Headless WebKit also doesn't render `backdrop-filter`, so materials must stay readable without blur.
+
+### D-031 · 2026-09-22 · Two CSS materials: glass (controls) and panel (popovers, menus, palette, toasts)
+**Decision:** `material-glass` (62% tint) is only for small controls floating over content. Panels use `material-panel` (94% tint, 30 px blur). Both become opaque under Reduce transparency.
+**Why:** At 62% the text underneath competed with list items in the command palette. Near-opaque panels match macOS menus and stay legible even where blur isn't rendered.

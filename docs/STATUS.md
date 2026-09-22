@@ -11,16 +11,15 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M0-04 rest:** sonner Toaster (restyled), Zustand UI store.
-2. **M0-06 rest:** tokens review in the gallery, reduced-motion/transparency checks, material tokens in use, **packaged-build soak test** (`pnpm build`, launch the `.app`).
-3. **M0-07 primitives** → **M0-08 patterns** → **M0-09 menus/tray/⌘K** → **M0-10 store + settings** → M0-11/12 leftovers.
+1. **M0-06 packaged-build soak test** (needs an unlocked screen: native captures of the `.app` in light/dark, active/inactive, resize storm, sleep/wake). Launch-level checks were done unattended; see notes.
+2. Merge PR #1 once CI is green and the soak test passes, then start **M1** (`milestone/m1-binary-quick-share`, plan `plans/M1-binary-quick-share.md`). M1 work that doesn't need the screen can start on its own branch while #1 waits.
 
 ## In progress
-- M0 on branch `milestone/m0-foundations`, draft PR #1 (https://github.com/teispace/teitunnel/pull/1).
+- M0 on branch `milestone/m0-foundations`, draft PR #1 (https://github.com/teispace/teitunnel/pull/1). All M0 tasks are done except the soak test.
 
 ## Recently completed
-- 2026-09-22: M0-01 workspace, M0-02 crates (`Secret<T>`, redaction, cf-api envelope, cloudflared version), M0-03 Tauri shell (hidden-until-ready, single instance, window state, CSP, redacted rolling logs), M0-05 typed IPC (`app_info`, `app_ready`, `app_accent_color`, `EntityChanged`), CI workflow + cargo-deny + bundle budget + Dependabot, lefthook.
-- 2026-09-22: Sidebar shell calibrated against macOS 27 System Settings/Finder (D-024, D-025). Accent colour follows the system live (D-023).
+- 2026-09-22: M0-07 primitives (Radix-based, measured against macOS 27), M0-08 patterns (SplitView, ListPane, Inspector, KeyValueGrid, CopyField, GroupedList, Error/EmptyState, resizable/collapsible sidebar), M0-09 menu bar + tray + ⌘K palette, M0-10 SQLite store + typed settings + Settings window, M0-12 hygiene (lefthook, README development section, PR template). Screenshots in `docs/screenshots/M0-0x/`.
+- 2026-09-22: M0-01/02/03/05, CI (green on macOS/Linux/Windows), cargo-deny, bundle budget, Dependabot.
 - 2026-09-22: Analysis, research, full docs set, repo reset and made public.
 
 ## Blockers / maintainer actions needed
@@ -35,6 +34,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 
 ## Notes for the next session
 - **Resume point:** branch `milestone/m0-foundations` (draft PR #1). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- **Locked screen:** during unattended sessions the screen locks; macOS then stops compositing windows and `screencapture` returns blank content. Never send clicks/keys while locked. Use `pnpm --filter @teitunnel/desktop shoot` (WebKit) instead (D-030). Keep the Mac awake with `caffeinate -dimsu`.
 - Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.
 - Toggle the appearance with `osascript -e 'tell app "System Events" to tell appearance preferences to set dark mode to true|false'`. **The maintainer uses dark mode; restore it.** Accent tests: `defaults write -g AppleAccentColor -int 3` then `defaults delete -g AppleAccentColor` to restore (the key was absent) and post `AppleColorPreferencesChangedNotification`.
 - Don't automate Finder via AppleScript (it triggers an Automation permission prompt and times out).
