@@ -22,6 +22,27 @@ pub struct DnsRecord {
     /// Free-text comment (Teitunnel writes its ownership marker here).
     #[serde(default)]
     pub comment: Option<String>,
+    /// TTL in seconds (1 = automatic).
+    #[serde(default = "auto_ttl")]
+    pub ttl: u32,
+}
+
+const fn auto_ttl() -> u32 {
+    1
+}
+
+impl DnsRecord {
+    /// The same record as a create/update body (to restore it after a failed change).
+    pub fn to_new(&self) -> NewDnsRecord {
+        NewDnsRecord {
+            name: self.name.clone(),
+            kind: self.kind.clone(),
+            content: self.content.clone(),
+            proxied: self.proxied,
+            ttl: self.ttl,
+            comment: self.comment.clone(),
+        }
+    }
 }
 
 /// A record to create or update.

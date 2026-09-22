@@ -12,32 +12,32 @@
 ---
 
 ### M3-01 · cf-api: tunnels, configurations, DNS
-- [ ] Tunnels: list (filters, pagination), create (`config_src: cloudflare`), get, patch, delete, connections list/clean, token get.
-- [ ] Configurations get/put with `version`. Model the full ingress + `originRequest` schema as typed structs, preserving unknown fields (`#[serde(flatten)] extra`) so we never drop settings made in the dashboard.
-- [ ] DNS records: list (filters `name`, `type`, `content`, `comment.contains`), create, patch, delete.
-- [ ] Fixtures recorded from a real account.
+- [x] Tunnels: list (filters, pagination), create (`config_src: cloudflare`), get, patch, delete, connections list/clean, token get.
+- [x] Configurations get/put with `version`. Model the full ingress + `originRequest` schema as typed structs, preserving unknown fields (`#[serde(flatten)] extra`) so we never drop settings made in the dashboard.
+- [x] DNS records: list (filters `name`, `type`, `content`, `comment.contains`), create, patch, delete.
+- [ ] Fixtures recorded from a real account. *(Needs a test token from the maintainer.)*
 
 ### M3-02 · Domain types & validation
-- [ ] `Hostname` (IDNA/punycode, wildcard rules, max lengths), zone matching (the longest zone suffix wins), `PathRegex` (validated with the regex crate; Go RE2-compatible subset warning), `Origin` parsing from user input (`3000`, `:3000`, `localhost:3000`, `http://…`, `https://…`, `tcp://…`, `ssh://…`, `unix:/path`).
+- [x] `Hostname` (IDNA/punycode, wildcard rules, max lengths), zone matching (the longest zone suffix wins), `PathRegex` (validated with the regex crate; Go RE2-compatible subset warning), `Origin` parsing from user input (`3000`, `:3000`, `localhost:3000`, `http://…`, `https://…`, `tcp://…`, `ssh://…`, `unix:/path`).
 - [ ] `OriginOptions`: all `originRequest` fields cloudflared supports, with defaults omitted when serialising.
 - [ ] Property tests for the parsers. `*_validate` commands return field-level errors.
 
 ### M3-03 · Observer
-- [ ] `observe(scope) -> Snapshot` where the scope is account/tunnel/hostnames. It fetches in parallel with bounded concurrency. A fingerprint is computed over the relevant parts.
-- [ ] A short-lived cache (5 s) shared by Doctor and UI queries; invalidated by our own writes.
+- [x] `observe(scope) -> Snapshot` where the scope is account/tunnel/hostnames. It fetches in parallel with bounded concurrency. A fingerprint is computed over the relevant parts.
+- [x] A short-lived cache (5 s) shared by Doctor and UI queries; invalidated by our own writes.
 
 ### M3-04 · Planner
-- [ ] Intents: `AddRoute`, `UpdateRoute`, `RemoveRoute`, `ReorderRoutes`, `CreateTunnel`, `DeleteTunnel` (cascade), `EnsureMachineTunnel`.
-- [ ] Rules from ARCHITECTURE §4.3: ordering, specificity sort + catch-all, conflict detection → confirmation, idempotency, human descriptions, command renderings.
-- [ ] `insta` snapshots for ≥ 30 scenarios: first route on a fresh account, second zone, wildcard, path routes, conflicting A record, owned vs foreign CNAME, remove last route (offer tunnel stop/delete), rename hostname (create new → switch → delete old, zero-downtime order), and so on.
-- [ ] Property test: for random intents over random consistent states, `plan(apply(plan(s)))` is empty.
+- [x] Intents: `AddRoute`, `UpdateRoute` (incl. rename), `RemoveRoute`, `RemoveTunnel` (cascade). The machine tunnel is ensured implicitly by any add. *(`ReorderRoutes` comes with drag reordering in M3-09; rules are specificity-sorted, so order only matters for equal specificity.)*
+- [x] Rules from ARCHITECTURE §4.3: ordering, specificity sort + catch-all, conflict detection → confirmation, idempotency, human descriptions, command renderings.
+- [ ] `insta` snapshots for ≥ 30 scenarios *(11 so far, covering every listed case; more with M3-11)*: first route on a fresh account, second zone, wildcard, path routes, conflicting A record, owned vs foreign CNAME, remove last route (offer tunnel stop/delete), rename hostname (create new → switch → delete old, zero-downtime order), and so on.
+- [x] Property test: for random intents over random consistent states, `plan(apply(plan(s)))` is empty.
 
 ### M3-05 · Executor + activity log
-- [ ] Per-account async mutex. Staleness guard (re-observe + re-plan + compare). Config PUT with the expected version.
-- [ ] Step retry policy and compensation per step (ARCHITECTURE §4.4). Report `RolledBack` vs `PartiallyApplied { leftovers }`.
-- [ ] `activity` table and `dns_ownership` + `routes_meta` + `tunnels_local` migrations.
-- [ ] Progress over a `Channel<PlanProgress>`. `EntityChanged` is emitted at the end.
-- [ ] Tests with the fake `CloudApi`: failure injected at every step index → the state is restored (property test).
+- [x] Per-account async mutex. Staleness guard (re-observe + re-plan + compare). Config PUT with the expected version.
+- [x] Step retry policy and compensation per step (ARCHITECTURE §4.4). Report `RolledBack` vs `PartiallyApplied { leftovers }`.
+- [x] `activity` table and `dns_ownership` + `tunnels_local` migrations. *(`routes_meta` arrives with Disable in M3-09, where a route's definition must outlive its ingress rule.)*
+- [ ] Progress over a `Channel<PlanProgress>`. *(The engine reports `Progress` through a callback; the Channel lives in the desktop commands, M3-09.)* `EntityChanged` is emitted at the end.
+- [x] Tests with the fake `CloudApi`: failure injected at every step index → the state is restored (property test).
 
 ### M3-06 · Verifier
 - [ ] Staged probe (DNS via DoH, edge, tunnel, origin) per ARCHITECTURE §4.5, with Cloudflare error-page detection (1033, 1016, 502, 530) mapped to stages.

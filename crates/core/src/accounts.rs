@@ -387,7 +387,19 @@ impl Accounts {
         spawn_blocking(move || keys.iter().try_for_each(|key| secrets.delete(key))).await?;
         let removed = self
             .store
-            .call(move |conn| Ok(conn.execute("DELETE FROM accounts WHERE id = ?1", params![id])?))
+            .call(move |conn| {
+                let tx = conn.transaction()?;
+                // What the routes engine remembered for the account goes too.
+                for table in ["tunnels_local", "dns_ownership", "activity"] {
+                    tx.execute(
+                        &format!("DELETE FROM {table} WHERE account_id = ?1"),
+                        params![id],
+                    )?;
+                }
+                let removed = tx.execute("DELETE FROM accounts WHERE id = ?1", params![id])?;
+                tx.commit()?;
+                Ok(removed)
+            })
             .await?;
         if removed == 0 {
             Err(AccountError::NotFound)
@@ -719,9 +731,14 @@ mod tests {
         secrets
             .set("cf:a1:oauth", &Secret::new("refresh".into()))
             .unwrap();
+        let local = crate::engine::Local::new(accounts.store.clone());
+        local.set_machine_tunnel("a1", "t1", "Mac").await.unwrap();
+        local.log("a1", "Add", "applied", &[]).await.unwrap();
 
         accounts.remove("a1").await.unwrap();
         assert_eq!(secrets.keys(), ["cf:a2:apiToken"]);
+        assert_eq!(local.machine_tunnel("a1").await.unwrap(), None);
+        assert!(local.activity("a1", 5).await.unwrap().is_empty());
         assert_eq!(accounts.list().await.unwrap().len(), 1);
         assert!(matches!(
             accounts.remove("a1").await,

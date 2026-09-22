@@ -19,6 +19,7 @@ specta = ["dep:specta"]
 [dependencies]
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
+futures-util.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 rusqlite.workspace = true

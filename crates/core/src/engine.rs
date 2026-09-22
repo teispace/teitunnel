@@ -5,16 +5,28 @@
 //! executor applies a reviewed plan with a staleness guard, logs every step and
 //! compensates completed steps on failure.
 
+mod cloud;
+mod executor;
 mod ingress;
+mod local;
+mod observe;
 mod planner;
 mod types;
 
+#[cfg(test)]
+mod executor_tests;
+#[cfg(test)]
+mod fake;
 #[cfg(test)]
 mod planner_tests;
 #[cfg(test)]
 mod simulate;
 
+pub use cloud::{CloudApi, Connectors};
+pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
 pub use ingress::{CATCH_ALL, sort_ingress};
+pub use local::{ActivityEntry, Local, LocalTunnel};
+pub use observe::{ObserveError, observe};
 pub use planner::{PlanError, plan};
 pub use types::{
     Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,

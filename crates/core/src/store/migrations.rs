@@ -33,6 +33,34 @@ const MIGRATIONS: &[M<'static>] = &[
             added_at     INTEGER NOT NULL
         ) STRICT;",
     ),
+    // 4: routes engine: this Mac's tunnel per account, DNS ownership index, activity log
+    M::up(
+        "CREATE TABLE tunnels_local (
+            account_id           TEXT PRIMARY KEY NOT NULL,
+            tunnel_id            TEXT NOT NULL,
+            name                 TEXT NOT NULL,
+            last_applied_version INTEGER,
+            created_at           INTEGER NOT NULL
+        ) STRICT;
+        CREATE TABLE dns_ownership (
+            record_id  TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            zone_id    TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            route_id   TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX dns_ownership_account ON dns_ownership (account_id);
+        CREATE TABLE activity (
+            id         INTEGER PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            at         INTEGER NOT NULL,
+            summary    TEXT NOT NULL,
+            outcome    TEXT NOT NULL,
+            detail     TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX activity_account_at ON activity (account_id, at DESC);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

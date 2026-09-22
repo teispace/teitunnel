@@ -52,6 +52,7 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                         content: tunnel_target(&resolve(tunnel)),
                         proxied: true,
                         comment: Some(ownership_comment(route_id)),
+                        ttl: 1,
                     },
                 });
             }

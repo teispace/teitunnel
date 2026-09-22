@@ -162,6 +162,54 @@ pub enum Intent {
     RemoveTunnel,
 }
 
+impl Intent {
+    /// Hostnames whose DNS records the plan depends on (`None` = every routed hostname).
+    pub fn hostnames(&self) -> Option<Vec<&Hostname>> {
+        match self {
+            Self::AddRoute { route } => Some(vec![&route.hostname]),
+            Self::UpdateRoute {
+                hostname, route, ..
+            } => Some(vec![hostname, &route.hostname]),
+            Self::RemoveRoute { hostname, .. } => Some(vec![hostname]),
+            Self::RemoveTunnel => None,
+        }
+    }
+
+    /// A one-line summary for the activity log.
+    pub fn summary(&self) -> String {
+        fn target(hostname: &Hostname, path: Option<&PathRule>) -> String {
+            path.map_or_else(
+                || hostname.to_string(),
+                |p| format!("{hostname} (path {})", p.as_str()),
+            )
+        }
+        match self {
+            Self::AddRoute { route } => format!(
+                "Add {} → {}",
+                target(&route.hostname, route.path.as_ref()),
+                route.origin
+            ),
+            Self::UpdateRoute {
+                hostname,
+                path,
+                route,
+            } => {
+                let before = target(hostname, path.as_ref());
+                let after = target(&route.hostname, route.path.as_ref());
+                if before == after {
+                    format!("Change {before} → {}", route.origin)
+                } else {
+                    format!("Rename {before} to {after} → {}", route.origin)
+                }
+            }
+            Self::RemoveRoute { hostname, path } => {
+                format!("Remove {}", target(hostname, path.as_ref()))
+            }
+            Self::RemoveTunnel => "Remove every route and delete this Mac's tunnel".to_owned(),
+        }
+    }
+}
+
 /// Which tunnel a step refers to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", content = "id", rename_all = "camelCase")]

@@ -33,6 +33,7 @@ steps:
       content: dead-tunnel.cfargotunnel.com
       proxied: true
       comment: ~
+      ttl: 1
   - type: verify
     hostname: old.xyz.com
 warnings: []

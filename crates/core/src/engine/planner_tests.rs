@@ -64,6 +64,7 @@ fn foreign(zone: &str, id: &str, name: &str, kind: &str, content: &str) -> Obser
             content: content.into(),
             proxied: false,
             comment: None,
+            ttl: 1,
         },
         owned: false,
     }

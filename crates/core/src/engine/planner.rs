@@ -350,5 +350,6 @@ pub(crate) fn tunnel_record(id: &str, name: &str, tunnel_id: &str) -> cf_api::Dn
         content: tunnel_target(tunnel_id),
         proxied: true,
         comment: None,
+        ttl: 1,
     }
 }
