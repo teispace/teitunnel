@@ -4,24 +4,24 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-22
-**Phase:** Planning complete → starting **M0: Foundations**
-**Branch:** `main`. The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
+**Phase:** **M0: Foundations** in progress
+**Branch:** `milestone/m0-foundations` (PR #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M0-01 Workspace skeleton** ([plan](plans/M0-foundations.md#m0-01--workspace-skeleton))
-2. Then M0-02 → M0-12 in order. M0-06/07/08 (design) deserve the most care: screenshot-compare against macOS 27 System Settings.
+1. **M0-04 rest:** sonner Toaster (restyled), Zustand UI store.
+2. **M0-06 rest:** tokens review in the gallery, reduced-motion/transparency checks, material tokens in use, **packaged-build soak test** (`pnpm build`, launch the `.app`).
+3. **M0-07 primitives** → **M0-08 patterns** → **M0-09 menus/tray/⌘K** → **M0-10 store + settings** → M0-11/12 leftovers.
 
 ## In progress
-- Nothing.
+- M0 on branch `milestone/m0-foundations`, draft PR #1 (https://github.com/teispace/teitunnel/pull/1).
 
 ## Recently completed
-- 2026-09-22: Analysed the prototype and decided to rewrite (D-001).
-- 2026-09-22: Research on Cloudflare API, cloudflared endpoints and flags, OAuth, Tauri/macOS 27, and library versions (`research/`).
-- 2026-09-22: Full docs set: VISION, ARCHITECTURE, DESIGN, SECURITY_MODEL, CONVENTIONS, DECISIONS (D-001…D-022), ROADMAP, plans M0–M9.
-- 2026-09-22: Repo reset (prototype removed from `main`), repo prepared for public release.
+- 2026-09-22: M0-01 workspace, M0-02 crates (`Secret<T>`, redaction, cf-api envelope, cloudflared version), M0-03 Tauri shell (hidden-until-ready, single instance, window state, CSP, redacted rolling logs), M0-05 typed IPC (`app_info`, `app_ready`, `app_accent_color`, `EntityChanged`), CI workflow + cargo-deny + bundle budget + Dependabot, lefthook.
+- 2026-09-22: Sidebar shell calibrated against macOS 27 System Settings/Finder (D-024, D-025). Accent colour follows the system live (D-023).
+- 2026-09-22: Analysis, research, full docs set, repo reset and made public.
 
 ## Blockers / maintainer actions needed
 | Item | Needed by | Notes |
@@ -34,9 +34,11 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - v0.1 signing: unsigned developer preview vs waiting for a Developer ID? (decide at M1-13)
 
 ## Notes for the next session
-- **Exact resume point:** `main` @ docs-only state. The first step is `git checkout -b milestone/m0-foundations`, then implement M0-01, push, and open a draft PR to `main`.
+- **Resume point:** branch `milestone/m0-foundations` (draft PR #1). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.
+- Toggle the appearance with `osascript -e 'tell app "System Events" to tell appearance preferences to set dark mode to true|false'`. **The maintainer uses dark mode; restore it.** Accent tests: `defaults write -g AppleAccentColor -int 3` then `defaults delete -g AppleAccentColor` to restore (the key was absent) and post `AppleColorPreferencesChangedNotification`.
+- Don't automate Finder via AppleScript (it triggers an Automation permission prompt and times out).
+- pnpm 12 rejects packages published < 1 day ago (D-027); pin the previous release.
 - Toolchain on the maintainer machine: macOS 27.0, rustc 1.98, Node 26.9, pnpm 12.4.1.
-- Stay on Tauri 2.11.x (not 3 alpha). Pin tauri-specta rc exactly.
-- **Do not** use `NSGlassEffectView` / `tauri-plugin-liquid-glass` (crashes packaged builds on macOS 27; D-021).
-- Verify visual/material work in a **packaged** build, not only `tauri dev`.
+- Stay on Tauri 2.11.x. **Do not** use `NSGlassEffectView` (D-021). Verify material work in a **packaged** build.
 - Commits: Conventional Commits, **no AI attribution**.

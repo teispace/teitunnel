@@ -33,9 +33,9 @@ Every UI PR is reviewed against the **checklist at the bottom**.
 | Property | Value |
 |---|---|
 | Default size / min size | 1120 × 720 / 880 × 560 |
-| Title bar | `titleBarStyle: Overlay`, `hiddenTitle: true`, traffic lights at x=18, y=18 |
+| Title bar | `titleBarStyle: Overlay`, `hiddenTitle: true`, `trafficLightPosition {x:19, y:28}` (buttons at the same pixels as System Settings, D-025) |
 | Title bar height (drag region) | 52 px unified toolbar area; the content toolbar lives in it |
-| Sidebar | 220 px (resizable 180–300), vibrancy `sidebar` material, collapsible (⌘⌥S) |
+| Sidebar | 220 px (resizable 180–300), vibrancy `sidebar` material plus a dark-mode tint (D-024), collapsible (⌘⌥S) |
 | Content | opaque `--surface-content` |
 | Inspector | 320 px (resizable 280–480), toggle ⌘⌥I |
 | Split | Sidebar │ List │ Inspector (three-pane), like Mail/Finder |
@@ -97,8 +97,8 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 | Token | Light | Dark |
 |---|---|---|
 | `--surface-window` | `#ECECEC` | `#1E1E1E` |
-| `--surface-sidebar` | transparent (vibrancy) | transparent (vibrancy) |
-| `--surface-content` | `#FFFFFF` | `#232323` |
+| `--surface-sidebar` | transparent (vibrancy) | `rgb(0 0 0 / 0.42)` over vibrancy (D-024) |
+| `--surface-content` | `#FFFFFF` | `#212222` (measured, System Settings) |
 | `--surface-raised` (popover, sheet) | `#FFFFFF` | `#2C2C2C` |
 | `--surface-control` | `#FFFFFF` | `rgb(255 255 255 / 0.10)` |
 | `--surface-hover` | `rgb(0 0 0 / 0.04)` | `rgb(255 255 255 / 0.05)` |
@@ -110,14 +110,14 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 | `--text-on-accent` | `#FFFFFF` | `#FFFFFF` |
 | `--border-separator` | `rgb(0 0 0 / 0.10)` | `rgb(255 255 255 / 0.10)` |
 | `--border-control` | `rgb(0 0 0 / 0.15)` | `rgb(255 255 255 / 0.12)` |
-| `--accent` | `AccentColor`, fallback `#007AFF` | `AccentColor`, fallback `#0A84FF` |
+| `--accent` | system accent via AppKit, fallback `#007AFF` | same, fallback `#0A84FF` |
 | `--focus-ring` | accent @ 50%, 3.5 px outer | same |
 | `--status-healthy` | systemGreen `#34C759` | `#30D158` |
 | `--status-warning` | systemOrange `#FF9500` | `#FF9F0A` |
 | `--status-error` | systemRed `#FF3B30` | `#FF453A` |
 | `--status-idle` | systemGray `#8E8E93` | `#98989D` |
 
-- **Accent:** use the CSS system colour `AccentColor` (WebKit maps it to the macOS accent). M0 verifies this inside WKWebView, including live updates when the accent changes. If it's unsupported, Rust reads `NSColor.controlAccentColor` and pushes it as a CSS variable on change.
+- **Accent:** WKWebView's CSS `AccentColor` is a static blue (verified M0). The shell reads `NSColor.controlAccentColor` and the UI sets `--accent` on start and on every window focus (D-023). Tokens use `light-dark()`.
 - **Brand orange** (Cloudflare-adjacent) appears only in the app icon and the About window.
 - Increase contrast doubles separator/border alpha and raises `--text-secondary` to 0.7.
 
@@ -127,8 +127,8 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 
 - 4 px base grid. Common steps: 4, 8, 12, 16, 20, 24, 32.
 - Control heights: small 22, regular 28 (default), large 32 (onboarding only).
-- List row: 28 px single-line, 44 px two-line. Sidebar row: 28 px.
-- Radius: controls 6, rows/selection 6, cards/sections 10, sheets/popovers 12, window (system).
+- List row: 28 px single-line, 44 px two-line. Sidebar row: 32 px, 18 px icons, 10 px inset (D-025).
+- Radius: controls 6, list rows/selection 8, cards/sections 10, sheets/popovers 12, window (system).
 - Borders: 1 px hairlines (`0.5px` on 2× displays via `@media (min-resolution: 2dppx)`).
 - Shadows only on raised surfaces (popover, sheet, menu). Never on cards.
 
@@ -177,7 +177,7 @@ Button (primary / secondary / plain / destructive; `sm`/`md`), IconButton, Input
 `components/patterns/`:
 AppShell, TitlebarToolbar, Sidebar + SidebarItem, SplitView (resizable, persisted), ListPane + ListRow, Inspector + InspectorSection, KeyValueGrid, CopyField, HostnameInput (subdomain + zone picker + live validation), OriginPicker (detected services + manual), PlanPreview (steps + warnings + command copy), ProgressChecklist, EmptyState (one sentence + one primary action), ErrorState (message + hint + fix button), MetricTile, Sparkline (uPlot), LogViewer (virtualized), CommandPalette (cmdk), QRCode (SVG from Rust).
 
-Every primitive and pattern is shown in the **in-app dev gallery** (`/__dev/gallery`, dev builds only) in light and dark. The gallery runs inside the real WKWebView with real vibrancy, which Storybook in a browser can't do.
+Every primitive and pattern is shown in the **in-app dev gallery** (`/dev/gallery`, dev builds only) in light and dark. The gallery runs inside the real WKWebView with real vibrancy, which Storybook in a browser can't do.
 
 ---
 

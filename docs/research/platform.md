@@ -62,3 +62,14 @@ Sources: https://9to5mac.com/2026/06/09/macos-27-golden-gate-includes-these-chan
 - `AccentColor` CSS system colour inside WKWebView, including live updates on accent change.
 - Vibrancy `sidebar` material with an opaque content pane: check the compositing looks right in both themes and when the window is inactive.
 - The Edit menu is required for ⌘C/⌘V in inputs on macOS.
+
+## Verified in M0 (2026-09-22, macOS 27.0, Tauri 2.11.6)
+- `windowEffects: ["sidebar"]` works in dev builds; the material renders ~`(69,70,70)` in dark mode vs ~`(38,40,41)` for Finder/System Settings. `underWindowBackground` looks the same; `windowBackground` is opaque `(33,33,34)`. See D-024.
+- `trafficLightPosition {x:19, y:28}` reproduces System Settings' traffic-light position exactly. The `y` value is not the button's top edge (y=22 put the top at 14 pt).
+- CSS `AccentColor` inside WKWebView is a fixed blue and ignores the system accent, even after relaunch. `NSColor.controlAccentColor` via objc2-app-kit (safe API) returns the live value. See D-023.
+- `document.hasFocus()` + `onFocusChanged` drive the inactive-window state; inactive rendering (grey selection, grey icons) verified by screenshot.
+- `tauri-plugin-single-instance`: a second launch exits and focuses the first (verified).
+- Tauri's drag script supports `data-tauri-drag-region="deep"` (whole subtree drags; buttons/inputs excluded).
+- `tauri_plugin_window_state` must exclude `StateFlags::VISIBLE` when the window starts hidden.
+- pnpm 12 enforces `minimumReleaseAge` (1 day) and blocks install scripts unless listed under `allowBuilds` in `pnpm-workspace.yaml`.
+- `@tanstack/router-plugin` treats `_`-prefixed files as pathless layouts, so the dev gallery lives at `/dev/gallery`.

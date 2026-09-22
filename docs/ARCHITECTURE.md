@@ -308,7 +308,7 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `metrics_rollup` | tunnel_id, minute, requests, errors, rtt_p50, ha_conns |
 | `settings` | key/value JSON |
 
-App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `logs/`, `teitunnel.db`).
+App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `teitunnel.db`). Logs go to `~/Library/Logs/com.teispace.teitunnel/`.
 
 ---
 
@@ -362,7 +362,7 @@ Rules:
 
 ## 13. Observability of the app itself
 
-- `tracing` with a rolling file appender at `<app_data>/logs/`. A redaction layer scrubs anything that looks like a token or `Authorization` header.
+- `tracing` with a daily rolling file appender (7 files) at the OS log directory (`~/Library/Logs/com.teispace.teitunnel/` on macOS). A redaction layer scrubs anything that looks like a token or `Authorization` header.
 - **Export diagnostics** produces a zip of app logs (redacted), a Doctor report, versions, and `cloudflared tunnel diag` output for a selected connector. It's generated locally and never uploaded automatically.
 - There is no telemetry, analytics or crash upload.
 

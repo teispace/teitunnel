@@ -1,3 +1,6 @@
+output:
+  - failure
+
 # Fast pre-commit checks (< 3 s). CI runs the full suite.
 pre-commit:
   parallel: true

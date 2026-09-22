@@ -92,3 +92,23 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-020 · 2026-09-22 · Remove the embedded terminal
 **Decision:** No arbitrary command runner. It's replaced by a structured log viewer and "Copy as command" on every plan step and activity entry.
 **Why:** It was a security risk with low value.
+
+### D-023 · 2026-09-22 · Minimum macOS 14, `light-dark()` tokens, accent from AppKit
+**Decision:** `minimumSystemVersion` is 14.0 and the web build targets Safari 17. Colour tokens use CSS `light-dark()` and `color-scheme`, so each token is defined once and the theme override only pins `color-scheme`. The accent colour is read from `NSColor.controlAccentColor` (command `app_accent_color`) and applied as `--accent` on start and whenever the window regains focus.
+**Why:** Verified on macOS 27: WKWebView resolves CSS `AccentColor` to a fixed blue `(52,120,246)` even when the system accent is green, while System Settings follows it. Reading AppKit gives values identical to System Settings, updated live. `light-dark()` removes a whole duplicated dark block.
+
+### D-024 · 2026-09-22 · Dark sidebar tint over native vibrancy
+**Decision:** The sidebar keeps the native `sidebar` NSVisualEffectView, with a dark-mode-only tint `rgb(0 0 0 / 0.42)` (`--surface-sidebar`).
+**Why:** Measured on macOS 27: Finder and System Settings sidebars render ~`(38,40,41)` in dark mode, while the NSVisualEffectView `sidebar` material renders ~`(69,70,70)`. The tint lands at `(40,41,41)` and keeps some translucency. Light mode already matches (231 vs 236).
+
+### D-025 · 2026-09-22 · macOS 27 sidebar and title-bar metrics
+**Decision:** Sidebar rows are 32 px with 18 px accent-tinted icons, 10 px side inset and 8 px selection radius. Traffic lights use `trafficLightPosition {x: 19, y: 28}`, which puts the buttons at exactly the same pixels as System Settings (close button 19–32.5 pt × 20–31.5 pt). Selection happens on mouse-down, as in NSOutlineView.
+**Why:** Measured from System Settings and Finder screenshots on macOS 27. This supersedes the 28 px row / 6 px radius / (18,18) values in the first DESIGN draft.
+
+### D-026 · 2026-09-22 · Dependabot instead of Renovate; no `tauri-plugin-os`
+**Decision:** Weekly grouped Dependabot updates (Cargo, npm, Actions), with Tauri majors and specta RCs ignored. The `os` plugin is dropped because `app_info` already reports platform and arch.
+**Why:** Dependabot needs no third-party app installation (a maintainer-only action). Fewer plugins means a smaller attack surface.
+
+### D-027 · 2026-09-22 · Respect pnpm's minimum release age
+**Decision:** Keep pnpm 12's default supply-chain policy (packages must be at least a day old). Pin the previous release when the latest is too new (e.g. motion 13.4.0, jsdom 30.1.0).
+**Why:** It's a cheap defence against compromised fresh releases, consistent with SECURITY_MODEL.
