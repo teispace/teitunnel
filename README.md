@@ -2,13 +2,13 @@
 
 **A native desktop app for Cloudflare Tunnel.** Put any local app on your own domain in under a minute, and keep it clean, healthy and under control.
 
-> **Status: developer preview.** Quick Share for macOS works today; custom domains are next. See the [roadmap](docs/ROADMAP.md) and [current status](docs/STATUS.md).
+> **Status: developer preview.** Quick Share, routes on your own domains, the Doctor and always-on connectors work on macOS; signed releases come with v1.0. See the [roadmap](docs/ROADMAP.md) and [current status](docs/STATUS.md).
 
 <p align="center">
-  <img src="docs/screenshots/M1-09/quick-share-dark.png" alt="Teitunnel Quick Share in dark mode" width="720">
+  <img src="docs/screenshots/M5/routes-dark.png" alt="Teitunnel's Routes view in dark mode: routes grouped by domain, with status" width="720">
 </p>
 
-## What it will do
+## What it does
 
 - **Quick Share:** expose `localhost:3000` at a public `trycloudflare.com` URL in one click, with a QR code and no account needed.
 - **Routes across all your domains:** `app.xyz.com → localhost:3000`, `api.yx.com → localhost:5000`, served from one tunnel on your machine. Teitunnel creates the tunnel, configuration and DNS records for you.
@@ -19,6 +19,11 @@
 - **Always-on:** keep tunnels running after quitting the app or rebooting, managed by macOS launchd.
 - **Live insight:** request rates, errors, latency, edge locations and structured logs.
 - **Native:** built to feel like it shipped with macOS. Keyboard-first, menu bar extra, light and dark.
+
+<p align="center">
+  <img src="docs/screenshots/M5/route-review-dark.png" alt="Reviewing a plan before adding a route" width="360">
+  <img src="docs/screenshots/M5/doctor-light.png" alt="The Doctor listing problems with fixes" width="360">
+</p>
 - **Private and secure:** credentials live in your OS keychain. No telemetry and no Teitunnel servers.
 
 ## Install
