@@ -99,6 +99,13 @@ impl ServiceManager for Launchd {
     fn uninstall<'a>(&'a self, label: &'a str) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let _ = run(launchd::bootout(&self.domain, label)).await;
+            // bootout returns before the job is gone; wait for launchd to let go of it.
+            for _ in 0..50 {
+                if !self.state(label).await.loaded {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
             match tokio::fs::remove_file(self.plist_path(label)).await {
                 Ok(()) => Ok(()),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

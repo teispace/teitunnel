@@ -34,7 +34,7 @@
 - [x] Mode switch Session ↔ Always-on as a plan (start new → wait healthy → stop old, so there's no gap). *(`MachineTunnels::set_always_on`; a new connector that doesn't connect in 30 s is removed and the old one keeps running.)*
 - [x] Log tailing for service-run connectors (tail the log directory's current file, then parse JSON).
 - [ ] Binary update with always-on connectors: stage the new binary, then restart services one at a time and verify health.
-- [ ] Tests: plist snapshot tests; recording fake ServiceManager; a macOS-only integration test in CI (bootstrap and bootout a fake-cloudflared service).
+- [x] Tests: plist snapshot tests; recording fake ServiceManager; a macOS-only integration test in CI (bootstrap and bootout a fake-cloudflared service). *(Real-launchd test is opt-in (`TEITUNNEL_TEST_LAUNCHD=1`) and runs in the nightly workflow; the gapless switch is tested with `ProcessServices` + fake-cloudflared in every CI run.)*
 - [ ] Linux systemd --user and Windows Task Scheduler adapters: **compile + unit tests only** here, polished in M7/M8.
 
 ### M5-06 · App lifecycle & menu bar extra

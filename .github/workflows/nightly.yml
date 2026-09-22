@@ -25,3 +25,7 @@ jobs:
       - run: mkdir -p apps/desktop/dist
       - name: Real install and Quick Share
         run: cargo nextest run --workspace --locked --run-ignored only
+      - name: Always-on connector through the real launchd
+        env:
+          TEITUNNEL_TEST_LAUNCHD: "1"
+        run: cargo nextest run -p fake-cloudflared --locked -E 'test(installs_runs_and_removes_an_agent)'
