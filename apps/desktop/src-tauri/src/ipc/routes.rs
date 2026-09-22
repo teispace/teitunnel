@@ -274,3 +274,13 @@ pub fn tunnels_logs(
             .logs(&tunnel_id, usize::try_from(limit).unwrap_or(usize::MAX)),
     )
 }
+
+/// The last hour of this Mac's connector traffic for a tunnel.
+#[tauri::command]
+#[specta::specta]
+pub fn tunnels_traffic(
+    state: State<'_, AppState>,
+    tunnel_id: String,
+) -> Option<teitunnel_core::traffic::Traffic> {
+    state.machine.traffic(&tunnel_id)
+}

@@ -162,3 +162,14 @@ export function useTunnelLogs(tunnelId: string, enabled: boolean) {
     staleTime: 0,
   });
 }
+
+/** This Mac's connector traffic for a tunnel, refreshed with each 10 s sample. */
+export function useTraffic(tunnelId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["routes", "traffic", tunnelId],
+    queryFn: () => call(commands.tunnelsTraffic(tunnelId)),
+    enabled,
+    refetchInterval: 10_000,
+    staleTime: 0,
+  });
+}

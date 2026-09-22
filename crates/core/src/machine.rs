@@ -46,6 +46,7 @@ pub struct MachineTunnels {
     local: Local,
     /// Metrics ports of running connectors, by tunnel id.
     held: Arc<Mutex<HashMap<String, u16>>>,
+    traffic: crate::traffic::TrafficLog,
 }
 
 impl MachineTunnels {
@@ -64,6 +65,29 @@ impl MachineTunnels {
             secrets,
             local,
             held: Arc::default(),
+            traffic: crate::traffic::TrafficLog::default(),
+        }
+    }
+
+    /// The last hour of a tunnel connector's traffic (None until it has been sampled).
+    pub fn traffic(&self, tunnel_id: &str) -> Option<crate::traffic::Traffic> {
+        self.traffic.get(tunnel_id)
+    }
+
+    /// Samples every running connector's metrics every 10 s. Run once, in the background.
+    pub async fn sample_forever(self) {
+        let mut tick = tokio::time::interval(crate::traffic::INTERVAL);
+        loop {
+            tick.tick().await;
+            let running: Vec<(String, u16)> =
+                self.held().iter().map(|(t, p)| (t.clone(), *p)).collect();
+            for (tunnel, port) in running {
+                if let Ok(endpoints) = cloudflared::Endpoints::new(port)
+                    && let Ok(metrics) = endpoints.metrics().await
+                {
+                    self.traffic.record_now(&tunnel, metrics);
+                }
+            }
         }
     }
 
@@ -205,6 +229,7 @@ impl Connectors for MachineTunnels {
     async fn stop(&self, tunnel_id: &str) -> Result<(), String> {
         // Not running is fine: the goal is that it's stopped.
         let _ = self.supervisor.stop(&connector_id(tunnel_id)).await;
+        self.traffic.forget(tunnel_id);
         let port = self.held().remove(tunnel_id);
         if let Some(port) = port {
             self.ports.release(port);

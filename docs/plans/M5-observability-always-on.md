@@ -10,13 +10,13 @@
 ---
 
 ### M5-01 · Metrics pipeline
-- [ ] Scraper per connector (1 s while subscribed, 10 s otherwise). Derived series: requests/s, error rate, response-code classes, HA connections, RTT (latest/smoothed), active TCP/UDP sessions.
+- [ ] Scraper per connector (1 s while subscribed, 10 s otherwise). *(Started: 10 s sampler for this Mac's connectors into a 1 h ring buffer with restart-safe deltas (`core::traffic`), `tunnels_traffic`; 1 s subscriptions and rollups remain.)* Derived series: requests/s, error rate, response-code classes, HA connections, RTT (latest/smoothed), active TCP/UDP sessions.
 - [ ] In-memory ring buffer (3,600 points per series). Minute rollups go to `metrics_rollup` (7-day retention, pruned daily).
 - [ ] Edge locations from the connections API (colo names) and from log events.
 - [ ] Commands: `metrics_subscribe(tunnel) -> Channel<MetricsBatch>`, `metrics_history(tunnel, range)`.
 
 ### M5-02 · Charts
-- [ ] `Sparkline` and `TimeSeriesChart` patterns on uPlot, styled from tokens (theme-aware, redrawn on theme change), with hover crosshair and tooltip, tabular digits, and no animation except appending data.
+- [ ] `Sparkline` and `TimeSeriesChart` patterns on uPlot *(An SVG `Sparkline` exists and the Tunnels inspector has a Traffic section; uPlot time series remain.)*, styled from tokens (theme-aware, redrawn on theme change), with hover crosshair and tooltip, tabular digits, and no animation except appending data.
 - [ ] Route/tunnel inspector "Traffic" section, plus an Overview with health summary and top routes by traffic.
 
 ### M5-03 · Log viewer

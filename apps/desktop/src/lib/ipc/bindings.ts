@@ -129,6 +129,21 @@ export const commands = {
 	foreignStop: (pid: number) => __TAURI_INVOKE<null>("foreign_stop", { pid }),
 	/**  The newest log lines of this Mac's connector for a tunnel. */
 	tunnelsLogs: (tunnelId: string, limit: number) => __TAURI_INVOKE<LogLine[]>("tunnels_logs", { tunnelId, limit }),
+	/**  The last hour of this Mac's connector traffic for a tunnel. */
+	tunnelsTraffic: (tunnelId: string) => __TAURI_INVOKE<{
+	/**  The last hour, oldest first. */
+	points: TrafficPoint[],
+	/**  Requests since the connector started. */
+	totalRequests: number,
+	/**  Failed requests since the connector started. */
+	totalErrors: number,
+	/**  Edge connections now. */
+	connections: number,
+	/**  Round-trip time to the edge, in milliseconds. */
+	rttMs: number | null,
+	/**  Edge locations, e.g. `AMS`. */
+	locations: string[],
+} | null>("tunnels_traffic", { tunnelId }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
@@ -927,6 +942,32 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  Traffic of one tunnel's connector on this Mac. */
+export type Traffic = {
+	/**  The last hour, oldest first. */
+	points: TrafficPoint[],
+	/**  Requests since the connector started. */
+	totalRequests: number,
+	/**  Failed requests since the connector started. */
+	totalErrors: number,
+	/**  Edge connections now. */
+	connections: number,
+	/**  Round-trip time to the edge, in milliseconds. */
+	rttMs: number | null,
+	/**  Edge locations, e.g. `AMS`. */
+	locations: string[],
+};
+
+/**  One sample interval. */
+export type TrafficPoint = {
+	/**  Milliseconds since the epoch. */
+	at: number | null,
+	/**  Requests during the interval. */
+	requests: number,
+	/**  Failed requests during the interval. */
+	errors: number,
+};
 
 /**  A tunnel in the account. */
 export type TunnelSummary = {

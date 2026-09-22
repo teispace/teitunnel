@@ -404,6 +404,40 @@ export function installMockIpc(): void {
               connections: 4,
             },
           ];
+        case "tunnels_logs":
+          return [
+            {
+              time: null,
+              level: "info",
+              message: "Starting tunnel tunnelID=6ff42ae2",
+              error: null,
+            },
+            {
+              time: null,
+              level: "info",
+              message: "Registered tunnel connection connIndex=0 location=ams01",
+              error: null,
+            },
+            {
+              time: null,
+              level: "info",
+              message: "Registered tunnel connection connIndex=1 location=fra08",
+              error: null,
+            },
+          ];
+        case "tunnels_traffic":
+          return {
+            points: Array.from({ length: 120 }, (_, i) => ({
+              at: now - (120 - i) * 10_000,
+              requests: Math.round(8 + 6 * Math.sin(i / 9) + (i % 7) * 1.5 + (i > 90 ? 12 : 0)),
+              errors: i % 40 === 0 ? 1 : 0,
+            })),
+            totalRequests: 18_204,
+            totalErrors: 12,
+            connections: 4,
+            rttMs: 18.4,
+            locations: ["ams01", "fra08"],
+          };
         case "doctor_run":
           return [
             {

@@ -80,6 +80,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     );
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
     watch_tray_routes(app.clone());
+    tauri::async_runtime::spawn(machine.clone().sample_forever());
 
     Ok(AppState {
         accounts,

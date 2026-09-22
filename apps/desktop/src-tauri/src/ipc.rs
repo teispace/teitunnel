@@ -72,6 +72,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::foreign_list,
             routes::foreign_stop,
             routes::tunnels_logs,
+            routes::tunnels_traffic,
             doctor::doctor_run,
             doctor::doctor_fix_safe,
             doctor::diagnostics_preview,

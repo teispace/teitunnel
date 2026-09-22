@@ -23,6 +23,7 @@ mod secret;
 pub mod secrets;
 pub mod settings;
 pub mod store;
+pub mod traffic;
 
 pub use cloudflared::Error as CloudflaredError;
 pub use error::{Error, ErrorKind, Result};

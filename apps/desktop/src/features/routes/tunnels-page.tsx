@@ -8,6 +8,7 @@ import { Inspector, InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { ListPane, ListRow } from "@/components/patterns/list-pane";
 import { LogLines } from "@/components/patterns/log-lines";
+import { Sparkline } from "@/components/patterns/sparkline";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
   useForeignConnectors,
   useStopForeign,
+  useTraffic,
   useTunnelAction,
   useTunnelLogs,
   useTunnels,
@@ -223,6 +225,7 @@ function TunnelInspector({
           </ul>
         )}
       </InspectorSection>
+      {tunnel.thisMac ? <TunnelTraffic tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
         <p className="text-callout text-secondary">
@@ -233,8 +236,38 @@ function TunnelInspector({
   );
 }
 
+function TunnelTraffic({ tunnelId }: { tunnelId: string }) {
+  const { data: traffic } = useTraffic(tunnelId, true);
+  if (!traffic) return null;
+  const recent = traffic.points.slice(-6).reduce((sum, p) => sum + p.requests, 0);
+  return (
+    <InspectorSection title="Traffic">
+      <Sparkline values={traffic.points.map((p) => p.requests)} label="Requests in the last hour" />
+      <KeyValueGrid
+        items={[
+          {
+            label: "Last minute",
+            value: `${recent.toLocaleString()} request${recent === 1 ? "" : "s"}`,
+          },
+          {
+            label: "Since start",
+            value: `${traffic.totalRequests.toLocaleString()} requests, ${traffic.totalErrors.toLocaleString()} failed`,
+          },
+          { label: "Connections", value: String(traffic.connections) },
+          ...(traffic.rttMs !== null
+            ? [{ label: "Round trip", value: `${Math.round(traffic.rttMs)} ms` }]
+            : []),
+          ...(traffic.locations.length > 0
+            ? [{ label: "Edge", value: traffic.locations.join(", ").toUpperCase() }]
+            : []),
+        ]}
+      />
+    </InspectorSection>
+  );
+}
+
 function TunnelLogs({ tunnelId }: { tunnelId: string }) {
-  const { data: lines = [] } = useTunnelLogs(tunnelId, true);
+  const lines = useTunnelLogs(tunnelId, true).data ?? [];
   return (
     <InspectorSection title="Logs">
       <LogLines lines={lines} empty="The connector hasn't logged anything yet." />
