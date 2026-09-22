@@ -1,0 +1,93 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/desktop/src-tauri", "tools/fake-cloudflared"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/teispace/teitunnel"
+homepage = "https://github.com/teispace/teitunnel"
+authors = ["Teispace <info@teispace.com>"]
+publish = false
+
+[workspace.dependencies]
+# Internal
+teitunnel-cf-api = { path = "crates/cf-api" }
+teitunnel-cloudflared = { path = "crates/cloudflared" }
+teitunnel-core = { path = "crates/core" }
+
+# Tauri (stay on 2.x, D-015)
+tauri = { version = "2.11.6" }
+tauri-build = { version = "2.5" }
+tauri-plugin-single-instance = "2.4.5"
+tauri-plugin-window-state = "2.4"
+tauri-plugin-opener = "2.5"
+# Pinned exactly: release candidates (D-014)
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "=0.0.12"
+
+# Runtime
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
+tokio-util = "0.7"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.20"
+uuid = { version = "1.26", features = ["v4", "serde"] }
+regex = "1.13"
+
+# Persistence
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite_migration = "2.6.0"
+
+# Observability
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2.5"
+
+# Testing
+insta = { version = "1.48", features = ["json"] }
+proptest = "1.11"
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+print_stderr = "warn"
+# Selected pedantic lints
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_let_else = "warn"
+match_same_arms = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+uninlined_format_args = "warn"
+unnested_or_patterns = "warn"
+unused_self = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+panic = "abort"
+strip = "symbols"
+
+[profile.dev.package."*"]
+opt-level = 1

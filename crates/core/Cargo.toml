@@ -1,0 +1,25 @@
+[package]
+name = "teitunnel-core"
+description = "Teitunnel's product core: domain, engine, runtime, discovery, doctor and store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "teitunnel_core"
+
+[dependencies]
+teitunnel-cf-api.workspace = true
+teitunnel-cloudflared.workspace = true
+regex.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

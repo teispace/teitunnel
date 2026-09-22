@@ -1,0 +1,124 @@
+/*
+ * Design tokens (DESIGN §3–§5). The only file allowed to contain raw colour values.
+ *
+ * Colours use `light-dark()`, so each token is defined once. `color-scheme` follows the
+ * system appearance and is pinned by `data-theme="light|dark"` on <html> when the user
+ * overrides it in Settings.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Typography */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", system-ui,
+    sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+
+  /* Accent: the system accent colour, with Apple's default blue as a fallback. */
+  --accent: light-dark(#007aff, #0a84ff);
+
+  /* Surfaces */
+  --surface-window: light-dark(#ececec, #1e1e1e);
+  /* Tint over the native sidebar vibrancy: macOS 27 sidebars are darker than the
+     NSVisualEffectView sidebar material renders in dark mode (measured vs Finder). */
+  --surface-sidebar: light-dark(transparent, rgb(0 0 0 / 0.42));
+  --surface-content: light-dark(#ffffff, #212222);
+  --surface-raised: light-dark(#ffffff, #2c2c2c);
+  --surface-control: light-dark(#ffffff, rgb(255 255 255 / 0.1));
+  --surface-control-pressed: light-dark(#f0f0f0, rgb(255 255 255 / 0.16));
+  --surface-hover: light-dark(rgb(0 0 0 / 0.04), rgb(255 255 255 / 0.05));
+  --surface-pressed: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.1));
+  --surface-selected: var(--accent);
+  --surface-selected-inactive: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.1));
+  --surface-sidebar-selected: light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.1));
+  --surface-sidebar-selected-inactive: light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06));
+  --surface-inset: light-dark(rgb(0 0 0 / 0.03), rgb(255 255 255 / 0.03));
+  --border-inset: light-dark(rgb(0 0 0 / 0.055), rgb(255 255 255 / 0.05));
+  --surface-backdrop: light-dark(rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.4));
+
+  /* Text */
+  --text-primary: light-dark(rgb(0 0 0 / 0.85), rgb(255 255 255 / 0.85));
+  --text-secondary: light-dark(rgb(0 0 0 / 0.5), rgb(255 255 255 / 0.55));
+  --text-tertiary: light-dark(rgb(0 0 0 / 0.26), rgb(255 255 255 / 0.25));
+  --text-on-accent: #ffffff;
+
+  /* Borders */
+  --border-separator: light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.1));
+  --border-control: light-dark(rgb(0 0 0 / 0.15), rgb(255 255 255 / 0.12));
+  --border-raised: light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.6));
+  --highlight-raised: light-dark(transparent, rgb(255 255 255 / 0.1));
+  --hairline: 1px;
+
+  /* Focus */
+  --focus-ring: color-mix(in srgb, var(--accent) 50%, transparent);
+  --focus-ring-width: 3.5px;
+
+  /* Status */
+  --status-healthy: light-dark(#34c759, #30d158);
+  --status-warning: light-dark(#ff9500, #ff9f0a);
+  --status-error: light-dark(#ff3b30, #ff453a);
+  --status-idle: light-dark(#8e8e93, #98989d);
+
+  /* Materials for controls floating over content (DESIGN §2a). */
+  --material-glass-tint: light-dark(rgb(255 255 255 / 0.62), rgb(44 44 44 / 0.6));
+  --material-glass-highlight: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.12));
+  --material-glass-filter: blur(20px) saturate(180%);
+
+  /* Elevation (raised surfaces only) */
+  --shadow-control:
+    0 0.5px 1px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.3)),
+    0 0 0 0.5px light-dark(rgb(0 0 0 / 0.08), transparent),
+    inset 0 0.5px 0 light-dark(transparent, rgb(255 255 255 / 0.08));
+  --shadow-raised:
+    0 0 0 0.5px var(--border-raised), inset 0 0.5px 0 var(--highlight-raised),
+    0 8px 28px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.4)),
+    0 2px 6px light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.2));
+  --shadow-sheet:
+    0 0 0 0.5px var(--border-raised), inset 0 0.5px 0 var(--highlight-raised),
+    0 20px 60px light-dark(rgb(0 0 0 / 0.25), rgb(0 0 0 / 0.5));
+
+  /* Layout */
+  --toolbar-height: 52px;
+  --sidebar-width: 220px;
+  --inspector-width: 320px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@supports (color: AccentColor) {
+  :root {
+    --accent: AccentColor;
+  }
+}
+
+/* Retina: hairlines are half a CSS pixel, like AppKit separators. */
+@media (min-resolution: 2dppx) {
+  :root {
+    --hairline: 0.5px;
+  }
+}
+
+/* Increase contrast (DESIGN §4). */
+@media (prefers-contrast: more) {
+  :root {
+    --text-secondary: light-dark(rgb(0 0 0 / 0.7), rgb(255 255 255 / 0.7));
+    --border-separator: light-dark(rgb(0 0 0 / 0.2), rgb(255 255 255 / 0.2));
+    --border-control: light-dark(rgb(0 0 0 / 0.3), rgb(255 255 255 / 0.25));
+    --hairline: 1px;
+  }
+}
+
+/* Reduce transparency: CSS materials become opaque (DESIGN §2a). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --material-glass-tint: var(--surface-raised);
+    --material-glass-filter: none;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "teitunnel",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @teitunnel/desktop tauri dev",
+    "build": "pnpm --filter @teitunnel/desktop tauri build",
+    "tauri": "pnpm --filter @teitunnel/desktop tauri",
+    "check": "biome ci . && pnpm --filter @teitunnel/desktop typecheck && cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "test": "pnpm --filter @teitunnel/desktop test && cargo nextest run --workspace --locked",
+    "fmt": "biome check --write . && cargo fmt --all",
+    "bindings": "cargo run --quiet --locked -p teitunnel-desktop --bin export-bindings"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14"
+  }
+}

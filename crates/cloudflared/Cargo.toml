@@ -1,0 +1,18 @@
+[package]
+name = "teitunnel-cloudflared"
+description = "Locate, install, run and observe the cloudflared binary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "cloudflared"
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true

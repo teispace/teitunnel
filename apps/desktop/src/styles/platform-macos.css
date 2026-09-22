@@ -1,0 +1,25 @@
+/*
+ * macOS window chrome: drag regions, the traffic-light inset and the inactive-window
+ * state. `data-platform` and `data-window-active` are set on <html> by `app/platform.ts`.
+ */
+
+/* Sidebar icons are accent-tinted in the active window (macOS 27). */
+:root {
+  --sidebar-icon: var(--accent);
+}
+
+/* Inactive window: the selection turns grey and accent tints fade, as in AppKit. */
+:root[data-window-active="false"] {
+  --surface-selected: var(--surface-selected-inactive);
+  --text-on-accent: var(--text-primary);
+  --sidebar-icon: var(--text-secondary);
+}
+
+/* Reserve room for the traffic lights (three 12 px buttons at x = 18). */
+:root[data-platform="macos"] {
+  --traffic-light-inset: 88px;
+}
+
+:root:not([data-platform="macos"]) {
+  --traffic-light-inset: 0px;
+}
