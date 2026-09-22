@@ -66,6 +66,8 @@ function warningText(warning: Warning): string {
   switch (warning.type) {
     case "replacesForeignRecord":
       return `${warning.hostname} already has ${/^[AEIOU]/.test(warning.kind) ? "an" : "a"} ${warning.kind} record (${warning.content}) that Teitunnel didn't create. It will be replaced.`;
+    case "deletesForeignRecord":
+      return `The ${warning.kind} record for ${warning.hostname} (${warning.content}) wasn't created by Teitunnel. It will be deleted.`;
     case "keepsForeignRecord":
       return `The DNS record for ${warning.hostname} wasn't created by Teitunnel, so it's left in place.`;
     case "tunnelEmpty":

@@ -39,7 +39,7 @@ export const commands = {
 	binaryCheckUpdate: () => __TAURI_INVOKE<UpdateInfo>("binary_check_update"),
 	/**  Shows the binary in Finder. */
 	binaryReveal: () => __TAURI_INVOKE<null>("binary_reveal"),
-	/**  Services listening on this Mac, likely dev servers first. */
+	/**  Services listening on this Mac and Docker containers' ports, likely dev servers first. */
 	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
 	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
 	quickShareStart: (origin: string, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes }),
@@ -118,6 +118,8 @@ export const commands = {
 	tunnelsStop: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_stop", { accountId, tunnelId }),
 	/**  Removes a tunnel's stale connections (left by connectors that went away uncleanly). */
 	tunnelsClean: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_clean", { accountId, tunnelId }),
+	/**  Checks cloudflared and every connected account; issues sorted by severity. */
+	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 };
 
 /** Events */
@@ -203,7 +205,7 @@ export type Capabilities = {
 	zones: ZoneGrant[],
 };
 
-/**  A change the user asks for. */
+/**  A change the user asks for (or a Doctor fix proposes). */
 export type Change = 
 /**  Add a route. */
 { type: "addRoute"; 
@@ -226,7 +228,15 @@ path: string | null } |
 /**  Remove every route and delete this Mac's tunnel. */
 { type: "removeTunnel" } | 
 /**  Undo an outside edit of this Mac's routes. */
-{ type: "restoreConfig" };
+{ type: "restoreConfig" } | 
+/**  Delete one DNS record (an orphan found by the Doctor). */
+{ type: "deleteRecord"; 
+/**  Zone id. */
+zoneId: string; 
+/**  The record's name. */
+hostname: string; 
+/**  Record id. */
+recordId: string };
 
 /**  One connector connected to the edge. */
 export type ConnectionView = {
@@ -399,6 +409,27 @@ listening: boolean | null } |
 /**  The origin didn't answer in time (504). */
 { type: "originTimeout" };
 
+/**  A way to fix an issue. */
+export type Fix = 
+/**  A change in Cloudflare, previewed as a plan before it's applied. */
+{ type: "change"; 
+/**  Button title, e.g. "Create the DNS record". */
+label: string; 
+/**  The change. */
+change: Change } | 
+/**  Install (or update) the managed cloudflared. */
+{ type: "installBinary" } | 
+/**  Start this Mac's connector. */
+{ type: "startConnector"; 
+/**  Account. */
+accountId: string } | 
+/**  Accept an outside edit of this Mac's routes. */
+{ type: "keepTheirs"; 
+/**  Account. */
+accountId: string } | 
+/**  Create a token with the right permissions. */
+{ type: "reconnect" };
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -420,6 +451,28 @@ total: number } |
 { step: "verifying" } | 
 /**  Moving the binary into place. */
 { step: "installing" };
+
+/**  A detected problem. */
+export type Issue = {
+	/**  Stable id (check, account, subject), so "Ignore" survives restarts. */
+	id: string,
+	/**  Which check found it, e.g. `dns.missing`. */
+	check: string,
+	/**  How bad it is. */
+	severity: Severity,
+	/**  The account it's in, if any. */
+	accountId: string | null,
+	/**  What it's about, e.g. a hostname or a tunnel name. */
+	subject: string,
+	/**  One line. */
+	title: string,
+	/**  What it means and what to do. */
+	detail: string,
+	/**  Supporting facts (records, states). */
+	evidence: string[],
+	/**  Fixes, the recommended one first. */
+	fixes: Fix[],
+};
 
 /**  A TCP port something on this machine is listening on. */
 export type LocalService = {
@@ -672,6 +725,15 @@ export type SettingsPatch = {
 	showInMenuBar?: boolean | null,
 };
 
+/**  How bad an issue is. */
+export type Severity = 
+/**  Something doesn't work. */
+"error" | 
+/**  Something may stop working, or needs attention. */
+"warning" | 
+/**  Worth knowing; nothing is broken. */
+"info";
+
 /**  Live traffic numbers for a share. */
 export type ShareStats = {
 	/**  Requests served. */
@@ -811,6 +873,14 @@ hostname: string;
 /**  Existing type. */
 kind: string; 
 /**  Existing content. */
+content: string } | 
+/**  A record Teitunnel didn't create will be deleted. */
+{ type: "deletesForeignRecord"; 
+/**  Hostname. */
+hostname: string; 
+/**  Type. */
+kind: string; 
+/**  Content. */
 content: string } | 
 /**  A record Teitunnel didn't create is left in place. */
 { type: "keepsForeignRecord"; 

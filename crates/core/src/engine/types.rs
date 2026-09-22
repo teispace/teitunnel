@@ -164,6 +164,15 @@ pub enum Intent {
     },
     /// Remove every route and delete the machine tunnel.
     RemoveTunnel,
+    /// Delete one DNS record (Doctor cleanup of orphans).
+    DeleteRecord {
+        /// Zone id.
+        zone_id: String,
+        /// The record's name.
+        hostname: Hostname,
+        /// Record id.
+        record_id: String,
+    },
     /// Put back the routes Teitunnel last wrote, undoing an edit made elsewhere.
     RestoreConfig {
         /// The ingress Teitunnel last applied.
@@ -179,7 +188,9 @@ impl Intent {
             Self::UpdateRoute {
                 hostname, route, ..
             } => Some(vec![hostname, &route.hostname]),
-            Self::RemoveRoute { hostname, .. } => Some(vec![hostname]),
+            Self::RemoveRoute { hostname, .. } | Self::DeleteRecord { hostname, .. } => {
+                Some(vec![hostname])
+            }
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. } => Some(Vec::new()),
         }
@@ -219,6 +230,7 @@ impl Intent {
             Self::RestoreConfig { .. } => {
                 "Restore this Mac's routes after an outside edit".to_owned()
             }
+            Self::DeleteRecord { hostname, .. } => format!("Delete the DNS record for {hostname}"),
         }
     }
 }
@@ -389,6 +401,15 @@ pub enum Warning {
         /// Existing type.
         kind: String,
         /// Existing content.
+        content: String,
+    },
+    /// A record Teitunnel didn't create will be deleted.
+    DeletesForeignRecord {
+        /// Hostname.
+        hostname: String,
+        /// Type.
+        kind: String,
+        /// Content.
         content: String,
     },
     /// A record Teitunnel didn't create is left in place.

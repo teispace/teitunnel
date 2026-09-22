@@ -31,6 +31,9 @@ pub enum PlanError {
     /// Nothing to remove.
     #[error("This Mac doesn't have a tunnel yet.")]
     NoTunnel,
+    /// The record is gone (or never existed).
+    #[error("The DNS record for {0} no longer exists.")]
+    NoSuchRecord(String),
 }
 
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
@@ -341,6 +344,29 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             if !hostname_still_used {
                 b.release_dns(hostname.as_str(), &tunnel_id);
             }
+        }
+        Intent::DeleteRecord {
+            zone_id,
+            hostname,
+            record_id,
+        } => {
+            let record = snapshot
+                .records
+                .iter()
+                .find(|r| r.record.id == *record_id)
+                .ok_or_else(|| PlanError::NoSuchRecord(hostname.to_string()))?;
+            if !record.owned {
+                b.requires_confirmation = true;
+                b.warnings.push(Warning::DeletesForeignRecord {
+                    hostname: record.record.name.clone(),
+                    kind: record.record.kind.clone(),
+                    content: record.record.content.clone(),
+                });
+            }
+            b.steps.push(Step::DeleteRecord {
+                zone_id: zone_id.clone(),
+                record: record.record.clone(),
+            });
         }
         Intent::RestoreConfig { ingress } => {
             let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;

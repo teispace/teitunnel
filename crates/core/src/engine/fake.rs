@@ -268,6 +268,16 @@ impl CloudApi for FakeCloud {
         })
     }
 
+    async fn cname_records(&self, zone: &str) -> cf_api::Result<Vec<DnsRecord>> {
+        self.with_zone(zone, |records| {
+            Ok(records
+                .iter()
+                .filter(|r| r.kind == "CNAME")
+                .cloned()
+                .collect())
+        })
+    }
+
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {
         self.mutate()?;
         let id = self.next_id("rec");

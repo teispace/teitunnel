@@ -740,3 +740,54 @@ async fn lists_tunnels_with_this_macs_first() {
     assert!(!tunnels[1].this_mac);
     assert_eq!(tunnels[1].connector, None);
 }
+
+#[tokio::test]
+async fn deletes_single_records_with_confirmation_for_foreign_ones() {
+    use super::views::Change;
+
+    let mut state = zones();
+    state.records.insert(
+        "z-xyz".into(),
+        vec![
+            {
+                let mut r = foreign_a("mine", "old.xyz.com");
+                r.comment = Some("teitunnel:route=abc".into());
+                r
+            },
+            foreign_a("theirs", "blog.xyz.com"),
+        ],
+    );
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(state), FakeConnectors::default());
+    let delete = |hostname: &str, id: &str| Change::DeleteRecord {
+        zone_id: "z-xyz".into(),
+        hostname: hostname.into(),
+        record_id: id.into(),
+    };
+
+    let owned = engine
+        .intent_for(&cloud, CTX, &delete("old.xyz.com", "mine"))
+        .await
+        .unwrap();
+    let plan = engine.preview(&cloud, CTX, &owned).await.unwrap();
+    assert!(!plan.requires_confirmation);
+    run(&engine, &cloud, &conns, &owned).await;
+
+    let theirs = engine
+        .intent_for(&cloud, CTX, &delete("blog.xyz.com", "theirs"))
+        .await
+        .unwrap();
+    let plan = engine.preview(&cloud, CTX, &theirs).await.unwrap();
+    assert!(
+        plan.requires_confirmation,
+        "deleting someone else's record needs a yes"
+    );
+    run(&engine, &cloud, &conns, &theirs).await;
+    assert_eq!(cloud.snapshot().record_count(), 0);
+
+    let gone = engine
+        .intent_for(&cloud, CTX, &delete("blog.xyz.com", "theirs"))
+        .await
+        .unwrap();
+    let err = engine.preview(&cloud, CTX, &gone).await.unwrap_err();
+    assert!(matches!(err, EngineError::Plan(_)), "{err:?}");
+}

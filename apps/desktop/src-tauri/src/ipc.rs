@@ -8,6 +8,7 @@
 
 mod accounts;
 mod app;
+mod doctor;
 mod events;
 mod quick_share;
 mod routes;
@@ -66,7 +67,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::tunnels_list,
             routes::tunnels_start,
             routes::tunnels_stop,
-            routes::tunnels_clean
+            routes::tunnels_clean,
+            doctor::doctor_run
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

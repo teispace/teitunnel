@@ -76,6 +76,11 @@ pub trait CloudApi: Send + Sync {
         zone: &str,
         name: &str,
     ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
+    /// Every CNAME in a zone.
+    fn cname_records(
+        &self,
+        zone: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
     /// Creates a record.
     fn create_record(
         &self,
@@ -189,6 +194,10 @@ impl CloudApi for Client {
 
     async fn records_named(&self, zone: &str, name: &str) -> cf_api::Result<Vec<DnsRecord>> {
         self.dns_records_named(zone, name).await
+    }
+
+    async fn cname_records(&self, zone: &str) -> cf_api::Result<Vec<DnsRecord>> {
+        self.dns_records_of_type(zone, "CNAME").await
     }
 
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {

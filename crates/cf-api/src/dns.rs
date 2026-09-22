@@ -82,6 +82,19 @@ impl Client {
         .await
     }
 
+    /// Records of one type in a zone, e.g. every `CNAME` (orphan scans).
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn dns_records_of_type(&self, zone: &str, kind: &str) -> Result<Vec<DnsRecord>> {
+        self.get_all(&format!(
+            "{}?type={}",
+            records_path(zone),
+            crate::encode_query(kind)
+        ))
+        .await
+    }
+
     /// Records in a zone whose comment contains `needle` (ownership scans).
     ///
     /// # Errors

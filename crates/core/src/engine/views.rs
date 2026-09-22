@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// A route as typed in the add/edit sheet.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct RouteInput {
@@ -23,8 +23,8 @@ pub struct RouteInput {
     pub origin: String,
 }
 
-/// A change the user asks for.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+/// A change the user asks for (or a Doctor fix proposes).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(
     tag = "type",
@@ -57,6 +57,15 @@ pub enum Change {
     RemoveTunnel,
     /// Undo an outside edit of this Mac's routes.
     RestoreConfig,
+    /// Delete one DNS record (an orphan found by the Doctor).
+    DeleteRecord {
+        /// Zone id.
+        zone_id: String,
+        /// The record's name.
+        hostname: String,
+        /// Record id.
+        record_id: String,
+    },
 }
 
 /// Rejected input, pointing at the field to fix.
@@ -159,6 +168,15 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             path: parse_path(path.as_deref())?,
         },
         Change::RemoveTunnel => Intent::RemoveTunnel,
+        Change::DeleteRecord {
+            zone_id,
+            hostname,
+            record_id,
+        } => Intent::DeleteRecord {
+            zone_id: zone_id.clone(),
+            hostname: parse_hostname(hostname)?,
+            record_id: record_id.clone(),
+        },
         // Filled in by the engine from the drift record.
         Change::RestoreConfig => Intent::RestoreConfig {
             ingress: Vec::new(),

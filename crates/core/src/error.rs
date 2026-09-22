@@ -72,7 +72,9 @@ impl Error {
             }
             Self::Engine(e) => match e {
                 E::Plan(P::NoZone(_) | P::RouteExists(_)) | E::Input(_) => ErrorKind::InvalidInput,
-                E::Plan(P::NoSuchRoute(_) | P::NoTunnel) => ErrorKind::NotFound,
+                E::Plan(P::NoSuchRoute(_) | P::NoTunnel | P::NoSuchRecord(_)) => {
+                    ErrorKind::NotFound
+                }
                 E::Stale(_) | E::NeedsConfirmation | E::NothingToRestore => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
