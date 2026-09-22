@@ -14,3 +14,9 @@ serde_json.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+teitunnel-core.workspace = true
+teitunnel-cloudflared.workspace = true
+tempfile.workspace = true
+sysinfo.workspace = true

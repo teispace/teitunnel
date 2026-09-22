@@ -9,6 +9,9 @@ pub enum Error {
     /// Working with the cloudflared binary failed.
     #[error(transparent)]
     Cloudflared(#[from] cloudflared::Error),
+    /// A connector operation failed.
+    #[error(transparent)]
+    Runtime(#[from] crate::runtime::SupervisorError),
     /// The local database failed.
     #[error(transparent)]
     Store(#[from] crate::store::StoreError),
