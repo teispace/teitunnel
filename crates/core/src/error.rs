@@ -10,6 +10,9 @@ pub enum Error {
     /// Working with the cloudflared binary failed.
     #[error(transparent)]
     Cloudflared(#[from] cloudflared::Error),
+    /// An account operation failed.
+    #[error(transparent)]
+    Accounts(#[from] crate::accounts::AccountError),
     /// A Quick Share operation failed.
     #[error(transparent)]
     QuickShare(#[from] crate::quick_share::QuickShareError),

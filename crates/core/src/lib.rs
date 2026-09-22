@@ -5,6 +5,7 @@
 //!
 //! See `docs/ARCHITECTURE.md` for the design of each module.
 
+pub mod accounts;
 pub mod binary;
 pub mod discovery;
 pub mod doctor;

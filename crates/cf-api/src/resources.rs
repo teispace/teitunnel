@@ -122,6 +122,14 @@ impl Client {
             .await
     }
 
+    /// Every zone the credential can see, across accounts.
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn all_zones(&self) -> Result<Vec<Zone>> {
+        self.get_all("/zones").await
+    }
+
     /// One zone.
     ///
     /// # Errors

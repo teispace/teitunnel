@@ -56,6 +56,10 @@ nix = { version = "0.31.3", default-features = false, features = ["signal", "pro
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
 listeners = "0.6.1"
 
+# Secrets (OS keychain)
+keyring = "4.2.0"
+base64 = "0.22"
+
 # Persistence
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rusqlite_migration = "2.6.0"

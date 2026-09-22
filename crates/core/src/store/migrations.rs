@@ -23,6 +23,16 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT;
         CREATE INDEX quick_shares_started ON quick_shares (started_at DESC);",
     ),
+    // 3: Cloudflare accounts (metadata only; credentials live in the keychain)
+    M::up(
+        "CREATE TABLE accounts (
+            id           TEXT PRIMARY KEY NOT NULL,
+            name         TEXT NOT NULL,
+            credential   TEXT NOT NULL,
+            limited_zone TEXT,
+            added_at     INTEGER NOT NULL
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
