@@ -14,7 +14,8 @@
     "test": "pnpm --filter @teitunnel/desktop test && cargo nextest run --workspace --locked",
     "fmt": "biome check --write . && cargo fmt --all",
     "bindings": "cargo run --quiet --locked -p teitunnel-desktop --bin export-bindings",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "verify": "pnpm check && pnpm test && cargo deny check --hide-inclusion-graph"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
