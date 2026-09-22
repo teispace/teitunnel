@@ -79,7 +79,7 @@
 
 ### M1-12 · Tests & E2E
 - [x] Vitest flow tests for Quick Share with `mockIPC`.
-- [ ] `@wdio/tauri-service` E2E on macOS CI: launch the app with `TEITUNNEL_CLOUDFLARED=fake-cloudflared`, start a share, assert the URL shows, stop, and assert no process is left.
+- [x] `@wdio/tauri-service` E2E on macOS CI: launch the app with `TEITUNNEL_CLOUDFLARED=fake-cloudflared`, start a share, assert the URL shows, stop, and assert no process is left. (Embedded WebDriver + wdio plugin only in `--features e2e` builds; E2E builds refuse to start without the fake binary.)
 - [ ] Nightly workflow: real cloudflared, real Quick Share against a local HTTP server; fetch the public URL and expect 200.
 
 ### M1-13 · Release v0.1.0

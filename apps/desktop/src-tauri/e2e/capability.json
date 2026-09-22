@@ -1,0 +1,6 @@
+{
+  "identifier": "e2e",
+  "description": "E2E builds only (added at runtime behind the `e2e` feature).",
+  "windows": ["main", "settings"],
+  "permissions": ["wdio-webdriver:default", "wdio:default"]
+}

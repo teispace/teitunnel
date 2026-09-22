@@ -4,6 +4,7 @@ import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { spring } from "@/lib/motion-tokens";
+import { usePageVisible } from "@/lib/use-page-visible";
 import { ShareCard } from "./components/share-card";
 import { ShareComposer } from "./components/share-composer";
 import { useQuickShares } from "./queries";
@@ -15,6 +16,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const { data: shares = [] } = useQuickShares();
   const binary = useBinaryStatus();
+  const visible = usePageVisible();
   const missing = binary.isSuccess && !binaryReady(binary.data);
 
   return (
@@ -41,7 +43,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
                 layout
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
+                {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
                 transition={spring("smooth")}
               >
                 <ShareCard share={share} />

@@ -84,6 +84,24 @@ jobs:
         with:
           command: check advisories bans licenses sources
 
+  e2e-macos:
+    name: E2E (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - name: Build the E2E app (embedded WebDriver, fake cloudflared)
+        run: pnpm --filter @teitunnel/desktop e2e:build
+      - name: Run E2E
+        run: pnpm --filter @teitunnel/desktop e2e
+
   build-macos:
     name: Build macOS app
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build')

@@ -1,0 +1,8 @@
+{
+  "app": {
+    "withGlobalTauri": true
+  },
+  "build": {
+    "beforeBuildCommand": "VITE_E2E=1 pnpm vite build"
+  }
+}

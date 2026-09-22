@@ -42,11 +42,20 @@ pub(crate) fn init(log_dir: &Path) -> Result<LogGuard, Box<dyn std::error::Error
     let stderr_layer = cfg!(debug_assertions)
         .then(|| tracing_subscriber::fmt::layer().with_writer(Redacting(io::stderr)));
 
-    tracing_subscriber::registry()
+    let init = tracing_subscriber::registry()
         .with(filter)
         .with(file_layer)
         .with(stderr_layer)
-        .try_init()?;
+        .try_init();
+    // `try_init` installs the subscriber, then bridges the `log` crate. If a plugin
+    // already installed a `log` logger (the E2E WebDriver plugin does), only the bridge
+    // fails; tracing itself is set up and the app can continue.
+    if let Err(err) = init {
+        if !tracing::dispatcher::has_been_set() {
+            return Err(err.into());
+        }
+        tracing::warn!(error = %err, "log crate bridge not installed");
+    }
 
     Ok(LogGuard { _file: guard })
 }

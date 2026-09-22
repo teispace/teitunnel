@@ -139,3 +139,11 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-034 · 2026-09-23 · A Quick Share is "live" only when a connection is registered
 **Decision:** Show the URL as ready only when `/quicktunnel` has a hostname **and** `/ready` reports ≥ 1 connection.
 **Why:** Measured with cloudflared 2026.9.1: `/quicktunnel` returns the hostname about 2 s before the first edge connection registers (`readyConnections: 0`); opening the URL in that window fails.
+
+### D-035 · 2026-09-23 · E2E harness is compiled in only with `--features e2e`
+**Decision:** The embedded WebDriver (`tauri-plugin-wdio-webdriver`), `tauri-plugin-wdio`, its JS bridge, its capability and `withGlobalTauri` are enabled only in E2E builds (`pnpm e2e:build`: cargo feature `e2e`, a `--config` overlay, `VITE_E2E=1`). Release builds contain none of it (checked: no wdio code in `dist/`). E2E builds refuse to start unless `TEITUNNEL_CLOUDFLARED` points at a binary, and `TEITUNNEL_DATA_DIR` isolates their data.
+**Why:** An embedded WebDriver can drive the entire UI. The first E2E attempt, before the guard, ran the real cloudflared and opened a real Quick Share; it was stopped immediately.
+
+### D-036 · 2026-09-23 · Exit animations are skipped while the page is hidden
+**Decision:** List exit animations only run when `document.visibilityState` is `visible`.
+**Why:** WebKit runs no animation frames for a hidden window, so a share stopped from the menu bar would linger in the list until the window reappeared and then animate out. Verified by the E2E run (0 frames while hidden).

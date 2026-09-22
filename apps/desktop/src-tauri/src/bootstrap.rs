@@ -25,7 +25,11 @@ const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(8);
 /// Opens the database, reaps connectors orphaned by a previous crash, and starts the
 /// services the commands use.
 pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::error::Error>> {
-    let data_dir = app.path().app_data_dir()?;
+    // `TEITUNNEL_DATA_DIR` isolates test runs (E2E) from the user's real data.
+    let data_dir = match std::env::var_os("TEITUNNEL_DATA_DIR") {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => app.path().app_data_dir()?,
+    };
     let store = Store::open(&data_dir.join("teitunnel.db"))?;
     let prefs = tauri::async_runtime::block_on(settings::load(&store))?;
     shell::tray::install(app, prefs.show_in_menu_bar)?;
@@ -37,6 +41,12 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
             count = reaped.len(),
             "stopped connectors left over from a previous run"
         );
+    }
+
+    // E2E builds must never run the real cloudflared (it would open public tunnels).
+    #[cfg(feature = "e2e")]
+    if std::env::var_os("TEITUNNEL_CLOUDFLARED").is_none() {
+        return Err("E2E builds require TEITUNNEL_CLOUDFLARED to point at fake-cloudflared".into());
     }
 
     let runtime = tauri::async_runtime::handle().inner().clone();

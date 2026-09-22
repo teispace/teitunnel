@@ -32,7 +32,15 @@ pub fn run() -> Result<(), tauri::Error> {
         }
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // E2E builds only: an embedded WebDriver server (it can drive the whole UI, so it
+    // must never be compiled into a release).
+    #[cfg(feature = "e2e")]
+    let builder = builder
+        .plugin(tauri_plugin_wdio_webdriver::init())
+        .plugin(tauri_plugin_wdio::init());
+
+    builder
         // Must be first so a second launch exits before initialising anything else.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             shell::windows::focus_main(app);
@@ -48,6 +56,8 @@ pub fn run() -> Result<(), tauri::Error> {
             let log_dir = app.path().app_log_dir()?;
             app.manage(logging::init(&log_dir)?);
             specta.mount_events(app);
+            #[cfg(feature = "e2e")]
+            app.add_capability(include_str!("../e2e/capability.json"))?;
 
             app.manage(bootstrap::init(app.handle())?);
             shell::windows::show_main_after_timeout(app.handle());

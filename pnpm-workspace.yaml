@@ -1,6 +1,11 @@
 packages:
   - apps/*
 
-# Only these dependencies may run install scripts.
+# Only these dependencies may run install scripts (supply-chain policy).
 allowBuilds:
   lefthook: true
+  # WebdriverIO pulls these in; we drive the Tauri app directly and don't need
+  # browser drivers, and esbuild works without its optional postinstall check.
+  edgedriver: false
+  geckodriver: false
+  esbuild: false
