@@ -9,6 +9,9 @@ pub enum Error {
     /// Working with the cloudflared binary failed.
     #[error(transparent)]
     Cloudflared(#[from] cloudflared::Error),
+    /// A Quick Share operation failed.
+    #[error(transparent)]
+    QuickShare(#[from] crate::quick_share::QuickShareError),
     /// A connector operation failed.
     #[error(transparent)]
     Runtime(#[from] crate::runtime::SupervisorError),

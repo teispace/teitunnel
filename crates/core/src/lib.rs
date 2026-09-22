@@ -5,12 +5,14 @@
 //!
 //! See `docs/ARCHITECTURE.md` for the design of each module.
 
+pub mod binary;
 pub mod discovery;
 pub mod doctor;
 pub mod domain;
 pub mod engine;
 mod error;
 pub mod platform;
+pub mod quick_share;
 pub mod redact;
 pub mod runtime;
 mod secret;

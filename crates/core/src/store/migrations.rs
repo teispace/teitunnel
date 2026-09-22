@@ -12,6 +12,17 @@ const MIGRATIONS: &[M<'static>] = &[
             value TEXT NOT NULL
         ) STRICT;",
     ),
+    // 2: Quick Share history
+    M::up(
+        "CREATE TABLE quick_shares (
+            id         TEXT PRIMARY KEY NOT NULL,
+            origin     TEXT NOT NULL,
+            url        TEXT,
+            started_at INTEGER NOT NULL,
+            stopped_at INTEGER
+        ) STRICT;
+        CREATE INDEX quick_shares_started ON quick_shares (started_at DESC);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

@@ -28,6 +28,7 @@ specta = { workspace = true, optional = true }
 thiserror.workspace = true
 sysinfo.workspace = true
 listeners.workspace = true
+qrcode.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
 tracing.workspace = true
 uuid.workspace = true
@@ -36,6 +37,7 @@ uuid.workspace = true
 nix.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 
