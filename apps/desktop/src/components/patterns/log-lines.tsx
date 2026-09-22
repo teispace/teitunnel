@@ -7,7 +7,7 @@ export function LogLines({ lines, empty }: { lines: readonly LogLine[]; empty: s
     return <p className="py-2 text-callout text-secondary">{empty}</p>;
   }
   return (
-    <ol className="selectable max-h-56 overflow-y-auto rounded-control bg-surface-content px-2 py-1.5 font-mono text-[11px] leading-4">
+    <ol className="selectable max-h-56 overflow-y-auto rounded-control bg-surface-inset px-2 py-1.5 font-mono text-[11px] leading-4">
       {lines.map((line, index) => (
         <li
           // biome-ignore lint/suspicious/noArrayIndexKey: log lines are append-only snapshots

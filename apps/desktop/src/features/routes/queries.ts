@@ -156,7 +156,7 @@ export function useStopForeign() {
 export function useTunnelLogs(tunnelId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["routes", "logs", tunnelId],
-    queryFn: () => call(commands.tunnelsLogs(tunnelId, 200)),
+    queryFn: () => call(commands.tunnelsLogs(tunnelId, 1000)),
     enabled,
     refetchInterval: 2000,
     staleTime: 0,

@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/patterns/error-state";
 import { Inspector, InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { ListPane, ListRow } from "@/components/patterns/list-pane";
-import { LogLines } from "@/components/patterns/log-lines";
+import { LogViewer } from "@/components/patterns/log-viewer";
 import { Sparkline } from "@/components/patterns/sparkline";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
@@ -306,7 +306,7 @@ function TunnelLogs({ tunnelId }: { tunnelId: string }) {
   const lines = useTunnelLogs(tunnelId, true).data ?? [];
   return (
     <InspectorSection title="Logs">
-      <LogLines lines={lines} empty="The connector hasn't logged anything yet." />
+      <LogViewer lines={lines} empty="The connector hasn't logged anything yet." />
     </InspectorSection>
   );
 }

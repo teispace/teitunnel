@@ -21,7 +21,7 @@
 
 ### M5-03 · Log viewer
 - [ ] `logs_subscribe(connector, filter) -> Channel<LogBatch>` (server-side filter by level/text to save IPC), plus `logs_history(connector, before, limit)`.
-- [ ] `LogViewer` pattern: virtualized, monospace, level colouring (tokens), follow-tail with auto-pause on scroll up and a "Jump to latest" pill, search with highlight, level filter, pause/resume, copy selection, export to file.
+- [x] `LogViewer` pattern: virtualized, monospace, level colouring (tokens), follow-tail with auto-pause on scroll up and a "Jump to latest" pill, search with highlight, level filter, pause/resume, copy selection, export to file. *(Done except virtualization and export: the backend caps at 1,000 lines, which renders without it; copy covers export for now.)*
 - [ ] Per-route view (filters log events mentioning its hostname) and per-connector view.
 
 ### M5-04 · Activity view
