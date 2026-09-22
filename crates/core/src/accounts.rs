@@ -8,6 +8,7 @@
 pub mod capabilities;
 mod cert;
 mod domains;
+pub mod oauth;
 mod template;
 
 use std::{

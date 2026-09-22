@@ -59,6 +59,7 @@ listeners = "0.6.1"
 # Secrets (OS keychain)
 keyring = "4.2.0"
 base64 = "0.22"
+getrandom = "0.4.3"
 
 # Persistence
 rusqlite = { version = "0.40.2", features = ["bundled"] }

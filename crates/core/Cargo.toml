@@ -20,6 +20,7 @@ specta = ["dep:specta"]
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 rusqlite.workspace = true
 rusqlite_migration.workspace = true
 serde.workspace = true
@@ -29,6 +30,8 @@ thiserror.workspace = true
 sysinfo.workspace = true
 keyring.workspace = true
 base64.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
 listeners.workspace = true
 qrcode.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
@@ -40,7 +43,6 @@ nix.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-reqwest.workspace = true
 tempfile.workspace = true
 wiremock.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
