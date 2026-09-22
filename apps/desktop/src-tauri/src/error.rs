@@ -75,6 +75,7 @@ impl From<teitunnel_core::Error> for AppError {
             )
             .with_hint("Install it from the Quick Share page, or run `brew install cloudflared`."),
             ErrorKind::NotFound => Self::new(ErrorCode::NotFound, err.to_string()),
+            ErrorKind::InvalidInput => Self::invalid("credential", err.to_string()),
             ErrorKind::Unavailable => Self::new(ErrorCode::Unavailable, err.to_string()),
             ErrorKind::Internal => {
                 tracing::error!(error = %err, "command failed");
@@ -97,6 +98,7 @@ macro_rules! via_core {
 }
 
 via_core!(
+    teitunnel_core::accounts::AccountError,
     teitunnel_core::store::StoreError,
     teitunnel_core::quick_share::QuickShareError,
 );

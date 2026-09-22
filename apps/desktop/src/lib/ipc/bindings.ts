@@ -53,6 +53,25 @@ export const commands = {
 	quickShareLogs: (id: string, limit: number) => __TAURI_INVOKE<LogLine[]>("quick_share_logs", { id, limit }),
 	/**  An SVG QR code for `url` (dark modules use `currentColor`). */
 	quickShareQr: (url: string) => __TAURI_INVOKE<string>("quick_share_qr", { url }),
+	/**  Connected accounts. */
+	accountsList: () => __TAURI_INVOKE<Account[]>("accounts_list"),
+	/**
+	 *  Verifies an API token and connects every account it reaches. The token is stored in
+	 *  the keychain and never sent back.
+	 */
+	accountsAddToken: (token: string) => __TAURI_INVOKE<Account[]>("accounts_add_token", { token }),
+	/**  Opens Cloudflare's "Create API token" page with Teitunnel's permissions pre-selected. */
+	accountsOpenTokenPage: () => __TAURI_INVOKE<null>("accounts_open_token_page"),
+	/**  Whether `~/.cloudflared/cert.pem` (from `cloudflared tunnel login`) exists. */
+	accountsDetectCert: () => __TAURI_INVOKE<boolean>("accounts_detect_cert"),
+	/**  Imports the login from `~/.cloudflared/cert.pem` (the file is only read). */
+	accountsImportCert: () => __TAURI_INVOKE<Account>("accounts_import_cert"),
+	/**  Disconnects an account and deletes its credentials from the keychain. */
+	accountsRemove: (id: string) => __TAURI_INVOKE<null>("accounts_remove", { id }),
+	/**  What the account's credential can do. */
+	accountsCapabilities: (id: string) => __TAURI_INVOKE<Capabilities>("accounts_capabilities", { id }),
+	/**  Domains in an account. */
+	domainsList: (accountId: string) => __TAURI_INVOKE<Domain[]>("domains_list", { accountId }),
 };
 
 /** Events */
@@ -62,6 +81,18 @@ export const events = {
 };
 
 /* Types */
+/**  A connected Cloudflare account. */
+export type Account = {
+	/**  Cloudflare account id. */
+	id: string,
+	/**  Display name. */
+	name: string,
+	/**  How it was connected. */
+	credential: CredentialKind,
+	/**  For cert.pem credentials: the only zone the credential works for. */
+	limitedZone: string | null,
+};
+
 /**  An error as shown to the user: what happened, and what to do about it. */
 export type AppError = {
 	/**  Category for programmatic handling. */
@@ -98,6 +129,58 @@ export type BinaryInfo = {
 	supported: boolean,
 };
 
+/**  Everything a credential can do in one account. */
+export type Capabilities = {
+	/**  List domains. */
+	zonesRead: Grant,
+	/**  List tunnels. */
+	tunnelsRead: Grant,
+	/**  Create and configure tunnels. */
+	tunnelsEdit: Grant,
+	/**  Access policies (optional feature). */
+	accessEdit: Grant,
+	/**  DNS editing, per domain. */
+	zones: ZoneGrant[],
+};
+
+/**  How an account was connected. */
+export type CredentialKind = 
+/**  A user API token. */
+"apiToken" | 
+/**  OAuth sign-in (refresh token in the keychain). */
+"oAuth" | 
+/**  Imported from `cloudflared tunnel login` (cert.pem); one zone only. */
+"certPem";
+
+/**  A domain in a connected account. */
+export type Domain = {
+	/**  Zone id. */
+	id: string,
+	/**  Domain name. */
+	name: string,
+	/**  Setup state. */
+	status: DomainStatus,
+	/**  Cloudflare nameservers to set at the registrar. */
+	nameServers: string[],
+	/**  Nameservers currently at the registrar (before the switch). */
+	originalNameServers: string[],
+	/**  Plan name. */
+	plan: string | null,
+	/**  Whether the proxy is paused. */
+	paused: boolean,
+};
+
+/**  Where a domain is in its setup. */
+export type DomainStatus = 
+/**  Active on Cloudflare: routes can use it. */
+"active" | 
+/**  Waiting for the registrar to switch nameservers. */
+"pending" | 
+/**  Nameservers moved away from Cloudflare. */
+"moved" | 
+/**  Being set up, or a state we don't know. */
+"other";
+
 /**  Emitted after anything changes, so the UI can invalidate the affected queries. */
 export type EntityChanged = {
 	/**  What kind of entity changed. */
@@ -111,7 +194,9 @@ export type EntityKind =
 /**  App settings. */
 "settings" | 
 /**  Quick Shares (list, status, URL). */
-"quickShares";
+"quickShares" | 
+/**  Connected Cloudflare accounts (and their domains). */
+"accounts";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -125,6 +210,15 @@ export type ErrorCode =
 "cloudflaredMissing" | 
 /**  Busy or exhausted; retrying later may work. */
 "unavailable";
+
+/**  The result of probing one permission. */
+export type Grant = 
+/**  Allowed. */
+"yes" | 
+/**  Not allowed. */
+"no" | 
+/**  Couldn't be checked right now. */
+"unknown";
 
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
@@ -317,6 +411,16 @@ export type UpdateInfo = {
 	latest: string,
 	/**  Whether it's newer than the one in use (or none is installed). */
 	available: boolean,
+};
+
+/**  DNS permission for one domain. */
+export type ZoneGrant = {
+	/**  Zone id. */
+	zoneId: string,
+	/**  Domain name. */
+	zoneName: string,
+	/**  Whether DNS records can be edited. */
+	dnsEdit: Grant,
 };
 
 /* Tauri Specta runtime */

@@ -6,6 +6,7 @@
 // Tauri extracts command arguments (e.g. `AppHandle`) by value.
 #![allow(clippy::needless_pass_by_value)]
 
+mod accounts;
 mod app;
 mod events;
 mod quick_share;
@@ -42,7 +43,15 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             quick_share::quick_share_list,
             quick_share::quick_share_stats,
             quick_share::quick_share_logs,
-            quick_share::quick_share_qr
+            quick_share::quick_share_qr,
+            accounts::accounts_list,
+            accounts::accounts_add_token,
+            accounts::accounts_open_token_page,
+            accounts::accounts_detect_cert,
+            accounts::accounts_import_cert,
+            accounts::accounts_remove,
+            accounts::accounts_capabilities,
+            accounts::domains_list
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

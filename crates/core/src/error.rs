@@ -33,6 +33,8 @@ pub enum ErrorKind {
     NotFound,
     /// A resource is exhausted or busy; retrying later may work.
     Unavailable,
+    /// The user's input was rejected; the message says why.
+    InvalidInput,
     /// Anything else: a bug or an environment problem, logged with details.
     Internal,
 }
@@ -40,13 +42,21 @@ pub enum ErrorKind {
 impl Error {
     /// Classifies the error.
     pub fn kind(&self) -> ErrorKind {
-        use crate::{quick_share::QuickShareError as Q, runtime::SupervisorError as S};
+        use crate::{
+            accounts::AccountError as A, quick_share::QuickShareError as Q,
+            runtime::SupervisorError as S,
+        };
         match self {
             Self::Cloudflared(cloudflared::Error::NotFound)
             | Self::QuickShare(Q::Binary(cloudflared::Error::NotFound)) => {
                 ErrorKind::CloudflaredMissing
             }
-            Self::QuickShare(Q::NotFound) | Self::Runtime(S::NotFound(_)) => ErrorKind::NotFound,
+            Self::QuickShare(Q::NotFound)
+            | Self::Runtime(S::NotFound(_))
+            | Self::Accounts(A::NotFound) => ErrorKind::NotFound,
+            Self::Accounts(A::InvalidToken | A::NoAccess | A::InvalidCert) => {
+                ErrorKind::InvalidInput
+            }
             Self::QuickShare(Q::NoFreePort) | Self::Runtime(S::AlreadyRunning(_)) => {
                 ErrorKind::Unavailable
             }

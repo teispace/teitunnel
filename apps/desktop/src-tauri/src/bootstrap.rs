@@ -1,14 +1,20 @@
 //! Startup and shutdown of the core services.
 
-use std::{collections::HashMap, sync::atomic::Ordering, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 use teitunnel_core::{
+    accounts::Accounts,
     binary::{BinaryManager, Locator},
     quick_share::{QuickShare, QuickShares, ShareStatus},
     runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor},
+    secrets::KeychainStore,
     settings,
     store::Store,
 };
@@ -61,7 +67,10 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
+    let accounts = Accounts::new(store.clone(), Arc::new(KeychainStore));
+
     Ok(AppState {
+        accounts,
         store,
         binary,
         supervisor,

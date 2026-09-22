@@ -7,6 +7,8 @@
 
 pub mod capabilities;
 mod cert;
+mod domains;
+mod template;
 
 use std::{
     sync::Arc,
@@ -18,6 +20,8 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 pub use cert::{CertCredential, parse_cert_pem};
+pub use domains::{Domain, DomainStatus};
+pub use template::token_template_url;
 
 use crate::{
     Secret,
@@ -316,6 +320,27 @@ impl Accounts {
             .ok_or(AccountError::NotFound)?;
         let client = self.client(account_id).await?;
         Ok(capabilities::probe(&client, account_id, account.limited_zone.as_deref()).await)
+    }
+
+    /// Domains in an account, by name. One-zone credentials see only their zone.
+    ///
+    /// # Errors
+    /// [`AccountError::NotFound`], or API failures.
+    pub async fn domains(&self, account_id: &str) -> Result<Vec<Domain>, AccountError> {
+        let account = self
+            .list()
+            .await?
+            .into_iter()
+            .find(|a| a.id == account_id)
+            .ok_or(AccountError::NotFound)?;
+        let client = self.client(account_id).await?;
+        let zones = match account.limited_zone {
+            Some(zone) => vec![client.zone(&zone).await?],
+            None => client.zones(account_id).await?,
+        };
+        let mut domains: Vec<Domain> = zones.into_iter().map(Domain::from).collect();
+        domains.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(domains)
     }
 
     /// An API client for a connected account.

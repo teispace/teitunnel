@@ -12,6 +12,8 @@ pub enum EntityKind {
     Settings,
     /// Quick Shares (list, status, URL).
     QuickShares,
+    /// Connected Cloudflare accounts (and their domains).
+    Accounts,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.
