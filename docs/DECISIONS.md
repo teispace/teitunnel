@@ -176,3 +176,8 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-043 · 2026-09-23 · E2E runs against a fake Cloudflare with in-memory secrets
 **Decision:** `tools/fake-cloudflare` implements the API endpoints the engine uses and answers route probes as the edge. Builds with the `e2e` feature read `TEITUNNEL_API_BASE` / `TEITUNNEL_EDGE` and use `MemoryStore` for secrets; release builds can't do either.
 **Why:** End-to-end tests must never touch the maintainer's Cloudflare account or login keychain, and must be deterministic in CI. The real API is exercised by the nightly job once a test token exists.
+
+### D-044 · 2026-09-23 · Importing an existing setup moves its routes onto this Mac's tunnel
+**Decision:** Routes found in `config.yml` files are imported as routes of this Mac's remotely-managed tunnel (`Intent::ImportRoutes`), one combined plan. DNS records that point at the old tunnel aren't Teitunnel's, so repointing them needs confirmation. The files and the old tunnel are left untouched. Per-route `originRequest` settings block a route's import for now; global ones are reported. YAML is read with `serde-saphyr` (maintained, deserialize-only; `serde_yaml` is deprecated and `serde_yml` has a RustSec unsoundness advisory).
+**Why:** Keeps one model (routes on one machine tunnel, plan → apply, ownership) instead of a second locally-managed mode with YAML rewriting, and leaves the user a working fallback until they delete the old setup themselves.
+

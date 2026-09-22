@@ -118,6 +118,11 @@ export const commands = {
 	tunnelsStop: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_stop", { accountId, tunnelId }),
 	/**  Removes a tunnel's stale connections (left by connectors that went away uncleanly). */
 	tunnelsClean: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_clean", { accountId, tunnelId }),
+	/**
+	 *  cloudflared configurations found on this Mac (`~/.cloudflared/config.yml`, …). Only
+	 *  reads; credentials' secrets are never read.
+	 */
+	importScan: () => __TAURI_INVOKE<LocalSetup[]>("import_scan"),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
@@ -234,6 +239,10 @@ path: string | null } |
 { type: "removeTunnel" } | 
 /**  Undo an outside edit of this Mac's routes. */
 { type: "restoreConfig" } | 
+/**  Add several routes at once (import from an existing cloudflared setup). */
+{ type: "importRoutes"; 
+/**  The routes. */
+routes: RouteInput[] } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 { type: "deleteRecord"; 
 /**  Zone id. */
@@ -445,6 +454,18 @@ export type FixReport = {
 	failed: string[],
 };
 
+/**  One route found in a config file. */
+export type FoundRoute = {
+	/**  Hostname. */
+	hostname: string,
+	/**  Path regex. */
+	path: string | null,
+	/**  Service, e.g. `http://localhost:3000`. */
+	service: string,
+	/**  Why it can't be imported, if it can't. */
+	unsupported: string | null,
+};
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -505,6 +526,27 @@ export type LocalService = {
 	project: string | null,
 	/**  Suggested origin URL, e.g. `http://localhost:5173`. */
 	origin: string,
+};
+
+/**  A cloudflared configuration found on disk. */
+export type LocalSetup = {
+	/**  The config file. */
+	configPath: string,
+	/**  `tunnel:` (a UUID or a name). */
+	tunnel: string | null,
+	/**  The Cloudflare account the credentials belong to. */
+	accountId: string | null,
+	/**  The tunnel id from the credentials file. */
+	tunnelId: string | null,
+	/**  Routes (hostname rules) in order. */
+	routes: FoundRoute[],
+	/**
+	 *  Settings that apply to every route (`originRequest`), which Teitunnel can't
+	 *  carry over per route yet.
+	 */
+	hasGlobalOptions: boolean,
+	/**  Problems reading the file. */
+	problem: string | null,
 };
 
 /**  One cloudflared log line, for the log drawer. */

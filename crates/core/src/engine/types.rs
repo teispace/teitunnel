@@ -164,6 +164,12 @@ pub enum Intent {
     },
     /// Remove every route and delete the machine tunnel.
     RemoveTunnel,
+    /// Add several routes at once (importing an existing cloudflared setup). Routes
+    /// that already exist unchanged are skipped.
+    ImportRoutes {
+        /// The routes.
+        routes: Vec<RouteSpec>,
+    },
     /// Delete one DNS record (Doctor cleanup of orphans).
     DeleteRecord {
         /// Zone id.
@@ -193,6 +199,7 @@ impl Intent {
             }
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. } => Some(Vec::new()),
+            Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
         }
     }
 
@@ -231,6 +238,11 @@ impl Intent {
                 "Restore this Mac's routes after an outside edit".to_owned()
             }
             Self::DeleteRecord { hostname, .. } => format!("Delete the DNS record for {hostname}"),
+            Self::ImportRoutes { routes } => format!(
+                "Import {} route{} from cloudflared",
+                routes.len(),
+                if routes.len() == 1 { "" } else { "s" }
+            ),
         }
     }
 }

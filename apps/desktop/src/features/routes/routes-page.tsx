@@ -1,4 +1,4 @@
-import { ExternalLink, Pencil, Plus, RefreshCw, Trash2, Waypoints } from "lucide-react";
+import { ExternalLink, FileInput, Pencil, Plus, RefreshCw, Trash2, Waypoints } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useUiStore } from "@/app/ui-store";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -19,8 +19,9 @@ import type { ConnectorState, RouteView, TunnelView, Verification } from "@/lib/
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { DriftBanner } from "./components/drift-banner";
+import { ImportSheet } from "./components/import-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
-import { useActivity, useRoutesOverview, useVerify } from "./queries";
+import { useActivity, useLocalSetups, useRoutesOverview, useVerify } from "./queries";
 
 const routeKey = (route: RouteView) => `${route.hostname}${route.path ?? ""}`;
 
@@ -182,6 +183,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const overview = useRoutesOverview(active?.id ?? null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
+  const [importing, setImporting] = useState(false);
+  const setups = useLocalSetups(active !== null);
+  const importable = (setups.data ?? []).some((s) => s.routes.some((r) => !r.unsupported));
   const routes = overview.data?.routes ?? [];
   const tunnel = overview.data?.tunnel ?? null;
   const zones = overview.data?.zones ?? [];
@@ -208,6 +212,13 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           label="Refresh routes"
           onClick={() => void overview.refetch()}
           disabled={overview.isFetching}
+        />
+      ) : null}
+      {active && overview.isSuccess && importable ? (
+        <IconButton
+          icon={FileInput}
+          label="Import from cloudflared"
+          onClick={() => setImporting(true)}
         />
       ) : null}
       {active && overview.isSuccess ? (
@@ -331,6 +342,28 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           onClose={() => setSheet(null)}
         />
       ) : null}
+      <ImportSheet
+        open={importing}
+        setups={setups.data ?? []}
+        zones={zones}
+        existing={routes}
+        onClose={() => setImporting(false)}
+        onReview={(chosen) => {
+          setImporting(false);
+          setSheet({
+            kind: "fix",
+            label: "Import Routes",
+            change: {
+              type: "importRoutes",
+              routes: chosen.map((r) => ({
+                hostname: r.hostname,
+                path: r.path,
+                origin: r.service,
+              })),
+            },
+          });
+        }}
+      />
     </>
   );
 }

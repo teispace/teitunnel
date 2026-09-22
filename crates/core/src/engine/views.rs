@@ -57,6 +57,11 @@ pub enum Change {
     RemoveTunnel,
     /// Undo an outside edit of this Mac's routes.
     RestoreConfig,
+    /// Add several routes at once (import from an existing cloudflared setup).
+    ImportRoutes {
+        /// The routes.
+        routes: Vec<RouteInput>,
+    },
     /// Delete one DNS record (an orphan found by the Doctor).
     DeleteRecord {
         /// Zone id.
@@ -168,6 +173,12 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             path: parse_path(path.as_deref())?,
         },
         Change::RemoveTunnel => Intent::RemoveTunnel,
+        Change::ImportRoutes { routes } => Intent::ImportRoutes {
+            routes: routes
+                .iter()
+                .map(RouteInput::to_spec)
+                .collect::<Result<_, _>>()?,
+        },
         Change::DeleteRecord {
             zone_id,
             hostname,

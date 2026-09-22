@@ -345,6 +345,38 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.release_dns(hostname.as_str(), &tunnel_id);
             }
         }
+        Intent::ImportRoutes { routes } => {
+            let mut desired = rules.clone();
+            let mut added = Vec::new();
+            for route in routes {
+                b.zone_id(&route.hostname)?;
+                match desired
+                    .iter()
+                    .find(|r| same_route(r, &route.hostname, route.path.as_ref()))
+                {
+                    Some(existing)
+                        if existing.service == route.origin.as_str()
+                            && existing.origin_request == route.options => {}
+                    Some(_) => return Err(PlanError::RouteExists(route.hostname.to_string())),
+                    None => {
+                        b.remote_origin_warning(route);
+                        desired.push(route.to_rule());
+                    }
+                }
+                added.push(route);
+            }
+            let tunnel = b.ensure_tunnel();
+            b.put_config(&tunnel, desired);
+            // One DNS record and one check per hostname, even with several paths.
+            let mut seen = std::collections::HashSet::new();
+            added.retain(|route| seen.insert(route.hostname.as_str()));
+            for route in &added {
+                b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
+            }
+            for route in added {
+                b.verify(&route.hostname);
+            }
+        }
         Intent::DeleteRecord {
             zone_id,
             hostname,

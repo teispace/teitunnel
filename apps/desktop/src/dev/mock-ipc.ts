@@ -356,6 +356,43 @@ export function installMockIpc(): void {
               connector: null,
             },
           ];
+        case "import_scan":
+          return [
+            {
+              configPath: "~/.cloudflared/config.yml",
+              tunnel: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
+              accountId: "acc-personal",
+              tunnelId: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
+              routes: [
+                {
+                  hostname: "blog.teispace.com",
+                  path: null,
+                  service: "http://localhost:2368",
+                  unsupported: null,
+                },
+                {
+                  hostname: "grafana.xyz.dev",
+                  path: null,
+                  service: "http://localhost:3001",
+                  unsupported: null,
+                },
+                {
+                  hostname: "app.teispace.com",
+                  path: null,
+                  service: "http://localhost:5173",
+                  unsupported: null,
+                },
+                {
+                  hostname: "nas.example.org",
+                  path: null,
+                  service: "http://192.168.1.20:5000",
+                  unsupported: null,
+                },
+              ],
+              hasGlobalOptions: true,
+              problem: null,
+            },
+          ];
         case "doctor_run":
           return [
             {

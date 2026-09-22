@@ -858,3 +858,69 @@ async fn fixing_safe_issues_never_touches_foreign_records() {
         assert!(report.failed.is_empty(), "seed {seed}: {report:?}");
     }
 }
+
+#[tokio::test]
+async fn imports_routes_from_an_old_tunnel() {
+    use super::views::{Change, RouteInput};
+
+    // The old, locally-managed tunnel's DNS record for app.xyz.com (not ours).
+    let mut state = zones();
+    let mut old = foreign_a("old", "app.xyz.com");
+    old.kind = "CNAME".into();
+    old.content = "old-tunnel.cfargotunnel.com".into();
+    old.proxied = true;
+    state.records.insert("z-xyz".into(), vec![old]);
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(state), FakeConnectors::default());
+    let input = |host: &str, path: Option<&str>, origin: &str| RouteInput {
+        hostname: host.into(),
+        path: path.map(str::to_owned),
+        origin: origin.into(),
+    };
+    let change = Change::ImportRoutes {
+        routes: vec![
+            input("app.xyz.com", None, "http://localhost:3000"),
+            input("app.xyz.com", Some("^/api/"), "http://localhost:8080"),
+            input("yx.com", None, "http://localhost:5000"),
+        ],
+    };
+    let intent = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    assert!(
+        plan.requires_confirmation,
+        "the old tunnel's record isn't ours"
+    );
+    let verifies = plan
+        .steps
+        .iter()
+        .filter(|s| matches!(s, super::types::Step::Verify { .. }))
+        .count();
+    assert_eq!(verifies, 2, "one check per hostname");
+    run(&engine, &cloud, &conns, &intent).await;
+
+    let state = cloud.snapshot();
+    let tunnel = state.tunnels.keys().next().unwrap();
+    let ingress = &state.tunnels[tunnel].config.as_ref().unwrap().ingress;
+    assert_eq!(ingress.len(), 4, "three routes and the catch-all");
+    assert_eq!(
+        ingress[0].path.as_deref(),
+        Some("^/api/"),
+        "longer paths first"
+    );
+    assert_eq!(state.record_count(), 2);
+    assert!(
+        state.records["z-xyz"][0]
+            .content
+            .starts_with(tunnel.as_str())
+    );
+
+    // Importing the same routes again changes nothing.
+    engine.invalidate("acc");
+    let again = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+    assert!(
+        engine
+            .preview(&cloud, CTX, &again)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

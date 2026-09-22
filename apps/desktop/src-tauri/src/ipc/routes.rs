@@ -227,3 +227,13 @@ pub async fn tunnels_clean(
     changed(&app, &account_id);
     Ok(())
 }
+
+/// cloudflared configurations found on this Mac (`~/.cloudflared/config.yml`, …). Only
+/// reads; credentials' secrets are never read.
+#[tauri::command]
+#[specta::specta]
+pub async fn import_scan() -> Result<Vec<teitunnel_core::import::LocalSetup>, AppError> {
+    tauri::async_runtime::spawn_blocking(teitunnel_core::import::scan)
+        .await
+        .map_err(|err| AppError::internal(format!("Couldn't look for cloudflared setups: {err}")))
+}

@@ -19,9 +19,9 @@
 - [x] Handles an absent or unreachable daemon gracefully (no errors surfaced; the section is just hidden).
 
 ### M4-03 · Import existing cloudflared setups
-- [ ] Scan `~/.cloudflared`, `/etc/cloudflared`, `/usr/local/etc/cloudflared`, `/opt/homebrew/etc/cloudflared` for `config.yml`/`config.yaml`, `<uuid>.json` credentials and `cert.pem`.
-- [ ] `config_yaml` parse into our model (ingress + originRequest + unknown keys preserved) with fixtures.
-- [ ] Import wizard: show what was found, then match against the account's tunnels. Options: **Manage as-is** (locally-managed: Teitunnel runs `cloudflared tunnel --config <path> run` and edits the YAML through a YAML-preserving writer) or **Migrate to remote-managed** (upload ingress via configurations PUT, switch the connector to the token, and keep the old files as a backup). Plan preview as always.
+- [x] Scan `~/.cloudflared`, `/etc/cloudflared`, `/usr/local/etc/cloudflared`, `/opt/homebrew/etc/cloudflared` for `config.yml`/`config.yaml`, `<uuid>.json` credentials and `cert.pem`.
+- [x] `config_yaml` parse into our model (ingress + originRequest + unknown keys preserved) with fixtures.
+- [x] Import wizard: show what was found, then match against the account's tunnels. Options: **Manage as-is** (locally-managed: Teitunnel runs `cloudflared tunnel --config <path> run` and edits the YAML through a YAML-preserving writer) or **Migrate to remote-managed** (upload ingress via configurations PUT, switch the connector to the token, and keep the old files as a backup). Plan preview as always. *(Implemented as "import routes into this Mac's tunnel" (`Intent::ImportRoutes`), D-044: the old tunnel's DNS records are repointed after confirmation; files untouched. "Manage as-is" with YAML editing is not planned for v1.)*
 - [ ] Also detect launchd plists / systemd units running cloudflared and offer to take them over.
 
 ### M4-04 · Adoption of running processes

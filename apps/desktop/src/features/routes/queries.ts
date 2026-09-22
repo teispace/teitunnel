@@ -120,3 +120,13 @@ export function useTunnelAction(accountId: string) {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
   });
 }
+
+/** cloudflared setups on this Mac that routes can be imported from. */
+export function useLocalSetups(enabled: boolean) {
+  return useQuery({
+    queryKey: ["import", "scan"],
+    queryFn: () => call(commands.importScan()),
+    enabled,
+    staleTime: 60_000,
+  });
+}
