@@ -420,3 +420,234 @@ mod property {
         }
     }
 }
+
+fn with_path(mut r: RouteSpec, path: &str) -> RouteSpec {
+    r.path = Some(PathRule::parse(path).unwrap());
+    r
+}
+
+fn remove(hostname: &str, path: Option<&str>) -> Intent {
+    Intent::RemoveRoute {
+        hostname: host(hostname),
+        path: path.map(|p| PathRule::parse(p).unwrap()),
+    }
+}
+
+fn update(hostname: &str, path: Option<&str>, route: RouteSpec) -> Intent {
+    Intent::UpdateRoute {
+        hostname: host(hostname),
+        path: path.map(|p| PathRule::parse(p).unwrap()),
+        route,
+    }
+}
+
+/// Two routes on app.xyz.com (plain and ^/api/) and one on yx.com.
+fn busy() -> Snapshot {
+    let mut s = with_app();
+    let tunnel = s.tunnel.as_mut().unwrap();
+    let mut api = rule("app.xyz.com", "http://localhost:8080");
+    api.path = Some("^/api/".into());
+    tunnel.ingress = vec![
+        api,
+        rule("app.xyz.com", "http://localhost:3000"),
+        rule("yx.com", "http://localhost:5000"),
+        catch_all(),
+    ];
+    s.records.push(owned("z-yx", "r-yx", "yx.com"));
+    s
+}
+
+/// More scenarios, one named snapshot each (reviewed like the ones above).
+#[test]
+fn scenarios() {
+    let mut options = route("o1", "opts.xyz.com", "https://localhost:8443");
+    options
+        .options
+        .insert("noTLSVerify".into(), serde_json::json!(true));
+
+    let mut foreign_cname = with_app();
+    foreign_cname
+        .records
+        .push(foreign("z-yx", "f1", "yx.com", "CNAME", "shop.example.net"));
+
+    let mut unproxied = with_app();
+    let mut record = tunnel_record("r-np", "np.xyz.com", TUNNEL);
+    record.proxied = false;
+    unproxied.records.push(ObservedRecord {
+        zone_id: "z-xyz".into(),
+        record,
+        owned: false,
+    });
+
+    let mut already = with_app();
+    already.records.push(ObservedRecord {
+        zone_id: "z-xyz".into(),
+        record: tunnel_record("r-hand", "hand.xyz.com", TUNNEL),
+        owned: false,
+    });
+
+    let mut foreign_target = busy();
+    foreign_target
+        .records
+        .push(foreign("z-xyz", "f2", "blog.xyz.com", "A", "198.51.100.7"));
+
+    let mut unowned_tunnel_record = with_app();
+    unowned_tunnel_record.records[0].owned = false;
+
+    let mut empty_tunnel = with_app();
+    empty_tunnel.tunnel.as_mut().unwrap().ingress = vec![catch_all()];
+    empty_tunnel.records.clear();
+
+    let mut edited = busy();
+    edited
+        .tunnel
+        .as_mut()
+        .unwrap()
+        .ingress
+        .insert(0, rule("dash.xyz.com", "http://localhost:9000"));
+    edited.tunnel.as_mut().unwrap().config_version = 9;
+
+    let taken = Snapshot {
+        tunnel_names: vec!["Krishna's MacBook Pro".into()],
+        ..fresh()
+    };
+
+    let mut nested = with_app();
+    nested.zones.push(ZoneRef {
+        id: "z-dev".into(),
+        name: "dev.xyz.com".into(),
+    });
+
+    let cases: Vec<(&str, Snapshot, Intent)> = vec![
+        (
+            "add_second_route_in_the_same_zone",
+            with_app(),
+            Intent::AddRoute {
+                route: route("a1", "api.xyz.com", "8080"),
+            },
+        ),
+        (
+            "add_with_origin_options",
+            with_app(),
+            Intent::AddRoute { route: options },
+        ),
+        (
+            "add_remote_origin_warns",
+            with_app(),
+            Intent::AddRoute {
+                route: route("a2", "nas.xyz.com", "http://192.168.1.10:5000"),
+            },
+        ),
+        (
+            "add_tcp_origin",
+            with_app(),
+            Intent::AddRoute {
+                route: route("a3", "db.xyz.com", "tcp://localhost:5432"),
+            },
+        ),
+        (
+            "add_unix_socket_origin",
+            with_app(),
+            Intent::AddRoute {
+                route: route("a4", "sock.xyz.com", "unix:/tmp/app.sock"),
+            },
+        ),
+        (
+            "add_over_a_foreign_cname_needs_confirmation",
+            foreign_cname,
+            Intent::AddRoute {
+                route: route("a5", "yx.com", "5000"),
+            },
+        ),
+        (
+            "add_repoints_an_unproxied_tunnel_record",
+            unproxied,
+            Intent::AddRoute {
+                route: route("a6", "np.xyz.com", "7000"),
+            },
+        ),
+        (
+            "add_reuses_a_record_that_already_points_here",
+            already,
+            Intent::AddRoute {
+                route: route("a7", "hand.xyz.com", "7001"),
+            },
+        ),
+        (
+            "add_longer_path_sorts_first",
+            busy(),
+            Intent::AddRoute {
+                route: with_path(route("a8", "app.xyz.com", "8081"), "^/api/v2/"),
+            },
+        ),
+        (
+            "add_first_route_when_the_name_is_taken",
+            taken,
+            Intent::AddRoute {
+                route: route("a9", "xyz.com", "3000"),
+            },
+        ),
+        (
+            "add_uses_the_most_specific_zone",
+            nested,
+            Intent::AddRoute {
+                route: route("a10", "api.dev.xyz.com", "3000"),
+            },
+        ),
+        (
+            "update_origin_only",
+            busy(),
+            update("yx.com", None, route("u1", "yx.com", "5001")),
+        ),
+        (
+            "update_path_only",
+            busy(),
+            update(
+                "app.xyz.com",
+                Some("^/api/"),
+                with_path(route("u2", "app.xyz.com", "8080"), "^/v1/"),
+            ),
+        ),
+        (
+            "rename_into_another_zone",
+            busy(),
+            update("yx.com", None, route("u3", "shop.xyz.com", "5000")),
+        ),
+        (
+            "rename_keeps_dns_still_used_by_a_path_route",
+            busy(),
+            update("app.xyz.com", None, route("u4", "web.xyz.com", "3000")),
+        ),
+        (
+            "rename_onto_a_foreign_record_needs_confirmation",
+            foreign_target,
+            update("yx.com", None, route("u5", "blog.xyz.com", "5000")),
+        ),
+        (
+            "remove_path_route_keeps_the_hostname",
+            busy(),
+            remove("app.xyz.com", Some("^/api/")),
+        ),
+        (
+            "remove_keeps_a_record_teitunnel_did_not_create",
+            unowned_tunnel_record,
+            remove("app.xyz.com", None),
+        ),
+        (
+            "remove_tunnel_without_routes",
+            empty_tunnel,
+            Intent::RemoveTunnel,
+        ),
+        (
+            "restore_undoes_an_outside_edit",
+            edited,
+            Intent::RestoreConfig {
+                ingress: busy().tunnel.unwrap().ingress,
+            },
+        ),
+    ];
+    for (name, snapshot, intent) in cases {
+        let p = plan(&intent, &snapshot).unwrap_or_else(|e| panic!("{name}: {e}"));
+        insta::assert_yaml_snapshot!(name, snap(&p));
+    }
+}

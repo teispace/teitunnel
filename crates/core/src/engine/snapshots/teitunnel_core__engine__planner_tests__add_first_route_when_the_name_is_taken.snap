@@ -1,0 +1,28 @@
+---
+source: crates/core/src/engine/planner_tests.rs
+expression: snap(&p)
+---
+steps:
+  - type: createTunnel
+    name: "Krishna's MacBook Pro 2"
+  - type: putConfig
+    tunnel:
+      kind: created
+    ingress:
+      - hostname: xyz.com
+        service: "http://localhost:3000"
+      - service: "http_status:404"
+    expectedVersion: ~
+    previous: []
+  - type: createRecord
+    zoneId: z-xyz
+    hostname: xyz.com
+    tunnel:
+      kind: created
+    routeId: a9
+  - type: verify
+    hostname: xyz.com
+warnings: []
+requiresConfirmation: false
+fingerprint: "<fingerprint>"
+tunnelName: "Krishna's MacBook Pro 2"

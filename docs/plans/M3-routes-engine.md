@@ -29,7 +29,7 @@
 ### M3-04 · Planner
 - [x] Intents: `AddRoute`, `UpdateRoute` (incl. rename), `RemoveRoute`, `RemoveTunnel` (cascade). The machine tunnel is ensured implicitly by any add. *(`ReorderRoutes` comes with drag reordering in M3-09; rules are specificity-sorted, so order only matters for equal specificity.)*
 - [x] Rules from ARCHITECTURE §4.3: ordering, specificity sort + catch-all, conflict detection → confirmation, idempotency, human descriptions, command renderings.
-- [ ] `insta` snapshots for ≥ 30 scenarios *(11 so far, covering every listed case; more with M3-11)*: first route on a fresh account, second zone, wildcard, path routes, conflicting A record, owned vs foreign CNAME, remove last route (offer tunnel stop/delete), rename hostname (create new → switch → delete old, zero-downtime order), and so on.
+- [x] `insta` snapshots for ≥ 30 scenarios *(31: adds, updates, renames, removals, cascade, restore, options, origins, nested zones, taken names)*: first route on a fresh account, second zone, wildcard, path routes, conflicting A record, owned vs foreign CNAME, remove last route (offer tunnel stop/delete), rename hostname (create new → switch → delete old, zero-downtime order), and so on.
 - [x] Property test: for random intents over random consistent states, `plan(apply(plan(s)))` is empty.
 
 ### M3-05 · Executor + activity log
