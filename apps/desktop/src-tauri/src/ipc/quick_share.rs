@@ -154,13 +154,11 @@ pub async fn binary_install(
     Ok(binary_info(&status))
 }
 
-/// Services listening on this Mac, likely dev servers first.
+/// Services listening on this Mac and Docker containers' ports, likely dev servers first.
 #[tauri::command]
 #[specta::specta]
 pub async fn services_list() -> Result<Vec<LocalService>, AppError> {
-    tauri::async_runtime::spawn_blocking(discovery::list_services)
-        .await
-        .map_err(|err| AppError::internal(format!("Couldn't list local services: {err}")))
+    Ok(discovery::services().await)
 }
 
 /// Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`.

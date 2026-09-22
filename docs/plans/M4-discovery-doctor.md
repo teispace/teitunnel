@@ -15,8 +15,8 @@
 - [x] Framework hints from the cmdline (vite, next, nuxt, astro, remix, rails, django, flask, fastapi/uvicorn, laravel/artisan, hugo, jekyll…).
 
 ### M4-02 · Discovery: Docker
-- [ ] Socket detection (Docker Desktop, OrbStack, Colima, Podman compatible). `bollard` lists running containers with published ports; names and compose project labels are used for suggestions.
-- [ ] Handles an absent or unreachable daemon gracefully (no errors surfaced; the section is just hidden).
+- [x] Socket detection (Docker Desktop, OrbStack, Colima, Podman compatible). Running containers with published ports are listed; names and compose project labels are used for suggestions. *(A minimal HTTP/1.0 client on the Unix socket instead of `bollard`: one endpoint, no extra dependency tree.)*
+- [x] Handles an absent or unreachable daemon gracefully (no errors surfaced; the section is just hidden).
 
 ### M4-03 · Import existing cloudflared setups
 - [ ] Scan `~/.cloudflared`, `/etc/cloudflared`, `/usr/local/etc/cloudflared`, `/opt/homebrew/etc/cloudflared` for `config.yml`/`config.yaml`, `<uuid>.json` credentials and `cert.pem`.

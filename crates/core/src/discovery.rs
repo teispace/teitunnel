@@ -5,6 +5,7 @@
 //! stays open). It never runs as a background loop.
 
 mod classify;
+pub mod docker;
 
 use std::{
     collections::BTreeMap,
@@ -36,6 +37,69 @@ pub struct LocalService {
     pub project: Option<String>,
     /// Suggested origin URL, e.g. `http://localhost:5173`.
     pub origin: String,
+}
+
+/// Images that are databases or caches (routed as TCP, ranked low).
+const DATABASE_IMAGES: &[&str] = &[
+    "postgres",
+    "mysql",
+    "mariadb",
+    "redis",
+    "valkey",
+    "mongo",
+    "memcached",
+    "clickhouse",
+];
+
+/// Listening services, with ports published by Docker containers attributed to their
+/// container (`project/service` for Compose). Never fails: sources that can't be read
+/// just add nothing.
+pub async fn services() -> Vec<LocalService> {
+    let (listed, containers) = tokio::join!(
+        tokio::task::spawn_blocking(list_services),
+        docker::containers()
+    );
+    merge(listed.unwrap_or_default(), &containers)
+}
+
+pub(crate) fn merge(
+    mut services: Vec<LocalService>,
+    containers: &[docker::Container],
+) -> Vec<LocalService> {
+    for container in containers {
+        let image = container
+            .image
+            .rsplit('/')
+            .next()
+            .unwrap_or(&container.image);
+        let database = DATABASE_IMAGES.iter().any(|d| image.starts_with(d));
+        let kind = if database {
+            ServiceKind::Database
+        } else {
+            ServiceKind::Docker
+        };
+        for &port in &container.ports {
+            let entry = LocalService {
+                port,
+                all_interfaces: true,
+                pid: 0,
+                process: "docker".to_owned(),
+                kind,
+                project: Some(container.label()),
+                origin: kind.origin(port),
+            };
+            match services.iter_mut().find(|s| s.port == port) {
+                Some(existing) => {
+                    existing.kind = kind;
+                    existing.project = entry.project;
+                    existing.origin = entry.origin;
+                }
+                None => services.push(entry),
+            }
+        }
+    }
+    services.sort_by_key(|s| (s.kind.rank(), s.port));
+    services
 }
 
 /// Ports used by cloudflared metrics servers (ours and cloudflared's defaults).
@@ -211,6 +275,39 @@ mod tests {
         assert_eq!(service.kind, ServiceKind::Python);
         assert_eq!(service.origin, format!("http://localhost:{port}"));
         assert!(!service.all_interfaces);
+    }
+
+    #[test]
+    fn containers_name_their_ports() {
+        let listed = vec![LocalService {
+            port: 8088,
+            all_interfaces: true,
+            pid: 700,
+            process: "com.docker.backend".into(),
+            kind: ServiceKind::Docker,
+            project: None,
+            origin: "http://localhost:8088".into(),
+        }];
+        let containers = [
+            docker::Container {
+                name: "web".into(),
+                image: "nginx".into(),
+                compose: Some(("shop".into(), "web".into())),
+                ports: vec![8088],
+            },
+            docker::Container {
+                name: "db".into(),
+                image: "docker.io/library/postgres:17".into(),
+                compose: None,
+                ports: vec![5433],
+            },
+        ];
+        let merged = merge(listed, &containers);
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].project.as_deref(), Some("shop/web"));
+        assert_eq!(merged[0].pid, 700);
+        assert_eq!(merged[1].kind, ServiceKind::Database);
+        assert_eq!(merged[1].origin, "tcp://localhost:5433");
     }
 
     #[test]
