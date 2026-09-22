@@ -35,6 +35,10 @@ export const commands = {
 } | null>("binary_status"),
 	/**  Downloads, verifies and installs the latest cloudflared into the app data folder. */
 	binaryInstall: (onProgress: Channel<InstallProgress>) => __TAURI_INVOKE<BinaryInfo>("binary_install", { onProgress }),
+	/**  Checks Cloudflare's releases for a newer cloudflared. */
+	binaryCheckUpdate: () => __TAURI_INVOKE<UpdateInfo>("binary_check_update"),
+	/**  Shows the binary in Finder. */
+	binaryReveal: () => __TAURI_INVOKE<null>("binary_reveal"),
 	/**  Services listening on this Mac, likely dev servers first. */
 	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
 	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
@@ -306,6 +310,14 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  Whether a newer cloudflared is available. */
+export type UpdateInfo = {
+	/**  Latest published version. */
+	latest: string,
+	/**  Whether it's newer than the one in use (or none is installed). */
+	available: boolean,
+};
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

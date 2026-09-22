@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
+import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { useQuickShares } from "@/features/quick-share";
 import { formatDuration, stripScheme } from "@/lib/format";
 import type { QuickShare } from "@/lib/ipc/bindings";
@@ -19,7 +20,26 @@ const dots: Record<QuickShare["status"]["status"], Status> = {
 /** What's running right now, at a glance. */
 export function OverviewPage() {
   const { data: shares = [] } = useQuickShares();
+  const binary = useBinaryStatus();
   const now = useNow();
+
+  if (shares.length === 0 && binary.isSuccess && !binaryReady(binary.data)) {
+    return (
+      <>
+        <TitlebarToolbar title="Overview" />
+        <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col justify-center gap-5 px-5 pb-(--toolbar-height)">
+          <div>
+            <h2 className="text-large-title">Welcome to Teitunnel</h2>
+            <p className="mt-2 text-body text-secondary">
+              Share anything running on this Mac at a public URL, and connect your own domains
+              through Cloudflare. First, Teitunnel needs Cloudflare's connector.
+            </p>
+          </div>
+          <BinaryNotice binary={binary.data ?? null} />
+        </div>
+      </>
+    );
+  }
 
   if (shares.length === 0) {
     return (

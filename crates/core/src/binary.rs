@@ -46,6 +46,15 @@ impl BinaryManager {
         status
     }
 
+    /// The latest release version published by Cloudflare.
+    ///
+    /// # Errors
+    /// Network failures or an unexpected response.
+    pub async fn latest_version(&self) -> cloudflared::Result<cloudflared::Version> {
+        let installer = Installer::new(self.locator.managed_dir().to_path_buf())?;
+        Ok(installer.latest().await?.version)
+    }
+
     /// Downloads, verifies and installs the latest release as the managed binary.
     /// Concurrent calls wait for the first to finish.
     ///

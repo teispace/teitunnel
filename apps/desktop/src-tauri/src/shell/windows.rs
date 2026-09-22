@@ -69,17 +69,18 @@ pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()>
     }
     let builder = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings".into()))
         .title("Settings")
-        .inner_size(620.0, 460.0)
+        .inner_size(620.0, 500.0)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)
         .center()
         .visible(false);
+    // Standard-height title bar with the traffic lights in their native spot; the page
+    // draws the centred title and the tab toolbar below it.
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(19.0, 28.0));
+        .hidden_title(true);
     show_after_timeout(builder.build()?);
     Ok(())
 }

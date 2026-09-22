@@ -2,11 +2,11 @@ import { AnimatePresence, LazyMotion, m } from "motion/react";
 import { useState } from "react";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { spring } from "@/lib/motion-tokens";
-import { BinaryNotice } from "./components/binary-notice";
 import { ShareCard } from "./components/share-card";
 import { ShareComposer } from "./components/share-composer";
-import { useBinaryStatus, useQuickShares } from "./queries";
+import { useQuickShares } from "./queries";
 
 const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 
@@ -15,7 +15,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const { data: shares = [] } = useQuickShares();
   const binary = useBinaryStatus();
-  const missing = binary.isSuccess && binary.data === null;
+  const missing = binary.isSuccess && !binaryReady(binary.data);
 
   return (
     <LazyMotion features={loadFeatures} strict>
@@ -32,7 +32,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             <ShareComposer disabled={missing} autoFocus={compose} />
           </section>
 
-          {missing ? <BinaryNotice /> : null}
+          {missing ? <BinaryNotice binary={binary.data ?? null} /> : null}
 
           <AnimatePresence initial={false}>
             {shares.map((share) => (

@@ -5,9 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Channel } from "@tauri-apps/api/core";
-import { useState } from "react";
-import { commands, type InstallProgress, type QuickShare } from "@/lib/ipc/bindings";
+import { commands, type QuickShare } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
 
@@ -62,13 +60,6 @@ export function useLocalServices(enabled: boolean) {
   });
 }
 
-export function useBinaryStatus() {
-  return useQuery({
-    queryKey: queryKeys.binary.status(),
-    queryFn: () => call(commands.binaryStatus()),
-  });
-}
-
 export interface StartShareInput {
   origin: string;
   stopAfterMinutes: number | null;
@@ -97,20 +88,4 @@ export function useStopShare() {
       ),
     onSettled: () => queryClient.invalidateQueries({ queryKey: quickSharesQuery.queryKey }),
   });
-}
-
-/** Installs the managed cloudflared, exposing live progress. */
-export function useInstallBinary() {
-  const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<InstallProgress | null>(null);
-  const mutation = useMutation({
-    mutationFn: () => {
-      const channel = new Channel<InstallProgress>();
-      channel.onmessage = setProgress;
-      return call(commands.binaryInstall(channel));
-    },
-    onSuccess: (info) => queryClient.setQueryData(queryKeys.binary.status(), info),
-    onSettled: () => setProgress(null),
-  });
-  return { ...mutation, progress };
 }

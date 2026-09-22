@@ -19,6 +19,7 @@ export const queryKeys = {
   },
   binary: {
     status: () => ["binary", "status"] as const,
+    update: () => ["binary", "update"] as const,
   },
 } as const;
 

@@ -22,7 +22,7 @@
 - [x] Verify SHA256: GitHub's asset `digest` for the archive, and the release-notes checksum for the extracted binary (Cloudflare lists binary hashes for `.tgz` assets).
 - [x] macOS: extract the tgz, then `codesign --verify --strict` and check the TeamIdentifier equals Cloudflare's (`68WVV388M8`, recorded in research/cloudflare.md).
 - [x] Atomic install: write to `bin/.staging`, `rename` into place, keep `bin/cloudflared.prev` for rollback. Mode 0755.
-- [ ] Update check (daily, on launch; setting to disable). The update is applied only while no managed connector is running, or after asking.
+- [x] Update check (on demand in Settings → cloudflared; cached for a day). Updating is safe while shares run: they keep their current binary until restarted. (Automatic daily check on launch: deferred.)
 - [x] Tests: wiremock GitHub + a fixture tarball with a known hash; hash mismatch aborts and leaves the current binary untouched.
 
 ### M1-03 · `cloudflared::command` builders
@@ -70,9 +70,9 @@
 - [x] Tray: running shares listed with Copy URL / Stop, plus "Share port…" opening the app.
 
 ### M1-10 · Onboarding: binary step
-- [ ] First-run window content: "Teitunnel uses cloudflared, Cloudflare's connector." It shows detection results, then **Use installed version** / **Install managed version** (progress, verification steps visible) and a "Why?" disclosure.
-- [ ] If the system binary is too old, offer managed install. Never modify the user's Homebrew install.
-- [ ] Settings → cloudflared pane: source, version, path, check for updates, reinstall, reveal in Finder.
+- [x] First-run content (Overview welcome state when cloudflared isn't ready): "Teitunnel uses cloudflared, Cloudflare's connector." It shows detection results, then **Use installed version** / **Install managed version** (progress, verification steps visible) and a "Why?" disclosure.
+- [x] If the system binary is too old, offer managed install. Never modify the user's Homebrew install.
+- [x] Settings → cloudflared pane: source, version, path, check for updates, reinstall, reveal in Finder.
 
 ### M1-11 · Notifications
 - [x] `tauri-plugin-notification`: "Quick Share is live" (only when the window isn't focused), and "Quick Share stopped unexpectedly".

@@ -34,6 +34,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             settings::settings_set,
             quick_share::binary_status,
             quick_share::binary_install,
+            quick_share::binary_check_update,
+            quick_share::binary_reveal,
             quick_share::services_list,
             quick_share::quick_share_start,
             quick_share::quick_share_stop,

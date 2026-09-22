@@ -62,6 +62,55 @@ pub async fn binary_status(state: State<'_, AppState>) -> Result<Option<BinaryIn
     Ok(state.binary.refresh().await.ok().as_ref().map(binary_info))
 }
 
+/// Whether a newer cloudflared is available.
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    /// Latest published version.
+    pub latest: String,
+    /// Whether it's newer than the one in use (or none is installed).
+    pub available: bool,
+}
+
+/// Checks Cloudflare's releases for a newer cloudflared.
+#[tauri::command]
+#[specta::specta]
+pub async fn binary_check_update(state: State<'_, AppState>) -> Result<UpdateInfo, AppError> {
+    let latest = state
+        .binary
+        .latest_version()
+        .await
+        .map_err(teitunnel_core::Error::from)?;
+    let current = state
+        .binary
+        .current()
+        .await
+        .ok()
+        .and_then(|status| status.version);
+    Ok(UpdateInfo {
+        latest: latest.to_string(),
+        available: current.is_none_or(|current| current < latest),
+    })
+}
+
+/// Shows the binary in Finder.
+#[tauri::command]
+#[specta::specta]
+pub async fn binary_reveal(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    use tauri_plugin_opener::OpenerExt;
+    let status = state
+        .binary
+        .current()
+        .await
+        .map_err(teitunnel_core::Error::from)?;
+    app.opener()
+        .reveal_item_in_dir(&status.path)
+        .map_err(|err| AppError::internal(format!("Couldn't open Finder: {err}")))
+}
+
 /// Install progress, streamed to the webview.
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase", tag = "step")]

@@ -4,7 +4,7 @@
 //
 // Usage: node scripts/shoot.ts <out-dir> [route ...]   (default route: /dev/gallery)
 // Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them;
-// SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k).
+// SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k); SHOOT_SIZE=620x500.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -15,6 +15,10 @@ const targets = routes.length > 0 ? routes : ["/dev/gallery"];
 const actions = (process.env["SHOOT_ACTIONS"] ?? "").split(";").filter(Boolean);
 const scrollTo = process.env["SHOOT_SCROLL"];
 const keys = (process.env["SHOOT_KEYS"] ?? "").split(";").filter(Boolean);
+const [width = 1120, height = 720] = (process.env["SHOOT_SIZE"] ?? "")
+  .split("x")
+  .map(Number)
+  .filter(Boolean);
 
 // Measured NSVisualEffectView `sidebar` material on macOS 27 (D-024), before our tint.
 const VIBRANCY =
@@ -29,13 +33,13 @@ const browser = await webkit.launch();
 try {
   for (const scheme of ["light", "dark"] as const) {
     const page = await browser.newPage({
-      viewport: { width: 1120, height: 720 },
+      viewport: { width, height },
       deviceScaleFactor: 2,
       colorScheme: scheme,
     });
     for (const route of targets) {
       await page.goto(new URL(route.replace(/^\//, ""), base).toString());
-      await page.waitForSelector("main h1");
+      await page.waitForSelector("h1");
       await page.addStyleTag({ content: VIBRANCY });
       await page.evaluate(() => {
         document.documentElement.dataset["windowActive"] = "true";
