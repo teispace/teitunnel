@@ -1,0 +1,40 @@
+---
+source: crates/core/src/engine/planner_tests.rs
+expression: snap(&p)
+---
+steps:
+  - type: putConfig
+    tunnel:
+      kind: existing
+      id: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+    ingress:
+      - hostname: app.xyz.com
+        service: "http://localhost:3000"
+      - hostname: old.xyz.com
+        service: "http://localhost:4000"
+      - service: "http_status:404"
+    expectedVersion: 3
+    previous:
+      - hostname: app.xyz.com
+        service: "http://localhost:3000"
+      - service: "http_status:404"
+  - type: updateRecord
+    zoneId: z-xyz
+    recordId: r-old
+    hostname: old.xyz.com
+    tunnel:
+      kind: existing
+      id: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+    routeId: r6
+    previous:
+      id: r-old
+      name: old.xyz.com
+      type: CNAME
+      content: dead-tunnel.cfargotunnel.com
+      proxied: true
+      comment: ~
+  - type: verify
+    hostname: old.xyz.com
+warnings: []
+requiresConfirmation: false
+fingerprint: "<fingerprint>"

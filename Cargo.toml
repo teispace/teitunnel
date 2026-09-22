@@ -72,7 +72,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2.5"
 
 # Testing
-insta = { version = "1.48", features = ["json"] }
+insta = { version = "1.48", features = ["json", "yaml"] }
 proptest = "1.11"
 tempfile = "3"
 wiremock = "0.6.5"
