@@ -11,6 +11,7 @@ import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
@@ -73,7 +74,9 @@ export function DomainsPage() {
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const domains = useDomains(active?.id ?? null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const list = domains.data ?? [];
+  const [query, setQuery] = useState("");
+  const all = domains.data ?? [];
+  const list = query.trim() ? all.filter((d) => d.name.includes(query.trim().toLowerCase())) : all;
   const selected = list.find((d) => d.id === selectedId) ?? list[0] ?? null;
 
   const toolbar = (
@@ -134,31 +137,49 @@ export function DomainsPage() {
                 <Skeleton className="h-9" />
               </div>
             ) : (
-              <ListPane
-                label="Domains"
-                items={list}
-                getId={(domain) => domain.id}
-                selectedId={selected?.id ?? null}
-                onSelect={setSelectedId}
-                renderRow={(domain) => (
-                  <ListRow
-                    title={domain.name}
-                    subtitle={statuses[domain.status].label}
-                    leading={
-                      <StatusDot
-                        status={statuses[domain.status].dot}
-                        label={statuses[domain.status].label}
-                      />
-                    }
-                  />
-                )}
-                empty={
-                  <EmptyState
-                    title="No domains"
-                    description="Add a domain in your Cloudflare dashboard, then refresh."
-                  />
-                }
-              />
+              <div className="flex min-h-0 flex-1 flex-col">
+                {all.length > 8 ? (
+                  <div className="px-2.5 pt-1 pb-1.5">
+                    <Input
+                      type="search"
+                      aria-label="Filter domains"
+                      placeholder="Filter"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      className="rounded-full"
+                    />
+                  </div>
+                ) : null}
+                <ListPane
+                  label="Domains"
+                  items={list}
+                  getId={(domain) => domain.id}
+                  selectedId={selected?.id ?? null}
+                  onSelect={setSelectedId}
+                  renderRow={(domain) => (
+                    <ListRow
+                      title={domain.name}
+                      subtitle={statuses[domain.status].label}
+                      leading={
+                        <StatusDot
+                          status={statuses[domain.status].dot}
+                          label={statuses[domain.status].label}
+                        />
+                      }
+                    />
+                  )}
+                  empty={
+                    <EmptyState
+                      title={query ? "No matches" : "No domains"}
+                      description={
+                        query
+                          ? `No domain contains “${query}”.`
+                          : "Add a domain in your Cloudflare dashboard, then refresh."
+                      }
+                    />
+                  }
+                />
+              </div>
             )
           }
         >

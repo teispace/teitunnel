@@ -16,7 +16,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 3. **M2** (accounts & domains) can start without the maintainer up to M2-04 (OAuth needs the registered client): cf-api foundation (M2-01), accounts/zones (M2-02), capabilities (M2-03), token flow (M2-05), cert.pem import (M2-06), account store (M2-07), connect UI (M2-08), domains view (M2-09). A test API token is needed for the nightly real-account job.
 
 ## In progress
-- **M2** on `milestone/m2-accounts-domains`, draft PR #3 (stacked on #2). Done: cf-api foundation (retries, rate limit, pagination), accounts/zones endpoints, capability probing (D-038), token template + token flow, cert.pem import, keychain secret store, account commands, connect sheet, Settings → Accounts, Domains view. Next: OAuth behind a flag (M2-04), onboarding step 2, domain search.
+- **M2** on `milestone/m2-accounts-domains`, draft PR #3 (stacked on #2): feature-complete except items needing the maintainer — OAuth client registration (the flow is built, tested and hidden until `CLIENT_ID` is set), real-account fixtures (needs a test token). Next: **M3 routes engine** on a branch stacked on M2.
 - **M1** complete; PR #2 ready for review. **M0** complete; PR #1 ready for review.
 
 ## Recently completed
@@ -28,7 +28,8 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 ## Blockers / maintainer actions needed
 | Item | Needed by | Notes |
 |---|---|---|
-| Cloudflare OAuth public client + verify teispace.com | M2-04 | Redirects `http://127.0.0.1:{53682,53683,53684}/callback`. Scopes list is in `research/cloudflare.md` (TODO) |
+| Cloudflare OAuth public client + verify teispace.com | M2-04 (built; hidden until then) | Redirects `http://127.0.0.1:{53682,53683,53684}/callback`. Put the client id in `crates/core/src/accounts/oauth.rs` (`CLIENT_ID`) and confirm the scope ids in `SCOPES` |
+| Confirm the "Cloudflare Tunnel" permission key in the token template | M2-05 | Open the link from Connect Cloudflare once; if Tunnel isn't pre-selected, tell me the right key (research/cloudflare.md) |
 | Test Cloudflare account/zone + API token for nightly E2E | M1-12 / M3-11 | Store as GitHub Actions secrets |
 | Apple Developer ID (signing + notarization) | M6-01 (v0.1 can ship unsigned as a "developer preview") | Decide before M1-13 |
 

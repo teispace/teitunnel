@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/patterns/empty-state";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
+import { ConnectSheet, useAccounts } from "@/features/accounts";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { useQuickShares } from "@/features/quick-share";
 import { formatDuration, stripScheme } from "@/lib/format";
@@ -21,6 +22,7 @@ const dots: Record<QuickShare["status"]["status"], Status> = {
 export function OverviewPage() {
   const { data: shares = [] } = useQuickShares();
   const binary = useBinaryStatus();
+  const accounts = useAccounts();
   const now = useNow();
 
   if (shares.length === 0 && binary.isSuccess && !binaryReady(binary.data)) {
@@ -50,11 +52,16 @@ export function OverviewPage() {
           title="Nothing running yet"
           description="Share a local service to get a public URL. It shows up here with its live status."
           action={
-            <Button variant="primary" asChild>
-              <Link to="/quick-share" search={{ compose: true }}>
-                Share a local service
-              </Link>
-            </Button>
+            <div className="flex flex-col items-center gap-2">
+              <Button variant="primary" asChild>
+                <Link to="/quick-share" search={{ compose: true }}>
+                  Share a local service
+                </Link>
+              </Button>
+              {accounts.isSuccess && accounts.data.length === 0 ? (
+                <ConnectSheet trigger={<Button variant="plain">Use my own domain…</Button>} />
+              ) : null}
+            </div>
           }
         />
       </>

@@ -23,7 +23,7 @@
 
 ### M2-02 · Accounts, zones, token verify
 - [x] `user_tokens_verify`, `accounts_list`, `zones_list(account)` (status, name_servers, original NS, plan), `zone_get`.
-- [ ] `oauth_userinfo` for display name/email (with M2-04).
+- [ ] `oauth_userinfo` for display name/email (needs the registered client to confirm the endpoint/scope).
 - [ ] Record the exact response shapes as fixtures from a real account (secrets scrubbed).
 
 ### M2-03 · Capability probing
@@ -32,12 +32,14 @@
 - [x] Map missing capability → `DisabledReason` + a "Fix permissions" action (opens the template URL or OAuth re-consent with optional scopes).
 
 ### M2-04 · OAuth (PKCE, loopback)
-- [ ] `core::auth::oauth`: PKCE verifier (64 random chars) + S256 challenge + random `state`. Bind the first free port from the registered set on `127.0.0.1` only. Open the browser with the authorize URL (scopes from research doc).
-- [ ] Callback server: accepts exactly one request to `/callback`, validates `state`, returns a small styled "You can return to Teitunnel" page (static HTML with inline CSS; no JS). Times out after 5 minutes. Cancellable from the UI.
-- [ ] Code exchange at `/oauth2/token`. The refresh token goes in the keychain; the access token and expiry stay in memory. Proactive refresh at 80% of lifetime, with a single-flight refresh lock.
-- [ ] Revocation on sign-out (`/oauth2/revoke`).
-- [ ] Focus returns to the app window after callback.
-- [ ] Tests: full flow against a wiremock "authorization server"; state mismatch, timeout, port-in-use fallback, refresh race.
+- [x] `core::auth::oauth`: PKCE verifier (64 random chars) + S256 challenge + random `state`. Bind the first free port from the registered set on `127.0.0.1` only. Open the browser with the authorize URL (scopes from research doc).
+- [x] Callback server: accepts exactly one request to `/callback`, validates `state`, returns a small styled "You can return to Teitunnel" page (static HTML with inline CSS; no JS). Times out after 5 minutes. Cancellable from the UI.
+- [x] Code exchange at `/oauth2/token`. The refresh token goes in the keychain; the access token and expiry stay in memory. Proactive refresh at 80% of lifetime, with a single-flight refresh lock.
+- [x] Revocation on sign-out (`/oauth2/revoke`).
+- [x] Focus returns to the app window after callback.
+- [x] Tests: full flow against a wiremock "authorization server"; state mismatch, timeout, port-in-use fallback, refresh race.
+
+*Built and tested against a mock authorization server; enabled once the maintainer registers the client (`CLIENT_ID` in `crates/core/src/accounts/oauth.rs`, scopes to confirm).*
 
 ### M2-05 · API token flow
 - [x] Template URL builder (research doc keys; unit-tested encoding).
@@ -53,12 +55,12 @@
 - [x] Removal deletes every keychain item for the account (test with the fake store + a macOS integration test behind a feature flag).
 
 ### M2-08 · UI: connect & accounts
-- [ ] Onboarding step 2: "Connect Cloudflare", with a primary **Sign in with Cloudflare** button, then "Use an API token" and "Import from cloudflared login" as secondary links. "Skip, just Quick Share" is also available.
-- [ ] Waiting-for-browser state (animated status, Cancel, "Copy link" if the browser didn't open).
-- [ ] Sidebar account switcher (popover with accounts, add, manage).
+- [x] Onboarding step 2: the Overview offers "Use my own domain…" next to Quick Share; the connect sheet leads with **Sign in with Cloudflare** (when the client exists), then API token and cloudflared login.
+- [x] Waiting-for-browser state (animated status, Cancel, "Copy link" if the browser didn't open).
+- [ ] Sidebar account switcher (popover with accounts, add, manage). *(Deferred: the Domains toolbar has an account switcher; the sidebar one comes with Routes in M3.)*
 - [x] Settings → Accounts: list, credential type, capabilities (a checklist with reasons), Re-check, Sign out.
 
 ### M2-09 · Domains view
 - [x] Zones list: name, status (active / pending nameservers / moved), plan. (Route count arrives with M3.)
 - [x] Inspector: status detail. For pending zones, show the required nameservers with copy buttons and a "Check again" action. Show existing tunnel CNAMEs in the zone (read-only until M3/M4). *(CNAME listing moves to M3 with the DNS client.)*
-- [ ] Search/filter for accounts with many zones (virtualized).
+- [x] Search/filter for accounts with many zones (filter field appears above 8 domains; virtualization lands with the M5 list work if needed).
