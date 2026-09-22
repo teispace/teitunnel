@@ -9,6 +9,8 @@ import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
@@ -49,7 +51,17 @@ export function ActivityPage() {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const activity = useActivity(active?.id ?? null);
-  const entries = activity.data ?? [];
+  const all = activity.data ?? [];
+  const [filter, setFilter] = useState<"all" | "problems">("all");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const entries = all.filter(
+    (e) =>
+      (filter === "all" || e.outcome !== "applied") &&
+      (!q ||
+        e.summary.toLowerCase().includes(q) ||
+        e.detail.some((d) => d.toLowerCase().includes(q))),
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = entries.find((e) => String(e.id) === selectedId) ?? entries[0] ?? null;
 
@@ -84,7 +96,7 @@ export function ActivityPage() {
     <div className="flex flex-col gap-2 p-3">
       <Skeleton className="h-11" />
     </div>
-  ) : entries.length === 0 || (isSuccess && !active) ? (
+  ) : all.length === 0 || (isSuccess && !active) ? (
     <EmptyState
       icon={Activity}
       title="No activity yet"
@@ -94,21 +106,44 @@ export function ActivityPage() {
     <SplitView
       id="activity"
       list={
-        <ListPane
-          label="Activity"
-          items={entries}
-          getId={(e) => String(e.id)}
-          groupOf={(e) => day(e.at)}
-          selectedId={selected ? String(selected.id) : null}
-          onSelect={setSelectedId}
-          renderRow={(entry) => (
-            <ListRow
-              title={entry.summary}
-              subtitle={`${time(entry.at)} · ${outcomeOf(entry).label}`}
-              leading={<StatusDot status={outcomeOf(entry).dot} label={outcomeOf(entry).label} />}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-1.5">
+            <Input
+              type="search"
+              aria-label="Filter activity"
+              placeholder="Filter"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="rounded-full"
             />
-          )}
-        />
+            <SegmentedControl
+              label="Show"
+              size="sm"
+              segments={[
+                { value: "all", label: "All" },
+                { value: "problems", label: "Only problems" },
+              ]}
+              value={filter}
+              onValueChange={setFilter}
+            />
+          </div>
+          <ListPane
+            label="Activity"
+            items={entries}
+            getId={(e) => String(e.id)}
+            groupOf={(e) => day(e.at)}
+            selectedId={selected ? String(selected.id) : null}
+            onSelect={setSelectedId}
+            renderRow={(entry) => (
+              <ListRow
+                title={entry.summary}
+                subtitle={`${time(entry.at)} · ${outcomeOf(entry).label}`}
+                leading={<StatusDot status={outcomeOf(entry).dot} label={outcomeOf(entry).label} />}
+              />
+            )}
+            empty={<EmptyState title="No matches" description="No changes match the filter." />}
+          />
+        </div>
       }
     >
       {selected ? (
