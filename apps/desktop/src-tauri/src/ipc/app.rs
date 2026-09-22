@@ -45,3 +45,10 @@ pub fn app_ready(app: AppHandle) {
 pub fn app_accent_color() -> Option<String> {
     shell::accent::accent_color()
 }
+
+/// Records an uncaught webview error in the app log (redacted like every other line).
+#[tauri::command]
+#[specta::specta]
+pub fn app_report_error(message: String, stack: Option<String>) {
+    tracing::error!(target: "webview", %message, stack = stack.as_deref().unwrap_or(""), "uncaught error");
+}

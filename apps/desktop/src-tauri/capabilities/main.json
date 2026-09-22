@@ -10,6 +10,7 @@
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-is-focused",
     "core:window:allow-theme",
+    "core:window:allow-set-theme",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }, { "url": "mailto:*" }]

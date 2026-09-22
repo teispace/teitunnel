@@ -26,8 +26,14 @@
   --surface-sidebar: light-dark(transparent, rgb(0 0 0 / 0.42));
   --surface-content: light-dark(#ffffff, #212222);
   --surface-raised: light-dark(#ffffff, #2c2c2c);
-  --surface-control: light-dark(#ffffff, rgb(255 255 255 / 0.1));
-  --surface-control-pressed: light-dark(#f0f0f0, rgb(255 255 255 / 0.16));
+  /* Push buttons are flat fills on macOS 27 (measured: 7.5% black / 7% white). */
+  --surface-control: light-dark(rgb(0 0 0 / 0.075), rgb(255 255 255 / 0.075));
+  --surface-control-pressed: light-dark(rgb(0 0 0 / 0.15), rgb(255 255 255 / 0.15));
+  --surface-field: light-dark(#ffffff, rgb(255 255 255 / 0.05));
+  --surface-thumb: light-dark(#ffffff, rgb(255 255 255 / 0.22));
+  --surface-knob: #ffffff;
+  /* Unchecked checkbox / radio well. */
+  --surface-toggle: light-dark(#ffffff, rgb(255 255 255 / 0.16));
   --surface-hover: light-dark(rgb(0 0 0 / 0.04), rgb(255 255 255 / 0.05));
   --surface-pressed: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.1));
   --surface-selected: var(--accent);
@@ -56,9 +62,11 @@
   --focus-ring-width: 3.5px;
 
   /* Status */
-  --status-healthy: light-dark(#34c759, #30d158);
-  --status-warning: light-dark(#ff9500, #ff9f0a);
-  --status-error: light-dark(#ff3b30, #ff453a);
+  /* Status dots as System Settings draws them on macOS 27 (measured), softer than the
+     classic system colours. */
+  --status-healthy: light-dark(#65c466, #68ce67);
+  --status-warning: light-dark(#f5a524, #f7b03c);
+  --status-error: light-dark(#eb4c46, #eb534e);
   --status-idle: light-dark(#8e8e93, #98989d);
 
   /* Materials for controls floating over content (DESIGN §2a). */

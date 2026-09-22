@@ -25,7 +25,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             app::app_info,
             app::app_ready,
-            app::app_accent_color
+            app::app_accent_color,
+            app::app_report_error
         ])
         .events(collect_events![EntityChanged])
 }

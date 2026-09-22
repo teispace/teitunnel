@@ -14,6 +14,8 @@ export const commands = {
 	appReady: () => __TAURI_INVOKE<void>("app_ready"),
 	/**  The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default. */
 	appAccentColor: () => __TAURI_INVOKE<string | null>("app_accent_color"),
+	/**  Records an uncaught webview error in the app log (redacted like every other line). */
+	appReportError: (message: string, stack: string | null) => __TAURI_INVOKE<void>("app_report_error", { message, stack }),
 };
 
 /** Events */

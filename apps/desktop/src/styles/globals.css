@@ -20,6 +20,10 @@
   --color-surface-raised: var(--surface-raised);
   --color-surface-control: var(--surface-control);
   --color-surface-control-pressed: var(--surface-control-pressed);
+  --color-surface-field: var(--surface-field);
+  --color-surface-thumb: var(--surface-thumb);
+  --color-surface-knob: var(--surface-knob);
+  --color-surface-toggle: var(--surface-toggle);
   --color-surface-hover: var(--surface-hover);
   --color-surface-pressed: var(--surface-pressed);
   --color-surface-selected: var(--surface-selected);
@@ -72,7 +76,7 @@
   --radius-*: initial;
   --radius-control: 6px;
   --radius-row: 8px;
-  --radius-card: 10px;
+  --radius-card: 12px;
   --radius-sheet: 12px;
   --radius-full: 9999px;
 
@@ -86,11 +90,109 @@
   --ease-sheet: var(--ease-sheet);
   --ease-bouncy: var(--ease-bouncy);
   --ease-interactive: var(--ease-interactive);
+
+  --animate-pop-in: pop-in var(--duration-snappy) var(--ease-snappy);
+  --animate-pop-out: pop-out 120ms ease-in forwards;
+  --animate-sheet-in: sheet-in var(--duration-sheet) var(--ease-sheet);
+  --animate-sheet-out: sheet-out 150ms ease-in forwards;
+  --animate-fade-in: fade-in 120ms ease-out;
+  --animate-fade-out: fade-out 120ms ease-in forwards;
+  --animate-pulse-slow: pulse-slow 1.2s ease-in-out infinite;
+  --animate-spinner: spinner 0.8s steps(8) infinite;
+  --animate-indeterminate: indeterminate 1.4s var(--ease-smooth) infinite;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes expand {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+  }
+}
+@keyframes collapse {
+  from {
+    height: var(--radix-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+@keyframes pulse-slow {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Reduce motion: presence animations become plain fades; loops stop (DESIGN §7).
+   `!important` is required to override per-element animation utilities. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spinner),
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: must beat utility classes */
+    animation-duration: 80ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: must beat utility classes */
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* Hairline borders via `border-hairline`. */
 @utility border-hairline {
   border-width: var(--hairline);
+}
+@utility border-t-hairline {
+  border-top-width: var(--hairline);
+}
+@utility border-b-hairline {
+  border-bottom-width: var(--hairline);
 }
 
 /* Transitions driven by spring tokens: `transition-snappy`, `transition-smooth`. */

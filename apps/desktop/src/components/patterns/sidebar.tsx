@@ -30,7 +30,7 @@ export function SidebarSection({ title, children }: { title: string | null; chil
 }
 
 interface SidebarItemProps {
-  to: NavItem["to"];
+  to: NavItem["to"] | "/dev/gallery";
   label: string;
   icon: LucideIcon;
   badge?: ReactNode;

@@ -30,3 +30,6 @@ test-results/
 
 # Tauri
 apps/desktop/src-tauri/gen/schemas/
+
+# Playwright
+.playwright/
