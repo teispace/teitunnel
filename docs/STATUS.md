@@ -11,16 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M5-05 Always-on (launchd)**: ServiceManager adapter (plist generation, `launchctl bootstrap/bootout gui/<uid>` with discrete args), token file 0600 in app data, Session ↔ Always-on switch without a gap, status via metrics; tests with plist snapshots and a recording fake ServiceManager.
-2. M5 rest: 1 s metrics subscription + rollups, uPlot charts, full log viewer (virtualized, follow-tail, search), menu bar health line/icon variants, launch at login, notification policy, Activity filters/diff.
-3. Nightly real-account job (needs the maintainer's test token).
-4. **Maintainer:** review/merge PRs #1–#5 in order; v0.1 signing decision + tag; OAuth client; test token.
+1. M5 rest: notification policy (connector down/recovered/crash loop, Doctor errors; coalesced; suppressed while focused), quit confirmation offering Always-on, launch at login, menu bar health line + icon variants, full log viewer (virtualized, follow-tail, search), 1 s metrics subscription + uPlot charts, Activity filters/diff.
+2. Nightly real-account job (needs the maintainer's test token).
+3. M6 distribution (signing/notarization need the maintainer's Developer ID).
+4. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
 
 ## In progress
-- **M5** starting on `milestone/m5-observability-always-on`. Already on the M4 branch: Activity timeline, connector logs + traffic sparkline in Tunnels, routes in the menu bar.
-- **M4** complete, PR #5 (ready for review). **M3** PR #4, **M2** PR #3, **M1** PR #2, **M0** PR #1.
+- **M5** on `milestone/m5-observability-always-on`, draft PR #6. Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.
+- **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M5 Always-on connectors (launchd).
 - 2026-09-23: M4 import, foreign connectors, diagnostics, log checks; Overview/Activity/Tunnels logs.
 - 2026-09-23: M4 Doctor (checks, view, fix safe) and Docker/framework discovery.
 - 2026-09-23: M3 E2E against tools/fake-cloudflare; 31 planner scenarios; PR #4 ready.
