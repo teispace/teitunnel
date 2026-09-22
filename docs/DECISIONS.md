@@ -128,3 +128,14 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-031 · 2026-09-22 · Two CSS materials: glass (controls) and panel (popovers, menus, palette, toasts)
 **Decision:** `material-glass` (62% tint) is only for small controls floating over content. Panels use `material-panel` (94% tint, 30 px blur). Both become opaque under Reduce transparency.
 **Why:** At 62% the text underneath competed with list items in the command palette. Near-opaque panels match macOS menus and stay legible even where blur isn't rendered.
+
+### D-032 · 2026-09-23 · No `Spawner` port; tests use the fake binary
+**Decision:** The supervisor spawns processes directly with `tokio::process`. Tests point it at `tools/fake-cloudflared` (a real binary), and the supervisor integration tests live in that package so Cargo always builds the fake first (`CARGO_BIN_EXE_fake-cloudflared`).
+**Why:** A real child process exercises signals, process groups, pipes and HTTP polling, which a mocked spawner wouldn't. One fewer abstraction.
+
+### D-033 · 2026-09-23 · Merging to `main` needs the maintainer; milestones stack
+**Decision:** Unattended sessions don't merge PRs (the environment's permission policy blocks merge-without-review, rightly). When a milestone is done, its PR is marked ready and the next milestone continues on a branch stacked on it, with a draft PR targeting the previous milestone branch. After the maintainer merges, the next PR is retargeted to `main`.
+
+### D-034 · 2026-09-23 · A Quick Share is "live" only when a connection is registered
+**Decision:** Show the URL as ready only when `/quicktunnel` has a hostname **and** `/ready` reports ≥ 1 connection.
+**Why:** Measured with cloudflared 2026.9.1: `/quicktunnel` returns the hostname about 2 s before the first edge connection registers (`readyConnections: 0`); opening the URL in that window fails.

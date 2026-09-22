@@ -10,10 +10,10 @@
 ---
 
 ### M1-01 · `cloudflared::locate` + version
-- [ ] Search order: managed (`<app_data>/bin/cloudflared`), then `$PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` (Windows: `Program Files`, `%LOCALAPPDATA%`).
-- [ ] `Version` parse from `cloudflared --version` (`cloudflared version 2026.9.1 (built …)`), with `MIN_SUPPORTED = 2025.6.1`.
-- [ ] `BinaryStatus { path, source: Managed|System, version, supported, latest? }`.
-- [ ] Tests: version parsing fixtures (old formats, dev builds), search precedence with a temp dir.
+- [x] Search order: managed (`<app_data>/bin/cloudflared`), then `$PATH`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` (Windows: `Program Files`, `%LOCALAPPDATA%`).
+- [x] `Version` parse from `cloudflared --version` (`cloudflared version 2026.9.1 (built …)`), with `MIN_SUPPORTED = 2025.6.1`.
+- [x] `BinaryStatus { path, source: Managed|System, version, supported, latest? }`.
+- [x] Tests: version parsing fixtures (old formats, dev builds), search precedence with a temp dir.
 
 ### M1-02 · `cloudflared::install` (managed binary)
 - [ ] Resolve the latest release via the GitHub API (`/repos/cloudflare/cloudflared/releases/latest`), with an ETag cache and no auth. Rate limit handling: fall back to the `releases/latest/download/<asset>` redirect for the version.
@@ -26,35 +26,35 @@
 - [ ] Tests: wiremock GitHub + a fixture tarball with a known hash; hash mismatch aborts and leaves the current binary untouched.
 
 ### M1-03 · `cloudflared::command` builders
-- [ ] `QuickTunnelCmd { origin, metrics_port }` and `RunCmd { token_source: Env|File(path), metrics_port, protocol, edge_ip_version, log_dir?, loglevel }`. They produce `(program, args, env)`.
-- [ ] Always adds `--no-autoupdate --output json --metrics 127.0.0.1:<port>`. The token is **never** placed in args (compile-time: `Secret` isn't `Into<OsString>`).
-- [ ] `to_display_command()` for "Copy as command", with secrets rendered as `$TUNNEL_TOKEN`.
-- [ ] Tests: snapshot of args/env per builder; a test asserting no secret appears in the args.
+- [x] `QuickTunnelCmd { origin, metrics_port }` and `RunCmd { token_source: Env|File(path), metrics_port, protocol, edge_ip_version, log_dir?, loglevel }`. They produce `(program, args, env)`.
+- [x] Always adds `--no-autoupdate --output json --metrics 127.0.0.1:<port>`. The token is **never** placed in args (compile-time: `Secret` isn't `Into<OsString>`).
+- [x] `to_display_command()` for "Copy as command", with secrets rendered as `$TUNNEL_TOKEN`.
+- [x] Tests: snapshot of args/env per builder; a test asserting no secret appears in the args.
 
 ### M1-04 · `cloudflared::log_parse`
-- [ ] Parse JSON lines into `LogEvent { ts, level, message, fields: Map, connection_index?, location?, error? }`. Tolerate unknown fields. Treat non-JSON lines (panics, early startup) as `level=raw`.
-- [ ] Classify known events: `registered connection` (colo, connIndex), `unregistered`, `retrying`, `quick tunnel url`, `origin error` (so Doctor can use them later).
-- [ ] Fixture corpus captured from real cloudflared 2026.9.x runs (quick tunnel, run with token, origin down, UDP blocked). Store them in `fixtures/cloudflared/`.
+- [x] Parse JSON lines into `LogEvent { ts, level, message, fields: Map, connection_index?, location?, error? }`. Tolerate unknown fields. Treat non-JSON lines (panics, early startup) as `level=raw`.
+- [x] Classify known events: `registered connection` (colo, connIndex), `unregistered`, `retrying`, `quick tunnel url`, `origin error` (so Doctor can use them later).
+- [x] Fixture corpus captured from a real cloudflared 2026.9.1 quick-tunnel run (`crates/cloudflared/fixtures/2026.9.1/`). Still to capture: run with token (needs a test account, M3), origin down, UDP blocked.
 
 ### M1-05 · `cloudflared::endpoints`
-- [ ] Client for `127.0.0.1:<port>`: `ready() -> Ready { status, ready_connections, connector_id }`, `quicktunnel() -> Option<Hostname>`, `metrics() -> MetricsSnapshot` (Prometheus text parser: counters/gauges/histograms needed per research doc), `healthcheck()`.
-- [ ] Short timeouts (500 ms) and no retries inside; the caller decides.
-- [ ] Tests: fixture Prometheus payloads; parser property test (never panics on arbitrary input).
+- [x] Client for `127.0.0.1:<port>`: `ready() -> Ready { status, ready_connections, connector_id }`, `quicktunnel() -> Option<Hostname>`, `metrics() -> MetricsSnapshot` (Prometheus text parser: counters/gauges/histograms needed per research doc), `healthcheck()`.
+- [x] Short timeouts (500 ms) and no retries inside; the caller decides.
+- [x] Tests: fixture Prometheus payloads; parser property test (never panics on arbitrary input).
 
 ### M1-06 · `tools/fake-cloudflared`
-- [ ] A binary that mimics the CLI surface we use: parses `tunnel … run`/`--url`, serves `/ready`, `/quicktunnel`, `/metrics`, and emits JSON logs.
-- [ ] Behaviour scripted via env (`FAKE_CFD_SCENARIO=healthy|slow_start|crash_after:5s|degraded|ignore_sigterm|no_url`).
-- [ ] Also acts as a tiny origin for E2E if needed.
+- [x] A binary that mimics the CLI surface we use: parses `tunnel … run`/`--url`, serves `/ready`, `/quicktunnel`, `/metrics`, and emits JSON logs.
+- [x] Behaviour scripted via env (`FAKE_CFD_SCENARIO=healthy|slow_start|crash_after:5s|degraded|ignore_sigterm|no_url`).
+- [x] Also acts as a tiny origin for E2E if needed.
 
 ### M1-07 · `core::runtime` supervisor v1
-- [ ] `Supervisor` actor owning `Connector` actors. The state machine is exactly as in ARCHITECTURE §5.1, and transitions are emitted as events.
-- [ ] Metrics port allocator (`20300..20399`, bind-probe, persisted per tunnel from M3; ephemeral for Quick Share).
-- [ ] Spawn via the `Spawner` port: own process group, `kill_on_drop`, stdout/stderr → line reader → `log_parse` → ring buffer (100k) + broadcast.
-- [ ] Health loop: `/ready` every 2 s. Restart policy with exponential backoff + jitter; crash-loop detection (> 5 in 2 min).
-- [ ] Stop: SIGTERM → 5 s → SIGKILL (Unix via `nix`/`rustix`; Windows: `CTRL_BREAK_EVENT` then `TerminateProcess`).
-- [ ] **Orphan safety:** write a pidfile registry (`<app_data>/run/*.json` with pid + start time + our marker). On launch, reap orphans whose start time matches (the app was force-quit). Never kill PIDs we didn't start.
+- [x] `Supervisor` owning connector actors. The state machine is exactly as in ARCHITECTURE §5.1, and transitions are emitted as events.
+- [x] Metrics port allocator (`20300..20399`, bind-probe, persisted per tunnel from M3; ephemeral for Quick Share).
+- [x] Spawn directly with `tokio::process` (no `Spawner` trait; tests inject the fake binary path, D-032): own process group, `kill_on_drop`, stdout/stderr → line reader → `log_parse` → ring buffer (100k) + broadcast.
+- [x] Health loop: `/ready` every 2 s. Restart policy with exponential backoff + jitter; crash-loop detection (> 5 in 2 min).
+- [x] Stop: SIGTERM → 5 s → SIGKILL (Unix via `nix`/`rustix`; Windows: `CTRL_BREAK_EVENT` then `TerminateProcess`).
+- [x] **Orphan safety:** write a pidfile registry (`<app_data>/run/*.json` with pid + start time + our marker). On launch, reap orphans whose start time matches (the app was force-quit). Never kill PIDs we didn't start.
 - [ ] App exit hook: stop all Session connectors concurrently within the deadline.
-- [ ] Tests (with fake-cloudflared): every scenario above, plus exit-hook timing and orphan reaping.
+- [x] Tests (with fake-cloudflared): every scenario above, plus exit-hook timing and orphan reaping.
 
 ### M1-08 · Minimal local-service discovery
 - [ ] `core::discovery::ports`: listening TCP sockets on loopback/any, with pid → process name (`listeners` + `sysinfo`). Label known dev servers (vite, next, node, python, rails, php, docker-proxy…).

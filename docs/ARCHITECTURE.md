@@ -71,7 +71,6 @@ desktop ──▶ core ──▶ cf-api
 |---|---|---|
 | `CloudApi` | wraps `cf_api::Client` | in-memory fake with scripted state |
 | `SecretStore` | `keyring` | in-memory map |
-| `Spawner` | `tokio::process` | spawns `fake-cloudflared` |
 | `ServiceManager` | launchd (macOS), systemd --user (Linux), Task Scheduler (Windows) | recording fake |
 | `Clock` | system | manual clock |
 | `PortScanner` | `listeners` + `sysinfo` | fixed list |
@@ -220,9 +219,9 @@ Stopped ─start─▶ Starting ─spawned─▶ Connecting ─ready≥1─▶ H
    └──stop──── Stopping ◀──stop──── Crashed(backoff) ◀── Degraded
 ```
 
-- **Spawn:** `cloudflared tunnel --no-autoupdate --output json --loglevel info --metrics 127.0.0.1:<port> run`. The token is passed via the `TUNNEL_TOKEN` environment variable, **never in argv**. `kill_on_drop`, own process group. See `crates/cloudflared/src/command.rs`.
-- **Metrics port:** each tunnel gets a stable port from `20300..20399`, stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide.
-- **Health:** poll `GET /ready` every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
+- **Spawn:** `cloudflared tunnel --no-autoupdate --output json --loglevel info --metrics 127.0.0.1:<port> run`, spawned directly with `tokio::process` (tests use `tools/fake-cloudflared`, D-032). The token is passed via the `TUNNEL_TOKEN` environment variable, **never in argv**. `kill_on_drop`, own process group. See `crates/cloudflared/src/command.rs`.
+- **Metrics port:** each tunnel gets a stable port from `20300..20399` (Quick Shares use `20400..20499`), stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide.
+- **Health:** poll `GET /ready` every 250 ms until the first connection, then every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
 - **Logs:** JSON lines on stderr are parsed into `LogEvent { ts, level, message, fields }`. They go into a per-connector ring buffer (100k events) and are fanned out to subscribers.
 - **Metrics:** scrape `/metrics` every 1 s while a metrics view is subscribed, otherwise every 10 s. Values go into a ring buffer (1 h at 1 s), and 1-min rollups are persisted for 7 days.
 - **Restarts:** exponential backoff with jitter (1 s → 60 s cap). More than 5 crashes in 2 min is a **crash loop**: stop retrying and raise a Doctor issue with the last 50 log lines.

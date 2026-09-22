@@ -21,7 +21,7 @@ For sessions where the maintainer says "start" or "continue" and then leaves. Th
 ## Git flow
 - One branch per milestone: `milestone/m0-foundations`. Open a **draft PR** to `main` early so CI runs on every push.
 - Commit per task (or smaller). Push after each task.
-- When all exit criteria pass and CI is green, mark the PR ready and **squash-merge** it, with the PR title as the milestone summary. Start the next milestone branch from the updated `main`.
+- When all exit criteria pass and CI is green, mark the PR **ready for review**. Merging is the maintainer's call (D-033): continue on a branch stacked on the finished milestone, with a draft PR based on that branch, and retarget it to `main` after the merge.
 - If CI fails: fix before starting new work. Never merge red.
 
 ## When blocked

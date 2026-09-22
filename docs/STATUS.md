@@ -11,16 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M0-06 packaged-build soak test** (needs an unlocked screen: native captures of the `.app` in light/dark, active/inactive, resize storm, sleep/wake). Launch-level checks were done unattended; see notes.
-2. Merge PR #1 once CI is green and the soak test passes, then start **M1** (`milestone/m1-binary-quick-share`, plan `plans/M1-binary-quick-share.md`). M1 work that doesn't need the screen can start on its own branch while #1 waits.
+1. **M1-08** local-service discovery (`listeners` + `sysinfo`), then **M1-09** Quick Share (core + IPC + UI + tray), **M1-02** managed install, **M1-10** onboarding, **M1-11** notifications, **M1-12** tests/E2E. Also the app exit hook (M1-07 leftover) when wiring the supervisor into the shell.
+2. **Maintainer:** review and merge PR #1 (M0), then retarget PR #2 to `main`.
 
 ## In progress
-- M0 on branch `milestone/m0-foundations`, draft PR #1 (https://github.com/teispace/teitunnel/pull/1). All M0 tasks are done except the soak test.
+- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1). Done: M1-01 locate, M1-03 command builders, M1-04 log parser (+ real fixtures), M1-05 endpoints + metrics parser, M1-06 fake-cloudflared, M1-07 supervisor.
+- **M0** complete; PR #1 is ready for review (merging needs the maintainer, D-033). Only open item: native captures of the packaged app with an unlocked screen.
 
 ## Recently completed
-- 2026-09-22: M0-07 primitives (Radix-based, measured against macOS 27), M0-08 patterns (SplitView, ListPane, Inspector, KeyValueGrid, CopyField, GroupedList, Error/EmptyState, resizable/collapsible sidebar), M0-09 menu bar + tray + ⌘K palette, M0-10 SQLite store + typed settings + Settings window, M0-12 hygiene (lefthook, README development section, PR template). Screenshots in `docs/screenshots/M0-0x/`.
-- 2026-09-22: M0-01/02/03/05, CI (green on macOS/Linux/Windows), cargo-deny, bundle budget, Dependabot.
-- 2026-09-22: Analysis, research, full docs set, repo reset and made public.
+- 2026-09-23: M1-01/03/04/05/06/07 (73 Rust tests; supervisor integration tests with real processes are stable across repeated runs).
+- 2026-09-23: Packaged build verified at launch level (12 MB app, 92 MB RSS idle, no crash).
+- 2026-09-22: M0 complete (see `plans/M0-foundations.md`). CI green on macOS/Linux/Windows.
 
 ## Blockers / maintainer actions needed
 | Item | Needed by | Notes |
