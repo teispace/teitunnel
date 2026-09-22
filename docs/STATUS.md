@@ -16,10 +16,11 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 3. **M2** (accounts & domains) can start without the maintainer up to M2-04 (OAuth needs the registered client): cf-api foundation (M2-01), accounts/zones (M2-02), capabilities (M2-03), token flow (M2-05), cert.pem import (M2-06), account store (M2-07), connect UI (M2-08), domains view (M2-09). A test API token is needed for the nightly real-account job.
 
 ## In progress
-- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1): all tasks done except the signing decision/tag (maintainer). Exit criteria met (see plan; the "≤ 5 s" target was revised with measurements, D-037).
-- **M0** complete; PR #1 ready for review.
+- **M2** on `milestone/m2-accounts-domains`, draft PR #3 (stacked on #2). Done: cf-api foundation (retries, rate limit, pagination), accounts/zones endpoints, capability probing (D-038), token template + token flow, cert.pem import, keychain secret store, account commands, connect sheet, Settings → Accounts, Domains view. Next: OAuth behind a flag (M2-04), onboarding step 2, domain search.
+- **M1** complete; PR #2 ready for review. **M0** complete; PR #1 ready for review.
 
 ## Recently completed
+- 2026-09-23: M2 accounts & domains (token/cert flows, keychain, capabilities, Domains view).
 - 2026-09-23: M1 feature-complete: verified managed install, Quick Share end to end (fake + real nightly), menu bar shares, notifications, onboarding and cloudflared settings, E2E on macOS CI (WebdriverIO + fake cloudflared), release workflow and notes, README install section.
 - 2026-09-23: M1-01..08; packaged build verified at launch level.
 - 2026-09-22: M0 complete. CI green on macOS/Linux/Windows.
@@ -44,4 +45,5 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Toolchain on the maintainer machine: macOS 27.0, rustc 1.98, Node 26.9, pnpm 12.4.1.
 - Stay on Tauri 2.11.x. **Do not** use `NSGlassEffectView` (D-021). Verify material work in a **packaged** build.
 - Commits: Conventional Commits, **no AI attribution**. Gate every commit on `pnpm verify` (exit code, not eyeballing output).
+- cf-api retries every method on 5xx; before adding POST creates in M3, add a no-retry path for non-idempotent requests.
 - Push in batches: every push cancels the running CI (concurrency group), and Windows is only checked in CI.

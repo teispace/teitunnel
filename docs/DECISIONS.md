@@ -151,3 +151,11 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-037 · 2026-09-23 · Quick Shares go "Live" 6 s after the hostname appears, without DNS queries
 **Decision:** After `/quicktunnel` reports a hostname and a connection is registered, wait until 6 s have passed since the hostname first appeared before marking the share live (the URL is shown meanwhile, Open disabled). Teitunnel never queries DNS for the new name itself.
 **Why:** Measured: new names aren't resolvable for ~2–3 s, and NXDOMAIN is cached for up to 30 minutes (SOA minimum 1800). A DoH readiness check was tried and rejected, because querying 1.1.1.1 too early caches the NXDOMAIN there, breaking the URL for everyone using that resolver. The nightly real test confirms the approach (public fetch succeeds on the first try).
+
+### D-038 · 2026-09-23 · Permission probing by PATCHing a nil id
+**Decision:** Capability checks never write. Reads use one-item lists; write permission is inferred from `PATCH …/<all-zero id>`: 404 means authorized (no such object), 403 / code 10000 means not authorized.
+**Why:** API tokens can't read their own permissions without an extra "API Tokens Read" grant. A write probe on a nil id is side-effect free by construction; tests assert no POST/DELETE is ever sent.
+
+### D-039 · 2026-09-23 · The active account is UI state
+**Decision:** Which account Domains/Routes show is remembered in the persisted UI store, not in the backend; the engine works with all accounts.
+**Why:** ARCHITECTURE §6 (all accounts active in the engine). Keeps commands stateless (`domains_list(accountId)`).
