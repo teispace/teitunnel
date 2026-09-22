@@ -12,6 +12,21 @@ export interface BinaryStatus {
 }
 
 
+export interface CertStatus {
+  has_cert: boolean;
+  cert_path: string | null;
+  zone_id?: string | null;
+  account_id?: string | null;
+  api_token?: string | null;
+}
+
+export interface DirectTunnel {
+  id: string;
+  name: string;
+  token: string;
+  createdAt: string;
+}
+
 export interface DownloadProgress {
   bytes_downloaded: number;
   total_bytes: number | null;
@@ -160,6 +175,12 @@ export const tauriApi = {
   listZones: (accountId: string, token?: string) =>
     invoke<CloudflareZone[]>("list_zones", { accountId, token }),
 
+  // Origin Cert & Browser Login (Zero API Token)
+  checkCertStatus: () => invoke<CertStatus>("check_cert_status"),
+  startBrowserLogin: () => invoke<void>("start_browser_login"),
+  cancelBrowserLogin: () => invoke<void>("cancel_browser_login"),
+  deleteCert: () => invoke<void>("delete_cert"),
+
   // Tunnels
   listTunnels: (accountId: string, token?: string) =>
     invoke<CloudflareTunnel[]>("list_tunnels", { accountId, token }),
@@ -171,6 +192,15 @@ export const tauriApi = {
   deleteTunnel: (accountId: string, tunnelId: string, token?: string) =>
     invoke<void>("delete_tunnel", { accountId, tunnelId, token }),
   getActiveProcesses: () => invoke<TunnelProcessState[]>("get_active_processes"),
+
+  // Direct Token & Named Tunnel (Easy Run)
+  startTunnelByToken: (tunnelId: string, token: string) =>
+    invoke<TunnelProcessState>("start_tunnel_by_token", { tunnelId, token }),
+  startNamedTunnel: (tunnelName: string) =>
+    invoke<TunnelProcessState>("start_named_tunnel", { tunnelName }),
+  listCertTunnels: () => invoke<CloudflareTunnel[]>("list_cert_tunnels"),
+  createCertTunnel: (name: string) => invoke<CloudflareTunnel>("create_cert_tunnel", { name }),
+  deleteCertTunnel: (tunnelId: string) => invoke<void>("delete_cert_tunnel", { tunnelId }),
 
   // Quick Ephemeral Tunnel
   startQuickTunnel: (localPort: number) =>
@@ -223,4 +253,10 @@ export const tauriApi = {
     callback: (data: [string, string]) => void
   ): Promise<UnlistenFn> =>
     listen<[string, string]>("tunnel-status-changed", (e) => callback(e.payload)),
+  onBrowserLoginUrl: (callback: (url: string) => void): Promise<UnlistenFn> =>
+    listen<string>("browser-login-url", (e) => callback(e.payload)),
+  onBrowserLoginSuccess: (callback: () => void): Promise<UnlistenFn> =>
+    listen<void>("browser-login-success", () => callback()),
+  onBrowserLoginFailed: (callback: (err: string) => void): Promise<UnlistenFn> =>
+    listen<string>("browser-login-failed", (e) => callback(e.payload)),
 };

@@ -1,11 +1,86 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use crate::error::AppError;
-use crate::models::{BinaryStatus, DownloadProgress};
+use crate::models::{BinaryStatus, CertStatus, DownloadProgress};
 
 pub struct BinaryManager;
 
 impl BinaryManager {
+    /// Returns the origin cert.pem path if it exists
+    pub fn get_cert_path() -> Option<PathBuf> {
+        if let Some(home) = dirs::home_dir() {
+            let cert = home.join(".cloudflared").join("cert.pem");
+            if cert.exists() {
+                return Some(cert);
+            }
+        }
+        let alt_paths = [
+            "/etc/cloudflared/cert.pem",
+            "/usr/local/etc/cloudflared/cert.pem",
+            "C:\\etc\\cloudflared\\cert.pem",
+        ];
+        for p in &alt_paths {
+            let path = Path::new(p);
+            if path.exists() {
+                return Some(path.to_path_buf());
+            }
+        }
+        None
+    }
+
+    /// Checks whether origin certificate (cert.pem) exists from browser login,
+    /// and extracts embedded zoneID, accountID, and apiToken from its token block.
+    pub fn check_cert_status() -> CertStatus {
+        let cert = Self::get_cert_path();
+        if let Some(ref path) = cert {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                if let Some(start) = content.find("-----BEGIN ARGO TUNNEL TOKEN-----") {
+                    let rest = &content[start + "-----BEGIN ARGO TUNNEL TOKEN-----".len()..];
+                    if let Some(end) = rest.find("-----END ARGO TUNNEL TOKEN-----") {
+                        let b64 = rest[..end].split_whitespace().collect::<String>();
+                        use base64::Engine;
+                        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
+                            #[derive(serde::Deserialize)]
+                            struct CertTokenPayload {
+                                #[serde(alias = "zoneID")]
+                                zone_id: Option<String>,
+                                #[serde(alias = "accountID")]
+                                account_id: Option<String>,
+                                #[serde(alias = "apiToken")]
+                                api_token: Option<String>,
+                            }
+                            if let Ok(payload) = serde_json::from_slice::<CertTokenPayload>(&decoded) {
+                                return CertStatus {
+                                    has_cert: true,
+                                    cert_path: Some(path.to_string_lossy().to_string()),
+                                    zone_id: payload.zone_id,
+                                    account_id: payload.account_id,
+                                    api_token: payload.api_token,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        CertStatus {
+            has_cert: cert.is_some(),
+            cert_path: cert.map(|p| p.to_string_lossy().to_string()),
+            zone_id: None,
+            account_id: None,
+            api_token: None,
+        }
+    }
+
+    /// Deletes the origin certificate
+    pub fn delete_cert() -> Result<(), AppError> {
+        if let Some(cert) = Self::get_cert_path() {
+            let _ = std::fs::remove_file(cert);
+        }
+        Ok(())
+    }
+
     /// Returns the managed binary directory: ~/.teitunnel/bin
     pub fn get_managed_bin_dir() -> Result<PathBuf, AppError> {
         let home = dirs::home_dir().ok_or_else(|| AppError::IoError("Unable to locate home directory".into()))?;

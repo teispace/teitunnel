@@ -27,6 +27,10 @@ pub fn run() {
             commands::delete_saved_token,
             commands::list_accounts,
             commands::list_zones,
+            commands::check_cert_status,
+            commands::start_browser_login,
+            commands::cancel_browser_login,
+            commands::delete_cert,
             // Tunnels Lifecycle
             commands::list_tunnels,
             commands::create_tunnel,
@@ -34,6 +38,11 @@ pub fn run() {
             commands::stop_tunnel,
             commands::delete_tunnel,
             commands::get_active_processes,
+            commands::start_tunnel_by_token,
+            commands::start_named_tunnel,
+            commands::list_cert_tunnels,
+            commands::create_cert_tunnel,
+            commands::delete_cert_tunnel,
             // Quick Ephemeral Tunnel
             commands::start_quick_tunnel,
             commands::stop_quick_tunnel,

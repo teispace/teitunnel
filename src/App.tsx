@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Toaster } from "sonner";
 
 import { TitleBar } from "@/components/layout/TitleBar";
 import { Sidebar, type NavTab } from "@/components/layout/Sidebar";
+import { StatusBar } from "@/components/layout/StatusBar";
 import { QuickTunnelView } from "@/components/quick-tunnel/QuickTunnelView";
 import { TunnelsView } from "@/components/tunnels/TunnelsView";
 import { IngressView } from "@/components/ingress/IngressView";
@@ -20,15 +22,21 @@ export function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>("quick-tunnel");
   const [contextTunnel, setContextTunnel] = useState<CloudflareTunnel | null>(null);
 
-  const { initAuth } = useAuthStore();
+  const {
+    initAuth,
+    setBrowserLoginUrl,
+    setBrowserLoginSuccess,
+    setBrowserLoginFailed,
+  } = useAuthStore();
   const { checkStatus } = useBinaryStore();
   const { fetchState, setPublicUrl, setStopped } = useQuickTunnelStore();
-  const { updateTunnelProcessState } = useTunnelStore();
+  const { updateTunnelProcessState, initTunnels } = useTunnelStore();
   const { addLog } = useLogStore();
 
   useEffect(() => {
     // 1. Initialize stores
     initAuth();
+    initTunnels();
     checkStatus();
     fetchState();
 
@@ -37,6 +45,9 @@ export function App() {
     let unlistenReady: (() => void) | undefined;
     let unlistenStopped: (() => void) | undefined;
     let unlistenStatus: (() => void) | undefined;
+    let unlistenLoginUrl: (() => void) | undefined;
+    let unlistenLoginSuccess: (() => void) | undefined;
+    let unlistenLoginFailed: (() => void) | undefined;
 
     tauriApi.onLog((log) => {
       addLog(log);
@@ -62,11 +73,32 @@ export function App() {
       unlistenStatus = un;
     });
 
+    tauriApi.onBrowserLoginUrl((url) => {
+      setBrowserLoginUrl(url);
+    }).then((un) => {
+      unlistenLoginUrl = un;
+    });
+
+    tauriApi.onBrowserLoginSuccess(() => {
+      setBrowserLoginSuccess();
+    }).then((un) => {
+      unlistenLoginSuccess = un;
+    });
+
+    tauriApi.onBrowserLoginFailed((err) => {
+      setBrowserLoginFailed(err);
+    }).then((un) => {
+      unlistenLoginFailed = un;
+    });
+
     return () => {
       if (unlistenLog) unlistenLog();
       if (unlistenReady) unlistenReady();
       if (unlistenStopped) unlistenStopped();
       if (unlistenStatus) unlistenStatus();
+      if (unlistenLoginUrl) unlistenLoginUrl();
+      if (unlistenLoginSuccess) unlistenLoginSuccess();
+      if (unlistenLoginFailed) unlistenLoginFailed();
     };
   }, []);
 
@@ -88,7 +120,11 @@ export function App() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 select-none">
       {/* Native Title Bar */}
-      <TitleBar onOpenSettings={() => setCurrentTab("settings")} />
+      <TitleBar
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        onOpenSettings={() => setCurrentTab("settings")}
+      />
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
@@ -112,6 +148,19 @@ export function App() {
           {currentTab === "settings" && <SettingsView />}
         </main>
       </div>
+
+      {/* Native Bottom Status Bar */}
+      <StatusBar currentTab={currentTab} onTabChange={setCurrentTab} />
+
+      {/* Modern Toast Feedback */}
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        toastOptions={{
+          className: "bg-zinc-900/95 border border-zinc-800 text-zinc-100 shadow-2xl backdrop-blur-md text-xs font-mono",
+        }}
+        richColors
+      />
     </div>
   );
 }

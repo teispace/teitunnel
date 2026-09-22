@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::models::{IngressRule, TunnelConfiguration};
-use crate::services::{CloudflareClient, KeyringStore};
+use crate::services::CloudflareClient;
+use super::resolve_token;
 
 #[tauri::command]
 pub async fn get_tunnel_configuration(
@@ -8,13 +9,7 @@ pub async fn get_tunnel_configuration(
     tunnel_id: String,
     token: Option<String>,
 ) -> Result<TunnelConfiguration, AppError> {
-    let tok = match token {
-        Some(t) => t,
-        None => KeyringStore::get_token()?.ok_or_else(|| {
-            AppError::KeyringError("No Cloudflare API token configured".into())
-        })?,
-    };
-
+    let tok = resolve_token(token)?;
     let client = CloudflareClient::new(tok);
     client.get_tunnel_configuration(&account_id, &tunnel_id).await
 }
@@ -26,13 +21,7 @@ pub async fn update_tunnel_configuration(
     rules: Vec<IngressRule>,
     token: Option<String>,
 ) -> Result<TunnelConfiguration, AppError> {
-    let tok = match token {
-        Some(t) => t,
-        None => KeyringStore::get_token()?.ok_or_else(|| {
-            AppError::KeyringError("No Cloudflare API token configured".into())
-        })?,
-    };
-
+    let tok = resolve_token(token)?;
     let client = CloudflareClient::new(tok);
     client
         .update_tunnel_configuration(&account_id, &tunnel_id, rules)
