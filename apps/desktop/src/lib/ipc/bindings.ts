@@ -619,6 +619,22 @@ export type ServiceKind =
 "astro" | 
 /**  Nuxt. */
 "nuxt" | 
+/**  Remix / React Router. */
+"remix" | 
+/**  Django. */
+"django" | 
+/**  Flask. */
+"flask" | 
+/**  FastAPI. */
+"fastApi" | 
+/**  Ruby on Rails. */
+"rails" | 
+/**  Laravel (`artisan serve`). */
+"laravel" | 
+/**  Hugo. */
+"hugo" | 
+/**  Jekyll. */
+"jekyll" | 
 /**  Another Node.js / Bun / Deno server. */
 "node" | 
 /**  Python (Django, Flask, FastAPI/uvicorn, http.server…). */

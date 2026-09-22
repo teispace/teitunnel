@@ -13,6 +13,22 @@ pub enum ServiceKind {
     Astro,
     /// Nuxt.
     Nuxt,
+    /// Remix / React Router.
+    Remix,
+    /// Django.
+    Django,
+    /// Flask.
+    Flask,
+    /// FastAPI.
+    FastApi,
+    /// Ruby on Rails.
+    Rails,
+    /// Laravel (`artisan serve`).
+    Laravel,
+    /// Hugo.
+    Hugo,
+    /// Jekyll.
+    Jekyll,
     /// Another Node.js / Bun / Deno server.
     Node,
     /// Python (Django, Flask, FastAPI/uvicorn, http.server…).
@@ -39,7 +55,18 @@ impl ServiceKind {
     /// Sort order in pickers: dev servers first, system services last.
     pub(crate) fn rank(self) -> u8 {
         match self {
-            Self::Vite | Self::Next | Self::Astro | Self::Nuxt => 0,
+            Self::Vite
+            | Self::Next
+            | Self::Astro
+            | Self::Nuxt
+            | Self::Remix
+            | Self::Django
+            | Self::Flask
+            | Self::FastApi
+            | Self::Rails
+            | Self::Laravel
+            | Self::Hugo
+            | Self::Jekyll => 0,
             Self::Node | Self::Python | Self::Ruby | Self::Php | Self::Java | Self::Go => 1,
             Self::Docker => 2,
             Self::Other => 3,
@@ -112,6 +139,8 @@ pub(crate) fn classify(name: &str, cmd: &[String], port: u16) -> ServiceKind {
             ServiceKind::Astro
         } else if has("nuxt") {
             ServiceKind::Nuxt
+        } else if has("remix") || has("react-router") {
+            ServiceKind::Remix
         } else {
             ServiceKind::Node
         };
@@ -122,13 +151,37 @@ pub(crate) fn classify(name: &str, cmd: &[String], port: u16) -> ServiceKind {
             "uvicorn" | "gunicorn" | "hypercorn" | "granian"
         )
     {
-        return ServiceKind::Python;
+        return if has("manage.py") || has("django") {
+            ServiceKind::Django
+        } else if has("flask") {
+            ServiceKind::Flask
+        } else if has("fastapi") {
+            ServiceKind::FastApi
+        } else {
+            ServiceKind::Python
+        };
     }
-    if lower.starts_with("ruby") || matches!(lower.as_str(), "puma" | "rails" | "unicorn") {
-        return ServiceKind::Ruby;
+    if lower == "hugo" {
+        return ServiceKind::Hugo;
+    }
+    if lower.starts_with("ruby")
+        || lower == "jekyll"
+        || matches!(lower.as_str(), "puma" | "rails" | "unicorn")
+    {
+        return if has("jekyll") || lower == "jekyll" {
+            ServiceKind::Jekyll
+        } else if has("rails") {
+            ServiceKind::Rails
+        } else {
+            ServiceKind::Ruby
+        };
     }
     if lower.starts_with("php") || lower == "frankenphp" {
-        return ServiceKind::Php;
+        return if has("artisan") {
+            ServiceKind::Laravel
+        } else {
+            ServiceKind::Php
+        };
     }
     if lower == "java" || has("gradle") || has(".jar") {
         return ServiceKind::Java;
@@ -162,9 +215,9 @@ mod tests {
             ),
             ("node", "node server.js", ServiceKind::Node),
             ("bun", "bun run astro dev", ServiceKind::Astro),
-            ("Python", "python3 manage.py runserver", ServiceKind::Python),
+            ("Python", "python3 -m http.server 8000", ServiceKind::Python),
             ("uvicorn", "uvicorn app:app", ServiceKind::Python),
-            ("ruby", "ruby bin/rails server", ServiceKind::Ruby),
+            ("ruby", "puma 6.4.2 (tcp://0.0.0.0:3000)", ServiceKind::Ruby),
             ("php", "php -S localhost:8000", ServiceKind::Php),
             ("com.docker.backend", "", ServiceKind::Docker),
             ("OrbStack Helper", "", ServiceKind::Docker),
@@ -183,5 +236,36 @@ mod tests {
         assert_eq!(ServiceKind::Database.origin(5432), "tcp://localhost:5432");
         assert_eq!(ServiceKind::Vite.origin(5173), "http://localhost:5173");
         assert!(ServiceKind::Vite.rank() < ServiceKind::System.rank());
+    }
+
+    #[test]
+    fn recognises_frameworks_from_the_command_line() {
+        let cases = [
+            (
+                "python3.13",
+                "python manage.py runserver",
+                ServiceKind::Django,
+            ),
+            ("python3", "python -m flask run", ServiceKind::Flask),
+            ("python3", "fastapi dev main.py", ServiceKind::FastApi),
+            ("uvicorn", "uvicorn app:app", ServiceKind::Python),
+            ("ruby", "ruby bin/rails server", ServiceKind::Rails),
+            (
+                "ruby",
+                "ruby /usr/local/bin/jekyll serve",
+                ServiceKind::Jekyll,
+            ),
+            ("php", "php artisan serve", ServiceKind::Laravel),
+            ("hugo", "hugo server", ServiceKind::Hugo),
+            (
+                "node",
+                "node node_modules/.bin/remix vite:dev",
+                ServiceKind::Vite,
+            ),
+            ("node", "node react-router dev", ServiceKind::Remix),
+        ];
+        for (name, line, kind) in cases {
+            assert_eq!(classify(name, &cmd(line), 3000), kind, "{line}");
+        }
     }
 }

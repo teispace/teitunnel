@@ -11,8 +11,8 @@
 ---
 
 ### M4-01 · Discovery: processes & projects
-- [ ] Enrich listening ports with process cmdline and cwd, and derive the project name (`package.json#name`, `Cargo.toml`, `pyproject.toml`, `composer.json`, `go.mod`, folder name).
-- [ ] Framework hints from the cmdline (vite, next, nuxt, astro, remix, rails, django, flask, fastapi/uvicorn, laravel/artisan, hugo, jekyll…).
+- [x] Enrich listening ports with process cmdline and cwd, and derive the project name (`package.json#name`, `Cargo.toml`, `pyproject.toml`, `composer.json`, `go.mod`, folder name).
+- [x] Framework hints from the cmdline (vite, next, nuxt, astro, remix, rails, django, flask, fastapi/uvicorn, laravel/artisan, hugo, jekyll…).
 
 ### M4-02 · Discovery: Docker
 - [ ] Socket detection (Docker Desktop, OrbStack, Colima, Podman compatible). `bollard` lists running containers with published ports; names and compose project labels are used for suggestions.

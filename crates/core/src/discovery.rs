@@ -125,29 +125,43 @@ fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
 
-fn manifest_name(dir: &Path) -> Option<String> {
-    if let Ok(text) = std::fs::read_to_string(dir.join("package.json"))
-        && let Ok(json) = serde_json::from_str::<serde_json::Value>(&text)
-        && let Some(name) = json.get("name").and_then(|n| n.as_str())
-    {
-        return Some(name.to_owned());
-    }
-    let text = std::fs::read_to_string(dir.join("Cargo.toml")).ok()?;
-    let mut in_package = false;
+/// The `name` in `[section]` of a TOML manifest (a tiny reader: we only need one key).
+fn toml_name(text: &str, sections: &[&str]) -> Option<String> {
+    let mut inside = false;
     for line in text.lines().map(str::trim) {
         if line.starts_with('[') {
-            in_package = line == "[package]";
-        } else if in_package && let Some(value) = line.strip_prefix("name") {
-            return Some(
-                value
-                    .trim_start_matches([' ', '='])
-                    .trim()
-                    .trim_matches('"')
-                    .to_owned(),
-            );
+            inside = sections.contains(&line);
+        } else if inside
+            && let Some(value) = line.strip_prefix("name")
+            && value.trim_start().starts_with('=')
+        {
+            let name = value
+                .trim_start_matches([' ', '='])
+                .trim()
+                .trim_matches(['"', '\'']);
+            return (!name.is_empty()).then(|| name.to_owned());
         }
     }
     None
+}
+
+fn manifest_name(dir: &Path) -> Option<String> {
+    let read = |file: &str| std::fs::read_to_string(dir.join(file)).ok();
+    let json_name = |file: &str| {
+        let json = serde_json::from_str::<serde_json::Value>(&read(file)?).ok()?;
+        json.get("name")?.as_str().map(str::to_owned)
+    };
+    json_name("package.json")
+        .or_else(|| toml_name(&read("Cargo.toml")?, &["[package]"]))
+        .or_else(|| toml_name(&read("pyproject.toml")?, &["[project]", "[tool.poetry]"]))
+        // Composer names are `vendor/package`; the package is the project.
+        .or_else(|| json_name("composer.json").map(|n| n.rsplit('/').next().unwrap_or(&n).to_owned()))
+        .or_else(|| {
+            let module = read("go.mod")?
+                .lines()
+                .find_map(|l| l.trim().strip_prefix("module ").map(str::trim).map(str::to_owned))?;
+            module.rsplit('/').next().map(str::to_owned)
+        })
 }
 
 /// `true` if `address` is a loopback or unspecified address, i.e. reachable as
@@ -214,6 +228,27 @@ mod tests {
         std::fs::write(app.join("package.json"), r#"{"name":"my-app"}"#).unwrap();
         assert_eq!(project_name(&app).as_deref(), Some("my-app"));
         assert_eq!(project_name(Path::new("/")), None);
+
+        let py = dir.path().join("py");
+        std::fs::create_dir(&py).unwrap();
+        std::fs::write(
+            py.join("pyproject.toml"),
+            "[build-system]\nname = \"no\"\n[project]\nname = \"shop-api\"\n",
+        )
+        .unwrap();
+        assert_eq!(project_name(&py).as_deref(), Some("shop-api"));
+        let php = dir.path().join("php");
+        std::fs::create_dir(&php).unwrap();
+        std::fs::write(php.join("composer.json"), r#"{"name":"acme/storefront"}"#).unwrap();
+        assert_eq!(project_name(&php).as_deref(), Some("storefront"));
+        let go = dir.path().join("go");
+        std::fs::create_dir(&go).unwrap();
+        std::fs::write(
+            go.join("go.mod"),
+            "module github.com/acme/edge-proxy\n\ngo 1.24\n",
+        )
+        .unwrap();
+        assert_eq!(project_name(&go).as_deref(), Some("edge-proxy"));
     }
 
     #[test]
