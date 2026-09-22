@@ -30,11 +30,28 @@ pub trait CloudApi: Send + Sync {
         id: &str,
         config: &TunnelConfig,
     ) -> impl Future<Output = cf_api::Result<VersionedConfig>> + Send;
+    /// The account's tunnels (not deleted), with their connections.
+    fn tunnels(&self, account: &str) -> impl Future<Output = cf_api::Result<Vec<Tunnel>>> + Send;
     /// Names of the account's tunnels (to give a new one a unique name).
     fn tunnel_names(
         &self,
         account: &str,
-    ) -> impl Future<Output = cf_api::Result<Vec<String>>> + Send;
+    ) -> impl Future<Output = cf_api::Result<Vec<String>>> + Send {
+        async move {
+            Ok(self
+                .tunnels(account)
+                .await?
+                .into_iter()
+                .map(|t| t.name)
+                .collect())
+        }
+    }
+    /// Removes a tunnel's stale connections.
+    fn clean_connections(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
     /// The token a connector runs the tunnel with.
     fn tunnel_token(
         &self,
@@ -144,13 +161,12 @@ impl CloudApi for Client {
         Client::put_tunnel_config(self, account, id, config).await
     }
 
-    async fn tunnel_names(&self, account: &str) -> cf_api::Result<Vec<String>> {
-        Ok(self
-            .tunnels(account)
-            .await?
-            .into_iter()
-            .map(|t| t.name)
-            .collect())
+    async fn tunnels(&self, account: &str) -> cf_api::Result<Vec<Tunnel>> {
+        Client::tunnels(self, account).await
+    }
+
+    async fn clean_connections(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::clean_connections(self, account, id).await
     }
 
     async fn tunnel_token(&self, account: &str, id: &str) -> cf_api::Result<Secret<String>> {
@@ -164,7 +180,7 @@ impl CloudApi for Client {
     }
 
     async fn delete_tunnel(&self, account: &str, id: &str) -> cf_api::Result<()> {
-        match self.clean_connections(account, id).await {
+        match Client::clean_connections(self, account, id).await {
             Err(err) if !gone(&err) => return Err(err),
             _ => {}
         }

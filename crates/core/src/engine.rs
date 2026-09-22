@@ -12,6 +12,7 @@ mod ingress;
 mod local;
 mod observe;
 mod planner;
+mod tunnels;
 mod types;
 mod verify;
 mod views;
@@ -32,6 +33,7 @@ pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
 pub use observe::{ObserveError, observe};
 pub use planner::{PlanError, plan};
+pub use tunnels::{ConnectionView, TunnelSummary};
 pub use types::{
     Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,
     ZoneRef, ownership_comment, tunnel_target,

@@ -86,3 +86,37 @@ export async function applyDirectly(accountId: string, change: Change) {
     commands.routesApply(accountId, change, plan.fingerprint, false, new Channel<Progress>()),
   );
 }
+
+export function useTunnels(accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.routes.tunnels(accountId ?? ""),
+    queryFn: () => call(commands.tunnelsList(accountId ?? "")),
+    enabled: accountId !== null,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  });
+}
+
+/** Start/stop this Mac's connector, or clean a tunnel's stale connections. */
+export function useTunnelAction(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      action,
+      tunnelId,
+    }: {
+      action: "start" | "stop" | "clean";
+      tunnelId: string;
+    }) => {
+      switch (action) {
+        case "start":
+          return call(commands.tunnelsStart(accountId));
+        case "stop":
+          return call(commands.tunnelsStop(accountId, tunnelId));
+        case "clean":
+          return call(commands.tunnelsClean(accountId, tunnelId));
+      }
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+  });
+}

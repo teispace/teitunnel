@@ -110,6 +110,14 @@ export const commands = {
 	routesKeepTheirs: (accountId: string) => __TAURI_INVOKE<null>("routes_keep_theirs", { accountId }),
 	/**  Recent changes in an account, newest first. */
 	routesActivity: (accountId: string) => __TAURI_INVOKE<ActivityEntry[]>("routes_activity", { accountId }),
+	/**  Every tunnel in the account, this Mac's first. */
+	tunnelsList: (accountId: string) => __TAURI_INVOKE<TunnelSummary[]>("tunnels_list", { accountId }),
+	/**  Starts this Mac's connector for the account's tunnel. */
+	tunnelsStart: (accountId: string) => __TAURI_INVOKE<null>("tunnels_start", { accountId }),
+	/**  Stops this Mac's connector for a tunnel. Its routes stop answering until it starts. */
+	tunnelsStop: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_stop", { accountId, tunnelId }),
+	/**  Removes a tunnel's stale connections (left by connectors that went away uncleanly). */
+	tunnelsClean: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_clean", { accountId, tunnelId }),
 };
 
 /** Events */
@@ -219,6 +227,18 @@ path: string | null } |
 { type: "removeTunnel" } | 
 /**  Undo an outside edit of this Mac's routes. */
 { type: "restoreConfig" };
+
+/**  One connector connected to the edge. */
+export type ConnectionView = {
+	/**  Edge location, e.g. `ams01`. */
+	colo: string,
+	/**  cloudflared version. */
+	version: string,
+	/**  Public IP it connects from. */
+	originIp: string,
+	/**  When it connected (RFC 3339). */
+	openedAt: string,
+};
 
 /**  Lifecycle of one connector (ARCHITECTURE §5.1). */
 export type ConnectorState = 
@@ -715,6 +735,26 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  A tunnel in the account. */
+export type TunnelSummary = {
+	/**  Tunnel id. */
+	id: string,
+	/**  Name. */
+	name: string,
+	/**  Cloudflare's status: `inactive`, `degraded`, `healthy` or `down`. */
+	status: string,
+	/**  Created (RFC 3339). */
+	createdAt: string,
+	/**  Routes in its remote configuration (None: configured locally, or unreadable). */
+	routes: number | null,
+	/**  Edge connections. */
+	connections: ConnectionView[],
+	/**  This Mac's tunnel (created and run by Teitunnel here). */
+	thisMac: boolean,
+	/**  Connector state on this Mac, for this Mac's tunnel. */
+	connector: ConnectorState | null,
+};
 
 /**  This Mac's tunnel. */
 export type TunnelView = {

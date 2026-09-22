@@ -717,3 +717,26 @@ async fn changes_from_the_ui_become_intents() {
         .unwrap_err();
     assert!(matches!(nothing, EngineError::NothingToRestore));
 }
+
+#[tokio::test]
+async fn lists_tunnels_with_this_macs_first() {
+    let mut state = zones();
+    state.tunnels.insert(
+        "a-other".into(),
+        super::fake::FakeTunnel {
+            name: "Build server".into(),
+            version: 1,
+            config: None,
+        },
+    );
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(state), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let tunnels = engine.tunnels(&cloud, &conns, "acc").await.unwrap();
+    assert_eq!(tunnels.len(), 2);
+    assert!(tunnels[0].this_mac);
+    assert_eq!(tunnels[0].routes, Some(1));
+    assert!(tunnels[0].connector.is_some());
+    assert_eq!(tunnels[1].name, "Build server");
+    assert!(!tunnels[1].this_mac);
+    assert_eq!(tunnels[1].connector, None);
+}

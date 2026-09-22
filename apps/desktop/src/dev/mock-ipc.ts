@@ -330,6 +330,32 @@ export function installMockIpc(): void {
                 ],
               }
             : null;
+        case "tunnels_list":
+          return [
+            {
+              id: tunnelId,
+              name: "Krishnas-MacBook-Pro",
+              status: "healthy",
+              createdAt: new Date(now - 9 * 86_400_000).toISOString(),
+              routes: 4,
+              connections: [
+                { colo: "ams01", version: "2026.9.1", originIp: "203.0.113.7", openedAt: "" },
+                { colo: "fra08", version: "2026.9.1", originIp: "203.0.113.7", openedAt: "" },
+              ],
+              thisMac: true,
+              connector: { state: "healthy", connections: 4 },
+            },
+            {
+              id: "b1946ac9-2a6f-4e8e-9d51-1f0e7a3c2b11",
+              name: "home-lab",
+              status: "inactive",
+              createdAt: new Date(now - 90 * 86_400_000).toISOString(),
+              routes: null,
+              connections: [],
+              thisMac: false,
+              connector: null,
+            },
+          ];
         case "routes_activity":
           return activity;
         case "quick_share_stats":

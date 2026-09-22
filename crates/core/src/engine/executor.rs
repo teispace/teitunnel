@@ -12,6 +12,7 @@ use serde::Serialize;
 use tokio::time::Instant;
 
 use super::drift::{Drift, diff};
+use super::tunnels::TunnelSummary;
 use super::views::{Change, InputError, RoutesOverview, overview, to_intent};
 
 /// A snapshot with nothing in it, for changes that don't need one to be parsed.
@@ -361,6 +362,19 @@ impl Engine {
     ) -> Result<RoutesOverview, EngineError> {
         let snapshot = self.snapshot(api, ctx, &Intent::RemoveTunnel, true).await?;
         Ok(overview(&snapshot, |id| connectors.state(id)))
+    }
+
+    /// Every tunnel in the account, this Mac's first.
+    ///
+    /// # Errors
+    /// API or database errors.
+    pub async fn tunnels<C: CloudApi, K: Connectors>(
+        &self,
+        api: &C,
+        connectors: &K,
+        account: &str,
+    ) -> Result<Vec<TunnelSummary>, EngineError> {
+        Ok(super::tunnels::list(api, connectors, &self.local, account).await?)
     }
 
     /// Plans `intent` for review. May reuse an observation up to 5 s old.

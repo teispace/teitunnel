@@ -5,9 +5,10 @@ use std::time::Duration;
 
 use tauri::{AppHandle, State, ipc::Channel};
 use tauri_specta::Event;
+use teitunnel_core::engine::Connectors;
 use teitunnel_core::engine::{
     ActivityEntry, Approval, Change, Context, Drift, Edge, Outcome, PlanView, Progress,
-    RoutesOverview, Verification,
+    RoutesOverview, TunnelSummary, Verification,
 };
 
 use crate::{
@@ -158,4 +159,71 @@ pub async fn routes_activity(
     account_id: String,
 ) -> Result<Vec<ActivityEntry>, AppError> {
     Ok(state.engine.local().activity(&account_id, 50).await?)
+}
+
+/// Every tunnel in the account, this Mac's first.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_list(
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<Vec<TunnelSummary>, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    Ok(state
+        .engine
+        .tunnels(&api, &state.machine, &account_id)
+        .await?)
+}
+
+/// Starts this Mac's connector for the account's tunnel.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    state
+        .machine
+        .resume(&api, &account_id)
+        .await
+        .map_err(AppError::internal)?;
+    changed(&app, &account_id);
+    Ok(())
+}
+
+/// Stops this Mac's connector for a tunnel. Its routes stop answering until it starts.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_stop(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    tunnel_id: String,
+) -> Result<(), AppError> {
+    state
+        .machine
+        .stop(&tunnel_id)
+        .await
+        .map_err(AppError::internal)?;
+    changed(&app, &account_id);
+    Ok(())
+}
+
+/// Removes a tunnel's stale connections (left by connectors that went away uncleanly).
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_clean(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    tunnel_id: String,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    api.clean_connections(&account_id, &tunnel_id)
+        .await
+        .map_err(teitunnel_core::Error::from)?;
+    changed(&app, &account_id);
+    Ok(())
 }

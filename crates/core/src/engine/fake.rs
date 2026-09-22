@@ -214,9 +214,18 @@ impl CloudApi for FakeCloud {
         })
     }
 
-    async fn tunnel_names(&self, _account: &str) -> cf_api::Result<Vec<String>> {
+    async fn tunnels(&self, _account: &str) -> cf_api::Result<Vec<Tunnel>> {
         let state = self.state.lock().unwrap();
-        Ok(state.tunnels.values().map(|t| t.name.clone()).collect())
+        Ok(state
+            .tunnels
+            .iter()
+            .map(|(id, t)| tunnel_view(id, t))
+            .collect())
+    }
+
+    async fn clean_connections(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        let state = self.state.lock().unwrap();
+        state.tunnels.get(id).map(|_| ()).ok_or_else(not_found)
     }
 
     async fn tunnel_token(&self, _account: &str, id: &str) -> cf_api::Result<Secret<String>> {

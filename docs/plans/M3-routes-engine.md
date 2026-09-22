@@ -58,8 +58,8 @@
 - [x] Undo: after apply, a toast offers "Undo" for 10 s (plans the inverse intent).
 
 ### M3-10 · UI: Tunnels (Advanced)
-- [ ] All tunnels in the account: name, status, connectors (colo, version, origin IP, machine = this Mac?), created, route count, "managed by Teitunnel" badge.
-- [ ] Actions: start/stop (this machine), rename, delete with a cascade plan, clean stale connections.
+- [x] All tunnels in the account: name, status, connectors (colo, version, origin IP, machine = this Mac?), created, route count, "managed by Teitunnel" badge.
+- [x] Actions: start/stop (this machine), delete with a cascade plan, clean stale connections. *(Rename deferred: the name is only a label.)*
 
 ### M3-11 · Tests
 - [x] Vitest flows for add/remove/rename with mockIPC. *(add, confirm, field errors, remove, drift)*

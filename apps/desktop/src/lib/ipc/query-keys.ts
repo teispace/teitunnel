@@ -31,6 +31,7 @@ export const queryKeys = {
     overview: (accountId: string) => ["routes", "overview", accountId] as const,
     drift: (accountId: string) => ["routes", "drift", accountId] as const,
     activity: (accountId: string) => ["routes", "activity", accountId] as const,
+    tunnels: (accountId: string) => ["routes", "tunnels", accountId] as const,
   },
   binary: {
     status: () => ["binary", "status"] as const,

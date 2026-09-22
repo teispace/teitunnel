@@ -62,7 +62,11 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::routes_verify,
             routes::routes_drift,
             routes::routes_keep_theirs,
-            routes::routes_activity
+            routes::routes_activity,
+            routes::tunnels_list,
+            routes::tunnels_start,
+            routes::tunnels_stop,
+            routes::tunnels_clean
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }
