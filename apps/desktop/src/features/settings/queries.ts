@@ -20,3 +20,18 @@ export function useUpdateSettings() {
     onSuccess: (settings) => queryClient.setQueryData(settingsQuery.queryKey, settings),
   });
 }
+
+const loginKey = ["settings", "openAtLogin"] as const;
+
+/** Whether Teitunnel opens at login (a system login item, not an app setting). */
+export function useOpenAtLogin() {
+  return useQuery({ queryKey: loginKey, queryFn: () => call(commands.appOpenAtLogin()) });
+}
+
+export function useSetOpenAtLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => call(commands.appSetOpenAtLogin(enabled)),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: loginKey }),
+  });
+}

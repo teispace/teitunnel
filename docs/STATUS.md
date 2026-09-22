@@ -55,3 +55,4 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Stay on Tauri 2.11.x. **Do not** use `NSGlassEffectView` (D-021). Verify material work in a **packaged** build.
 - Commits: Conventional Commits, **no AI attribution**. Gate every commit on `pnpm verify` (exit code, not eyeballing output).
 - Push in batches: every push cancels the running CI (concurrency group), and Windows is only checked in CI.
+- `target/debug/incremental` grows to tens of GB and filled the disk once (2026-09-23); `rm -rf target/debug/incremental` is safe when space runs low.

@@ -16,8 +16,25 @@ const MAIN: &str = "main";
 const SETTINGS: &str = "settings";
 const READY_TIMEOUT: Duration = Duration::from_secs(3);
 
+/// Set when the app was opened at login (`--hidden`): the main window stays hidden
+/// until the user opens it (menu bar, Dock, second launch).
+static START_HIDDEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Records whether this launch should keep the main window hidden. Call once at startup.
+pub(crate) fn init_start_hidden() {
+    let hidden = std::env::args().any(|arg| arg == "--hidden");
+    START_HIDDEN.store(hidden, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn stays_hidden<R: Runtime>(window: &WebviewWindow<R>) -> bool {
+    window.label() == MAIN && START_HIDDEN.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 /// Shows a window once its webview has painted, if it is still hidden.
 pub(crate) fn show_when_ready<R: Runtime>(window: &WebviewWindow<R>) {
+    if stays_hidden(window) {
+        return;
+    }
     if !window.is_visible().unwrap_or(false)
         && let Err(err) = window.show().and_then(|()| window.set_focus())
     {
@@ -48,6 +65,8 @@ pub(crate) fn show_main_after_timeout<R: Runtime>(app: &AppHandle<R>) {
 
 /// Brings the main window to the front, e.g. when a second instance is launched.
 pub(crate) fn focus_main<R: Runtime>(app: &AppHandle<R>) {
+    // The user asked for the window: a login launch no longer keeps it hidden.
+    START_HIDDEN.store(false, std::sync::atomic::Ordering::SeqCst);
     let Some(window) = app.get_webview_window(MAIN) else {
         return;
     };

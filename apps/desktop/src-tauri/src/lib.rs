@@ -49,6 +49,11 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        // Open at login starts hidden, into the menu bar (`--hidden`).
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
         .invoke_handler(specta.invoke_handler())
         .menu(shell::menu::build)
         .on_menu_event(|app, event| shell::menu::on_event(app, &event))
@@ -59,6 +64,7 @@ pub fn run() -> Result<(), tauri::Error> {
             #[cfg(feature = "e2e")]
             app.add_capability(include_str!("../e2e/capability.json"))?;
 
+            shell::windows::init_start_hidden();
             app.manage(bootstrap::init(app.handle())?);
             shell::windows::show_main_after_timeout(app.handle());
             tracing::info!(version = %app.package_info().version, "teitunnel started");

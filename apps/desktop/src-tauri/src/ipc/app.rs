@@ -91,3 +91,25 @@ pub async fn app_quit(
     app.exit(0);
     Ok(())
 }
+
+/// Whether Teitunnel opens at login (hidden, in the menu bar).
+#[tauri::command]
+#[specta::specta]
+pub fn app_open_at_login(app: AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Turns opening at login on or off.
+#[tauri::command]
+#[specta::specta]
+pub fn app_set_open_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError> {
+    use tauri_plugin_autostart::ManagerExt;
+    let launcher = app.autolaunch();
+    let result = if enabled {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    };
+    result.map_err(|e| AppError::internal(format!("Couldn't change the login item: {e}")))
+}

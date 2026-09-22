@@ -39,6 +39,7 @@ tauri = { workspace = true, features = ["macos-private-api"] }
 tauri-plugin-opener.workspace = true
 tauri-plugin-clipboard-manager.workspace = true
 tauri-plugin-notification.workspace = true
+tauri-plugin-autostart.workspace = true
 tauri-plugin-wdio-webdriver = { workspace = true, optional = true }
 tauri-plugin-wdio = { workspace = true, optional = true }
 tauri-plugin-window-state.workspace = true

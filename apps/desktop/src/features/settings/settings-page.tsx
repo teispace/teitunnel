@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
 import { CloudflaredPane } from "@/features/binary";
 import { cn } from "@/lib/cn";
-import { useSettings, useUpdateSettings } from "./queries";
+import { useOpenAtLogin, useSetOpenAtLogin, useSettings, useUpdateSettings } from "./queries";
 
 const themes = [
   { value: "system", label: "Automatic" },
@@ -21,6 +21,26 @@ const tabs: readonly { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "accounts", label: "Accounts", icon: CircleUser },
   { id: "cloudflared", label: "cloudflared", icon: Cable },
 ];
+
+function OpenAtLogin() {
+  const login = useOpenAtLogin();
+  const change = useSetOpenAtLogin();
+  return (
+    <GroupedSection
+      title="Startup"
+      footer="Teitunnel opens in the menu bar, without a window. Routes set to keep running don't need this."
+    >
+      <GroupedRow label="Open at login">
+        <Switch
+          aria-label="Open at login"
+          checked={change.isPending ? change.variables : login.data === true}
+          disabled={!login.isSuccess || change.isPending}
+          onCheckedChange={(enabled) => change.mutate(enabled)}
+        />
+      </GroupedRow>
+    </GroupedSection>
+  );
+}
 
 /** The Settings window (⌘,): toolbar tabs over System Settings–style forms. */
 export function SettingsPage() {
@@ -84,6 +104,7 @@ function GeneralPane() {
           />
         </GroupedRow>
       </GroupedSection>
+      <OpenAtLogin />
       <GroupedSection
         title="Menu bar"
         footer="Closing the window keeps Quick Shares running. Quit Teitunnel with ⌘Q to stop them."

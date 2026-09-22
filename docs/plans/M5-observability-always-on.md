@@ -38,7 +38,7 @@
 - [ ] Linux systemd --user and Windows Task Scheduler adapters: **compile + unit tests only** here, polished in M7/M8.
 
 ### M5-06 · App lifecycle & menu bar extra
-- [ ] Closing the window keeps the app in the menu bar while anything is running (setting). Launch at login (`tauri-plugin-autostart`), starting hidden into the menu bar.
+- [ ] Closing the window keeps the app in the menu bar while anything is running (setting). Launch at login (`tauri-plugin-autostart`), starting hidden into the menu bar. *(Done: Settings ▸ General ▸ Open at login; `--hidden` keeps the window closed until the user opens it.)*
 - [ ] Menu bar menu: overall health line, routes (status + Open/Copy/Disable), Quick Shares, "New Quick Share…", "Open Teitunnel", "Quit". The icon changes for degraded or error state (template variants). *(Started: routes with status + Copy URL / Open in Browser above Quick Shares, refreshed after changes and every minute. Health line, Disable and icon variants remain.)*
 - [x] Quit confirmation when Session connectors are running ("Switch them to Always-on?" as a shortcut). *(⌘Q or the menu bar Quit asks: Keep Routes Running (switches to Always-on, then quits) / Quit Anyway / Cancel. Only when routes run through the app and Always-on is available.)*
 

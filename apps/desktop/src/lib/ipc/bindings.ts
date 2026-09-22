@@ -23,6 +23,10 @@ export const commands = {
 	 *  Always-on first (so routes stay up); if that fails, the app stays open.
 	 */
 	appQuit: (keepRunning: boolean) => __TAURI_INVOKE<null>("app_quit", { keepRunning }),
+	/**  Whether Teitunnel opens at login (hidden, in the menu bar). */
+	appOpenAtLogin: () => __TAURI_INVOKE<boolean>("app_open_at_login"),
+	/**  Turns opening at login on or off. */
+	appSetOpenAtLogin: (enabled: boolean) => __TAURI_INVOKE<null>("app_set_open_at_login", { enabled }),
 	/**  Returns all settings, with defaults applied. */
 	settingsGet: () => __TAURI_INVOKE<Settings>("settings_get"),
 	/**  Updates the given settings and returns the result. Every window is notified. */
