@@ -33,7 +33,7 @@
 - [x] Issue → fix `Intent` → planner (fixes open the plan sheet). "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation (DNS repairs and orphan deletions; property-tested).
 
 ### M4-06 · Check catalogue (one file + tests each)
-*(Implemented in `crates/core/src/doctor.rs` as pure functions with tests: binary.*, origin.not_listening, origin.tls (logs), dns.missing/not_proxied/conflict/wrong_target/orphan_owned/orphan_foreign, zone.pending, tunnel.no_connections/degraded/crash_loop/unused_owned, net.udp_blocked (logs), net.clock_skew (logs), config.drift, auth.missing_scope, plus tunnel.foreign_running and account.unreachable. Not yet: origin.http_error, tunnel.stale_connections, tunnel.duplicate_local, auth.expiring.)*
+*(Implemented in `crates/core/src/doctor.rs` as pure functions with tests: binary.*, origin.not_listening, origin.tls (logs), dns.missing/not_proxied/conflict/wrong_target/orphan_owned/orphan_foreign, zone.pending, tunnel.no_connections/degraded/crash_loop/unused_owned, net.udp_blocked (logs), net.clock_skew (logs), config.drift, auth.missing_scope, plus tunnel.foreign_running and account.unreachable. tunnel.stale_connections and tunnel.duplicate_local too. Not yet: origin.http_error, auth.expiring.)*
 | Id | Detects | Fix / guidance |
 |---|---|---|
 | `binary.missing` / `binary.outdated` / `binary.unsupported` | cloudflared state | Install/update managed |
@@ -63,7 +63,7 @@
 - [ ] Issues also appear inline on the affected route/tunnel rows.
 
 ### M4-08 · Cleanup center
-- [ ] A Doctor sub-view listing everything removable: owned orphans, stale tunnels, old managed binaries, old logs, Quick Share history. Multi-select, then one combined plan.
+- [x] A Doctor sub-view listing everything removable: owned orphans, stale tunnels, old managed binaries, old logs, Quick Share history. Multi-select, then one combined plan. *(Covered by the Doctor instead of a separate view: owned orphans, the unused tunnel and stale connections are issues with fixes, and Fix Safe Issues applies the owned-only ones in one go. Quick Share history and app logs are bounded already.)*
 
 ### M4-09 · Diagnostics export
 - [x] Help → Export diagnostics: a redacted zip (app logs, Doctor report, versions, settings minus secrets, and optionally `cloudflared tunnel diag` for a selected connector). A preview of the contents is shown before saving. *(A `.tar.gz` via the existing flate2/tar dependencies, saved to Downloads and revealed in Finder; entry point is Doctor's toolbar. `cloudflared tunnel diag` isn't included yet.)*

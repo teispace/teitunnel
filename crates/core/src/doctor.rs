@@ -67,6 +67,13 @@ pub enum Fix {
     },
     /// Create a token with the right permissions.
     Reconnect,
+    /// Remove a tunnel's stale connections.
+    CleanConnections {
+        /// Account.
+        account_id: String,
+        /// Tunnel.
+        tunnel_id: String,
+    },
 }
 
 /// A detected problem.
@@ -558,7 +565,7 @@ pub fn diagnose(facts: &Facts) -> Vec<Issue> {
     }
     let mut issues = found.issues;
     for account in &facts.accounts {
-        issues.extend(diagnose_account(account));
+        issues.extend(diagnose_account(account, &facts.foreign));
     }
     issues.sort_by(|a, b| {
         (a.severity, &a.subject, &a.check).cmp(&(b.severity, &b.subject, &b.check))
@@ -567,7 +574,10 @@ pub fn diagnose(facts: &Facts) -> Vec<Issue> {
 }
 
 #[allow(clippy::too_many_lines)]
-fn diagnose_account(facts: &AccountFacts) -> Vec<Issue> {
+fn diagnose_account(
+    facts: &AccountFacts,
+    foreign: &[crate::discovery::cloudflared::ForeignConnector],
+) -> Vec<Issue> {
     let account = facts.account_id.as_str();
     let mut found = Found {
         account: Some(account),
@@ -755,6 +765,48 @@ fn diagnose_account(facts: &AccountFacts) -> Vec<Issue> {
                 Vec::new(),
             ),
             Some(_) => {}
+        }
+        let running = matches!(
+            facts.connector,
+            Some(ref state) if !matches!(state, ConnectorState::Stopped)
+        );
+        let listed = facts
+            .tunnels
+            .iter()
+            .find(|t| t.id == tunnel.id)
+            .map_or(0, |t| t.connections.len());
+        if !running && listed > 0 {
+            found.add(
+                "tunnel.stale_connections",
+                Severity::Warning,
+                &tunnel.name,
+                "Cloudflare still lists connections for this Mac's tunnel".into(),
+                "This Mac's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it.",
+                vec![format!("{listed} connection{}", if listed == 1 { "" } else { "s" })],
+                vec![Fix::CleanConnections {
+                    account_id: account.to_owned(),
+                    tunnel_id: tunnel.id.clone(),
+                }],
+            );
+        }
+        let twins: Vec<String> = foreign
+            .iter()
+            .filter(|f| {
+                matches!(&f.mode, crate::discovery::cloudflared::ForeignMode::Named { tunnel: Some(t), .. }
+                    if *t == tunnel.id || *t == tunnel.name)
+            })
+            .map(|f| f.command.clone())
+            .collect();
+        if !twins.is_empty() {
+            found.add(
+                "tunnel.duplicate_local",
+                Severity::Warning,
+                &tunnel.name,
+                "Another cloudflared on this Mac runs this Mac's tunnel".into(),
+                "Two connectors on one Mac add nothing but confusion in logs and metrics. Stop the other one from Tunnels.",
+                twins,
+                Vec::new(),
+            );
         }
         if !has_routes {
             found.add(
@@ -1058,5 +1110,49 @@ mod tests {
         assert!(found.contains(&"net.udp_blocked".to_owned()), "{found:?}");
         assert!(found.contains(&"origin.tls".to_owned()), "{found:?}");
         assert!(!found.contains(&"net.clock_skew".to_owned()));
+    }
+
+    #[test]
+    fn stale_and_duplicate_connectors() {
+        use crate::{
+            discovery::cloudflared::{ForeignConnector, ForeignMode},
+            engine::ConnectionView,
+        };
+        let mut facts = healthy();
+        facts.connector = None;
+        facts.tunnels = vec![TunnelSummary {
+            id: T.into(),
+            name: "Mac".into(),
+            status: "healthy".into(),
+            created_at: String::new(),
+            routes: Some(1),
+            connections: vec![ConnectionView {
+                colo: "ams01".into(),
+                version: "2026.9.1".into(),
+                origin_ip: "203.0.113.1".into(),
+                opened_at: String::new(),
+            }],
+            this_mac: true,
+            connector: None,
+        }];
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts],
+            foreign: vec![ForeignConnector {
+                pid: 9,
+                command: "cloudflared tunnel run Mac".into(),
+                mode: ForeignMode::Named {
+                    tunnel: Some("Mac".into()),
+                    config: None,
+                },
+                service: false,
+                metrics: None,
+                connections: None,
+            }],
+        });
+        let found: Vec<&str> = issues.iter().map(|i| i.check.as_str()).collect();
+        assert!(found.contains(&"tunnel.stale_connections"), "{found:?}");
+        assert!(found.contains(&"tunnel.duplicate_local"), "{found:?}");
+        assert!(found.contains(&"tunnel.foreign_running"), "{found:?}");
     }
 }

@@ -38,13 +38,18 @@ function fixLabel(fix: Fix): string {
       return "Keep Changes";
     case "reconnect":
       return "Connect Again…";
+    case "cleanConnections":
+      return "Clean Up Connections";
   }
 }
 
 /** A fix that runs directly (no plan to review). */
 function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
   const install = useInstallBinary();
-  const accountId = fix.type === "startConnector" || fix.type === "keepTheirs" ? fix.accountId : "";
+  const accountId =
+    fix.type === "startConnector" || fix.type === "keepTheirs" || fix.type === "cleanConnections"
+      ? fix.accountId
+      : "";
   const connector = useTunnelAction(accountId);
   const keep = useKeepTheirs(accountId);
   const variant = primary ? "primary" : "secondary";
@@ -68,6 +73,18 @@ function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
           variant={variant}
           disabled={connector.isPending}
           onClick={() => connector.mutate({ action: "start", tunnelId: "" }, { onError: failed })}
+        >
+          {fixLabel(fix)}
+        </Button>
+      );
+    case "cleanConnections":
+      return (
+        <Button
+          variant={variant}
+          disabled={connector.isPending}
+          onClick={() =>
+            connector.mutate({ action: "clean", tunnelId: fix.tunnelId }, { onError: failed })
+          }
         >
           {fixLabel(fix)}
         </Button>

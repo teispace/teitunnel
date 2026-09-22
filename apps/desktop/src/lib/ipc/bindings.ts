@@ -462,7 +462,13 @@ accountId: string } |
 /**  Account. */
 accountId: string } | 
 /**  Create a token with the right permissions. */
-{ type: "reconnect" };
+{ type: "reconnect" } | 
+/**  Remove a tunnel's stale connections. */
+{ type: "cleanConnections"; 
+/**  Account. */
+accountId: string; 
+/**  Tunnel. */
+tunnelId: string };
 
 /**  What "Fix all safe issues" did. */
 export type FixReport = {
