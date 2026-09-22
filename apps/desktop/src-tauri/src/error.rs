@@ -52,6 +52,12 @@ impl From<teitunnel_core::Error> for AppError {
     }
 }
 
+impl From<teitunnel_core::store::StoreError> for AppError {
+    fn from(err: teitunnel_core::store::StoreError) -> Self {
+        teitunnel_core::Error::from(err).into()
+    }
+}
+
 impl From<tauri::Error> for AppError {
     fn from(err: tauri::Error) -> Self {
         tracing::error!(error = %err, "tauri error");

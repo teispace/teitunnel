@@ -9,6 +9,9 @@ pub enum Error {
     /// Working with the cloudflared binary failed.
     #[error(transparent)]
     Cloudflared(#[from] cloudflared::Error),
+    /// The local database failed.
+    #[error(transparent)]
+    Store(#[from] crate::store::StoreError),
 }
 
 /// Result alias for this crate.

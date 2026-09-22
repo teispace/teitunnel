@@ -11,15 +11,27 @@ publish.workspace = true
 [lib]
 name = "teitunnel_core"
 
+[features]
+default = []
+# Derive `specta::Type` on types that cross the desktop IPC boundary.
+specta = ["dep:specta"]
+
 [dependencies]
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
 regex.workspace = true
+rusqlite.workspace = true
+rusqlite_migration.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+specta = { workspace = true, optional = true }
 thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 [lints]
 workspace = true

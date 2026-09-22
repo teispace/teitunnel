@@ -10,19 +10,30 @@ use tauri::{
 /// Menu id of "Open Teitunnel"; handled by [`crate::shell::menu::on_event`].
 pub const OPEN: &str = "tray.open";
 
-/// Adds the menu bar icon.
-pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+const ID: &str = "main";
+
+/// Adds the menu bar icon, hidden unless `visible`.
+pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .item(&MenuItemBuilder::with_id(OPEN, "Open Teitunnel").build(app)?)
         .separator()
         .item(&PredefinedMenuItem::quit(app, Some("Quit Teitunnel"))?)
         .build()?;
-    TrayIconBuilder::with_id("main")
+    let tray = TrayIconBuilder::with_id(ID)
         .icon(tauri::include_image!("icons/tray-template.png"))
         .icon_as_template(true)
         .tooltip("Teitunnel")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .build(app)?;
-    Ok(())
+    tray.set_visible(visible)
+}
+
+/// Shows or hides the menu bar icon (the "Show in menu bar" setting).
+pub fn set_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
+    if let Some(tray) = app.tray_by_id(ID)
+        && let Err(err) = tray.set_visible(visible)
+    {
+        tracing::warn!(error = %err, "failed to change menu bar icon visibility");
+    }
 }

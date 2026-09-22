@@ -10,8 +10,10 @@ mod error;
 mod ipc;
 mod logging;
 mod shell;
+mod state;
 
 use tauri::Manager;
+use teitunnel_core::{settings, store::Store};
 
 pub use ipc::export_bindings;
 
@@ -44,7 +46,11 @@ pub fn run() -> Result<(), tauri::Error> {
             let log_dir = app.path().app_log_dir()?;
             app.manage(logging::init(&log_dir)?);
             specta.mount_events(app);
-            shell::tray::install(app.handle())?;
+
+            let store = Store::open(&app.path().app_data_dir()?.join("teitunnel.db"))?;
+            let prefs = tauri::async_runtime::block_on(settings::load(&store))?;
+            shell::tray::install(app.handle(), prefs.show_in_menu_bar)?;
+            app.manage(state::AppState { store });
             shell::windows::show_main_after_timeout(app.handle());
             tracing::info!(version = %app.package_info().version, "teitunnel started");
             Ok(())

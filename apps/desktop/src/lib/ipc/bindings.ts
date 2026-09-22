@@ -18,6 +18,10 @@ export const commands = {
 	appReportError: (message: string, stack: string | null) => __TAURI_INVOKE<void>("app_report_error", { message, stack }),
 	/**  Opens the Settings window (same as ⌘,). */
 	appOpenSettings: () => __TAURI_INVOKE<null>("app_open_settings"),
+	/**  Returns all settings, with defaults applied. */
+	settingsGet: () => __TAURI_INVOKE<Settings>("settings_get"),
+	/**  Updates the given settings and returns the result. Every window is notified. */
+	settingsSet: (patch: SettingsPatch) => __TAURI_INVOKE<Settings>("settings_set", { patch }),
 };
 
 /** Events */
@@ -103,6 +107,31 @@ export type MenuCommand =
 "goActivity" | 
 /**  View ▸ Doctor (⌘7). */
 "goDoctor";
+
+/**  All preferences, with defaults applied. */
+export type Settings = {
+	/**  Appearance override. */
+	theme: Theme,
+	/**  Show the Teitunnel icon in the menu bar. */
+	showInMenuBar: boolean,
+};
+
+/**  A partial update: only the fields that are set change. */
+export type SettingsPatch = {
+	/**  New appearance override. */
+	theme?: Theme | null,
+	/**  New menu bar visibility. */
+	showInMenuBar?: boolean | null,
+};
+
+/**  Appearance override. */
+export type Theme = 
+/**  Follow the system appearance. */
+"system" | 
+/**  Always light. */
+"light" | 
+/**  Always dark. */
+"dark";
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

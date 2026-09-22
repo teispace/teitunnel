@@ -15,6 +15,7 @@ pub mod redact;
 pub mod runtime;
 mod secret;
 pub mod secrets;
+pub mod settings;
 pub mod store;
 
 pub use error::{Error, Result};

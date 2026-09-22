@@ -25,7 +25,7 @@ path = "src/bin/export_bindings.rs"
 tauri-build.workspace = true
 
 [dependencies]
-teitunnel-core.workspace = true
+teitunnel-core = { workspace = true, features = ["specta"] }
 tauri = { workspace = true, features = ["macos-private-api"] }
 tauri-plugin-opener.workspace = true
 tauri-plugin-window-state.workspace = true
