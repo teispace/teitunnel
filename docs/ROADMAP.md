@@ -9,8 +9,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | ⏳ Release prep (PR #2) |
 | [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | ✅ Done except maintainer items (PR #3) |
 | [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | ✅ Done (PR #4; nightly waits for a test token) |
-| [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | 🚧 In progress (PR #5) |
-| [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | Planned |
+| [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | ✅ Done (PR #5) |
+| [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | 🚧 In progress |
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
 | [M7](plans/M7-M9-beyond-v1.md#m7-windows) | v1.1 | Windows | Later |
 | [M8](plans/M7-M9-beyond-v1.md#m8-linux) | v1.2 | Linux | Later |
@@ -47,7 +47,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M3-09 Routes UI · [x] M3-10 Tunnels UI · [x] M3-11 Tests (nightly real-account job waits for a test token)
 
 ### M4: Discovery & Doctor (v0.4.0)
-- [x] M4-01 Processes/projects · [x] M4-02 Docker · [x] M4-03 Import setups (service detection pending) · [x] M4-04 Adoption
+- [x] M4-01 Processes/projects · [x] M4-02 Docker · [x] M4-03 Import setups · [x] M4-04 Adoption
 - [x] M4-05 Doctor framework · [x] M4-06 Checks · [x] M4-07 Doctor UI · [x] M4-08 Cleanup center (in the Doctor) · [x] M4-09 Diagnostics export
 
 ### M5: Observability & Always-on (v0.5.0)

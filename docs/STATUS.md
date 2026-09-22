@@ -4,21 +4,21 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-23
-**Phase:** **M4: Discovery, import & Doctor** in progress (M3 complete)
-**Branch:** `milestone/m4-discovery-doctor` (draft PR #5, stacked on #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
+**Phase:** **M5: Observability & always-on** in progress (M4 complete)
+**Branch:** `milestone/m5-observability-always-on` (stacked on #5 → #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. Finish M4: cleanup center (M4-08: stale tunnels, old managed binaries, Quick Share history), remaining checks (origin.http_error, stale connections, duplicate local connectors), launchd/systemd detection for existing services (M4-03 last bullet).
-2. M5: metrics pipeline + charts (uPlot), full log viewer (virtualized, follow-tail, search), always-on via launchd, menu bar extra with routes, notification policy.
+1. **M5-05 Always-on (launchd)**: ServiceManager adapter (plist generation, `launchctl bootstrap/bootout gui/<uid>` with discrete args), token file 0600 in app data, Session ↔ Always-on switch without a gap, status via metrics; tests with plist snapshots and a recording fake ServiceManager.
+2. M5 rest: 1 s metrics subscription + rollups, uPlot charts, full log viewer (virtualized, follow-tail, search), menu bar health line/icon variants, launch at login, notification policy, Activity filters/diff.
 3. Nightly real-account job (needs the maintainer's test token).
 4. **Maintainer:** review/merge PRs #1–#5 in order; v0.1 signing decision + tag; OAuth client; test token.
 
 ## In progress
-- **M4** on `milestone/m4-discovery-doctor`, draft PR #5. Done: framework/project discovery, Docker containers, import from `config.yml` (ImportRoutes, D-044), foreign cloudflared processes (observe/stop), Doctor (checks incl. log-based, view, sidebar badge, fix-as-plan, ignore, Fix Safe Issues), diagnostics export. Also pulled forward: Overview with routes and problems, Activity timeline (M5-04 partial), connector logs in Tunnels (M5-03 partial).
-- **M3** complete, PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
+- **M5** starting on `milestone/m5-observability-always-on`. Already on the M4 branch: Activity timeline, connector logs + traffic sparkline in Tunnels, routes in the menu bar.
+- **M4** complete, PR #5 (ready for review). **M3** PR #4, **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
 - 2026-09-23: M4 import, foreign connectors, diagnostics, log checks; Overview/Activity/Tunnels logs.
@@ -43,7 +43,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session
-- **Resume point:** branch `milestone/m4-discovery-doctor` (draft PR #5). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- **Resume point:** branch `milestone/m5-observability-always-on`. Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
 - Engine entry points (crates/core/src/engine): `Engine::{preview, apply, verify, drift, keep_theirs}`; ports `CloudApi` (impl for `cf_api::Client`, fake in `engine/fake.rs`) and `Connectors` (impl `machine::MachineTunnels`). Desktop must call `MachineTunnels::forget_account` before `Accounts::remove`.
 - **Locked screen:** during unattended sessions the screen locks; macOS then stops compositing windows and `screencapture` returns blank content. Never send clicks/keys while locked. Use `pnpm --filter @teitunnel/desktop shoot` (WebKit) instead (D-030). Keep the Mac awake with `caffeinate -dimsu`.
 - Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.
