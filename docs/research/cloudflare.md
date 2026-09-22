@@ -11,7 +11,10 @@ Verified facts the implementation relies on. Each entry has its source and the d
 | macOS assets | `cloudflared-darwin-arm64.tgz`, `cloudflared-darwin-amd64.tgz` (+ `.pkg`) | release page |
 | Linux assets | `cloudflared-linux-amd64`, `cloudflared-linux-arm64` (+ `.deb`, `.rpm`) | release page |
 | Windows assets | `cloudflared-windows-amd64.exe` (+ `.msi`, 386) | release page |
-| Checksums | In the release body, lines like `cloudflared-amd64.pkg: <sha256>` | release page |
+| Checksums | In the release body, lines like `cloudflared-amd64.pkg: <sha256>`. **For `.tgz` assets the listed hash is of the extracted `cloudflared` binary, not the archive** (verified 2026-09-23: body `9a0b19f6…` = `shasum` of the binary; the tgz itself is `c27ab8fd…`) | release page + local check |
+| Archive digest | The GitHub API asset object has `digest: "sha256:<hash of the asset file>"` | `GET /repos/cloudflare/cloudflared/releases/latest` (2026-09-23) |
+| macOS signing | Official binaries are signed "Developer ID Application: Cloudflare Inc. (**68WVV388M8**)" and pass `codesign --verify --strict`. Homebrew's build is ad-hoc signed (no Team ID), so the Team ID check applies to managed downloads only | `codesign -dv --verbose=2` (2026-09-23) |
+| API rate limit | Unauthenticated: 60 requests/hour per IP; responses carry an `ETag` | response headers (2026-09-23) |
 
 ## Run parameters we use
 

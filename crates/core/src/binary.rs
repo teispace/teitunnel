@@ -1,16 +1,18 @@
-//! The cloudflared binary Teitunnel runs: located once, cached, re-checked on demand.
-//! Managed installs and updates join in M1-02.
+//! The cloudflared binary Teitunnel runs: located once, cached, re-checked on demand,
+//! and installed (verified) into the app data directory when the user asks.
 
 use std::sync::Arc;
 
-pub use cloudflared::{BinaryStatus, Locator};
-use tokio::sync::RwLock;
+use cloudflared::install::Installer;
+pub use cloudflared::{BinaryStatus, Locator, install::Progress as InstallStep};
+use tokio::sync::{Mutex, RwLock};
 
 /// Caches the located binary so every Quick Share doesn't re-run `--version`.
 #[derive(Debug, Clone)]
 pub struct BinaryManager {
     locator: Locator,
     current: Arc<RwLock<Option<BinaryStatus>>>,
+    installing: Arc<Mutex<()>>,
 }
 
 impl BinaryManager {
@@ -19,6 +21,7 @@ impl BinaryManager {
         Self {
             locator,
             current: Arc::default(),
+            installing: Arc::default(),
         }
     }
 
@@ -41,5 +44,21 @@ impl BinaryManager {
         let status = self.locator.locate().await;
         *self.current.write().await = status.as_ref().ok().cloned();
         status
+    }
+
+    /// Downloads, verifies and installs the latest release as the managed binary.
+    /// Concurrent calls wait for the first to finish.
+    ///
+    /// # Errors
+    /// Network, verification or file-system failures; the previous binary is kept.
+    pub async fn install_latest(
+        &self,
+        progress: impl FnMut(InstallStep),
+    ) -> cloudflared::Result<BinaryStatus> {
+        let _guard = self.installing.lock().await;
+        let installer = Installer::new(self.locator.managed_dir().to_path_buf())?;
+        let release = installer.latest().await?;
+        installer.install(&release, progress).await?;
+        self.refresh().await
     }
 }

@@ -5,7 +5,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { commands, type QuickShare } from "@/lib/ipc/bindings";
+import { Channel } from "@tauri-apps/api/core";
+import { useState } from "react";
+import { commands, type InstallProgress, type QuickShare } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
 
@@ -95,4 +97,20 @@ export function useStopShare() {
       ),
     onSettled: () => queryClient.invalidateQueries({ queryKey: quickSharesQuery.queryKey }),
   });
+}
+
+/** Installs the managed cloudflared, exposing live progress. */
+export function useInstallBinary() {
+  const queryClient = useQueryClient();
+  const [progress, setProgress] = useState<InstallProgress | null>(null);
+  const mutation = useMutation({
+    mutationFn: () => {
+      const channel = new Channel<InstallProgress>();
+      channel.onmessage = setProgress;
+      return call(commands.binaryInstall(channel));
+    },
+    onSuccess: (info) => queryClient.setQueryData(queryKeys.binary.status(), info),
+    onSettled: () => setProgress(null),
+  });
+  return { ...mutation, progress };
 }

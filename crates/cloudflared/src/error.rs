@@ -16,6 +16,12 @@ pub enum Error {
     /// An HTTP request failed.
     #[error("request failed: {0}")]
     Http(String),
+    /// A download failed verification; nothing was installed.
+    #[error("cloudflared couldn't be verified: {0}")]
+    Verification(String),
+    /// Cloudflare publishes no binary for this platform.
+    #[error("cloudflared isn't available for this platform")]
+    UnsupportedPlatform,
     /// An operation took too long.
     #[error("{0} timed out")]
     Timeout(&'static str),

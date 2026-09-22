@@ -4,8 +4,9 @@ use std::time::Duration;
 
 use serde::Serialize;
 use specta::Type;
-use tauri::State;
+use tauri::{State, ipc::Channel};
 use teitunnel_core::{
+    binary::{BinaryStatus, InstallStep as Progress},
     discovery::{self, LocalService},
     domain::OriginUrl,
     quick_share::{QuickShare, ShareStats, qr_svg},
@@ -42,11 +43,8 @@ pub struct LogLine {
     pub error: Option<String>,
 }
 
-/// The cloudflared binary in use, or `null` if none is installed.
-#[tauri::command]
-#[specta::specta]
-pub async fn binary_status(state: State<'_, AppState>) -> Result<Option<BinaryInfo>, AppError> {
-    Ok(state.binary.refresh().await.ok().map(|status| BinaryInfo {
+fn binary_info(status: &BinaryStatus) -> BinaryInfo {
+    BinaryInfo {
         path: status.path.display().to_string(),
         source: serde_json::to_value(status.source)
             .ok()
@@ -54,7 +52,57 @@ pub async fn binary_status(state: State<'_, AppState>) -> Result<Option<BinaryIn
             .unwrap_or_default(),
         version: status.version.map(|v| v.to_string()),
         supported: status.is_supported(),
-    }))
+    }
+}
+
+/// The cloudflared binary in use, or `null` if none is installed.
+#[tauri::command]
+#[specta::specta]
+pub async fn binary_status(state: State<'_, AppState>) -> Result<Option<BinaryInfo>, AppError> {
+    Ok(state.binary.refresh().await.ok().as_ref().map(binary_info))
+}
+
+/// Install progress, streamed to the webview.
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase", tag = "step")]
+pub enum InstallProgress {
+    /// Downloading: bytes received of total.
+    Downloading {
+        /// Bytes received.
+        received: u32,
+        /// Total bytes.
+        total: u32,
+    },
+    /// Checking checksums and the code signature.
+    Verifying,
+    /// Moving the binary into place.
+    Installing,
+}
+
+/// Downloads, verifies and installs the latest cloudflared into the app data folder.
+#[tauri::command]
+#[specta::specta]
+pub async fn binary_install(
+    state: State<'_, AppState>,
+    on_progress: Channel<InstallProgress>,
+) -> Result<BinaryInfo, AppError> {
+    let clamp = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+    let status = state
+        .binary
+        .install_latest(|progress| {
+            let event = match progress {
+                Progress::Downloading { received, total } => InstallProgress::Downloading {
+                    received: clamp(received),
+                    total: clamp(total),
+                },
+                Progress::Verifying => InstallProgress::Verifying,
+                Progress::Installing => InstallProgress::Installing,
+            };
+            let _ = on_progress.send(event);
+        })
+        .await
+        .map_err(teitunnel_core::Error::from)?;
+    Ok(binary_info(&status))
 }
 
 /// Services listening on this Mac, likely dev servers first.

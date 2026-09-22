@@ -26,6 +26,14 @@ beforeEach(() => {
               supported: true,
             }
           : null;
+      case "binary_install":
+        binaryInstalled = true;
+        return {
+          path: "/Users/me/Library/Application Support/com.teispace.teitunnel/bin/cloudflared",
+          source: "managed",
+          version: "2026.9.1",
+          supported: true,
+        };
       case "quick_share_list":
         return shares;
       case "services_list":
@@ -96,10 +104,14 @@ describe("QuickSharePage", () => {
     expect(field.getAttribute("aria-invalid")).toBe("true");
   });
 
-  it("explains how to install cloudflared when it's missing", async () => {
+  it("installs cloudflared when it's missing", async () => {
     binaryInstalled = false;
     renderPage();
     expect(await screen.findByText("cloudflared isn't installed")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Share" }).hasAttribute("disabled")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Install cloudflared" }));
+    await waitFor(() => expect(screen.queryByText("cloudflared isn't installed")).toBeNull());
+    expect(screen.getByRole("button", { name: "Share" }).hasAttribute("disabled")).toBe(false);
   });
 });
