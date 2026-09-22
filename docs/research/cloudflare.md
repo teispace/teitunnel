@@ -98,3 +98,9 @@ Source: https://developers.cloudflare.com/fundamentals/api/reference/template/
 
 ### cert.pem (from `cloudflared tunnel login`)
 - The PEM block `ARGO TUNNEL TOKEN` holds base64 JSON `{zoneID, accountID, apiToken}`. The token is scoped to the zone chosen at login, so it counts as a limited credential.
+
+## Quick Share DNS timing (measured 2026-09-23, cloudflared 2026.9.1)
+- `/quicktunnel` returns the hostname ~2 s before the first edge connection registers (`/ready` still reports 0).
+- The hostname isn't in public DNS for the first ~2–3 s after it appears: first lookups at +0/+1/+2 s returned NXDOMAIN; +4 s and +7 s resolved (probed once per fresh hostname via `dns.google/resolve`).
+- NXDOMAIN answers for `*.trycloudflare.com` carry the zone SOA (minimum 1800), so resolvers may cache the negative answer for **up to 30 minutes**. An early lookup (by us or a browser) breaks the URL for that resolver.
+- Consequence (D-037): never query DNS early; show a share as live (and enable Open) only 6 s after the hostname first appears and a connection is registered.

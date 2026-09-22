@@ -147,3 +147,7 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 ### D-036 · 2026-09-23 · Exit animations are skipped while the page is hidden
 **Decision:** List exit animations only run when `document.visibilityState` is `visible`.
 **Why:** WebKit runs no animation frames for a hidden window, so a share stopped from the menu bar would linger in the list until the window reappeared and then animate out. Verified by the E2E run (0 frames while hidden).
+
+### D-037 · 2026-09-23 · Quick Shares go "Live" 6 s after the hostname appears, without DNS queries
+**Decision:** After `/quicktunnel` reports a hostname and a connection is registered, wait until 6 s have passed since the hostname first appeared before marking the share live (the URL is shown meanwhile, Open disabled). Teitunnel never queries DNS for the new name itself.
+**Why:** Measured: new names aren't resolvable for ~2–3 s, and NXDOMAIN is cached for up to 30 minutes (SOA minimum 1800). A DoH readiness check was tried and rejected, because querying 1.1.1.1 too early caches the NXDOMAIN there, breaking the URL for everyone using that resolver. The nightly real test confirms the approach (public fetch succeeds on the first try).

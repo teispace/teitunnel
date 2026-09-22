@@ -1,0 +1,27 @@
+name: Nightly
+
+# Real-world checks that need the network and the real cloudflared: install the latest
+# release (digest, checksum, Cloudflare signature), then serve a local origin through a
+# real Quick Share and fetch it from the public URL.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-quick-share:
+    name: Real Quick Share (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - run: mkdir -p apps/desktop/dist
+      - name: Real install and Quick Share
+        run: cargo nextest run --workspace --locked --run-ignored only

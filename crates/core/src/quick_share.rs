@@ -21,8 +21,12 @@ use crate::{
     store::Store,
 };
 
-/// How long to wait for cloudflared to get a URL and a live connection.
-const URL_TIMEOUT: Duration = Duration::from_secs(20);
+/// How long to wait for a URL and a live connection.
+const URL_TIMEOUT: Duration = Duration::from_secs(30);
+/// New trycloudflare.com names take ~3–4 s to reach public DNS (measured, D-037), and
+/// an early lookup is cached as NXDOMAIN for up to 30 minutes. So a share is only
+/// shown as live (and openable) this long after its hostname first appears.
+const DNS_PROPAGATION: Duration = Duration::from_secs(6);
 const URL_POLL: Duration = Duration::from_millis(250);
 const ID_PREFIX: &str = "qs-";
 
@@ -111,6 +115,7 @@ pub struct QuickShares {
     shares: Arc<Mutex<HashMap<String, Entry>>>,
     changes: broadcast::Sender<String>,
     url_timeout: Duration,
+    dns_propagation: Duration,
 }
 
 impl std::fmt::Debug for QuickShares {
@@ -142,7 +147,15 @@ impl QuickShares {
             shares: Arc::default(),
             changes,
             url_timeout: URL_TIMEOUT,
+            dns_propagation: DNS_PROPAGATION,
         }
+    }
+
+    /// Overrides the DNS propagation wait (tests with fake hostnames).
+    #[must_use]
+    pub fn with_dns_propagation(mut self, wait: Duration) -> Self {
+        self.dns_propagation = wait;
+        self
     }
 
     /// Overrides how long to wait for a URL (tests).
@@ -283,23 +296,27 @@ impl QuickShares {
         })
     }
 
-    /// Polls cloudflared until the share has a URL and a live connection (D-034).
+    /// Polls until the share has a URL and a live connection (D-034), then allows for DNS
+    /// propagation before declaring it live (D-037). It never queries DNS itself: an
+    /// early query would get the NXDOMAIN cached.
     async fn await_url(self, id: String, port: u16) {
         let Ok(endpoints) = Endpoints::new(port) else {
             return;
         };
         let deadline = tokio::time::Instant::now() + self.url_timeout;
+        let mut host_seen: Option<tokio::time::Instant> = None;
         while tokio::time::Instant::now() < deadline {
             if !self.lock().contains_key(&id) {
                 return;
             }
             if let Ok(Some(host)) = endpoints.quick_tunnel_host().await {
                 let url = format!("https://{host}");
-                if endpoints
+                let connected = endpoints
                     .ready()
                     .await
-                    .is_ok_and(|r| r.ready_connections > 0)
-                {
+                    .is_ok_and(|r| r.ready_connections > 0);
+                let seen = *host_seen.get_or_insert_with(tokio::time::Instant::now);
+                if connected && seen.elapsed() >= self.dns_propagation {
                     self.update(&id, |share| {
                         share.url = Some(url.clone());
                         share.status = ShareStatus::Live;

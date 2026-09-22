@@ -5182,6 +5182,7 @@ dependencies = [
  "proptest",
  "qrcode",
  "regex",
+ "reqwest",
  "rusqlite",
  "rusqlite_migration",
  "serde",

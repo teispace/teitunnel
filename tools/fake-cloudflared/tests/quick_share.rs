@@ -42,7 +42,8 @@ fn service(dir: &Path, scenario: &str, block: u16) -> QuickShares {
     );
     let ports = PortAllocator::new(22000 + block * 10..22000 + block * 10 + 10);
     let shares = QuickShares::new(supervisor, binary, ports, Store::open_in_memory().unwrap())
-        .with_url_timeout(Duration::from_secs(2));
+        .with_url_timeout(Duration::from_secs(2))
+        .with_dns_propagation(Duration::ZERO);
     tokio::spawn(shares.clone().watch_runtime());
     shares
 }

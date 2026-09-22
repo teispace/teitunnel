@@ -38,6 +38,7 @@ nix.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+reqwest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 
