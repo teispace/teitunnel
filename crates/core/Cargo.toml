@@ -27,6 +27,7 @@ serde_json.workspace = true
 specta = { workspace = true, optional = true }
 thiserror.workspace = true
 sysinfo.workspace = true
+listeners.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
 tracing.workspace = true
 uuid.workspace = true
