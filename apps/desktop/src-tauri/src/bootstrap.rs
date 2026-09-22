@@ -75,6 +75,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         binary,
         supervisor,
         quick_shares,
+        oauth_cancel: std::sync::Mutex::default(),
         shutting_down: false.into(),
     })
 }

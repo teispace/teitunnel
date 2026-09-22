@@ -12,9 +12,12 @@ pub mod oauth;
 mod template;
 
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+use tokio::time::Instant;
 
 use cf_api::{ApiToken, Client};
 use rusqlite::params;
@@ -99,6 +102,9 @@ pub enum AccountError {
     /// Cloudflare or the network failed.
     #[error(transparent)]
     Api(#[from] cf_api::Error),
+    /// OAuth sign-in or refresh failed.
+    #[error(transparent)]
+    OAuth(#[from] oauth::OAuthError),
     /// The keychain failed.
     #[error(transparent)]
     Secret(#[from] SecretError),
@@ -111,12 +117,18 @@ fn secret_key(account: &str, kind: CredentialKind) -> String {
     format!("cf:{account}:{}", kind.as_str())
 }
 
+/// Cached OAuth access tokens: (token, issued, expires).
+type AccessCache = HashMap<String, (Secret<String>, Instant, Instant)>;
+
 /// Adds, lists and removes accounts. Cheap to clone.
 #[derive(Clone)]
 pub struct Accounts {
     store: Store,
     secrets: Secrets,
     api_base: Arc<str>,
+    oauth: Option<oauth::OAuthConfig>,
+    http: reqwest::Client,
+    access: Arc<tokio::sync::Mutex<AccessCache>>,
 }
 
 impl std::fmt::Debug for Accounts {
@@ -126,18 +138,41 @@ impl std::fmt::Debug for Accounts {
 }
 
 impl Accounts {
-    /// Accounts against the production API.
+    /// Accounts against the production API (OAuth enabled if a client is registered).
     pub fn new(store: Store, secrets: Secrets) -> Self {
-        Self::with_api_base(store, secrets, cf_api::API_BASE)
+        Self::with_api_base(
+            store,
+            secrets,
+            cf_api::API_BASE,
+            oauth::OAuthConfig::cloudflare(),
+        )
     }
 
     /// Accounts against another API base (tests).
-    pub fn with_api_base(store: Store, secrets: Secrets, api_base: &str) -> Self {
+    pub fn with_api_base(
+        store: Store,
+        secrets: Secrets,
+        api_base: &str,
+        oauth: Option<oauth::OAuthConfig>,
+    ) -> Self {
         Self {
             store,
             secrets,
             api_base: api_base.into(),
+            oauth,
+            http: reqwest::Client::new(),
+            access: Arc::default(),
         }
+    }
+
+    /// The OAuth client, if sign-in with Cloudflare is available.
+    pub fn oauth(&self) -> Option<&oauth::OAuthConfig> {
+        self.oauth.as_ref()
+    }
+
+    /// Where OAuth token requests go.
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
     }
 
     fn client_with(&self, token: &Secret<String>) -> Result<Client, AccountError> {
@@ -186,41 +221,87 @@ impl Accounts {
             Err(err) if err.is_auth() => return Err(AccountError::InvalidToken),
             Err(err) => return Err(err.into()),
         }
-        let mut reachable: Vec<(String, String)> = match client.accounts().await {
-            Ok(accounts) => accounts.into_iter().map(|a| (a.id, a.name)).collect(),
-            Err(err) if err.is_auth() => Vec::new(),
-            Err(err) => return Err(err.into()),
-        };
-        if reachable.is_empty() {
-            // Zone-scoped tokens may not list accounts; derive them from their zones.
-            let zones = client.all_zones().await.or_else(|err| {
-                if err.is_auth() {
-                    Ok(Vec::new())
-                } else {
-                    Err(err)
-                }
-            })?;
-            for zone in zones {
-                if !reachable.iter().any(|(id, _)| *id == zone.account.id) {
-                    reachable.push((zone.account.id, zone.account.name));
-                }
-            }
-        }
-        if reachable.is_empty() {
-            return Err(AccountError::NoAccess);
-        }
+        let reachable = reachable_accounts(&client).await?;
+        self.save_all(reachable, CredentialKind::ApiToken, &token)
+            .await
+    }
+
+    async fn save_all(
+        &self,
+        reachable: Vec<(String, String)>,
+        credential: CredentialKind,
+        secret: &Secret<String>,
+    ) -> Result<Vec<Account>, AccountError> {
         let mut added = Vec::new();
         for (id, name) in reachable {
             let account = Account {
                 id,
                 name,
-                credential: CredentialKind::ApiToken,
+                credential,
                 limited_zone: None,
             };
-            self.save(&account, &token).await?;
+            self.save(&account, secret).await?;
             added.push(account);
         }
         Ok(added)
+    }
+
+    /// Connects every account an OAuth sign-in reaches. The refresh token goes to the
+    /// keychain; the access token stays in memory.
+    ///
+    /// # Errors
+    /// [`AccountError::NoAccess`] if the grant reaches nothing, or
+    /// [`AccountError::OAuth`] if Cloudflare didn't issue a refresh token.
+    pub async fn add_oauth(&self, tokens: oauth::TokenSet) -> Result<Vec<Account>, AccountError> {
+        let refresh = tokens.refresh_token.ok_or_else(|| {
+            AccountError::OAuth(oauth::OAuthError::Exchange(
+                "Cloudflare didn't allow offline access".into(),
+            ))
+        })?;
+        let client = self.client_with(&tokens.access_token)?;
+        let reachable = reachable_accounts(&client).await?;
+        let added = self
+            .save_all(reachable, CredentialKind::OAuth, &refresh)
+            .await?;
+        let expires = Instant::now() + tokens.expires_in;
+        let mut cache = self.access.lock().await;
+        for account in &added {
+            cache.insert(
+                account.id.clone(),
+                (tokens.access_token.clone(), Instant::now(), expires),
+            );
+        }
+        Ok(added)
+    }
+
+    /// A valid OAuth access token for `account_id`, refreshed at 80% of its lifetime.
+    /// Refreshes are serialised, so concurrent callers never race to rotate the token.
+    async fn access_token(&self, account_id: &str) -> Result<Secret<String>, AccountError> {
+        let mut cache = self.access.lock().await;
+        if let Some((token, issued, expires)) = cache.get(account_id) {
+            let lifetime = expires.saturating_duration_since(*issued);
+            if issued.elapsed() < lifetime.mul_f64(0.8) {
+                return Ok(token.clone());
+            }
+        }
+        let config = self.oauth.clone().ok_or(AccountError::NotFound)?;
+        let secrets = Arc::clone(&self.secrets);
+        let key = secret_key(account_id, CredentialKind::OAuth);
+        let refresh = spawn_blocking(move || secrets.get(&key))
+            .await?
+            .ok_or(AccountError::NotFound)?;
+        let tokens = oauth::refresh(&self.http, &config, &refresh).await?;
+        if let Some(rotated) = tokens.refresh_token {
+            let secrets = Arc::clone(&self.secrets);
+            let key = secret_key(account_id, CredentialKind::OAuth);
+            spawn_blocking(move || secrets.set(&key, &rotated)).await?;
+        }
+        let now = Instant::now();
+        cache.insert(
+            account_id.to_owned(),
+            (tokens.access_token.clone(), now, now + tokens.expires_in),
+        );
+        Ok(tokens.access_token)
     }
 
     /// Imports the credential from a `cloudflared tunnel login` cert.pem. The file is
@@ -283,11 +364,20 @@ impl Accounts {
         Ok(())
     }
 
-    /// Disconnects an account and deletes every credential stored for it.
+    /// Disconnects an account and deletes every credential stored for it (OAuth grants
+    /// are revoked first, best effort).
     ///
     /// # Errors
     /// [`AccountError::NotFound`], or keychain/database failures.
     pub async fn remove(&self, account_id: &str) -> Result<(), AccountError> {
+        if let Some(config) = &self.oauth {
+            let secrets = Arc::clone(&self.secrets);
+            let key = secret_key(account_id, CredentialKind::OAuth);
+            if let Ok(Some(refresh)) = spawn_blocking(move || secrets.get(&key)).await {
+                oauth::revoke(&self.http, config, &refresh).await;
+            }
+        }
+        self.access.lock().await.remove(account_id);
         let id = account_id.to_owned();
         let secrets = Arc::clone(&self.secrets);
         let keys: Vec<String> = CredentialKind::ALL
@@ -356,6 +446,10 @@ impl Accounts {
             .into_iter()
             .find(|a| a.id == account_id)
             .ok_or(AccountError::NotFound)?;
+        if account.credential == CredentialKind::OAuth {
+            let token = self.access_token(account_id).await?;
+            return self.client_with(&token);
+        }
         let secrets = Arc::clone(&self.secrets);
         let key = secret_key(&account.id, account.credential);
         let token = spawn_blocking(move || secrets.get(&key))
@@ -363,6 +457,32 @@ impl Accounts {
             .ok_or(AccountError::NotFound)?;
         self.client_with(&token)
     }
+}
+
+/// Accounts a credential can reach. Zone-scoped tokens may not list accounts, so fall
+/// back to the owners of the zones they can see.
+async fn reachable_accounts(client: &Client) -> Result<Vec<(String, String)>, AccountError> {
+    let mut reachable: Vec<(String, String)> = match client.accounts().await {
+        Ok(accounts) => accounts.into_iter().map(|a| (a.id, a.name)).collect(),
+        Err(err) if err.is_auth() => Vec::new(),
+        Err(err) => return Err(err.into()),
+    };
+    if reachable.is_empty() {
+        let zones = match client.all_zones().await {
+            Ok(zones) => zones,
+            Err(err) if err.is_auth() => Vec::new(),
+            Err(err) => return Err(err.into()),
+        };
+        for zone in zones {
+            if !reachable.iter().any(|(id, _)| *id == zone.account.id) {
+                reachable.push((zone.account.id, zone.account.name));
+            }
+        }
+    }
+    if reachable.is_empty() {
+        return Err(AccountError::NoAccess);
+    }
+    Ok(reachable)
 }
 
 /// Runs a blocking keychain call off the async runtime.
@@ -401,12 +521,95 @@ mod tests {
     async fn setup() -> (MockServer, Accounts, MemoryStore) {
         let server = MockServer::start().await;
         let secrets = MemoryStore::default();
+        let oauth = oauth::OAuthConfig::with_base("client".into(), &server.uri());
         let accounts = Accounts::with_api_base(
             Store::open_in_memory().unwrap(),
             Arc::new(secrets.clone()),
             &server.uri(),
+            Some(oauth),
         );
         (server, accounts, secrets)
+    }
+
+    fn tokens(access: &str, refresh: Option<&str>, expires_in: u64) -> oauth::TokenSet {
+        oauth::TokenSet {
+            access_token: Secret::new(access.into()),
+            refresh_token: refresh.map(|r| Secret::new(r.into())),
+            expires_in: std::time::Duration::from_secs(expires_in),
+        }
+    }
+
+    #[tokio::test]
+    async fn oauth_accounts_refresh_and_revoke() {
+        let (server, accounts, secrets) = setup().await;
+        Mock::given(path("/accounts"))
+            .and(header("authorization", "Bearer access-1"))
+            .respond_with(envelope(
+                serde_json::json!([{"id": "a1", "name": "Personal"}]),
+            ))
+            .mount(&server)
+            .await;
+        let added = accounts
+            .add_oauth(tokens("access-1", Some("refresh-1"), 3600))
+            .await
+            .unwrap();
+        assert_eq!(added[0].credential, CredentialKind::OAuth);
+        assert_eq!(secrets.keys(), ["cf:a1:oauth"]);
+        assert_eq!(
+            secrets.get("cf:a1:oauth").unwrap().unwrap().expose(),
+            "refresh-1"
+        );
+
+        // Fresh access token: no refresh needed.
+        assert!(accounts.client("a1").await.is_ok());
+
+        // Expire it: the next client refreshes once and stores the rotated refresh token.
+        accounts.access.lock().await.insert(
+            "a1".into(),
+            (
+                Secret::new("old".into()),
+                Instant::now() - std::time::Duration::from_secs(100),
+                Instant::now(),
+            ),
+        );
+        Mock::given(path("/oauth2/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "access-2", "refresh_token": "refresh-2", "expires_in": 3600
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let (first, second) =
+            tokio::join!(accounts.access_token("a1"), accounts.access_token("a1"));
+        assert_eq!(first.unwrap().expose(), "access-2");
+        assert_eq!(
+            second.unwrap().expose(),
+            "access-2",
+            "single-flight: one refresh"
+        );
+        assert_eq!(
+            secrets.get("cf:a1:oauth").unwrap().unwrap().expose(),
+            "refresh-2"
+        );
+
+        Mock::given(path("/oauth2/revoke"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        accounts.remove("a1").await.unwrap();
+        assert!(secrets.keys().is_empty());
+    }
+
+    #[tokio::test]
+    async fn oauth_without_offline_access_is_refused() {
+        let (_server, accounts, secrets) = setup().await;
+        let err = accounts
+            .add_oauth(tokens("access", None, 3600))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AccountError::OAuth(_)));
+        assert!(secrets.keys().is_empty());
     }
 
     async fn mount_verify(server: &MockServer, active: bool) {

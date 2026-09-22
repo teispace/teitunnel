@@ -1,4 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Channel } from "@tauri-apps/api/core";
+import { useState } from "react";
 import { useUiStore } from "@/app/ui-store";
 import { type Account, commands } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
@@ -72,4 +74,23 @@ export function useRemoveAccount() {
 
 export function openTokenPage() {
   return call(commands.accountsOpenTokenPage());
+}
+
+export function useOAuthAvailable() {
+  return useQuery({
+    queryKey: ["accounts", "oauthAvailable"],
+    queryFn: () => call(commands.accountsOauthAvailable()),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/** Browser sign-in; exposes the authorize URL while waiting (for "Copy link"). */
+export function useOAuthSignIn() {
+  const [url, setUrl] = useState<string | null>(null);
+  const mutation = useAccountMutation(() => {
+    const channel = new Channel<string>();
+    channel.onmessage = setUrl;
+    return call(commands.accountsOauthSignIn(channel));
+  });
+  return { ...mutation, url, cancel: () => void call(commands.accountsOauthCancel()) };
 }

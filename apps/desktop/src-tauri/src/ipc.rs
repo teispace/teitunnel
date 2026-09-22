@@ -51,7 +51,10 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             accounts::accounts_import_cert,
             accounts::accounts_remove,
             accounts::accounts_capabilities,
-            accounts::domains_list
+            accounts::domains_list,
+            accounts::accounts_oauth_available,
+            accounts::accounts_oauth_sign_in,
+            accounts::accounts_oauth_cancel
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

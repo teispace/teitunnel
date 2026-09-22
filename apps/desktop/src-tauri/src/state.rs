@@ -20,6 +20,8 @@ pub struct AppState {
     pub quick_shares: QuickShares,
     /// Connected Cloudflare accounts.
     pub accounts: Accounts,
+    /// Cancels the OAuth sign-in in progress, if any.
+    pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Set once shutdown has started, so the exit hook runs only once.
     pub shutting_down: AtomicBool,
 }

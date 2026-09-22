@@ -128,3 +128,56 @@ pub async fn domains_list(
 ) -> Result<Vec<Domain>, AppError> {
     Ok(state.accounts.domains(&account_id).await?)
 }
+
+/// Whether "Sign in with Cloudflare" (OAuth) is available in this build.
+#[tauri::command]
+#[specta::specta]
+pub fn accounts_oauth_available(state: State<'_, AppState>) -> bool {
+    state.accounts.oauth().is_some()
+}
+
+/// Signs in with Cloudflare in the browser. The authorize URL is sent on `on_url` (for
+/// "Copy link" if the browser didn't open); resolves when the browser comes back.
+#[tauri::command]
+#[specta::specta]
+pub async fn accounts_oauth_sign_in(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    on_url: tauri::ipc::Channel<String>,
+) -> Result<Vec<Account>, AppError> {
+    use teitunnel_core::accounts::{AccountError, oauth};
+    let config = state.accounts.oauth().cloned().ok_or_else(|| {
+        AppError::internal("Sign in with Cloudflare isn't available in this build.")
+    })?;
+    let login = oauth::start(&config).await.map_err(AccountError::from)?;
+    let _ = on_url.send(login.authorize_url.clone());
+    if let Err(err) = app.opener().open_url(&login.authorize_url, None::<&str>) {
+        tracing::warn!(error = %err, "couldn't open the browser for sign-in");
+    }
+    let (cancel, cancelled) = tokio::sync::oneshot::channel();
+    if let Ok(mut slot) = state.oauth_cancel.lock() {
+        *slot = Some(cancel);
+    }
+    let code = tokio::select! {
+        result = login.wait(oauth::LOGIN_TIMEOUT) => result.map_err(AccountError::from)?,
+        _ = cancelled => return Err(AppError::invalid("credential", "Sign-in cancelled.")),
+    };
+    crate::shell::windows::focus_main(&app);
+    let tokens = oauth::exchange(state.accounts.http(), &config, code)
+        .await
+        .map_err(AccountError::from)?;
+    let added = state.accounts.add_oauth(tokens).await?;
+    changed(&app);
+    Ok(added)
+}
+
+/// Cancels a sign-in that's waiting for the browser.
+#[tauri::command]
+#[specta::specta]
+pub fn accounts_oauth_cancel(state: State<'_, AppState>) {
+    if let Ok(mut slot) = state.oauth_cancel.lock()
+        && let Some(cancel) = slot.take()
+    {
+        let _ = cancel.send(());
+    }
+}

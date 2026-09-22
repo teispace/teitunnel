@@ -72,6 +72,15 @@ export const commands = {
 	accountsCapabilities: (id: string) => __TAURI_INVOKE<Capabilities>("accounts_capabilities", { id }),
 	/**  Domains in an account. */
 	domainsList: (accountId: string) => __TAURI_INVOKE<Domain[]>("domains_list", { accountId }),
+	/**  Whether "Sign in with Cloudflare" (OAuth) is available in this build. */
+	accountsOauthAvailable: () => __TAURI_INVOKE<boolean>("accounts_oauth_available"),
+	/**
+	 *  Signs in with Cloudflare in the browser. The authorize URL is sent on `on_url` (for
+	 *  "Copy link" if the browser didn't open); resolves when the browser comes back.
+	 */
+	accountsOauthSignIn: (onUrl: Channel<string>) => __TAURI_INVOKE<Account[]>("accounts_oauth_sign_in", { onUrl }),
+	/**  Cancels a sign-in that's waiting for the browser. */
+	accountsOauthCancel: () => __TAURI_INVOKE<void>("accounts_oauth_cancel"),
 };
 
 /** Events */
