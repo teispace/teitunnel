@@ -12,7 +12,14 @@ publish.workspace = true
 name = "cloudflared"
 
 [dependencies]
+serde.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["process", "time", "io-util"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 [lints]
 workspace = true

@@ -5,8 +5,14 @@
 //! Prometheus metrics, and talking to its local endpoints (`/ready`, `/quicktunnel`,
 //! `/metrics`).
 
+pub mod command;
 mod error;
+pub mod locate;
 mod version;
 
+pub use command::{
+    CommandSpec, LogLevel, Protocol, QuickTunnelCmd, RunCmd, TokenSource, TunnelToken,
+};
 pub use error::{Error, Result};
+pub use locate::{BinarySource, BinaryStatus, Locator, MIN_SUPPORTED};
 pub use version::Version;

@@ -73,3 +73,10 @@ Sources: https://9to5mac.com/2026/06/09/macos-27-golden-gate-includes-these-chan
 - `tauri_plugin_window_state` must exclude `StateFlags::VISIBLE` when the window starts hidden.
 - pnpm 12 enforces `minimumReleaseAge` (1 day) and blocks install scripts unless listed under `allowBuilds` in `pnpm-workspace.yaml`.
 - `@tanstack/router-plugin` treats `_`-prefixed files as pathless layouts, so the dev gallery lives at `/dev/gallery`.
+
+## Packaged build (2026-09-23, macOS 27.0, unattended, screen locked)
+- `pnpm build` (release, LTO) produces a 12 MB `Teitunnel.app` (arm64, ad-hoc signed).
+- Launch: window appears via the `app_ready` handshake over the custom protocol (no timeout fallback), no crash in 23 s, idle CPU 0%.
+- Memory at idle: app process 92 MB RSS, WebContent 37 MB, Networking 11 MB.
+- The DMG step (`bundle_dmg.sh`) styles the window through Finder AppleScript, which hangs when the screen is locked or Automation isn't granted. Build with `CI=true` (skips the Finder step) for unattended/CI builds.
+- **Still to do with the screen unlocked:** native captures of the packaged app (light/dark, active/inactive), resize storm, theme switch, sleep/wake with sidebar vibrancy.
