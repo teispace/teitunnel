@@ -7,8 +7,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 |---|---|---|---|
 | [M0](plans/M0-foundations.md) | — | Workspace, native shell, design system, typed IPC, CI | ✅ Done (PR #1, awaiting merge) |
 | [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | ⏳ Release prep (PR #2) |
-| [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | Planned |
-| [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | Planned |
+| [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | ✅ Done except maintainer items (PR #3) |
+| [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | 🚧 In progress (PR #4) |
 | [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | Planned |
 | [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | Planned |
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
@@ -38,13 +38,13 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M1-09 Quick Share · [x] M1-10 Onboarding (binary) · [x] M1-11 Notifications · [x] M1-12 Tests/E2E · [ ] M1-13 Release (workflow and notes ready; signing decision and tag: maintainer)
 
 ### M2: Accounts & Domains (v0.2.0)
-- [ ] M2-01 cf-api foundation · [ ] M2-02 Accounts/zones · [ ] M2-03 Capabilities · [ ] M2-04 OAuth
-- [ ] M2-05 Token flow · [ ] M2-06 cert.pem import · [ ] M2-07 Account store · [ ] M2-08 Connect UI · [ ] M2-09 Domains view
+- [x] M2-01 cf-api foundation · [x] M2-02 Accounts/zones (real fixtures pending) · [x] M2-03 Capabilities · [x] M2-04 OAuth (hidden until the client is registered)
+- [x] M2-05 Token flow · [x] M2-06 cert.pem import · [x] M2-07 Account store · [x] M2-08 Connect UI · [x] M2-09 Domains view
 
 ### M3: Routes engine (v0.3.0)
-- [ ] M3-01 cf-api tunnels/config/DNS · [ ] M3-02 Types & validation · [ ] M3-03 Observer · [ ] M3-04 Planner
-- [ ] M3-05 Executor + activity · [ ] M3-06 Verifier · [ ] M3-07 Machine tunnel · [ ] M3-08 Drift
-- [ ] M3-09 Routes UI · [ ] M3-10 Tunnels UI · [ ] M3-11 Tests
+- [x] M3-01 cf-api tunnels/config/DNS · [x] M3-02 Types & validation · [x] M3-03 Observer · [x] M3-04 Planner
+- [x] M3-05 Executor + activity · [x] M3-06 Verifier · [x] M3-07 Machine tunnel · [x] M3-08 Drift
+- [x] M3-09 Routes UI · [x] M3-10 Tunnels UI · [ ] M3-11 Tests (unit/property/vitest done; E2E + nightly next)
 
 ### M4: Discovery & Doctor (v0.4.0)
 - [ ] M4-01 Processes/projects · [ ] M4-02 Docker · [ ] M4-03 Import setups · [ ] M4-04 Adoption

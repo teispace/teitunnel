@@ -11,15 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M3-09 Routes UI**: desktop commands over the engine (`routes_list`, `routes_preview`, `routes_apply` with a progress Channel, `routes_verify`, `routes_drift`, `routes_keep_theirs`), resume machine connectors at launch, then the Routes view, the add-route sheet with plan preview and apply progress, remove flow, undo toast.
-2. M3-10 Tunnels view (Advanced), M3-11 tests (vitest flows, E2E with a fake CloudApi build feature).
-3. **Maintainer:** review/merge PRs #1–#4 in order; v0.1 signing decision + tag; OAuth client; test token for the nightly real-account job.
+1. **M3-11 E2E**: a fake Cloudflare API server (tools/, like fake-cloudflared) and an `e2e` build override of the API base (`TEITUNNEL_API_BASE`), then a WebdriverIO flow: connect token → add route → progress → verify (stubbed edge) → remove. Also more planner snapshot scenarios (target ≥ 30).
+2. Nightly real-account job (needs the maintainer's test token): 2 routes in 2 zones, HTTP 200, delete everything, assert zero records/tunnel.
+3. Then M4 (discovery & Doctor) per ROADMAP.
+4. **Maintainer:** review/merge PRs #1–#4 in order; v0.1 signing decision + tag; OAuth client; test token.
 
 ## In progress
-- **M3** on `milestone/m3-routes-engine`, draft PR #4. Done: cf-api tunnels/config/DNS (M3-01), domain types (M3-02), observer (M3-03), planner with snapshots + convergence property (M3-04), executor with per-step rollback and failure injection at every mutation (M3-05), verifier that never resolves the new hostname (M3-06, D-040), machine tunnel connector with keychain token and stable metrics port (M3-07), drift (M3-08). Next: UI.
-- **M2** complete except maintainer items (OAuth client, real fixtures); PR #3. **M1** PR #2, **M0** PR #1 ready for review.
+- **M3** on `milestone/m3-routes-engine`, draft PR #4. Engine complete (observe → plan → apply with rollback → verify, drift, machine connectors) and the Routes + Tunnels UI (add/edit/remove sheet with plan review, live progress, verification, undo, drift banner). Remaining: M3-11 E2E + nightly, real fixtures, deferred items noted in the plan (reorder, disable, origin options editor, rename tunnel).
+- **M2** complete except maintainer items; PR #3. **M1** PR #2, **M0** PR #1 ready for review.
 
 ## Recently completed
+- 2026-09-23: M3 Routes and Tunnels UI (sheet: form → review → apply progress → verify; undo; drift banner).
 - 2026-09-23: M3 engine: observe → plan → apply (rollback) → verify, drift, machine connectors.
 - 2026-09-23: M2 accounts & domains (token/cert flows, keychain, capabilities, Domains view).
 - 2026-09-23: M1 feature-complete: verified managed install, Quick Share end to end (fake + real nightly), menu bar shares, notifications, onboarding and cloudflared settings, E2E on macOS CI (WebdriverIO + fake cloudflared), release workflow and notes, README install section.
