@@ -147,6 +147,22 @@ fn route_submenu<R: Runtime>(app: &AppHandle<R>, route: &TrayRoute) -> tauri::Re
         .build()
 }
 
+/// One line summarising the routes, e.g. "All 3 routes live" or "1 of 3 routes down".
+fn health_line(routes: &[TrayRoute]) -> String {
+    let live = routes.iter().filter(|r| r.status == "Live").count();
+    let total = routes.len();
+    let noun = if total == 1 { "route" } else { "routes" };
+    if live == total {
+        if total == 1 {
+            "Route live".to_owned()
+        } else {
+            format!("All {total} routes live")
+        }
+    } else {
+        format!("{} of {total} {noun} not working", total - live)
+    }
+}
+
 fn build_menu<R: Runtime>(
     app: &AppHandle<R>,
     shares: &[QuickShare],
@@ -160,7 +176,9 @@ fn build_menu<R: Runtime>(
         .iter()
         .map(|s| s as &dyn IsMenuItem<R>)
         .collect();
-    let routes_header = MenuItemBuilder::new("Routes").enabled(false).build(app)?;
+    let routes_header = MenuItemBuilder::new(health_line(routes))
+        .enabled(false)
+        .build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let mut route_section: Vec<&dyn IsMenuItem<R>> = Vec::new();
     if !routes.is_empty() {
@@ -249,4 +267,29 @@ fn share_url<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<String> {
         .into_iter()
         .find(|s| s.id == id)?
         .url
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn route(status: &str) -> TrayRoute {
+        TrayRoute {
+            hostname: "a.xyz.com".into(),
+            status: status.into(),
+        }
+    }
+
+    #[test]
+    fn summarises_route_health() {
+        assert_eq!(health_line(&[route("Live")]), "Route live");
+        assert_eq!(
+            health_line(&[route("Live"), route("Live")]),
+            "All 2 routes live"
+        );
+        assert_eq!(
+            health_line(&[route("Live"), route("Stopped"), route("No DNS record")]),
+            "2 of 3 routes not working"
+        );
+    }
 }
