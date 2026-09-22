@@ -18,6 +18,11 @@ export const commands = {
 	appReportError: (message: string, stack: string | null) => __TAURI_INVOKE<void>("app_report_error", { message, stack }),
 	/**  Opens the Settings window (same as ⌘,). */
 	appOpenSettings: () => __TAURI_INVOKE<null>("app_open_settings"),
+	/**
+	 *  Quits after the user confirmed. With `keep_running`, this Mac's connectors switch to
+	 *  Always-on first (so routes stay up); if that fails, the app stays open.
+	 */
+	appQuit: (keepRunning: boolean) => __TAURI_INVOKE<null>("app_quit", { keepRunning }),
 	/**  Returns all settings, with defaults applied. */
 	settingsGet: () => __TAURI_INVOKE<Settings>("settings_get"),
 	/**  Updates the given settings and returns the result. Every window is notified. */
@@ -681,7 +686,9 @@ export type MenuCommand =
 /**  View ▸ Activity (⌘6). */
 "goActivity" | 
 /**  View ▸ Doctor (⌘7). */
-"goDoctor";
+"goDoctor" | 
+/**  Quit was chosen while routes run through the app: ask what to do. */
+"confirmQuit";
 
 /**
  *  An HTTP(S) origin cloudflared can proxy to, e.g. `http://localhost:3000`.

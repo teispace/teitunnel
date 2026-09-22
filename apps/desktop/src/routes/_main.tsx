@@ -2,6 +2,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { SwatchBook } from "lucide-react";
 import { MenuBridge } from "@/app/menu-bridge";
 import { navigation } from "@/app/navigation";
+import { QuitDialog } from "@/app/quit-dialog";
 import { AppShell } from "@/components/patterns/app-shell";
 import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
@@ -40,6 +41,7 @@ function MainLayout() {
     >
       <Outlet />
       <MenuBridge />
+      <QuitDialog />
       <CommandPalette />
     </AppShell>
   );

@@ -33,6 +33,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             app::app_accent_color,
             app::app_report_error,
             app::app_open_settings,
+            app::app_quit,
             settings::settings_get,
             settings::settings_set,
             quick_share::binary_status,

@@ -7,6 +7,9 @@ interface UiState {
   inspectorOpen: boolean;
   paneSizes: Record<string, number>;
   paletteOpen: boolean;
+  /** The "quit while routes run" question is showing. */
+  quitOpen: boolean;
+  setQuitOpen: (open: boolean) => void;
   /** The Cloudflare account shown in Domains/Routes. */
   activeAccountId: string | null;
   /** Doctor issues the user chose to ignore (stable issue ids). */
@@ -26,6 +29,8 @@ export const useUiStore = create<UiState>()(
       inspectorOpen: true,
       paneSizes: {},
       paletteOpen: false,
+      quitOpen: false,
+      setQuitOpen: (quitOpen) => set({ quitOpen }),
       activeAccountId: null,
       ignoredIssues: [],
       setIgnored: (id, ignored) =>

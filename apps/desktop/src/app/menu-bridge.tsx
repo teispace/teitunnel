@@ -24,6 +24,10 @@ export function MenuBridge() {
         useUiStore.getState().setPaletteOpen(true);
         return;
       }
+      if (payload.command === "confirmQuit") {
+        useUiStore.getState().setQuitOpen(true);
+        return;
+      }
       runMenuCommand(payload.command, { navigate, queryClient });
     });
     return () => {

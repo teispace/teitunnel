@@ -59,3 +59,35 @@ pub fn app_report_error(message: String, stack: Option<String>) {
 pub fn app_open_settings(app: AppHandle) -> Result<(), AppError> {
     Ok(shell::windows::open_settings(&app)?)
 }
+
+/// Quits after the user confirmed. With `keep_running`, this Mac's connectors switch to
+/// Always-on first (so routes stay up); if that fails, the app stays open.
+#[tauri::command]
+#[specta::specta]
+pub async fn app_quit(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
+    keep_running: bool,
+) -> Result<(), crate::error::AppError> {
+    if keep_running {
+        for account in state.accounts.list().await? {
+            let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await else {
+                continue;
+            };
+            if state.machine.is_always_on(&tunnel.tunnel_id) {
+                continue;
+            }
+            let api = state.accounts.client(&account.id).await?;
+            state
+                .machine
+                .set_always_on(&api, &account.id, true)
+                .await
+                .map_err(crate::error::AppError::internal)?;
+        }
+    }
+    state
+        .quit_confirmed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    app.exit(0);
+    Ok(())
+}

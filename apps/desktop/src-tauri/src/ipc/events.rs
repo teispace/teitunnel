@@ -58,6 +58,8 @@ pub enum MenuCommand {
     GoActivity,
     /// View ▸ Doctor (⌘7).
     GoDoctor,
+    /// Quit was chosen while routes run through the app: ask what to do.
+    ConfirmQuit,
 }
 
 /// Emitted when a menu-bar item that the webview handles is chosen.

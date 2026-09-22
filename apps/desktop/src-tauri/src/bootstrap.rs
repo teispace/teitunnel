@@ -103,6 +103,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         quick_shares,
         oauth_cancel: std::sync::Mutex::default(),
         paused: std::sync::Mutex::default(),
+        quit_confirmed: false.into(),
         shutting_down: false.into(),
     })
 }
@@ -346,6 +347,26 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
     let Some(state) = app.try_state::<AppState>() else {
         return;
     };
+    // Routes run through the app's connectors: ask first (they can keep running as a
+    // service instead).
+    let routes_running = state
+        .supervisor
+        .ids()
+        .iter()
+        .any(|id| id.0.starts_with("tunnel-"));
+    if routes_running
+        && state.machine.supports_always_on()
+        && !state.quit_confirmed.load(Ordering::SeqCst)
+        && !state.shutting_down.load(Ordering::SeqCst)
+    {
+        api.prevent_exit();
+        shell::windows::focus_main(app);
+        let _ = crate::ipc::MenuAction {
+            command: crate::ipc::MenuCommand::ConfirmQuit,
+        }
+        .emit(app);
+        return;
+    }
     if state.shutting_down.swap(true, Ordering::SeqCst) {
         return; // second pass: let it exit
     }

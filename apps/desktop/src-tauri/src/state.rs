@@ -32,6 +32,8 @@ pub struct AppState {
     pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Tunnels whose connector the user stopped (not reported as down).
     pub paused: std::sync::Mutex<std::collections::HashSet<String>>,
+    /// The user confirmed quitting while routes were running.
+    pub quit_confirmed: AtomicBool,
     /// Set once shutdown has started, so the exit hook runs only once.
     pub shutting_down: AtomicBool,
 }
