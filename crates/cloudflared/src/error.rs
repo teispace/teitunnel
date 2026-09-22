@@ -13,6 +13,9 @@ pub enum Error {
     /// The binary exited unsuccessfully.
     #[error("cloudflared exited with status {0:?}")]
     Exited(Option<i32>),
+    /// An HTTP request failed.
+    #[error("request failed: {0}")]
+    Http(String),
     /// An operation took too long.
     #[error("{0} timed out")]
     Timeout(&'static str),
