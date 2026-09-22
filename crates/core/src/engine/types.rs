@@ -93,6 +93,9 @@ pub struct Snapshot {
     pub zones: Vec<ZoneRef>,
     /// This Mac's tunnel, if it exists.
     pub tunnel: Option<ObservedTunnel>,
+    /// Names of the account's tunnels, read only when this Mac has none (a new
+    /// tunnel gets a name no other tunnel has).
+    pub tunnel_names: Vec<String>,
     /// DNS records for the hostnames involved.
     pub records: Vec<ObservedRecord>,
 }

@@ -29,7 +29,7 @@ pub use template::token_template_url;
 
 use crate::{
     Secret,
-    secrets::{SecretError, Secrets},
+    secrets::{SecretError, Secrets, spawn_blocking},
     store::{Store, StoreError},
 };
 
@@ -498,14 +498,6 @@ async fn reachable_accounts(client: &Client) -> Result<Vec<(String, String)>, Ac
 }
 
 /// Runs a blocking keychain call off the async runtime.
-async fn spawn_blocking<T: Send + 'static>(
-    f: impl FnOnce() -> Result<T, SecretError> + Send + 'static,
-) -> Result<T, SecretError> {
-    tokio::task::spawn_blocking(f)
-        .await
-        .map_err(|err| SecretError::Keychain(err.to_string()))?
-}
-
 #[cfg(test)]
 mod tests {
     use wiremock::{

@@ -40,6 +40,7 @@ const MIGRATIONS: &[M<'static>] = &[
             tunnel_id            TEXT NOT NULL,
             name                 TEXT NOT NULL,
             last_applied_version INTEGER,
+            metrics_port         INTEGER,
             created_at           INTEGER NOT NULL
         ) STRICT;
         CREATE TABLE dns_ownership (

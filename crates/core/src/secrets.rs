@@ -44,6 +44,18 @@ pub trait SecretStore: fmt::Debug + Send + Sync {
     fn delete(&self, key: &str) -> Result<(), SecretError>;
 }
 
+/// Runs a keychain call off the async runtime (the OS may block on a prompt).
+///
+/// # Errors
+/// What `f` returns, or [`SecretError::Keychain`] if the task panicked.
+pub(crate) async fn spawn_blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, SecretError> + Send + 'static,
+) -> Result<T, SecretError> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|err| SecretError::Keychain(err.to_string()))?
+}
+
 /// Shared handle to a secret store.
 pub type Secrets = Arc<dyn SecretStore>;
 

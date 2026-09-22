@@ -44,6 +44,20 @@ impl PortAllocator {
         Some(port)
     }
 
+    /// Reserves `port` if it's in range, not handed out, and bindable right now.
+    pub fn claim(&self, port: u16) -> bool {
+        let mut taken = self
+            .taken
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if self.range.contains(&port) && !taken.contains(&port) && is_free(port) {
+            taken.insert(port);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Returns a port to the pool.
     pub fn release(&self, port: u16) {
         self.taken
@@ -80,5 +94,14 @@ mod tests {
         let only = allocator.allocate();
         assert!(only.is_some());
         assert_eq!(allocator.allocate(), None);
+    }
+
+    #[test]
+    fn claims_a_remembered_port_once() {
+        let allocator = PortAllocator::new(20390..20395);
+        assert!(allocator.claim(20391));
+        assert!(!allocator.claim(20391), "already handed out");
+        assert!(!allocator.claim(20100), "outside the range");
+        assert_ne!(allocator.allocate(), Some(20391));
     }
 }

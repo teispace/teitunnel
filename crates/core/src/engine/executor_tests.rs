@@ -138,7 +138,12 @@ async fn two_domains_from_zero_then_nothing_left() {
     assert!(record.proxied);
     assert_eq!(record.comment.as_deref(), Some("teitunnel:route=r2"));
     assert_eq!(engine.local().owned_records("acc").await.unwrap().len(), 2);
-    assert!(conns.calls().contains(&format!("start {tunnel}")));
+    let starts = conns
+        .calls()
+        .iter()
+        .filter(|c| c.starts_with("start"))
+        .count();
+    assert_eq!(starts, 1, "the running connector is reused");
 
     // Applying again is a no-op.
     let again = engine
@@ -497,5 +502,26 @@ async fn a_tunnel_deleted_in_the_dashboard_is_recreated() {
             .unwrap()
             .tunnel_id,
         *id
+    );
+}
+
+#[tokio::test]
+async fn a_connector_that_wont_stop_keeps_the_tunnel() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let before = cloud.snapshot();
+    conns
+        .fail_stop
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let outcome = run(&engine, &cloud, &conns, &Intent::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::RolledBack { .. }), "{outcome:?}");
+    assert_eq!(cloud.snapshot().normalized(), before.normalized());
+    assert!(
+        engine
+            .local()
+            .machine_tunnel("acc")
+            .await
+            .unwrap()
+            .is_some()
     );
 }

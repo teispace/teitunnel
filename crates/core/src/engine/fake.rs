@@ -1,10 +1,10 @@
 //! In-memory Cloudflare and connectors for executor tests, with failure injection.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Mutex,
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
     },
 };
 
@@ -14,6 +14,7 @@ use super::{
     cloud::{CloudApi, Connectors},
     types::ZoneRef,
 };
+use crate::Secret;
 
 /// A tunnel as the fake stores it.
 #[derive(Debug, Clone, PartialEq)]
@@ -213,6 +214,17 @@ impl CloudApi for FakeCloud {
         })
     }
 
+    async fn tunnel_names(&self, _account: &str) -> cf_api::Result<Vec<String>> {
+        let state = self.state.lock().unwrap();
+        Ok(state.tunnels.values().map(|t| t.name.clone()).collect())
+    }
+
+    async fn tunnel_token(&self, _account: &str, id: &str) -> cf_api::Result<Secret<String>> {
+        let state = self.state.lock().unwrap();
+        state.tunnels.get(id).ok_or_else(not_found)?;
+        Ok(Secret::new(format!("token-for-{id}")))
+    }
+
     async fn create_tunnel(&self, _account: &str, name: &str) -> cf_api::Result<Tunnel> {
         self.mutate()?;
         let id = self.next_id("tunnel");
@@ -319,21 +331,34 @@ impl CloudApi for FakeCloud {
 #[derive(Debug, Default)]
 pub(crate) struct FakeConnectors {
     pub(crate) calls: Mutex<Vec<String>>,
-    pub(crate) fail_stop: std::sync::atomic::AtomicBool,
+    pub(crate) running: Mutex<BTreeSet<String>>,
+    pub(crate) fail_stop: AtomicBool,
 }
 
 impl FakeConnectors {
     pub(crate) fn calls(&self) -> Vec<String> {
         self.calls.lock().unwrap().clone()
     }
+
+    fn call(&self, what: String) {
+        self.calls.lock().unwrap().push(what);
+    }
 }
 
 impl Connectors for FakeConnectors {
-    async fn start(&self, _account: &str, tunnel_id: &str) -> Result<(), String> {
-        self.calls
-            .lock()
-            .unwrap()
-            .push(format!("start {tunnel_id}"));
+    fn is_running(&self, tunnel_id: &str) -> bool {
+        self.running.lock().unwrap().contains(tunnel_id)
+    }
+
+    async fn start(
+        &self,
+        _account: &str,
+        tunnel_id: &str,
+        token: Secret<String>,
+    ) -> Result<(), String> {
+        assert_eq!(token.expose(), &format!("token-for-{tunnel_id}"));
+        self.call(format!("start {tunnel_id}"));
+        self.running.lock().unwrap().insert(tunnel_id.to_owned());
         Ok(())
     }
 
@@ -341,14 +366,12 @@ impl Connectors for FakeConnectors {
         if self.fail_stop.load(Ordering::SeqCst) {
             return Err("injected stop failure".into());
         }
-        self.calls.lock().unwrap().push(format!("stop {tunnel_id}"));
+        self.call(format!("stop {tunnel_id}"));
+        self.running.lock().unwrap().remove(tunnel_id);
         Ok(())
     }
 
     async fn deleted(&self, tunnel_id: &str) {
-        self.calls
-            .lock()
-            .unwrap()
-            .push(format!("deleted {tunnel_id}"));
+        self.call(format!("deleted {tunnel_id}"));
     }
 }

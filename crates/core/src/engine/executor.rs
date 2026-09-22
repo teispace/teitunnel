@@ -353,7 +353,8 @@ impl Engine {
             created: None,
             done: Vec::new(),
         };
-        let outcome = run.execute(&plan, &mut progress).await;
+        let serve = matches!(intent, Intent::AddRoute { .. } | Intent::UpdateRoute { .. });
+        let outcome = run.execute(&plan, serve, &mut progress).await;
         self.invalidate(ctx.account);
 
         let mut detail: Vec<String> = plan
@@ -421,10 +422,15 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .any(|r| r.record.id == record_id && r.owned)
     }
 
-    async fn execute(&mut self, plan: &Plan, progress: &mut impl FnMut(Progress)) -> Outcome {
+    /// Runs the steps; with `serve`, also makes sure this Mac's connector is running.
+    async fn execute(
+        &mut self,
+        plan: &Plan,
+        serve: bool,
+        progress: &mut impl FnMut(Progress),
+    ) -> Outcome {
         let mut verify = Vec::new();
         let mut index = 0u32;
-        let mut touched_dns = false;
         let mut deleted_tunnel = false;
         for step in &plan.steps {
             if let Step::Verify { hostname } = step {
@@ -436,10 +442,6 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 index += 1;
                 continue;
             }
-            touched_dns |= matches!(
-                step,
-                Step::CreateRecord { .. } | Step::UpdateRecord { .. } | Step::CreateTunnel { .. }
-            );
             deleted_tunnel |= matches!(step, Step::DeleteTunnel { .. });
             progress(Progress {
                 step: index,
@@ -473,8 +475,8 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 .clone()
                 .or_else(|| self.snapshot.tunnel.as_ref().map(|t| t.id.clone()))
         };
-        let connector_error = match (&tunnel_id, touched_dns) {
-            (Some(id), true) => self.connectors.start(self.account, id).await.err(),
+        let connector_error = match (&tunnel_id, serve) {
+            (Some(id), true) => self.ensure_connector(id).await.err(),
             _ => None,
         };
         Outcome::Applied {
@@ -589,6 +591,19 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         }
     }
 
+    /// Starts the connector if it isn't running, with a fresh run token.
+    async fn ensure_connector(&self, tunnel_id: &str) -> Result<(), String> {
+        if self.connectors.is_running(tunnel_id) {
+            return Ok(());
+        }
+        let token = self
+            .api
+            .tunnel_token(self.account, tunnel_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.connectors.start(self.account, tunnel_id, token).await
+    }
+
     /// Writes `ingress` into the tunnel's configuration, keeping every other setting.
     async fn put_ingress(
         &self,
@@ -673,7 +688,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     );
                 }
             }
-            Undo::StartConnector(id) => self.connectors.start(account, id).await?,
+            Undo::StartConnector(id) => self.ensure_connector(id).await?,
         }
         Ok(())
     }

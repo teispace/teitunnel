@@ -18,5 +18,6 @@ workspace = true
 [dev-dependencies]
 teitunnel-core.workspace = true
 teitunnel-cloudflared.workspace = true
+teitunnel-cf-api.workspace = true
 tempfile.workspace = true
 sysinfo.workspace = true

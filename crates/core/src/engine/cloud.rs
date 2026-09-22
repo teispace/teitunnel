@@ -5,6 +5,7 @@ use std::future::Future;
 use cf_api::{Client, DnsRecord, NewDnsRecord, Tunnel, TunnelConfig, VersionedConfig};
 
 use super::types::ZoneRef;
+use crate::Secret;
 
 /// The Cloudflare operations the engine needs, for one credential.
 pub trait CloudApi: Send + Sync {
@@ -29,6 +30,17 @@ pub trait CloudApi: Send + Sync {
         id: &str,
         config: &TunnelConfig,
     ) -> impl Future<Output = cf_api::Result<VersionedConfig>> + Send;
+    /// Names of the account's tunnels (to give a new one a unique name).
+    fn tunnel_names(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<String>>> + Send;
+    /// The token a connector runs the tunnel with.
+    fn tunnel_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<Secret<String>>> + Send;
     /// Creates a remotely-managed tunnel.
     fn create_tunnel(
         &self,
@@ -70,11 +82,14 @@ pub trait CloudApi: Send + Sync {
 
 /// This Mac's side of a tunnel: the connector process and its token.
 pub trait Connectors: Send + Sync {
-    /// Starts (or keeps running) the connector for a tunnel.
+    /// Whether the connector for a tunnel is running (or restarting).
+    fn is_running(&self, tunnel_id: &str) -> bool;
+    /// Starts the connector for a tunnel with its run token.
     fn start(
         &self,
         account: &str,
         tunnel_id: &str,
+        token: Secret<String>,
     ) -> impl Future<Output = Result<(), String>> + Send;
     /// Stops the connector for a tunnel.
     fn stop(&self, tunnel_id: &str) -> impl Future<Output = Result<(), String>> + Send;
@@ -118,6 +133,21 @@ impl CloudApi for Client {
         config: &TunnelConfig,
     ) -> cf_api::Result<VersionedConfig> {
         Client::put_tunnel_config(self, account, id, config).await
+    }
+
+    async fn tunnel_names(&self, account: &str) -> cf_api::Result<Vec<String>> {
+        Ok(self
+            .tunnels(account)
+            .await?
+            .into_iter()
+            .map(|t| t.name)
+            .collect())
+    }
+
+    async fn tunnel_token(&self, account: &str, id: &str) -> cf_api::Result<Secret<String>> {
+        Client::tunnel_token(self, account, id)
+            .await
+            .map(Secret::new)
     }
 
     async fn create_tunnel(&self, account: &str, name: &str) -> cf_api::Result<Tunnel> {

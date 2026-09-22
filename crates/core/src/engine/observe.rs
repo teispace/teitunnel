@@ -48,6 +48,13 @@ pub async fn observe<C: CloudApi>(
         local.owned_records(account),
     );
     let (mut zones, tunnel, owned) = (zones?, tunnel?, owned?);
+    let tunnel_names = if tunnel.is_some() {
+        Vec::new()
+    } else {
+        let mut names = api.tunnel_names(account).await?;
+        names.sort_unstable();
+        names
+    };
     zones.sort_by(|a, b| a.name.cmp(&b.name));
 
     let mut names: Vec<String> = match hostnames {
@@ -92,6 +99,7 @@ pub async fn observe<C: CloudApi>(
         machine_name: machine.map_or_else(|| machine_name.to_owned(), |m| m.name),
         zones,
         tunnel,
+        tunnel_names,
         records,
     })
 }

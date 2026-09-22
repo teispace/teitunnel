@@ -38,6 +38,18 @@ fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) 
         && rule.path.as_deref() == path.map(PathRule::as_str)
 }
 
+/// `base`, or `base 2`, `base 3`, … if another tunnel already has the name.
+fn unique_name(base: &str, taken: &[String]) -> String {
+    let free = |name: &str| !taken.iter().any(|t| t.eq_ignore_ascii_case(name));
+    if free(base) {
+        return base.to_owned();
+    }
+    (2..)
+        .map(|n| format!("{base} {n}"))
+        .find(|name| free(name))
+        .unwrap_or_else(|| base.to_owned())
+}
+
 struct Builder<'a> {
     snapshot: &'a Snapshot,
     steps: Vec<Step>,
@@ -61,7 +73,7 @@ impl<'a> Builder<'a> {
             Some(tunnel) => TunnelRef::Existing(tunnel.id.clone()),
             None => {
                 self.steps.push(Step::CreateTunnel {
-                    name: self.snapshot.machine_name.clone(),
+                    name: unique_name(&self.snapshot.machine_name, &self.snapshot.tunnel_names),
                 });
                 TunnelRef::Created
             }

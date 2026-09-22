@@ -6,7 +6,7 @@ use serde_json::Map;
 use super::{
     planner::{PlanError, plan, tunnel_record},
     simulate::apply,
-    types::{Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, ZoneRef},
+    types::{Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, ZoneRef},
 };
 use crate::domain::{Hostname, PathRule, RouteOrigin};
 
@@ -86,6 +86,7 @@ fn fresh() -> Snapshot {
             },
         ],
         tunnel: None,
+        tunnel_names: Vec::new(),
         records: Vec::new(),
     }
 }
@@ -110,6 +111,29 @@ fn snap(plan: &Plan) -> Plan {
         fingerprint: "<fingerprint>".into(),
         ..plan.clone()
     }
+}
+
+#[test]
+fn a_new_tunnel_gets_a_name_no_other_tunnel_has() {
+    let snapshot = Snapshot {
+        tunnel_names: vec![
+            "Krishna's MacBook Pro".into(),
+            "krishna's macbook pro 2".into(),
+        ],
+        ..fresh()
+    };
+    let p = plan(
+        &Intent::AddRoute {
+            route: route("r1", "xyz.com", "3000"),
+        },
+        &snapshot,
+    )
+    .unwrap();
+    assert!(
+        matches!(&p.steps[0], Step::CreateTunnel { name } if name == "Krishna's MacBook Pro 3"),
+        "{:?}",
+        p.steps[0]
+    );
 }
 
 #[test]

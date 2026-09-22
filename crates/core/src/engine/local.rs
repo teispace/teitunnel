@@ -21,6 +21,8 @@ pub struct LocalTunnel {
     pub name: String,
     /// The config version Teitunnel last wrote (drift detection).
     pub last_applied_version: Option<u64>,
+    /// The connector's metrics port, kept stable across restarts.
+    pub metrics_port: Option<u16>,
 }
 
 /// One entry of the activity log.
@@ -70,7 +72,7 @@ impl Local {
             .call(move |conn| {
                 Ok(conn
                     .query_row(
-                        "SELECT tunnel_id, name, last_applied_version FROM tunnels_local
+                        "SELECT tunnel_id, name, last_applied_version, metrics_port FROM tunnels_local
                          WHERE account_id = ?1",
                         params![account],
                         |row| {
@@ -80,6 +82,9 @@ impl Local {
                                 last_applied_version: row
                                     .get::<_, Option<i64>>(2)?
                                     .and_then(|v| u64::try_from(v).ok()),
+                                metrics_port: row
+                                    .get::<_, Option<i64>>(3)?
+                                    .and_then(|v| u16::try_from(v).ok()),
                             })
                         },
                     )
@@ -143,6 +148,23 @@ impl Local {
                 conn.execute(
                     "UPDATE tunnels_local SET last_applied_version = ?2 WHERE account_id = ?1",
                     params![account, version],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Remembers the connector's metrics port.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn set_metrics_port(&self, account: &str, port: u16) -> Result<(), StoreError> {
+        let account = account.to_owned();
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "UPDATE tunnels_local SET metrics_port = ?2 WHERE account_id = ?1",
+                    params![account, port],
                 )?;
                 Ok(())
             })
@@ -290,12 +312,14 @@ mod tests {
         assert_eq!(local.machine_tunnel("a").await.unwrap(), None);
         local.set_machine_tunnel("a", "t1", "Mac").await.unwrap();
         local.set_applied_version("a", 4).await.unwrap();
+        local.set_metrics_port("a", 20300).await.unwrap();
         assert_eq!(
             local.machine_tunnel("a").await.unwrap(),
             Some(LocalTunnel {
                 tunnel_id: "t1".into(),
                 name: "Mac".into(),
-                last_applied_version: Some(4)
+                last_applied_version: Some(4),
+                metrics_port: Some(20300),
             })
         );
         // Re-creating resets the applied version.

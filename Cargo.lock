@@ -1339,6 +1339,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "sysinfo",
+ "teitunnel-cf-api",
  "teitunnel-cloudflared",
  "teitunnel-core",
  "tempfile",
