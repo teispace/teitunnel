@@ -1,80 +1,59 @@
-# Teitunnel Project Roadmap & Milestones
+# Roadmap
 
-This document tracks the phased development plan for Teitunnel.
+macOS first (D-002). Linux and Windows compile and pass CI from M0, and get their UX polish in M7/M8.
+Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATUS.md).
 
----
+| Milestone | Release | Theme | Status |
+|---|---|---|---|
+| [M0](plans/M0-foundations.md) | — | Workspace, native shell, design system, typed IPC, CI | ⏳ Next |
+| [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | Planned |
+| [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | Planned |
+| [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | Planned |
+| [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | Planned |
+| [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | Planned |
+| [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
+| [M7](plans/M7-M9-beyond-v1.md#m7-windows) | v1.1 | Windows | Later |
+| [M8](plans/M7-M9-beyond-v1.md#m8-linux) | v1.2 | Linux | Later |
+| [M9](plans/M7-M9-beyond-v1.md#m9-advanced-features-v1x) | v1.x | Access protection, private networks, remote connectors, export, CLI | Later |
 
-## Phase 1: Foundation & Project Scaffolding ✅
-- [x] Create project repository under `teispace/teitunnel`
-- [x] Configure Tauri v2 with React 19, TypeScript, Vite, Tailwind CSS v4, and shadcn/ui
-- [x] Establish Rust backend architecture with Tokio, Reqwest, Keyring, and Serde
-- [x] Design system setup: Dark/Light mode, macOS native window styling (frameless overlay), typography
-- [x] Set up documentation suite (`ARCHITECTURE.md`, `ROADMAP.md`, `SECURITY.md`, `AGENTS.md`, `README.md`)
+## Milestone checklist (epic level)
 
----
+### M0: Foundations
+- [ ] M0-01 Workspace skeleton
+- [ ] M0-02 Library crates
+- [ ] M0-03 Tauri app shell
+- [ ] M0-04 Frontend scaffold
+- [ ] M0-05 Typed IPC pipeline
+- [ ] M0-06 Design tokens, motion & platform styling
+- [ ] M0-07 UI primitives
+- [ ] M0-08 Layout patterns
+- [ ] M0-09 Native menus, tray stub, shortcuts
+- [ ] M0-10 Store foundation
+- [ ] M0-11 CI
+- [ ] M0-12 Repo hygiene
 
-## Phase 2: Binary Management & Quick Ephemeral Tunnel ⚡
-- [ ] **Binary Manager**:
-  - [ ] Auto-detect existing system `cloudflared` (`/opt/homebrew/bin/cloudflared`, etc.)
-  - [ ] Version query and compatibility validation
-  - [ ] Automatic download & self-managed binary fallback (`~/.teitunnel/bin/cloudflared`) for macOS, Linux, and Windows
-- [ ] **Quick Ephemeral Tunnel ("Try Instantly")**:
-  - [ ] 1-click port forward (`3000`, `8080`, custom ports, or local directory)
-  - [ ] Real-time stdout parsing for `https://*.trycloudflare.com` URL
-  - [ ] Shareable link with Copy button, Open in Browser, and QR Code modal
-  - [ ] Live connection status badge and quick Stop button
+### M1: cloudflared + Quick Share (v0.1.0)
+- [ ] M1-01 Locate + version · [ ] M1-02 Managed install · [ ] M1-03 Command builders · [ ] M1-04 Log parser
+- [ ] M1-05 Local endpoints · [ ] M1-06 fake-cloudflared · [ ] M1-07 Supervisor · [ ] M1-08 Port discovery
+- [ ] M1-09 Quick Share · [ ] M1-10 Onboarding (binary) · [ ] M1-11 Notifications · [ ] M1-12 Tests/E2E · [ ] M1-13 Release
 
----
+### M2: Accounts & Domains (v0.2.0)
+- [ ] M2-01 cf-api foundation · [ ] M2-02 Accounts/zones · [ ] M2-03 Capabilities · [ ] M2-04 OAuth
+- [ ] M2-05 Token flow · [ ] M2-06 cert.pem import · [ ] M2-07 Account store · [ ] M2-08 Connect UI · [ ] M2-09 Domains view
 
-## Phase 3: Cloudflare API Integration & Token Management 🔑
-- [ ] **Keychain Storage**:
-  - [ ] Integration with macOS Keychain / Windows Credential Manager / Linux Secret Service via Rust `keyring`
-  - [ ] Scoped token validation against `https://api.cloudflare.com/client/v4/user/tokens/verify`
-- [ ] **Account & Zone Explorer**:
-  - [ ] Fetch accessible accounts and zones/domains
-  - [ ] Multi-account selector in UI header
+### M3: Routes engine (v0.3.0)
+- [ ] M3-01 cf-api tunnels/config/DNS · [ ] M3-02 Types & validation · [ ] M3-03 Observer · [ ] M3-04 Planner
+- [ ] M3-05 Executor + activity · [ ] M3-06 Verifier · [ ] M3-07 Machine tunnel · [ ] M3-08 Drift
+- [ ] M3-09 Routes UI · [ ] M3-10 Tunnels UI · [ ] M3-11 Tests
 
----
+### M4: Discovery & Doctor (v0.4.0)
+- [ ] M4-01 Processes/projects · [ ] M4-02 Docker · [ ] M4-03 Import setups · [ ] M4-04 Adoption
+- [ ] M4-05 Doctor framework · [ ] M4-06 Checks · [ ] M4-07 Doctor UI · [ ] M4-08 Cleanup center · [ ] M4-09 Diagnostics export
 
-## Phase 4: Full Remotely-Managed Tunnels & Ingress Builder 🌐
-- [ ] **Tunnel Lifecycle**:
-  - [ ] List existing tunnels in Cloudflare account (status, connections, creation date)
-  - [ ] Create new named tunnel (auto-provisions tunnel + secure token)
-  - [ ] Start / Stop / Restart tunnel child process supervised by Tokio
-  - [ ] Delete tunnel with confirmation
-- [ ] **Visual Ingress Rule Builder**:
-  - [ ] Add / Edit / Remove ingress rules
-  - [ ] Protocol selectors: HTTP, HTTPS, TCP, SSH, RDP, Unix Socket
-  - [ ] Hostname and path regex routing
-  - [ ] Fallback catch-all (`http_status:404`)
-  - [ ] Advanced TLS flags (`noTLSVerify`, SNI override, origin CA)
+### M5: Observability & Always-on (v0.5.0)
+- [ ] M5-01 Metrics pipeline · [ ] M5-02 Charts · [ ] M5-03 Log viewer · [ ] M5-04 Activity view
+- [ ] M5-05 launchd always-on · [ ] M5-06 Lifecycle & menu bar · [ ] M5-07 Notifications policy
 
----
-
-## Phase 5: "No-Mess" DNS Engine & Hygiene Scanner 🧹
-- [ ] **Automated DNS Sync**:
-  - [ ] Auto-provision proxied CNAME records on Cloudflare DNS when linking hostnames
-  - [ ] Cascade deletion prompt: Purge CNAME records when routes/tunnels are deleted
-- [ ] **DNS Hygiene Scanner**:
-  - [ ] Scan zone DNS records for orphaned `*.cfargotunnel.com` CNAME pointers
-  - [ ] 1-click batch cleanup for dead tunnel records
-
----
-
-## Phase 6: Telemetry, Charts & Embedded Terminal 📊
-- [ ] **Prometheus Metrics Scraper**:
-  - [ ] Local metrics polling (`127.0.0.1:<port>`)
-  - [ ] Real-time latency chart (sparkline/area graph)
-  - [ ] Active Cloudflare edge colos badges (e.g. `SJC`, `FRA`, `NRT`)
-  - [ ] Request volume and HTTP status code breakdown
-- [ ] **Embedded Terminal & Log Viewer**:
-  - [ ] xterm.js integration for colorized live streaming logs
-  - [ ] Search, filter by log level (`INFO`, `WARN`, `ERROR`), pause/resume stream
-  - [ ] Embedded CLI runner for ad-hoc `cloudflared` commands
-
----
-
-## Phase 7: Native Desktop Polish & Distribution 🚀
-- [ ] System Tray / Menu Bar companion with 1-click tunnel toggles
-- [ ] Native OS desktop notifications for tunnel events
-- [ ] GitHub Actions CI/CD workflow for automated multi-platform builds (macOS dmg, Windows msi/exe, Linux AppImage/deb)
+### M6: Distribution (v1.0.0)
+- [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Homebrew
+- [ ] M6-05 Polish pass · [ ] M6-06 Docs & community

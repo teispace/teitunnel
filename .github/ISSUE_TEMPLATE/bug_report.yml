@@ -1,0 +1,42 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …\n3. …"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Teitunnel version
+      placeholder: "e.g. 0.1.0 (Settings → About)"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      placeholder: "e.g. macOS 27.0 (Apple silicon)"
+    validations:
+      required: true
+  - type: input
+    id: cloudflared
+    attributes:
+      label: cloudflared version and source
+      placeholder: "e.g. 2026.9.1 (managed) / Homebrew"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Help → Export diagnostics produces a redacted bundle. Attach it or paste relevant parts. Never paste API tokens.

@@ -1,94 +1,41 @@
-# AGENTS.md — Contributor & Agent Guidelines for Teitunnel
+# AGENTS.md: guide for contributors and coding agents
 
-Welcome to the **Teitunnel** codebase! This document outlines engineering standards, architecture invariants, and operational guidelines for both human developers and autonomous AI agents contributing to this repository.
+## Start of every session
+1. Read [`docs/STATUS.md`](docs/STATUS.md). It tells you the current milestone, the next task, blockers, and notes from the last session.
+2. Open the task's plan in [`docs/plans/`](docs/plans) and follow it.
+3. Consult [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DESIGN.md`](docs/DESIGN.md), [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) and [`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md) as needed. The reasoning behind past choices is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
----
+## After every task (mandatory)
+1. Tick the task in its plan file and in `docs/ROADMAP.md`.
+2. Update `docs/STATUS.md`: next up, in progress, recently completed, blockers, notes for the next session.
+3. Add new decisions to `docs/DECISIONS.md`, and newly verified external facts (with source and date) to `docs/research/`.
+4. If reality diverged from ARCHITECTURE/DESIGN, update them in the same change.
 
-## 1. Project Mission & Identity
+## Non-negotiables
+- **Secrets never cross IPC** and are only stored in the OS keychain. Tunnel run tokens are never passed in argv.
+- **No shells.** Processes are started only through typed builders in `crates/cloudflared` (`tokio::process::Command` with discrete args).
+- **All Cloudflare mutations go through the plan → apply engine.** Nothing auto-deletes DNS records Teitunnel doesn't own.
+- **`src-tauri` has no business logic.** `core`, `cf-api` and `cloudflared` don't depend on Tauri.
+- **IPC types are generated** (tauri-specta). Never hand-write them.
+- **Native design rules** in DESIGN.md: no gradients, fake glass cards, emoji, or hand cursors, and semantic tokens only. Verify materials in a packaged build.
+- **Tests with every change** (see the table in CONVENTIONS.md).
+- **Commits:** Conventional Commits. **No AI/assistant attribution** in commits, PRs, or branch names.
 
-- **Name**: Teitunnel
-- **Organization**: `teispace` (`github.com/teispace/teitunnel`)
-- **Mission**: The ultimate open-source desktop control center for Cloudflare Tunnels (`cloudflared`), featuring 1-click ephemeral sharing, remotely-managed Zero Trust tunnels, visual ingress routing, automated DNS lifecycle management ("no mess"), live Prometheus telemetry, and an embedded terminal.
-- **Design Standard**: Native, pixel-perfect, human-crafted desktop UI (no generic "AI generated" aesthetics). Smooth glass/vibrancy, crisp typography, clean dark/light mode, tactile interactions.
-
----
-
-## 2. Technology Stack & Key Libraries
-
-- **Desktop Framework**: Tauri v2 (`@tauri-apps/api`, `@tauri-apps/cli`)
-- **Backend**: Rust 2021 Edition (Tokio, Reqwest with Rustls, Keyring, Serde, Serde_YAML, Sysinfo, Thiserror)
-- **Frontend**: React 19, TypeScript 5+, Vite 8
-- **Styling**: Tailwind CSS v4, Radix UI primitives, Lucide React icons
-- **State Management**: Zustand
-- **Visualizations**: Recharts
-- **Terminal**: `@xterm/xterm`, `@xterm/addon-fit`
-
----
-
-## 3. Architecture Rules & Invariants
-
-1. **Secure Token Storage**:
-   - Never write API tokens to disk or unencrypted config files.
-   - Always route token read/write operations through the Rust `keyring` service.
-
-2. **No Shell Injections**:
-   - Always spawn child processes using `tokio::process::Command` with discrete arguments (`.arg()`), never through raw shell strings (`sh -c`).
-
-3. **DNS Hygiene ("No Mess")**:
-   - Any feature that provisions a tunnel route MUST support automated DNS CNAME record creation and cascade cleanup on deletion.
-   - Always protect user domains from orphaned CNAME pointers.
-
-4. **Process Supervision**:
-   - The Rust backend manages `cloudflared` instances asynchronously using Tokio tasks.
-   - Stdout/stderr must be parsed non-blockingly and piped to frontend event listeners (`app.emit("tunnel-log", ...)`).
-   - Graceful shutdown (`SIGTERM`) with a 5-second deadline followed by `SIGKILL` must be respected.
-
-5. **Type Safety Across the IPC Boundary**:
-   - All Tauri commands must return a strongly typed `Result<T, AppError>`.
-   - Frontend IPC calls must use typed wrappers defined in `src/lib/tauri.ts`.
-
----
-
-## 4. Directory Layout
-
+## Layout
 ```
-teitunnel/
-├── src-tauri/
-│   ├── src/
-│   │   ├── commands/     # Tauri IPC command handlers
-│   │   ├── services/     # Business logic: ProcessMgr, CloudflareApi, Keyring, Metrics
-│   │   ├── models/       # Data transfer objects (Tunnel, Ingress, DNS, Metrics)
-│   │   ├── error.rs      # Serializable error enums
-│   │   ├── lib.rs        # Tauri app builder and plugin registration
-│   │   └── main.rs       # App entry point
-│   ├── tauri.conf.json   # Tauri configuration
-│   └── Cargo.toml
-├── src/
-│   ├── components/       # Reusable UI & view components
-│   │   ├── ui/           # Radix/Tailwind design system components
-│   │   ├── layout/       # Sidebar, TopBar, WindowControls
-│   │   ├── tunnels/      # Tunnel management views & cards
-│   │   ├── quick-tunnel/ # 1-click ephemeral tunnel launcher + QR code
-│   │   ├── ingress/      # Visual rule editor
-│   │   ├── dns/          # DNS records list & hygiene cleaner
-│   │   ├── metrics/      # Telemetry graphs & edge colos
-│   │   └── terminal/     # Embedded xterm.js terminal
-│   ├── hooks/            # Custom React hooks
-│   ├── stores/           # Zustand stores (auth, tunnels, settings, logs)
-│   ├── lib/              # Tauri IPC wrappers & utilities
-│   ├── App.tsx           # Main application root
-│   └── index.css         # Tailwind v4 configuration & theme tokens
-├── docs/                 # Architecture, Roadmap, Security documentation
-└── README.md
+crates/cf-api        Cloudflare REST client
+crates/cloudflared   cloudflared binary: locate/install/verify, commands, log/metrics parsing
+crates/core          domain, engine (observe→plan→apply→verify), runtime, discovery, doctor, store
+apps/desktop         Tauri shell (src-tauri) + React UI (src)
+tools/fake-cloudflared  test double
+docs/                all project documentation
 ```
 
----
-
-## 5. Development Commands
-
-- **Install frontend dependencies**: `pnpm install`
-- **Run dev mode (Vite frontend only)**: `pnpm dev`
-- **Run desktop app dev mode**: `pnpm tauri dev`
-- **Check Rust compilation**: `cd src-tauri && cargo check`
-- **Run Rust tests**: `cd src-tauri && cargo test`
-- **Build production desktop binary**: `pnpm tauri build`
+## Commands
+These are available once M0 is complete. Keep this section in sync with `package.json`.
+- `pnpm install`: install JS deps
+- `pnpm dev`: run the desktop app in dev mode
+- `pnpm check`: biome + tsc + clippy
+- `pnpm test`: vitest + cargo nextest
+- `pnpm bindings`: regenerate IPC bindings
+- `pnpm tauri build`: packaged app (use it to verify materials and native behaviour)

@@ -1,24 +1,29 @@
+# Dependencies & builds
+node_modules/
+dist/
+dist-ssr/
+target/
+*.tsbuildinfo
+
 # Logs
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+logs/
 
-node_modules
-dist
-dist-ssr
+# Local env & secrets
 *.local
+.env
+.env.*
+!.env.example
 
-# Editor directories and files
+# Editors & OS
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/settings.json
+.idea/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.sw?
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
