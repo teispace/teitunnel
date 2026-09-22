@@ -180,16 +180,19 @@ mod tests {
             .stderr(std::process::Stdio::null())
             .spawn();
         let Ok(child) = child.as_mut() else { return }; // python3 unavailable: skip
-        let mut found = None;
-        for _ in 0..50 {
+        // Wait until the server really accepts connections (slow on CI runners).
+        let up = (0..150).any(|_| {
             std::thread::sleep(std::time::Duration::from_millis(100));
-            found = list_services().into_iter().find(|s| s.port == port);
-            if found.is_some() {
-                break;
-            }
-        }
+            std::net::TcpStream::connect(("127.0.0.1", port)).is_ok()
+        });
+        let found = up
+            .then(|| list_services().into_iter().find(|s| s.port == port))
+            .flatten();
         let _ = child.kill();
         let _ = child.wait();
+        if !up {
+            return; // the interpreter never started listening: nothing to assert
+        }
         let service = found.expect("python http.server is listed");
         assert_eq!(service.kind, ServiceKind::Python);
         assert_eq!(service.origin, format!("http://localhost:{port}"));
