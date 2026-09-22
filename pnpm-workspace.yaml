@@ -1,7 +1,6 @@
 packages:
   - apps/*
-minimumReleaseAgeExclude:
-  - framer-motion@13.4.1
-  - jsdom@30.1.1
-  - motion-dom@13.4.1
-  - motion@13.4.1
+
+# Only these dependencies may run install scripts.
+allowBuilds:
+  lefthook: true

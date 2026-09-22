@@ -7,7 +7,10 @@ import { cn } from "@/lib/cn";
 /** Full-height source-list sidebar over the window's native vibrancy (DESIGN §2). */
 export function Sidebar({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
-    <aside aria-label="Sidebar" className="flex h-full w-(--sidebar-width) shrink-0 flex-col bg-surface-sidebar">
+    <aside
+      aria-label="Sidebar"
+      className="flex h-full w-(--sidebar-width) shrink-0 flex-col bg-surface-sidebar"
+    >
       <div data-tauri-drag-region="deep" className="h-(--toolbar-height) shrink-0" />
       <nav className="flex-1 overflow-y-auto overscroll-contain px-2.5 pb-3">{children}</nav>
       {footer ? <div className="shrink-0 px-2.5 pb-2.5">{footer}</div> : null}

@@ -1,0 +1,10 @@
+# Fast pre-commit checks (< 3 s). CI runs the full suite.
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,json,css}"
+      run: pnpm biome check --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+    rustfmt:
+      glob: "*.rs"
+      run: cargo fmt --all --check
