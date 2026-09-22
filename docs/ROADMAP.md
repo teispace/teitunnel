@@ -8,8 +8,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M0](plans/M0-foundations.md) | — | Workspace, native shell, design system, typed IPC, CI | ✅ Done (PR #1, awaiting merge) |
 | [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | ⏳ Release prep (PR #2) |
 | [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | ✅ Done except maintainer items (PR #3) |
-| [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | 🚧 In progress (PR #4) |
-| [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | Planned |
+| [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | ✅ Done (PR #4; nightly waits for a test token) |
+| [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | 🚧 In progress (PR #5) |
 | [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | Planned |
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
 | [M7](plans/M7-M9-beyond-v1.md#m7-windows) | v1.1 | Windows | Later |
@@ -44,11 +44,11 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ### M3: Routes engine (v0.3.0)
 - [x] M3-01 cf-api tunnels/config/DNS · [x] M3-02 Types & validation · [x] M3-03 Observer · [x] M3-04 Planner
 - [x] M3-05 Executor + activity · [x] M3-06 Verifier · [x] M3-07 Machine tunnel · [x] M3-08 Drift
-- [x] M3-09 Routes UI · [x] M3-10 Tunnels UI · [ ] M3-11 Tests (unit/property/vitest done; E2E + nightly next)
+- [x] M3-09 Routes UI · [x] M3-10 Tunnels UI · [x] M3-11 Tests (nightly real-account job waits for a test token)
 
 ### M4: Discovery & Doctor (v0.4.0)
-- [ ] M4-01 Processes/projects · [ ] M4-02 Docker · [ ] M4-03 Import setups · [ ] M4-04 Adoption
-- [ ] M4-05 Doctor framework · [ ] M4-06 Checks · [ ] M4-07 Doctor UI · [ ] M4-08 Cleanup center · [ ] M4-09 Diagnostics export
+- [x] M4-01 Processes/projects · [x] M4-02 Docker · [ ] M4-03 Import setups · [ ] M4-04 Adoption
+- [x] M4-05 Doctor framework · [ ] M4-06 Checks (log-based ones wait for M5) · [x] M4-07 Doctor UI · [ ] M4-08 Cleanup center · [ ] M4-09 Diagnostics export
 
 ### M5: Observability & Always-on (v0.5.0)
 - [ ] M5-01 Metrics pipeline · [ ] M5-02 Charts · [ ] M5-03 Log viewer · [ ] M5-04 Activity view

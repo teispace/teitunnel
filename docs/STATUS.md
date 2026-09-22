@@ -4,23 +4,25 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-23
-**Phase:** **M3: Routes engine** in progress
-**Branch:** `milestone/m3-routes-engine` (draft PR #4, stacked on #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
+**Phase:** **M4: Discovery, import & Doctor** in progress (M3 complete)
+**Branch:** `milestone/m4-discovery-doctor` (draft PR #5, stacked on #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M3-11 E2E**: a fake Cloudflare API server (tools/, like fake-cloudflared) and an `e2e` build override of the API base (`TEITUNNEL_API_BASE`), then a WebdriverIO flow: connect token → add route → progress → verify (stubbed edge) → remove. Also more planner snapshot scenarios (target ≥ 30).
-2. Nightly real-account job (needs the maintainer's test token): 2 routes in 2 zones, HTTP 200, delete everything, assert zero records/tunnel.
-3. Then M4 (discovery & Doctor) per ROADMAP.
-4. **Maintainer:** review/merge PRs #1–#4 in order; v0.1 signing decision + tag; OAuth client; test token.
+1. **M4-03 import** of existing `~/.cloudflared` setups (config.yml ingress + credentials): needs a YAML parser that preserves unknown keys; then "Manage as-is" vs "Migrate to remote-managed" through a plan.
+2. M4-04 adoption of foreign cloudflared processes (observe only / take over), M4-06 remaining checks (TLS origin, clock skew, UDP blocked need M5 logs), M4-07 inline issue markers on route rows, M4-08 cleanup center, M4-09 diagnostics export.
+3. Nightly real-account job (needs the maintainer's test token).
+4. **Maintainer:** review/merge PRs #1–#5 in order; v0.1 signing decision + tag; OAuth client; test token.
 
 ## In progress
-- **M3** on `milestone/m3-routes-engine`, draft PR #4. Engine complete (observe → plan → apply with rollback → verify, drift, machine connectors) and the Routes + Tunnels UI (add/edit/remove sheet with plan review, live progress, verification, undo, drift banner). Remaining: M3-11 E2E + nightly, real fixtures, deferred items noted in the plan (reorder, disable, origin options editor, rename tunnel).
-- **M2** complete except maintainer items; PR #3. **M1** PR #2, **M0** PR #1 ready for review.
+- **M4** on `milestone/m4-discovery-doctor`, draft PR #5. Done: framework/project discovery (M4-01), Docker containers (M4-02), Doctor framework + checks (binary, permissions, pending domains, DNS missing/not proxied/conflict/wrong target, orphans owned/foreign, connector stopped/crash loop/degraded, origin not listening, unused tunnel, drift, unreachable account), Doctor view with sidebar badge, fixes as reviewed plans, ignore, and "Fix Safe Issues".
+- **M3** complete, PR #4 ready for review (nightly real-account job waits for a test token). **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M4 Doctor (checks, view, fix safe) and Docker/framework discovery.
+- 2026-09-23: M3 E2E against tools/fake-cloudflare; 31 planner scenarios; PR #4 ready.
 - 2026-09-23: M3 Routes and Tunnels UI (sheet: form → review → apply progress → verify; undo; drift banner).
 - 2026-09-23: M3 engine: observe → plan → apply (rollback) → verify, drift, machine connectors.
 - 2026-09-23: M2 accounts & domains (token/cert flows, keychain, capabilities, Domains view).
@@ -40,7 +42,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session
-- **Resume point:** branch `milestone/m3-routes-engine` (draft PR #4). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- **Resume point:** branch `milestone/m4-discovery-doctor` (draft PR #5). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
 - Engine entry points (crates/core/src/engine): `Engine::{preview, apply, verify, drift, keep_theirs}`; ports `CloudApi` (impl for `cf_api::Client`, fake in `engine/fake.rs`) and `Connectors` (impl `machine::MachineTunnels`). Desktop must call `MachineTunnels::forget_account` before `Accounts::remove`.
 - **Locked screen:** during unattended sessions the screen locks; macOS then stops compositing windows and `screencapture` returns blank content. Never send clicks/keys while locked. Use `pnpm --filter @teitunnel/desktop shoot` (WebKit) instead (D-030). Keep the Mac awake with `caffeinate -dimsu`.
 - Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.
