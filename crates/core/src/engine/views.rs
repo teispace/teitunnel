@@ -337,6 +337,31 @@ pub struct RoutesOverview {
     pub zones: Vec<ZoneRef>,
 }
 
+impl RoutesOverview {
+    /// Each route's hostname and a short status (menu bar, notifications).
+    pub fn statuses(&self) -> Vec<(String, &'static str)> {
+        let connector = self.tunnel.as_ref().and_then(|t| t.connector.as_ref());
+        self.routes
+            .iter()
+            .map(|route| {
+                let status = match (&route.dns, connector) {
+                    (DnsState::Missing, _) => "No DNS record",
+                    (DnsState::Elsewhere { .. }, _) => "DNS points elsewhere",
+                    (_, Some(ConnectorState::Healthy { .. })) => "Live",
+                    (_, Some(ConnectorState::Starting | ConnectorState::Connecting)) => {
+                        "Connecting"
+                    }
+                    (_, Some(ConnectorState::Crashed { .. })) => "Restarting",
+                    (_, Some(ConnectorState::Degraded)) => "Connection lost",
+                    (_, Some(ConnectorState::CrashLoop { .. })) => "Keeps stopping",
+                    _ => "Stopped",
+                };
+                (route.hostname.clone(), status)
+            })
+            .collect()
+    }
+}
+
 /// Builds the overview from a snapshot of every routed hostname.
 pub(crate) fn overview(
     snapshot: &Snapshot,
@@ -438,5 +463,38 @@ mod tests {
         assert_eq!(route_id(&a, None), route_id(&a, None));
         assert_ne!(route_id(&a, None), route_id(&a, Some(&api)));
         assert_eq!(route_id(&a, None).len(), 12);
+    }
+
+    #[test]
+    fn route_statuses_combine_dns_and_connector() {
+        let route = |host: &str, dns: DnsState| RouteView {
+            hostname: host.into(),
+            path: None,
+            origin: "http://localhost:3000".into(),
+            local: true,
+            zone: None,
+            dns,
+        };
+        let mut overview = RoutesOverview {
+            tunnel: Some(TunnelView {
+                id: "t".into(),
+                name: "Mac".into(),
+                connector: Some(ConnectorState::Healthy { connections: 4 }),
+            }),
+            routes: vec![
+                route("a.xyz.com", DnsState::Ok),
+                route("b.xyz.com", DnsState::Missing),
+            ],
+            zones: Vec::new(),
+        };
+        assert_eq!(
+            overview.statuses(),
+            [
+                ("a.xyz.com".to_owned(), "Live"),
+                ("b.xyz.com".to_owned(), "No DNS record")
+            ]
+        );
+        overview.tunnel.as_mut().unwrap().connector = None;
+        assert_eq!(overview.statuses()[0].1, "Stopped");
     }
 }

@@ -79,6 +79,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         local.clone(),
     );
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
+    watch_tray_routes(app.clone());
 
     Ok(AppState {
         accounts,
@@ -115,6 +116,46 @@ fn services(store: &Store) -> (Secrets, Accounts, Edge) {
         .and_then(|addr| addr.parse().ok())
         .map_or(Edge::Test(([127, 0, 0, 1], 9).into()), Edge::Test);
     (secrets, accounts, edge)
+}
+
+/// Updates the routes in the menu bar menu (every account's routes and status).
+pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        let mut routes = Vec::new();
+        for account in state.accounts.list().await.unwrap_or_default() {
+            let Ok(api) = state.accounts.client(&account.id).await else {
+                continue;
+            };
+            let ctx = teitunnel_core::engine::Context {
+                account: &account.id,
+                machine_name: &state.machine_name,
+            };
+            if let Ok(overview) = state.engine.overview(&api, &state.machine, ctx).await {
+                routes.extend(overview.statuses().into_iter().map(|(hostname, status)| {
+                    shell::tray::TrayRoute {
+                        hostname,
+                        status: status.to_owned(),
+                    }
+                }));
+            }
+        }
+        shell::tray::set_routes(&app, routes);
+    });
+}
+
+/// Keeps the menu bar's route statuses current (connector state changes on its own).
+fn watch_tray_routes<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            refresh_tray_routes(&app);
+        }
+    });
 }
 
 /// Starts every account's machine tunnel connector (Session mode runs while the app

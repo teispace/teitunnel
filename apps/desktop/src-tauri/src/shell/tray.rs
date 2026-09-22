@@ -25,14 +25,30 @@ const NEW_SHARE: &str = "tray.new_share";
 const COPY: &str = "tray.copy:";
 const OPEN_URL: &str = "tray.open_url:";
 const STOP: &str = "tray.stop:";
+const ROUTE_COPY: &str = "tray.route_copy:";
+const ROUTE_OPEN: &str = "tray.route_open:";
+
+/// A route as the menu shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrayRoute {
+    /// Hostname.
+    pub hostname: String,
+    /// Short status, e.g. "Live" or "Connector stopped".
+    pub status: String,
+}
+
+/// What the menu currently lists (rebuilt when either part changes).
+#[derive(Default)]
+struct TrayModel(std::sync::Mutex<(Vec<QuickShare>, Vec<TrayRoute>)>);
 
 /// Adds the menu bar icon, hidden unless `visible`.
 pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
+    app.manage(TrayModel::default());
     let tray = TrayIconBuilder::with_id(ID)
         .icon(tauri::include_image!("icons/tray-template.png"))
         .icon_as_template(true)
         .tooltip("Teitunnel")
-        .menu(&build_menu(app, &[])?)
+        .menu(&build_menu(app, &[], &[])?)
         .show_menu_on_left_click(true)
         .build(app)?;
     tray.set_visible(visible)
@@ -49,10 +65,33 @@ pub fn set_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
 
 /// Rebuilds the menu for the current Quick Shares.
 pub fn refresh<R: Runtime>(app: &AppHandle<R>, shares: &[QuickShare]) {
+    update(app, |model| model.0 = shares.to_vec());
+}
+
+/// Rebuilds the menu for the current routes.
+pub fn set_routes<R: Runtime>(app: &AppHandle<R>, routes: Vec<TrayRoute>) {
+    update(app, |model| model.1 = routes);
+}
+
+fn update<R: Runtime>(
+    app: &AppHandle<R>,
+    change: impl FnOnce(&mut (Vec<QuickShare>, Vec<TrayRoute>)),
+) {
+    let Some(model) = app.try_state::<TrayModel>() else {
+        return;
+    };
+    let (shares, routes) = {
+        let mut guard = model
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        change(&mut guard);
+        guard.clone()
+    };
     let Some(tray) = app.tray_by_id(ID) else {
         return;
     };
-    match build_menu(app, shares) {
+    match build_menu(app, &shares, &routes) {
         Ok(menu) => {
             if let Err(err) = tray.set_menu(Some(menu)) {
                 tracing::warn!(error = %err, "failed to update the menu bar menu");
@@ -95,7 +134,40 @@ fn share_submenu<R: Runtime>(app: &AppHandle<R>, share: &QuickShare) -> tauri::R
         .build()
 }
 
-fn build_menu<R: Runtime>(app: &AppHandle<R>, shares: &[QuickShare]) -> tauri::Result<Menu<R>> {
+fn route_submenu<R: Runtime>(app: &AppHandle<R>, route: &TrayRoute) -> tauri::Result<Submenu<R>> {
+    SubmenuBuilder::new(app, format!("{} — {}", route.hostname, route.status))
+        .item(
+            &MenuItemBuilder::with_id(format!("{ROUTE_COPY}{}", route.hostname), "Copy URL")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id(format!("{ROUTE_OPEN}{}", route.hostname), "Open in Browser")
+                .build(app)?,
+        )
+        .build()
+}
+
+fn build_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    shares: &[QuickShare],
+    routes: &[TrayRoute],
+) -> tauri::Result<Menu<R>> {
+    let route_menus = routes
+        .iter()
+        .map(|route| route_submenu(app, route))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let route_refs: Vec<&dyn IsMenuItem<R>> = route_menus
+        .iter()
+        .map(|s| s as &dyn IsMenuItem<R>)
+        .collect();
+    let routes_header = MenuItemBuilder::new("Routes").enabled(false).build(app)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let mut route_section: Vec<&dyn IsMenuItem<R>> = Vec::new();
+    if !routes.is_empty() {
+        route_section.push(&routes_header);
+        route_section.extend(route_refs);
+        route_section.push(&separator);
+    }
     let header = MenuItemBuilder::new(if shares.is_empty() {
         "No Quick Shares"
     } else {
@@ -110,6 +182,7 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, shares: &[QuickShare]) -> tauri::R
     let submenu_refs: Vec<&dyn IsMenuItem<R>> =
         submenus.iter().map(|s| s as &dyn IsMenuItem<R>).collect();
     MenuBuilder::new(app)
+        .items(&route_section)
         .item(&header)
         .items(&submenu_refs)
         .item(&MenuItemBuilder::with_id(NEW_SHARE, "Share a Local Port…").build(app)?)
@@ -139,6 +212,17 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
     } else if let Some(share) = id.strip_prefix(OPEN_URL) {
         if let Some(url) = share_url(app, share)
             && let Err(err) = app.opener().open_url(url, None::<&str>)
+        {
+            tracing::warn!(error = %err, "failed to open URL");
+        }
+    } else if let Some(host) = id.strip_prefix(ROUTE_COPY) {
+        if let Err(err) = app.clipboard().write_text(format!("https://{host}")) {
+            tracing::warn!(error = %err, "failed to copy URL");
+        }
+    } else if let Some(host) = id.strip_prefix(ROUTE_OPEN) {
+        if let Err(err) = app
+            .opener()
+            .open_url(format!("https://{host}"), None::<&str>)
         {
             tracing::warn!(error = %err, "failed to open URL");
         }

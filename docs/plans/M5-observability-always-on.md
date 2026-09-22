@@ -39,7 +39,7 @@
 
 ### M5-06 · App lifecycle & menu bar extra
 - [ ] Closing the window keeps the app in the menu bar while anything is running (setting). Launch at login (`tauri-plugin-autostart`), starting hidden into the menu bar.
-- [ ] Menu bar menu: overall health line, routes (status + Open/Copy/Disable), Quick Shares, "New Quick Share…", "Open Teitunnel", "Quit". The icon changes for degraded or error state (template variants).
+- [ ] Menu bar menu: overall health line, routes (status + Open/Copy/Disable), Quick Shares, "New Quick Share…", "Open Teitunnel", "Quit". The icon changes for degraded or error state (template variants). *(Started: routes with status + Copy URL / Open in Browser above Quick Shares, refreshed after changes and every minute. Health line, Disable and icon variants remain.)*
 - [ ] Quit confirmation when Session connectors are running ("Switch them to Always-on?" as a shortcut).
 
 ### M5-07 · Notifications policy

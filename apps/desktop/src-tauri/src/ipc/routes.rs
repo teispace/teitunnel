@@ -28,6 +28,7 @@ fn context<'a>(state: &'a AppState, account_id: &'a str) -> Context<'a> {
 }
 
 fn changed(app: &AppHandle, account_id: &str) {
+    crate::bootstrap::refresh_tray_routes(app);
     let _ = EntityChanged {
         kind: EntityKind::Routes,
         id: Some(account_id.to_owned()),
