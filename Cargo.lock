@@ -1334,6 +1334,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fake-cloudflare"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teitunnel-cf-api",
+ "teitunnel-core",
+ "tokio",
+]
+
+[[package]]
 name = "fake-cloudflared"
 version = "0.1.0"
 dependencies = [

@@ -197,7 +197,7 @@ impl Client {
         if status == 404 {
             return Ok(());
         }
-        Envelope::<serde_json::Value>::decode(status, &bytes).map(|_| ())
+        Envelope::<serde_json::Value>::check(status, &bytes)
     }
 
     /// `PATCH path` with a JSON body → `result`.

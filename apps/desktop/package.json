@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "shoot": "node scripts/shoot.ts",
-    "e2e:build": "cargo build -p fake-cloudflared && tauri build --debug --no-bundle --features e2e --config src-tauri/e2e/tauri.e2e.json",
+    "e2e:build": "cargo build -p fake-cloudflared -p fake-cloudflare && tauri build --debug --no-bundle --features e2e --config src-tauri/e2e/tauri.e2e.json",
     "e2e": "wdio run e2e/wdio.conf.ts"
   },
   "dependencies": {

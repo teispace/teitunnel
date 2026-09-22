@@ -26,6 +26,8 @@ pub struct AppState {
     pub machine: MachineTunnels,
     /// This Mac's name for new tunnels.
     pub machine_name: String,
+    /// Where route checks connect (Cloudflare's edge; a fake in E2E builds).
+    pub edge: teitunnel_core::engine::Edge,
     /// Cancels the OAuth sign-in in progress, if any.
     pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Set once shutdown has started, so the exit hook runs only once.

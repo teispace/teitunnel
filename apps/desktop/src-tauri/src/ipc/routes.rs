@@ -7,8 +7,8 @@ use tauri::{AppHandle, State, ipc::Channel};
 use tauri_specta::Event;
 use teitunnel_core::engine::Connectors;
 use teitunnel_core::engine::{
-    ActivityEntry, Approval, Change, Context, Drift, Edge, Outcome, PlanView, Progress,
-    RoutesOverview, TunnelSummary, Verification,
+    ActivityEntry, Approval, Change, Context, Drift, Outcome, PlanView, Progress, RoutesOverview,
+    TunnelSummary, Verification,
 };
 
 use crate::{
@@ -118,7 +118,7 @@ pub async fn routes_verify(
             &api,
             context(&state, &account_id),
             &hostname,
-            Edge::Cloudflare,
+            state.edge,
             patience,
         )
         .await?)

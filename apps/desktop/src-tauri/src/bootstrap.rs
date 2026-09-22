@@ -12,11 +12,11 @@ use tauri_specta::Event;
 use teitunnel_core::{
     accounts::Accounts,
     binary::{BinaryManager, Locator},
-    engine::{Engine, Local},
+    engine::{Edge, Engine, Local},
     machine::{MachineTunnels, machine_name},
     quick_share::{QuickShare, QuickShares, ShareStatus},
     runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor, TUNNEL_PORTS},
-    secrets::KeychainStore,
+    secrets::Secrets,
     settings,
     store::Store,
 };
@@ -69,8 +69,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
-    let secrets: teitunnel_core::secrets::Secrets = Arc::new(KeychainStore);
-    let accounts = Accounts::new(store.clone(), secrets.clone());
+    let (secrets, accounts, edge) = services(&store);
     let local = Local::new(store.clone());
     let machine = MachineTunnels::new(
         supervisor.clone(),
@@ -86,6 +85,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         engine: Engine::new(local),
         machine,
         machine_name: machine_name(),
+        edge,
         store,
         binary,
         supervisor,
@@ -93,6 +93,28 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         oauth_cancel: std::sync::Mutex::default(),
         shutting_down: false.into(),
     })
+}
+
+/// The keychain, the Cloudflare API and the edge the verifier probes.
+#[cfg(not(feature = "e2e"))]
+fn services(store: &Store) -> (Secrets, Accounts, Edge) {
+    let secrets: Secrets = Arc::new(teitunnel_core::secrets::KeychainStore);
+    let accounts = Accounts::new(store.clone(), secrets.clone());
+    (secrets, accounts, Edge::Cloudflare)
+}
+
+/// E2E builds never touch the login keychain or the real Cloudflare: secrets stay in
+/// memory, and `TEITUNNEL_API_BASE` / `TEITUNNEL_EDGE` point at `fake-cloudflare`.
+#[cfg(feature = "e2e")]
+fn services(store: &Store) -> (Secrets, Accounts, Edge) {
+    let secrets: Secrets = Arc::new(teitunnel_core::secrets::MemoryStore::default());
+    let base = std::env::var("TEITUNNEL_API_BASE").unwrap_or_else(|_| "http://127.0.0.1:9".into());
+    let accounts = Accounts::with_api_base(store.clone(), secrets.clone(), &base, None);
+    let edge = std::env::var("TEITUNNEL_EDGE")
+        .ok()
+        .and_then(|addr| addr.parse().ok())
+        .map_or(Edge::Test(([127, 0, 0, 1], 9).into()), Edge::Test);
+    (secrets, accounts, edge)
 }
 
 /// Starts every account's machine tunnel connector (Session mode runs while the app

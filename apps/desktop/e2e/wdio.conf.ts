@@ -2,7 +2,7 @@
 // the embedded WebDriver, with the fake cloudflared and an isolated data directory.
 //
 //   pnpm e2e:build && pnpm e2e
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -12,6 +12,12 @@ const bin = process.platform === "win32" ? ".exe" : "";
 const app = join(root, "target/debug", `Teitunnel${bin}`);
 const fake = join(root, "target/debug", `fake-cloudflared${bin}`);
 const dataDir = mkdtempSync(join(tmpdir(), "teitunnel-e2e-"));
+
+// A stand-in for the Cloudflare API and edge; E2E builds point at it (never at Cloudflare).
+const CLOUDFLARE_PORT = 18787;
+const fakeCloudflare = spawn(join(root, "target/debug", `fake-cloudflare${bin}`), [
+  String(CLOUDFLARE_PORT),
+]);
 
 export const config: WebdriverIO.Config = {
   runner: "local",
@@ -30,6 +36,8 @@ export const config: WebdriverIO.Config = {
           TEITUNNEL_CLOUDFLARED: fake,
           TEITUNNEL_DATA_DIR: dataDir,
           TEITUNNEL_LOG: "info",
+          TEITUNNEL_API_BASE: `http://127.0.0.1:${CLOUDFLARE_PORT}`,
+          TEITUNNEL_EDGE: `127.0.0.1:${CLOUDFLARE_PORT}`,
         },
       },
     ],
@@ -46,5 +54,8 @@ export const config: WebdriverIO.Config = {
       // nothing to stop
     }
     rmSync(dataDir, { recursive: true, force: true });
+  },
+  onComplete: () => {
+    fakeCloudflare.kill();
   },
 };

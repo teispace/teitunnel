@@ -56,6 +56,33 @@ impl<T: DeserializeOwned> Envelope<T> {
         Self::decode_page(status, body).map(|(result, _)| result)
     }
 
+    /// Checks that a response reports success, whatever its result (a `DELETE` may
+    /// answer `"result": null`).
+    ///
+    /// # Errors
+    /// [`Error::Api`] when the API reports failure, [`Error::Decode`] for malformed bodies.
+    pub fn check(status: u16, body: &[u8]) -> Result<()> {
+        #[derive(Deserialize)]
+        struct Outcome {
+            success: bool,
+            #[serde(default)]
+            errors: Vec<ApiMessage>,
+        }
+        let ok = (200..300).contains(&status);
+        match serde_json::from_slice::<Outcome>(body) {
+            Ok(outcome) if outcome.success && ok => Ok(()),
+            Ok(outcome) => Err(Error::Api {
+                status,
+                errors: outcome.errors,
+            }),
+            Err(err) if ok => Err(Error::Decode(err)),
+            Err(_) => Err(Error::Api {
+                status,
+                errors: Vec::new(),
+            }),
+        }
+    }
+
     /// Like [`Envelope::decode`], also returning pagination details.
     ///
     /// # Errors
@@ -89,6 +116,14 @@ impl<T: DeserializeOwned> Envelope<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn success_without_a_result_passes_the_check() {
+        let body = br#"{"success":true,"errors":[],"messages":[],"result":null}"#;
+        assert!(Envelope::<serde_json::Value>::check(200, body).is_ok());
+        let failed = br#"{"success":false,"errors":[{"code":1003,"message":"x"}],"result":null}"#;
+        assert!(Envelope::<serde_json::Value>::check(400, failed).is_err());
+    }
 
     #[test]
     fn decodes_successful_envelope() {

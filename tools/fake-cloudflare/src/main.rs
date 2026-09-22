@@ -1,0 +1,356 @@
+//! A stand-in for the Cloudflare API (and edge) for end-to-end tests of the routes flow.
+//!
+//! It keeps one account with two zones in memory and implements the endpoints Teitunnel
+//! uses: token verify, accounts, zones, tunnels, remote configuration, tunnel token and
+//! DNS records, with Cloudflare's response envelope. Requests whose `Host` isn't the
+//! server itself are answered as the edge would for a working route (`200`), so the
+//! verifier can run against it too.
+//!
+//! Usage: `fake-cloudflare [port]` (0 or absent: any free port). Prints
+//! `listening on 127.0.0.1:<port>` once ready. Any token is accepted except `bad`.
+
+use std::{
+    collections::BTreeMap,
+    process::ExitCode,
+    sync::{Arc, Mutex, PoisonError},
+};
+
+use serde_json::{Value, json};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+};
+
+const ACCOUNT: &str = "e2e-account";
+
+#[derive(Default)]
+struct State {
+    next_id: u32,
+    /// Tunnel id → (name, config version, config).
+    tunnels: BTreeMap<String, (String, u64, Value)>,
+    /// Zone id → records.
+    records: BTreeMap<String, Vec<Value>>,
+}
+
+impl State {
+    fn id(&mut self, prefix: &str) -> String {
+        self.next_id += 1;
+        format!("{prefix}{:08}-0000-4000-8000-000000000000", self.next_id)
+    }
+}
+
+fn zones() -> Vec<Value> {
+    [("z-xyz", "xyz.com"), ("z-yx", "yx.com")]
+        .iter()
+        .map(|(id, name)| {
+            json!({
+                "id": id, "name": name, "status": "active", "paused": false, "type": "full",
+                "name_servers": ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
+                "original_name_servers": null,
+                "account": { "id": ACCOUNT, "name": "E2E" },
+                "plan": { "name": "Free Website" }
+            })
+        })
+        .collect()
+}
+
+struct Request {
+    method: String,
+    path: String,
+    query: BTreeMap<String, String>,
+    host: String,
+    auth: String,
+    body: Value,
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn ok(result: Value) -> (u16, Value) {
+    let info = result.as_array().map(|list| {
+        json!({ "page": 1, "per_page": 50, "total_pages": 1, "count": list.len(), "total_count": list.len() })
+    });
+    (
+        200,
+        json!({ "success": true, "errors": [], "messages": [], "result": result, "result_info": info }),
+    )
+}
+
+fn err(status: u16, code: u32, message: &str) -> (u16, Value) {
+    (
+        status,
+        json!({ "success": false, "errors": [{ "code": code, "message": message }], "messages": [], "result": null }),
+    )
+}
+
+fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
+    if req.auth != "Bearer bad" && !req.auth.starts_with("Bearer ") {
+        return err(401, 10000, "Authentication error");
+    }
+    if req.auth == "Bearer bad" {
+        return err(401, 1000, "Invalid API Token");
+    }
+    let mut s = state.lock().unwrap_or_else(PoisonError::into_inner);
+    let parts: Vec<&str> = req.path.trim_matches('/').split('/').collect();
+    let method = req.method.as_str();
+    match (method, parts.as_slice()) {
+        ("GET", ["user", "tokens", "verify"]) => ok(json!({ "id": "tok", "status": "active" })),
+        ("GET", ["accounts"]) => ok(json!([{ "id": ACCOUNT, "name": "E2E" }])),
+        ("GET", ["zones"]) => ok(Value::Array(zones())),
+        ("GET", ["zones", zone]) => zones()
+            .into_iter()
+            .find(|z| z["id"] == *zone)
+            .map_or_else(|| err(404, 1001, "Invalid zone"), ok),
+        ("GET", ["accounts", _, "cfd_tunnel"]) => {
+            let list = s
+                .tunnels
+                .iter()
+                .map(|(id, (name, ..))| tunnel_json(id, name))
+                .collect();
+            ok(Value::Array(list))
+        }
+        ("POST", ["accounts", _, "cfd_tunnel"]) => {
+            let name = req.body["name"].as_str().unwrap_or("tunnel").to_owned();
+            if s.tunnels.values().any(|(n, ..)| *n == name) {
+                return err(409, 1013, "You already have a tunnel with this name");
+            }
+            let id = s.id("");
+            s.tunnels.insert(id.clone(), (name.clone(), 0, Value::Null));
+            ok(tunnel_json(&id, &name))
+        }
+        ("GET", ["accounts", _, "cfd_tunnel", id]) => match s.tunnels.get(*id) {
+            Some((name, ..)) => ok(tunnel_json(id, name)),
+            None => err(404, 1003, "Tunnel not found"),
+        },
+        ("DELETE", ["accounts", _, "cfd_tunnel", id]) => match s.tunnels.remove(*id) {
+            Some(_) => ok(json!({ "id": id })),
+            None => err(404, 1003, "Tunnel not found"),
+        },
+        ("DELETE", ["accounts", _, "cfd_tunnel", id, "connections"]) => {
+            if s.tunnels.contains_key(*id) {
+                ok(Value::Null)
+            } else {
+                err(404, 1003, "Tunnel not found")
+            }
+        }
+        ("GET", ["accounts", _, "cfd_tunnel", id, "token"]) => {
+            if s.tunnels.contains_key(*id) {
+                ok(json!(format!("e2e-run-token-{id}")))
+            } else {
+                err(404, 1003, "Tunnel not found")
+            }
+        }
+        ("GET", ["accounts", _, "cfd_tunnel", id, "configurations"]) => match s.tunnels.get(*id) {
+            Some((_, version, config)) => {
+                ok(json!({ "tunnel_id": id, "version": version, "config": config }))
+            }
+            None => err(404, 1003, "Tunnel not found"),
+        },
+        ("PUT", ["accounts", _, "cfd_tunnel", id, "configurations"]) => {
+            match s.tunnels.get_mut(*id) {
+                Some((_, version, config)) => {
+                    *version += 1;
+                    *config = req.body["config"].clone();
+                    ok(json!({ "tunnel_id": id, "version": *version, "config": config }))
+                }
+                None => err(404, 1003, "Tunnel not found"),
+            }
+        }
+        ("GET", ["zones", zone, "dns_records"]) => {
+            let records = s.records.get(*zone).cloned().unwrap_or_default();
+            let matching = records
+                .into_iter()
+                .filter(|r| {
+                    req.query.get("name").is_none_or(|n| r["name"] == *n)
+                        && req.query.get("type").is_none_or(|t| r["type"] == *t)
+                        && req.query.get("content").is_none_or(|c| r["content"] == *c)
+                })
+                .collect();
+            ok(Value::Array(matching))
+        }
+        ("POST", ["zones", zone, "dns_records"]) => {
+            let name = req.body["name"].clone();
+            let taken = s
+                .records
+                .get(*zone)
+                .is_some_and(|list| list.iter().any(|r| r["name"] == name));
+            if taken {
+                return err(
+                    400,
+                    81053,
+                    "An A, AAAA, or CNAME record with that host already exists.",
+                );
+            }
+            let mut record = req.body.clone();
+            record["id"] = json!(s.id("r"));
+            s.records
+                .entry((*zone).to_owned())
+                .or_default()
+                .push(record.clone());
+            ok(record)
+        }
+        ("PATCH", ["zones", zone, "dns_records", id]) => {
+            let found = s
+                .records
+                .get_mut(*zone)
+                .and_then(|list| list.iter_mut().find(|r| r["id"] == *id));
+            match found {
+                Some(record) => {
+                    if let (Some(target), Some(patch)) =
+                        (record.as_object_mut(), req.body.as_object())
+                    {
+                        for (key, value) in patch {
+                            target.insert(key.clone(), value.clone());
+                        }
+                    }
+                    ok(record.clone())
+                }
+                // Also what capability probes (PATCH on a nil id) expect when authorized.
+                None => err(404, 81044, "Record does not exist."),
+            }
+        }
+        ("DELETE", ["zones", zone, "dns_records", id]) => {
+            let list = s.records.entry((*zone).to_owned()).or_default();
+            let before = list.len();
+            list.retain(|r| r["id"] != *id);
+            if list.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 81044, "Record does not exist.")
+            }
+        }
+        // Capability probes on other resources: authorized, no such object.
+        ("PATCH", _) => err(404, 1003, "Not found"),
+        _ => err(404, 7003, "No route for that URI"),
+    }
+}
+
+fn tunnel_json(id: &str, name: &str) -> Value {
+    json!({
+        "id": id, "name": name, "status": "healthy", "created_at": "2026-09-23T00:00:00Z",
+        "deleted_at": null, "remote_config": true,
+        "connections": [{ "colo_name": "e2e01", "client_id": "c", "client_version": "2026.9.1",
+                          "origin_ip": "127.0.0.1", "opened_at": "2026-09-23T00:00:00Z",
+                          "is_pending_reconnect": false }]
+    })
+}
+
+fn decode(value: &str) -> String {
+    let mut out = Vec::new();
+    let bytes = value.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("");
+                if let Ok(b) = u8::from_str_radix(hex, 16) {
+                    out.push(b);
+                    i += 3;
+                    continue;
+                }
+                out.push(b'%');
+            }
+            b'+' => out.push(b' '),
+            b => out.push(b),
+        }
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+async fn read_request(socket: &mut TcpStream) -> Option<Request> {
+    let mut data = Vec::new();
+    let mut buf = [0u8; 4096];
+    let header_end = loop {
+        let n = socket.read(&mut buf).await.ok()?;
+        if n == 0 {
+            return None;
+        }
+        data.extend_from_slice(&buf[..n]);
+        if let Some(pos) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+            break pos + 4;
+        }
+    };
+    let head = String::from_utf8_lossy(&data[..header_end]).into_owned();
+    let mut lines = head.lines();
+    let mut first = lines.next()?.split_whitespace();
+    let method = first.next()?.to_owned();
+    let target = first.next()?.to_owned();
+    let mut length = 0usize;
+    let (mut host, mut auth) = (String::new(), String::new());
+    for line in lines {
+        if let Some((name, value)) = line.split_once(':') {
+            let value = value.trim();
+            match name.to_ascii_lowercase().as_str() {
+                "content-length" => length = value.parse().unwrap_or(0),
+                "host" => value.clone_into(&mut host),
+                "authorization" => value.clone_into(&mut auth),
+                _ => {}
+            }
+        }
+    }
+    while data.len() < header_end + length {
+        let n = socket.read(&mut buf).await.ok()?;
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&buf[..n]);
+    }
+    let body = serde_json::from_slice(&data[header_end..]).unwrap_or(Value::Null);
+    let (path, query) = target.split_once('?').unwrap_or((&target, ""));
+    let query = query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(k, v)| (decode(k), decode(v)))
+        .collect();
+    Some(Request {
+        method,
+        path: decode(path),
+        query,
+        host,
+        auth,
+        body,
+    })
+}
+
+async fn serve(mut socket: TcpStream, state: Arc<Mutex<State>>, own_host: String) {
+    let Some(req) = read_request(&mut socket).await else {
+        return;
+    };
+    let (status, body, content_type) = if req.host == own_host || req.host.starts_with("127.0.0.1")
+    {
+        let (status, body) = handle(&state, &req);
+        (status, body.to_string(), "application/json")
+    } else {
+        // The edge, serving a route: pretend the origin answered.
+        (200, format!("hello from {}\n", req.host), "text/plain")
+    };
+    let response = format!(
+        "HTTP/1.1 {status} X\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    let _ = socket.write_all(response.as_bytes()).await;
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> ExitCode {
+    let port: u16 = std::env::args()
+        .nth(1)
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(0);
+    let Ok(listener) = TcpListener::bind(("127.0.0.1", port)).await else {
+        return ExitCode::from(1);
+    };
+    let Ok(addr) = listener.local_addr() else {
+        return ExitCode::from(1);
+    };
+    #[allow(clippy::print_stdout)]
+    {
+        println!("listening on {addr}");
+    }
+    let own_host = addr.to_string();
+    let state = Arc::new(Mutex::new(State::default()));
+    loop {
+        if let Ok((socket, _)) = listener.accept().await {
+            tokio::spawn(serve(socket, Arc::clone(&state), own_host.clone()));
+        }
+    }
+}

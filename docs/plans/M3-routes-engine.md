@@ -63,5 +63,5 @@
 
 ### M3-11 · Tests
 - [x] Vitest flows for add/remove/rename with mockIPC. *(add, confirm, field errors, remove, drift)*
-- [ ] E2E (fake CloudApi via a test build feature + fake-cloudflared): full add → verify (stubbed) → remove.
+- [x] E2E (fake CloudApi via a test build feature + fake-cloudflared): full add → verify (stubbed) → remove. *(`tools/fake-cloudflare` serves the API and the edge; `e2e` builds read `TEITUNNEL_API_BASE`/`TEITUNNEL_EDGE` and keep secrets in memory. Also an HTTP-level engine test in `tools/fake-cloudflare/tests`.)*
 - [ ] Nightly real-account job (dedicated test zone, API token in CI secrets): create 2 routes in 2 zones, verify HTTP 200 through the tunnel, delete everything, then assert zero records and no tunnel remain.
