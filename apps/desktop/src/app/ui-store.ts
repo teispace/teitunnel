@@ -6,6 +6,8 @@ interface UiState {
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
   paneSizes: Record<string, number>;
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
   setPaneSize: (key: string, size: number) => void;
@@ -17,6 +19,8 @@ export const useUiStore = create<UiState>()(
       sidebarCollapsed: false,
       inspectorOpen: true,
       paneSizes: {},
+      paletteOpen: false,
+      setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       toggleInspector: () => set((state) => ({ inspectorOpen: !state.inspectorOpen })),
       setPaneSize: (key, size) =>

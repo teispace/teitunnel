@@ -19,7 +19,7 @@ teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
 
 # Tauri (stay on 2.x, D-015)
-tauri = { version = "2.11.6" }
+tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
 tauri-build = { version = "2.5" }
 tauri-plugin-single-instance = "2.4.5"
 tauri-plugin-window-state = "2.4"

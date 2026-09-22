@@ -228,6 +228,12 @@
     0 0 0 0.5px var(--border-separator);
 }
 
+@utility material-panel {
+  background-color: var(--material-panel-tint);
+  -webkit-backdrop-filter: var(--material-panel-filter);
+  backdrop-filter: var(--material-panel-filter);
+}
+
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }

@@ -55,7 +55,7 @@ export function Select<T extends string>({
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
           position="item-aligned"
-          className="z-50 min-w-(--radix-select-trigger-width) overflow-hidden rounded-[10px] p-1 material-glass shadow-raised data-[state=open]:animate-fade-in"
+          className="z-50 min-w-(--radix-select-trigger-width) overflow-hidden rounded-[10px] p-1 material-panel shadow-raised data-[state=open]:animate-fade-in"
         >
           <SelectPrimitive.Viewport>
             {options.map((option) => (

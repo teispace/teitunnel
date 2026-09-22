@@ -33,18 +33,32 @@ pub fn run() -> Result<(), tauri::Error> {
     tauri::Builder::default()
         // Must be first so a second launch exits before initialising anything else.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            shell::window::focus_main(app);
+            shell::windows::focus_main(app);
         }))
-        .plugin(shell::window::state_plugin())
+        .plugin(shell::windows::state_plugin())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(specta.invoke_handler())
+        .menu(shell::menu::build)
+        .on_menu_event(|app, event| shell::menu::on_event(app, &event))
         .setup(move |app| {
             let log_dir = app.path().app_log_dir()?;
             app.manage(logging::init(&log_dir)?);
             specta.mount_events(app);
-            shell::window::show_main_after_timeout(app.handle().clone());
+            shell::tray::install(app.handle())?;
+            shell::windows::show_main_after_timeout(app.handle());
             tracing::info!(version = %app.package_info().version, "teitunnel started");
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .on_window_event(shell::windows::on_window_event)
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Clicking the Dock icon with no visible window reopens the main window.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = event {
+                shell::windows::focus_main(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
+    Ok(())
 }

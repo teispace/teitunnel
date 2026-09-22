@@ -10,17 +10,20 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns the app version, platform and data directory. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
-	/**  Called by the webview once the first frame is painted; shows the main window. */
+	/**  Called by a webview once its first frame is painted; shows its window. */
 	appReady: () => __TAURI_INVOKE<void>("app_ready"),
 	/**  The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default. */
 	appAccentColor: () => __TAURI_INVOKE<string | null>("app_accent_color"),
 	/**  Records an uncaught webview error in the app log (redacted like every other line). */
 	appReportError: (message: string, stack: string | null) => __TAURI_INVOKE<void>("app_report_error", { message, stack }),
+	/**  Opens the Settings window (same as ⌘,). */
+	appOpenSettings: () => __TAURI_INVOKE<null>("app_open_settings"),
 };
 
 /** Events */
 export const events = {
 	entityChanged: makeEvent<EntityChanged>("entity-changed"),
+	menuAction: makeEvent<MenuAction>("menu-action"),
 };
 
 /* Types */
@@ -65,6 +68,41 @@ export type EntityKind =
 export type ErrorCode = 
 /**  An unexpected failure. The message is safe to show; details are in the app log. */
 "internal";
+
+/**  Emitted when a menu-bar item that the webview handles is chosen. */
+export type MenuAction = {
+	/**  The chosen command. */
+	command: MenuCommand,
+};
+
+/**  A menu-bar command the webview handles (navigation, panes, palette). */
+export type MenuCommand = 
+/**  File ▸ New Route (⌘N). */
+"newRoute" | 
+/**  File ▸ New Quick Share (⇧⌘N). */
+"newQuickShare" | 
+/**  View ▸ Toggle Sidebar (⌥⌘S). */
+"toggleSidebar" | 
+/**  View ▸ Toggle Inspector (⌥⌘I). */
+"toggleInspector" | 
+/**  View ▸ Refresh (⌘R). */
+"refresh" | 
+/**  View ▸ Command Palette (⌘K). */
+"commandPalette" | 
+/**  View ▸ Overview (⌘1). */
+"goOverview" | 
+/**  View ▸ Routes (⌘2). */
+"goRoutes" | 
+/**  View ▸ Quick Share (⌘3). */
+"goQuickShare" | 
+/**  View ▸ Domains (⌘4). */
+"goDomains" | 
+/**  View ▸ Tunnels (⌘5). */
+"goTunnels" | 
+/**  View ▸ Activity (⌘6). */
+"goActivity" | 
+/**  View ▸ Doctor (⌘7). */
+"goDoctor";
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

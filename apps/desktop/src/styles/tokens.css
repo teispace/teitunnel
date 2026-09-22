@@ -73,6 +73,9 @@
   --material-glass-tint: light-dark(rgb(255 255 255 / 0.62), rgb(44 44 44 / 0.6));
   --material-glass-highlight: light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.12));
   --material-glass-filter: blur(20px) saturate(180%);
+  /* Panels (popovers, menus, palette, toasts): near-opaque so text behind never competes. */
+  --material-panel-tint: light-dark(rgb(246 246 246 / 0.94), rgb(40 40 40 / 0.94));
+  --material-panel-filter: blur(30px) saturate(180%);
 
   /* Elevation (raised surfaces only) */
   --shadow-control:
@@ -123,5 +126,7 @@
   :root {
     --material-glass-tint: var(--surface-raised);
     --material-glass-filter: none;
+    --material-panel-tint: var(--surface-raised);
+    --material-panel-filter: none;
   }
 }

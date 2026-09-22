@@ -1,7 +1,9 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { SwatchBook } from "lucide-react";
+import { MenuBridge } from "@/app/menu-bridge";
 import { navigation } from "@/app/navigation";
 import { AppShell } from "@/components/patterns/app-shell";
+import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
 
 export const Route = createFileRoute("/_main")({
@@ -35,6 +37,8 @@ function MainLayout() {
       }
     >
       <Outlet />
+      <MenuBridge />
+      <CommandPalette />
     </AppShell>
   );
 }

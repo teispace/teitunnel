@@ -12,7 +12,7 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            "flex w-[340px] items-start gap-2.5 rounded-sheet p-3 material-glass shadow-raised text-body text-primary",
+            "flex w-[340px] items-start gap-2.5 rounded-sheet p-3 material-panel shadow-raised text-body text-primary",
           title: "text-headline",
           description: "mt-0.5 text-callout text-secondary",
           actionButton:

@@ -32,11 +32,11 @@ pub fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
     })
 }
 
-/// Called by the webview once the first frame is painted; shows the main window.
+/// Called by a webview once its first frame is painted; shows its window.
 #[tauri::command]
 #[specta::specta]
-pub fn app_ready(app: AppHandle) {
-    shell::window::show_main(&app);
+pub fn app_ready(window: tauri::WebviewWindow) {
+    shell::windows::show_when_ready(&window);
 }
 
 /// The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default.
@@ -51,4 +51,11 @@ pub fn app_accent_color() -> Option<String> {
 #[specta::specta]
 pub fn app_report_error(message: String, stack: Option<String>) {
     tracing::error!(target: "webview", %message, stack = stack.as_deref().unwrap_or(""), "uncaught error");
+}
+
+/// Opens the Settings window (same as ⌘,).
+#[tauri::command]
+#[specta::specta]
+pub fn app_open_settings(app: AppHandle) -> Result<(), AppError> {
+    Ok(shell::windows::open_settings(&app)?)
 }

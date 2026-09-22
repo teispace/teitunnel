@@ -21,7 +21,7 @@ export function PopoverContent({
         collisionPadding={8}
         className={cn(
           "z-50 min-w-48 origin-(--radix-popover-content-transform-origin) rounded-sheet p-3 outline-none",
-          "material-glass shadow-raised",
+          "material-panel shadow-raised",
           "data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in",
           className,
         )}

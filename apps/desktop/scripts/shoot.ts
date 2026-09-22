@@ -3,7 +3,8 @@
 // by painting the sidebar with the measured material colour.
 //
 // Usage: node scripts/shoot.ts <out-dir> [route ...]   (default route: /dev/gallery)
-// Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them.
+// Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them;
+// SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k).
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -13,6 +14,7 @@ const [outDir = "screenshots", ...routes] = process.argv.slice(2);
 const targets = routes.length > 0 ? routes : ["/dev/gallery"];
 const actions = (process.env["SHOOT_ACTIONS"] ?? "").split(";").filter(Boolean);
 const scrollTo = process.env["SHOOT_SCROLL"];
+const keys = (process.env["SHOOT_KEYS"] ?? "").split(";").filter(Boolean);
 
 // Measured NSVisualEffectView `sidebar` material on macOS 27 (D-024), before our tint.
 const VIBRANCY =
@@ -33,12 +35,14 @@ try {
     });
     for (const route of targets) {
       await page.goto(new URL(route.replace(/^\//, ""), base).toString());
+      await page.waitForSelector("main h1");
       await page.addStyleTag({ content: VIBRANCY });
       await page.evaluate(() => {
         document.documentElement.dataset["windowActive"] = "true";
       });
       if (scrollTo) await page.locator(scrollTo).first().scrollIntoViewIfNeeded();
       for (const selector of actions) await page.click(selector);
+      for (const key of keys) await page.keyboard.press(key);
       await page.waitForTimeout(700);
       const name = `${route.replace(/\W+/g, "-").replace(/^-|-$/g, "") || "overview"}-${scheme}.png`;
       await page.screenshot({ path: join(outDir, name) });
