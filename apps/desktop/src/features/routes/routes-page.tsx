@@ -15,7 +15,14 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
-import type { ConnectorState, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
+import { useIssues } from "@/features/doctor/queries";
+import type {
+  ConnectorState,
+  Issue,
+  RouteView,
+  TunnelView,
+  Verification,
+} from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { DriftBanner } from "./components/drift-banner";
@@ -43,15 +50,20 @@ function connectorStatus(state: ConnectorState | null): { dot: Status; label: st
   }
 }
 
-/** One dot and label per route: the worst of its DNS and this Mac's connector. */
+/** One dot and label per route: the worst of its DNS, this Mac's connector and any
+ * Doctor issue about its hostname (e.g. nothing listening on the origin's port). */
 export function routeStatus(
   route: RouteView,
   tunnel: TunnelView | null,
+  issues: readonly Issue[] = [],
 ): { dot: Status; label: string } {
   if (route.dns.state === "missing") return { dot: "warning", label: "No DNS record" };
   if (route.dns.state === "elsewhere") return { dot: "warning", label: "DNS points elsewhere" };
   const connector = connectorStatus(tunnel?.connector ?? null);
-  return connector.dot === "healthy" ? { dot: "healthy", label: "Live" } : connector;
+  if (connector.dot !== "healthy") return connector;
+  const issue = issues.find((i) => i.subject === route.hostname && i.severity !== "info");
+  if (issue) return { dot: issue.severity === "error" ? "error" : "warning", label: issue.title };
+  return { dot: "healthy", label: "Live" };
 }
 
 function displayOrigin(origin: string) {
@@ -91,7 +103,8 @@ function RouteInspector({
   onEdit: () => void;
   onRemove: () => void;
 }) {
-  const status = routeStatus(route, tunnel);
+  const { issues } = useIssues();
+  const status = routeStatus(route, tunnel, issues);
   const url = `https://${route.hostname}`;
   const test = useVerify(accountId);
   const activity = useActivity(accountId);
@@ -181,6 +194,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const overview = useRoutesOverview(active?.id ?? null);
+  const { issues } = useIssues();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
   const [importing, setImporting] = useState(false);
@@ -298,7 +312,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
             selectedId={selected ? routeKey(selected) : null}
             onSelect={setSelectedKey}
             renderRow={(route) => {
-              const status = routeStatus(route, tunnel);
+              const status = routeStatus(route, tunnel, issues);
               return (
                 <ListRow
                   title={route.path ? `${route.hostname} ${route.path}` : route.hostname}
