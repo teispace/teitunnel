@@ -20,5 +20,6 @@ pub mod secrets;
 pub mod settings;
 pub mod store;
 
-pub use error::{Error, Result};
+pub use cloudflared::Error as CloudflaredError;
+pub use error::{Error, ErrorKind, Result};
 pub use secret::Secret;

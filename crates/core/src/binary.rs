@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use cloudflared::{BinaryStatus, Locator};
+pub use cloudflared::{BinaryStatus, Locator};
 use tokio::sync::RwLock;
 
 /// Caches the located binary so every Quick Share doesn't re-run `--version`.

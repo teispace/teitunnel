@@ -10,6 +10,8 @@ use tauri_specta::Event;
 pub enum EntityKind {
     /// App settings.
     Settings,
+    /// Quick Shares (list, status, URL).
+    QuickShares,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

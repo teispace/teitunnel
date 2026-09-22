@@ -75,8 +75,13 @@ pub struct QuickShare {
     /// Current status.
     pub status: ShareStatus,
     /// Start time, milliseconds since the Unix epoch.
+    ///
+    /// Exported to TypeScript as `number` (values stay far below 2^53). The `u32` is
+    /// only a type hint for specta, which exports `u64` as bigint and `f64` as nullable.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub started_at: u64,
     /// When it stops by itself, milliseconds since the Unix epoch.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub stop_at: Option<u64>,
 }
 

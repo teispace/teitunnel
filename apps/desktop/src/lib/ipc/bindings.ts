@@ -22,6 +22,31 @@ export const commands = {
 	settingsGet: () => __TAURI_INVOKE<Settings>("settings_get"),
 	/**  Updates the given settings and returns the result. Every window is notified. */
 	settingsSet: (patch: SettingsPatch) => __TAURI_INVOKE<Settings>("settings_set", { patch }),
+	/**  The cloudflared binary in use, or `null` if none is installed. */
+	binaryStatus: () => __TAURI_INVOKE<{
+	/**  Absolute path. */
+	path: string,
+	/**  `managed`, `system` or `override`. */
+	source: string,
+	/**  Version, if readable. */
+	version: string | null,
+	/**  Whether it supports everything Teitunnel needs. */
+	supported: boolean,
+} | null>("binary_status"),
+	/**  Services listening on this Mac, likely dev servers first. */
+	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
+	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
+	quickShareStart: (origin: string, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes }),
+	/**  Stops a share. */
+	quickShareStop: (id: string) => __TAURI_INVOKE<null>("quick_share_stop", { id }),
+	/**  Running shares, newest first. */
+	quickShareList: () => __TAURI_INVOKE<QuickShare[]>("quick_share_list"),
+	/**  Request counts for a share (polled by the UI while visible). */
+	quickShareStats: (id: string) => __TAURI_INVOKE<ShareStats>("quick_share_stats", { id }),
+	/**  The newest cloudflared log lines of a share. */
+	quickShareLogs: (id: string, limit: number) => __TAURI_INVOKE<LogLine[]>("quick_share_logs", { id, limit }),
+	/**  An SVG QR code for `url` (dark modules use `currentColor`). */
+	quickShareQr: (url: string) => __TAURI_INVOKE<string>("quick_share_qr", { url }),
 };
 
 /** Events */
@@ -55,6 +80,18 @@ export type AppInfo = {
 	dataDir: string,
 };
 
+/**  Where cloudflared comes from and whether it's new enough. */
+export type BinaryInfo = {
+	/**  Absolute path. */
+	path: string,
+	/**  `managed`, `system` or `override`. */
+	source: string,
+	/**  Version, if readable. */
+	version: string | null,
+	/**  Whether it supports everything Teitunnel needs. */
+	supported: boolean,
+};
+
 /**  Emitted after anything changes, so the UI can invalidate the affected queries. */
 export type EntityChanged = {
 	/**  What kind of entity changed. */
@@ -66,12 +103,52 @@ export type EntityChanged = {
 /**  Kinds of entities the UI caches. Each maps to TanStack Query keys on the frontend. */
 export type EntityKind = 
 /**  App settings. */
-"settings";
+"settings" | 
+/**  Quick Shares (list, status, URL). */
+"quickShares";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
 /**  An unexpected failure. The message is safe to show; details are in the app log. */
-"internal";
+"internal" | 
+/**  The input was rejected; `field` names the offending field. */
+"invalidInput" | 
+/**  The thing acted on doesn't exist (any more). */
+"notFound" | 
+/**  cloudflared isn't installed. */
+"cloudflaredMissing" | 
+/**  Busy or exhausted; retrying later may work. */
+"unavailable";
+
+/**  A TCP port something on this machine is listening on. */
+export type LocalService = {
+	/**  The port. */
+	port: number,
+	/**  Whether it listens on all interfaces (vs. loopback only). */
+	allInterfaces: boolean,
+	/**  Owning process id. */
+	pid: number,
+	/**  Process name, e.g. `node`. */
+	process: string,
+	/**  What it looks like, e.g. a Vite dev server. */
+	kind: ServiceKind,
+	/**  Project the process runs in (from its working directory), e.g. `my-app`. */
+	project: string | null,
+	/**  Suggested origin URL, e.g. `http://localhost:5173`. */
+	origin: string,
+};
+
+/**  One cloudflared log line, for the log drawer. */
+export type LogLine = {
+	/**  Timestamp as printed by cloudflared. */
+	time: string | null,
+	/**  `debug`, `info`, `warn`, `error`, `fatal` or `raw`. */
+	level: string,
+	/**  The message. */
+	message: string,
+	/**  The `error` field, if any. */
+	error: string | null,
+};
 
 /**  Emitted when a menu-bar item that the webview handles is chosen. */
 export type MenuAction = {
@@ -108,6 +185,67 @@ export type MenuCommand =
 /**  View ▸ Doctor (⌘7). */
 "goDoctor";
 
+/**
+ *  An HTTP(S) origin cloudflared can proxy to, e.g. `http://localhost:3000`.
+ * 
+ *  Parsing is forgiving about what people type: `3000`, `:3000`, `localhost:3000`,
+ *  `127.0.0.1:8080` and full URLs all work. Paths and query strings are dropped;
+ *  cloudflared proxies the whole host.
+ */
+export type OriginUrl = string;
+
+/**  A running Quick Share, as the UI sees it. */
+export type QuickShare = {
+	/**  Identifier. */
+	id: string,
+	/**  The local service being shared. */
+	origin: OriginUrl,
+	/**  The public URL, once cloudflared has one. */
+	url: string | null,
+	/**  Current status. */
+	status: ShareStatus,
+	/**
+	 *  Start time, milliseconds since the Unix epoch.
+	 * 
+	 *  Exported to TypeScript as `number` (values stay far below 2^53). The `u32` is
+	 *  only a type hint for specta, which exports `u64` as bigint and `f64` as nullable.
+	 */
+	startedAt: number,
+	/**  When it stops by itself, milliseconds since the Unix epoch. */
+	stopAt: number | null,
+};
+
+/**  What a listening process appears to be. */
+export type ServiceKind = 
+/**  Vite dev server. */
+"vite" | 
+/**  Next.js. */
+"next" | 
+/**  Astro. */
+"astro" | 
+/**  Nuxt. */
+"nuxt" | 
+/**  Another Node.js / Bun / Deno server. */
+"node" | 
+/**  Python (Django, Flask, FastAPI/uvicorn, http.server…). */
+"python" | 
+/**  Ruby (Rails, Puma…). */
+"ruby" | 
+/**  PHP. */
+"php" | 
+/**  Java / JVM. */
+"java" | 
+/**  Go. */
+"go" | 
+/**  A port published by Docker, OrbStack or Colima. */
+"docker" | 
+/**  A database or cache (not HTTP). */
+"database" | 
+/**  A macOS system service, e.g. AirPlay Receiver on 5000/7000. */
+"system" | 
+/**  Anything else. */
+"other";
+
 /**  All preferences, with defaults applied. */
 export type Settings = {
 	/**  Appearance override. */
@@ -123,6 +261,27 @@ export type SettingsPatch = {
 	/**  New menu bar visibility. */
 	showInMenuBar?: boolean | null,
 };
+
+/**  Live traffic numbers for a share. */
+export type ShareStats = {
+	/**  Requests served. */
+	requests: number,
+	/**  Requests that failed. */
+	errors: number,
+};
+
+/**  Where a share is in its life. */
+export type ShareStatus = 
+/**  cloudflared is starting and asking for a URL. */
+{ status: "starting" } | 
+/**  The URL works. */
+{ status: "live" } | 
+/**  Connection lost; cloudflared is reconnecting or restarting. */
+{ status: "reconnecting" } | 
+/**  It failed and won't recover by itself. */
+{ status: "failed"; 
+/**  What went wrong, for the user. */
+message: string };
 
 /**  Appearance override. */
 export type Theme = 

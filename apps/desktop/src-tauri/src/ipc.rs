@@ -8,6 +8,7 @@
 
 mod app;
 mod events;
+mod quick_share;
 mod settings;
 
 use std::path::PathBuf;
@@ -30,7 +31,15 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             app::app_report_error,
             app::app_open_settings,
             settings::settings_get,
-            settings::settings_set
+            settings::settings_set,
+            quick_share::binary_status,
+            quick_share::services_list,
+            quick_share::quick_share_start,
+            quick_share::quick_share_stop,
+            quick_share::quick_share_list,
+            quick_share::quick_share_stats,
+            quick_share::quick_share_logs,
+            quick_share::quick_share_qr
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }
