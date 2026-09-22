@@ -5,6 +5,7 @@
 //! reaches several accounts is stored once per account, so each account can be removed
 //! on its own and removal provably deletes everything for it.
 
+pub mod capabilities;
 mod cert;
 
 use std::{
@@ -297,6 +298,24 @@ impl Accounts {
         } else {
             Ok(())
         }
+    }
+
+    /// Probes what the account's credential can do (read-only, no side effects).
+    ///
+    /// # Errors
+    /// [`AccountError::NotFound`] if the account or its credential is missing.
+    pub async fn capabilities(
+        &self,
+        account_id: &str,
+    ) -> Result<capabilities::Capabilities, AccountError> {
+        let account = self
+            .list()
+            .await?
+            .into_iter()
+            .find(|a| a.id == account_id)
+            .ok_or(AccountError::NotFound)?;
+        let client = self.client(account_id).await?;
+        Ok(capabilities::probe(&client, account_id, account.limited_zone.as_deref()).await)
     }
 
     /// An API client for a connected account.

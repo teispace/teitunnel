@@ -7,11 +7,13 @@
 mod client;
 mod envelope;
 mod error;
+mod probe;
 mod resources;
 mod token;
 
 pub use client::{API_BASE, Client};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
+pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
 pub use token::ApiToken;

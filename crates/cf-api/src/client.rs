@@ -136,6 +136,20 @@ impl Client {
         Envelope::decode(status, &body)
     }
 
+    /// `PATCH path` with a JSON body → `result`.
+    ///
+    /// # Errors
+    /// API errors, network failures or unexpected bodies.
+    pub async fn patch<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<T> {
+        let url = self.url(path);
+        let (status, bytes) = self.send(|| self.http.patch(&url).json(body)).await?;
+        Envelope::decode(status, &bytes)
+    }
+
     async fn get_page<T: DeserializeOwned>(
         &self,
         path: &str,
