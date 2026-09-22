@@ -19,7 +19,6 @@ use super::{
     logbuf::LogBuffer,
     policy::CrashTracker,
     registry::PidRegistry,
-    signal,
     state::{ConnectorState, RuntimeEvent},
     supervisor::ConnectorSpec,
 };
@@ -174,12 +173,12 @@ async fn stopped(stop: &mut watch::Receiver<bool>) {
 async fn stop_child(child: &mut Child, pid: Option<u32>, grace: Duration) {
     #[cfg(unix)]
     if let Some(pid) = pid {
-        signal::terminate_group(pid);
+        super::signal::terminate_group(pid);
         if tokio::time::timeout(grace, child.wait()).await.is_ok() {
             return;
         }
         tracing::warn!(pid, "connector ignored SIGTERM; killing");
-        signal::kill_group(pid);
+        super::signal::kill_group(pid);
     }
     #[cfg(not(unix))]
     let _ = (pid, grace);
