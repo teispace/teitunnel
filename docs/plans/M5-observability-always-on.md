@@ -29,10 +29,10 @@
   *(Started early in M4: timeline by day with outcome and step details per account. Diff, copy-as-command, re-verify and filters remain.)*
 
 ### M5-05 · Always-on (macOS launchd)
-- [ ] `ServiceManager` launchd adapter: generate the plist (label `com.teispace.teitunnel.connector.<tunnel-id>`, managed binary path, args from the `RunCmd` builder with `--token-file`, `--log-directory <app_data>/logs/connectors/<id>`, `KeepAlive`, `RunAtLoad`, `ProcessType=Background`, `ThrottleInterval`), then install via `launchctl bootstrap gui/<uid>`, and remove via `bootout`. Status via `launchctl print` parsing plus the metrics endpoint.
-- [ ] Token file handling per SECURITY_MODEL (0700 dir, 0600 file, removed on uninstall).
-- [ ] Mode switch Session ↔ Always-on as a plan (start new → wait healthy → stop old, so there's no gap).
-- [ ] Log tailing for service-run connectors (tail the log directory's current file, then parse JSON).
+- [x] `ServiceManager` launchd adapter: generate the plist (label `com.teispace.teitunnel.connector.<tunnel-id>`, managed binary path, args from the `RunCmd` builder with `--token-file`, `--log-directory <app_data>/logs/connectors/<id>`, `KeepAlive`, `RunAtLoad`, `ProcessType=Background`, `ThrottleInterval`), then install via `launchctl bootstrap gui/<uid>`, and remove via `bootout`. Status via `launchctl print` parsing plus the metrics endpoint. *(StandardOut/ErrorPath to `<app_data>/logs/connectors/<id>.log` instead of `--log-directory`, so the JSON log is one file the app tails, D-045.)*
+- [x] Token file handling per SECURITY_MODEL (0700 dir, 0600 file, removed on uninstall).
+- [x] Mode switch Session ↔ Always-on as a plan (start new → wait healthy → stop old, so there's no gap). *(`MachineTunnels::set_always_on`; a new connector that doesn't connect in 30 s is removed and the old one keeps running.)*
+- [x] Log tailing for service-run connectors (tail the log directory's current file, then parse JSON).
 - [ ] Binary update with always-on connectors: stage the new binary, then restart services one at a time and verify health.
 - [ ] Tests: plist snapshot tests; recording fake ServiceManager; a macOS-only integration test in CI (bootstrap and bootout a fake-cloudflared service).
 - [ ] Linux systemd --user and Windows Task Scheduler adapters: **compile + unit tests only** here, polished in M7/M8.

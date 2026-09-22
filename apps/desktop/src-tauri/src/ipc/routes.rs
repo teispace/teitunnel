@@ -284,3 +284,47 @@ pub fn tunnels_traffic(
 ) -> Option<teitunnel_core::traffic::Traffic> {
     state.machine.traffic(&tunnel_id)
 }
+
+/// Whether this Mac's connector can run as a service, and whether it does.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AlwaysOn {
+    /// This system supports Always-on.
+    pub supported: bool,
+    /// The connector runs as a service.
+    pub enabled: bool,
+}
+
+/// Whether this Mac's connector for the account keeps running when Teitunnel quits.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_always_on(
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<AlwaysOn, AppError> {
+    let tunnel = state.engine.local().machine_tunnel(&account_id).await?;
+    Ok(AlwaysOn {
+        supported: state.machine.supports_always_on(),
+        enabled: tunnel.is_some_and(|t| state.machine.is_always_on(&t.tunnel_id)),
+    })
+}
+
+/// Switches this Mac's connector between running with the app and running as a
+/// service (keeps running after quit and at login), without a gap.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_set_always_on(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    enabled: bool,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    state
+        .machine
+        .set_always_on(&api, &account_id, enabled)
+        .await
+        .map_err(AppError::internal)?;
+    changed(&app, &account_id);
+    Ok(())
+}

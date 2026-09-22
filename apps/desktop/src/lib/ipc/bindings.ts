@@ -144,6 +144,13 @@ export const commands = {
 	/**  Edge locations, e.g. `AMS`. */
 	locations: string[],
 } | null>("tunnels_traffic", { tunnelId }),
+	/**  Whether this Mac's connector for the account keeps running when Teitunnel quits. */
+	tunnelsAlwaysOn: (accountId: string) => __TAURI_INVOKE<AlwaysOn>("tunnels_always_on", { accountId }),
+	/**
+	 *  Switches this Mac's connector between running with the app and running as a
+	 *  service (keeps running after quit and at login), without a gap.
+	 */
+	tunnelsSetAlwaysOn: (accountId: string, enabled: boolean) => __TAURI_INVOKE<null>("tunnels_set_always_on", { accountId, enabled }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
@@ -188,6 +195,14 @@ export type ActivityEntry = {
 	outcome: string,
 	/**  Step descriptions and any error, as shown in the inspector. */
 	detail: string[],
+};
+
+/**  Whether this Mac's connector can run as a service, and whether it does. */
+export type AlwaysOn = {
+	/**  This system supports Always-on. */
+	supported: boolean,
+	/**  The connector runs as a service. */
+	enabled: boolean,
 };
 
 /**  An error as shown to the user: what happened, and what to do about it. */

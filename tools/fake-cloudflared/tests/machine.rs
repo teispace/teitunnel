@@ -116,3 +116,106 @@ async fn nothing_to_resume_without_a_tunnel() {
         cf_api::Client::with_base("http://127.0.0.1:9", cf_api::ApiToken::new("x")).unwrap();
     assert!(!machine.resume(&unused, "acc").await.unwrap());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn switches_to_always_on_and_back_without_a_gap() {
+    use teitunnel_core::{
+        machine::ServicePaths, runtime::PortAllocator as Ports, service::ProcessServices,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let wrapper = dir.path().join("cloudflared");
+    std::fs::write(
+        &wrapper,
+        format!("#!/bin/sh\nFAKE_CFD_SCENARIO=healthy exec {FAKE} \"$@\"\n"),
+    )
+    .unwrap();
+    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let binary = BinaryManager::new(Locator::new(
+        dir.path().join("managed"),
+        Some(wrapper),
+        vec![],
+    ));
+    let supervisor = Supervisor::new(
+        PidRegistry::new(dir.path().join("run")),
+        tokio::runtime::Handle::current(),
+    );
+    let secrets = MemoryStore::default();
+    let local = Local::new(Store::open_in_memory().unwrap());
+    let services = Arc::new(ProcessServices::default());
+    let tokens = dir.path().join("tokens");
+    let machine = MachineTunnels::new(
+        supervisor.clone(),
+        binary,
+        Ports::new(23010..23020),
+        Arc::new(secrets.clone()),
+        local.clone(),
+    )
+    .with_services(
+        services.clone(),
+        ServicePaths {
+            tokens: tokens.clone(),
+            logs: dir.path().join("logs"),
+        },
+    );
+    local.set_machine_tunnel("acc", "t2", "Mac").await.unwrap();
+    machine
+        .start("acc", "t2", Secret::new("run-token".into()))
+        .await
+        .unwrap();
+    healthy(&supervisor, "t2").await;
+    let unused =
+        cf_api::Client::with_base("http://127.0.0.1:9", cf_api::ApiToken::new("x")).unwrap();
+
+    // Session → Always-on: the service connects, then the app's connector stops.
+    machine.set_always_on(&unused, "acc", true).await.unwrap();
+    assert!(machine.is_always_on("t2"));
+    assert!(
+        supervisor.state(&connector_id("t2")).is_none(),
+        "the app's connector stopped"
+    );
+    let token_file = tokens.join("t2");
+    assert_eq!(std::fs::read_to_string(&token_file).unwrap(), "run-token");
+    assert_eq!(
+        std::fs::metadata(&token_file).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert!(
+        local
+            .machine_tunnel("acc")
+            .await
+            .unwrap()
+            .unwrap()
+            .always_on
+    );
+    machine.sample_once().await;
+    assert!(matches!(
+        machine.state("t2"),
+        Some(ConnectorState::Healthy { .. })
+    ));
+
+    // Always-on → Session: the app's connector connects, then the service goes.
+    machine.set_always_on(&unused, "acc", false).await.unwrap();
+    assert!(!machine.is_always_on("t2"));
+    healthy(&supervisor, "t2").await;
+    assert!(
+        !token_file.exists(),
+        "the token file only exists while the service does"
+    );
+    assert!(
+        !local
+            .machine_tunnel("acc")
+            .await
+            .unwrap()
+            .unwrap()
+            .always_on
+    );
+    let calls = services.calls.lock().unwrap().clone();
+    assert_eq!(
+        calls,
+        [
+            "install com.teispace.teitunnel.connector.t2",
+            "uninstall com.teispace.teitunnel.connector.t2"
+        ]
+    );
+    machine.stop("t2").await.unwrap();
+}

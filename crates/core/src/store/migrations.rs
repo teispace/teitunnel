@@ -42,6 +42,7 @@ const MIGRATIONS: &[M<'static>] = &[
             last_applied_version INTEGER,
             last_applied_ingress TEXT,
             metrics_port         INTEGER,
+            run_mode             TEXT NOT NULL DEFAULT 'session',
             created_at           INTEGER NOT NULL
         ) STRICT;
         CREATE TABLE dns_ownership (

@@ -173,3 +173,19 @@ export function useTraffic(tunnelId: string, enabled: boolean) {
     staleTime: 0,
   });
 }
+
+/** Whether this Mac's connector runs as a service (keeps running after quit). */
+export function useAlwaysOn(accountId: string) {
+  return useQuery({
+    queryKey: ["routes", "alwaysOn", accountId],
+    queryFn: () => call(commands.tunnelsAlwaysOn(accountId)),
+  });
+}
+
+export function useSetAlwaysOn(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => call(commands.tunnelsSetAlwaysOn(accountId, enabled)),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+  });
+}

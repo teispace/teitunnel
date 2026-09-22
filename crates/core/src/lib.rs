@@ -21,6 +21,7 @@ pub mod redact;
 pub mod runtime;
 mod secret;
 pub mod secrets;
+pub mod service;
 pub mod settings;
 pub mod store;
 pub mod traffic;

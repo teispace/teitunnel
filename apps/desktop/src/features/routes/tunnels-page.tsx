@@ -18,12 +18,15 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
+import { Switch } from "@/components/ui/switch";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import type { ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
+  useAlwaysOn,
   useForeignConnectors,
+  useSetAlwaysOn,
   useStopForeign,
   useTraffic,
   useTunnelAction,
@@ -225,6 +228,7 @@ function TunnelInspector({
           </ul>
         )}
       </InspectorSection>
+      {tunnel.thisMac ? <AlwaysOnRow accountId={accountId} /> : null}
       {tunnel.thisMac ? <TunnelTraffic tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
@@ -233,6 +237,38 @@ function TunnelInspector({
         </p>
       ) : null}
     </Inspector>
+  );
+}
+
+/** "Keep running when Teitunnel quits": moves the connector to a launchd agent. */
+function AlwaysOnRow({ accountId }: { accountId: string }) {
+  const mode = useAlwaysOn(accountId);
+  const change = useSetAlwaysOn(accountId);
+  if (!mode.data?.supported) return null;
+  const enabled = change.isPending ? change.variables : mode.data.enabled;
+  return (
+    <InspectorSection title="Running">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="always-on" className="text-body">
+            Keep running when Teitunnel quits
+          </label>
+          <p className="text-callout text-secondary">
+            {change.isPending
+              ? "Switching without dropping connections…"
+              : "Routes stay up after you quit the app and start again when you log in."}
+          </p>
+        </div>
+        <Switch
+          id="always-on"
+          checked={enabled}
+          disabled={change.isPending}
+          onCheckedChange={(next) =>
+            change.mutate(next, { onError: (error) => toast.error(toIpcError(error).message) })
+          }
+        />
+      </div>
+    </InspectorSection>
   );
 }
 

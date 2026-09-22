@@ -71,6 +71,10 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
 
     let (secrets, accounts, edge) = services(&store);
     let local = Local::new(store.clone());
+    let paths = teitunnel_core::machine::ServicePaths {
+        tokens: data_dir.join("tokens"),
+        logs: data_dir.join("logs").join("connectors"),
+    };
     let machine = MachineTunnels::new(
         supervisor.clone(),
         binary.clone(),
@@ -78,6 +82,10 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         secrets,
         local.clone(),
     );
+    let machine = match service_manager() {
+        Some(manager) => machine.with_services(manager, paths),
+        None => machine,
+    };
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
     watch_tray_routes(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
@@ -95,6 +103,19 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         oauth_cancel: std::sync::Mutex::default(),
         shutting_down: false.into(),
     })
+}
+
+/// Where Always-on connectors run: launchd on macOS. E2E builds use child processes, so
+/// tests never install real launch agents.
+fn service_manager() -> Option<Arc<dyn teitunnel_core::service::ServiceManager>> {
+    if cfg!(feature = "e2e") {
+        return Some(Arc::new(teitunnel_core::service::ProcessServices::default()));
+    }
+    if cfg!(target_os = "macos") {
+        return teitunnel_core::service::Launchd::for_current_user()
+            .map(|l| Arc::new(l) as Arc<dyn teitunnel_core::service::ServiceManager>);
+    }
+    None
 }
 
 /// The keychain, the Cloudflare API and the edge the verifier probes.

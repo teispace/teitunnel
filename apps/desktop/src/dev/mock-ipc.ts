@@ -404,6 +404,8 @@ export function installMockIpc(): void {
               connections: 4,
             },
           ];
+        case "tunnels_always_on":
+          return { supported: true, enabled: false };
         case "tunnels_logs":
           return [
             {
