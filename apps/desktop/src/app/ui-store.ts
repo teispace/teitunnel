@@ -9,6 +9,9 @@ interface UiState {
   paletteOpen: boolean;
   /** The Cloudflare account shown in Domains/Routes. */
   activeAccountId: string | null;
+  /** Doctor issues the user chose to ignore (stable issue ids). */
+  ignoredIssues: string[];
+  setIgnored: (id: string, ignored: boolean) => void;
   setActiveAccountId: (id: string | null) => void;
   setPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
@@ -24,6 +27,13 @@ export const useUiStore = create<UiState>()(
       paneSizes: {},
       paletteOpen: false,
       activeAccountId: null,
+      ignoredIssues: [],
+      setIgnored: (id, ignored) =>
+        set((state) => ({
+          ignoredIssues: ignored
+            ? [...new Set([...state.ignoredIssues, id])]
+            : state.ignoredIssues.filter((x) => x !== id),
+        })),
       setActiveAccountId: (activeAccountId) => set({ activeAccountId }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -35,11 +45,18 @@ export const useUiStore = create<UiState>()(
       name: "teitunnel.ui",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ sidebarCollapsed, inspectorOpen, paneSizes, activeAccountId }) => ({
+      partialize: ({
         sidebarCollapsed,
         inspectorOpen,
         paneSizes,
         activeAccountId,
+        ignoredIssues,
+      }) => ({
+        sidebarCollapsed,
+        inspectorOpen,
+        paneSizes,
+        activeAccountId,
+        ignoredIssues,
       }),
     },
   ),

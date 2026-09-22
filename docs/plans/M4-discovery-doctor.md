@@ -28,9 +28,9 @@
 - [ ] Find foreign cloudflared processes, probe metrics ports (defaults + parsed `--metrics`), and show them as Discovered. **Adopt** = observe only (health, metrics). **Take over** = stop theirs and start ours (plan preview, with the explicit warning shown).
 
 ### M4-05 · Doctor framework
-- [ ] `Check` trait, registry, shared snapshot, scheduling (startup, post-apply, connector state change, manual, every 5 min while visible).
-- [ ] Issue dedup and stable issue ids (so dismissals persist). "Ignore this issue" is stored in settings.
-- [ ] Issue → fix `Intent` → planner. "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation.
+- [x] `Check` trait, registry, shared snapshot, scheduling (startup, post-apply, connector state change, manual, every 5 min while visible). *(Checks are pure functions over gathered `Facts` rather than trait objects; runs on open, focus, route changes, manual refresh and every 5 min.)*
+- [x] Issue dedup and stable issue ids (so dismissals persist). "Ignore this issue" is stored in the persisted UI store (per Mac).
+- [x] Issue → fix `Intent` → planner (fixes open the plan sheet). - [ ] "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation.
 
 ### M4-06 · Check catalogue (one file + tests each)
 | Id | Detects | Fix / guidance |
@@ -57,7 +57,7 @@
 | `auth.expiring` | token expiry near (if known) | Renew |
 
 ### M4-07 · UI: Doctor
-- [ ] Sidebar badge with the issue count (errors only). The Doctor view groups issues by severity then subject. The Inspector shows explanation, evidence (log lines, records), and Fix (with a plan preview).
+- [x] Sidebar badge with the issue count (errors only). The Doctor view groups issues by severity then subject. The Inspector shows explanation, evidence (log lines, records), and Fix (with a plan preview). *(Done; log-line evidence comes with M5 logs.)*
 - [ ] "Fix all safe issues" with a combined plan preview.
 - [ ] Issues also appear inline on the affected route/tunnel rows.
 

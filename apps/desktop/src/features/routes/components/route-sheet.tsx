@@ -22,7 +22,9 @@ export type SheetMode =
   | { kind: "edit"; route: RouteView }
   | { kind: "remove"; route: RouteView }
   | { kind: "restore" }
-  | { kind: "removeTunnel" };
+  | { kind: "removeTunnel" }
+  /** A Doctor fix: any change, reviewed like the others. */
+  | { kind: "fix"; change: Change; label: string };
 
 type Stage = "form" | "review" | "applying" | "done";
 
@@ -32,6 +34,7 @@ const titles: Record<SheetMode["kind"], string> = {
   remove: "Remove Route",
   restore: "Restore Routes",
   removeTunnel: "Delete Tunnel",
+  fix: "Fix Issue",
 };
 
 const applyLabels: Record<SheetMode["kind"], string> = {
@@ -40,6 +43,7 @@ const applyLabels: Record<SheetMode["kind"], string> = {
   remove: "Remove",
   restore: "Restore",
   removeTunnel: "Delete Tunnel",
+  fix: "Apply",
 };
 
 function shortOrigin(origin: string) {
@@ -69,6 +73,8 @@ function changeFor(mode: SheetMode, form: { hostname: string; origin: string; pa
       return { type: "restoreConfig" } satisfies Change;
     case "removeTunnel":
       return { type: "removeTunnel" } satisfies Change;
+    case "fix":
+      return mode.change;
   }
 }
 
@@ -112,6 +118,7 @@ const doneMessages: Partial<Record<SheetMode["kind"], string>> = {
   remove: "Route removed",
   restore: "Routes restored",
   removeTunnel: "Tunnel deleted",
+  fix: "Fixed",
 };
 
 interface RouteSheetProps {
@@ -238,7 +245,11 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         : null;
 
   const kind = mode?.kind ?? "add";
-  const destructive = kind === "remove" || kind === "removeTunnel";
+  const destructive =
+    kind === "remove" ||
+    kind === "removeTunnel" ||
+    (mode?.kind === "fix" &&
+      (mode.change.type === "deleteRecord" || mode.change.type === "removeTunnel"));
   const failed = outcome && outcome.type !== "applied" ? outcome : null;
   const url = stage === "done" && verify.variables ? `https://${verify.variables.hostname}` : null;
 
@@ -324,7 +335,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   return (
     <Sheet open={open} onOpenChange={(next) => !next && stage !== "applying" && onClose()}>
       <SheetContent
-        title={titles[kind]}
+        title={mode?.kind === "fix" ? mode.label : titles[kind]}
         description={
           stage === "form"
             ? "Send a hostname on your domain to a service on this Mac."

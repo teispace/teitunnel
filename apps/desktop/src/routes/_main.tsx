@@ -5,6 +5,7 @@ import { navigation } from "@/app/navigation";
 import { AppShell } from "@/components/patterns/app-shell";
 import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
+import { DoctorBadge } from "@/features/doctor";
 
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
@@ -24,6 +25,7 @@ function MainLayout() {
                   label={item.label}
                   icon={item.icon}
                   exact={item.to === "/"}
+                  {...(item.to === "/doctor" ? { badge: <DoctorBadge /> } : {})}
                 />
               ))}
             </SidebarSection>

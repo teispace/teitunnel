@@ -33,6 +33,9 @@ export const queryKeys = {
     activity: (accountId: string) => ["routes", "activity", accountId] as const,
     tunnels: (accountId: string) => ["routes", "tunnels", accountId] as const,
   },
+  doctor: {
+    all: () => ["doctor"] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -47,8 +50,13 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
     case "quickShares":
       return [queryKeys.quickShares.all()];
     case "accounts":
-      return [queryKeys.accounts.all(), queryKeys.domains.all(), queryKeys.routes.all()];
+      return [
+        queryKeys.accounts.all(),
+        queryKeys.domains.all(),
+        queryKeys.routes.all(),
+        queryKeys.doctor.all(),
+      ];
     case "routes":
-      return [queryKeys.routes.all()];
+      return [queryKeys.routes.all(), queryKeys.doctor.all()];
   }
 }

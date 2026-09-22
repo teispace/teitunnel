@@ -356,6 +356,69 @@ export function installMockIpc(): void {
               connector: null,
             },
           ];
+        case "doctor_run":
+          return [
+            {
+              id: "dns.missing:acc-personal:docs.teispace.com",
+              check: "dns.missing",
+              severity: "error",
+              accountId: "acc-personal",
+              subject: "docs.teispace.com",
+              title: "docs.teispace.com has no DNS record",
+              detail:
+                "The tunnel serves this hostname, but nothing points it at the tunnel, so it doesn't resolve.",
+              evidence: [],
+              fixes: [
+                {
+                  type: "change",
+                  label: "Fix the DNS Record",
+                  change: {
+                    type: "addRoute",
+                    route: {
+                      hostname: "docs.teispace.com",
+                      path: null,
+                      origin: "http://localhost:4321",
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              id: "origin.not_listening:acc-personal:api.xyz.dev",
+              check: "origin.not_listening",
+              severity: "warning",
+              accountId: "acc-personal",
+              subject: "api.xyz.dev",
+              title: "Nothing is listening on port 8000",
+              detail:
+                "Start the app this route sends traffic to; visitors see an error until it runs.",
+              evidence: ["api.xyz.dev → http://localhost:8000"],
+              fixes: [],
+            },
+            {
+              id: "dns.orphan_foreign:acc-personal:old.xyz.dev",
+              check: "dns.orphan_foreign",
+              severity: "warning",
+              accountId: "acc-personal",
+              subject: "old.xyz.dev",
+              title: "old.xyz.dev points at a tunnel that no longer exists",
+              detail:
+                "The hostname shows a Cloudflare error. Delete the record, or route it to a tunnel.",
+              evidence: ["old.xyz.dev CNAME 0c1f…e2.cfargotunnel.com (proxied)"],
+              fixes: [
+                {
+                  type: "change",
+                  label: "Delete the Record",
+                  change: {
+                    type: "deleteRecord",
+                    zoneId: "9a7806061c88ada191ed06f989cc3dac",
+                    hostname: "old.xyz.dev",
+                    recordId: "r9",
+                  },
+                },
+              ],
+            },
+          ];
         case "routes_activity":
           return activity;
         case "quick_share_stats":

@@ -48,7 +48,7 @@ pub enum Severity {
 pub enum Fix {
     /// A change in Cloudflare, previewed as a plan before it's applied.
     Change {
-        /// Button title, e.g. "Create the DNS record".
+        /// Button title, e.g. "Fix the DNS Record".
         label: String,
         /// The change.
         change: Change,
@@ -441,7 +441,7 @@ fn diagnose_account(facts: &AccountFacts) -> Vec<Issue> {
             .filter(|r| matches!(r.record.kind.as_str(), "A" | "AAAA" | "CNAME"))
             .collect();
         let fix = || Fix::Change {
-            label: "Fix the DNS record".into(),
+            label: "Fix the DNS Record".into(),
             change: Change::AddRoute {
                 route: RouteInput {
                     hostname: hostname.to_owned(),
