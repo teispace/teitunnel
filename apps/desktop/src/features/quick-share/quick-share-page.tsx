@@ -11,7 +11,7 @@ import { useBinaryStatus, useQuickShares } from "./queries";
 const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 
 /** Quick Share: a public URL for a local service, no account needed. */
-export function QuickSharePage() {
+export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const { data: shares = [] } = useQuickShares();
   const binary = useBinaryStatus();
@@ -29,7 +29,7 @@ export function QuickSharePage() {
                 Get a temporary public URL. Anyone with the link can open it until you stop sharing.
               </p>
             </div>
-            <ShareComposer disabled={missing} />
+            <ShareComposer disabled={missing} autoFocus={compose} />
           </section>
 
           {missing ? <BinaryNotice /> : null}

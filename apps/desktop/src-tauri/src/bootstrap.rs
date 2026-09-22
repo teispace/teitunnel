@@ -1,12 +1,13 @@
 //! Startup and shutdown of the core services.
 
-use std::{sync::atomic::Ordering, time::Duration};
+use std::{collections::HashMap, sync::atomic::Ordering, time::Duration};
 
 use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 use teitunnel_core::{
     binary::{BinaryManager, Locator},
-    quick_share::QuickShares,
+    quick_share::{QuickShare, QuickShares, ShareStatus},
     runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor},
     settings,
     store::Store,
@@ -59,13 +60,24 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     })
 }
 
-/// Turns Quick Share changes into `EntityChanged` events for the webviews.
+/// Turns Quick Share changes into `EntityChanged` events, refreshes the menu bar menu,
+/// and posts notifications for events the user might not see (M1-11).
 fn forward_quick_share_changes<R: Runtime>(app: AppHandle<R>, quick_shares: &QuickShares) {
     let mut changes = quick_shares.subscribe();
+    let quick_shares = quick_shares.clone();
     tauri::async_runtime::spawn(async move {
+        let mut last: HashMap<String, ShareStatus> = HashMap::new();
         loop {
             match changes.recv().await {
                 Ok(id) => {
+                    let shares = quick_shares.list();
+                    shell::tray::refresh(&app, &shares);
+                    let current = shares.iter().find(|share| share.id == id);
+                    notify_transition(&app, last.get(&id), current);
+                    match current {
+                        Some(share) => last.insert(id.clone(), share.status.clone()),
+                        None => last.remove(&id),
+                    };
                     let event = EntityChanged {
                         kind: EntityKind::QuickShares,
                         id: Some(id),
@@ -79,6 +91,33 @@ fn forward_quick_share_changes<R: Runtime>(app: AppHandle<R>, quick_shares: &Qui
             }
         }
     });
+}
+
+/// Notifies when a share goes live or fails, but only if no Teitunnel window has focus:
+/// otherwise the user is already looking at it.
+fn notify_transition<R: Runtime>(
+    app: &AppHandle<R>,
+    before: Option<&ShareStatus>,
+    after: Option<&QuickShare>,
+) {
+    let Some(share) = after else { return };
+    let focused = app
+        .webview_windows()
+        .values()
+        .any(|w| w.is_focused().unwrap_or(false));
+    if focused || before == Some(&share.status) {
+        return;
+    }
+    let (title, body) = match (&share.status, before) {
+        (ShareStatus::Live, Some(ShareStatus::Starting)) => {
+            ("Quick Share is live", share.url.clone().unwrap_or_default())
+        }
+        (ShareStatus::Failed { message }, _) => ("Quick Share stopped working", message.clone()),
+        _ => return,
+    };
+    if let Err(err) = app.notification().builder().title(title).body(body).show() {
+        tracing::warn!(error = %err, "failed to show notification");
+    }
 }
 
 /// Handles an exit request: the first one is deferred while every Session connector

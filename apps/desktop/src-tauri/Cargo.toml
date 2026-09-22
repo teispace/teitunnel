@@ -28,6 +28,8 @@ tauri-build.workspace = true
 teitunnel-core = { workspace = true, features = ["specta"] }
 tauri = { workspace = true, features = ["macos-private-api"] }
 tauri-plugin-opener.workspace = true
+tauri-plugin-clipboard-manager.workspace = true
+tauri-plugin-notification.workspace = true
 tauri-plugin-window-state.workspace = true
 tauri-specta.workspace = true
 specta.workspace = true

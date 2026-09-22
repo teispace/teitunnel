@@ -222,10 +222,7 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
         SETTINGS => windows::open_settings(app),
         DOCS => open_url(app, DOCS_URL),
         ISSUE => open_url(app, ISSUE_URL),
-        tray::OPEN => {
-            windows::focus_main(app);
-            Ok(())
-        }
+        other if tray::on_event(app, other) => Ok(()),
         other => match command_for(other) {
             Some(command) => {
                 windows::focus_main(app);

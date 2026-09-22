@@ -39,6 +39,8 @@ pub fn run() -> Result<(), tauri::Error> {
         }))
         .plugin(shell::windows::state_plugin())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(specta.invoke_handler())
         .menu(shell::menu::build)
         .on_menu_event(|app, event| shell::menu::on_event(app, &event))

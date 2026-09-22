@@ -1,5 +1,5 @@
 import { Popover as PopoverPrimitive } from "radix-ui";
-import { type KeyboardEvent, useId, useState } from "react";
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
 import type { LocalService, ServiceKind } from "@/lib/ipc/bindings";
@@ -45,6 +45,7 @@ function matches(service: LocalService, query: string): boolean {
 }
 
 interface ServicePickerProps {
+  autoFocus?: boolean;
   value: string;
   onChange: (value: string) => void;
   invalid?: boolean;
@@ -55,7 +56,17 @@ interface ServicePickerProps {
  * A text field for a port or address, with a list of services detected on this Mac.
  * Typing filters the list; arrows and Enter pick; Escape closes it.
  */
-export function ServicePicker({ value, onChange, invalid, describedBy }: ServicePickerProps) {
+export function ServicePicker({
+  autoFocus = false,
+  value,
+  onChange,
+  invalid,
+  describedBy,
+}: ServicePickerProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -86,6 +97,7 @@ export function ServicePicker({ value, onChange, invalid, describedBy }: Service
       <PopoverPrimitive.Anchor asChild>
         <div className="min-w-0 flex-1">
           <Input
+            ref={inputRef}
             role="combobox"
             aria-label="Port or address"
             aria-expanded={open}

@@ -15,7 +15,13 @@ const autoStops = [
 type AutoStop = (typeof autoStops)[number]["value"];
 
 /** Origin field + auto-stop + one primary action. */
-export function ShareComposer({ disabled = false }: { disabled?: boolean }) {
+export function ShareComposer({
+  disabled = false,
+  autoFocus = false,
+}: {
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
   const [origin, setOrigin] = useState("");
   const [autoStop, setAutoStop] = useState<AutoStop>("never");
   const start = useStartShare();
@@ -41,6 +47,7 @@ export function ShareComposer({ disabled = false }: { disabled?: boolean }) {
             setOrigin(value);
             if (start.error) start.reset();
           }}
+          autoFocus={autoFocus}
           invalid={fieldError !== null}
           describedBy={fieldError ? errorId : undefined}
         />

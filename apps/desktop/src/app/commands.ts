@@ -72,7 +72,7 @@ export const appCommands: readonly AppCommand[] = [
     icon: Share,
     shortcut: "⇧⌘N",
     menu: "newQuickShare",
-    run: ({ navigate }) => void navigate({ to: "/quick-share" }),
+    run: ({ navigate }) => void navigate({ to: "/quick-share", search: { compose: true } }),
   },
   {
     id: "refresh",
