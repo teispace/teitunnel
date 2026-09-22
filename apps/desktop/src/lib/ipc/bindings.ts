@@ -148,7 +148,7 @@ export type CredentialKind =
 /**  A user API token. */
 "apiToken" | 
 /**  OAuth sign-in (refresh token in the keychain). */
-"oAuth" | 
+"oauth" | 
 /**  Imported from `cloudflared tunnel login` (cert.pem); one zone only. */
 "certPem";
 

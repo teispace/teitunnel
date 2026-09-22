@@ -37,6 +37,7 @@ pub enum CredentialKind {
     /// A user API token.
     ApiToken,
     /// OAuth sign-in (refresh token in the keychain).
+    #[serde(rename = "oauth")]
     OAuth,
     /// Imported from `cloudflared tunnel login` (cert.pem); one zone only.
     CertPem,

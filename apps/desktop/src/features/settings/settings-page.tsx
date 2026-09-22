@@ -1,8 +1,9 @@
-import { Cable, type LucideIcon, Settings2 } from "lucide-react";
+import { Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
+import { AccountsPane } from "@/features/accounts";
 import { CloudflaredPane } from "@/features/binary";
 import { cn } from "@/lib/cn";
 import { useSettings, useUpdateSettings } from "./queries";
@@ -13,10 +14,11 @@ const themes = [
   { value: "dark", label: "Dark" },
 ] as const;
 
-type Tab = "general" | "cloudflared";
+type Tab = "general" | "accounts" | "cloudflared";
 
 const tabs: readonly { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: "General", icon: Settings2 },
+  { id: "accounts", label: "Accounts", icon: CircleUser },
   { id: "cloudflared", label: "cloudflared", icon: Cable },
 ];
 
@@ -54,7 +56,13 @@ export function SettingsPage() {
         </div>
       </header>
       <div role="tabpanel" className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 pt-4 pb-6">
-        {tab === "general" ? <GeneralPane /> : <CloudflaredPane />}
+        {tab === "general" ? (
+          <GeneralPane />
+        ) : tab === "accounts" ? (
+          <AccountsPane />
+        ) : (
+          <CloudflaredPane />
+        )}
       </div>
     </div>
   );

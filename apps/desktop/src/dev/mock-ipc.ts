@@ -1,6 +1,9 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type {
+  Account,
   AppInfo,
+  Capabilities,
+  Domain,
   LocalService,
   QuickShare,
   Settings,
@@ -75,6 +78,52 @@ const services: LocalService[] = [
   },
 ];
 
+const accounts: Account[] = [
+  { id: "acc-personal", name: "Krishna's account", credential: "apiToken", limitedZone: null },
+];
+
+const domains: Domain[] = [
+  {
+    id: "023e105f4ecef8ad9ca31a8372d0c353",
+    name: "teispace.com",
+    status: "active",
+    nameServers: ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
+    originalNameServers: [],
+    plan: "Free Website",
+    paused: false,
+  },
+  {
+    id: "9a7806061c88ada191ed06f989cc3dac",
+    name: "xyz.dev",
+    status: "active",
+    nameServers: ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
+    originalNameServers: [],
+    plan: "Pro Website",
+    paused: false,
+  },
+  {
+    id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+    name: "yx.app",
+    status: "pending",
+    nameServers: ["kate.ns.cloudflare.com", "rick.ns.cloudflare.com"],
+    originalNameServers: ["ns1.registrar.example", "ns2.registrar.example"],
+    plan: "Free Website",
+    paused: false,
+  },
+];
+
+const capabilities: Capabilities = {
+  zonesRead: "yes",
+  tunnelsRead: "yes",
+  tunnelsEdit: "yes",
+  accessEdit: "no",
+  zones: domains.map((d) => ({
+    zoneId: d.id,
+    zoneName: d.name,
+    dnsEdit: d.name === "yx.app" ? "no" : "yes",
+  })),
+};
+
 const stats: ShareStats = { requests: 1284, errors: 3 };
 const appInfo: AppInfo = {
   version: "0.0.0-dev",
@@ -128,6 +177,14 @@ export function installMockIpc(): void {
         case "quick_share_stop":
           shares = shares.filter((s) => s.id !== payload["id"]);
           return null;
+        case "accounts_list":
+          return accounts;
+        case "accounts_capabilities":
+          return capabilities;
+        case "accounts_detect_cert":
+          return true;
+        case "domains_list":
+          return domains;
         case "quick_share_stats":
           return stats;
         case "quick_share_logs":

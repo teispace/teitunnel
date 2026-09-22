@@ -17,6 +17,15 @@ export const queryKeys = {
   services: {
     all: () => ["services"] as const,
   },
+  accounts: {
+    all: () => ["accounts"] as const,
+    capabilities: (id: string) => ["accounts", "capabilities", id] as const,
+    cert: () => ["accounts", "cert"] as const,
+  },
+  domains: {
+    all: () => ["domains"] as const,
+    list: (accountId: string) => ["domains", accountId] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -30,5 +39,7 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.settings.all()];
     case "quickShares":
       return [queryKeys.quickShares.all()];
+    case "accounts":
+      return [queryKeys.accounts.all(), queryKeys.domains.all()];
   }
 }

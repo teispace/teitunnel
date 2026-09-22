@@ -7,6 +7,9 @@ interface UiState {
   inspectorOpen: boolean;
   paneSizes: Record<string, number>;
   paletteOpen: boolean;
+  /** The Cloudflare account shown in Domains/Routes. */
+  activeAccountId: string | null;
+  setActiveAccountId: (id: string | null) => void;
   setPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
@@ -20,6 +23,8 @@ export const useUiStore = create<UiState>()(
       inspectorOpen: true,
       paneSizes: {},
       paletteOpen: false,
+      activeAccountId: null,
+      setActiveAccountId: (activeAccountId) => set({ activeAccountId }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       toggleInspector: () => set((state) => ({ inspectorOpen: !state.inspectorOpen })),
@@ -30,10 +35,11 @@ export const useUiStore = create<UiState>()(
       name: "teitunnel.ui",
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ sidebarCollapsed, inspectorOpen, paneSizes }) => ({
+      partialize: ({ sidebarCollapsed, inspectorOpen, paneSizes, activeAccountId }) => ({
         sidebarCollapsed,
         inspectorOpen,
         paneSizes,
+        activeAccountId,
       }),
     },
   ),
