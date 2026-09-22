@@ -28,6 +28,7 @@ import { StatusDot } from "@/components/ui/status-dot";
 import { Switch } from "@/components/ui/switch";
 import { TextArea } from "@/components/ui/text-area";
 import { Tooltip } from "@/components/ui/tooltip";
+import { PatternsDemo } from "./patterns-demo";
 
 const themes = [
   { value: "system", label: "System" },
@@ -55,7 +56,7 @@ export default function Gallery() {
         />
       </TitlebarToolbar>
       <ScrollArea onScrolledChange={setScrolled}>
-        <div className="mx-auto flex max-w-[640px] flex-col gap-6 px-5 pt-2 pb-10">
+        <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-5 pt-2 pb-10">
           <GroupedSection title="Buttons">
             <GroupedRow label="Primary, secondary, plain, destructive">
               <Button variant="primary">Apply</Button>
@@ -264,6 +265,11 @@ export default function Gallery() {
               </Button>
             </GroupedRow>
           </GroupedSection>
+
+          <section className="flex flex-col">
+            <h3 className="px-2.5 pb-2.5 text-headline">List, detail, inspector</h3>
+            <PatternsDemo />
+          </section>
 
           <GroupedSection title="Disclosure">
             <div className="py-2">

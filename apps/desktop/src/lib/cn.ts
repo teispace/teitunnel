@@ -27,6 +27,8 @@ const twMerge = extendTailwindMerge({
       "border-w": ["border-hairline"],
       "border-w-t": ["border-t-hairline"],
       "border-w-b": ["border-b-hairline"],
+      "border-w-l": ["border-l-hairline"],
+      "border-w-r": ["border-r-hairline"],
     },
   },
 });

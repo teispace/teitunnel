@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "@/routeTree.gen";
+import { RouteError } from "./route-error";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -14,6 +15,7 @@ export function createAppRouter(queryClient: QueryClient) {
     // Local data is instant; never flash a pending state for it.
     defaultPendingMs: 300,
     scrollRestoration: true,
+    defaultErrorComponent: RouteError,
   });
 }
 

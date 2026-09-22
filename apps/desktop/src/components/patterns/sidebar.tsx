@@ -1,7 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { PanelLeft } from "lucide-react";
+import type { KeyboardEvent, ReactNode } from "react";
 import type { NavItem } from "@/app/navigation";
+import { useUiStore } from "@/app/ui-store";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 /** Full-height source-list sidebar over the window's native vibrancy (DESIGN §2). */
@@ -11,11 +14,37 @@ export function Sidebar({ children, footer }: { children: ReactNode; footer?: Re
       aria-label="Sidebar"
       className="flex h-full w-(--sidebar-width) shrink-0 flex-col bg-surface-sidebar"
     >
-      <div data-tauri-drag-region="deep" className="h-(--toolbar-height) shrink-0" />
-      <nav className="flex-1 overflow-y-auto overscroll-contain px-2.5 pb-3">{children}</nav>
+      <div
+        data-tauri-drag-region="deep"
+        className="flex h-(--toolbar-height) shrink-0 items-center justify-end px-2.5"
+      >
+        <IconButton
+          icon={PanelLeft}
+          label="Hide sidebar"
+          onClick={useUiStore.getState().toggleSidebar}
+        />
+      </div>
+      <nav
+        onKeyDown={moveSelection}
+        className="flex-1 overflow-y-auto overscroll-contain px-2.5 pb-3"
+      >
+        {children}
+      </nav>
       {footer ? <div className="shrink-0 px-2.5 pb-2.5">{footer}</div> : null}
     </aside>
   );
+}
+
+/** Up/Down move between items and select them, as in a native source list. */
+function moveSelection(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const links = [...event.currentTarget.querySelectorAll<HTMLAnchorElement>("a[href]")];
+  const current = links.indexOf(document.activeElement as HTMLAnchorElement);
+  const next = links[current + (event.key === "ArrowDown" ? 1 : -1)];
+  if (!next) return;
+  event.preventDefault();
+  next.focus();
+  next.click();
 }
 
 export function SidebarSection({ title, children }: { title: string | null; children: ReactNode }) {

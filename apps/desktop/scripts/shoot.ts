@@ -3,6 +3,7 @@
 // by painting the sidebar with the measured material colour.
 //
 // Usage: node scripts/shoot.ts <out-dir> [route ...]   (default route: /dev/gallery)
+// Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -11,6 +12,7 @@ import { createServer } from "vite";
 const [outDir = "screenshots", ...routes] = process.argv.slice(2);
 const targets = routes.length > 0 ? routes : ["/dev/gallery"];
 const actions = (process.env["SHOOT_ACTIONS"] ?? "").split(";").filter(Boolean);
+const scrollTo = process.env["SHOOT_SCROLL"];
 
 // Measured NSVisualEffectView `sidebar` material on macOS 27 (D-024), before our tint.
 const VIBRANCY =
@@ -35,6 +37,7 @@ try {
       await page.evaluate(() => {
         document.documentElement.dataset["windowActive"] = "true";
       });
+      if (scrollTo) await page.locator(scrollTo).first().scrollIntoViewIfNeeded();
       for (const selector of actions) await page.click(selector);
       await page.waitForTimeout(700);
       const name = `${route.replace(/\W+/g, "-").replace(/^-|-$/g, "") || "overview"}-${scheme}.png`;

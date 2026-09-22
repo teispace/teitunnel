@@ -37,7 +37,7 @@ Every UI PR is reviewed against the **checklist at the bottom**.
 | Title bar height (drag region) | 52 px unified toolbar area; the content toolbar lives in it |
 | Sidebar | 220 px (resizable 180–300), vibrancy `sidebar` material plus a dark-mode tint (D-024), collapsible (⌘⌥S) |
 | Content | opaque `--surface-content` |
-| Inspector | 320 px (resizable 280–480), toggle ⌘⌥I |
+| Inspector | 320 px (resizable 240–480), toggle ⌘⌥I. List pane min 200, detail min 180, so three panes fit the minimum window |
 | Split | Sidebar │ List │ Inspector (three-pane), like Mail/Finder |
 
 The window uses `transparent: true` + `windowEffects: { effects: ["sidebar"], state: "followsWindowActiveState" }` + `macOSPrivateApi: true`. Only the sidebar region is transparent; content panes paint opaque backgrounds. When the window is inactive, the vibrancy dims and the accent colour turns grey, as in native apps.
