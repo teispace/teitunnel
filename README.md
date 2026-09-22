@@ -2,7 +2,11 @@
 
 **A native desktop app for Cloudflare Tunnel.** Put any local app on your own domain in under a minute, and keep it clean, healthy and under control.
 
-> **Status: early development.** Teitunnel is being rebuilt from the ground up. The first release (v0.1, Quick Share for macOS) is in progress. See the [roadmap](docs/ROADMAP.md) and [current status](docs/STATUS.md).
+> **Status: developer preview.** Quick Share for macOS works today; custom domains are next. See the [roadmap](docs/ROADMAP.md) and [current status](docs/STATUS.md).
+
+<p align="center">
+  <img src="docs/screenshots/M1-09/quick-share-dark.png" alt="Teitunnel Quick Share in dark mode" width="720">
+</p>
 
 ## What it will do
 
@@ -16,6 +20,12 @@
 - **Live insight:** request rates, errors, latency, edge locations and structured logs.
 - **Native:** built to feel like it shipped with macOS. Keyboard-first, menu bar extra, light and dark.
 - **Private and secure:** credentials live in your OS keychain. No telemetry and no Teitunnel servers.
+
+## Install
+
+Download the latest `.dmg` from [Releases](https://github.com/teispace/teitunnel/releases), drag Teitunnel to Applications, and open it. Developer previews aren't notarized yet: the first time, right-click the app and choose **Open**.
+
+Teitunnel uses [cloudflared](https://github.com/cloudflare/cloudflared). If you don't have it, Teitunnel installs Cloudflare's official release for you (verified against the published checksum and Cloudflare's code signature).
 
 ## Platforms
 

@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cloudflared"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde_json",
  "sysinfo",
@@ -5147,7 +5147,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cf-api"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5156,7 +5156,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cloudflared"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "flate2",
  "proptest",
@@ -5175,7 +5175,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "listeners",
  "nix",
@@ -5200,7 +5200,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-desktop"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "objc2-app-kit",
  "serde",

@@ -13,7 +13,7 @@
     "check": "biome ci . && pnpm --filter @teitunnel/desktop typecheck && cargo clippy --workspace --all-targets --locked -- -D warnings",
     "test": "pnpm --filter @teitunnel/desktop test && cargo nextest run --workspace --locked",
     "fmt": "biome check --write . && cargo fmt --all",
-    "bindings": "cargo run --quiet --locked -p teitunnel-desktop --bin export-bindings",
+    "bindings": "cargo run --quiet --locked -p teitunnel-desktop --features bindings --bin export-bindings",
     "prepare": "lefthook install",
     "verify": "pnpm check && pnpm test && cargo deny check --hide-inclusion-graph"
   },

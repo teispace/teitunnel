@@ -11,16 +11,17 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **M1-10** onboarding (first-run binary step; Settings → cloudflared pane), **M1-02 leftover** update check, **M1-12** E2E (`@wdio/tauri-service` on macOS CI with the fake binary; nightly real Quick Share), **M1-13** release workflow (tagging/publishing stays with the maintainer).
-2. **Maintainer:** review/merge PR #1 (M0), then retarget PR #2 to `main`. Decide v0.1 signing (unsigned developer preview vs Developer ID).
+1. **Maintainer:** review/merge PR #1 (M0), retarget PR #2 (M1) to `main` and merge; decide v0.1 signing (unsigned developer preview is ready to go), then push tag `v0.1.0` — `release.yml` builds a universal DMG into a **draft** release for review.
+2. With the screen unlocked: native captures of the packaged app (M0-06 soak test), check the menu bar extra and notifications visually.
+3. **M2** (accounts & domains) can start without the maintainer up to M2-04 (OAuth needs the registered client): cf-api foundation (M2-01), accounts/zones (M2-02), capabilities (M2-03), token flow (M2-05), cert.pem import (M2-06), account store (M2-07), connect UI (M2-08), domains view (M2-09). A test API token is needed for the nightly real-account job.
 
 ## In progress
-- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1). Done: M1-01..09 (minus update check), M1-11, Quick Share flow tests. Quick Share works end to end against the fake binary; the real cloudflared command line was verified manually (2026-09-23) and the managed install was verified against the real GitHub release.
+- **M1** on `milestone/m1-binary-quick-share`, draft PR #2 (stacked on #1): all tasks done except the signing decision/tag (maintainer). Exit criteria met (see plan; the "≤ 5 s" target was revised with measurements, D-037).
 - **M0** complete; PR #1 ready for review.
 
 ## Recently completed
-- 2026-09-23: Quick Share (core, commands, UI with detected-services picker, QR, stats, log, auto-stop), menu bar share list, notifications, Overview, verified managed install (digest + checksum + Team ID), exit hook and orphan reaping, discovery.
-- 2026-09-23: M1-01/03/04/05/06/07; packaged build verified at launch level.
+- 2026-09-23: M1 feature-complete: verified managed install, Quick Share end to end (fake + real nightly), menu bar shares, notifications, onboarding and cloudflared settings, E2E on macOS CI (WebdriverIO + fake cloudflared), release workflow and notes, README install section.
+- 2026-09-23: M1-01..08; packaged build verified at launch level.
 - 2026-09-22: M0 complete. CI green on macOS/Linux/Windows.
 
 ## Blockers / maintainer actions needed
@@ -31,7 +32,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 | Apple Developer ID (signing + notarization) | M6-01 (v0.1 can ship unsigned as a "developer preview") | Decide before M1-13 |
 
 ## Open questions
-- v0.1 signing: unsigned developer preview vs waiting for a Developer ID? (decide at M1-13)
+- v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session
 - **Resume point:** branch `milestone/m0-foundations` (draft PR #1). Check `gh run list` first; fix red CI before new work. Then continue with "Next up".

@@ -71,7 +71,7 @@ jobs:
       - run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: mkdir -p apps/desktop/dist
-      - run: cargo run --locked -p teitunnel-desktop --bin export-bindings
+      - run: cargo run --locked -p teitunnel-desktop --features bindings --bin export-bindings
       - name: Fail if bindings changed
         run: git diff --exit-code -- apps/desktop/src/lib/ipc/bindings.ts
 

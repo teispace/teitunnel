@@ -94,7 +94,11 @@ Sources: https://developers.cloudflare.com/changelog/post/2026-06-03-public-oaut
 ### API token template URL
 Source: https://developers.cloudflare.com/fundamentals/api/reference/template/
 - User token: `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=<urlencoded JSON [{"key":"…","type":"edit|read"}]>&accountId=*&zoneId=all&name=Teitunnel`
-- **TODO (M2):** record exact permission keys for Cloudflare Tunnel edit, DNS edit, Zone read, Account settings read, and Access apps/policies edit.
+- Verified 2026-09-23 (cloudflare-docs `fundamentals/api/how-to/account-owned-token-template.mdx` and PR #33557):
+  - `permissionGroupKeys` is a URL-encoded JSON array of `{"key": "<short key>", "type": "read" | "edit" | "revoke" | "run" | "purge"}` (user tokens use `edit`, not `write`).
+  - **User token URLs** accept short keys only; entries that don't match a permission group are **dropped silently**. Account token URLs (`https://dash.cloudflare.com/?to=/:account/api-tokens&permissionGroupKeys=…&name=…`) also accept permission group IDs and show a notice for unresolved keys.
+  - Documented short keys we need: `dns` (DNS records), `zone` (zone management), `account_settings`, `access`, `access_acct`. Example: `[{"key":"dns","type":"edit"}]`.
+  - **Unverified:** the short key for *Cloudflare Tunnel* (not in the docs table). Candidate `argotunnel` (the legacy permission name). Because unknown keys are dropped silently, the token screen must tell users to add "Account → Cloudflare Tunnel → Edit" if it isn't pre-selected, and capability probing (M2-03) must catch a missing tunnel permission. **Maintainer:** open the generated URL once and confirm; alternatively use an account token URL with the permission group ID from `GET /accounts/{id}/tokens/permission_groups`.
 
 ### cert.pem (from `cloudflared tunnel login`)
 - The PEM block `ARGO TUNNEL TOKEN` holds base64 JSON `{zoneID, accountID, apiToken}`. The token is scoped to the zone chosen at login, so it counts as a limited credential.

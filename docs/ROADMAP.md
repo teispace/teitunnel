@@ -5,8 +5,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 
 | Milestone | Release | Theme | Status |
 |---|---|---|---|
-| [M0](plans/M0-foundations.md) | — | Workspace, native shell, design system, typed IPC, CI | ⏳ Next |
-| [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | Planned |
+| [M0](plans/M0-foundations.md) | — | Workspace, native shell, design system, typed IPC, CI | ✅ Done (PR #1, awaiting merge) |
+| [M1](plans/M1-binary-quick-share.md) | v0.1.0 | cloudflared manager, supervisor, Quick Share | ⏳ Release prep (PR #2) |
 | [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | Planned |
 | [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | Planned |
 | [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | Planned |
@@ -19,23 +19,23 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ## Milestone checklist (epic level)
 
 ### M0: Foundations
-- [ ] M0-01 Workspace skeleton
-- [ ] M0-02 Library crates
-- [ ] M0-03 Tauri app shell
-- [ ] M0-04 Frontend scaffold
-- [ ] M0-05 Typed IPC pipeline
-- [ ] M0-06 Design tokens, motion & platform styling
-- [ ] M0-07 UI primitives
-- [ ] M0-08 Layout patterns
-- [ ] M0-09 Native menus, tray stub, shortcuts
-- [ ] M0-10 Store foundation
-- [ ] M0-11 CI
-- [ ] M0-12 Repo hygiene
+- [x] M0-01 Workspace skeleton
+- [x] M0-02 Library crates
+- [x] M0-03 Tauri app shell
+- [x] M0-04 Frontend scaffold
+- [x] M0-05 Typed IPC pipeline
+- [x] M0-06 Design tokens, motion & platform styling (native captures of the packaged app pending an unlocked screen)
+- [x] M0-07 UI primitives
+- [x] M0-08 Layout patterns
+- [x] M0-09 Native menus, tray stub, shortcuts
+- [x] M0-10 Store foundation
+- [x] M0-11 CI
+- [x] M0-12 Repo hygiene
 
 ### M1: cloudflared + Quick Share (v0.1.0)
-- [ ] M1-01 Locate + version · [ ] M1-02 Managed install · [ ] M1-03 Command builders · [ ] M1-04 Log parser
-- [ ] M1-05 Local endpoints · [ ] M1-06 fake-cloudflared · [ ] M1-07 Supervisor · [ ] M1-08 Port discovery
-- [ ] M1-09 Quick Share · [ ] M1-10 Onboarding (binary) · [ ] M1-11 Notifications · [ ] M1-12 Tests/E2E · [ ] M1-13 Release
+- [x] M1-01 Locate + version · [x] M1-02 Managed install · [x] M1-03 Command builders · [x] M1-04 Log parser
+- [x] M1-05 Local endpoints · [x] M1-06 fake-cloudflared · [x] M1-07 Supervisor · [x] M1-08 Port discovery
+- [x] M1-09 Quick Share · [x] M1-10 Onboarding (binary) · [x] M1-11 Notifications · [x] M1-12 Tests/E2E · [ ] M1-13 Release (workflow and notes ready; signing decision and tag: maintainer)
 
 ### M2: Accounts & Domains (v0.2.0)
 - [ ] M2-01 cf-api foundation · [ ] M2-02 Accounts/zones · [ ] M2-03 Capabilities · [ ] M2-04 OAuth
