@@ -1,0 +1,72 @@
+use serde::{Deserialize, Serialize};
+
+/// Why a path rule was rejected.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum PathError {
+    /// Not a valid regular expression.
+    #[error("That path pattern isn't valid: {0}")]
+    Invalid(String),
+    /// Uses syntax Go's RE2 (cloudflared) doesn't support.
+    #[error("cloudflared doesn't support look-around or back-references in paths.")]
+    Unsupported,
+}
+
+/// A path regex for an ingress rule, e.g. `^/api/`. Validated with Rust's `regex`
+/// (the same RE2-style syntax family as cloudflared's Go regexp).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(try_from = "String", into = "String")]
+pub struct PathRule(String);
+
+impl PathRule {
+    /// Validates a path pattern.
+    ///
+    /// # Errors
+    /// See [`PathError`].
+    pub fn parse(input: &str) -> Result<Self, PathError> {
+        let pattern = input.trim();
+        if ["(?=", "(?!", "(?<=", "(?<!"]
+            .iter()
+            .any(|s| pattern.contains(s))
+            || pattern.contains("\\1")
+        {
+            return Err(PathError::Unsupported);
+        }
+        regex::Regex::new(pattern).map_err(|err| PathError::Invalid(err.to_string()))?;
+        Ok(Self(pattern.to_owned()))
+    }
+
+    /// The pattern.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for PathRule {
+    type Error = PathError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl From<PathRule> for String {
+    fn from(path: PathRule) -> Self {
+        path.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_patterns() {
+        assert!(PathRule::parse("^/api/").is_ok());
+        assert!(PathRule::parse("\\.(png|jpg)$").is_ok());
+        assert!(matches!(
+            PathRule::parse("(unclosed"),
+            Err(PathError::Invalid(_))
+        ));
+        assert_eq!(PathRule::parse("^/(?!admin)"), Err(PathError::Unsupported));
+    }
+}
