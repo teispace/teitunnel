@@ -13,6 +13,7 @@ pub mod doctor;
 pub mod domain;
 pub mod engine;
 mod error;
+pub mod health;
 pub mod import;
 pub mod machine;
 pub mod platform;

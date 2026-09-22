@@ -88,6 +88,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     };
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
     watch_tray_routes(app.clone());
+    watch_connector_health(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
 
     Ok(AppState {
@@ -101,6 +102,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         supervisor,
         quick_shares,
         oauth_cancel: std::sync::Mutex::default(),
+        paused: std::sync::Mutex::default(),
         shutting_down: false.into(),
     })
 }
@@ -212,6 +214,76 @@ fn resume_machine_tunnels<R: Runtime>(
     });
 }
 
+/// Whether any Teitunnel window has focus (then the user sees changes already).
+fn any_window_focused<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.webview_windows()
+        .values()
+        .any(|w| w.is_focused().unwrap_or(false))
+}
+
+fn notify<R: Runtime>(app: &AppHandle<R>, title: &str, body: &str) {
+    if any_window_focused(app) {
+        return;
+    }
+    if let Err(err) = app.notification().builder().title(title).body(body).show() {
+        tracing::warn!(error = %err, "failed to show notification");
+    }
+}
+
+/// Notifies when this Mac's connector goes down, comes back, or crash-loops (the policy
+/// is `core::health`: brief blips stay quiet). Connectors the user stopped are skipped.
+fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{
+        engine::Connectors,
+        health::{HealthWatch, Notice},
+    };
+    tauri::async_runtime::spawn(async move {
+        let mut watch = HealthWatch::default();
+        let mut tick = tokio::time::interval(Duration::from_secs(10));
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+            for account in state.accounts.list().await.unwrap_or_default() {
+                let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await
+                else {
+                    continue;
+                };
+                let id = tunnel.tunnel_id;
+                let paused = state
+                    .paused
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .contains(&id);
+                if paused {
+                    watch.forget(&id);
+                    continue;
+                }
+                match watch.observe(&id, state.machine.state(&id).as_ref(), now) {
+                    Some(Notice::Down) => notify(
+                        &app,
+                        "Routes on this Mac are down",
+                        "The connector lost its connection to Cloudflare. Teitunnel keeps retrying.",
+                    ),
+                    Some(Notice::Back) => {
+                        notify(&app, "Routes are back", "The connector is connected again.");
+                    }
+                    Some(Notice::CrashLoop) => notify(
+                        &app,
+                        "The connector keeps stopping",
+                        "Open Teitunnel's Doctor to see why.",
+                    ),
+                    None => {}
+                }
+            }
+        }
+    });
+}
+
 /// Turns Quick Share changes into `EntityChanged` events, refreshes the menu bar menu,
 /// and posts notifications for events the user might not see (M1-11).
 fn forward_quick_share_changes<R: Runtime>(app: AppHandle<R>, quick_shares: &QuickShares) {
@@ -253,11 +325,7 @@ fn notify_transition<R: Runtime>(
     after: Option<&QuickShare>,
 ) {
     let Some(share) = after else { return };
-    let focused = app
-        .webview_windows()
-        .values()
-        .any(|w| w.is_focused().unwrap_or(false));
-    if focused || before == Some(&share.status) {
+    if any_window_focused(app) || before == Some(&share.status) {
         return;
     }
     let (title, body) = match (&share.status, before) {

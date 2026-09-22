@@ -30,6 +30,8 @@ pub struct AppState {
     pub edge: teitunnel_core::engine::Edge,
     /// Cancels the OAuth sign-in in progress, if any.
     pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    /// Tunnels whose connector the user stopped (not reported as down).
+    pub paused: std::sync::Mutex<std::collections::HashSet<String>>,
     /// Set once shutdown has started, so the exit hook runs only once.
     pub shutting_down: AtomicBool,
 }

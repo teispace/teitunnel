@@ -43,4 +43,4 @@
 - [ ] Quit confirmation when Session connectors are running ("Switch them to Always-on?" as a shortcut).
 
 ### M5-07 · Notifications policy
-- [ ] Settings: notify on connector down / recovered / crash loop / Doctor error / Quick Share events. Coalesced (no storms), and suppressed while the window is focused.
+- [ ] Settings: notify on connector down / recovered / crash loop / Doctor error / Quick Share events. Coalesced (no storms), and suppressed while the window is focused. *(Connector down (after 20 s) / back / crash loop and Quick Share events notify, coalesced per outage and suppressed while focused; `core::health`. Per-event settings and Doctor-error notices remain.)*

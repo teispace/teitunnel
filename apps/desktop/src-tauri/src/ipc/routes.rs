@@ -185,6 +185,13 @@ pub async fn tunnels_start(
     account_id: String,
 ) -> Result<(), AppError> {
     let api = state.accounts.client(&account_id).await?;
+    if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account_id).await {
+        state
+            .paused
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&tunnel.tunnel_id);
+    }
     state
         .machine
         .resume(&api, &account_id)
@@ -203,6 +210,11 @@ pub async fn tunnels_stop(
     account_id: String,
     tunnel_id: String,
 ) -> Result<(), AppError> {
+    state
+        .paused
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(tunnel_id.clone());
     state
         .machine
         .stop(&tunnel_id)
