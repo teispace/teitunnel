@@ -19,7 +19,8 @@ describe("Quick Share", () => {
     const url = await card.$("span*=trycloudflare.com");
     await url.waitForExist({ timeout: 15_000 });
     await expect(url).toHaveText(expect.stringMatching(/^https:\/\/fake-\d+\.trycloudflare\.com$/));
-    await expect(card.$("span=Live")).toBeExisting();
+    // Live comes ~6 s after the URL (DNS propagation allowance, D-037).
+    await card.$("span=Live").waitForExist({ timeout: 20_000 });
     expect(fakeConnectors()).toHaveLength(1);
 
     await card.$("button=Stop sharing").click();
