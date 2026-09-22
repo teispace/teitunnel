@@ -40,6 +40,9 @@ tracing-subscriber.workspace = true
 tracing-appender.workspace = true
 tokio.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit.workspace = true
+
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance.workspace = true
 

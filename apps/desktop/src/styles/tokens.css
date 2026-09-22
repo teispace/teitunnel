@@ -15,7 +15,8 @@
     sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 
-  /* Accent: the system accent colour, with Apple's default blue as a fallback. */
+  /* Accent: Apple's default blue. On macOS the shell overrides it with the user's system
+     accent at runtime (`app/platform.ts`, D-023); WKWebView's `AccentColor` is static. */
   --accent: light-dark(#007aff, #0a84ff);
 
   /* Surfaces */
@@ -90,12 +91,6 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-}
-
-@supports (color: AccentColor) {
-  :root {
-    --accent: AccentColor;
-  }
 }
 
 /* Retina: hairlines are half a CSS pixel, like AppKit separators. */

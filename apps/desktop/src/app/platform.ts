@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { commands } from "@/lib/ipc/bindings";
 
 export type Platform = "macos" | "windows" | "linux";
 
@@ -20,7 +21,11 @@ export function syncWindowChrome(root: HTMLElement = document.documentElement): 
 
   const setActive = (active: boolean) => {
     root.dataset["windowActive"] = String(active);
+    // The accent can only change in System Settings, so re-reading it whenever the
+    // window regains focus keeps it current without observing AppKit notifications.
+    if (active) void applySystemAccent(root);
   };
+  void applySystemAccent(root);
   const onFocus = () => setActive(true);
   const onBlur = () => setActive(false);
   window.addEventListener("focus", onFocus);
@@ -42,4 +47,16 @@ export function syncWindowChrome(root: HTMLElement = document.documentElement): 
 /** True inside the Tauri webview (false in unit tests and plain browsers). */
 export function isTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
+}
+
+/** Sets `--accent` to the system accent colour reported by the shell (D-023). */
+export async function applySystemAccent(root: HTMLElement): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const accent = await commands.appAccentColor();
+    if (accent) root.style.setProperty("--accent", accent);
+    else root.style.removeProperty("--accent");
+  } catch (error) {
+    console.warn("could not read the system accent colour", error);
+  }
 }

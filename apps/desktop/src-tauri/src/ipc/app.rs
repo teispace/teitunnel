@@ -38,3 +38,10 @@ pub fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
 pub fn app_ready(app: AppHandle) {
     shell::window::show_main(&app);
 }
+
+/// The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default.
+#[tauri::command]
+#[specta::specta]
+pub fn app_accent_color() -> Option<String> {
+    shell::accent::accent_color()
+}
