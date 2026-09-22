@@ -18,6 +18,11 @@ pub enum ErrorCode {
     CloudflaredMissing,
     /// Busy or exhausted; retrying later may work.
     Unavailable,
+    /// Something changed since the user looked, or a confirmation is missing: refresh
+    /// the preview.
+    Conflict,
+    /// The Cloudflare credential lacks a permission.
+    PermissionDenied,
 }
 
 /// An error as shown to the user: what happened, and what to do about it.
@@ -75,7 +80,12 @@ impl From<teitunnel_core::Error> for AppError {
             )
             .with_hint("Install it from the Quick Share page, or run `brew install cloudflared`."),
             ErrorKind::NotFound => Self::new(ErrorCode::NotFound, err.to_string()),
-            ErrorKind::InvalidInput => Self::invalid("credential", err.to_string()),
+            ErrorKind::InvalidInput => {
+                Self::invalid(err.field().unwrap_or("credential"), err.to_string())
+            }
+            ErrorKind::Conflict => Self::new(ErrorCode::Conflict, err.to_string()),
+            ErrorKind::PermissionDenied => Self::new(ErrorCode::PermissionDenied, err.to_string())
+                .with_hint("Check the token's permissions in Settings ▸ Accounts."),
             ErrorKind::Unavailable => Self::new(ErrorCode::Unavailable, err.to_string()),
             ErrorKind::Internal => {
                 tracing::error!(error = %err, "command failed");
@@ -99,6 +109,7 @@ macro_rules! via_core {
 
 via_core!(
     teitunnel_core::accounts::AccountError,
+    teitunnel_core::engine::EngineError,
     teitunnel_core::store::StoreError,
     teitunnel_core::quick_share::QuickShareError,
 );
@@ -141,6 +152,29 @@ mod tests {
         let err = AppError::from(teitunnel_core::domain::OriginError::InvalidPort);
         assert_eq!(err.code, ErrorCode::InvalidInput);
         assert_eq!(err.field.as_deref(), Some("origin"));
+    }
+
+    #[test]
+    fn routes_errors_map_to_fields_and_conflicts() {
+        use teitunnel_core::engine::{EngineError, InputError, PlanError};
+        let err = AppError::from(EngineError::Input(InputError {
+            field: "origin",
+            message: "bad".into(),
+        }));
+        assert_eq!(
+            (err.code, err.field.as_deref()),
+            (ErrorCode::InvalidInput, Some("origin"))
+        );
+        let err = AppError::from(EngineError::Plan(PlanError::NoZone("a.b.c".into())));
+        assert_eq!(err.field.as_deref(), Some("hostname"));
+        assert_eq!(
+            AppError::from(EngineError::NeedsConfirmation).code,
+            ErrorCode::Conflict
+        );
+        assert_eq!(
+            AppError::from(EngineError::Plan(PlanError::NoTunnel)).code,
+            ErrorCode::NotFound
+        );
     }
 
     #[test]

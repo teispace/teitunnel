@@ -216,11 +216,24 @@ impl<'a> Builder<'a> {
         } else {
             Vec::new()
         };
+        let tunnel_name = self.snapshot.tunnel.as_ref().map_or_else(
+            || {
+                steps
+                    .iter()
+                    .find_map(|s| match s {
+                        Step::CreateTunnel { name } => Some(name.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| self.snapshot.machine_name.clone())
+            },
+            |t| t.name.clone(),
+        );
         Plan {
             steps,
             warnings: self.warnings,
             requires_confirmation: self.requires_confirmation,
             fingerprint: self.snapshot.fingerprint(),
+            tunnel_name,
         }
     }
 }

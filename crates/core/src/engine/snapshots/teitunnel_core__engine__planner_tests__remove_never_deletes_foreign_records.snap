@@ -20,3 +20,4 @@ warnings:
     hostname: app.xyz.com
 requiresConfirmation: false
 fingerprint: "<fingerprint>"
+tunnelName: "Krishna's MacBook Pro"

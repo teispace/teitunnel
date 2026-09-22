@@ -5,7 +5,7 @@ use std::future::Future;
 use cf_api::{Client, DnsRecord, NewDnsRecord, Tunnel, TunnelConfig, VersionedConfig};
 
 use super::types::ZoneRef;
-use crate::Secret;
+use crate::{Secret, runtime::ConnectorState};
 
 /// The Cloudflare operations the engine needs, for one credential.
 pub trait CloudApi: Send + Sync {
@@ -82,8 +82,17 @@ pub trait CloudApi: Send + Sync {
 
 /// This Mac's side of a tunnel: the connector process and its token.
 pub trait Connectors: Send + Sync {
+    /// The connector's state (`None` when it isn't running).
+    fn state(&self, tunnel_id: &str) -> Option<ConnectorState>;
     /// Whether the connector for a tunnel is running (or restarting).
-    fn is_running(&self, tunnel_id: &str) -> bool;
+    fn is_running(&self, tunnel_id: &str) -> bool {
+        self.state(tunnel_id).is_some_and(|s| {
+            !matches!(
+                s,
+                ConnectorState::Stopped | ConnectorState::CrashLoop { .. }
+            )
+        })
+    }
     /// Starts the connector for a tunnel with its run token.
     fn start(
         &self,

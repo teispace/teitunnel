@@ -12,8 +12,10 @@ use tauri_specta::Event;
 use teitunnel_core::{
     accounts::Accounts,
     binary::{BinaryManager, Locator},
+    engine::{Engine, Local},
+    machine::{MachineTunnels, machine_name},
     quick_share::{QuickShare, QuickShares, ShareStatus},
-    runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor},
+    runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor, TUNNEL_PORTS},
     secrets::KeychainStore,
     settings,
     store::Store,
@@ -67,10 +69,23 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
-    let accounts = Accounts::new(store.clone(), Arc::new(KeychainStore));
+    let secrets: teitunnel_core::secrets::Secrets = Arc::new(KeychainStore);
+    let accounts = Accounts::new(store.clone(), secrets.clone());
+    let local = Local::new(store.clone());
+    let machine = MachineTunnels::new(
+        supervisor.clone(),
+        binary.clone(),
+        PortAllocator::new(TUNNEL_PORTS),
+        secrets,
+        local.clone(),
+    );
+    resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
 
     Ok(AppState {
         accounts,
+        engine: Engine::new(local),
+        machine,
+        machine_name: machine_name(),
         store,
         binary,
         supervisor,
@@ -78,6 +93,38 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         oauth_cancel: std::sync::Mutex::default(),
         shutting_down: false.into(),
     })
+}
+
+/// Starts every account's machine tunnel connector (Session mode runs while the app
+/// does). Failures are logged; the Routes view shows the connector as stopped.
+fn resume_machine_tunnels<R: Runtime>(
+    app: AppHandle<R>,
+    accounts: Accounts,
+    machine: MachineTunnels,
+) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(list) = accounts.list().await else {
+            return;
+        };
+        for account in list {
+            let Ok(client) = accounts.client(&account.id).await else {
+                continue;
+            };
+            match machine.resume(&client, &account.id).await {
+                Ok(true) => {
+                    let _ = EntityChanged {
+                        kind: EntityKind::Routes,
+                        id: Some(account.id.clone()),
+                    }
+                    .emit(&app);
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    tracing::warn!(account = %account.id, %err, "couldn't start the tunnel connector");
+                }
+            }
+        }
+    });
 }
 
 /// Turns Quick Share changes into `EntityChanged` events, refreshes the menu bar menu,

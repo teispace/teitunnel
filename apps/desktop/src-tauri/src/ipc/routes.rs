@@ -1,0 +1,161 @@
+//! Routes commands: overview, preview, apply (with progress), verify, drift and
+//! activity. Every Cloudflare change goes through the engine's plan → apply path.
+
+use std::time::Duration;
+
+use tauri::{AppHandle, State, ipc::Channel};
+use tauri_specta::Event;
+use teitunnel_core::engine::{
+    ActivityEntry, Approval, Change, Context, Drift, Edge, Outcome, PlanView, Progress,
+    RoutesOverview, Verification,
+};
+
+use crate::{
+    error::AppError,
+    ipc::{EntityChanged, EntityKind},
+    state::AppState,
+};
+
+/// How long a check right after applying waits for the connector and propagation.
+const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
+
+fn context<'a>(state: &'a AppState, account_id: &'a str) -> Context<'a> {
+    Context {
+        account: account_id,
+        machine_name: &state.machine_name,
+    }
+}
+
+fn changed(app: &AppHandle, account_id: &str) {
+    let _ = EntityChanged {
+        kind: EntityKind::Routes,
+        id: Some(account_id.to_owned()),
+    }
+    .emit(app);
+}
+
+/// This Mac's tunnel and routes in an account.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_overview(
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<RoutesOverview, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    Ok(state
+        .engine
+        .overview(&api, &state.machine, context(&state, &account_id))
+        .await?)
+}
+
+/// Plans a change for review. Nothing is changed.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_preview(
+    state: State<'_, AppState>,
+    account_id: String,
+    change: Change,
+) -> Result<PlanView, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    let ctx = context(&state, &account_id);
+    let intent = state.engine.intent_for(&api, ctx, &change).await?;
+    let plan = state.engine.preview(&api, ctx, &intent).await?;
+    Ok(plan.view(&account_id))
+}
+
+/// Applies a reviewed change. Step progress streams on `on_progress`. Fails with
+/// `conflict` if anything changed since the preview (preview again).
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_apply(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    change: Change,
+    fingerprint: String,
+    confirmed: bool,
+    on_progress: Channel<Progress>,
+) -> Result<Outcome, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    let ctx = context(&state, &account_id);
+    let intent = state.engine.intent_for(&api, ctx, &change).await?;
+    let approval = Approval {
+        fingerprint: &fingerprint,
+        confirmed,
+    };
+    let outcome = state
+        .engine
+        .apply(&api, &state.machine, ctx, &intent, approval, |p| {
+            let _ = on_progress.send(p);
+        })
+        .await;
+    changed(&app, &account_id);
+    Ok(outcome?)
+}
+
+/// Checks a route end to end. With `wait`, transient failures (connector connecting,
+/// propagation) are retried for up to 30 s, as right after applying.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_verify(
+    state: State<'_, AppState>,
+    account_id: String,
+    hostname: String,
+    wait: bool,
+) -> Result<Verification, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    let hostname = teitunnel_core::domain::Hostname::parse(&hostname)
+        .map_err(|e| AppError::invalid("hostname", e.to_string()))?;
+    let patience = if wait {
+        VERIFY_PATIENCE
+    } else {
+        Duration::ZERO
+    };
+    Ok(state
+        .engine
+        .verify(
+            &api,
+            context(&state, &account_id),
+            &hostname,
+            Edge::Cloudflare,
+            patience,
+        )
+        .await?)
+}
+
+/// An outside edit of this Mac's routes, if there is one.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_drift(
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<Option<Drift>, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    Ok(state.engine.drift(&api, &account_id).await?)
+}
+
+/// Accepts an outside edit as the new baseline ("Keep theirs").
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_keep_theirs(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    if let Some(drift) = state.engine.drift(&api, &account_id).await? {
+        state.engine.keep_theirs(&account_id, &drift).await?;
+    }
+    changed(&app, &account_id);
+    Ok(())
+}
+
+/// Recent changes in an account, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_activity(
+    state: State<'_, AppState>,
+    account_id: String,
+) -> Result<Vec<ActivityEntry>, AppError> {
+    Ok(state.engine.local().activity(&account_id, 50).await?)
+}

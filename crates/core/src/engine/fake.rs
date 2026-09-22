@@ -14,7 +14,7 @@ use super::{
     cloud::{CloudApi, Connectors},
     types::ZoneRef,
 };
-use crate::Secret;
+use crate::{Secret, runtime::ConnectorState};
 
 /// A tunnel as the fake stores it.
 #[derive(Debug, Clone, PartialEq)]
@@ -346,8 +346,12 @@ impl FakeConnectors {
 }
 
 impl Connectors for FakeConnectors {
-    fn is_running(&self, tunnel_id: &str) -> bool {
-        self.running.lock().unwrap().contains(tunnel_id)
+    fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {
+        self.running
+            .lock()
+            .unwrap()
+            .contains(tunnel_id)
+            .then_some(ConnectorState::Healthy { connections: 4 })
     }
 
     async fn start(

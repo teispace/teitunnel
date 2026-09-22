@@ -12,6 +12,17 @@ use serde::Serialize;
 use tokio::time::Instant;
 
 use super::drift::{Drift, diff};
+use super::views::{Change, InputError, RoutesOverview, overview, to_intent};
+
+/// A snapshot with nothing in it, for changes that don't need one to be parsed.
+static EMPTY: Snapshot = Snapshot {
+    account_id: String::new(),
+    machine_name: String::new(),
+    zones: Vec::new(),
+    tunnel: None,
+    tunnel_names: Vec::new(),
+    records: Vec::new(),
+};
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
     cloud::{CloudApi, Connectors},
@@ -40,6 +51,12 @@ pub enum EngineError {
     /// The plan touches records Teitunnel didn't create and wasn't confirmed.
     #[error("This change replaces DNS records Teitunnel didn't create. Confirm it first.")]
     NeedsConfirmation,
+    /// The request itself is invalid.
+    #[error(transparent)]
+    Input(#[from] InputError),
+    /// "Restore mine" when nothing was changed elsewhere.
+    #[error("Nothing to restore: the routes are as Teitunnel left them.")]
+    NothingToRestore,
 }
 
 /// How often a transient verification failure is retried.
@@ -297,6 +314,53 @@ impl Engine {
             .unwrap_or_else(PoisonError::into_inner)
             .insert(key, (Instant::now(), snapshot.clone()));
         Ok(snapshot)
+    }
+
+    /// Turns a change from the UI into an intent.
+    ///
+    /// # Errors
+    /// Invalid input, observation errors, or nothing to restore.
+    pub async fn intent_for<C: CloudApi>(
+        &self,
+        api: &C,
+        ctx: Context<'_>,
+        change: &Change,
+    ) -> Result<Intent, EngineError> {
+        match change {
+            Change::RestoreConfig => {
+                let drift = self
+                    .drift(api, ctx.account)
+                    .await?
+                    .ok_or(EngineError::NothingToRestore)?;
+                Ok(Intent::RestoreConfig {
+                    ingress: drift.ours,
+                })
+            }
+            Change::UpdateRoute { .. } => {
+                // Only the tunnel's routes are needed (to keep the edited route's options).
+                let scope = Intent::RestoreConfig {
+                    ingress: Vec::new(),
+                };
+                let snapshot = self.snapshot(api, ctx, &scope, true).await?;
+                Ok(to_intent(change, &snapshot)?)
+            }
+            _ => Ok(to_intent(change, &EMPTY)?),
+        }
+    }
+
+    /// This Mac's tunnel and routes in an account, with DNS and connector state. May
+    /// reuse an observation up to 5 s old.
+    ///
+    /// # Errors
+    /// Observation errors.
+    pub async fn overview<C: CloudApi, K: Connectors>(
+        &self,
+        api: &C,
+        connectors: &K,
+        ctx: Context<'_>,
+    ) -> Result<RoutesOverview, EngineError> {
+        let snapshot = self.snapshot(api, ctx, &Intent::RemoveTunnel, true).await?;
+        Ok(overview(&snapshot, |id| connectors.state(id)))
     }
 
     /// Plans `intent` for review. May reuse an observation up to 5 s old.

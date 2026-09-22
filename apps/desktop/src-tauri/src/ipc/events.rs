@@ -14,6 +14,8 @@ pub enum EntityKind {
     QuickShares,
     /// Connected Cloudflare accounts (and their domains).
     Accounts,
+    /// Routes and this Mac's tunnel (id: the account).
+    Routes,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

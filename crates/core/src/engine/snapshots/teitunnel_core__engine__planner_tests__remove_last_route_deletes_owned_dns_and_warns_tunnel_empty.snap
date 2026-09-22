@@ -28,3 +28,4 @@ warnings:
   - type: tunnelEmpty
 requiresConfirmation: false
 fingerprint: "<fingerprint>"
+tunnelName: "Krishna's MacBook Pro"

@@ -71,11 +71,6 @@ impl MachineTunnels {
         self.held.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The connector state of a tunnel (`None` when it isn't running).
-    pub fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {
-        self.supervisor.state(&connector_id(tunnel_id))
-    }
-
     /// Starts `account`'s machine tunnel if it has one and it isn't running (app launch).
     /// Uses the token in the keychain, or fetches it if it's missing.
     ///
@@ -142,13 +137,8 @@ impl MachineTunnels {
 }
 
 impl Connectors for MachineTunnels {
-    fn is_running(&self, tunnel_id: &str) -> bool {
-        self.state(tunnel_id).is_some_and(|s| {
-            !matches!(
-                s,
-                ConnectorState::Stopped | ConnectorState::CrashLoop { .. }
-            )
-        })
+    fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {
+        self.supervisor.state(&connector_id(tunnel_id))
     }
 
     async fn start(

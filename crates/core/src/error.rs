@@ -22,6 +22,9 @@ pub enum Error {
     /// The local database failed.
     #[error(transparent)]
     Store(#[from] crate::store::StoreError),
+    /// A routes change failed before anything was applied.
+    #[error(transparent)]
+    Engine(#[from] crate::engine::EngineError),
 }
 
 /// A coarse classification of [`Error`] for user-facing handling.
@@ -35,6 +38,11 @@ pub enum ErrorKind {
     Unavailable,
     /// The user's input was rejected; the message says why.
     InvalidInput,
+    /// The state changed since the user looked, or they must confirm first; the UI
+    /// refreshes the preview.
+    Conflict,
+    /// Cloudflare refused: the credential lacks a permission.
+    PermissionDenied,
     /// Anything else: a bug or an environment problem, logged with details.
     Internal,
 }
@@ -43,7 +51,9 @@ impl Error {
     /// Classifies the error.
     pub fn kind(&self) -> ErrorKind {
         use crate::{
-            accounts::AccountError as A, quick_share::QuickShareError as Q,
+            accounts::AccountError as A,
+            engine::{EngineError as E, ObserveError as O, PlanError as P},
+            quick_share::QuickShareError as Q,
             runtime::SupervisorError as S,
         };
         match self {
@@ -60,7 +70,29 @@ impl Error {
             Self::QuickShare(Q::NoFreePort) | Self::Runtime(S::AlreadyRunning(_)) => {
                 ErrorKind::Unavailable
             }
+            Self::Engine(e) => match e {
+                E::Plan(P::NoZone(_) | P::RouteExists(_)) | E::Input(_) => ErrorKind::InvalidInput,
+                E::Plan(P::NoSuchRoute(_) | P::NoTunnel) => ErrorKind::NotFound,
+                E::Stale(_) | E::NeedsConfirmation | E::NothingToRestore => ErrorKind::Conflict,
+                E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
+                E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
+                E::Observe(_) => ErrorKind::Internal,
+            },
+            Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
             _ => ErrorKind::Internal,
+        }
+    }
+}
+
+impl Error {
+    /// The input field an [`ErrorKind::InvalidInput`] error is about.
+    pub fn field(&self) -> Option<&'static str> {
+        use crate::engine::{EngineError as E, PlanError as P};
+        match self {
+            Self::Engine(E::Input(input)) => Some(input.field),
+            Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_))) => Some("hostname"),
+            Self::Accounts(_) => Some("credential"),
+            _ => None,
         }
     }
 }

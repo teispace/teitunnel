@@ -14,6 +14,7 @@ mod observe;
 mod planner;
 mod types;
 mod verify;
+mod views;
 
 #[cfg(test)]
 mod executor_tests;
@@ -36,3 +37,7 @@ pub use types::{
     ZoneRef, ownership_comment, tunnel_target,
 };
 pub use verify::{Edge, Failure, Stage, Verification, classify};
+pub use views::{
+    Change, DnsState, InputError, PlanView, RouteInput, RouteView, RoutesOverview, StepKind,
+    StepView, TunnelView, route_id,
+};

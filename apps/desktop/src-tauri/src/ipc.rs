@@ -10,6 +10,7 @@ mod accounts;
 mod app;
 mod events;
 mod quick_share;
+mod routes;
 mod settings;
 
 use std::path::PathBuf;
@@ -54,7 +55,14 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             accounts::domains_list,
             accounts::accounts_oauth_available,
             accounts::accounts_oauth_sign_in,
-            accounts::accounts_oauth_cancel
+            accounts::accounts_oauth_cancel,
+            routes::routes_overview,
+            routes::routes_preview,
+            routes::routes_apply,
+            routes::routes_verify,
+            routes::routes_drift,
+            routes::routes_keep_theirs,
+            routes::routes_activity
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

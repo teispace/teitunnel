@@ -38,6 +38,7 @@ pub enum ConnectorState {
         /// Restart attempt number (1-based).
         attempt: u32,
         /// Milliseconds until the restart.
+        #[cfg_attr(feature = "specta", specta(type = u32))]
         retry_in_ms: u64,
         /// Exit code, when there was one.
         exit_code: Option<i32>,

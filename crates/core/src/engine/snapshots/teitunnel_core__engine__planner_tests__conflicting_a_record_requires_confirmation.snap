@@ -57,3 +57,4 @@ warnings:
     content: "2001:db8::4"
 requiresConfirmation: true
 fingerprint: "<fingerprint>"
+tunnelName: "Krishna's MacBook Pro"

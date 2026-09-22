@@ -45,6 +45,7 @@ impl RouteSpec {
 
 /// A zone the account can use.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ZoneRef {
     /// Zone id.
     pub id: String,
@@ -374,6 +375,7 @@ impl Step {
 
 /// Something the user should know before applying.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -415,6 +417,8 @@ pub struct Plan {
     pub requires_confirmation: bool,
     /// Snapshot fingerprint the plan was made against.
     pub fingerprint: String,
+    /// The machine tunnel's name (existing, or the one it'll be created with).
+    pub tunnel_name: String,
 }
 
 impl Plan {

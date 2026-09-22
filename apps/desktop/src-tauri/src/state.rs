@@ -3,8 +3,8 @@
 use std::sync::atomic::AtomicBool;
 
 use teitunnel_core::{
-    accounts::Accounts, binary::BinaryManager, quick_share::QuickShares, runtime::Supervisor,
-    store::Store,
+    accounts::Accounts, binary::BinaryManager, engine::Engine, machine::MachineTunnels,
+    quick_share::QuickShares, runtime::Supervisor, store::Store,
 };
 
 /// Long-lived handles owned by the app.
@@ -20,6 +20,12 @@ pub struct AppState {
     pub quick_shares: QuickShares,
     /// Connected Cloudflare accounts.
     pub accounts: Accounts,
+    /// The routes engine (observe → plan → apply → verify).
+    pub engine: Engine,
+    /// This Mac's tunnel connectors.
+    pub machine: MachineTunnels,
+    /// This Mac's name for new tunnels.
+    pub machine_name: String,
     /// Cancels the OAuth sign-in in progress, if any.
     pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Set once shutdown has started, so the exit hook runs only once.

@@ -640,3 +640,80 @@ async fn detects_outside_edits_and_resolves_them() {
     }
     assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
 }
+
+#[tokio::test]
+async fn changes_from_the_ui_become_intents() {
+    use super::views::{Change, RouteInput};
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let input = |host: &str, origin: &str| RouteInput {
+        hostname: host.into(),
+        path: None,
+        origin: origin.into(),
+    };
+    let add = engine
+        .intent_for(
+            &cloud,
+            CTX,
+            &Change::AddRoute {
+                route: input("app.xyz.com", "3000"),
+            },
+        )
+        .await
+        .unwrap();
+    run(&engine, &cloud, &conns, &add).await;
+
+    // An option set in the dashboard survives an edit made in Teitunnel.
+    let tunnel = cloud.snapshot().tunnels.keys().next().unwrap().clone();
+    {
+        let mut state = cloud.state.lock().unwrap();
+        let t = state.tunnels.get_mut(&tunnel).unwrap();
+        t.config.as_mut().unwrap().ingress[0]
+            .origin_request
+            .insert("noTLSVerify".into(), json!(true));
+        t.version += 1;
+    }
+    engine.invalidate("acc");
+    let edit = Change::UpdateRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        route: input("app.xyz.com", "4000"),
+    };
+    let intent = engine.intent_for(&cloud, CTX, &edit).await.unwrap();
+    // The dashboard edit is drift; keep it, then apply the change.
+    let drift = engine.drift(&cloud, "acc").await.unwrap().unwrap();
+    engine.keep_theirs("acc", &drift).await.unwrap();
+    run(&engine, &cloud, &conns, &intent).await;
+    let rule = &cloud.snapshot().tunnels[&tunnel]
+        .config
+        .clone()
+        .unwrap()
+        .ingress[0];
+    assert_eq!(rule.service, "http://localhost:4000");
+    assert_eq!(rule.origin_request["noTLSVerify"], true);
+
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.routes.len(), 1);
+    assert_eq!(overview.routes[0].dns, super::views::DnsState::Ok);
+    assert!(overview.tunnel.unwrap().connector.is_some());
+
+    let bad = engine
+        .intent_for(
+            &cloud,
+            CTX,
+            &Change::AddRoute {
+                route: input("nodot", "3000"),
+            },
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(bad, EngineError::Input(ref e) if e.field == "hostname"),
+        "{bad:?}"
+    );
+    let nothing = engine
+        .intent_for(&cloud, CTX, &Change::RestoreConfig)
+        .await
+        .unwrap_err();
+    assert!(matches!(nothing, EngineError::NothingToRestore));
+}

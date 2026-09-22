@@ -81,6 +81,35 @@ export const commands = {
 	accountsOauthSignIn: (onUrl: Channel<string>) => __TAURI_INVOKE<Account[]>("accounts_oauth_sign_in", { onUrl }),
 	/**  Cancels a sign-in that's waiting for the browser. */
 	accountsOauthCancel: () => __TAURI_INVOKE<void>("accounts_oauth_cancel"),
+	/**  This Mac's tunnel and routes in an account. */
+	routesOverview: (accountId: string) => __TAURI_INVOKE<RoutesOverview>("routes_overview", { accountId }),
+	/**  Plans a change for review. Nothing is changed. */
+	routesPreview: (accountId: string, change: Change) => __TAURI_INVOKE<PlanView>("routes_preview", { accountId, change }),
+	/**
+	 *  Applies a reviewed change. Step progress streams on `on_progress`. Fails with
+	 *  `conflict` if anything changed since the preview (preview again).
+	 */
+	routesApply: (accountId: string, change: Change, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("routes_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**
+	 *  Checks a route end to end. With `wait`, transient failures (connector connecting,
+	 *  propagation) are retried for up to 30 s, as right after applying.
+	 */
+	routesVerify: (accountId: string, hostname: string, wait: boolean) => __TAURI_INVOKE<Verification>("routes_verify", { accountId, hostname, wait }),
+	/**  An outside edit of this Mac's routes, if there is one. */
+	routesDrift: (accountId: string) => __TAURI_INVOKE<{
+	/**  Tunnel id. */
+	tunnelId: string,
+	/**  Version Teitunnel last wrote. */
+	appliedVersion: number,
+	/**  Version now. */
+	currentVersion: number,
+	/**  Routes that differ. */
+	changes: RuleChange[],
+} | null>("routes_drift", { accountId }),
+	/**  Accepts an outside edit as the new baseline ("Keep theirs"). */
+	routesKeepTheirs: (accountId: string) => __TAURI_INVOKE<null>("routes_keep_theirs", { accountId }),
+	/**  Recent changes in an account, newest first. */
+	routesActivity: (accountId: string) => __TAURI_INVOKE<ActivityEntry[]>("routes_activity", { accountId }),
 };
 
 /** Events */
@@ -100,6 +129,20 @@ export type Account = {
 	credential: CredentialKind,
 	/**  For cert.pem credentials: the only zone the credential works for. */
 	limitedZone: string | null,
+};
+
+/**  One entry of the activity log. */
+export type ActivityEntry = {
+	/**  Row id. */
+	id: number,
+	/**  Milliseconds since the epoch. */
+	at: number | null,
+	/**  What was asked, e.g. "Add app.xyz.com → http://localhost:3000". */
+	summary: string,
+	/**  `applied`, `rolledBack` or `partiallyApplied`. */
+	outcome: string,
+	/**  Step descriptions and any error, as shown in the inspector. */
+	detail: string[],
 };
 
 /**  An error as shown to the user: what happened, and what to do about it. */
@@ -152,6 +195,63 @@ export type Capabilities = {
 	zones: ZoneGrant[],
 };
 
+/**  A change the user asks for. */
+export type Change = 
+/**  Add a route. */
+{ type: "addRoute"; 
+/**  The route. */
+route: RouteInput } | 
+/**  Edit or rename a route. */
+{ type: "updateRoute"; 
+/**  Current hostname. */
+hostname: string; 
+/**  Current path. */
+path: string | null; 
+/**  The new definition. */
+route: RouteInput } | 
+/**  Remove a route. */
+{ type: "removeRoute"; 
+/**  Hostname. */
+hostname: string; 
+/**  Path. */
+path: string | null } | 
+/**  Remove every route and delete this Mac's tunnel. */
+{ type: "removeTunnel" } | 
+/**  Undo an outside edit of this Mac's routes. */
+{ type: "restoreConfig" };
+
+/**  Lifecycle of one connector (ARCHITECTURE §5.1). */
+export type ConnectorState = 
+/**  Not running. */
+{ state: "stopped" } | 
+/**  The process is being spawned. */
+{ state: "starting" } | 
+/**  Running, but no edge connection yet. */
+{ state: "connecting" } | 
+/**  Serving traffic. */
+{ state: "healthy"; 
+/**  Registered edge connections. */
+connections: number } | 
+/**
+ *  Running with no edge connections after having had some (or after the start
+ *  timeout).
+ */
+{ state: "degraded" } | 
+/**  Exited unexpectedly; restarts after a backoff. */
+{ state: "crashed"; 
+/**  Restart attempt number (1-based). */
+attempt: number; 
+/**  Milliseconds until the restart. */
+retry_in_ms: number; 
+/**  Exit code, when there was one. */
+exit_code: number | null } | 
+/**  Crashed too often in a short time; not restarted automatically. */
+{ state: "crashLoop"; 
+/**  Exit code of the last crash. */
+exit_code: number | null } | 
+/**  Shutting down. */
+{ state: "stopping" };
+
 /**  How an account was connected. */
 export type CredentialKind = 
 /**  A user API token. */
@@ -160,6 +260,17 @@ export type CredentialKind =
 "oauth" | 
 /**  Imported from `cloudflared tunnel login` (cert.pem); one zone only. */
 "certPem";
+
+/**  Whether a route's DNS record points at this Mac's tunnel. */
+export type DnsState = 
+/**  A proxied CNAME to the tunnel. */
+{ state: "ok" } | 
+/**  No record. */
+{ state: "missing" } | 
+/**  A record pointing somewhere else (or not proxied). */
+{ state: "elsewhere"; 
+/**  What it points at. */
+content: string };
 
 /**  A domain in a connected account. */
 export type Domain = {
@@ -190,6 +301,18 @@ export type DomainStatus =
 /**  Being set up, or a state we don't know. */
 "other";
 
+/**  An outside edit of this Mac's tunnel configuration. */
+export type Drift = {
+	/**  Tunnel id. */
+	tunnelId: string,
+	/**  Version Teitunnel last wrote. */
+	appliedVersion: number,
+	/**  Version now. */
+	currentVersion: number,
+	/**  Routes that differ. */
+	changes: RuleChange[],
+};
+
 /**  Emitted after anything changes, so the UI can invalidate the affected queries. */
 export type EntityChanged = {
 	/**  What kind of entity changed. */
@@ -205,7 +328,9 @@ export type EntityKind =
 /**  Quick Shares (list, status, URL). */
 "quickShares" | 
 /**  Connected Cloudflare accounts (and their domains). */
-"accounts";
+"accounts" | 
+/**  Routes and this Mac's tunnel (id: the account). */
+"routes";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -218,7 +343,41 @@ export type ErrorCode =
 /**  cloudflared isn't installed. */
 "cloudflaredMissing" | 
 /**  Busy or exhausted; retrying later may work. */
-"unavailable";
+"unavailable" | 
+/**
+ *  Something changed since the user looked, or a confirmation is missing: refresh
+ *  the preview.
+ */
+"conflict" | 
+/**  The Cloudflare credential lacks a permission. */
+"permissionDenied";
+
+/**  Why a route doesn't work. */
+export type Failure = 
+/**  There's no DNS record for the hostname. */
+{ type: "noRecord" } | 
+/**  The record exists but doesn't point at this Mac's tunnel (or isn't proxied). */
+{ type: "recordElsewhere"; 
+/**  What it points at. */
+content: string } | 
+/**  The edge couldn't be reached (network, firewall). */
+{ type: "edgeUnreachable"; 
+/**  The error. */
+message: string } | 
+/**  The certificate doesn't cover the hostname (Universal SSL covers one level). */
+{ type: "certificateNotCovered" } | 
+/**  Cloudflare doesn't know the hostname yet (error 1001), usually propagation. */
+{ type: "notOnCloudflareYet" } | 
+/**  No connector is connected to the tunnel (error 1033). */
+{ type: "noConnector" } | 
+/**  The record points at a tunnel that doesn't serve it (error 1016 / 530). */
+{ type: "tunnelMismatch" } | 
+/**  The connector couldn't reach the origin (502). */
+{ type: "originUnreachable"; 
+/**  Whether something listens on the origin's local port (None: not local). */
+listening: boolean | null } | 
+/**  The origin didn't answer in time (504). */
+{ type: "originTimeout" };
 
 /**  The result of probing one permission. */
 export type Grant = 
@@ -316,6 +475,51 @@ export type MenuCommand =
  */
 export type OriginUrl = string;
 
+/**  How applying ended. */
+export type Outcome = 
+/**  Every step succeeded. */
+{ type: "applied"; 
+/**  This Mac's tunnel afterwards (None once deleted). */
+tunnelId: string | null; 
+/**  Hostnames to verify next. */
+verify: string[]; 
+/**  The connector couldn't be started (the routes are configured, though). */
+connectorError: string | null } | 
+/**  A step failed and everything done before it was undone. */
+{ type: "rolledBack"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: string } | 
+/**  A step failed and some earlier changes couldn't be undone. */
+{ type: "partiallyApplied"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: string; 
+/**  What was left in place. */
+leftovers: string[] };
+
+/**  A plan, as shown in the preview. */
+export type PlanView = {
+	/**  Steps in order (empty: nothing to change). */
+	steps: StepView[],
+	/**  Things to review. */
+	warnings: Warning[],
+	/**  Confirmation needed (touches records Teitunnel didn't create). */
+	requiresConfirmation: boolean,
+	/**  Pass back to apply, so a change made meanwhile is caught. */
+	fingerprint: string,
+};
+
+/**  A progress update for the step at `step` (index into the plan). */
+export type Progress = {
+	/**  Step index. */
+	step: number,
+	/**  Its state. */
+	state: StepState,
+};
+
 /**  A running Quick Share, as the UI sees it. */
 export type QuickShare = {
 	/**  Identifier. */
@@ -335,6 +539,54 @@ export type QuickShare = {
 	startedAt: number,
 	/**  When it stops by itself, milliseconds since the Unix epoch. */
 	stopAt: number | null,
+};
+
+/**  A route as typed in the add/edit sheet. */
+export type RouteInput = {
+	/**  Public hostname, e.g. `app.example.com`. */
+	hostname: string,
+	/**  Optional path regex, e.g. `^/api`. */
+	path: string | null,
+	/**  Origin, e.g. `3000` or `http://localhost:3000`. */
+	origin: string,
+};
+
+/**  One route of this Mac's tunnel. */
+export type RouteView = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Path regex. */
+	path: string | null,
+	/**  Where traffic goes. */
+	origin: string,
+	/**  Whether the origin is on this Mac. */
+	local: boolean,
+	/**  The zone (domain) it belongs to. */
+	zone: string | null,
+	/**  Its DNS record. */
+	dns: DnsState,
+};
+
+/**  Everything the Routes view shows for an account. */
+export type RoutesOverview = {
+	/**  This Mac's tunnel, if it has one. */
+	tunnel: TunnelView | null,
+	/**  Routes, sorted by domain then hostname. */
+	routes: RouteView[],
+	/**  Domains routes can use. */
+	zones: ZoneRef[],
+};
+
+/**  One route that differs between what Teitunnel wrote and what's there now. */
+export type RuleChange = {
+	/**  Hostname. */
+	hostname: string,
+	/**  Path regex. */
+	path: string | null,
+	/**  The service Teitunnel wrote (None: added elsewhere). */
+	before: string | null,
+	/**  The service now (None: removed elsewhere). */
+	after: string | null,
 };
 
 /**  What a listening process appears to be. */
@@ -405,6 +657,56 @@ export type ShareStatus =
 /**  What went wrong, for the user. */
 message: string };
 
+/**  What a step does, for its icon. */
+export type StepKind = 
+/**  Create the tunnel. */
+"createTunnel" | 
+/**  Update the tunnel's routes. */
+"putConfig" | 
+/**  Add a DNS record. */
+"createRecord" | 
+/**  Repoint a DNS record. */
+"updateRecord" | 
+/**  Delete a DNS record. */
+"deleteRecord" | 
+/**  Stop this Mac's connector. */
+"stopConnector" | 
+/**  Delete the tunnel. */
+"deleteTunnel" | 
+/**  Check the route works. */
+"verify";
+
+/**  The state of one step while applying. */
+export type StepState = 
+/**  In progress. */
+{ state: "running" } | 
+/**  Finished. */
+{ state: "done" } | 
+/**  Not run by the executor (verification happens afterwards). */
+{ state: "skipped" } | 
+/**  Failed with a message. */
+{ state: "failed"; 
+/**  What went wrong. */
+message: string } | 
+/**  Being undone after a later step failed. */
+{ state: "undoing" } | 
+/**  Undone. */
+{ state: "undone" } | 
+/**  Couldn't be undone; left in place. */
+{ state: "undoFailed"; 
+/**  What went wrong. */
+message: string };
+
+/**  One step of a plan, as shown in the preview. */
+export type StepView = {
+	/**  What it does. */
+	kind: StepKind,
+	/**  One line for the user. */
+	description: string,
+	/**  "Copy as command" text, when there's an equivalent command. */
+	command: string | null,
+};
+
 /**  Appearance override. */
 export type Theme = 
 /**  Follow the system appearance. */
@@ -414,6 +716,16 @@ export type Theme =
 /**  Always dark. */
 "dark";
 
+/**  This Mac's tunnel. */
+export type TunnelView = {
+	/**  Tunnel id. */
+	id: string,
+	/**  Name. */
+	name: string,
+	/**  Connector state on this Mac (`None`: not running). */
+	connector: ConnectorState | null,
+};
+
 /**  Whether a newer cloudflared is available. */
 export type UpdateInfo = {
 	/**  Latest published version. */
@@ -421,6 +733,37 @@ export type UpdateInfo = {
 	/**  Whether it's newer than the one in use (or none is installed). */
 	available: boolean,
 };
+
+/**  The result of checking one hostname. */
+export type Verification = {
+	/**  Hostname. */
+	hostname: string,
+	/**  The origin's HTTP status, when it answered. */
+	status: number | null,
+	/**  What's wrong, if anything. */
+	failure: Failure | null,
+};
+
+/**  Something the user should know before applying. */
+export type Warning = 
+/**  A record Teitunnel didn't create will be replaced. */
+{ type: "replacesForeignRecord"; 
+/**  Hostname. */
+hostname: string; 
+/**  Existing type. */
+kind: string; 
+/**  Existing content. */
+content: string } | 
+/**  A record Teitunnel didn't create is left in place. */
+{ type: "keepsForeignRecord"; 
+/**  Hostname. */
+hostname: string } | 
+/**  No routes are left on the tunnel. */
+{ type: "tunnelEmpty" } | 
+/**  The origin isn't on this Mac, so it must be reachable from here. */
+{ type: "remoteOrigin"; 
+/**  The origin. */
+origin: string };
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {
@@ -430,6 +773,14 @@ export type ZoneGrant = {
 	zoneName: string,
 	/**  Whether DNS records can be edited. */
 	dnsEdit: Grant,
+};
+
+/**  A zone the account can use. */
+export type ZoneRef = {
+	/**  Zone id. */
+	id: string,
+	/**  Apex name. */
+	name: string,
 };
 
 /* Tauri Specta runtime */
