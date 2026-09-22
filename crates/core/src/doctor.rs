@@ -291,6 +291,118 @@ pub async fn run(
     issues
 }
 
+/// Runs the checks, then applies every safe fix in every account.
+pub async fn fix_all_safe(
+    accounts: &crate::accounts::Accounts,
+    engine: &Engine,
+    machine: &crate::machine::MachineTunnels,
+    binary: &crate::binary::BinaryManager,
+    machine_name: &str,
+) -> FixReport {
+    let issues = run(accounts, engine, machine, binary, machine_name).await;
+    let mut report = FixReport::default();
+    for account in accounts.list().await.unwrap_or_default() {
+        let Ok(api) = accounts.client(&account.id).await else {
+            continue;
+        };
+        let ctx = Context {
+            account: &account.id,
+            machine_name,
+        };
+        let part = fix_safe(engine, &api, machine, ctx, &issues).await;
+        report.fixed += part.fixed;
+        report.skipped += part.skipped;
+        report.failed.extend(part.failed);
+    }
+    report
+}
+
+/// What "Fix all safe issues" did.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct FixReport {
+    /// Issues fixed.
+    pub fixed: u32,
+    /// Issues left for the user (their fix needs a confirmation or a decision).
+    pub skipped: u32,
+    /// Fixes that failed (and were rolled back), with why.
+    pub failed: Vec<String>,
+}
+
+/// Whether an issue's fix may run without review: DNS repairs and orphan deletions only.
+/// Whether it really is safe is decided by its plan (no confirmation needed = nothing
+/// Teitunnel doesn't own is touched).
+fn candidate(issue: &Issue) -> Option<&Change> {
+    match issue.fixes.first()? {
+        Fix::Change { change, .. }
+            if matches!(
+                change,
+                Change::AddRoute { .. } | Change::DeleteRecord { .. }
+            ) =>
+        {
+            Some(change)
+        }
+        _ => None,
+    }
+}
+
+/// Applies every safe fix among `issues` for one account, each through a fresh plan.
+pub async fn fix_safe<C: CloudApi, K: Connectors>(
+    engine: &Engine,
+    api: &C,
+    connectors: &K,
+    ctx: Context<'_>,
+    issues: &[Issue],
+) -> FixReport {
+    let mut report = FixReport::default();
+    for issue in issues
+        .iter()
+        .filter(|i| i.account_id.as_deref() == Some(ctx.account))
+    {
+        let Some(change) = candidate(issue) else {
+            report.skipped += 1;
+            continue;
+        };
+        let planned = async {
+            let intent = engine.intent_for(api, ctx, change).await?;
+            let plan = engine.preview(api, ctx, &intent).await?;
+            Ok::<_, EngineError>((intent, plan))
+        }
+        .await;
+        let (intent, plan) = match planned {
+            Ok((intent, plan)) if !plan.requires_confirmation && !plan.is_empty() => (intent, plan),
+            Ok(_) => {
+                report.skipped += 1;
+                continue;
+            }
+            Err(err) => {
+                report.failed.push(format!("{}: {err}", issue.subject));
+                continue;
+            }
+        };
+        let approval = crate::engine::Approval {
+            fingerprint: &plan.fingerprint,
+            confirmed: false,
+        };
+        match engine
+            .apply(api, connectors, ctx, &intent, approval, |_| {})
+            .await
+        {
+            Ok(crate::engine::Outcome::Applied { .. }) => report.fixed += 1,
+            Ok(
+                crate::engine::Outcome::RolledBack { error, .. }
+                | crate::engine::Outcome::PartiallyApplied { error, .. },
+            ) => {
+                report.failed.push(format!("{}: {error}", issue.subject));
+            }
+            // Something changed or now needs a yes: leave it for the user.
+            Err(_) => report.skipped += 1,
+        }
+    }
+    report
+}
+
 struct Found<'a> {
     account: Option<&'a str>,
     issues: Vec<Issue>,

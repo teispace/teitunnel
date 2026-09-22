@@ -120,6 +120,11 @@ export const commands = {
 	tunnelsClean: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_clean", { accountId, tunnelId }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
+	/**
+	 *  Applies every fix that needs no review (owned DNS repairs and orphan cleanup), each
+	 *  through a fresh plan; the rest are left for the user.
+	 */
+	doctorFixSafe: () => __TAURI_INVOKE<FixReport>("doctor_fix_safe"),
 };
 
 /** Events */
@@ -413,7 +418,7 @@ listening: boolean | null } |
 export type Fix = 
 /**  A change in Cloudflare, previewed as a plan before it's applied. */
 { type: "change"; 
-/**  Button title, e.g. "Create the DNS record". */
+/**  Button title, e.g. "Fix the DNS Record". */
 label: string; 
 /**  The change. */
 change: Change } | 
@@ -429,6 +434,16 @@ accountId: string } |
 accountId: string } | 
 /**  Create a token with the right permissions. */
 { type: "reconnect" };
+
+/**  What "Fix all safe issues" did. */
+export type FixReport = {
+	/**  Issues fixed. */
+	fixed: number,
+	/**  Issues left for the user (their fix needs a confirmation or a decision). */
+	skipped: number,
+	/**  Fixes that failed (and were rolled back), with why. */
+	failed: string[],
+};
 
 /**  The result of probing one permission. */
 export type Grant = 

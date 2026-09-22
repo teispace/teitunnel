@@ -791,3 +791,70 @@ async fn deletes_single_records_with_confirmation_for_foreign_ones() {
     let err = engine.preview(&cloud, CTX, &gone).await.unwrap_err();
     assert!(matches!(err, EngineError::Plan(_)), "{err:?}");
 }
+
+/// "Fix all safe issues" repairs owned DNS and deletes owned orphans, and never touches
+/// a record Teitunnel didn't create, whatever the mix.
+#[tokio::test]
+async fn fixing_safe_issues_never_touches_foreign_records() {
+    use crate::doctor::{BinaryFact, Facts, diagnose, fix_safe, gather};
+
+    for seed in 0..8u32 {
+        let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+        run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+        run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
+        let tunnel = cloud.snapshot().tunnels.keys().next().unwrap().clone();
+        {
+            let mut state = cloud.state.lock().unwrap();
+            let target = format!("{tunnel}.cfargotunnel.com");
+            let xyz = state.records.get_mut("z-xyz").unwrap();
+            if seed & 1 == 1 {
+                xyz.clear(); // dns.missing for app.xyz.com (owned fix)
+            }
+            let mut orphan = foreign_a("orph", "old.xyz.com");
+            orphan.kind = "CNAME".into();
+            orphan.content = target.clone();
+            orphan.comment = Some("teitunnel:route=x".into());
+            xyz.push(orphan);
+            let mut theirs = foreign_a("theirs", "legacy.xyz.com");
+            theirs.kind = "CNAME".into();
+            theirs.content = "dead-tunnel.cfargotunnel.com".into();
+            xyz.push(theirs);
+            if seed & 2 == 2 {
+                // A foreign A record blocks yx.com: fixing it needs a yes, so it's skipped.
+                let yx = state.records.get_mut("z-yx").unwrap();
+                yx.clear();
+                yx.push(foreign_a("blocker", "yx.com"));
+            }
+            if seed & 4 == 4 {
+                let yx = state.records.get_mut("z-yx").unwrap();
+                if let Some(r) = yx.iter_mut().find(|r| r.kind == "CNAME") {
+                    r.proxied = false;
+                }
+            }
+        }
+        engine.invalidate("acc");
+        let facts = gather(&engine, &cloud, &conns, CTX, Vec::new(), Some(true))
+            .await
+            .unwrap();
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts],
+        });
+        let before = cloud.snapshot();
+        let report = fix_safe(&engine, &cloud, &conns, CTX, &issues).await;
+        let after = cloud.snapshot();
+
+        let foreign_ids = ["theirs", "blocker"];
+        for id in foreign_ids {
+            let was = before.records.values().flatten().find(|r| r.id == id);
+            let now = after.records.values().flatten().find(|r| r.id == id);
+            assert_eq!(was, now, "seed {seed}: foreign record {id} was touched");
+        }
+        assert!(
+            !after.records.values().flatten().any(|r| r.id == "orph"),
+            "seed {seed}: the owned orphan is deleted"
+        );
+        assert!(report.fixed >= 1, "seed {seed}: {report:?}");
+        assert!(report.failed.is_empty(), "seed {seed}: {report:?}");
+    }
+}

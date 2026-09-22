@@ -30,7 +30,7 @@
 ### M4-05 · Doctor framework
 - [x] `Check` trait, registry, shared snapshot, scheduling (startup, post-apply, connector state change, manual, every 5 min while visible). *(Checks are pure functions over gathered `Facts` rather than trait objects; runs on open, focus, route changes, manual refresh and every 5 min.)*
 - [x] Issue dedup and stable issue ids (so dismissals persist). "Ignore this issue" is stored in the persisted UI store (per Mac).
-- [x] Issue → fix `Intent` → planner (fixes open the plan sheet). - [ ] "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation.
+- [x] Issue → fix `Intent` → planner (fixes open the plan sheet). "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation (DNS repairs and orphan deletions; property-tested).
 
 ### M4-06 · Check catalogue (one file + tests each)
 | Id | Detects | Fix / guidance |
@@ -58,7 +58,7 @@
 
 ### M4-07 · UI: Doctor
 - [x] Sidebar badge with the issue count (errors only). The Doctor view groups issues by severity then subject. The Inspector shows explanation, evidence (log lines, records), and Fix (with a plan preview). *(Done; log-line evidence comes with M5 logs.)*
-- [ ] "Fix all safe issues" with a combined plan preview.
+- [x] "Fix all safe issues". *(Applies each fix through its own fresh plan and reports fixed/skipped/failed, instead of one combined preview.)*
 - [ ] Issues also appear inline on the affected route/tunnel rows.
 
 ### M4-08 · Cleanup center

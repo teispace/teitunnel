@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useUiStore } from "@/app/ui-store";
 import { commands, type Issue } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
@@ -20,4 +20,26 @@ export function useIssues() {
   const all: Issue[] = query.data ?? [];
   const visible = all.filter((issue) => !ignored.includes(issue.id));
   return { ...query, issues: visible, ignoredCount: all.length - visible.length };
+}
+
+/** Fixes that may run without review (the backend re-checks each with a fresh plan). */
+export function hasSafeCandidates(issues: readonly Issue[]) {
+  return issues.some((issue) => {
+    const fix = issue.fixes[0];
+    return (
+      fix?.type === "change" &&
+      (fix.change.type === "addRoute" || fix.change.type === "deleteRecord")
+    );
+  });
+}
+
+export function useFixSafe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => call(commands.doctorFixSafe()),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.doctor.all() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() });
+    },
+  });
 }

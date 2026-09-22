@@ -17,7 +17,7 @@ import { useInstallBinary } from "@/features/binary/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { useIssues } from "./queries";
+import { hasSafeCandidates, useFixSafe, useIssues } from "./queries";
 
 const severities: Record<Severity, { dot: Status; group: string; label: string }> = {
   error: { dot: "error", group: "Problems", label: "Problem" },
@@ -153,8 +153,29 @@ export function DoctorPage() {
   const [sheet, setSheet] = useState<{ mode: SheetMode; accountId: string } | null>(null);
   const selected = issues.find((i) => i.id === selectedId) ?? issues[0] ?? null;
 
+  const fixSafe = useFixSafe();
+  const runSafeFixes = () =>
+    fixSafe.mutate(undefined, {
+      onSuccess: (report) => {
+        const left = report.skipped > 0 ? ` ${report.skipped} need your review.` : "";
+        if (report.failed.length > 0) {
+          toast.error(`Fixed ${report.fixed}; ${report.failed.length} couldn't be fixed.`, {
+            description: report.failed.join("\n"),
+          });
+        } else {
+          toast.success(`Fixed ${report.fixed} issue${report.fixed === 1 ? "" : "s"}.${left}`);
+        }
+      },
+      onError: (error) => toast.error(toIpcError(error).message),
+    });
+
   const toolbar = (
     <TitlebarToolbar title="Doctor">
+      {hasSafeCandidates(issues) ? (
+        <Button size="sm" disabled={fixSafe.isPending} onClick={runSafeFixes}>
+          {fixSafe.isPending ? "Fixing…" : "Fix Safe Issues"}
+        </Button>
+      ) : null}
       <IconButton
         icon={RefreshCw}
         label="Check again"

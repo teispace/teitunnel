@@ -68,7 +68,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::tunnels_start,
             routes::tunnels_stop,
             routes::tunnels_clean,
-            doctor::doctor_run
+            doctor::doctor_run,
+            doctor::doctor_fix_safe
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }
