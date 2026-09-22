@@ -26,6 +26,7 @@
 
 ### M5-04 · Activity view
 - [ ] Timeline of applied plans and steps (who/what/when), with the before/after diff, "Copy as command", and re-run verify. Filters by domain/tunnel/type.
+  *(Started early in M4: timeline by day with outcome and step details per account. Diff, copy-as-command, re-verify and filters remain.)*
 
 ### M5-05 · Always-on (macOS launchd)
 - [ ] `ServiceManager` launchd adapter: generate the plist (label `com.teispace.teitunnel.connector.<tunnel-id>`, managed binary path, args from the `RunCmd` builder with `--token-file`, `--log-directory <app_data>/logs/connectors/<id>`, `KeepAlive`, `RunAtLoad`, `ProcessType=Background`, `ThrottleInterval`), then install via `launchctl bootstrap gui/<uid>`, and remove via `bootout`. Status via `launchctl print` parsing plus the metrics endpoint.
