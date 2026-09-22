@@ -116,7 +116,7 @@ fn start_time(pid: u32) -> Option<u64> {
     system.process(pid).map(sysinfo::Process::start_time)
 }
 
-async fn stop_pid(pid: u32) {
+pub(crate) async fn stop_pid(pid: u32) {
     signal::signal_process(pid, false);
     for _ in 0..30 {
         tokio::time::sleep(Duration::from_millis(100)).await;

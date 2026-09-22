@@ -237,3 +237,24 @@ pub async fn import_scan() -> Result<Vec<teitunnel_core::import::LocalSetup>, Ap
         .await
         .map_err(|err| AppError::internal(format!("Couldn't look for cloudflared setups: {err}")))
 }
+
+/// cloudflared processes on this Mac that Teitunnel didn't start.
+#[tauri::command]
+#[specta::specta]
+pub async fn foreign_list()
+-> Result<Vec<teitunnel_core::discovery::cloudflared::ForeignConnector>, AppError> {
+    Ok(teitunnel_core::discovery::cloudflared::foreign().await)
+}
+
+/// Stops a cloudflared process Teitunnel didn't start (after re-checking it's one).
+#[tauri::command]
+#[specta::specta]
+pub async fn foreign_stop(pid: u32) -> Result<(), AppError> {
+    if teitunnel_core::discovery::cloudflared::stop(pid).await {
+        Ok(())
+    } else {
+        Err(AppError::internal(
+            "That cloudflared isn't running any more.",
+        ))
+    }
+}

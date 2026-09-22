@@ -140,6 +140,8 @@ pub struct Facts {
     pub binary: BinaryFact,
     /// Each connected account.
     pub accounts: Vec<AccountFacts>,
+    /// cloudflared processes Teitunnel didn't start.
+    pub foreign: Vec<crate::discovery::cloudflared::ForeignConnector>,
 }
 
 const TUNNEL_SUFFIX: &str = ".cfargotunnel.com";
@@ -242,6 +244,7 @@ pub async fn run(
     let mut facts = Facts {
         binary,
         accounts: Vec::new(),
+        foreign: crate::discovery::cloudflared::foreign().await,
     };
     let mut unreachable = Vec::new();
     for account in accounts.list().await.unwrap_or_default() {
@@ -470,6 +473,30 @@ pub fn diagnose(facts: &Facts) -> Vec<Issue> {
             version.iter().map(|v| format!("Version {v}")).collect(),
             vec![Fix::InstallBinary],
         ),
+    }
+    for connector in &facts.foreign {
+        use crate::discovery::cloudflared::ForeignMode;
+        let what = match &connector.mode {
+            ForeignMode::QuickTunnel { origin } => format!("a Quick Tunnel for {origin}"),
+            ForeignMode::Named {
+                tunnel: Some(name), ..
+            } => format!("tunnel {name}"),
+            ForeignMode::Named { .. } => "a tunnel".to_owned(),
+            ForeignMode::Other => "cloudflared".to_owned(),
+        };
+        found.add(
+            "tunnel.foreign_running",
+            Severity::Info,
+            &format!("cloudflared (pid {})", connector.pid),
+            format!("cloudflared is running {what} outside Teitunnel"),
+            if connector.service {
+                "It was started as a background service. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes."
+            } else {
+                "It was started outside Teitunnel. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes."
+            },
+            vec![connector.command.clone()],
+            Vec::new(),
+        );
     }
     let mut issues = found.issues;
     for account in &facts.accounts {
@@ -822,6 +849,7 @@ mod tests {
         diagnose(&Facts {
             binary: BinaryFact::Ok,
             accounts: vec![facts],
+            foreign: Vec::new(),
         })
         .into_iter()
         .map(|i| i.check)
@@ -855,6 +883,7 @@ mod tests {
         let issues = diagnose(&Facts {
             binary: BinaryFact::Ok,
             accounts: vec![grey],
+            foreign: Vec::new(),
         });
         let issue = issues
             .iter()
@@ -911,6 +940,7 @@ mod tests {
         let issues = diagnose(&Facts {
             binary: BinaryFact::Ok,
             accounts: vec![facts],
+            foreign: Vec::new(),
         });
         let owned = issues.iter().find(|i| i.subject == "old.xyz.com").unwrap();
         assert_eq!(owned.check, "dns.orphan_owned");
@@ -942,6 +972,7 @@ mod tests {
         let issues = diagnose(&Facts {
             binary: BinaryFact::Missing,
             accounts: vec![facts],
+            foreign: Vec::new(),
         });
         let found: Vec<&str> = issues.iter().map(|i| i.check.as_str()).collect();
         assert_eq!(found[0], "binary.missing", "errors sort first");

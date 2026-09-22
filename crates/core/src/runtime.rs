@@ -19,5 +19,6 @@ pub use logbuf::LogBuffer;
 pub use policy::{CrashTracker, RestartPolicy};
 pub use ports::{PortAllocator, QUICK_SHARE_PORTS, TUNNEL_PORTS};
 pub use registry::PidRegistry;
+pub(crate) use registry::stop_pid as stop_foreign;
 pub use state::{ConnectorId, ConnectorState, RuntimeEvent};
 pub use supervisor::{ConnectorSpec, Supervisor, SupervisorError};

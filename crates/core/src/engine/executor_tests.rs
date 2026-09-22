@@ -839,6 +839,7 @@ async fn fixing_safe_issues_never_touches_foreign_records() {
         let issues = diagnose(&Facts {
             binary: BinaryFact::Ok,
             accounts: vec![facts],
+            foreign: Vec::new(),
         });
         let before = cloud.snapshot();
         let report = fix_safe(&engine, &cloud, &conns, CTX, &issues).await;

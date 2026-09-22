@@ -32,6 +32,7 @@ export const queryKeys = {
     drift: (accountId: string) => ["routes", "drift", accountId] as const,
     activity: (accountId: string) => ["routes", "activity", accountId] as const,
     tunnels: (accountId: string) => ["routes", "tunnels", accountId] as const,
+    foreign: () => ["routes", "foreign"] as const,
   },
   doctor: {
     all: () => ["doctor"] as const,

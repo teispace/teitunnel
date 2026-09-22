@@ -123,6 +123,10 @@ export const commands = {
 	 *  reads; credentials' secrets are never read.
 	 */
 	importScan: () => __TAURI_INVOKE<LocalSetup[]>("import_scan"),
+	/**  cloudflared processes on this Mac that Teitunnel didn't start. */
+	foreignList: () => __TAURI_INVOKE<ForeignConnector[]>("foreign_list"),
+	/**  Stops a cloudflared process Teitunnel didn't start (after re-checking it's one). */
+	foreignStop: (pid: number) => __TAURI_INVOKE<null>("foreign_stop", { pid }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
@@ -453,6 +457,37 @@ export type FixReport = {
 	/**  Fixes that failed (and were rolled back), with why. */
 	failed: string[],
 };
+
+/**  A cloudflared process Teitunnel doesn't manage. */
+export type ForeignConnector = {
+	/**  Process id. */
+	pid: number,
+	/**  The command line, with tokens replaced by `[redacted]`. */
+	command: string,
+	/**  What it's doing. */
+	mode: ForeignMode,
+	/**  Started by launchd (a service) rather than a terminal. */
+	service: boolean,
+	/**  Its metrics address, when it has one. */
+	metrics: string | null,
+	/**  Edge connections reported by `/ready` (None: no metrics server answered). */
+	connections: number | null,
+};
+
+/**  What a foreign cloudflared is doing. */
+export type ForeignMode = 
+/**  `tunnel --url …`: a Quick Tunnel. */
+{ type: "quickTunnel"; 
+/**  The local origin. */
+origin: string } | 
+/**  `tunnel run [name]`, with a token or a config. */
+{ type: "named"; 
+/**  The tunnel name or id, when given on the command line. */
+tunnel: string | null; 
+/**  The config file, when given. */
+config: string | null } | 
+/**  Something else (`access`, `proxy-dns`, …). */
+{ type: "other" };
 
 /**  One route found in a config file. */
 export type FoundRoute = {

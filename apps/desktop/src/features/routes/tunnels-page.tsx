@@ -11,15 +11,108 @@ import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
-import type { TunnelSummary } from "@/lib/ipc/bindings";
+import type { ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
-import { useTunnelAction, useTunnels } from "./queries";
+import { useForeignConnectors, useStopForeign, useTunnelAction, useTunnels } from "./queries";
+
+type Entry =
+  | { kind: "tunnel"; tunnel: TunnelSummary }
+  | { kind: "foreign"; process: ForeignConnector };
+
+const entryId = (e: Entry) => (e.kind === "tunnel" ? e.tunnel.id : `pid-${e.process.pid}`);
+
+function foreignTitle(process: ForeignConnector) {
+  switch (process.mode.type) {
+    case "quickTunnel":
+      return `Quick Tunnel · ${process.mode.origin.replace(/^https?:\/\//, "")}`;
+    case "named":
+      return process.mode.tunnel ? `Tunnel ${process.mode.tunnel}` : "Named tunnel";
+    default:
+      return "cloudflared";
+  }
+}
+
+function foreignStatus(process: ForeignConnector): { dot: Status; label: string } {
+  if (process.connections === null) return { dot: "idle", label: "Running" };
+  return process.connections > 0
+    ? { dot: "healthy", label: `${process.connections} connections` }
+    : { dot: "warning", label: "Not connected" };
+}
+
+function ForeignInspector({ process }: { process: ForeignConnector }) {
+  const stop = useStopForeign();
+  const status = foreignStatus(process);
+  return (
+    <Inspector
+      title={foreignTitle(process)}
+      subtitle={
+        <span className="flex items-center gap-1.5">
+          <StatusDot status={status.dot} label={status.label} /> {status.label}
+        </span>
+      }
+      actions={
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="destructive">Stop…</Button>
+          </DialogTrigger>
+          <DialogContent
+            title="Stop this cloudflared?"
+            description={
+              process.service
+                ? "It runs as a background service, which may start it again. Whatever it serves stops answering."
+                : "Whatever it serves stops answering. Teitunnel didn't start it, so check nothing else relies on it."
+            }
+            footer={
+              <>
+                <DialogClose asChild>
+                  <Button>Cancel</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button
+                    variant="destructive"
+                    onClick={() =>
+                      stop.mutate(process.pid, {
+                        onError: (error) => toast.error(toIpcError(error).message),
+                      })
+                    }
+                  >
+                    Stop
+                  </Button>
+                </DialogClose>
+              </>
+            }
+          />
+        </Dialog>
+      }
+    >
+      <p className="text-callout text-secondary">
+        Teitunnel didn't start this cloudflared, so it only shows it.
+      </p>
+      <InspectorSection title="Details">
+        <KeyValueGrid
+          items={[
+            { label: "Process", value: String(process.pid), mono: true },
+            {
+              label: "Started by",
+              value: process.service ? "A background service" : "A terminal or app",
+            },
+            ...(process.metrics ? [{ label: "Metrics", value: process.metrics, mono: true }] : []),
+          ]}
+        />
+      </InspectorSection>
+      <InspectorSection title="Command">
+        <p className="selectable break-all font-mono text-mono text-secondary">{process.command}</p>
+      </InspectorSection>
+    </Inspector>
+  );
+}
 
 const cloudStatus: Record<string, { dot: Status; label: string }> = {
   healthy: { dot: "healthy", label: "Connected" },
@@ -140,8 +233,12 @@ export function TunnelsPage() {
   const tunnels = useTunnels(active?.id ?? null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
-  const list = tunnels.data ?? [];
-  const selected = list.find((t) => t.id === selectedId) ?? list[0] ?? null;
+  const foreign = useForeignConnectors(true);
+  const list: Entry[] = [
+    ...(tunnels.data ?? []).map((tunnel): Entry => ({ kind: "tunnel", tunnel })),
+    ...(foreign.data ?? []).map((process): Entry => ({ kind: "foreign", process })),
+  ];
+  const selected = list.find((e) => entryId(e) === selectedId) ?? list[0] ?? null;
 
   const toolbar = (
     <TitlebarToolbar title="Tunnels">
@@ -202,23 +299,46 @@ export function TunnelsPage() {
         <ListPane
           label="Tunnels"
           items={list}
-          getId={(t) => t.id}
-          selectedId={selected?.id ?? null}
+          getId={entryId}
+          groupOf={(e) => (e.kind === "tunnel" ? "In Cloudflare" : "Also on this Mac")}
+          selectedId={selected ? entryId(selected) : null}
           onSelect={setSelectedId}
-          renderRow={(tunnel) => (
-            <ListRow
-              title={tunnel.name}
-              subtitle={subtitle(tunnel)}
-              leading={<StatusDot status={statusOf(tunnel).dot} label={statusOf(tunnel).label} />}
-            />
-          )}
+          renderRow={(entry) =>
+            entry.kind === "tunnel" ? (
+              <ListRow
+                title={entry.tunnel.name}
+                subtitle={subtitle(entry.tunnel)}
+                leading={
+                  <StatusDot
+                    status={statusOf(entry.tunnel).dot}
+                    label={statusOf(entry.tunnel).label}
+                  />
+                }
+              />
+            ) : (
+              <ListRow
+                title={foreignTitle(entry.process)}
+                subtitle={`Not managed · pid ${entry.process.pid}`}
+                leading={
+                  <StatusDot
+                    status={foreignStatus(entry.process).dot}
+                    label={foreignStatus(entry.process).label}
+                  />
+                }
+              />
+            )
+          }
         />
       }
     >
-      {selected && active ? (
+      {selected?.kind === "foreign" ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ForeignInspector process={selected.process} />
+        </div>
+      ) : selected && active ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <TunnelInspector
-            tunnel={selected}
+            tunnel={selected.tunnel}
             accountId={active.id}
             onDelete={() => setSheet({ kind: "removeTunnel" })}
           />

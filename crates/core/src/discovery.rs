@@ -5,6 +5,7 @@
 //! stays open). It never runs as a background loop.
 
 mod classify;
+pub mod cloudflared;
 pub mod docker;
 
 use std::{

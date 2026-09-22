@@ -130,3 +130,24 @@ export function useLocalSetups(enabled: boolean) {
     staleTime: 60_000,
   });
 }
+
+/** cloudflared processes on this Mac that Teitunnel didn't start. */
+export function useForeignConnectors(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.routes.foreign(),
+    queryFn: () => call(commands.foreignList()),
+    enabled,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useStopForeign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (pid: number) => call(commands.foreignStop(pid)),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.routes.foreign() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.doctor.all() });
+    },
+  });
+}

@@ -25,7 +25,7 @@ export function CloudflaredPane() {
   const progress = describeProgress(install.progress);
 
   if (!isSuccess) return null;
-  if (!binary || !binary.supported) return <BinaryNotice binary={binary ?? null} />;
+  if (!binary?.supported) return <BinaryNotice binary={binary ?? null} />;
 
   const managed = binary.source === "managed";
   return (

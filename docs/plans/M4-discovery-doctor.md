@@ -25,7 +25,7 @@
 - [ ] Also detect launchd plists / systemd units running cloudflared and offer to take them over.
 
 ### M4-04 · Adoption of running processes
-- [ ] Find foreign cloudflared processes, probe metrics ports (defaults + parsed `--metrics`), and show them as Discovered. **Adopt** = observe only (health, metrics). **Take over** = stop theirs and start ours (plan preview, with the explicit warning shown).
+- [x] Find foreign cloudflared processes, probe metrics ports (defaults + parsed `--metrics`), and show them as Discovered. **Adopt** = observe only (health, metrics). **Take over** = stop theirs and start ours (plan preview, with the explicit warning shown). *(Shown under Tunnels ▸ Also on this Mac with a confirmed Stop; take over = Stop + Import routes. Tokens are redacted from command lines; the pid is re-verified before stopping.)*
 
 ### M4-05 · Doctor framework
 - [x] `Check` trait, registry, shared snapshot, scheduling (startup, post-apply, connector state change, manual, every 5 min while visible). *(Checks are pure functions over gathered `Facts` rather than trait objects; runs on open, focus, route changes, manual refresh and every 5 min.)*

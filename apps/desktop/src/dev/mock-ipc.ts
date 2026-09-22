@@ -393,6 +393,17 @@ export function installMockIpc(): void {
               problem: null,
             },
           ];
+        case "foreign_list":
+          return [
+            {
+              pid: 812,
+              command: "/opt/homebrew/bin/cloudflared tunnel run --token [redacted]",
+              mode: { type: "named", tunnel: null, config: null },
+              service: true,
+              metrics: "127.0.0.1:20241",
+              connections: 4,
+            },
+          ];
         case "doctor_run":
           return [
             {
