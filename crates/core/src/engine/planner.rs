@@ -329,6 +329,15 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.release_dns(hostname.as_str(), &tunnel_id);
             }
         }
+        Intent::RestoreConfig { ingress } => {
+            let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
+            let desired = ingress
+                .iter()
+                .filter(|r| r.hostname.is_some())
+                .cloned()
+                .collect();
+            b.put_config(&TunnelRef::Existing(tunnel.id.clone()), desired);
+        }
         Intent::RemoveTunnel => {
             let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
             let mut hostnames: Vec<&str> =

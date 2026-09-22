@@ -133,7 +133,7 @@ impl Snapshot {
 }
 
 /// What the user asked for.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -163,6 +163,11 @@ pub enum Intent {
     },
     /// Remove every route and delete the machine tunnel.
     RemoveTunnel,
+    /// Put back the routes Teitunnel last wrote, undoing an edit made elsewhere.
+    RestoreConfig {
+        /// The ingress Teitunnel last applied.
+        ingress: Vec<IngressRule>,
+    },
 }
 
 impl Intent {
@@ -175,6 +180,7 @@ impl Intent {
             } => Some(vec![hostname, &route.hostname]),
             Self::RemoveRoute { hostname, .. } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
+            Self::RestoreConfig { .. } => Some(Vec::new()),
         }
     }
 
@@ -209,6 +215,9 @@ impl Intent {
                 format!("Remove {}", target(hostname, path.as_ref()))
             }
             Self::RemoveTunnel => "Remove every route and delete this Mac's tunnel".to_owned(),
+            Self::RestoreConfig { .. } => {
+                "Restore this Mac's routes after an outside edit".to_owned()
+            }
         }
     }
 }

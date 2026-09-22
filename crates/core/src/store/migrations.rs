@@ -40,6 +40,7 @@ const MIGRATIONS: &[M<'static>] = &[
             tunnel_id            TEXT NOT NULL,
             name                 TEXT NOT NULL,
             last_applied_version INTEGER,
+            last_applied_ingress TEXT,
             metrics_port         INTEGER,
             created_at           INTEGER NOT NULL
         ) STRICT;

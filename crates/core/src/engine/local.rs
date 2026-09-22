@@ -7,6 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use cf_api::IngressRule;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
@@ -111,7 +112,8 @@ impl Local {
                     "INSERT INTO tunnels_local (account_id, tunnel_id, name, created_at)
                      VALUES (?1, ?2, ?3, ?4)
                      ON CONFLICT (account_id) DO UPDATE SET tunnel_id = ?2, name = ?3,
-                       last_applied_version = NULL, created_at = ?4",
+                       last_applied_version = NULL, last_applied_ingress = NULL,
+                       created_at = ?4",
                     params![account, tunnel_id, name, now_ms()],
                 )?;
                 Ok(())
@@ -136,20 +138,52 @@ impl Local {
             .await
     }
 
-    /// Records the config version Teitunnel just wrote.
+    /// Records the config version Teitunnel just wrote, and its ingress (to show what
+    /// changed if someone edits it elsewhere).
     ///
     /// # Errors
     /// Database errors.
-    pub async fn set_applied_version(&self, account: &str, version: u64) -> Result<(), StoreError> {
+    pub async fn set_applied(
+        &self,
+        account: &str,
+        version: u64,
+        ingress: &[IngressRule],
+    ) -> Result<(), StoreError> {
         let account = account.to_owned();
         let version = i64::try_from(version).unwrap_or(i64::MAX);
+        let ingress = serde_json::to_string(ingress)?;
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "UPDATE tunnels_local SET last_applied_version = ?2 WHERE account_id = ?1",
-                    params![account, version],
+                    "UPDATE tunnels_local SET last_applied_version = ?2, last_applied_ingress = ?3
+                     WHERE account_id = ?1",
+                    params![account, version, ingress],
                 )?;
                 Ok(())
+            })
+            .await
+    }
+
+    /// The ingress Teitunnel last wrote for `account`'s tunnel.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn applied_ingress(
+        &self,
+        account: &str,
+    ) -> Result<Option<Vec<IngressRule>>, StoreError> {
+        let account = account.to_owned();
+        self.store
+            .call(move |conn| {
+                let json: Option<String> = conn
+                    .query_row(
+                        "SELECT last_applied_ingress FROM tunnels_local WHERE account_id = ?1",
+                        params![account],
+                        |row| row.get(0),
+                    )
+                    .optional()?
+                    .flatten();
+                Ok(json.map(|j| serde_json::from_str(&j)).transpose()?)
             })
             .await
     }
@@ -311,7 +345,8 @@ mod tests {
         let local = Local::new(Store::open_in_memory().unwrap());
         assert_eq!(local.machine_tunnel("a").await.unwrap(), None);
         local.set_machine_tunnel("a", "t1", "Mac").await.unwrap();
-        local.set_applied_version("a", 4).await.unwrap();
+        local.set_applied("a", 4, &[]).await.unwrap();
+        assert_eq!(local.applied_ingress("a").await.unwrap(), Some(Vec::new()));
         local.set_metrics_port("a", 20300).await.unwrap();
         assert_eq!(
             local.machine_tunnel("a").await.unwrap(),

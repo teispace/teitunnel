@@ -573,3 +573,70 @@ async fn verifies_a_route_through_the_edge() {
         "{moved:?}"
     );
 }
+
+#[tokio::test]
+async fn detects_outside_edits_and_resolves_them() {
+    use cf_api::IngressRule;
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+    let tunnel = cloud.snapshot().tunnels.keys().next().unwrap().clone();
+
+    let edit = |service: &str| {
+        let mut state = cloud.state.lock().unwrap();
+        let t = state.tunnels.get_mut(&tunnel).unwrap();
+        let config = t.config.as_mut().unwrap();
+        config.ingress.insert(
+            0,
+            IngressRule {
+                hostname: Some("dash.xyz.com".into()),
+                path: None,
+                service: service.into(),
+                origin_request: Map::new(),
+                extra: Map::new(),
+            },
+        );
+        t.version += 1;
+    };
+
+    // Keep theirs: the edit becomes the baseline.
+    edit("http://localhost:9000");
+    let drift = engine.drift(&cloud, "acc").await.unwrap().expect("drift");
+    assert_eq!(drift.changes.len(), 1);
+    assert_eq!(drift.changes[0].hostname, "dash.xyz.com");
+    assert_eq!(drift.changes[0].before, None);
+    engine.keep_theirs("acc", &drift).await.unwrap();
+    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+
+    // Restore mine: a plan puts Teitunnel's routes back.
+    edit("http://localhost:9001");
+    let drift = engine.drift(&cloud, "acc").await.unwrap().expect("drift");
+    let restore = Intent::RestoreConfig {
+        ingress: drift.ours.clone(),
+    };
+    let outcome = run(&engine, &cloud, &conns, &restore).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let ingress = cloud.snapshot().tunnels[&tunnel]
+        .config
+        .clone()
+        .unwrap()
+        .ingress;
+    assert_eq!(ingress, drift.ours);
+    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+
+    // A change that touches no route (the catch-all) is adopted silently.
+    {
+        let mut state = cloud.state.lock().unwrap();
+        let t = state.tunnels.get_mut(&tunnel).unwrap();
+        t.config
+            .as_mut()
+            .unwrap()
+            .ingress
+            .last_mut()
+            .unwrap()
+            .service = "http_status:503".into();
+        t.version += 1;
+    }
+    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+}

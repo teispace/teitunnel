@@ -48,7 +48,7 @@
 - [ ] Connector status flows into routes (a route is healthy only if its connector is healthy and verify passes).
 
 ### M3-08 · Drift detection
-- [ ] Store `last_applied_version` per tunnel. On observe, a higher version means drift → compute a diff (our last applied config vs current) → `Drift` issue with **Keep theirs** (adopt, update metadata) / **Restore mine** (plan a PUT).
+- [x] Store `last_applied_version` per tunnel. On observe, a higher version means drift → compute a diff (our last applied config vs current) → `Drift` issue with **Keep theirs** (adopt, update metadata) / **Restore mine** (plan a PUT). *(`Engine::drift`, `keep_theirs`, `Intent::RestoreConfig`; the last applied ingress is stored for the diff. Edits that change no route are adopted silently. UI in M3-09.)*
 
 ### M3-09 · UI: Routes
 - [ ] Routes list grouped by domain (default) or by tunnel. The row shows hostname, origin, and a status dot with a label.

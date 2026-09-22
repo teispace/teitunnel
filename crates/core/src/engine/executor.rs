@@ -11,6 +11,7 @@ use cf_api::{DnsRecord, IngressRule, NewDnsRecord, TunnelConfig};
 use serde::Serialize;
 use tokio::time::Instant;
 
+use super::drift::{Drift, diff};
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
     cloud::{CloudApi, Connectors},
@@ -310,6 +311,75 @@ impl Engine {
     ) -> Result<Plan, EngineError> {
         let snapshot = self.snapshot(api, ctx, intent, true).await?;
         Ok(plan(intent, &snapshot)?)
+    }
+
+    /// Whether this Mac's tunnel config was edited outside Teitunnel since it last wrote
+    /// it. Edits that don't change any route (e.g. the catch-all) are adopted silently.
+    ///
+    /// # Errors
+    /// API or database errors.
+    pub async fn drift<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+    ) -> Result<Option<Drift>, EngineError> {
+        let Some(tunnel) = self
+            .local
+            .machine_tunnel(account)
+            .await
+            .map_err(ObserveError::from)?
+        else {
+            return Ok(None);
+        };
+        let Some(applied) = tunnel.last_applied_version else {
+            return Ok(None);
+        };
+        let current = match api.tunnel_config(account, &tunnel.tunnel_id).await {
+            Ok(current) => current,
+            Err(err) if err.status() == Some(404) => return Ok(None),
+            Err(err) => return Err(ObserveError::from(err).into()),
+        };
+        if current.version <= applied {
+            return Ok(None);
+        }
+        let ours = self
+            .local
+            .applied_ingress(account)
+            .await
+            .map_err(ObserveError::from)?
+            .unwrap_or_default();
+        let theirs = current.config.map(|c| c.ingress).unwrap_or_default();
+        let changes = diff(&ours, &theirs);
+        if changes.is_empty() {
+            self.local
+                .set_applied(account, current.version, &theirs)
+                .await
+                .map_err(ObserveError::from)?;
+            return Ok(None);
+        }
+        Ok(Some(Drift {
+            tunnel_id: tunnel.tunnel_id,
+            applied_version: applied,
+            current_version: current.version,
+            changes,
+            ours,
+            theirs,
+        }))
+    }
+
+    /// Adopts an outside edit as the new baseline ("Keep theirs").
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn keep_theirs(&self, account: &str, drift: &Drift) -> Result<(), EngineError> {
+        let lock = self.lock_for(account);
+        let _guard = lock.lock().await;
+        self.local
+            .set_applied(account, drift.current_version, &drift.theirs)
+            .await
+            .map_err(ObserveError::from)?;
+        self.invalidate(account);
+        Ok(())
     }
 
     /// Checks that `hostname` works end to end. Transient failures (a connector still
@@ -685,7 +755,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .map_err(|e| e.to_string())?;
         warn_local(
             self.local
-                .set_applied_version(self.account, written.version)
+                .set_applied(self.account, written.version, ingress)
                 .await,
         );
         Ok(())
