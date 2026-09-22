@@ -138,7 +138,7 @@ mod tests {
     async fn runs_queries_on_the_store_thread() {
         let store = Store::open_in_memory().unwrap();
         let name = store
-            .call(|conn| Ok(thread::current().name().map(str::to_owned)))
+            .call(|_conn| Ok(thread::current().name().map(str::to_owned)))
             .await
             .unwrap();
         assert_eq!(name.as_deref(), Some("teitunnel-store"));
