@@ -9,6 +9,7 @@ pub mod command;
 pub mod endpoints;
 mod error;
 pub mod install;
+pub mod launchd;
 pub mod locate;
 pub mod log_parse;
 pub mod metrics;

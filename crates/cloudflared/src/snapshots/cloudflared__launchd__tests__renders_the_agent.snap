@@ -1,0 +1,39 @@
+---
+source: crates/cloudflared/src/launchd.rs
+expression: plist
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.teispace.teitunnel.connector.6ff42ae2</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/me/Library/Application Support/com.teispace.teitunnel/bin/cloudflared</string>
+		<string>tunnel</string>
+		<string>--no-autoupdate</string>
+		<string>--output</string>
+		<string>json</string>
+		<string>--loglevel</string>
+		<string>info</string>
+		<string>--metrics</string>
+		<string>127.0.0.1:20301</string>
+		<string>run</string>
+		<string>--token-file</string>
+		<string>/Users/me/Library/Application Support/com.teispace.teitunnel/tokens/6ff42ae2</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/me/Library/Logs/com.teispace.teitunnel/connectors/6ff42ae2.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/me/Library/Logs/com.teispace.teitunnel/connectors/6ff42ae2.log</string>
+</dict>
+</plist>
