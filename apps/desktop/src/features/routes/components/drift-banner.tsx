@@ -1,0 +1,61 @@
+import { TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { RuleChange } from "@/lib/ipc/bindings";
+import { useDrift, useKeepTheirs } from "../queries";
+
+function describe(change: RuleChange) {
+  const service = (s: string) => s.replace(/^http:\/\/localhost:/, "localhost:");
+  if (change.before === null)
+    return `${change.hostname} was added → ${service(change.after ?? "")}`;
+  if (change.after === null) return `${change.hostname} was removed`;
+  if (change.before === change.after) return `${change.hostname}: its settings changed`;
+  return `${change.hostname} now goes to ${service(change.after)}`;
+}
+
+/**
+ * Shown when this Mac's routes were edited outside Teitunnel (dashboard, another Mac):
+ * keep the edit, or put back what Teitunnel set up.
+ */
+export function DriftBanner({
+  accountId,
+  onRestore,
+}: {
+  accountId: string;
+  onRestore: () => void;
+}) {
+  const drift = useDrift(accountId);
+  const keep = useKeepTheirs(accountId);
+  if (!drift.data) return null;
+  const changes = drift.data.changes;
+  return (
+    <div
+      role="status"
+      className="mx-3 mt-2 flex gap-2.5 rounded-card bg-warning/10 px-3 py-2.5 text-callout"
+    >
+      <TriangleAlert
+        aria-hidden
+        className="mt-0.5 size-4 shrink-0 text-warning"
+        strokeWidth={1.75}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-headline">Routes were changed outside Teitunnel</p>
+        <ul className="mt-0.5 text-secondary">
+          {changes.slice(0, 3).map((change) => (
+            <li key={`${change.hostname}${change.path ?? ""}`} className="truncate">
+              {describe(change)}
+            </li>
+          ))}
+          {changes.length > 3 ? <li>and {changes.length - 3} more</li> : null}
+        </ul>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" disabled={keep.isPending} onClick={() => keep.mutate()}>
+            Keep Changes
+          </Button>
+          <Button size="sm" onClick={onRestore}>
+            Restore Mine…
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

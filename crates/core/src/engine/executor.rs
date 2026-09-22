@@ -468,11 +468,7 @@ impl Engine {
         )
         .await?;
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
-            return Ok(Verification {
-                hostname: hostname.to_string(),
-                status: None,
-                failure: Some(failure),
-            });
+            return Ok(Verification::new(hostname.to_string(), None, Some(failure)));
         }
         let origin = snapshot
             .routes()

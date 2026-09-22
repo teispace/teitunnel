@@ -36,7 +36,7 @@
 - [x] Per-account async mutex. Staleness guard (re-observe + re-plan + compare). Config PUT with the expected version.
 - [x] Step retry policy and compensation per step (ARCHITECTURE §4.4). Report `RolledBack` vs `PartiallyApplied { leftovers }`.
 - [x] `activity` table and `dns_ownership` + `tunnels_local` migrations. *(`routes_meta` arrives with Disable in M3-09, where a route's definition must outlive its ingress rule.)*
-- [ ] Progress over a `Channel<PlanProgress>`. *(The engine reports `Progress` through a callback; the Channel lives in the desktop commands, M3-09.)* `EntityChanged` is emitted at the end.
+- [x] Progress over a `Channel<Progress>` (`routes_apply`); the Routes query is invalidated after apply. `EntityChanged` is emitted at the end.
 - [x] Tests with the fake `CloudApi`: failure injected at every step index → the state is restored (property test).
 
 ### M3-06 · Verifier
@@ -45,23 +45,23 @@
 
 ### M3-07 · Machine tunnel & connector integration
 - [x] `EnsureMachineTunnel`: find our tunnel for this machine (by `tunnels_local`), else create one named after the Mac's name ("Krishna's MacBook Pro", sanitised). Fetch the run token into the keychain. Start a Session connector (the supervisor from M1) with a stable metrics port. *(Named after the host name; a taken name gets " 2", " 3"… Never adopts an existing tunnel by name: another Mac with the same name would then share it.)*
-- [ ] Connector status flows into routes (a route is healthy only if its connector is healthy and verify passes).
+- [x] Connector status flows into routes (a route is healthy only if its connector is healthy and verify passes).
 
 ### M3-08 · Drift detection
 - [x] Store `last_applied_version` per tunnel. On observe, a higher version means drift → compute a diff (our last applied config vs current) → `Drift` issue with **Keep theirs** (adopt, update metadata) / **Restore mine** (plan a PUT). *(`Engine::drift`, `keep_theirs`, `Intent::RestoreConfig`; the last applied ingress is stored for the diff. Edits that change no route are adopted silently. UI in M3-09.)*
 
 ### M3-09 · UI: Routes
-- [ ] Routes list grouped by domain (default) or by tunnel. The row shows hostname, origin, and a status dot with a label.
-- [ ] Inspector: URL (CopyField/Open), origin, health breakdown (connector / DNS / edge / origin), options, recent activity, and actions (Test, Edit, Disable, Remove).
-- [ ] **Add route sheet (⌘N):** OriginPicker (detected services first) → HostnameInput (subdomain + zone combobox, live validation and conflict preview) → optional path → "Advanced" disclosure (all origin options) → **Review**, which shows the PlanPreview (steps, warnings, per-step "Copy as command") → **Apply** with a ProgressChecklist → success state with the verified URL.
-- [ ] Remove flow with a cascade preview. Reorder via drag (Advanced mode only).
-- [ ] Undo: after apply, a toast offers "Undo" for 10 s (plans the inverse intent).
+- [x] Routes list grouped by domain (default) or by tunnel. The row shows hostname, origin, and a status dot with a label.
+- [x] Inspector: URL (CopyField/Open), origin, health breakdown (connector / DNS / edge / origin), options, recent activity, and actions (Test, Edit, Disable, Remove). *(Disable and the origin options editor come later.)*
+- [x] **Add route sheet (⌘N):** OriginPicker (detected services first) → HostnameInput (subdomain + zone combobox, live validation and conflict preview) → optional path → "Advanced" disclosure (all origin options) → **Review**, which shows the PlanPreview (steps, warnings, per-step "Copy as command") → **Apply** with a ProgressChecklist → success state with the verified URL.
+- [x] Remove flow with a cascade preview. Reorder via drag (Advanced mode only). *(Reorder deferred: rules are specificity-sorted; Disable deferred with `routes_meta`.)*
+- [x] Undo: after apply, a toast offers "Undo" for 10 s (plans the inverse intent).
 
 ### M3-10 · UI: Tunnels (Advanced)
 - [ ] All tunnels in the account: name, status, connectors (colo, version, origin IP, machine = this Mac?), created, route count, "managed by Teitunnel" badge.
 - [ ] Actions: start/stop (this machine), rename, delete with a cascade plan, clean stale connections.
 
 ### M3-11 · Tests
-- [ ] Vitest flows for add/remove/rename with mockIPC.
+- [x] Vitest flows for add/remove/rename with mockIPC. *(add, confirm, field errors, remove, drift)*
 - [ ] E2E (fake CloudApi via a test build feature + fake-cloudflared): full add → verify (stubbed) → remove.
 - [ ] Nightly real-account job (dedicated test zone, API token in CI secrets): create 2 routes in 2 zones, verify HTTP 200 through the tunnel, delete everything, then assert zero records and no tunnel remain.

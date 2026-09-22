@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type ReactNode, useId, useRef } from "react";
+import { Fragment, type KeyboardEvent, type ReactNode, useId, useRef } from "react";
 import { cn } from "@/lib/cn";
 
 interface ListPaneProps<T> {
@@ -10,6 +10,8 @@ interface ListPaneProps<T> {
   label: string;
   /** Shown when there are no items. */
   empty?: ReactNode;
+  /** Section title of an item; a header is shown where it changes (items must be sorted). */
+  groupOf?: (item: T) => string;
   className?: string;
 }
 
@@ -26,6 +28,7 @@ export function ListPane<T>({
   renderRow,
   label,
   empty,
+  groupOf,
   className,
 }: ListPaneProps<T>) {
   const baseId = useId();
@@ -71,31 +74,44 @@ export function ListPane<T>({
         className,
       )}
     >
-      {items.map((item) => {
+      {items.map((item, position) => {
         const id = getId(item);
         const selected = id === selectedId;
+        const group = groupOf?.(item);
+        const previous = position > 0 ? items[position - 1] : undefined;
+        const header =
+          group !== undefined && (previous === undefined || groupOf?.(previous) !== group);
         return (
-          <div
-            key={id}
-            id={optionId(id)}
-            role="option"
-            aria-selected={selected}
-            tabIndex={-1}
-            onMouseDown={(event) => {
-              if (event.button !== 0) return;
-              onSelect(id);
-              listRef.current?.focus();
-              event.preventDefault();
-            }}
-            className={cn(
-              "rounded-row",
-              selected && "bg-surface-selected-inactive",
-              selected &&
-                "group-focus-within/list:bg-surface-selected group-focus-within/list:text-on-accent group-focus-within/list:[--text-secondary:color-mix(in_srgb,var(--text-on-accent)_75%,transparent)]",
-            )}
-          >
-            {renderRow(item)}
-          </div>
+          <Fragment key={id}>
+            {header ? (
+              <div
+                role="presentation"
+                className="truncate px-2 pt-2.5 pb-1 text-footnote font-semibold text-tertiary first:pt-1"
+              >
+                {group}
+              </div>
+            ) : null}
+            <div
+              id={optionId(id)}
+              role="option"
+              aria-selected={selected}
+              tabIndex={-1}
+              onMouseDown={(event) => {
+                if (event.button !== 0) return;
+                onSelect(id);
+                listRef.current?.focus();
+                event.preventDefault();
+              }}
+              className={cn(
+                "rounded-row",
+                selected && "bg-surface-selected-inactive",
+                selected &&
+                  "group-focus-within/list:bg-surface-selected group-focus-within/list:text-on-accent group-focus-within/list:[--text-secondary:color-mix(in_srgb,var(--text-on-accent)_75%,transparent)]",
+              )}
+            >
+              {renderRow(item)}
+            </div>
+          </Fragment>
         );
       })}
     </div>

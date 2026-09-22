@@ -1,11 +1,15 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type {
   Account,
+  ActivityEntry,
   AppInfo,
   Capabilities,
   Domain,
   LocalService,
+  Outcome,
+  PlanView,
   QuickShare,
+  RoutesOverview,
   Settings,
   SettingsPatch,
   ShareStats,
@@ -124,6 +128,101 @@ const capabilities: Capabilities = {
   })),
 };
 
+const tunnelId = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
+const routesOverview: RoutesOverview = {
+  tunnel: {
+    id: tunnelId,
+    name: "Krishnas-MacBook-Pro",
+    connector: { state: "healthy", connections: 4 },
+  },
+  routes: [
+    {
+      hostname: "app.teispace.com",
+      path: null,
+      origin: "http://localhost:5173",
+      local: true,
+      zone: "teispace.com",
+      dns: { state: "ok" },
+    },
+    {
+      hostname: "docs.teispace.com",
+      path: null,
+      origin: "http://localhost:4321",
+      local: true,
+      zone: "teispace.com",
+      dns: { state: "missing" },
+    },
+    {
+      hostname: "xyz.dev",
+      path: null,
+      origin: "http://localhost:3000",
+      local: true,
+      zone: "xyz.dev",
+      dns: { state: "ok" },
+    },
+    {
+      hostname: "api.xyz.dev",
+      path: "^/v1/",
+      origin: "http://localhost:8000",
+      local: true,
+      zone: "xyz.dev",
+      dns: { state: "ok" },
+    },
+  ],
+  zones: [
+    { id: "023e105f4ecef8ad9ca31a8372d0c353", name: "teispace.com" },
+    { id: "9a7806061c88ada191ed06f989cc3dac", name: "xyz.dev" },
+    { id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", name: "yx.app" },
+  ],
+};
+
+const addPlan: PlanView = {
+  steps: [
+    {
+      kind: "putConfig",
+      description: "Update tunnel “Krishnas-MacBook-Pro” to serve 5 routes",
+      command: `curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/${tunnelId}/configurations`,
+    },
+    {
+      kind: "updateRecord",
+      description: "Point shop.yx.app at tunnel “Krishnas-MacBook-Pro” (was A 192.0.2.10)",
+      command: null,
+    },
+    {
+      kind: "verify",
+      description: "Check https://shop.yx.app works",
+      command: "curl -I https://shop.yx.app",
+    },
+  ],
+  warnings: [
+    {
+      type: "replacesForeignRecord",
+      hostname: "shop.yx.app",
+      kind: "A",
+      content: "192.0.2.10",
+    },
+  ],
+  requiresConfirmation: true,
+  fingerprint: "mock",
+};
+
+const activity: ActivityEntry[] = [
+  {
+    id: 2,
+    at: now - 4 * 60_000,
+    summary: "Add api.xyz.dev (path ^/v1/) → http://localhost:8000",
+    outcome: "applied",
+    detail: [],
+  },
+  {
+    id: 1,
+    at: now - 3 * 3_600_000,
+    summary: "Add app.teispace.com → http://localhost:5173",
+    outcome: "applied",
+    detail: [],
+  },
+];
+
 const stats: ShareStats = { requests: 1284, errors: 3 };
 const appInfo: AppInfo = {
   version: "0.0.0-dev",
@@ -185,6 +284,54 @@ export function installMockIpc(): void {
           return true;
         case "domains_list":
           return domains;
+        case "routes_overview":
+          return routesOverview;
+        case "routes_preview":
+          return addPlan;
+        case "routes_apply":
+          return new Promise<Outcome>((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  type: "applied",
+                  tunnelId,
+                  verify: ["shop.yx.app"],
+                  connectorError: null,
+                }),
+              600,
+            ),
+          );
+        case "routes_verify":
+          return new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  hostname: String(payload["hostname"]),
+                  status: 200,
+                  failure: null,
+                  message: null,
+                }),
+              900,
+            ),
+          );
+        case "routes_drift":
+          return new URLSearchParams(window.location.search).has("drift")
+            ? {
+                tunnelId,
+                appliedVersion: 7,
+                currentVersion: 8,
+                changes: [
+                  {
+                    hostname: "admin.teispace.com",
+                    path: null,
+                    before: null,
+                    after: "http://localhost:9000",
+                  },
+                ],
+              }
+            : null;
+        case "routes_activity":
+          return activity;
         case "quick_share_stats":
           return stats;
         case "quick_share_logs":

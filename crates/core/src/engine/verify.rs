@@ -130,9 +130,20 @@ pub struct Verification {
     pub status: Option<u16>,
     /// What's wrong, if anything.
     pub failure: Option<Failure>,
+    /// The failure, in a sentence for the UI.
+    pub message: Option<String>,
 }
 
 impl Verification {
+    pub(crate) fn new(hostname: String, status: Option<u16>, failure: Option<Failure>) -> Self {
+        Self {
+            hostname,
+            status,
+            message: failure.as_ref().map(Failure::message),
+            failure,
+        }
+    }
+
     /// Whether the route works end to end.
     pub fn ok(&self) -> bool {
         self.failure.is_none()
@@ -227,11 +238,7 @@ pub(crate) async fn probe(
     origin: Option<&RouteOrigin>,
 ) -> Verification {
     let name = hostname.as_str().to_owned();
-    let result = |status, failure| Verification {
-        hostname: name.clone(),
-        status,
-        failure,
-    };
+    let result = |status, failure| Verification::new(name.clone(), status, failure);
     let (url, addr) = match edge {
         Edge::Cloudflare => {
             let addr = match lookup_host(("api.cloudflare.com", 443)).await {

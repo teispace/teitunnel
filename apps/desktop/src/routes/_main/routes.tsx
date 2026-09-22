@@ -1,21 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Waypoints } from "lucide-react";
-import { EmptyState } from "@/components/patterns/empty-state";
-import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
+import { RoutesPage } from "@/features/routes";
+
+interface RoutesSearch {
+  /** Open the New Route sheet (⌘N, "New route" in the palette). */
+  add?: boolean;
+}
 
 export const Route = createFileRoute("/_main/routes")({
-  component: RoutesPage,
+  validateSearch: (search: Record<string, unknown>): RoutesSearch =>
+    search["add"] === true || search["add"] === "true" ? { add: true } : {},
+  component: RoutesRoute,
 });
 
-function RoutesPage() {
-  return (
-    <>
-      <TitlebarToolbar title="Routes" />
-      <EmptyState
-        icon={Waypoints}
-        title="No routes yet"
-        description="A route sends a hostname like app.example.com to a service on this Mac, such as localhost:3000."
-      />
-    </>
-  );
+function RoutesRoute() {
+  const { add } = Route.useSearch();
+  return <RoutesPage adding={add === true} />;
 }

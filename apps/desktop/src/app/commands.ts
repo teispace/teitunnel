@@ -63,7 +63,7 @@ export const appCommands: readonly AppCommand[] = [
     icon: Plus,
     shortcut: "⌘N",
     menu: "newRoute",
-    run: ({ navigate }) => void navigate({ to: "/routes" }),
+    run: ({ navigate }) => void navigate({ to: "/routes", search: { add: true } }),
   },
   {
     id: "new-quick-share",

@@ -742,6 +742,8 @@ export type Verification = {
 	status: number | null,
 	/**  What's wrong, if anything. */
 	failure: Failure | null,
+	/**  The failure, in a sentence for the UI. */
+	message: string | null,
 };
 
 /**  Something the user should know before applying. */
