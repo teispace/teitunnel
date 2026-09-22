@@ -4,8 +4,14 @@
 //! (accounts, zones, DNS records, tunnels and their configurations). It knows nothing
 //! about Teitunnel's product model; that lives in `teitunnel-core`.
 
+mod client;
 mod envelope;
 mod error;
+mod resources;
+mod token;
 
-pub use envelope::{ApiMessage, Envelope};
+pub use client::{API_BASE, Client};
+pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
+pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
+pub use token::ApiToken;

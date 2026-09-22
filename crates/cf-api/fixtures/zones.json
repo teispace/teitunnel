@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "023e105f4ecef8ad9ca31a8372d0c353",
+      "name": "xyz.com",
+      "status": "active",
+      "paused": false,
+      "type": "full",
+      "development_mode": 0,
+      "name_servers": ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
+      "original_name_servers": ["ns1.registrar.example", "ns2.registrar.example"],
+      "original_registrar": "example registrar",
+      "account": { "id": "acc1", "name": "Personal" },
+      "owner": { "id": null, "type": "user", "email": null },
+      "plan": { "id": "0feeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "name": "Free Website", "price": 0, "currency": "USD" },
+      "activated_on": "2026-01-02T10:00:00.000000Z",
+      "created_on": "2026-01-01T10:00:00.000000Z",
+      "modified_on": "2026-01-02T10:00:00.000000Z"
+    },
+    {
+      "id": "9a7806061c88ada191ed06f989cc3dac",
+      "name": "yx.com",
+      "status": "pending",
+      "paused": false,
+      "type": "full",
+      "name_servers": ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
+      "original_name_servers": null,
+      "account": { "id": "acc1", "name": "Personal" },
+      "plan": { "name": "Free Website" }
+    }
+  ],
+  "result_info": { "page": 1, "per_page": 50, "count": 2, "total_count": 2, "total_pages": 1 }
+}
