@@ -140,7 +140,7 @@ impl Client {
 }
 
 /// Percent-encodes an id for use in a path or query (ids are hex, but never trust input).
-fn encode(value: &str) -> String {
+pub(crate) fn encode(value: &str) -> String {
     value
         .bytes()
         .map(|b| {

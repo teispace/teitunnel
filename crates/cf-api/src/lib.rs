@@ -5,15 +5,34 @@
 //! about Teitunnel's product model; that lives in `teitunnel-core`.
 
 mod client;
+mod dns;
 mod envelope;
 mod error;
 mod probe;
 mod resources;
 mod token;
+mod tunnels;
 
 pub use client::{API_BASE, Client};
+pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
 pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
 pub use token::ApiToken;
+pub use tunnels::{Connection, IngressRule, Tunnel, TunnelConfig, VersionedConfig};
+
+pub(crate) use resources::encode;
+
+/// Percent-encodes a query value (hostnames, comments), keeping `.` readable.
+pub(crate) fn encode_query(value: &str) -> String {
+    value
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}

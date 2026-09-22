@@ -22,6 +22,14 @@ const MAX_PAGES: u32 = 200;
 const RATE_LIMIT: usize = 1100;
 const RATE_WINDOW: Duration = Duration::from_secs(300);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Retry {
+    /// Safe to repeat: retry 429, 5xx and network errors.
+    Idempotent,
+    /// A create: retry only 429 (the request wasn't processed).
+    Once,
+}
+
 /// A Cloudflare API client bound to one credential. Cheap to clone.
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -84,9 +92,19 @@ impl Client {
         sent.push_back(Instant::now());
     }
 
-    /// Sends a request with retries: 429 honours `Retry-After`, 5xx and network
-    /// errors back off exponentially, other 4xx fail at once. Returns status and body.
+    /// Sends an idempotent request (GET/PUT/PATCH/DELETE) with retries.
     async fn send(&self, build: impl Fn() -> reqwest::RequestBuilder) -> Result<(u16, Vec<u8>)> {
+        self.send_with(Retry::Idempotent, build).await
+    }
+
+    /// Sends a request with retries: 429 honours `Retry-After`, other 4xx fail at once.
+    /// Idempotent requests also retry 5xx and network errors with exponential backoff;
+    /// creates don't, because the first attempt may have succeeded (no duplicates).
+    async fn send_with(
+        &self,
+        retry: Retry,
+        build: impl Fn() -> reqwest::RequestBuilder,
+    ) -> Result<(u16, Vec<u8>)> {
         let mut attempt = 0;
         loop {
             self.throttle().await;
@@ -103,14 +121,17 @@ impl Client {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|v| v.parse::<u64>().ok())
                         .map(Duration::from_secs);
-                    let retryable = status == 429 || (500..600).contains(&status);
+                    let retryable = status == 429
+                        || (retry == Retry::Idempotent && (500..600).contains(&status));
                     if !retryable || attempt >= MAX_RETRIES {
                         let body = response.bytes().await?.to_vec();
                         return Ok((status, body));
                     }
                     retry_after
                 }
-                Err(err) if attempt >= MAX_RETRIES => return Err(err.into()),
+                Err(err) if attempt >= MAX_RETRIES || retry == Retry::Once => {
+                    return Err(err.into());
+                }
                 Err(_) => None,
             };
             attempt += 1;
@@ -134,6 +155,49 @@ impl Client {
         let url = self.url(path);
         let (status, body) = self.send(|| self.http.get(&url)).await?;
         Envelope::decode(status, &body)
+    }
+
+    /// `POST path` with a JSON body → `result`. Not retried on 5xx or network errors.
+    ///
+    /// # Errors
+    /// API errors, network failures or unexpected bodies.
+    pub async fn post<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<T> {
+        let url = self.url(path);
+        let (status, bytes) = self
+            .send_with(Retry::Once, || self.http.post(&url).json(body))
+            .await?;
+        Envelope::decode(status, &bytes)
+    }
+
+    /// `PUT path` with a JSON body → `result`.
+    ///
+    /// # Errors
+    /// API errors, network failures or unexpected bodies.
+    pub async fn put<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<T> {
+        let url = self.url(path);
+        let (status, bytes) = self.send(|| self.http.put(&url).json(body)).await?;
+        Envelope::decode(status, &bytes)
+    }
+
+    /// `DELETE path`. A 404 counts as success (already gone), so retries are safe.
+    ///
+    /// # Errors
+    /// API errors or network failures.
+    pub async fn delete(&self, path: &str) -> Result<()> {
+        let url = self.url(path);
+        let (status, bytes) = self.send(|| self.http.delete(&url)).await?;
+        if status == 404 {
+            return Ok(());
+        }
+        Envelope::<serde_json::Value>::decode(status, &bytes).map(|_| ())
     }
 
     /// `PATCH path` with a JSON body → `result`.
@@ -259,6 +323,33 @@ mod tests {
             .await;
         let err = client.get::<u8>("/down").await.unwrap_err();
         assert_eq!(err.status(), Some(503));
+    }
+
+    #[tokio::test]
+    async fn never_retries_creates_on_server_errors() {
+        let (server, client) = client().await;
+        Mock::given(method("POST"))
+            .and(path("/things"))
+            .respond_with(ResponseTemplate::new(502))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let err = client
+            .post::<u8>("/things", &serde_json::json!({}))
+            .await
+            .unwrap_err();
+        assert_eq!(err.status(), Some(502));
+    }
+
+    #[tokio::test]
+    async fn deleting_something_already_gone_succeeds() {
+        let (server, client) = client().await;
+        Mock::given(method("DELETE"))
+            .and(path("/gone"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        client.delete("/gone").await.unwrap();
     }
 
     #[tokio::test]
