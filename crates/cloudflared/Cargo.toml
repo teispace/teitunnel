@@ -13,11 +13,14 @@ name = "cloudflared"
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["process", "time", "io-util"] }
 tracing.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 

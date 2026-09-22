@@ -8,6 +8,7 @@
 pub mod command;
 mod error;
 pub mod locate;
+pub mod log_parse;
 mod version;
 
 pub use command::{
@@ -15,4 +16,5 @@ pub use command::{
 };
 pub use error::{Error, Result};
 pub use locate::{BinarySource, BinaryStatus, Locator, MIN_SUPPORTED};
+pub use log_parse::{EventKind, Level, LogEvent, parse_line};
 pub use version::Version;
