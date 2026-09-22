@@ -164,3 +164,15 @@ Format: `D-NNN · date · title`: decision, why, alternatives considered.
 **Decision:** The verifier confirms the DNS record through the Cloudflare API, then sends its HTTPS probe directly to a Cloudflare edge address (resolved from `api.cloudflare.com`) with the route's hostname as SNI/Host. It never resolves the route's hostname.
 **Why:** Same failure mode as D-037: resolving a brand-new name too early caches NXDOMAIN in the local and upstream resolvers for up to the zone's SOA minimum, breaking the URL the user is about to open. Cloudflare's edge serves any proxied hostname on any of its anycast addresses ("Addressing Agility"), so the probe exercises the real edge → tunnel → origin path without touching DNS.
 
+
+### D-041 · 2026-09-23 · The machine tunnel is never adopted by name
+**Decision:** A new machine tunnel is named after the host name; if the account already has a tunnel with that name, the new one becomes "name 2", "name 3"… Teitunnel only reuses the tunnel recorded in `tunnels_local`.
+**Why:** Two Macs can share a host name. Adopting by name would make both run connectors for one tunnel, and Cloudflare would load-balance one route across two machines. Import of foreign tunnels is an explicit M4 flow.
+
+### D-042 · 2026-09-23 · Route ids are derived from hostname and path
+**Decision:** A route's id (written into its DNS comment, `teitunnel:route=<id>`) is the first 6 bytes of SHA-256(hostname ∖0 path), hex.
+**Why:** Preview and apply are separate IPC calls that re-plan; a derived id makes both plans identical without storing state in between, and the ownership comment stays recoverable from the route itself.
+
+### D-043 · 2026-09-23 · E2E runs against a fake Cloudflare with in-memory secrets
+**Decision:** `tools/fake-cloudflare` implements the API endpoints the engine uses and answers route probes as the edge. Builds with the `e2e` feature read `TEITUNNEL_API_BASE` / `TEITUNNEL_EDGE` and use `MemoryStore` for secrets; release builds can't do either.
+**Why:** End-to-end tests must never touch the maintainer's Cloudflare account or login keychain, and must be deterministic in CI. The real API is exercised by the nightly job once a test token exists.
