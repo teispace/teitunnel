@@ -131,6 +131,8 @@ pub struct AccountFacts {
     pub connector: Option<ConnectorState>,
     /// Local origin ports and whether something listens on them.
     pub listening: HashMap<u16, bool>,
+    /// This Mac's connector's recent log lines.
+    pub logs: Vec<String>,
 }
 
 /// Everything the checks look at.
@@ -211,6 +213,11 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         .tunnel
         .as_ref()
         .and_then(|t| connectors.state(&t.id));
+    let logs = snapshot
+        .tunnel
+        .as_ref()
+        .map(|t| connectors.recent_logs(&t.id, 500))
+        .unwrap_or_default();
     Ok(AccountFacts {
         account_id: ctx.account.to_owned(),
         snapshot,
@@ -222,6 +229,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         can_manage_routes,
         connector,
         listening,
+        logs,
     })
 }
 
@@ -445,6 +453,56 @@ fn describe(record: &DnsRecord) -> String {
         record.content,
         if record.proxied { " (proxied)" } else { "" }
     )
+}
+
+/// Checks on the connector's recent logs: patterns cloudflared prints for problems the
+/// user can fix. The newest matching line is the evidence.
+fn log_checks(found: &mut Found<'_>, tunnel: &str, logs: &[String]) {
+    let last = |needles: &[&str]| {
+        logs.iter()
+            .rev()
+            .find(|line| {
+                let lower = line.to_ascii_lowercase();
+                needles.iter().all(|n| lower.contains(n))
+            })
+            .cloned()
+    };
+    let quic = last(&["quic", "timeout"])
+        .or_else(|| last(&["failed to dial to edge with quic"]))
+        .or_else(|| last(&["quic", "no recent network activity"]));
+    if let Some(line) = quic {
+        found.add(
+            "net.udp_blocked",
+            Severity::Warning,
+            tunnel,
+            "This network seems to block QUIC (UDP)".into(),
+            "cloudflared falls back to HTTP/2, which works but can be slower to reconnect. If connections keep dropping, check firewall rules for UDP port 7844.",
+            vec![line],
+            Vec::new(),
+        );
+    }
+    if let Some(line) = last(&["x509"]).or_else(|| last(&["tls", "origin"])) {
+        found.add(
+            "origin.tls",
+            Severity::Warning,
+            tunnel,
+            "An HTTPS origin's certificate isn't trusted".into(),
+            "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the Mac trusts.",
+            vec![line],
+            Vec::new(),
+        );
+    }
+    if let Some(line) = last(&["certificate", "not yet valid"]).or_else(|| last(&["clock skew"])) {
+        found.add(
+            "net.clock_skew",
+            Severity::Warning,
+            tunnel,
+            "This Mac's clock may be wrong".into(),
+            "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time and date automatically in System Settings.",
+            vec![line],
+            Vec::new(),
+        );
+    }
 }
 
 /// Runs every check.
@@ -714,6 +772,10 @@ fn diagnose_account(facts: &AccountFacts) -> Vec<Issue> {
         }
     }
 
+    if let Some(tunnel) = tunnel {
+        log_checks(&mut found, &tunnel.name, &facts.logs);
+    }
+
     let known: HashSet<&str> = facts
         .tunnels
         .iter()
@@ -842,6 +904,7 @@ mod tests {
             can_manage_routes: Some(true),
             connector: Some(ConnectorState::Healthy { connections: 4 }),
             listening: HashMap::from([(3000, true)]),
+            logs: Vec::new(),
         }
     }
 
@@ -981,5 +1044,19 @@ mod tests {
         assert_eq!(issues[0].id, "binary.missing:-:cloudflared");
         let pending = issues.iter().find(|i| i.check == "zone.pending").unwrap();
         assert_eq!(pending.id, "zone.pending:acc:yx.com");
+    }
+
+    #[test]
+    fn log_patterns_become_issues() {
+        let mut facts = healthy();
+        facts.logs = vec![
+            "Registered tunnel connection".into(),
+            "Failed to dial a quic connection error=\"timeout: no recent network activity\"".into(),
+            "Unable to reach the origin service. tls: failed to verify certificate: x509: certificate signed by unknown authority".into(),
+        ];
+        let found = checks(facts);
+        assert!(found.contains(&"net.udp_blocked".to_owned()), "{found:?}");
+        assert!(found.contains(&"origin.tls".to_owned()), "{found:?}");
+        assert!(!found.contains(&"net.clock_skew".to_owned()));
     }
 }

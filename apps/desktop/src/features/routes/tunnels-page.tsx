@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/patterns/error-state";
 import { Inspector, InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { ListPane, ListRow } from "@/components/patterns/list-pane";
+import { LogLines } from "@/components/patterns/log-lines";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,13 @@ import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts
 import type { ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
-import { useForeignConnectors, useStopForeign, useTunnelAction, useTunnels } from "./queries";
+import {
+  useForeignConnectors,
+  useStopForeign,
+  useTunnelAction,
+  useTunnelLogs,
+  useTunnels,
+} from "./queries";
 
 type Entry =
   | { kind: "tunnel"; tunnel: TunnelSummary }
@@ -216,12 +223,22 @@ function TunnelInspector({
           </ul>
         )}
       </InspectorSection>
+      {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
         <p className="text-callout text-secondary">
           Teitunnel didn't create this tunnel, so it only shows it. Manage it where it was set up.
         </p>
       ) : null}
     </Inspector>
+  );
+}
+
+function TunnelLogs({ tunnelId }: { tunnelId: string }) {
+  const { data: lines = [] } = useTunnelLogs(tunnelId, true);
+  return (
+    <InspectorSection title="Logs">
+      <LogLines lines={lines} empty="The connector hasn't logged anything yet." />
+    </InspectorSection>
   );
 }
 

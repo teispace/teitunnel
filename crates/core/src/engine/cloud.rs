@@ -124,6 +124,10 @@ pub trait Connectors: Send + Sync {
     ) -> impl Future<Output = Result<(), String>> + Send;
     /// Stops the connector for a tunnel.
     fn stop(&self, tunnel_id: &str) -> impl Future<Output = Result<(), String>> + Send;
+    /// The connector's newest log lines (message and error), oldest first.
+    fn recent_logs(&self, _tunnel_id: &str, _limit: usize) -> Vec<String> {
+        Vec::new()
+    }
     /// The tunnel was deleted: forget its token.
     fn deleted(&self, tunnel_id: &str) -> impl Future<Output = ()> + Send;
 }

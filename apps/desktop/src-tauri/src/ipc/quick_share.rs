@@ -202,13 +202,22 @@ pub async fn quick_share_stats(
 #[tauri::command]
 #[specta::specta]
 pub fn quick_share_logs(state: State<'_, AppState>, id: String, limit: u32) -> Vec<LogLine> {
-    state
-        .supervisor
-        .logs(
-            &ConnectorId(id),
-            usize::try_from(limit).unwrap_or(usize::MAX),
-        )
-        .unwrap_or_default()
+    log_lines(
+        &state
+            .supervisor
+            .logs(
+                &ConnectorId(id),
+                usize::try_from(limit).unwrap_or(usize::MAX),
+            )
+            .unwrap_or_default(),
+    )
+}
+
+/// Log events as the UI shows them.
+pub(crate) fn log_lines(
+    events: &[std::sync::Arc<teitunnel_core::runtime::LogEvent>],
+) -> Vec<LogLine> {
+    events
         .iter()
         .map(|event| LogLine {
             time: event.time.clone(),

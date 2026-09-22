@@ -127,6 +127,8 @@ export const commands = {
 	foreignList: () => __TAURI_INVOKE<ForeignConnector[]>("foreign_list"),
 	/**  Stops a cloudflared process Teitunnel didn't start (after re-checking it's one). */
 	foreignStop: (pid: number) => __TAURI_INVOKE<null>("foreign_stop", { pid }),
+	/**  The newest log lines of this Mac's connector for a tunnel. */
+	tunnelsLogs: (tunnelId: string, limit: number) => __TAURI_INVOKE<LogLine[]>("tunnels_logs", { tunnelId, limit }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**

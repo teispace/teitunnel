@@ -151,3 +151,14 @@ export function useStopForeign() {
     },
   });
 }
+
+/** This Mac's connector's newest log lines, polled while shown. */
+export function useTunnelLogs(tunnelId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["routes", "logs", tunnelId],
+    queryFn: () => call(commands.tunnelsLogs(tunnelId, 200)),
+    enabled,
+    refetchInterval: 2000,
+    staleTime: 0,
+  });
+}

@@ -71,6 +71,17 @@ impl MachineTunnels {
         self.held.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// The connector's newest log events, oldest first.
+    pub fn logs(
+        &self,
+        tunnel_id: &str,
+        limit: usize,
+    ) -> Vec<std::sync::Arc<cloudflared::LogEvent>> {
+        self.supervisor
+            .logs(&connector_id(tunnel_id), limit)
+            .unwrap_or_default()
+    }
+
     /// Starts `account`'s machine tunnel if it has one and it isn't running (app launch).
     /// Uses the token in the keychain, or fetches it if it's missing.
     ///
@@ -139,6 +150,16 @@ impl MachineTunnels {
 impl Connectors for MachineTunnels {
     fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {
         self.supervisor.state(&connector_id(tunnel_id))
+    }
+
+    fn recent_logs(&self, tunnel_id: &str, limit: usize) -> Vec<String> {
+        self.logs(tunnel_id, limit)
+            .iter()
+            .map(|e| match &e.error {
+                Some(error) => format!("{} {error}", e.message),
+                None => e.message.clone(),
+            })
+            .collect()
     }
 
     async fn start(

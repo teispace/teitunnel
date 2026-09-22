@@ -15,6 +15,7 @@ mod signal;
 mod state;
 mod supervisor;
 
+pub use cloudflared::LogEvent;
 pub use logbuf::LogBuffer;
 pub use policy::{CrashTracker, RestartPolicy};
 pub use ports::{PortAllocator, QUICK_SHARE_PORTS, TUNNEL_PORTS};

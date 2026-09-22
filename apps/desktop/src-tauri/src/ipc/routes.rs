@@ -258,3 +258,18 @@ pub async fn foreign_stop(pid: u32) -> Result<(), AppError> {
         ))
     }
 }
+
+/// The newest log lines of this Mac's connector for a tunnel.
+#[tauri::command]
+#[specta::specta]
+pub fn tunnels_logs(
+    state: State<'_, AppState>,
+    tunnel_id: String,
+    limit: u32,
+) -> Vec<crate::ipc::quick_share::LogLine> {
+    crate::ipc::quick_share::log_lines(
+        &state
+            .machine
+            .logs(&tunnel_id, usize::try_from(limit).unwrap_or(usize::MAX)),
+    )
+}

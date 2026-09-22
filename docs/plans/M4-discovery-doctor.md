@@ -33,6 +33,7 @@
 - [x] Issue → fix `Intent` → planner (fixes open the plan sheet). "Fix all safe" = fixes whose plans touch only owned resources and need no confirmation (DNS repairs and orphan deletions; property-tested).
 
 ### M4-06 · Check catalogue (one file + tests each)
+*(Implemented in `crates/core/src/doctor.rs` as pure functions with tests: binary.*, origin.not_listening, origin.tls (logs), dns.missing/not_proxied/conflict/wrong_target/orphan_owned/orphan_foreign, zone.pending, tunnel.no_connections/degraded/crash_loop/unused_owned, net.udp_blocked (logs), net.clock_skew (logs), config.drift, auth.missing_scope, plus tunnel.foreign_running and account.unreachable. Not yet: origin.http_error, tunnel.stale_connections, tunnel.duplicate_local, auth.expiring.)*
 | Id | Detects | Fix / guidance |
 |---|---|---|
 | `binary.missing` / `binary.outdated` / `binary.unsupported` | cloudflared state | Install/update managed |
