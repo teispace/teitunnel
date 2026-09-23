@@ -60,15 +60,28 @@ impl Harness {
 
 /// The scenario is passed through the environment of a tiny wrapper script, because
 /// `CommandSpec` deliberately controls the child's environment.
+///
+/// Written once per scenario, atomically (a temporary file renamed into place): on
+/// Linux, writing a script that another connector is executing fails with "Text file
+/// busy".
 fn wrapper(dir: &Path, scenario: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(format!("fake-{}.sh", scenario.replace(':', "_")));
+    if path.exists() {
+        return path;
+    }
+    let staging = dir.join(format!(
+        ".fake-{}-{}.sh",
+        scenario.replace(':', "_"),
+        std::process::id()
+    ));
     std::fs::write(
-        &path,
+        &staging,
         format!("#!/bin/sh\nFAKE_CFD_SCENARIO={scenario} exec {FAKE} \"$@\"\n"),
     )
     .unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::rename(&staging, &path).unwrap();
     path
 }
 
