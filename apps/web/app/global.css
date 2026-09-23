@@ -6,8 +6,180 @@
 
 :root {
   --tt-accent: oklch(0.62 0.19 255);
+  --tt-live: oklch(0.72 0.17 150);
+  --tt-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dark {
   --tt-accent: oklch(0.7 0.16 255);
+  --tt-live: oklch(0.78 0.16 150);
+}
+
+html {
+  scroll-padding-top: 4.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* The landing page's header sits on the hero: no rule until the page scrolls under it. */
+#nd-home-layout #nd-nav > div:not([class*="bg-fd-background"]) {
+  border-color: transparent;
+}
+
+/* ---- Motion -------------------------------------------------------------------------
+ * Everything is visible without JavaScript or with Reduce Motion; `html.tt-motion` is set
+ * by <Motion> only when animating is welcome, and elements rise in as they're scrolled to.
+ */
+
+@keyframes tt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tt-drift {
+  0%,
+  100% {
+    transform: translate3d(-4%, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.08);
+  }
+}
+
+@keyframes tt-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--tt-live) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+@keyframes tt-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+html.tt-motion [data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.8s var(--tt-ease),
+    transform 0.8s var(--tt-ease);
+  transition-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+html.tt-motion [data-reveal][data-shown] {
+  opacity: 1;
+  transform: none;
+}
+
+/* The hero plays on load rather than on scroll. */
+html.tt-motion [data-hero] {
+  animation: tt-rise 0.9s var(--tt-ease) both;
+  animation-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+html.tt-motion .tt-glow {
+  animation: tt-drift 18s ease-in-out infinite;
+}
+
+html.tt-motion .tt-live-dot {
+  animation: tt-pulse 2s ease-out infinite;
+}
+
+html.tt-motion .tt-caret {
+  animation: tt-caret 1s steps(1) infinite;
+}
+
+/* The hero screenshot leans back and settles as the page scrolls (where supported). */
+@supports (animation-timeline: view()) {
+  @keyframes tt-settle {
+    from {
+      transform: perspective(1600px) rotateX(14deg) scale(0.94);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  html.tt-motion .tt-settle {
+    transform-origin: 50% 0;
+    animation: tt-settle linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 45%;
+  }
+}
+
+/* Steps of the plan demo: waiting, working, done. */
+.tt-step .tt-step-icon {
+  transition:
+    opacity 0.3s var(--tt-ease),
+    color 0.3s var(--tt-ease),
+    transform 0.4s var(--tt-ease);
+}
+
+.tt-step[data-state="waiting"] .tt-step-icon {
+  opacity: 0.35;
+}
+
+.tt-step[data-state="done"] .tt-step-icon {
+  color: var(--tt-live);
+}
+
+/* Terminal demo lines appear one after another once it's revealed. */
+html.tt-motion [data-reveal] .tt-line {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.35s var(--tt-ease),
+    transform 0.35s var(--tt-ease);
+  transition-delay: calc(var(--tt-line, 0) * 1ms);
+}
+
+html.tt-motion [data-reveal][data-shown] .tt-line {
+  opacity: 1;
+  transform: none;
+}
+
+/* Switching tabs on the download page. */
+html.tt-motion .tt-panel {
+  animation: tt-rise 0.45s var(--tt-ease) both;
+}
+
+/* Reduce Motion wins over everything above, even if it's turned on after the page loads. */
+@media (prefers-reduced-motion: reduce) {
+  html.tt-motion [data-reveal],
+  html.tt-motion [data-hero],
+  html.tt-motion [data-reveal] .tt-line {
+    opacity: 1;
+    transform: none;
+    animation: none;
+    transition: none;
+  }
+
+  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-settle, .tt-panel) {
+    animation: none;
+  }
 }

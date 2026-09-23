@@ -1,0 +1,113 @@
+---
+title: Troubleshooting Cloudflare Tunnel
+description: Fix Cloudflare Tunnel errors — Error 1033, 502 Bad Gateway, 530, 524 timeouts, SSL handshake failures on multi-level subdomains, too many redirects, blocked hosts and WARP issues.
+---
+
+Start with the **Doctor** (⌘7 / Ctrl+7, or `teitunnel-cli doctor`): it checks your routes,
+DNS, connectors and logins, and most problems below come with a one-click fix there. Then
+**Test** on a route checks it end to end through Cloudflare. If it still doesn't work, find
+what the browser shows below.
+
+<Screenshot name="doctor" alt="The Doctor listing a problem with its explanation and fix" />
+
+## Error 1033
+
+*Cloudflare Tunnel error: Cloudflare is currently unable to resolve it.* The hostname points
+at a tunnel with **no connector running**.
+
+- The app is closed and the route isn't Always-on: open Teitunnel, or turn on **Keep running
+  when Teitunnel quits** ([run modes](/docs/concepts/run-modes)).
+- The connector can't reach Cloudflare: see [connections keep dropping](#connections-keep-dropping).
+- The record points at a tunnel that was deleted: the Doctor reports it (`dns.orphan_*`) and
+  offers to delete or repoint it.
+
+## 502 Bad Gateway
+
+The tunnel is up, but cloudflared **couldn't get an answer from your service**.
+
+- **Nothing listening on that port.** Start your app, or fix the port in the route. The Doctor
+  says *Nothing is listening on port 8000* (`origin.not_listening`).
+- **`localhost` resolves differently.** Some servers listen only on `127.0.0.1` (IPv4) or only
+  on `::1` (IPv6). Point the route at the exact address, such as `http://127.0.0.1:3000`, or
+  make your server listen on both.
+- **HTTP versus HTTPS.** A route to `http://…` on a port that speaks HTTPS (or the reverse)
+  fails. Match the scheme; for a self-signed HTTPS origin, turn on **No TLS verify**.
+- **In Docker**, `localhost` is the container itself; see
+  [Docker Compose](/docs/tutorials/docker-compose#things-that-trip-people-up).
+
+The connector's log (**Tunnels ▸ Logs**, or the route's **Logs**) shows cloudflared's exact
+error for each failed request.
+
+## Error 530 or 1016
+
+*Origin DNS error.* Cloudflare couldn't resolve where to send the request, usually because the
+DNS record points at a tunnel ID that no longer exists or a mistyped target. Run the Doctor:
+*A record points at a tunnel that no longer exists* offers to delete or reroute it.
+
+## The site can't be reached (DNS)
+
+`DNS_PROBE_FINISHED_NXDOMAIN` or *server IP address could not be found*:
+
+- The domain isn't active on Cloudflare yet: **Domains** shows *Waiting for nameservers*
+  until your registrar uses Cloudflare's nameservers.
+- The record is missing: the Doctor's `dns.missing` adds it.
+- Your computer cached the old answer: wait a few minutes, or flush your DNS cache.
+
+## SSL handshake failed, or ERR_SSL_VERSION_OR_CIPHER_MISMATCH
+
+Usually a **multi-level subdomain** such as `app.dev.example.com`. Cloudflare's free Universal
+SSL certificate covers `example.com` and one level below (`*.example.com`) only. Use a
+single-level name (`app-dev.example.com`), or order an Advanced Certificate or Total TLS for
+the deeper level in the Cloudflare dashboard.
+
+Right after adding a new domain, Cloudflare can take a little while to issue its certificate.
+
+## Too many redirects
+
+`ERR_TOO_MANY_REDIRECTS`: your app redirects HTTP to HTTPS, but cloudflared talks to it over
+HTTP, so it redirects forever. Either let the app trust the proxy header
+`X-Forwarded-Proto: https` (Express `trust proxy`, Django `SECURE_PROXY_SSL_HEADER`, Rails
+`config.assume_ssl`, WordPress `$_SERVER['HTTPS']` behind a proxy), or point the route at
+the app's HTTPS port.
+
+Also check the domain's **SSL/TLS encryption mode** in Cloudflare isn't set to force a
+different scheme through a Page Rule or redirect rule you forgot.
+
+## Blocked request, or Invalid Host header
+
+Vite, webpack, Django and Rails refuse hostnames they don't know. See
+[dev servers](/docs/tutorials/dev-servers): set the route's **Host header** to `localhost`,
+or allow the hostname in the project.
+
+## 524 timeout, or 413 too large
+
+- **524** means your service took more than 100 seconds to answer. Make long jobs
+  asynchronous, or stream progress.
+- **413** means the upload was over 100 MB (Free and Pro plans). Upload in chunks.
+
+## A login loop, or 403 after signing in
+
+On a route that [requires a login](/docs/guides/require-login): make sure the address you
+sign in with is on the list (an exact address, or `@example.com` for a whole domain). Test in
+a private window to rule out an old session. Routes with a regular-expression path can't have
+a login; use one route per path.
+
+## Connections keep dropping
+
+- Some networks block **UDP**, which cloudflared prefers (QUIC on port 7844). It falls back
+  to HTTP/2 over TCP by itself; the Doctor reports `net.udp_blocked`. Allow outbound port
+  7844 (UDP and TCP) in strict firewalls.
+- A wrong system **clock** breaks TLS: the Doctor reports `net.clock_skew`.
+- Two machines running the **same tunnel** split its requests between them; the Doctor
+  reports `tunnel.other_connectors`.
+
+## WARP users can't reach a private network
+
+Usually **Split Tunnels** exclude the range, or the **Gateway proxy** is off. See
+[private networks](/docs/guides/private-networks#when-warp-users-cant-reach-it).
+
+## Still stuck?
+
+**Help ▸ Export Diagnostics…** saves a redacted report (logs, the Doctor's findings,
+versions). [Open an issue](https://github.com/teispace/teitunnel/issues) and attach it, with
+what you expected and what happened.

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { ProsePage } from "@/components/prose-page";
+import { ogImage, pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Code signing policy",
   description: "How Teitunnel's downloads and updates are built, signed and verified.",
-};
+  path: "/code-signing/",
+  image: ogImage(["code-signing"]),
+});
 
 export default function CodeSigning() {
   return (

@@ -1,0 +1,40 @@
+---
+title: Teitunnel, cloudflared and the Cloudflare dashboard
+description: How Teitunnel compares with managing Cloudflare Tunnel through the cloudflared command line or the Cloudflare Zero Trust dashboard, and when to use which.
+---
+
+Teitunnel doesn't replace Cloudflare Tunnel; it's a way to use it. You can do the same things
+with Cloudflare's own tools, and mix them: Teitunnel reads what's in your account and only
+changes what it made.
+
+| | cloudflared CLI | Cloudflare dashboard | Teitunnel |
+|---|---|---|---|
+| Share a port with no account | `cloudflared tunnel --url` | no | Quick Share, one click |
+| Create a tunnel, routes and DNS | several commands | several pages | one reviewed change |
+| See changes before they're made | no | no | every change, as a plan |
+| Undo a change that failed halfway | by hand | by hand | automatic |
+| Records it didn't create | overwrites on request | edits anything | asks first, never deletes |
+| Keep running at login or boot | `cloudflared service install` | n/a | one switch; launchd, systemd or Task Scheduler |
+| Find what's running locally | no | no | dev servers and containers |
+| Explain problems | logs | status pages | Doctor, with fixes |
+| Traffic and logs | metrics endpoint, log files | per tunnel | per tunnel and route, live |
+| Logins (Access) for a route | separate API calls | separate pages | one switch on the route |
+| Load balancing across machines | API calls | several pages | one change |
+| Export to config.yml, Compose, Terraform | n/a | n/a | yes |
+| Runs on | anything | a browser | macOS, Windows, Linux, servers, Docker |
+
+## When to use what
+
+- **Teitunnel** when you want it done quickly and safely, especially on a laptop or a few
+  servers, or if DNS mistakes would hurt.
+- **The dashboard** for account-wide Zero Trust settings Teitunnel doesn't cover: identity
+  providers, device posture, Gateway policies.
+- **cloudflared directly**, or **Terraform**, when the tunnel is part of infrastructure
+  managed as code. Teitunnel can [export](/docs/guides/export) its routes as a starting point.
+
+## And ngrok, Tailscale Funnel, localtunnel?
+
+They solve overlapping problems with different networks and accounts. Teitunnel is for people
+who want **Cloudflare**: their own domains and DNS on Cloudflare, Cloudflare's network and
+certificates, Cloudflare Access for logins, and no extra subscription. Tailscale is closer to
+Teitunnel's [private networks](/docs/guides/private-networks), which use Cloudflare WARP.

@@ -1,23 +1,34 @@
 ---
 title: Run modes
-description: Keep routes running only while Teitunnel is open, or all the time.
+description: Keep Cloudflare Tunnel routes running only while Teitunnel is open, or all the time as a launchd, systemd or Task Scheduler service that starts at login or boot.
 ---
 
-This machine's connector runs in one of two modes, set per account in **Tunnels ▸ Running**.
+This machine's connector (the cloudflared process that carries your routes) runs in one of two
+modes, set per tunnel in **Tunnels ▸ Running ▸ Keep running when Teitunnel quits**.
 
 | | While Teitunnel runs | Always-on |
 |---|---|---|
-| Runs when | the app is open (including in the menu bar) | always, from login, even after you quit |
-| Started by | Teitunnel | macOS (a launch agent) |
-| Token | passed to the process in memory | a file only you can read (`0600`) |
-| Restarts after a crash | yes, with backoff | yes, by macOS |
+| Runs when | the app is open, including in the menu bar or tray | always, from login, even after you quit |
+| Started by | Teitunnel | your system: a launch agent on macOS, a Task Scheduler task on Windows, a `systemd --user` unit on Linux |
+| Run token | passed to the process in memory | a file only you can read (`0600`), removed when you turn it off |
+| Restarts after a crash | yes, with backoff | yes, by the system |
 
-**Switching doesn't drop your routes.** The new connector starts and must connect before
-the old one stops. If it doesn't connect within 30 seconds, the old one keeps running and
-you're told why.
+<Screenshot name="tunnels" alt="Tunnels: this machine's tunnel with its connector, private networks, the Keep running switch and traffic" />
 
-Closing the window keeps everything running in the menu bar. Quitting (⌘Q) with routes
-running through the app asks first, and offers to switch them to Always-on.
+**Switching doesn't drop your routes.** The new connector starts and must connect before the
+old one stops. If it doesn't connect within 30 seconds, the old one keeps running and you're
+told why.
+
+Closing the window keeps everything running in the menu bar or tray. Quitting (⌘Q, or
+**Quit Teitunnel** from the tray) with routes running through the app asks first, and offers
+to switch them to Always-on.
+
+## On servers
+
+`teitunnel-cli always-on on` does the same without the app. Run as root, it installs a
+**system** service that starts at boot, before anyone logs in; see
+[servers](/docs/guides/servers#any-linux-server-vps-ec2-azure-vm-compute-engine). In a
+container, the image runs the connectors itself (`teitunnel-cli up`).
 
 ## Updates
 

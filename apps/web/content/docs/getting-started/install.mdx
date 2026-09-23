@@ -1,50 +1,120 @@
 ---
-title: Install
-description: Install Teitunnel on macOS, Windows or Linux, the command line on a server, or the Docker image.
+title: Install Teitunnel
+description: Download and install Teitunnel on macOS, Windows or Linux, step by step, or install the command line on a server or in Docker.
 ---
 
-Teitunnel is a desktop app for **macOS 14 or later**, **Windows 10 and 11**, and **Linux**
-(GNOME, KDE and other desktops with a system tray), plus a command line and a Docker image
-for servers. Get it from the [download page](/download/), which picks the right file for
-your system. Every file is also on [GitHub Releases](https://github.com/teispace/teitunnel/releases),
-and you can [verify it](/docs/reference/verify).
+Teitunnel runs on **macOS 14 or later**, **Windows 10 and 11** and **Linux** (GNOME, KDE and
+other desktops), and as a command line and Docker image on servers. It's free, and it
+installs and checks **cloudflared** for you.
 
-<Tabs items={["macOS", "Windows", "Linux", "Command line", "Docker"]}>
+## Download
+
+The button below picks the right file for your computer. Other systems are in the tabs
+further down, and every file is also on the [download page](/download/).
+
+<Downloads />
+
+## Install it
+
+<Tabs items={["macOS", "Windows", "Linux", "Server (CLI)", "Docker"]}>
   <Tab value="macOS">
-    Open the disk image and drag **Teitunnel** to **Applications**. One download runs on
-    Apple silicon and Intel Macs. It's signed by Teispace and notarized by Apple, lives in the
-    menu bar as well as the Dock, and keeps credentials in your keychain.
+    <Downloads os="macos" />
+
+    <Steps>
+      <Step>
+        <h3>Open the disk image</h3>
+
+        Open **Teitunnel_…_universal.dmg** from your Downloads folder. One download runs on
+        both Apple silicon and Intel Macs.
+      </Step>
+      <Step>
+        <h3>Drag Teitunnel to Applications</h3>
+
+        Drag the Teitunnel icon onto the **Applications** folder in the window that opens, then
+        eject the disk image.
+      </Step>
+      <Step>
+        <h3>Open it</h3>
+
+        Open Teitunnel from Applications or Spotlight. The first time, macOS asks whether to
+        open an app downloaded from the internet: choose **Open**. Teitunnel is signed by
+        Teispace and notarized by Apple, so there's no other warning.
+      </Step>
+    </Steps>
+
+    Teitunnel lives in the menu bar as well as the Dock, and keeps credentials in your
+    keychain.
   </Tab>
   <Tab value="Windows">
-    Run the installer for your PC (x64, or Arm64 for Windows on Arm). It installs for your
-    user without an administrator. This beta isn't code-signed yet, so Windows may say it
-    protected your PC: choose **More info ▸ Run anyway**. Teitunnel adds an icon to the
-    notification area, keeps credentials in Windows Credential Manager, and can keep routes
-    running with Task Scheduler.
+    <Downloads os="windows" />
+
+    Choose **x64** for most PCs, or **Arm64** for Windows on Arm (Surface Pro X, Snapdragon
+    laptops). Not sure? **Settings ▸ System ▸ About ▸ System type** says which.
+
+    <Steps>
+      <Step>
+        <h3>Run the installer</h3>
+
+        Open **Teitunnel_…-setup.exe** from your Downloads folder.
+      </Step>
+      <Step>
+        <h3>Let Windows run it</h3>
+
+        This beta isn't code-signed yet, so Microsoft Defender SmartScreen may say *Windows
+        protected your PC*. Choose **More info**, then **Run anyway**. ([Why it isn't signed
+        yet](/code-signing/).)
+      </Step>
+      <Step>
+        <h3>Finish</h3>
+
+        It installs for your user, without an administrator, and opens. Find it later in the
+        Start menu. Its icon sits in the notification area next to the clock.
+      </Step>
+    </Steps>
+
+    Credentials are kept in Windows Credential Manager, and routes can keep running with Task
+    Scheduler.
   </Tab>
   <Tab value="Linux">
-    Install the package for your distribution, or run the AppImage:
+    <Downloads os="linux" />
+
+    Pick the package for your distribution:
 
     ```sh
-    sudo apt install ./Teitunnel_*_amd64.deb      # Ubuntu, Debian
-    sudo dnf install ./Teitunnel-*.x86_64.rpm     # Fedora (zypper on openSUSE)
-    chmod +x Teitunnel_*.AppImage && ./Teitunnel_*.AppImage
+    # Ubuntu, Debian, Linux Mint, Pop!_OS
+    sudo apt install ./Teitunnel_*_amd64.deb
+
+    # Fedora, RHEL, openSUSE (zypper install on openSUSE)
+    sudo dnf install ./Teitunnel-*.x86_64.rpm
+
+    # Anything else: the AppImage
+    chmod +x Teitunnel_*.AppImage
+    ./Teitunnel_*.AppImage
     ```
 
-    It needs WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 40 or later). Credentials are
-    kept by the Secret Service (GNOME Keyring or KWallet), which must be installed and
-    unlocked; routes can keep running as a `systemd --user` service.
+    Installing the `.deb` with `apt` (not `dpkg -i`) also installs what it needs. On an Arm64
+    machine, use the `arm64` / `aarch64` files instead.
+
+    It needs **WebKitGTK 4.1**: Ubuntu 22.04, Debian 12, Fedora 40 or later. The AppImage
+    also needs FUSE 2 (`sudo apt install libfuse2`, or `libfuse2t64` on Ubuntu 24.04).
+    Credentials are kept by the Secret Service (GNOME Keyring or KWallet), which must be
+    installed and unlocked; routes can keep running as a `systemd --user` service.
   </Tab>
-  <Tab value="Command line">
-    The app includes `teitunnel-cli`: **Settings ▸ General ▸ Command line ▸ Install** puts it
-    on your `PATH`. For servers, it's released on its own for macOS, Windows and Linux (x64
-    and Arm64) on the [download page](/download/#cli). Then see [Servers and containers](/docs/guides/servers) and the
-    [command reference](/docs/reference/cli).
+  <Tab value="Server (CLI)">
+    `teitunnel-cli` is released on its own for servers without a desktop:
+
+    <Downloads cli />
+
+    On Linux:
 
     ```sh
+    curl -LO https://github.com/teispace/teitunnel/releases/latest/download/teitunnel-cli_<version>_linux-x64.tar.gz
+    sudo tar -xzf teitunnel-cli_*_linux-x64.tar.gz -C /usr/local/bin teitunnel-cli
     teitunnel-cli --version
-    teitunnel-cli completions zsh > ~/.zfunc/_teitunnel-cli   # shell completion
     ```
+
+    Then follow [Servers and containers](/docs/guides/servers). If you have the desktop app,
+    **Settings ▸ General ▸ Command line ▸ Install** puts the same CLI on your `PATH`.
   </Tab>
   <Tab value="Docker">
     The image has the command line and Cloudflare's own `cloudflared`, runs as a non-root user
@@ -60,12 +130,28 @@ and you can [verify it](/docs/reference/verify).
       build it from the repository: `docker build -f docker/Dockerfile -t teitunnel .`
     </Callout>
 
-    See [Servers and containers](/docs/guides/servers#docker).
+    See [Docker Compose stacks](/docs/tutorials/docker-compose) and
+    [Servers and containers](/docs/guides/servers#docker).
   </Tab>
 </Tabs>
 
-To build it yourself instead, see the
-[contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
+## The first launch
+
+Teitunnel opens on **Overview**. Before anything can be shared it needs **cloudflared**,
+Cloudflare's connector:
+
+- If you already have one (from Homebrew, winget or your package manager), Teitunnel finds and
+  uses it.
+- If not, choose **Install cloudflared**. Teitunnel downloads the latest release from GitHub
+  and checks it before use: the download must match the digest GitHub publishes, the binary
+  must match the checksum in Cloudflare's release notes, and on macOS its code signature must
+  be Cloudflare's.
+
+The managed copy lives in Teitunnel's own folder and is updated from
+**Settings ▸ cloudflared**. When it updates, running connectors move to the new version
+without dropping your routes.
+
+<Screenshot name="overview" alt="Overview after setup: traffic, routes and Quick Shares" caption="Overview, once you have routes and shares." />
 
 ## Updates
 
@@ -80,20 +166,21 @@ A check downloads one small file from GitHub and sends nothing about you. To che
 when you ask, turn off **Settings ▸ General ▸ Check for updates automatically**; on macOS,
 **Teitunnel ▸ Check for Updates…** checks now.
 
-## cloudflared
+## Uninstall
 
-Routes and Quick Shares run on [cloudflared](https://github.com/cloudflare/cloudflared),
-Cloudflare's connector. On first launch Teitunnel looks for one already installed (Homebrew,
-winget or your package manager). If there isn't one, choose **Install cloudflared** and
-Teitunnel downloads the latest release from GitHub and checks it before use:
+Uninstalling doesn't change your Cloudflare account: tunnels, routes and DNS records stay.
+To clean up, first remove your routes in Teitunnel and turn off **Keep running when Teitunnel
+quits** in **Tunnels**, then **Settings ▸ Accounts ▸ Disconnect** deletes the credentials
+from your keychain.
 
-- the download must match the digest GitHub publishes,
-- the binary must match the checksum in Cloudflare's release notes,
-- and, on macOS, its code signature must be Cloudflare's.
+| System | Remove the app | Settings and history |
+|---|---|---|
+| macOS | Drag Teitunnel from Applications to the Trash | `~/Library/Application Support/com.teispace.teitunnel` |
+| Windows | **Settings ▸ Apps ▸ Installed apps ▸ Teitunnel ▸ Uninstall** | `%APPDATA%\com.teispace.teitunnel` |
+| Linux | `sudo apt remove teitunnel`, `sudo dnf remove teitunnel`, or delete the AppImage | `~/.local/share/com.teispace.teitunnel` |
 
-The managed copy lives in Teitunnel's own folder and is updated from
-**Settings ▸ cloudflared**. When it updates, running connectors move to the new version
-without dropping your routes.
+Delete that folder too if you want nothing left behind. To build Teitunnel yourself instead,
+see the [contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
 
 ## Next
 

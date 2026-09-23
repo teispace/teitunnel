@@ -1,4 +1,11 @@
 {
   "title": "Concepts",
-  "pages": ["routes-and-tunnels", "changes", "run-modes", "dns-ownership"]
+  "pages": [
+    "cloudflare-tunnel",
+    "routes-and-tunnels",
+    "changes",
+    "run-modes",
+    "dns-ownership",
+    "compare"
+  ]
 }

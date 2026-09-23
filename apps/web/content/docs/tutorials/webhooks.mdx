@@ -1,0 +1,79 @@
+---
+title: Test webhooks on localhost
+description: Receive Stripe, GitHub, Slack, Shopify or Twilio webhooks on your computer through Cloudflare Tunnel, at a stable HTTPS URL that doesn't change every time you restart.
+---
+
+Webhook providers need a public HTTPS URL, but your handler runs on `localhost`. A tunnel
+bridges the two. The one thing to get right is a **URL that stays the same**, so you set it
+in the provider once instead of after every restart.
+
+## Get a stable URL
+
+Connect your Cloudflare account ([first route](/docs/getting-started/first-route#before-you-start)),
+then share your server on a subdomain you reserve for webhooks:
+
+```sh
+teitunnel-cli share 4000 --on hooks.example.com
+```
+
+In the app: **Quick Share ▸ Address ▸ On example.com**, subdomain `hooks`, **Share**.
+
+`https://hooks.example.com` now reaches `localhost:4000` for as long as the share runs, and
+it's the same address tomorrow. If you want it up whenever your computer is, make it a
+[route](/docs/getting-started/first-route) instead and turn on
+[Keep running](/docs/concepts/run-modes).
+
+<Callout>
+A random `trycloudflare.com` Quick Share works too, but its URL changes every time, so you'd
+update the provider each session.
+</Callout>
+
+## Point the provider at it
+
+<Tabs items={["Stripe", "GitHub", "Slack", "Others"]}>
+  <Tab value="Stripe">
+    **Developers ▸ Webhooks ▸ Add endpoint** in test mode, with
+    `https://hooks.example.com/webhooks/stripe` (your handler's path). Copy the endpoint's
+    **Signing secret** (`whsec_…`) into your app and verify signatures with it. Use **Send
+    test webhook** to try it.
+  </Tab>
+  <Tab value="GitHub">
+    In the repository, **Settings ▸ Webhooks ▸ Add webhook**: payload URL
+    `https://hooks.example.com/github`, content type `application/json`, and a secret your
+    app checks against `X-Hub-Signature-256`. **Recent Deliveries** shows each request and
+    lets you **Redeliver** it while you debug.
+  </Tab>
+  <Tab value="Slack">
+    In your app's settings at api.slack.com, set the **Request URL** under *Event
+    Subscriptions* (or *Interactivity*) to `https://hooks.example.com/slack/events`. Slack
+    sends a `url_verification` challenge first; your handler must echo it back.
+  </Tab>
+  <Tab value="Others">
+    Shopify, Twilio, Discord, Linear, Paddle and others work the same way: paste the public
+    URL plus your handler's path, and verify the signature header they send.
+  </Tab>
+</Tabs>
+
+## Watch deliveries
+
+The share's card in Teitunnel counts requests and errors as they arrive and shows the
+connector's log. cloudflared logs failed requests (a `502` because your server wasn't
+running, say); your own server's log shows the rest.
+
+## If deliveries fail
+
+- **The provider says 502 or 530:** your handler isn't running on that port, or the share
+  stopped. Open `https://hooks.example.com` yourself to check.
+- **Cloudflare blocks the requests:** if your domain has **Bot Fight Mode**, *I'm Under
+  Attack* mode or strict WAF rules, Cloudflare may challenge webhook deliveries, which can't
+  solve a challenge. Add a WAF skip rule for the hostname, or use a subdomain on a domain
+  without them.
+- **Signature errors:** make sure your framework gives your handler the raw request body;
+  JSON parsing before verification changes it.
+- **Slow handlers:** providers time out after a few seconds. Answer `200` right away and do
+  the work afterwards.
+
+## Keep it private
+
+Anyone who knows the URL can post to it, so always verify the provider's signature. Don't
+put a [login](/docs/guides/require-login) in front of a webhook route: providers can't sign in.

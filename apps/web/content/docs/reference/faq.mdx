@@ -1,41 +1,101 @@
 ---
 title: FAQ
-description: Common questions.
+description: Common questions about Teitunnel and Cloudflare Tunnel — price, accounts, platforms, security, cloudflared, ngrok, and what happens when you quit.
 ---
 
-### Is Teitunnel made by Cloudflare?
+## The basics
 
-No. It's an independent open-source app (MIT) that uses Cloudflare's public API and
-runs Cloudflare's `cloudflared` connector.
+<Accordions type="multiple">
+  <Accordion title="What is Teitunnel?">
+    A free, open-source app for [Cloudflare Tunnel](/docs/concepts/cloudflare-tunnel). It
+    shares anything running on your computer at a public URL, publishes your apps on your own
+    domains with DNS handled for you, and keeps them running, without port forwarding or
+    editing cloudflared config files. There's a desktop app for macOS, Windows and Linux, and a
+    CLI and Docker image for servers.
+  </Accordion>
+  <Accordion title="Is Teitunnel made by Cloudflare?">
+    No. It's an independent open-source project (MIT) by Teispace that uses Cloudflare's
+    public API and runs Cloudflare's open-source `cloudflared` connector.
+  </Accordion>
+  <Accordion title="Does it cost anything?">
+    Teitunnel is free. Cloudflare Tunnel is available on Cloudflare's free plan, and Quick
+    Shares need no account at all. Some Cloudflare features Teitunnel can set up are paid
+    add-ons, such as Load Balancing; Cloudflare Zero Trust (logins) is free up to 50 users.
+  </Accordion>
+  <Accordion title="Which systems does it run on?">
+    macOS 14 or later (Apple silicon and Intel), Windows 10 and 11 (x64 and Arm), and Linux
+    with WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 40 or later; x64 and Arm64). The CLI
+    runs on the same systems plus any Linux server, and in Docker.
+  </Accordion>
+  <Accordion title="Do I need a Cloudflare account or a domain?">
+    Not for [Quick Share](/docs/getting-started/quick-share). For routes on your own
+    hostnames you need a free Cloudflare account and a domain whose nameservers point to
+    Cloudflare.
+  </Accordion>
+</Accordions>
 
-### Does it cost anything?
+## Using it
 
-Teitunnel is free. Cloudflare Tunnel is available on Cloudflare's free plan; Quick Shares
-need no account at all.
+<Accordions type="multiple">
+  <Accordion title="What happens to my routes when I quit?">
+    They stop, unless you've turned on [Always-on](/docs/concepts/run-modes). Quitting with
+    routes running asks first and offers to switch them. Closing the window doesn't quit:
+    Teitunnel keeps running in the menu bar or tray.
+  </Accordion>
+  <Accordion title="Can I still use cloudflared from the command line?">
+    Yes. Teitunnel works with the Cloudflare API and its own connector, and lists other
+    cloudflared processes on the machine under **Tunnels ▸ Also on this machine** so they don't
+    conflict unnoticed. Routes you change elsewhere are detected and never overwritten
+    without asking.
+  </Accordion>
+  <Accordion title="I already have tunnels. Will Teitunnel change them?">
+    No. Teitunnel creates its own tunnel for this machine and only changes that one. Other
+    tunnels are listed, and you can [import](/docs/guides/import) routes from a `config.yml`
+    setup, or [run an existing tunnel](/docs/guides/several-tunnels#run-an-existing-tunnel-here)
+    here too, when you're ready.
+  </Accordion>
+  <Accordion title="Why does a route say “Nothing is listening”?">
+    The route points at a port where no app is running. Start your app (or fix the port in
+    the route) and it goes live; nothing else needs to change.
+  </Accordion>
+  <Accordion title="Can I share a dev server like Vite or Next.js?">
+    Yes, and Teitunnel finds them for you. Dev servers may block unknown hostnames; see
+    [dev servers](/docs/tutorials/dev-servers) for the one-line fixes.
+  </Accordion>
+  <Accordion title="Does it work behind CGNAT, a corporate firewall or on mobile data?">
+    Usually yes: cloudflared only makes outbound connections to Cloudflare (port 7844, UDP or
+    TCP), so no inbound port or public IP is needed. Very strict firewalls that block port 7844
+    need it allowed.
+  </Accordion>
+  <Accordion title="How is it different from ngrok?">
+    Teitunnel runs on Cloudflare's network with your own Cloudflare account: your domains,
+    your DNS, Cloudflare Access for logins, and no separate subscription for custom domains.
+    See [expose localhost](/docs/tutorials/expose-localhost#coming-from-ngrok) and the
+    [comparison](/docs/concepts/compare).
+  </Accordion>
+</Accordions>
 
-### What happens to my routes when I quit?
+## Security and privacy
 
-They stop, unless you've turned on [Always-on](/docs/concepts/run-modes). Quitting
-with routes running asks first and offers to switch them.
-
-### Can I still use cloudflared from the command line?
-
-Yes. Teitunnel works with the Cloudflare API and its own connector, and lists other
-cloudflared processes on the Mac under **Tunnels ▸ Also on this machine** so they don't
-conflict unnoticed. Routes you change elsewhere are detected and never overwritten
-without asking.
-
-### I already have tunnels. Will Teitunnel change them?
-
-No. Teitunnel creates its own tunnel for this machine and only changes that one. Other
-tunnels are listed read-only. You can [import](/docs/guides/import) routes from a
-`config.yml` setup when you're ready.
-
-### Why does a route say "Nothing is listening"?
-
-The route points at a port where no app is running. Start your app (or fix the port in
-the route) and it goes live; nothing else needs to change.
-
-### Windows and Linux?
-
-Planned. The core already builds and is tested on both; the apps follow macOS.
+<Accordions type="multiple">
+  <Accordion title="Where are my credentials kept?">
+    In your system's keychain (Keychain on macOS, Credential Manager on Windows, the Secret
+    Service on Linux), and only ever sent to Cloudflare. On a server, the API token comes from
+    the environment for each command and is never written to disk. See
+    [security](/docs/reference/security).
+  </Accordion>
+  <Accordion title="Does Teitunnel collect data about me?">
+    No. There's no telemetry, analytics or crash reporting, and no Teispace account. It talks
+    to Cloudflare to do what you ask, and to GitHub to fetch cloudflared and check for updates.
+    See [privacy](/privacy/).
+  </Accordion>
+  <Accordion title="Is the Windows app signed?">
+    Not in this beta: Windows may show *Windows protected your PC*; choose **More info ▸ Run
+    anyway**. Signing is on its way ([code signing policy](/code-signing/)). The macOS app is
+    signed and notarized, and every download can be [verified](/docs/reference/verify).
+  </Accordion>
+  <Accordion title="Can Teitunnel delete my DNS records?">
+    Only records it created, which it marks. Replacing or deleting any other record is shown in
+    the plan and needs your explicit confirmation. See [DNS ownership](/docs/concepts/dns-ownership).
+  </Accordion>
+</Accordions>
