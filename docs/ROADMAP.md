@@ -15,6 +15,10 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M7](plans/M7-windows.md) | v1.1 | Windows | 🚧 Core done; needs Windows hardware |
 | [M8](plans/M8-linux.md) | v1.2 | Linux | 🚧 Core done; needs a Linux desktop |
 | [M9](plans/M9-advanced.md) | v1.x | Export, CLI, Access protection, replicas, private networks | 🚧 Export, CLI, Access, remote connectors, private networks and UI i18n done |
+| [M10](plans/M10-parity.md) | v1.x | Parity and beyond: fix in place, several tunnels, share on your domain, headless server, Docker, browser UI + API, load balancing | Next |
+| [M11](plans/M10-parity.md#m11-landing-page-and-docs-site) | — | Landing page and Fumadocs docs site | After M10 |
+
+**Order (maintainer, 2026-09-23):** M10 → M11 → release work (M6 signing with the existing Developer ID, updater, release automation, channels, deploys) last.
 
 ## Milestone checklist (epic level)
 
@@ -57,3 +61,10 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ### M6: Distribution (v1.0.0)
 - [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Homebrew
 - [ ] M6-05 Polish pass · [ ] M6-06 Docs & community
+
+### M10: Parity and beyond
+- [ ] M10-01 Fix in place · [ ] M10-02 Several tunnels per machine · [ ] M10-03 Share on your domain · [ ] M10-04 Headless server
+- [ ] M10-05 Container · [ ] M10-06 Browser UI + API · [ ] M10-07 Load balancing · [ ] M10-08 Docs
+
+### M11: Landing page and docs site
+- [ ] Landing page · [ ] Fumadocs docs · [ ] Deploy (with release work)

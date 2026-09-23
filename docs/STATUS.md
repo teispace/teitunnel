@@ -11,6 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
+0. **M10** ([plan](plans/M10-parity.md)), in order: M10-01 fix in place → M10-02 several tunnels → M10-03 share on your domain → M10-04 headless server → M10-05 container → M10-06 browser UI + API → M10-07 load balancing; then **M11** landing page + Fumadocs docs; release work last (maintainer, 2026-09-23). Cloudify analysis: [research/cloudify.md](research/cloudify.md).
 1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
 2. Distribution for Windows/Linux is deferred with the other release work.
 3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; private networks and `cloudflared access` helpers (M9-05) done; M9-06 i18n: UI and Rust-side text done (D-061, D-062); community translations remain (needs translators).
@@ -62,7 +63,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 | Cloudflare OAuth public client + verify teispace.com | M2-04 (built; hidden until then) | Redirects `http://127.0.0.1:{53682,53683,53684}/callback`. Put the client id in `crates/core/src/accounts/oauth.rs` (`CLIENT_ID`) and confirm the scope ids in `SCOPES` |
 | Confirm the "Cloudflare Tunnel" permission key in the token template | M2-05 | Open the link from Connect Cloudflare once; if Tunnel isn't pre-selected, tell me the right key (research/cloudflare.md) |
 | Test Cloudflare account/zone + API token for nightly E2E | M1-12 / M3-11 | Store as GitHub Actions secrets |
-| Apple Developer ID (signing + notarization) | M6-01 (v0.1 can ship unsigned as a "developer preview") | Decide before M1-13 |
+| Apple Developer ID (signing + notarization) | M6-01 | The maintainer has a Developer ID and will set up signing; release work is done last (2026-09-23) |
 
 ## Open questions
 - Windows Authenticode check of cloudflared: allow a small isolated crate with audited `unsafe` (WinVerifyTrust), or rely on the release checksums on Windows? (M7-02)
