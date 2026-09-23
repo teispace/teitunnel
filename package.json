@@ -10,7 +10,7 @@
     "dev": "pnpm --filter @teitunnel/desktop tauri dev",
     "build": "pnpm --filter @teitunnel/desktop tauri build",
     "tauri": "pnpm --filter @teitunnel/desktop tauri",
-    "check": "biome ci . && pnpm --filter @teitunnel/desktop typecheck && cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "check": "biome ci . && pnpm --filter @teitunnel/desktop typecheck && cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings",
     "test": "pnpm --filter @teitunnel/desktop test && cargo nextest run --workspace --locked",
     "fmt": "biome check --write . && cargo fmt --all",
     "bindings": "cargo run --quiet --locked -p teitunnel-desktop --features bindings --bin export-bindings",

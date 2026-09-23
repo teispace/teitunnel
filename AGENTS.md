@@ -40,7 +40,7 @@ docs/                all project documentation
 Keep this section in sync with `package.json`.
 - `pnpm install`: install JS deps and git hooks (lefthook)
 - `pnpm dev`: run the desktop app in dev mode
-- `pnpm check`: biome + tsc + clippy
+- `pnpm check`: biome + tsc + rustfmt + clippy
 - `pnpm test`: vitest + cargo nextest
 - `pnpm bindings`: regenerate IPC bindings
 - `pnpm build`: packaged app (use it to verify materials and native behaviour)
