@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   type Change,
@@ -180,6 +180,51 @@ export function useRouteLogs(accountId: string, hostname: string, path: string |
     refetchInterval: 2000,
     staleTime: 0,
   });
+}
+
+export interface RemoteConnector {
+  accountId: string;
+  tunnelId: string;
+  connectorId: string;
+}
+
+/**
+ * A connector's live logs from another machine, relayed by Cloudflare. Polling keeps
+ * the backend's stream open (it stops by itself 30 s after the last poll); unmounting
+ * stops it right away.
+ */
+export function useRemoteLogs(target: RemoteConnector | null) {
+  const query = useQuery({
+    queryKey: ["routes", "remoteLogs", target],
+    queryFn: () =>
+      call(
+        commands.tunnelsRemoteLogs(
+          target?.accountId ?? "",
+          target?.tunnelId ?? "",
+          target?.connectorId ?? "",
+          1000,
+        ),
+      ),
+    enabled: target !== null,
+    refetchInterval: (q) => (q.state.data?.state.state === "ended" ? false : 1500),
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const accountId = target?.accountId;
+  const tunnelId = target?.tunnelId;
+  const connectorId = target?.connectorId;
+  useEffect(() => {
+    if (!accountId || !tunnelId || !connectorId) return;
+    return () => {
+      void commands.tunnelsRemoteLogsStop(accountId, tunnelId, connectorId);
+    };
+  }, [accountId, tunnelId, connectorId]);
+  const retry = async () => {
+    if (!target) return;
+    await commands.tunnelsRemoteLogsStop(target.accountId, target.tunnelId, target.connectorId);
+    await query.refetch();
+  };
+  return { ...query, retry };
 }
 
 export function useTunnelLogs(tunnelId: string, enabled: boolean) {

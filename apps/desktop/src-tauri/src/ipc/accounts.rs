@@ -106,6 +106,7 @@ pub async fn accounts_remove(
 ) -> Result<(), AppError> {
     // Stop this Mac's connector and delete its token before the account goes.
     state.machine.forget_account(&id).await;
+    state.remote_logs.forget_account(&id);
     state.accounts.remove(&id).await?;
     changed(&app);
     Ok(())

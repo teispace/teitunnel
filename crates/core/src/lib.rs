@@ -22,6 +22,7 @@ pub mod machine;
 pub mod platform;
 pub mod quick_share;
 pub mod redact;
+pub mod remote_logs;
 pub mod runtime;
 mod secret;
 pub mod secrets;

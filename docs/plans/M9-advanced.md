@@ -20,7 +20,9 @@ Per-route "Require login": visitors sign in (one-time PIN to their email, or the
 - [x] Docs: site guide "Require a login", CLI reference.
 
 ### M9-04 · Replicas and remote connectors
-- [ ] See connectors of this Mac's tunnel running elsewhere; run the same tunnel on several machines; remote log streaming via the Management API.
+- [x] Connectors per machine (grouped by connector id from the tunnel list, This Mac identified by `/ready`'s `connectorId`); Doctor `tunnel.other_connectors` when another machine runs this Mac's tunnel.
+- [x] Remote logs of any connector through the Management API (`cf_api::LogStream`, `core::remote_logs`): per-connector sessions, bounded ring, reconnect with a fresh token, stop after 30 s unread, token never leaves Rust. Tunnels ▸ connector ▸ Logs (D-058).
+- [x] Replicas ("run the same tunnel on several machines") deliberately not a one-click feature: Teitunnel's routes point at this Mac's localhost, so a second connector would get a share of requests for services it doesn't have. Running elsewhere stays Export (Docker Compose / config.yml) for origins reachable from both (D-058).
 
 ### M9-05 · Private networks
 - [ ] CIDR routes and virtual networks for WARP clients; `cloudflared access` helpers for SSH/RDP/TCP.

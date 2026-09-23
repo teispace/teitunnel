@@ -13,13 +13,17 @@ const TIMEOUT: Duration = Duration::from_millis(500);
 
 /// The `/ready` response. cloudflared answers 200 when ready and 503 otherwise, both
 /// with this body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ready {
     /// HTTP-style status: 200 ready, 503 not yet.
     pub status: u16,
     /// Edge connections currently registered.
     pub ready_connections: u32,
+    /// This connector's id, as Cloudflare lists it among the tunnel's connectors
+    /// (`metrics/readiness.go`).
+    #[serde(default)]
+    pub connector_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -141,7 +145,8 @@ mod tests {
             endpoints.ready().await.unwrap(),
             Ready {
                 status: 503,
-                ready_connections: 0
+                ready_connections: 0,
+                connector_id: Some("a7edf147-b8b9-4cfa-bbb3-fe698d0c4cca".into()),
             }
         );
     }

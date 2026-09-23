@@ -12,15 +12,17 @@ publish.workspace = true
 name = "cf_api"
 
 [dependencies]
+futures-util = { workspace = true, features = ["sink"] }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time", "sync"] }
+tokio-tungstenite.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util", "net"] }
 wiremock.workspace = true
 
 [lints]

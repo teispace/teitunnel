@@ -96,6 +96,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         accounts,
         engine: Engine::new(local),
         machine,
+        remote_logs: teitunnel_core::remote_logs::RemoteLogs::default(),
         machine_name: machine_name(),
         edge,
         store,

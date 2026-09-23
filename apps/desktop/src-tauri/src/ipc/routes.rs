@@ -308,6 +308,55 @@ pub fn tunnels_logs(
     )
 }
 
+/// A connector's live logs, when it runs on another machine.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteLogsView {
+    /// Where the stream is.
+    pub state: teitunnel_core::remote_logs::RemoteLogState,
+    /// The newest lines, oldest first.
+    pub lines: Vec<crate::ipc::quick_share::LogLine>,
+}
+
+/// The newest log lines of a connector anywhere, streamed through Cloudflare. The first
+/// call starts the stream; it stops by itself once nobody asks for 30 s.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_remote_logs(
+    state: State<'_, AppState>,
+    account_id: String,
+    tunnel_id: String,
+    connector_id: String,
+    limit: u32,
+) -> Result<RemoteLogsView, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    let batch = state.remote_logs.read(
+        &api,
+        &account_id,
+        &tunnel_id,
+        &connector_id,
+        usize::try_from(limit).unwrap_or(usize::MAX),
+    );
+    Ok(RemoteLogsView {
+        state: batch.state,
+        lines: crate::ipc::quick_share::log_lines(&batch.lines),
+    })
+}
+
+/// Stops a connector's live logs (closing the viewer, or before trying again).
+#[tauri::command]
+#[specta::specta]
+pub fn tunnels_remote_logs_stop(
+    state: State<'_, AppState>,
+    account_id: String,
+    tunnel_id: String,
+    connector_id: String,
+) {
+    state
+        .remote_logs
+        .stop(&account_id, &tunnel_id, &connector_id);
+}
+
 /// This Mac's tunnel and routes as `config.yml`, Docker Compose or Terraform. `None` if
 /// this Mac has no tunnel in the account. Never contains a secret.
 #[tauri::command]

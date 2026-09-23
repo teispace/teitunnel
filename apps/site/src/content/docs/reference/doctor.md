@@ -52,6 +52,7 @@ Each problem's check id (in code type) appears in diagnostics exports and bug re
 | **This Mac's connector keeps stopping** `tunnel.crash_loop` | Its log says why. Starting it again retries. |
 | **This Mac's connector lost its connection** `tunnel.degraded` | It reconnects on its own; check the network if it persists. |
 | **Cloudflare still lists connections for this Mac's tunnel** `tunnel.stale_connections` | Left over from a connector that went away, or another machine runs the tunnel with its token. Clean them up if nothing else should. |
+| **Another machine also runs this Mac's tunnel** `tunnel.other_connectors` | Some visitors reach that machine instead of this Mac. Stop cloudflared there; its logs in **Tunnels** help find it. |
 | **Another cloudflared on this Mac runs this Mac's tunnel** `tunnel.duplicate_local` | Stop the other one from **Tunnels**. |
 | **cloudflared is running outside Teitunnel** `tunnel.foreign_running` | For your information: another cloudflared process on this Mac. |
 | **This Mac's tunnel has no routes** `tunnel.unused_owned` | Kept so adding a route is quick. Delete it if you don't need it. |

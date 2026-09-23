@@ -78,6 +78,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::foreign_list,
             routes::foreign_stop,
             routes::tunnels_logs,
+            routes::tunnels_remote_logs,
+            routes::tunnels_remote_logs_stop,
             routes::routes_logs,
             routes::routes_export,
             routes::routes_export_save,

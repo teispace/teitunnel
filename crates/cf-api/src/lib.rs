@@ -9,6 +9,7 @@ mod client;
 mod dns;
 mod envelope;
 mod error;
+mod management;
 mod probe;
 mod resources;
 mod token;
@@ -22,6 +23,9 @@ pub use client::{API_BASE, Client};
 pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
+pub use management::{
+    Connector, ConnectorConnection, LogStream, MANAGEMENT_BASE, RemoteLog, StreamError,
+};
 pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
 pub use token::ApiToken;

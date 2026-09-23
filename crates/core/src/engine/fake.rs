@@ -488,6 +488,8 @@ pub(crate) struct FakeConnectors {
     pub(crate) calls: Mutex<Vec<String>>,
     pub(crate) running: Mutex<BTreeSet<String>>,
     pub(crate) fail_stop: AtomicBool,
+    /// Connector ids of running connectors, by tunnel id.
+    pub(crate) ids: Mutex<BTreeMap<String, String>>,
 }
 
 impl FakeConnectors {
@@ -501,6 +503,10 @@ impl FakeConnectors {
 }
 
 impl Connectors for FakeConnectors {
+    async fn connector_id(&self, tunnel_id: &str) -> Option<String> {
+        self.ids.lock().unwrap().get(tunnel_id).cloned()
+    }
+
     fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {
         self.running
             .lock()

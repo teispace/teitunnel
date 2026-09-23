@@ -147,6 +147,13 @@ export const commands = {
 	/**  The newest log lines of this Mac's connector for a tunnel. */
 	tunnelsLogs: (tunnelId: string, limit: number) => __TAURI_INVOKE<LogLine[]>("tunnels_logs", { tunnelId, limit }),
 	/**
+	 *  The newest log lines of a connector anywhere, streamed through Cloudflare. The first
+	 *  call starts the stream; it stops by itself once nobody asks for 30 s.
+	 */
+	tunnelsRemoteLogs: (accountId: string, tunnelId: string, connectorId: string, limit: number) => __TAURI_INVOKE<RemoteLogsView>("tunnels_remote_logs", { accountId, tunnelId, connectorId, limit }),
+	/**  Stops a connector's live logs (closing the viewer, or before trying again). */
+	tunnelsRemoteLogsStop: (accountId: string, tunnelId: string, connectorId: string) => __TAURI_INVOKE<void>("tunnels_remote_logs_stop", { accountId, tunnelId, connectorId }),
+	/**
 	 *  The newest log lines about requests for one route (its failed requests, and every
 	 *  request when cloudflared logs at debug level).
 	 */
@@ -386,14 +393,10 @@ hostname: string;
 /**  Record id. */
 recordId: string };
 
-/**  One connector connected to the edge. */
+/**  One edge connection of a connector. */
 export type ConnectionView = {
 	/**  Edge location, e.g. `ams01`. */
 	colo: string,
-	/**  cloudflared version. */
-	version: string,
-	/**  Public IP it connects from. */
-	originIp: string,
 	/**  When it connected (RFC 3339). */
 	openedAt: string,
 };
@@ -429,6 +432,20 @@ exit_code: number | null } |
 exit_code: number | null } | 
 /**  Shutting down. */
 { state: "stopping" };
+
+/**  One machine running a tunnel (a cloudflared process), with its edge connections. */
+export type ConnectorView = {
+	/**  Connector id. */
+	id: string,
+	/**  cloudflared version. */
+	version: string,
+	/**  Public IP it connects from. */
+	originIp: string,
+	/**  It's this Mac's connector. */
+	thisMac: boolean,
+	/**  Edge connections, by location. */
+	connections: ConnectionView[],
+};
 
 /**  How an account was connected. */
 export type CredentialKind = 
@@ -911,6 +928,25 @@ export type RecordedStep = {
 	state: StepState,
 };
 
+/**  Where a session is. */
+export type RemoteLogState = 
+/**  Getting a token and connecting. */
+{ state: "connecting" } | 
+/**  Receiving the connector's logs. */
+{ state: "streaming" } | 
+/**  Stopped for good; stop the session and read again to retry. */
+{ state: "ended"; 
+/**  Why, in a sentence. */
+message: string };
+
+/**  A connector's live logs, when it runs on another machine. */
+export type RemoteLogsView = {
+	/**  Where the stream is. */
+	state: RemoteLogState,
+	/**  The newest lines, oldest first. */
+	lines: LogLine[],
+};
+
 /**  A route as typed in the add/edit sheet. */
 export type RouteInput = {
 	/**  Public hostname, e.g. `app.example.com`. */
@@ -1193,8 +1229,8 @@ export type TunnelSummary = {
 	createdAt: string,
 	/**  Routes in its remote configuration (None: configured locally, or unreadable). */
 	routes: number | null,
-	/**  Edge connections. */
-	connections: ConnectionView[],
+	/**  Machines running it. */
+	connectors: ConnectorView[],
 	/**  This Mac's tunnel (created and run by Teitunnel here). */
 	thisMac: boolean,
 	/**  Connector state on this Mac, for this Mac's tunnel. */

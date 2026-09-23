@@ -24,6 +24,8 @@ pub struct AppState {
     pub engine: Engine,
     /// This Mac's tunnel connectors.
     pub machine: MachineTunnels,
+    /// Live logs of connectors on other machines.
+    pub remote_logs: teitunnel_core::remote_logs::RemoteLogs,
     /// This Mac's name for new tunnels.
     pub machine_name: String,
     /// Where route checks connect (Cloudflare's edge; a fake in E2E builds).

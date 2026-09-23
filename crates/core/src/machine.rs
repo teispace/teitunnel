@@ -769,6 +769,12 @@ impl Connectors for MachineTunnels {
         Ok(())
     }
 
+    async fn connector_id(&self, tunnel_id: &str) -> Option<String> {
+        let (port, _) = self.metrics_ports().get(tunnel_id).copied()?;
+        let endpoints = cloudflared::Endpoints::new(port).ok()?;
+        endpoints.ready().await.ok()?.connector_id
+    }
+
     async fn deleted(&self, tunnel_id: &str) {
         self.remove_token_file(tunnel_id);
         if let Err(err) = self.local.forget_rollups(tunnel_id).await {

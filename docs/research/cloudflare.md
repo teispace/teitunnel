@@ -69,7 +69,12 @@ Source: https://developers.cloudflare.com/api/resources/zero_trust/subresources/
 | Connections | `GET …/cfd_tunnel/{id}/connections`; clean stale: `DELETE …/connections` |
 | Connector | `GET …/cfd_tunnel/{id}/connectors/{connector_id}` |
 | Run token | `GET …/cfd_tunnel/{id}/token` |
-| Management token (remote logs) | `POST …/cfd_tunnel/{id}/management` |
+| Management token (remote logs) | `POST …/cfd_tunnel/{id}/management` `{"resources": ["logs"]}` → `result` is the token string; needs Cloudflare Tunnel Write |
+
+Connectors and remote logs (verified 2026-09-23 against the API reference and cloudflared `cfapi/tunnel.go`, `management/events.go`, `management/service.go`, `metrics/readiness.go`, `cmd/cloudflared/tail/cmd.go`):
+- `GET …/connections` returns one entry per connector: `{id, arch, version, run_at, config_version, features, conns: [{id, colo_name, origin_ip, opened_at, client_id, client_version, is_pending_reconnect (deprecated)}]}`. The tunnel list's `connections[].client_id` is the same connector id, so grouping needs no extra call.
+- A connector's own id is in its `/ready` body: `{"status", "readyConnections", "connectorId"}`.
+- Log stream: `wss://management.argotunnel.com/logs?access_token=<token>[&connector_id=<id>]`. The first client message must be `{"type": "start_streaming", "filters": {"events"?: ["cloudflared"|"http"|"tcp"|"udp"], "level"?: "debug"|"info"|"warn"|"error", "sampling"?: 0..1}}`; the server sends `{"type": "logs", "logs": [{time, level, message, event, fields}]}`; `{"type": "stop_streaming"}` ends it. Close codes: 4001 first event wasn't start_streaming, 4002 streaming session limit, 4003 idle for 5 minutes. The server pings every 15 s. `cloudflared tail` defaults to level debug, sampling 1.0.
 
 ## DNS
 

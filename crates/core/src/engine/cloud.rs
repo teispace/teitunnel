@@ -174,6 +174,11 @@ pub trait Connectors: Send + Sync {
     }
     /// The tunnel was deleted: forget its token.
     fn deleted(&self, tunnel_id: &str) -> impl Future<Output = ()> + Send;
+    /// The id Cloudflare knows this machine's connector for a tunnel by (from its
+    /// `/ready` endpoint), when it's running.
+    fn connector_id(&self, _tunnel_id: &str) -> impl Future<Output = Option<String>> + Send {
+        std::future::ready(None)
+    }
 }
 
 fn gone(err: &cf_api::Error) -> bool {

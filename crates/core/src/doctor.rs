@@ -823,11 +823,12 @@ fn diagnose_account(
             facts.connector,
             Some(ref state) if !matches!(state, ConnectorState::Stopped)
         );
-        let listed = facts
+        let connectors = facts
             .tunnels
             .iter()
             .find(|t| t.id == tunnel.id)
-            .map_or(0, |t| t.connections.len());
+            .map_or(&[][..], |t| t.connectors.as_slice());
+        let listed: usize = connectors.iter().map(|c| c.connections.len()).sum();
         if !running && listed > 0 {
             found.add(
                 "tunnel.stale_connections",
@@ -850,6 +851,38 @@ fn diagnose_account(
             })
             .map(|f| f.command.clone())
             .collect();
+        // Another machine running this Mac's tunnel gets a share of its requests and sends
+        // them to *its* localhost. (A twin on this Mac is reported below instead.)
+        let others: Vec<&crate::engine::ConnectorView> = if connectors.iter().any(|c| c.this_mac) {
+            connectors.iter().filter(|c| !c.this_mac).collect()
+        } else if connectors.len() > 1 {
+            connectors.iter().collect()
+        } else {
+            Vec::new()
+        };
+        if running && twins.is_empty() && !others.is_empty() {
+            found.add(
+                "tunnel.other_connectors",
+                Severity::Warning,
+                &tunnel.name,
+                "Another machine also runs this Mac's tunnel".into(),
+                "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this Mac. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes.",
+                others
+                    .iter()
+                    .map(|c| {
+                        let colos: Vec<&str> =
+                            c.connections.iter().map(|x| x.colo.as_str()).collect();
+                        format!(
+                            "{} · cloudflared {} · {}",
+                            c.origin_ip,
+                            c.version,
+                            colos.join(", ").to_ascii_uppercase()
+                        )
+                    })
+                    .collect(),
+                Vec::new(),
+            );
+        }
         if !twins.is_empty() {
             found.add(
                 "tunnel.duplicate_local",
@@ -1052,7 +1085,7 @@ mod tests {
             status: "healthy".into(),
             created_at: String::new(),
             routes: Some(1),
-            connections: Vec::new(),
+            connectors: Vec::new(),
             this_mac: true,
             connector: None,
         }];
@@ -1209,7 +1242,7 @@ mod tests {
     fn stale_and_duplicate_connectors() {
         use crate::{
             discovery::cloudflared::{ForeignConnector, ForeignMode},
-            engine::ConnectionView,
+            engine::{ConnectionView, ConnectorView},
         };
         let mut facts = healthy();
         facts.connector = None;
@@ -1219,11 +1252,15 @@ mod tests {
             status: "healthy".into(),
             created_at: String::new(),
             routes: Some(1),
-            connections: vec![ConnectionView {
-                colo: "ams01".into(),
+            connectors: vec![ConnectorView {
+                id: "c1".into(),
                 version: "2026.9.1".into(),
                 origin_ip: "203.0.113.1".into(),
-                opened_at: String::new(),
+                this_mac: false,
+                connections: vec![ConnectionView {
+                    colo: "ams01".into(),
+                    opened_at: String::new(),
+                }],
             }],
             this_mac: true,
             connector: None,
@@ -1247,5 +1284,71 @@ mod tests {
         assert!(found.contains(&"tunnel.stale_connections"), "{found:?}");
         assert!(found.contains(&"tunnel.duplicate_local"), "{found:?}");
         assert!(found.contains(&"tunnel.foreign_running"), "{found:?}");
+    }
+
+    #[test]
+    fn another_machine_running_this_macs_tunnel() {
+        use crate::engine::{ConnectionView, ConnectorView};
+        let connector = |id: &str, this_mac: bool, ip: &str| ConnectorView {
+            id: id.into(),
+            version: "2026.9.1".into(),
+            origin_ip: ip.into(),
+            this_mac,
+            connections: vec![ConnectionView {
+                colo: "ams01".into(),
+                opened_at: String::new(),
+            }],
+        };
+        let with = |connectors: Vec<ConnectorView>| {
+            let mut facts = healthy();
+            facts.connector = Some(ConnectorState::Healthy { connections: 4 });
+            facts.tunnels = vec![TunnelSummary {
+                id: T.into(),
+                name: "Mac".into(),
+                status: "healthy".into(),
+                created_at: String::new(),
+                routes: Some(1),
+                connectors,
+                this_mac: true,
+                connector: None,
+            }];
+            diagnose(&Facts {
+                binary: BinaryFact::Ok,
+                accounts: vec![facts],
+                foreign: Vec::new(),
+            })
+        };
+        let issues = with(vec![
+            connector("mine", true, "203.0.113.1"),
+            connector("old-laptop", false, "198.51.100.9"),
+        ]);
+        let issue = issues
+            .iter()
+            .find(|i| i.check == "tunnel.other_connectors")
+            .expect("reported");
+        assert_eq!(
+            issue.evidence,
+            ["198.51.100.9 · cloudflared 2026.9.1 · AMS01"]
+        );
+        // Only this Mac: nothing to report. Unknown id with a single connector: it's ours.
+        for alone in [
+            vec![connector("mine", true, "203.0.113.1")],
+            vec![connector("unknown", false, "203.0.113.1")],
+        ] {
+            assert!(
+                !with(alone)
+                    .iter()
+                    .any(|i| i.check == "tunnel.other_connectors")
+            );
+        }
+        // Unknown id, two connectors: one of them isn't this Mac.
+        assert!(
+            with(vec![
+                connector("a", false, "203.0.113.1"),
+                connector("b", false, "198.51.100.9"),
+            ])
+            .iter()
+            .any(|i| i.check == "tunnel.other_connectors")
+        );
     }
 }

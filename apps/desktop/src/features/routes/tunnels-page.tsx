@@ -20,8 +20,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Switch } from "@/components/ui/switch";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
-import type { ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
+import type { ConnectorView, ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { RemoteLogsSheet } from "./components/remote-logs-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
   useAlwaysOn,
@@ -151,14 +152,41 @@ function subtitle(tunnel: TunnelSummary) {
   return parts.join(" · ");
 }
 
+/** One machine running the tunnel: where it connects from and to. */
+function ConnectorRow({
+  connector,
+  onLogs,
+}: {
+  connector: ConnectorView;
+  onLogs: (() => void) | null;
+}) {
+  const colos = connector.connections.map((c) => c.colo.toUpperCase()).join(", ");
+  return (
+    <li className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 text-body">
+          <span className="selectable truncate">{connector.originIp || "Unknown address"}</span>
+          {connector.thisMac ? <Badge>This Mac</Badge> : null}
+        </div>
+        <div className="truncate text-callout text-secondary">
+          cloudflared {connector.version} · {colos}
+        </div>
+      </div>
+      {onLogs ? <Button onClick={onLogs}>Logs</Button> : null}
+    </li>
+  );
+}
+
 function TunnelInspector({
   tunnel,
   accountId,
   onDelete,
+  onConnectorLogs,
 }: {
   tunnel: TunnelSummary;
   accountId: string;
   onDelete: () => void;
+  onConnectorLogs: (connector: ConnectorView) => void;
 }) {
   const action = useTunnelAction(accountId);
   const running = tunnel.connector !== null && tunnel.connector.state !== "stopped";
@@ -184,7 +212,7 @@ function TunnelInspector({
               {running ? "Stop on This Mac" : "Start on This Mac"}
             </Button>
           ) : null}
-          {tunnel.connections.length > 0 ? (
+          {tunnel.connectors.length > 0 ? (
             <Button disabled={action.isPending} onClick={() => run("clean")}>
               Clean Up Connections
             </Button>
@@ -210,21 +238,17 @@ function TunnelInspector({
         />
       </InspectorSection>
       <InspectorSection title="Connectors">
-        {tunnel.connections.length === 0 ? (
+        {tunnel.connectors.length === 0 ? (
           <p className="text-callout text-secondary">No connector is connected.</p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
-            {tunnel.connections.map((c, index) => (
-              <li
-                // biome-ignore lint/suspicious/noArrayIndexKey: connections have no stable id here
-                key={index}
-                className="flex items-baseline gap-2 text-callout"
-              >
-                <span className="font-mono text-mono uppercase">{c.colo}</span>
-                <span className="text-secondary">
-                  {c.originIp} · cloudflared {c.version}
-                </span>
-              </li>
+          <ul className="flex flex-col gap-2.5">
+            {tunnel.connectors.map((connector) => (
+              <ConnectorRow
+                key={connector.id}
+                connector={connector}
+                // This Mac's own logs are shown below; others stream through Cloudflare.
+                onLogs={connector.thisMac ? null : () => onConnectorLogs(connector)}
+              />
             ))}
           </ul>
         )}
@@ -234,7 +258,8 @@ function TunnelInspector({
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
         <p className="text-callout text-secondary">
-          Teitunnel didn't create this tunnel, so it only shows it. Manage it where it was set up.
+          Teitunnel didn't create this tunnel, so it doesn't change its routes. Manage them where it
+          was set up.
         </p>
       ) : null}
     </Inspector>
@@ -293,6 +318,7 @@ export function TunnelsPage() {
   const tunnels = useTunnels(active?.id ?? null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
+  const [remote, setRemote] = useState<{ tunnelId: string; connector: ConnectorView } | null>(null);
   const foreign = useForeignConnectors(true);
   const list: Entry[] = [
     ...(tunnels.data ?? []).map((tunnel): Entry => ({ kind: "tunnel", tunnel })),
@@ -401,6 +427,7 @@ export function TunnelsPage() {
             tunnel={selected.tunnel}
             accountId={active.id}
             onDelete={() => setSheet({ kind: "removeTunnel" })}
+            onConnectorLogs={(connector) => setRemote({ tunnelId: selected.tunnel.id, connector })}
           />
         </div>
       ) : null}
@@ -412,7 +439,27 @@ export function TunnelsPage() {
       {toolbar}
       {body}
       {active ? (
-        <RouteSheet accountId={active.id} zones={[]} mode={sheet} onClose={() => setSheet(null)} />
+        <>
+          <RouteSheet
+            accountId={active.id}
+            zones={[]}
+            mode={sheet}
+            onClose={() => setSheet(null)}
+          />
+          <RemoteLogsSheet
+            target={
+              remote
+                ? {
+                    accountId: active.id,
+                    tunnelId: remote.tunnelId,
+                    connectorId: remote.connector.id,
+                    connector: remote.connector,
+                  }
+                : null
+            }
+            onClose={() => setRemote(null)}
+          />
+        </>
       ) : null}
     </>
   );

@@ -13,6 +13,7 @@ import type {
   Settings,
   SettingsPatch,
   ShareStats,
+  TunnelSummary,
 } from "@/lib/ipc/bindings";
 
 /**
@@ -498,9 +499,17 @@ export function installMockIpc(): void {
               status: "healthy",
               createdAt: new Date(now - 9 * 86_400_000).toISOString(),
               routes: 4,
-              connections: [
-                { colo: "ams01", version: "2026.9.1", originIp: "203.0.113.7", openedAt: "" },
-                { colo: "fra08", version: "2026.9.1", originIp: "203.0.113.7", openedAt: "" },
+              connectors: [
+                {
+                  id: "a7edf147-b8b9-4cfa-bbb3-fe698d0c4cca",
+                  version: "2026.9.1",
+                  originIp: "203.0.113.7",
+                  thisMac: true,
+                  connections: [
+                    { colo: "ams01", openedAt: "" },
+                    { colo: "fra08", openedAt: "" },
+                  ],
+                },
               ],
               thisMac: true,
               connector: { state: "healthy", connections: 4 },
@@ -508,14 +517,43 @@ export function installMockIpc(): void {
             {
               id: "b1946ac9-2a6f-4e8e-9d51-1f0e7a3c2b11",
               name: "home-lab",
-              status: "inactive",
+              status: "healthy",
               createdAt: new Date(now - 90 * 86_400_000).toISOString(),
-              routes: null,
-              connections: [],
+              routes: 2,
+              connectors: [
+                {
+                  id: "5d0f6c1e-3b2a-4f8e-9c7d-2e1f0a9b8c7d",
+                  version: "2026.8.0",
+                  originIp: "198.51.100.24",
+                  thisMac: false,
+                  connections: [
+                    { colo: "lhr01", openedAt: "" },
+                    { colo: "cdg02", openedAt: "" },
+                  ],
+                },
+              ],
               thisMac: false,
               connector: null,
             },
-          ];
+          ] satisfies TunnelSummary[];
+        case "tunnels_remote_logs":
+          return {
+            state: { state: "streaming" },
+            lines: [
+              {
+                time: new Date(now - 60_000).toISOString(),
+                level: "info",
+                message: "Registered tunnel connection",
+                error: null,
+              },
+              {
+                time: new Date(now - 20_000).toISOString(),
+                level: "error",
+                message: "Request failed",
+                error: "dial tcp 127.0.0.1:8123: connect: connection refused",
+              },
+            ],
+          };
         case "import_scan":
           return [
             {

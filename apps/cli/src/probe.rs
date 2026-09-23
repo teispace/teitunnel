@@ -9,6 +9,7 @@ use teitunnel_core::{Secret, engine::Connectors, runtime::ConnectorState};
 #[derive(Debug, Default)]
 pub(crate) struct ProbedConnectors {
     states: HashMap<String, ConnectorState>,
+    ids: HashMap<String, String>,
 }
 
 impl ProbedConnectors {
@@ -18,14 +19,20 @@ impl ProbedConnectors {
         let Ok(endpoints) = cloudflared::Endpoints::new(port) else {
             return;
         };
-        let state = match endpoints.ready().await {
-            Ok(ready) if ready.ready_connections > 0 => ConnectorState::Healthy {
+        let Ok(ready) = endpoints.ready().await else {
+            return;
+        };
+        let state = if ready.ready_connections > 0 {
+            ConnectorState::Healthy {
                 connections: ready.ready_connections,
-            },
-            Ok(_) => ConnectorState::Connecting,
-            Err(_) => return,
+            }
+        } else {
+            ConnectorState::Connecting
         };
         self.states.insert(tunnel_id.to_owned(), state);
+        if let Some(id) = ready.connector_id {
+            self.ids.insert(tunnel_id.to_owned(), id);
+        }
     }
 }
 
@@ -50,4 +57,8 @@ impl Connectors for ProbedConnectors {
     }
 
     async fn deleted(&self, _tunnel_id: &str) {}
+
+    async fn connector_id(&self, tunnel_id: &str) -> Option<String> {
+        self.ids.get(tunnel_id).cloned()
+    }
 }

@@ -23,6 +23,18 @@ this Mac's routes together.
 Search, filter to warnings or errors, pause, copy, or save to a file (secrets are removed
 from saved logs).
 
+## Machines running a tunnel
+**Tunnels** lists every machine connected for a tunnel: its public address, cloudflared
+version and the Cloudflare locations it connects to, with **This Mac** marked. Choose
+**Logs** next to another machine to follow its connector's log live, relayed by
+Cloudflare while the sheet is open, with nothing to install there. This works for any
+tunnel in the account, such as one running on a server. It shows warnings, errors and
+connection changes, and needs the token's Cloudflare Tunnel permission (Edit).
+
+If another machine also runs *this Mac's* tunnel, the Doctor warns you. Cloudflare splits
+requests between the machines, and each one sends them to its own services, so some
+visitors would reach the other machine instead of this Mac. Stop cloudflared there.
+
 ## Notifications
 
 Teitunnel notifies you when:

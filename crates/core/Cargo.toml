@@ -47,11 +47,13 @@ uuid.workspace = true
 nix.workspace = true
 
 [dev-dependencies]
+futures-util = { workspace = true, features = ["sink"] }
 insta.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
 wiremock.workspace = true
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+tokio-tungstenite.workspace = true
 
 [lints]
 workspace = true
