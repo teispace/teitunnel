@@ -1,50 +1,322 @@
 name: Release
 
-# Runs when a maintainer pushes a `v*` tag. Builds a universal macOS app and attaches it
-# to a DRAFT GitHub Release; a maintainer reviews the notes and publishes it by hand.
+# One version for app, CLI and image (D-074):
+#   push to main → release-please keeps a "chore: release x.y.z" PR (version bump +
+#   CHANGELOG). Merging it creates the tag and a DRAFT release, builds every platform,
+#   signs, and publishes the release only once every file is attached, so the updater
+#   and the website never see half a release.
+#   Run it by hand (Actions ▸ Release ▸ Run workflow) for a dry run: everything is built
+#   and signed as far as the secrets allow, and kept as a workflow artifact.
+#
+# Secrets live in the `release` environment: APPLE_CERTIFICATE (base64 .p12),
+# APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_API_ISSUER, APPLE_API_KEY,
+# APPLE_API_KEY_P8, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
+# Without the Apple ones the Mac build is unsigned (dry runs only; publishing refuses).
+
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  macos:
-    name: macOS (universal)
-    runs-on: macos-latest
+  release-please:
+    name: Release PR
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      created: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: release-please
+    # Runs for a release, or for a dry run by hand.
+    if: >-
+      always() && (github.event_name == 'workflow_dispatch' ||
+      needs.release-please.outputs.created == 'true')
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            target: universal-apple-darwin
+            bundles: app,dmg
+          - name: Windows x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - name: Windows arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
+          - name: Linux x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - name: Linux arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     env:
       # Skips the Finder AppleScript that styles the DMG window (needs a GUI session).
       CI: "true"
+      # AppImage tooling runs without FUSE; linuxdeploy's strip chokes on new libraries.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      NO_STRIP: "true"
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.release-please.outputs.tag || github.ref }}
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev build-essential file
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .node-version
           cache: pnpm
-      - run: rustup show active-toolchain || rustup toolchain install
-      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          if [ "${{ matrix.target }}" = universal-apple-darwin ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          else
+            rustup target add ${{ matrix.target }}
+          fi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
-      - name: Check the tag matches the app version
+      - name: Versions agree
+        id: version
         run: |
+          node scripts/release/check-versions.mjs
           version=$(node -p "require('./apps/desktop/package.json').version")
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != v$version"; exit 1; }
-      - name: Build
-        run: pnpm --filter @teitunnel/desktop tauri build --target universal-apple-darwin
-      - name: Checksums
-        run: |
-          cd target/universal-apple-darwin/release/bundle/dmg
-          shasum -a 256 *.dmg > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-      - name: Create draft release
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          tag="${{ needs.release-please.outputs.tag }}"
+          if [ -n "$tag" ] && [ "$tag" != "v$version" ]; then echo "tag $tag != v$version"; exit 1; fi
+
+      - name: Apple signing material
+        if: runner.os == 'macOS'
         env:
-          GH_TOKEN: ${{ github.token }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --draft \
-            --title "Teitunnel ${GITHUB_REF_NAME#v}" \
-            --notes-file docs/release-notes/"$GITHUB_REF_NAME".md \
-            target/universal-apple-darwin/release/bundle/dmg/*.dmg \
-            target/universal-apple-darwin/release/bundle/dmg/SHA256SUMS.txt
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            if [ -n "$TAG" ]; then echo "::error::No Apple certificate: a release must be signed."; exit 1; fi
+            echo "::warning::No Apple certificate: building an unsigned Mac app (dry run only)."
+            exit 0
+          fi
+          # A keychain of our own, so Tauri and codesign (for the CLI) both find the
+          # Developer ID identity.
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          kpw=$(openssl rand -hex 24)
+          security create-keychain -p "$kpw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kpw" "$kc"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -f pkcs12 -k "$kc" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kpw" "$kc" >/dev/null
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APPLE_API_KEY_P8" > "$key"
+          # Only set when present: Tauri signs and notarizes the .app with these.
+          {
+            echo "APPLE_API_KEY_PATH=$key"
+            echo "SIGNED=1"
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+            echo "APPLE_API_KEY=$APPLE_API_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the app
+        run: pnpm --filter @teitunnel/desktop tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Build the CLI
+        run: |
+          if [ "${{ matrix.target }}" = universal-apple-darwin ]; then
+            for t in aarch64-apple-darwin x86_64-apple-darwin; do
+              cargo build --release --locked -p teitunnel-cli --target "$t"
+            done
+            mkdir -p target/universal-apple-darwin/release
+            lipo -create -output target/universal-apple-darwin/release/teitunnel-cli \
+              target/aarch64-apple-darwin/release/teitunnel-cli target/x86_64-apple-darwin/release/teitunnel-cli
+          else
+            cargo build --release --locked -p teitunnel-cli --target ${{ matrix.target }}
+          fi
+
+      - name: Collect (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          v=${{ steps.version.outputs.version }}
+          out=target/universal-apple-darwin/release
+          bundle=$out/bundle
+          mkdir -p dist
+          cp "$bundle/dmg/Teitunnel_${v}_universal.dmg" dist/
+          # The updater's archive of the (signed, notarized, stapled) app.
+          COPYFILE_DISABLE=1 tar -czf "dist/Teitunnel_${v}_universal.app.tar.gz" -C "$bundle/macos" Teitunnel.app
+          cli="$RUNNER_TEMP/teitunnel-cli"
+          cp "$out/teitunnel-cli" "$cli"
+          if [ "${SIGNED:-}" = 1 ]; then
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$cli"
+          fi
+          (cd "$RUNNER_TEMP" && ditto -c -k teitunnel-cli "$GITHUB_WORKSPACE/dist/teitunnel-cli_${v}_macos-universal.zip")
+          if [ "${SIGNED:-}" = 1 ]; then
+            # The DMG and the CLI are notarized too; the DMG gets the ticket stapled.
+            for f in "dist/Teitunnel_${v}_universal.dmg" "dist/teitunnel-cli_${v}_macos-universal.zip"; do
+              xcrun notarytool submit "$f" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
+            done
+            xcrun stapler staple "dist/Teitunnel_${v}_universal.dmg"
+            spctl --assess --type open --context context:primary-signature -v "dist/Teitunnel_${v}_universal.dmg"
+          fi
+
+      - name: Collect (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          v=${{ steps.version.outputs.version }}
+          out=target/${{ matrix.target }}/release
+          arch=$([ "${{ matrix.target }}" = aarch64-pc-windows-msvc ] && echo arm64 || echo x64)
+          mkdir -p dist
+          cp "$out/bundle/nsis/Teitunnel_${v}_${arch}-setup.exe" dist/
+          7z a -tzip "dist/teitunnel-cli_${v}_windows-${arch}.zip" "./$out/teitunnel-cli.exe"
+
+      - name: Collect (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          v=${{ steps.version.outputs.version }}
+          out=target/${{ matrix.target }}/release
+          arch=$([ "${{ matrix.target }}" = aarch64-unknown-linux-gnu ] && echo arm64 || echo x64)
+          mkdir -p dist
+          cp "$out"/bundle/deb/*.deb "$out"/bundle/rpm/*.rpm "$out"/bundle/appimage/*.AppImage dist/
+          tar -czf "dist/teitunnel-cli_${v}_linux-${arch}.tar.gz" -C "$out" teitunnel-cli
+
+      - run: ls -la dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Sign updates and publish
+    needs: [release-please, build]
+    if: >-
+      always() && needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.created == 'true')
+    environment: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      actions: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.release-please.outputs.tag || github.ref }}
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @teitunnel/desktop
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bundle-*
+          path: dist
+          merge-multiple: true
+      - name: Release notes
+        run: |
+          v=$(node -p "require('./apps/desktop/package.json').version")
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          # A hand-written note for the version wins over the generated changelog.
+          if [ -f "docs/release-notes/v$v.md" ]; then
+            cp "docs/release-notes/v$v.md" "$RUNNER_TEMP/notes.md"
+          elif [ -n "$TAG" ]; then
+            gh release view "$TAG" --json body -q .body > "$RUNNER_TEMP/notes.md"
+          else
+            echo "Dry run of $v." > "$RUNNER_TEMP/notes.md"
+          fi
+
+      # Windows Authenticode signing (SignPath) goes here, before the updater signatures,
+      # once Teitunnel is accepted (D-074).
+
+      - name: Sign the updates
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            if [ -n "$TAG" ]; then echo "::error::No updater key: can't publish."; exit 1; fi
+            echo "::warning::No updater key: skipping update signatures (dry run)."
+            exit 0
+          fi
+          cd dist
+          for f in *_universal.app.tar.gz *-setup.exe *.AppImage *.deb *.rpm; do
+            pnpm --dir ../apps/desktop exec tauri signer sign "$PWD/$f" >/dev/null
+          done
+          ls -- *.sig
+      - name: Updater manifest and checksums
+        run: |
+          base="https://github.com/${{ github.repository }}/releases/download/v$VERSION"
+          if ls dist/*.sig >/dev/null 2>&1; then
+            node scripts/release/latest-json.mjs dist "$VERSION" "$base" "$RUNNER_TEMP/notes.md"
+          fi
+          (cd dist && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: dist/*
+
+      - name: Keep the dry run
+        if: env.TAG == ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-dry-run
+          path: dist/*
+          retention-days: 14
+
+      - name: Publish the release
+        if: env.TAG != ''
+        run: |
+          test -f dist/latest.json || { echo "::error::no latest.json"; exit 1; }
+          gh release upload "$TAG" dist/* --clobber
+          gh release edit "$TAG" --title "Teitunnel $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --draft=false --latest
+      - name: Rebuild the website with the new downloads
+        if: env.TAG != ''
+        run: gh workflow run docs.yml --ref main
