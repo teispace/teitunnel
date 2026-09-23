@@ -10,7 +10,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M2](plans/M2-accounts-domains.md) | v0.2.0 | OAuth / token / cert.pem, multi-account, domains | ✅ Done except maintainer items (PR #3) |
 | [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | ✅ Done (PR #4; nightly waits for a test token) |
 | [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | ✅ Done (PR #5) |
-| [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | 🚧 In progress |
+| [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | ✅ Done (PR #6) |
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
 | [M7](plans/M7-M9-beyond-v1.md#m7-windows) | v1.1 | Windows | Later |
 | [M8](plans/M7-M9-beyond-v1.md#m8-linux) | v1.2 | Linux | Later |
@@ -51,8 +51,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M4-05 Doctor framework · [x] M4-06 Checks · [x] M4-07 Doctor UI · [x] M4-08 Cleanup center (in the Doctor) · [x] M4-09 Diagnostics export
 
 ### M5: Observability & Always-on (v0.5.0)
-- [ ] M5-01 Metrics pipeline · [x] M5-02 Charts · [x] M5-03 Log viewer · [x] M5-04 Activity view
-- [ ] M5-05 launchd always-on · [ ] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
+- [x] M5-01 Metrics pipeline · [x] M5-02 Charts · [x] M5-03 Log viewer · [x] M5-04 Activity view
+- [x] M5-05 launchd always-on · [x] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
 
 ### M6: Distribution (v1.0.0)
 - [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Homebrew

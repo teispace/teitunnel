@@ -4,23 +4,24 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-23
-**Phase:** **M5: Observability & always-on** in progress (M4 complete)
+**Phase:** **M5: Observability & always-on** complete, PR #6 ready for review. Next: M6 distribution (needs the maintainer's Developer ID for signing) or M7 (Linux).
 **Branch:** `milestone/m5-observability-always-on` (stacked on #5 → #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. M5 rest: edge colo names (M5-01), close-window setting (M5-06), systemd/Task Scheduler adapter stubs (M5-05).
-2. Nightly real-account job (needs the maintainer's test token).
-3. M6 distribution (signing/notarization need the maintainer's Developer ID).
-4. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
+1. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
+2. M6 distribution: what doesn't need the Developer ID (DMG layout, update feed format, release notes automation) can start; signing/notarization wait for it.
+3. Nightly real-account job (needs the test token).
+4. M7 Linux: wire `core::service::Systemd` (ready, D-051), Linux UI polish.
 
 ## In progress
-- **M5** on `milestone/m5-observability-always-on`, draft PR #6. Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.
+- **M5** complete on `milestone/m5-observability-always-on`, PR #6 (ready for review). Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M5 complete. Service adapters for systemd/Task Scheduler behind a neutral `ServiceSpec`; exit criteria measured with `pnpm --filter @teitunnel/desktop perf` (60 fps under load, D-051).
 - 2026-09-23: M5-03 complete: virtualized log viewer, Save to Downloads (redacted).
 - 2026-09-23: M5-03 per-route logs (backend filter by rule + service), bounded and tail-read Always-on log files (D-050).
 - 2026-09-23: M5-02 complete: Overview traffic card.
@@ -65,4 +66,4 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Commits: Conventional Commits, **no AI attribution**. Gate every commit on `pnpm verify` (exit code, not eyeballing output).
 - Push in batches: every push cancels the running CI (concurrency group), and Windows is only checked in CI.
 - E2E builds go to `target/e2e` (never over `target/debug/Teitunnel`, which the maintainer runs by hand). Standalone debug app: `pnpm --filter @teitunnel/desktop tauri build --debug --no-bundle`.
-- `target/debug/incremental` grows to tens of GB and filled the disk once (2026-09-23); `rm -rf target/debug/incremental` is safe when space runs low.
+- The build cache fills the disk (twice on 2026-09-23): `target/debug/deps` reached 48 GB of stale artifacts and `incremental` 7.5 GB. When `df -h /` gets low: `rm -rf target/debug/{deps,build,.fingerprint,incremental} target/e2e` (keeps the maintainer's `target/debug/Teitunnel`; the next build is a full one).
