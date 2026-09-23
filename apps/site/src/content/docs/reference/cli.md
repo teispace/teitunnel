@@ -23,6 +23,8 @@ teitunnel-cli tunnel delete staging
 teitunnel-cli accounts
 teitunnel-cli share 3000 --for 30m          # a temporary public URL, until Ctrl-C
 teitunnel-cli share 3000 --on demo.example.com  # the same, on your own domain
+teitunnel-cli shares                        # shares on your domains, from anywhere
+teitunnel-cli shares --stop demo.example.com
 teitunnel-cli doctor                        # check for problems; exits 1 on an error
 teitunnel-cli doctor --fix                  # apply the safe fixes
 ```

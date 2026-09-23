@@ -111,6 +111,15 @@ enum Command {
         #[arg(long, value_name = "EMAIL|@DOMAIN", requires = "on")]
         allow: Vec<String>,
     },
+    /// List shares on your domains (from the app or any terminal), or stop one.
+    Shares {
+        /// Stop the share at this hostname (its route and DNS record are removed).
+        #[arg(long, value_name = "HOSTNAME")]
+        stop: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
         /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
@@ -332,6 +341,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             change_routes(&app, Change::RemoveNetwork { network }, &apply).await
         }
         Command::Tunnels { account, json } => tunnels(&app, account.as_deref(), json).await,
+        Command::Shares { stop, json } => shares(&app, stop.as_deref(), json).await,
         Command::Tunnel(TunnelCommand::Create { name, apply }) => {
             change_routes(&app, Change::CreateTunnel { name }, &apply).await
         }
@@ -345,6 +355,68 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             tunnel,
         } => export(&app, format, account.as_deref(), tunnel.as_deref()).await,
     }
+}
+
+async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    use teitunnel_core::domain_shares::{self, APP_OWNER};
+    let list = app
+        .engine
+        .local()
+        .shares(None)
+        .await
+        .map_err(|e| e.to_string())?;
+    if let Some(hostname) = stop {
+        let share = list
+            .iter()
+            .find(|s| s.hostname.eq_ignore_ascii_case(hostname.trim()))
+            .ok_or_else(|| format!("No share at {hostname}. See `teitunnel-cli shares`."))?;
+        let account = app.account(Some(&share.account_id)).await?;
+        let api = app
+            .accounts
+            .client(&account.id)
+            .await
+            .map_err(|e| e.to_string())?;
+        let connectors = app.connectors(&account).await;
+        domain_shares::stop(
+            &app.engine,
+            &api,
+            &connectors,
+            app.context(&account),
+            &share.hostname,
+        )
+        .await
+        .map_err(|e| e.english())?;
+        out!("Stopped sharing https://{}.", share.hostname)?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    if json {
+        out!(
+            "{}",
+            serde_json::to_string(&list).map_err(|e| e.to_string())?
+        )?;
+    } else if list.is_empty() {
+        out!(
+            "No shares on your domains. Start one with `teitunnel-cli share 3000 --on demo.example.com`."
+        )?;
+    } else {
+        let now = domain_shares::now_ms();
+        for share in &list {
+            let by = if share.owner == APP_OWNER {
+                "the app"
+            } else {
+                "a terminal"
+            };
+            let ends = share.expires_at.map_or_else(String::new, |at| {
+                format!(", ends in {} min", at.saturating_sub(now) / 60_000)
+            });
+            out!(
+                "https://{}\t{}\tstarted by {by}{ends}",
+                share.hostname,
+                share.origin
+            )?;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 async fn tunnels(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
