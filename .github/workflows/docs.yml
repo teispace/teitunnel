@@ -31,9 +31,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Served at the root of teitunnel.teispace.com (public/CNAME sets the custom domain).
       - run: pnpm --filter @teitunnel/web build
-        env:
-          BASE_PATH: /teitunnel
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
         with:

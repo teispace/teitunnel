@@ -1,7 +1,7 @@
 import { createMDX } from "fumadocs-mdx/next";
 
-// Static site: GitHub Pages serves it under /teitunnel (BASE_PATH=/teitunnel in CI);
-// locally it's at the root.
+// Static site, served at the root of https://teitunnel.teispace.com (GitHub Pages with a
+// custom domain). BASE_PATH is only for hosting it under a sub-path.
 const basePath = process.env.BASE_PATH ?? "";
 
 /** @type {import('next').NextConfig} */

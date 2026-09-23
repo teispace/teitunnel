@@ -7,7 +7,7 @@ import { asset, site } from "@/lib/site";
 export const metadata: Metadata = {
   title: { default: `${site.name}: ${site.tagline}`, template: `%s · ${site.name}` },
   description: site.description,
-  metadataBase: new URL("https://teispace.github.io"),
+  metadataBase: new URL(site.url),
   openGraph: {
     title: site.name,
     description: site.description,
