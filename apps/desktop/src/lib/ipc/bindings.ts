@@ -61,6 +61,10 @@ export const commands = {
 } | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
+	/**  Quick Shares running in terminals (`teitunnel-cli share`), oldest first. */
+	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
+	/**  Stops a terminal's Quick Share (asks its `teitunnel-cli` to end). */
+	quickShareCliStop: (owner: string) => __TAURI_INVOKE<null>("quick_share_cli_stop", { owner }),
 	/**  The cloudflared binary in use, or `null` if none is installed. */
 	binaryStatus: () => __TAURI_INVOKE<{
 	/**  Absolute path. */
@@ -478,6 +482,20 @@ zoneId: string;
 hostname: string; 
 /**  Record id. */
 recordId: string };
+
+/**  A terminal's live Quick Share. */
+export type CliShare = {
+	/**  The CLI process (`<pid>-<start time>`). */
+	owner: string,
+	/**  What's shared. */
+	origin: string,
+	/**  Its public URL. */
+	url: string,
+	/**  When it started (milliseconds since the epoch). */
+	startedAt: number | null,
+	/**  When it stops by itself (milliseconds since the epoch). */
+	stopAt: number | null,
+};
 
 /**  What a visitor runs to reach a non-HTTP route. */
 export type ClientAccess = {

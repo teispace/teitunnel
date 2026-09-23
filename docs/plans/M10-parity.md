@@ -20,7 +20,7 @@
 - [x] Quick Share option "On my domain": a temporary route (hostname on a chosen zone) on the machine tunnel, removed when the share stops, expires or the app quits (and cleaned by the Doctor if left behind).
 - [x] Optional expiry and login (Access) for it; CLI `share --on app.example.com` (D-068). The app's composer offers expiry; a login is available from the CLI (`--allow`) and the IPC.
 - [x] Shares on your domains are listed and stopped from anywhere: the app's Quick Share page (including ones a terminal started) and `teitunnel-cli shares [--stop HOSTNAME]`.
-- [ ] Random-address (trycloudflare) shares started in a terminal show only there; listing them in the app needs a shared registry of their URLs.
+- [x] Random-address (trycloudflare) shares started in a terminal: recorded in a shared registry (`core::cli_shares`) and listed on the Quick Share screen, where they can be stopped.
 
 ### M10-04 · Headless server mode
 - [x] `teitunnel-cli setup` stores a token in the OS keychain; without a keychain the token comes from `CLOUDFLARE_API_TOKEN(_FILE)` per command and is never stored (D-069).

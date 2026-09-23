@@ -840,6 +840,10 @@
       "onYourDomain": "On your domain",
       "endsWithApp": "Removed when you stop it or quit Teitunnel",
       "fromCli": "Started from the command line"
+    },
+    "terminal": {
+      "title": "From a terminal",
+      "cardLabel": "Quick Share of {origin} from a terminal"
     }
   },
   "nav": {

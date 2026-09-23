@@ -47,6 +47,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             domain_shares::domain_shares_list,
             domain_shares::domain_shares_start,
             domain_shares::domain_shares_stop,
+            quick_share::quick_share_cli_list,
+            quick_share::quick_share_cli_stop,
             quick_share::binary_status,
             quick_share::binary_install,
             quick_share::binary_check_update,

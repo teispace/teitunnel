@@ -21,5 +21,10 @@ pub use policy::{CrashTracker, RestartPolicy};
 pub use ports::{PortAllocator, QUICK_SHARE_PORTS, TUNNEL_PORTS};
 pub(crate) use registry::stop_pid as stop_foreign;
 pub use registry::{PidRegistry, is_running, this_process};
+
+/// Asks a process to end (SIGTERM; on Windows it's terminated).
+pub fn interrupt(pid: u32) {
+    signal::signal_process(pid, false);
+}
 pub use state::{ConnectorId, ConnectorState, RuntimeEvent};
 pub use supervisor::{ConnectorSpec, Supervisor, SupervisorError};

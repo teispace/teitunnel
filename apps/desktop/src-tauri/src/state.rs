@@ -40,4 +40,6 @@ pub struct AppState {
     pub quit_confirmed: AtomicBool,
     /// Set once shutdown has started, so the exit hook runs only once.
     pub shutting_down: AtomicBool,
+    /// Registries of `teitunnel-cli` processes (their shares show in Quick Share).
+    pub cli_runs: std::path::PathBuf,
 }

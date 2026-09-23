@@ -102,6 +102,7 @@ pub(crate) async fn run(
             reaped.len()
         ));
     }
+    let owner_dir = runs.join(teitunnel_core::runtime::this_process());
     let supervisor = Supervisor::new(
         PidRegistry::for_this_process(&runs),
         tokio::runtime::Handle::current(),
@@ -148,6 +149,19 @@ pub(crate) async fn run(
                 if !announced {
                     announced = true;
                     announce(&url, &share, stop_after, qr)?;
+                    // So the app can list this share, and stop it.
+                    let started_at = teitunnel_core::domain_shares::now_ms();
+                    let record = teitunnel_core::cli_shares::CliShare {
+                        owner: teitunnel_core::runtime::this_process(),
+                        origin: share.origin.to_string(),
+                        url: url.clone(),
+                        started_at,
+                        stop_at: stop_after
+                            .map(|d| started_at + u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
+                    };
+                    if let Err(err) = teitunnel_core::cli_shares::record(&owner_dir, &record) {
+                        status(&format!("(Couldn't record the share for the app: {err})"));
+                    }
                 } else if reconnecting {
                     status("Reconnected.");
                 }
@@ -172,6 +186,7 @@ pub(crate) async fn run(
             () = tokio::time::sleep(Duration::from_secs(1)) => {}
         }
     };
+    teitunnel_core::cli_shares::forget(&owner_dir);
     shares.stop_all().await;
     status("Stopped sharing.");
     outcome

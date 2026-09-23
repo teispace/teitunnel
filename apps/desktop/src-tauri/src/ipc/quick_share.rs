@@ -245,3 +245,23 @@ pub(crate) fn log_lines(
 pub fn quick_share_qr(url: String) -> Result<String, AppError> {
     qr_svg(&url).ok_or_else(|| AppError::invalid("url", m::qr_too_long()))
 }
+
+/// Quick Shares running in terminals (`teitunnel-cli share`), oldest first.
+#[tauri::command]
+#[specta::specta]
+pub fn quick_share_cli_list(
+    state: State<'_, AppState>,
+) -> Vec<teitunnel_core::cli_shares::CliShare> {
+    teitunnel_core::cli_shares::list(&state.cli_runs)
+}
+
+/// Stops a terminal's Quick Share (asks its `teitunnel-cli` to end).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_cli_stop(
+    state: State<'_, AppState>,
+    owner: String,
+) -> Result<(), AppError> {
+    teitunnel_core::cli_shares::stop(&state.cli_runs, &owner).await;
+    Ok(())
+}

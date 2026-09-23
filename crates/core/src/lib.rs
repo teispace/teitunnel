@@ -7,6 +7,7 @@
 
 pub mod accounts;
 pub mod binary;
+pub mod cli_shares;
 pub mod connector_logs;
 pub mod diagnostics;
 pub mod discovery;

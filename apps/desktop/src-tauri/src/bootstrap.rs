@@ -95,6 +95,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(machine.clone().sample_forever());
 
     Ok(AppState {
+        cli_runs: data_dir.join("run-cli"),
         accounts,
         engine: Engine::new(local),
         machine,

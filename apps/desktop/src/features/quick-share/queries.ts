@@ -131,3 +131,20 @@ export function useStopDomainShare() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.quickShares.domain() }),
   });
 }
+
+/** Quick Shares running in terminals (`teitunnel-cli share`); refreshed every 5 s. */
+export function useTerminalShares() {
+  return useQuery({
+    queryKey: [...queryKeys.quickShares.all(), "terminals"],
+    queryFn: () => call(commands.quickShareCliList()),
+    refetchInterval: 5000,
+  });
+}
+
+export function useStopTerminalShare() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (owner: string) => call(commands.quickShareCliStop(owner)),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.quickShares.all() }),
+  });
+}

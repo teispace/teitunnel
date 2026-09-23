@@ -535,32 +535,37 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
         out!("Stopped sharing https://{}.", share.hostname)?;
         return Ok(ExitCode::SUCCESS);
     }
+    let terminals = teitunnel_core::cli_shares::list(&context::data_dir()?.join("run-cli"));
     if json {
         out!(
             "{}",
-            serde_json::to_string(&list).map_err(|e| e.to_string())?
+            serde_json::json!({ "domains": list, "terminals": terminals })
         )?;
-    } else if list.is_empty() {
+        return Ok(ExitCode::SUCCESS);
+    }
+    if list.is_empty() && terminals.is_empty() {
         out!(
-            "No shares on your domains. Start one with `teitunnel-cli share 3000 --on demo.example.com`."
+            "No shares running. Start one with `teitunnel-cli share 3000` (add `--on demo.example.com` for your own domain)."
         )?;
-    } else {
-        let now = domain_shares::now_ms();
-        for share in &list {
-            let by = if share.owner == APP_OWNER {
-                "the app"
-            } else {
-                "a terminal"
-            };
-            let ends = share.expires_at.map_or_else(String::new, |at| {
-                format!(", ends in {} min", at.saturating_sub(now) / 60_000)
-            });
-            out!(
-                "https://{}\t{}\tstarted by {by}{ends}",
-                share.hostname,
-                share.origin
-            )?;
-        }
+    }
+    let now = domain_shares::now_ms();
+    for share in &list {
+        let by = if share.owner == APP_OWNER {
+            "the app"
+        } else {
+            "a terminal"
+        };
+        let ends = share.expires_at.map_or_else(String::new, |at| {
+            format!(", ends in {} min", at.saturating_sub(now) / 60_000)
+        });
+        out!(
+            "https://{}\t{}\tstarted by {by}{ends}",
+            share.hostname,
+            share.origin
+        )?;
+    }
+    for share in &terminals {
+        out!("{}\t{}\tstarted in a terminal", share.url, share.origin)?;
     }
     Ok(ExitCode::SUCCESS)
 }

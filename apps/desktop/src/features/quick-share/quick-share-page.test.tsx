@@ -4,13 +4,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { Account, DomainShare, QuickShare } from "@/lib/ipc/bindings";
+import type { Account, CliShare, DomainShare, QuickShare } from "@/lib/ipc/bindings";
 import { QuickSharePage } from "./quick-share-page";
 
 let shares: QuickShare[];
 let binaryInstalled: boolean;
 let accounts: Account[];
 let domainShares: DomainShare[];
+let terminalShares: CliShare[];
 let calls: { cmd: string; args: Record<string, unknown> }[];
 
 beforeEach(() => {
@@ -18,6 +19,7 @@ beforeEach(() => {
   binaryInstalled = true;
   accounts = [];
   domainShares = [];
+  terminalShares = [];
   calls = [];
   mockWindows("main");
   mockIPC((cmd, args) => {
@@ -49,6 +51,11 @@ beforeEach(() => {
         ];
       case "domain_shares_list":
         return domainShares;
+      case "quick_share_cli_list":
+        return terminalShares;
+      case "quick_share_cli_stop":
+        terminalShares = [];
+        return null;
       case "domain_shares_start":
         domainShares = [
           {
@@ -168,6 +175,27 @@ describe("QuickSharePage", () => {
 
     fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+  });
+
+  it("shows shares running in a terminal and can stop them", async () => {
+    terminalShares = [
+      {
+        owner: "4242-100",
+        origin: "http://localhost:8080",
+        url: "https://x-y-z.trycloudflare.com",
+        startedAt: Date.now(),
+        stopAt: null,
+      },
+    ];
+    renderPage();
+    const card = await screen.findByRole("article", {
+      name: "Quick Share of localhost:8080 from a terminal",
+    });
+    expect(within(card).getByText("https://x-y-z.trycloudflare.com")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "quick_share_cli_stop")?.args["owner"]).toBe("4242-100"),
+    );
   });
 
   it("shows validation errors next to the field", async () => {
