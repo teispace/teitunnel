@@ -38,7 +38,7 @@
 
 ### M5-06 · App lifecycle & menu bar extra
 - [ ] Closing the window keeps the app in the menu bar while anything is running (setting). Launch at login (`tauri-plugin-autostart`), starting hidden into the menu bar. *(Done: Settings ▸ General ▸ Open at login; `--hidden` keeps the window closed until the user opens it.)*
-- [ ] Menu bar menu: overall health line, routes (status + Open/Copy/Disable), Quick Shares, "New Quick Share…", "Open Teitunnel", "Quit". The icon changes for degraded or error state (template variants). *(Started: routes with status + Copy URL / Open in Browser above Quick Shares, refreshed after changes and every minute. Health line, Disable and icon variants remain.)*
+- [x] Menu bar menu: overall health line, routes (status + Open/Copy), Start/Stop Routes on This Mac, Quick Shares, "Share a Local Port…", "Open Teitunnel", "Quit". The icon shows a dot for a route that isn't working (not when the user stopped the routes). *(A per-route "Disable" has no engine counterpart (a route is served or removed); the switch stops/starts this Mac's connectors, like the Tunnels view.)*
 - [x] Quit confirmation when Session connectors are running ("Switch them to Always-on?" as a shortcut). *(⌘Q or the menu bar Quit asks: Keep Routes Running (switches to Always-on, then quits) / Quit Anyway / Cancel. Only when routes run through the app and Always-on is available.)*
 
 ### M5-07 · Notifications policy

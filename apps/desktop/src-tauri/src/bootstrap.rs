@@ -153,7 +153,17 @@ pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
             return;
         };
         let mut routes = Vec::new();
+        let (mut tunnels, mut running, mut paused) = (0, false, 0);
         for account in state.accounts.list().await.unwrap_or_default() {
+            if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await {
+                use teitunnel_core::{engine::Connectors, runtime::ConnectorState};
+                tunnels += 1;
+                running |= !matches!(
+                    state.machine.state(&tunnel.tunnel_id),
+                    None | Some(ConnectorState::Stopped)
+                );
+                paused += usize::from(is_paused(&state, &tunnel.tunnel_id));
+            }
             let Ok(api) = state.accounts.client(&account.id).await else {
                 continue;
             };
@@ -170,7 +180,57 @@ pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
                 }));
             }
         }
-        shell::tray::set_routes(&app, routes);
+        let connectors = match (tunnels, running) {
+            (0, _) => shell::tray::TrayConnectors::None,
+            (_, true) => shell::tray::TrayConnectors::Running,
+            (_, false) => shell::tray::TrayConnectors::Stopped {
+                on_purpose: paused == tunnels,
+            },
+        };
+        shell::tray::set_routes(&app, shell::tray::TrayRoutes { routes, connectors });
+    });
+}
+
+fn is_paused(state: &AppState, tunnel_id: &str) -> bool {
+    state
+        .paused
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .contains(tunnel_id)
+}
+
+/// The menu bar's Start/Stop Routes: stops every connector on this Mac if any runs,
+/// otherwise starts them all (the same actions as the Tunnels view).
+pub(crate) fn toggle_machine_routes<R: Runtime>(app: &AppHandle<R>) {
+    use teitunnel_core::{engine::Connectors, runtime::ConnectorState};
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        let mut tunnels = Vec::new();
+        for account in state.accounts.list().await.unwrap_or_default() {
+            if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await {
+                tunnels.push((account.id, tunnel.tunnel_id));
+            }
+        }
+        let any_running = tunnels.iter().any(|(_, id)| {
+            !matches!(
+                state.machine.state(id),
+                None | Some(ConnectorState::Stopped)
+            )
+        });
+        for (account, tunnel) in &tunnels {
+            let result = if any_running {
+                crate::ipc::stop_machine(&app, &state, account, tunnel).await
+            } else {
+                crate::ipc::start_machine(&app, &state, account).await
+            };
+            if let Err(err) = result {
+                tracing::warn!(%err, "couldn't switch this Mac's routes from the menu bar");
+                notify(&app, "Couldn't switch routes", &err.to_string());
+            }
+        }
     });
 }
 

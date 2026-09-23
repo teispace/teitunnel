@@ -27,6 +27,7 @@ const OPEN_URL: &str = "tray.open_url:";
 const STOP: &str = "tray.stop:";
 const ROUTE_COPY: &str = "tray.route_copy:";
 const ROUTE_OPEN: &str = "tray.route_open:";
+const ROUTES_TOGGLE: &str = "tray.routes_toggle";
 
 /// A route as the menu shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,9 +38,51 @@ pub struct TrayRoute {
     pub status: String,
 }
 
+/// This Mac's connectors, as one switch in the menu.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TrayConnectors {
+    /// No tunnel on this Mac.
+    #[default]
+    None,
+    /// At least one connector runs (or is restarting).
+    Running,
+    /// None runs; `on_purpose` when the user stopped them.
+    Stopped {
+        /// The user stopped them (so it's not a problem to flag).
+        on_purpose: bool,
+    },
+}
+
+/// Routes on this Mac as the menu shows them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrayRoutes {
+    /// Every route, with its status.
+    pub routes: Vec<TrayRoute>,
+    /// This Mac's connectors.
+    pub connectors: TrayConnectors,
+}
+
+impl TrayRoutes {
+    /// Whether the icon should show a problem: a route isn't working and it's not
+    /// because the user stopped the connectors.
+    fn alert(&self) -> bool {
+        !self.routes.iter().all(|r| r.status == "Live")
+            && self.connectors != (TrayConnectors::Stopped { on_purpose: true })
+    }
+
+    /// The switch's title, if there's anything to switch.
+    fn toggle_title(&self) -> Option<&'static str> {
+        match self.connectors {
+            TrayConnectors::None => None,
+            TrayConnectors::Running => Some("Stop Routes on This Mac"),
+            TrayConnectors::Stopped { .. } => Some("Start Routes on This Mac"),
+        }
+    }
+}
+
 /// What the menu currently lists (rebuilt when either part changes).
 #[derive(Default)]
-struct TrayModel(std::sync::Mutex<(Vec<QuickShare>, Vec<TrayRoute>)>);
+struct TrayModel(std::sync::Mutex<(Vec<QuickShare>, TrayRoutes)>);
 
 /// Adds the menu bar icon, hidden unless `visible`.
 pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
@@ -48,7 +91,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<(
         .icon(tauri::include_image!("icons/tray-template.png"))
         .icon_as_template(true)
         .tooltip("Teitunnel")
-        .menu(&build_menu(app, &[], &[])?)
+        .menu(&build_menu(app, &[], &TrayRoutes::default())?)
         .show_menu_on_left_click(true)
         .build(app)?;
     tray.set_visible(visible)
@@ -69,14 +112,11 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, shares: &[QuickShare]) {
 }
 
 /// Rebuilds the menu for the current routes.
-pub fn set_routes<R: Runtime>(app: &AppHandle<R>, routes: Vec<TrayRoute>) {
+pub fn set_routes<R: Runtime>(app: &AppHandle<R>, routes: TrayRoutes) {
     update(app, |model| model.1 = routes);
 }
 
-fn update<R: Runtime>(
-    app: &AppHandle<R>,
-    change: impl FnOnce(&mut (Vec<QuickShare>, Vec<TrayRoute>)),
-) {
+fn update<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut (Vec<QuickShare>, TrayRoutes))) {
     let Some(model) = app.try_state::<TrayModel>() else {
         return;
     };
@@ -92,10 +132,10 @@ fn update<R: Runtime>(
         return;
     };
     // A dot on the icon when a route isn't working (template images stay monochrome).
-    let icon = if routes.iter().all(|r| r.status == "Live") {
-        tauri::include_image!("icons/tray-template.png")
-    } else {
+    let icon = if routes.alert() {
         tauri::include_image!("icons/tray-template-alert.png")
+    } else {
+        tauri::include_image!("icons/tray-template.png")
     };
     if let Err(err) = tray
         .set_icon(Some(icon))
@@ -160,7 +200,11 @@ fn route_submenu<R: Runtime>(app: &AppHandle<R>, route: &TrayRoute) -> tauri::Re
 }
 
 /// One line summarising the routes, e.g. "All 3 routes live" or "1 of 3 routes down".
-fn health_line(routes: &[TrayRoute]) -> String {
+fn health_line(model: &TrayRoutes) -> String {
+    if model.connectors == (TrayConnectors::Stopped { on_purpose: true }) {
+        return "Routes stopped on this Mac".to_owned();
+    }
+    let routes = &model.routes;
     let live = routes.iter().filter(|r| r.status == "Live").count();
     let total = routes.len();
     let noun = if total == 1 { "route" } else { "routes" };
@@ -178,8 +222,9 @@ fn health_line(routes: &[TrayRoute]) -> String {
 fn build_menu<R: Runtime>(
     app: &AppHandle<R>,
     shares: &[QuickShare],
-    routes: &[TrayRoute],
+    model: &TrayRoutes,
 ) -> tauri::Result<Menu<R>> {
+    let routes = &model.routes;
     let route_menus = routes
         .iter()
         .map(|route| route_submenu(app, route))
@@ -188,14 +233,23 @@ fn build_menu<R: Runtime>(
         .iter()
         .map(|s| s as &dyn IsMenuItem<R>)
         .collect();
-    let routes_header = MenuItemBuilder::new(health_line(routes))
+    let routes_header = MenuItemBuilder::new(health_line(model))
         .enabled(false)
         .build(app)?;
+    let toggle = model
+        .toggle_title()
+        .map(|title| MenuItemBuilder::with_id(ROUTES_TOGGLE, title).build(app))
+        .transpose()?;
     let separator = PredefinedMenuItem::separator(app)?;
     let mut route_section: Vec<&dyn IsMenuItem<R>> = Vec::new();
     if !routes.is_empty() {
         route_section.push(&routes_header);
         route_section.extend(route_refs);
+    }
+    if let Some(toggle) = &toggle {
+        route_section.push(toggle);
+    }
+    if !route_section.is_empty() {
         route_section.push(&separator);
     }
     let header = MenuItemBuilder::new(if shares.is_empty() {
@@ -256,6 +310,8 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
         {
             tracing::warn!(error = %err, "failed to open URL");
         }
+    } else if id == ROUTES_TOGGLE {
+        crate::bootstrap::toggle_machine_routes(app);
     } else if let Some(share) = id.strip_prefix(STOP) {
         let Some(state) = app.try_state::<AppState>() else {
             return true;
@@ -292,16 +348,44 @@ mod tests {
         }
     }
 
+    fn model(routes: &[&str], connectors: TrayConnectors) -> TrayRoutes {
+        TrayRoutes {
+            routes: routes.iter().map(|s| route(s)).collect(),
+            connectors,
+        }
+    }
+
     #[test]
     fn summarises_route_health() {
-        assert_eq!(health_line(&[route("Live")]), "Route live");
+        let running = TrayConnectors::Running;
+        assert_eq!(health_line(&model(&["Live"], running)), "Route live");
         assert_eq!(
-            health_line(&[route("Live"), route("Live")]),
+            health_line(&model(&["Live", "Live"], running)),
             "All 2 routes live"
         );
         assert_eq!(
-            health_line(&[route("Live"), route("Stopped"), route("No DNS record")]),
+            health_line(&model(&["Live", "Stopped", "No DNS record"], running)),
             "2 of 3 routes not working"
         );
+    }
+
+    #[test]
+    fn stopping_on_purpose_is_not_a_problem() {
+        let stopped = TrayConnectors::Stopped { on_purpose: true };
+        let down = model(&["Connector stopped"], stopped);
+        assert_eq!(health_line(&down), "Routes stopped on this Mac");
+        assert!(!down.alert());
+        assert_eq!(down.toggle_title(), Some("Start Routes on This Mac"));
+
+        let crashed = model(
+            &["Connector stopped"],
+            TrayConnectors::Stopped { on_purpose: false },
+        );
+        assert!(crashed.alert());
+        assert_eq!(
+            model(&["Live"], TrayConnectors::Running).toggle_title(),
+            Some("Stop Routes on This Mac")
+        );
+        assert_eq!(model(&[], TrayConnectors::None).toggle_title(), None);
     }
 }

@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, State, ipc::Channel};
+use tauri::{AppHandle, Runtime, State, ipc::Channel};
 use tauri_specta::Event;
 use teitunnel_core::engine::Connectors;
 use teitunnel_core::engine::{
@@ -27,7 +27,7 @@ fn context<'a>(state: &'a AppState, account_id: &'a str) -> Context<'a> {
     }
 }
 
-fn changed(app: &AppHandle, account_id: &str) {
+fn changed<R: Runtime>(app: &AppHandle<R>, account_id: &str) {
     crate::bootstrap::refresh_tray_routes(app);
     let _ = EntityChanged {
         kind: EntityKind::Routes,
@@ -184,21 +184,7 @@ pub async fn tunnels_start(
     state: State<'_, AppState>,
     account_id: String,
 ) -> Result<(), AppError> {
-    let api = state.accounts.client(&account_id).await?;
-    if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account_id).await {
-        state
-            .paused
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(&tunnel.tunnel_id);
-    }
-    state
-        .machine
-        .resume(&api, &account_id)
-        .await
-        .map_err(AppError::internal)?;
-    changed(&app, &account_id);
-    Ok(())
+    start_machine(&app, &state, &account_id).await
 }
 
 /// Stops this Mac's connector for a tunnel. Its routes stop answering until it starts.
@@ -210,17 +196,52 @@ pub async fn tunnels_stop(
     account_id: String,
     tunnel_id: String,
 ) -> Result<(), AppError> {
+    stop_machine(&app, &state, &account_id, &tunnel_id).await
+}
+
+/// Starts `account_id`'s connector on this Mac and clears its "stopped on purpose" mark
+/// (shared by the Tunnels view and the menu bar).
+pub(crate) async fn start_machine<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    account_id: &str,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(account_id).await?;
+    if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(account_id).await {
+        state
+            .paused
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&tunnel.tunnel_id);
+    }
+    state
+        .machine
+        .resume(&api, account_id)
+        .await
+        .map_err(AppError::internal)?;
+    changed(app, account_id);
+    Ok(())
+}
+
+/// Stops a tunnel's connector on this Mac, marked as stopped on purpose so it isn't
+/// reported as down.
+pub(crate) async fn stop_machine<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    account_id: &str,
+    tunnel_id: &str,
+) -> Result<(), AppError> {
     state
         .paused
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(tunnel_id.clone());
+        .insert(tunnel_id.to_owned());
     state
         .machine
-        .stop(&tunnel_id)
+        .stop(tunnel_id)
         .await
         .map_err(AppError::internal)?;
-    changed(&app, &account_id);
+    changed(app, account_id);
     Ok(())
 }
 

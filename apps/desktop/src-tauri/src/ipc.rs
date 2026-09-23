@@ -12,6 +12,7 @@ mod doctor;
 mod events;
 mod quick_share;
 mod routes;
+pub(crate) use routes::{start_machine, stop_machine};
 mod settings;
 
 use std::path::PathBuf;
