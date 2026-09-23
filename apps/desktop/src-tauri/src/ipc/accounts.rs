@@ -4,12 +4,13 @@
 use std::path::PathBuf;
 use teitunnel_core::text::msg::app as m;
 
+use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
 use teitunnel_core::{
     Secret,
-    accounts::{Account, Domain, capabilities::Capabilities, token_template_url},
+    accounts::{Account, Domain, TOKENS_PAGE, capabilities::Capabilities, token_template_url},
 };
 
 use crate::{
@@ -58,12 +59,29 @@ pub async fn accounts_add_token(
     Ok(added)
 }
 
-/// Opens Cloudflare's "Create API token" page with Teitunnel's permissions pre-selected.
+/// A page of Cloudflare's API token settings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum TokenPage {
+    /// "Create API token" with Teitunnel's permissions pre-selected.
+    Create,
+    /// The same, plus the Access permissions logins need.
+    CreateWithLogins,
+    /// The list of tokens, to add permissions to an existing one.
+    Edit,
+}
+
+/// Opens one of Cloudflare's API token pages in the browser.
 #[tauri::command]
 #[specta::specta]
-pub fn accounts_open_token_page(app: AppHandle) -> Result<(), AppError> {
+pub fn accounts_open_token_page(app: AppHandle, page: TokenPage) -> Result<(), AppError> {
+    let url = match page {
+        TokenPage::Create => token_template_url(false),
+        TokenPage::CreateWithLogins => token_template_url(true),
+        TokenPage::Edit => TOKENS_PAGE.to_owned(),
+    };
     app.opener()
-        .open_url(token_template_url(), None::<&str>)
+        .open_url(url, None::<&str>)
         .map_err(|err| AppError::internal(m::open_browser(err)))
 }
 

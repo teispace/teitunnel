@@ -76,7 +76,11 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
           />
         ))}
       {zoneId === undefined ? (
-        <Row grant={caps.accessEdit} label={t("capabilities.access")} />
+        <Row
+          grant={caps.accessEdit}
+          label={t("capabilities.access")}
+          hint={t("capabilities.accessHint")}
+        />
       ) : null}
     </ul>
   );

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { TextArea } from "@/components/ui/text-area";
+import { AccessFix, useCapabilities } from "@/features/accounts";
 import { ServicePicker } from "@/features/quick-share";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
@@ -54,6 +55,9 @@ const applyLabels: Record<SheetMode["kind"], MessageKey> = {
   removeNetwork: "routeSheet.apply.removeNetwork",
   fix: "routeSheet.apply.fix",
 };
+
+/** The error for a credential that can't manage Access (logins). */
+const ACCESS_PERMISSION = "core.error.observe.accessPermission";
 
 function shortOrigin(origin: string) {
   return origin.replace(/^http:\/\/localhost:/, "");
@@ -191,6 +195,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const preview = usePreview(accountId);
   const apply = useApply(accountId);
   const verify = useVerify(accountId);
+  const accessMissing = useCapabilities(accountId).data?.accessEdit === "no";
 
   const review = (next: Change, why: string | null = null) => {
     setChange(next);
@@ -283,15 +288,25 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     const error = preview.error ? toIpcError(preview.error) : null;
     return error?.field === field ? error.message : null;
   };
+  const errorKey = (preview.error && toIpcError(preview.error).key) ?? null;
+  // A missing Access permission is fixable in place: show how instead of the error.
+  const needsAccess = errorKey === ACCESS_PERMISSION || (allowed !== null && accessMissing);
+  const retryAfterAccess = () => {
+    if (errorKey !== ACCESS_PERMISSION) return;
+    preview.reset();
+    if (stage === "review" && change) review(change);
+  };
   const generalError: IpcError | null =
-    preview.error &&
-    !["hostname", "origin", "path", "access", "network"].includes(
-      toIpcError(preview.error).field ?? "",
-    )
-      ? toIpcError(preview.error)
-      : apply.error && toIpcError(apply.error).code !== "conflict"
-        ? toIpcError(apply.error)
-        : null;
+    errorKey === ACCESS_PERMISSION
+      ? null
+      : preview.error &&
+          !["hostname", "origin", "path", "access", "network"].includes(
+            toIpcError(preview.error).field ?? "",
+          )
+        ? toIpcError(preview.error)
+        : apply.error && toIpcError(apply.error).code !== "conflict"
+          ? toIpcError(apply.error)
+          : null;
 
   const kind = mode?.kind ?? "add";
   const destructive =
@@ -318,7 +333,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               type="submit"
               form="route-form"
               disabled={
-                preview.isPending || (kind === "addNetwork" ? network : origin).trim() === ""
+                preview.isPending ||
+                (kind === "addNetwork" ? network : origin).trim() === "" ||
+                (allowed !== null && accessMissing)
               }
             >
               {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
@@ -489,7 +506,13 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   />
                   {t("routeSheet.login.toggle")}
                 </label>
-                {allowed !== null ? (
+                {allowed !== null && needsAccess ? (
+                  <AccessFix
+                    accountId={accountId}
+                    refused={errorKey === ACCESS_PERMISSION}
+                    onReady={retryAfterAccess}
+                  />
+                ) : allowed !== null ? (
                   <Field
                     label={t("routeSheet.login.label")}
                     error={fieldError("access")}
@@ -509,6 +532,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 ) : null}
               </div>
             </Disclosure>
+            {errorKey === ACCESS_PERMISSION && allowed === null ? (
+              <AccessFix accountId={accountId} refused onReady={retryAfterAccess} />
+            ) : null}
             {generalError ? (
               <p role="alert" className="text-callout text-error">
                 {generalError.message}
@@ -530,11 +556,14 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               ) : (
                 <PlanSteps steps={plan.steps} warnings={plan.warnings} />
               )
-            ) : generalError ? null : (
+            ) : generalError || preview.isError ? null : (
               <div className="flex items-center gap-2 text-body text-secondary">
                 <Spinner className="size-3.5" /> {t("routeSheet.reading")}
               </div>
             )}
+            {errorKey === ACCESS_PERMISSION ? (
+              <AccessFix accountId={accountId} refused onReady={retryAfterAccess} />
+            ) : null}
             {plan?.requiresConfirmation && !preview.isPending ? (
               <label htmlFor="route-confirm" className="flex items-center gap-2 text-body">
                 <Checkbox

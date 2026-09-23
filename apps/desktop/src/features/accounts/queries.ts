@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { useUiStore } from "@/app/ui-store";
-import { type Account, commands } from "@/lib/ipc/bindings";
+import { type Account, commands, type TokenPage } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
 
@@ -72,8 +72,9 @@ export function useRemoveAccount() {
   return useAccountMutation((id: string) => call(commands.accountsRemove(id)));
 }
 
-export function openTokenPage() {
-  return call(commands.accountsOpenTokenPage());
+/** Opens Cloudflare's "Create API token" page (pre-filled) or the list of tokens. */
+export function openTokenPage(page: TokenPage = "create") {
+  return call(commands.accountsOpenTokenPage(page));
 }
 
 export function useOAuthAvailable() {

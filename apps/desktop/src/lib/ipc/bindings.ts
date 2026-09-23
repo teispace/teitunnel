@@ -84,8 +84,8 @@ export const commands = {
 	 *  the keychain and never sent back.
 	 */
 	accountsAddToken: (token: string) => __TAURI_INVOKE<Account[]>("accounts_add_token", { token }),
-	/**  Opens Cloudflare's "Create API token" page with Teitunnel's permissions pre-selected. */
-	accountsOpenTokenPage: () => __TAURI_INVOKE<null>("accounts_open_token_page"),
+	/**  Opens one of Cloudflare's API token pages in the browser. */
+	accountsOpenTokenPage: (page: TokenPage) => __TAURI_INVOKE<null>("accounts_open_token_page", { page }),
 	/**  Whether `~/.cloudflared/cert.pem` (from `cloudflared tunnel login`) exists. */
 	accountsDetectCert: () => __TAURI_INVOKE<boolean>("accounts_detect_cert"),
 	/**  Imports the login from `~/.cloudflared/cert.pem` (the file is only read). */
@@ -1287,6 +1287,15 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  A page of Cloudflare's API token settings. */
+export type TokenPage = 
+/**  "Create API token" with Teitunnel's permissions pre-selected. */
+"create" | 
+/**  The same, plus the Access permissions logins need. */
+"createWithLogins" | 
+/**  The list of tokens, to add permissions to an existing one. */
+"edit";
 
 /**  Live traffic of one tunnel's connector on this Mac. */
 export type Traffic = {

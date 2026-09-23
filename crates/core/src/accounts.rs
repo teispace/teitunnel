@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 pub use cert::{CertCredential, parse_cert_pem};
 pub use domains::{Domain, DomainStatus};
-pub use template::token_template_url;
+pub use template::{TOKENS_PAGE, token_template_url};
 
 use crate::{
     Secret,

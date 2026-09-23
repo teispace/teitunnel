@@ -16,8 +16,18 @@ const zones = [
 let routes: RouteView[];
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let drift: boolean;
+let accessEdit: "yes" | "no";
+let accessDenied: boolean;
 
 const plan = (change: Change): PlanView => {
+  if (accessDenied) {
+    throw {
+      code: "permissionDenied",
+      message: { key: "core.error.observe.accessPermission", args: {} },
+      hint: null,
+      field: null,
+    };
+  }
   if (change.type === "addRoute" && change.route.hostname.startsWith("bad.")) {
     throw {
       code: "invalidInput",
@@ -74,6 +84,8 @@ beforeEach(() => {
   ];
   calls = [];
   drift = false;
+  accessEdit = "yes";
+  accessDenied = false;
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
@@ -138,6 +150,8 @@ beforeEach(() => {
               ],
             }
           : null;
+      case "accounts_capabilities":
+        return { zonesRead: "yes", tunnelsRead: "yes", tunnelsEdit: "yes", accessEdit, zones: [] };
       case "routes_keep_theirs":
         drift = false;
         return null;
@@ -273,6 +287,44 @@ describe("RoutesPage", () => {
     expect(await within(dialog).findByText("Protected by a login")).toBeTruthy();
     const row = await screen.findByRole("option", { name: /admin\.xyz\.com/, hidden: true });
     expect(within(row).getByRole("img", { name: "Requires a login", hidden: true })).toBeTruthy();
+  });
+
+  it("shows how to add the Access permission instead of a dead end", async () => {
+    accessEdit = "no";
+    const dialog = await openAddSheet();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5000" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Require a login" }));
+    expect(await within(dialog).findByText("Logins need two more permissions")).toBeTruthy();
+    expect(within(dialog).queryByRole("textbox", { name: "Who can sign in" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Review" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+
+    // The permission is added in Cloudflare; returning to the app picks it up.
+    accessEdit = "yes";
+    fireEvent(window, new Event("focus"));
+    expect(await within(dialog).findByRole("textbox", { name: "Who can sign in" })).toBeTruthy();
+    expect(within(dialog).queryByText("Logins need two more permissions")).toBeNull();
+  });
+
+  it("turns Cloudflare's Access refusal into the fix, then reviews again", async () => {
+    accessDenied = true;
+    renderPage();
+    await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    fireEvent.click(screen.getByRole("button", { name: "Remove route" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove Route" });
+    accessEdit = "no";
+    expect(await within(dialog).findByText("Logins need two more permissions")).toBeTruthy();
+    expect(within(dialog).queryByText(/can't manage logins\. In Cloudflare/)).toBeNull();
+    expect(within(dialog).queryByText("Reading your Cloudflare account…")).toBeNull();
+
+    accessDenied = false;
+    accessEdit = "yes";
+    fireEvent(window, new Event("focus"));
+    expect(await within(dialog).findByText("Delete DNS record")).toBeTruthy();
   });
 
   it("keeps a route's login when editing it, and can remove it", async () => {

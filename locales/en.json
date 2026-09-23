@@ -658,7 +658,8 @@
     "tunnelsHint": "Add Cloudflare Tunnel · Edit to the token.",
     "dns": "Edit DNS for {zone}",
     "dnsHint": "Add DNS · Edit for this domain.",
-    "access": "Protect routes with Access (optional)"
+    "access": "Protect routes with Access (optional)",
+    "accessHint": "Needed to require a login. Add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to the token."
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -911,7 +912,7 @@
         "nothingToRestore": "Nothing to restore: the routes are as Teitunnel left them."
       },
       "observe": {
-        "accessPermission": "This account's token can't manage logins. Create a token that also has Access: Apps and Policies (Edit) and Access: Organizations, Identity Providers, and Groups (Edit), then reconnect."
+        "accessPermission": "This account's token can't manage logins. In Cloudflare, add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to it; the token itself stays the same."
       },
       "cloudflare": {
         "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
@@ -1407,5 +1408,22 @@
         "stopped": "Stopped"
       }
     }
+  },
+  "accessFix": {
+    "title": "Logins need two more permissions",
+    "editDetail": "Add them to this account's API token in Cloudflare. The token itself stays the same, so there's nothing to paste.",
+    "step1": "Choose Edit next to the token you connected (Cloudflare names it “Teitunnel” if you used the link).",
+    "step2": "Add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit.",
+    "step3": "Choose Continue to Summary, then Update Token.",
+    "openTokens": "Open API Tokens",
+    "checkAgain": "Check Again",
+    "checking": "Checking…",
+    "autoCheck": "Teitunnel checks again when you come back.",
+    "stillMissing": "The token still can't manage logins. Check that both permissions are there and include this account.",
+    "ready": "Logins are ready",
+    "useNewToken": "Use a New Token Instead",
+    "newTokenDetail": "Create a token with Teitunnel's permissions, logins included, then paste it here. It replaces this account's current credential.",
+    "otherDetail": "This account is connected with a login that can't manage Access. Connect it with an API token instead; it replaces the current credential.",
+    "createToken": "Create Token"
   }
 }

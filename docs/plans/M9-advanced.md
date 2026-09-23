@@ -21,6 +21,7 @@ Per-route "Require login": visitors sign in (one-time PIN to their email, or the
 - [x] UI: Route sheet ▸ Advanced ▸ Require a login (emails / @domains), lock in the routes list, Login row in the inspector, "Protected by a login" after the check, login steps and Activity deltas; CLI `route add --allow` (D-057).
 - [x] Follow-ups: Doctor check `access.orphan` for an owned Access app whose route no longer exists, fixed by a planned `RemoveLogin` change (safe: owned only). The token template stays least-privilege (Access is optional); a token without Access permissions gets an error naming the two permissions to add.
 - [x] Docs: site guide "Require a login", CLI reference.
+- [x] Missing Access permission fixed in place: the route sheet explains how to add both permissions to the existing token (opens the dashboard's token list), re-checks on window focus and continues; cert/OAuth accounts paste a new token with login permissions (`TokenPage::CreateWithLogins`) (D-064).
 
 ### M9-04 · Replicas and remote connectors
 - [x] Connectors per machine (grouped by connector id from the tunnel list, This Mac identified by `/ready`'s `connectorId`); Doctor `tunnel.other_connectors` when another machine runs this Mac's tunnel.
