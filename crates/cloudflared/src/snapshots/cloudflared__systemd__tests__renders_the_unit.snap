@@ -1,0 +1,20 @@
+---
+source: crates/cloudflared/src/systemd.rs
+expression: unit
+---
+[Unit]
+Description=Teitunnel connector (com.teispace.teitunnel.connector.6ff42ae2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart="/home/me/.local/share/teitunnel/bin/cloudflared" "tunnel" "--no-autoupdate" "--output" "json" "--loglevel" "info" "--metrics" "127.0.0.1:20301" "run" "--token-file" "/home/me/.local/share/teitunnel/tokens/6ff42ae2"
+Restart=always
+RestartSec=10
+Nice=10
+StandardOutput=append:/home/me/.local/state/teitunnel/connectors/6ff42ae2.log
+StandardError=append:/home/me/.local/state/teitunnel/connectors/6ff42ae2.log
+
+[Install]
+WantedBy=default.target

@@ -6,7 +6,7 @@
 
 use std::{os::unix::fs::PermissionsExt, time::Duration};
 
-use cloudflared::{LogLevel, Protocol, RunCmd, TokenSource, launchd::LaunchAgent};
+use cloudflared::{LogLevel, Protocol, RunCmd, TokenSource, service::ServiceSpec};
 use teitunnel_core::service::{Launchd, ServiceManager};
 
 const FAKE: &str = env!("CARGO_BIN_EXE_fake-cloudflared");
@@ -36,7 +36,7 @@ async fn installs_runs_and_removes_an_agent() {
     }
     .build(&wrapper);
     let id = format!("test-{}", std::process::id());
-    let agent = LaunchAgent::new(&id, &command, dir.path().join("connector.log")).unwrap();
+    let agent = ServiceSpec::new(&id, &command, dir.path().join("connector.log")).unwrap();
     let launchd = Launchd::for_current_user().unwrap();
 
     // Whatever happens, remove the agent.

@@ -15,8 +15,7 @@ use std::{
 };
 
 use cloudflared::{
-    LogLevel, Protocol, RunCmd, TokenSource, TunnelToken,
-    launchd::{self, LaunchAgent},
+    LogLevel, Protocol, RunCmd, TokenSource, TunnelToken, launchd, service::ServiceSpec,
 };
 
 use crate::{
@@ -437,7 +436,7 @@ impl MachineTunnels {
             log_dir: None,
         }
         .build(&binary.path);
-        let agent = LaunchAgent::new(
+        let agent = ServiceSpec::new(
             tunnel_id,
             &command,
             paths.logs.join(format!("{tunnel_id}.log")),

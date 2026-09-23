@@ -13,6 +13,9 @@ pub mod launchd;
 pub mod locate;
 pub mod log_parse;
 pub mod metrics;
+pub mod service;
+pub mod systemd;
+pub mod task_scheduler;
 mod version;
 
 pub use command::{

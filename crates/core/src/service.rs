@@ -1,5 +1,6 @@
 //! Always-on connectors: OS services that run a tunnel's connector without the app
-//! (launchd agents on macOS). The app installs, removes and observes them; it never
+//! (launchd agents on macOS; systemd user units and scheduled tasks are ready for the
+//! Linux and Windows milestones). The app installs, removes and observes them; it never
 //! supervises their process.
 
 use std::{
@@ -8,7 +9,10 @@ use std::{
     pin::Pin,
 };
 
-use cloudflared::launchd::{self, AgentState, LaunchAgent};
+use cloudflared::{
+    launchd,
+    service::{AgentState, ServiceSpec},
+};
 
 /// A boxed future (the port is object-safe so the app can pick a backend at runtime).
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -16,7 +20,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// Installs and removes connector services.
 pub trait ServiceManager: std::fmt::Debug + Send + Sync {
     /// Writes the agent and starts it (replacing an existing one with the same label).
-    fn install<'a>(&'a self, agent: &'a LaunchAgent) -> BoxFuture<'a, Result<(), String>>;
+    fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>>;
     /// Stops and removes an agent. Removing one that isn't installed is fine.
     fn uninstall<'a>(&'a self, label: &'a str) -> BoxFuture<'a, Result<(), String>>;
     /// Whether an agent is loaded, and its pid.
@@ -68,7 +72,7 @@ async fn run(mut command: tokio::process::Command) -> Result<(i32, String), Stri
 }
 
 impl ServiceManager for Launchd {
-    fn install<'a>(&'a self, agent: &'a LaunchAgent) -> BoxFuture<'a, Result<(), String>> {
+    fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             tokio::fs::create_dir_all(&self.agents_dir)
                 .await
@@ -106,11 +110,7 @@ impl ServiceManager for Launchd {
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
-            match tokio::fs::remove_file(self.plist_path(label)).await {
-                Ok(()) => Ok(()),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(e) => Err(e.to_string()),
-            }
+            remove_if_present(&self.plist_path(label)).await
         })
     }
 
@@ -118,6 +118,166 @@ impl ServiceManager for Launchd {
         Box::pin(async move {
             match run(launchd::print(&self.domain, label)).await {
                 Ok((0, text)) => launchd::parse_print(&text),
+                _ => AgentState::default(),
+            }
+        })
+    }
+}
+
+/// Fails with the command's output unless it exited 0.
+async fn check(command: tokio::process::Command, what: &str) -> Result<(), String> {
+    let (code, text) = run(command).await?;
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(format!("{what}: {}", text.trim()))
+    }
+}
+
+/// Removes a file; one that's already gone is fine.
+async fn remove_if_present(path: &Path) -> Result<(), String> {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// systemd user units (Linux), in `~/.config/systemd/user`. Built and unit-tested now;
+/// the app uses it from M7 (Linux).
+#[derive(Debug, Clone)]
+pub struct Systemd {
+    units_dir: PathBuf,
+}
+
+impl Systemd {
+    /// systemd for the current user, or `None` without a home directory.
+    pub fn for_current_user() -> Option<Self> {
+        let home = PathBuf::from(std::env::var_os("HOME")?);
+        Some(Self {
+            units_dir: cloudflared::systemd::units_dir(&home),
+        })
+    }
+}
+
+impl ServiceManager for Systemd {
+    fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            use cloudflared::systemd;
+            tokio::fs::create_dir_all(&self.units_dir)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(dir) = agent.log_file.parent() {
+                tokio::fs::create_dir_all(dir)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+            let path = self.units_dir.join(agent.unit_name());
+            tokio::fs::write(&path, agent.unit())
+                .await
+                .map_err(|e| format!("Couldn't write {}: {e}", path.display()))?;
+            check(
+                systemd::daemon_reload(),
+                "systemd couldn't reload its units",
+            )
+            .await?;
+            // `enable --now` restarts nothing that's already running: restart explicitly.
+            let _ = run(systemd::disable_now(&agent.unit_name())).await;
+            check(
+                systemd::enable_now(&agent.unit_name()),
+                "systemd couldn't start the connector",
+            )
+            .await
+        })
+    }
+
+    fn uninstall<'a>(&'a self, label: &'a str) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            use cloudflared::systemd;
+            let unit = format!("{label}.service");
+            let _ = run(systemd::disable_now(&unit)).await;
+            remove_if_present(&self.units_dir.join(&unit)).await?;
+            let _ = run(systemd::daemon_reload()).await;
+            Ok(())
+        })
+    }
+
+    fn state<'a>(&'a self, label: &'a str) -> BoxFuture<'a, AgentState> {
+        Box::pin(async move {
+            match run(cloudflared::systemd::show(&format!("{label}.service"))).await {
+                Ok((0, text)) => cloudflared::systemd::parse_show(&text),
+                _ => AgentState::default(),
+            }
+        })
+    }
+}
+
+/// Windows scheduled tasks under `\Teitunnel\`, started at the user's logon. Built and
+/// unit-tested now; the app uses it from M8 (Windows).
+#[derive(Debug, Clone)]
+pub struct TaskScheduler {
+    /// Where task definitions are written for `schtasks /XML`.
+    staging: PathBuf,
+    /// `DOMAIN\user`, whose logon starts the tasks.
+    user: String,
+}
+
+impl TaskScheduler {
+    /// Task Scheduler for the current user (from `USERDOMAIN` and `USERNAME`), staging
+    /// definitions in `staging`.
+    pub fn for_current_user(staging: PathBuf) -> Option<Self> {
+        let user = std::env::var("USERNAME").ok()?;
+        let user = match std::env::var("USERDOMAIN") {
+            Ok(domain) if !domain.is_empty() => format!("{domain}\\{user}"),
+            _ => user,
+        };
+        Some(Self { staging, user })
+    }
+}
+
+impl ServiceManager for TaskScheduler {
+    fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            use cloudflared::task_scheduler as tasks;
+            tokio::fs::create_dir_all(&self.staging)
+                .await
+                .map_err(|e| e.to_string())?;
+            let name = agent.task_name();
+            let _ = run(tasks::end(&name)).await;
+            let xml = self.staging.join(format!("{}.xml", agent.label));
+            tokio::fs::write(&xml, agent.task_file(&self.user))
+                .await
+                .map_err(|e| e.to_string())?;
+            let created = check(
+                tasks::create(&name, &xml),
+                "Task Scheduler couldn't add the connector",
+            )
+            .await;
+            let _ = remove_if_present(&xml).await;
+            created?;
+            check(
+                tasks::run(&name),
+                "Task Scheduler couldn't start the connector",
+            )
+            .await
+        })
+    }
+
+    fn uninstall<'a>(&'a self, label: &'a str) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            use cloudflared::task_scheduler as tasks;
+            let name = format!("{}{label}", tasks::FOLDER);
+            let _ = run(tasks::end(&name)).await;
+            let _ = run(tasks::delete(&name)).await;
+            Ok(())
+        })
+    }
+
+    fn state<'a>(&'a self, label: &'a str) -> BoxFuture<'a, AgentState> {
+        Box::pin(async move {
+            use cloudflared::task_scheduler as tasks;
+            match run(tasks::query(&format!("{}{label}", tasks::FOLDER))).await {
+                Ok((0, text)) => tasks::parse_query(&text),
                 _ => AgentState::default(),
             }
         })
@@ -161,7 +321,7 @@ pub struct ProcessServices {
 }
 
 impl ServiceManager for ProcessServices {
-    fn install<'a>(&'a self, agent: &'a LaunchAgent) -> BoxFuture<'a, Result<(), String>> {
+    fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let mut command = tokio::process::Command::new(&agent.program);
             command
