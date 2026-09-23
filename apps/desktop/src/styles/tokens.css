@@ -36,7 +36,9 @@
   --surface-toggle: light-dark(#ffffff, rgb(255 255 255 / 0.16));
   --surface-hover: light-dark(rgb(0 0 0 / 0.04), rgb(255 255 255 / 0.05));
   --surface-pressed: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.1));
-  --surface-selected: var(--accent);
+  /* Fills that carry white text (buttons, selections, menus); darkened for contrast. */
+  --accent-fill: var(--accent);
+  --surface-selected: var(--accent-fill);
   --surface-selected-inactive: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.1));
   --surface-sidebar-selected: light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.1));
   --surface-sidebar-selected-inactive: light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06));
@@ -115,6 +117,15 @@
 @media (prefers-contrast: more) {
   :root {
     --text-secondary: light-dark(rgb(0 0 0 / 0.7), rgb(255 255 255 / 0.7));
+    /* White on accent fills meets 4.5:1 for any accent, as macOS darkens them too. */
+    --accent-fill: color-mix(in srgb, var(--accent) 78%, black);
+    /* Apple's accessible system colours, nudged so text keeps 4.5:1 on the grey control
+       and card surfaces too (Apple's values are tuned for white and black). */
+    --status-healthy: light-dark(#1a7030, #30db5b);
+    --status-warning: light-dark(#b32e00, #ffb340);
+    --status-error: light-dark(#c20012, #ff8078);
+    /* Section headers and hints must stay legible too (they're tertiary). */
+    --text-tertiary: light-dark(rgb(0 0 0 / 0.55), rgb(255 255 255 / 0.55));
     --border-separator: light-dark(rgb(0 0 0 / 0.2), rgb(255 255 255 / 0.2));
     --border-control: light-dark(rgb(0 0 0 / 0.3), rgb(255 255 255 / 0.25));
     --hairline: 1px;

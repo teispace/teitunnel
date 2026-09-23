@@ -11,7 +11,7 @@ export function RouteError({ error, reset }: ErrorComponentProps) {
       title="This view couldn't load"
       message={message}
       hint={hint}
-      action={<Button onClick={reset}>Try again</Button>}
+      action={<Button onClick={reset}>Try Again</Button>}
     />
   );
 }

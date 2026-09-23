@@ -62,7 +62,7 @@ function renderPane() {
 describe("Accounts", () => {
   it("rejects a bad token inline, then connects with a good one", async () => {
     renderPane();
-    fireEvent.click(await screen.findByRole("button", { name: /Connect an account/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Connect an Account/ }));
     const sheet = await screen.findByRole("dialog", { name: "Connect Cloudflare" });
     const field = within(sheet).getByLabelText("API token");
     expect(field.getAttribute("type")).toBe("password");

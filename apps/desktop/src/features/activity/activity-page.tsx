@@ -96,7 +96,7 @@ export function ActivityPage() {
     <ErrorState
       title="Couldn't load activity"
       message={toIpcError(activity.error).message}
-      action={<Button onClick={() => void activity.refetch()}>Try again</Button>}
+      action={<Button onClick={() => void activity.refetch()}>Try Again</Button>}
     />
   ) : activity.isPending && active ? (
     <div className="flex flex-col gap-2 p-3">

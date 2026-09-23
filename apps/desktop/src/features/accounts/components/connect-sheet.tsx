@@ -82,7 +82,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                 disabled={importCert.isPending}
                 onClick={() => importCert.mutate(undefined, { onSuccess: (a) => finish([a.name]) })}
               >
-                Use my cloudflared login
+                Use My cloudflared Login
               </Button>
             ) : null}
             <SheetClose asChild>
@@ -109,7 +109,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                 {signIn.url ? <CopyField label="sign-in link" value={signIn.url} /> : null}
                 <div>
                   <Button size="sm" onClick={signIn.cancel}>
-                    Cancel sign-in
+                    Cancel Sign-In
                   </Button>
                 </div>
               </div>

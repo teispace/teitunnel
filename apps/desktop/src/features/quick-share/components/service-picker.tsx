@@ -161,7 +161,7 @@ export function ServicePicker({
                 onMouseMove={() => setActive(index)}
                 className={cn(
                   "flex h-7 items-center gap-2 rounded-[6px] px-2 text-body",
-                  index === active && "bg-accent text-on-accent",
+                  index === active && "bg-accent-fill text-on-accent",
                   service.kind === "system" && index !== active && "text-secondary",
                 )}
               >

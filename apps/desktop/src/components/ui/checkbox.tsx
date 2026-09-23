@@ -9,8 +9,8 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof Checkbox
       className={cn(
         "peer inline-flex size-3.5 shrink-0 items-center justify-center rounded-[4px] outline-offset-1",
         "border-hairline border-control bg-surface-toggle shadow-control",
-        "data-[state=checked]:border-transparent data-[state=checked]:bg-accent data-[state=checked]:text-on-accent",
-        "data-[state=indeterminate]:border-transparent data-[state=indeterminate]:bg-accent data-[state=indeterminate]:text-on-accent",
+        "data-[state=checked]:border-transparent data-[state=checked]:bg-accent-fill data-[state=checked]:text-on-accent",
+        "data-[state=indeterminate]:border-transparent data-[state=indeterminate]:bg-accent-fill data-[state=indeterminate]:text-on-accent",
         "disabled:opacity-40",
         className,
       )}

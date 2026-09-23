@@ -86,7 +86,7 @@ export function CloudflaredPane() {
                 size="sm"
                 onClick={() => (checkRequested ? void update.refetch() : setCheckRequested(true))}
               >
-                Check now
+                Check Now
               </Button>
             )}
           </GroupedRow>
@@ -96,7 +96,7 @@ export function CloudflaredPane() {
             description="Teitunnel doesn't modify a cloudflared it didn't install. With Homebrew, run brew upgrade cloudflared."
           >
             <Button size="sm" onClick={() => install.mutate()} disabled={install.isPending}>
-              Use Teitunnel's copy
+              Use Teitunnel's Copy
             </Button>
           </GroupedRow>
         )}

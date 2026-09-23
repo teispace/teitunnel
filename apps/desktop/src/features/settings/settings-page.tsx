@@ -94,7 +94,7 @@ function GeneralPane() {
   if (!settings) return null;
   return (
     <>
-      <GroupedSection title="Appearance">
+      <GroupedSection>
         <GroupedRow label="Appearance">
           <SegmentedControl
             label="Appearance"

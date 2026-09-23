@@ -12,6 +12,7 @@
   --color-transparent: transparent;
   --color-current: currentColor;
   --color-accent: var(--accent);
+  --color-accent-fill: var(--accent-fill);
   --color-on-accent: var(--text-on-accent);
 
   --color-surface-window: var(--surface-window);

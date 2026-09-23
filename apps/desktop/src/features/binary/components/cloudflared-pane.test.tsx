@@ -48,7 +48,7 @@ describe("CloudflaredPane", () => {
     expect(await screen.findByText("2026.8.0")).toBeTruthy();
     expect(calls).not.toContain("binary_check_update");
 
-    fireEvent.click(screen.getByRole("button", { name: "Check now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check Now" }));
     expect(await screen.findByText("Version 2026.9.1 is available")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
@@ -60,6 +60,6 @@ describe("CloudflaredPane", () => {
     binary = { ...binary, source: "system", path: "/opt/homebrew/bin/cloudflared" };
     renderPane();
     expect(await screen.findByText("Updated by its installer")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Check now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check Now" })).toBeNull();
   });
 });

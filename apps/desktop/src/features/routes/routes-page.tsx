@@ -243,7 +243,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           title="Couldn't load routes"
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void overview.refetch()}>Try again</Button>}
+          action={<Button onClick={() => void overview.refetch()}>Try Again</Button>}
         />
       );
     }
@@ -374,7 +374,7 @@ function RouteLogs({
         lines={lines}
         height={160}
         onSave={save}
-        empty="No failed requests. cloudflared logs requests that fail; it logs every request only at debug level."
+        empty="No failed requests. Successful ones aren't logged."
       />
     </InspectorSection>
   );

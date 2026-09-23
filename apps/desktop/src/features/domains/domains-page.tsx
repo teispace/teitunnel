@@ -125,7 +125,7 @@ export function DomainsPage() {
           title="Couldn't load domains"
           message={toIpcError(domains.error).message}
           hint={toIpcError(domains.error).hint}
-          action={<Button onClick={() => void domains.refetch()}>Try again</Button>}
+          action={<Button onClick={() => void domains.refetch()}>Try Again</Button>}
         />
       ) : (
         <SplitView

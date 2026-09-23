@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,11 +32,14 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RouterProvider router={router} />
-        <ThemeSync />
-        <Toaster />
-      </TooltipProvider>
+      {/* motion ignores Reduce Motion unless told to (its default is "never"). */}
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider>
+          <RouterProvider router={router} />
+          <ThemeSync />
+          <Toaster />
+        </TooltipProvider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

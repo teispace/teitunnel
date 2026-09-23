@@ -83,7 +83,7 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
                 void queryClient.invalidateQueries({ queryKey: queryKeys.binary.status() })
               }
             >
-              Check again
+              Check Again
             </Button>
           </div>
         )}

@@ -23,7 +23,7 @@ describe("Quick Share", () => {
     await card.$("span=Live").waitForExist({ timeout: 20_000 });
     expect(fakeConnectors()).toHaveLength(1);
 
-    await card.$("button=Stop sharing").click();
+    await card.$("button=Stop Sharing").click();
     await browser.waitUntil(() => fakeConnectors().length === 0, {
       timeout: 10_000,
       timeoutMsg: "fake-cloudflared is still running after Stop",

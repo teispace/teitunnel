@@ -144,7 +144,7 @@ async fn remove_if_present(path: &Path) -> Result<(), String> {
 }
 
 /// systemd user units (Linux), in `~/.config/systemd/user`. Built and unit-tested now;
-/// the app uses it from M7 (Linux).
+/// the app uses it from M8 (Linux).
 #[derive(Debug, Clone)]
 pub struct Systemd {
     units_dir: PathBuf,
@@ -213,7 +213,7 @@ impl ServiceManager for Systemd {
 }
 
 /// Windows scheduled tasks under `\Teitunnel\`, started at the user's logon. Built and
-/// unit-tested now; the app uses it from M8 (Windows).
+/// unit-tested now; the app uses it from M7 (Windows).
 #[derive(Debug, Clone)]
 pub struct TaskScheduler {
     /// Where task definitions are written for `schtasks /XML`.

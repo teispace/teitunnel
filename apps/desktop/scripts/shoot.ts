@@ -5,6 +5,7 @@
 // Usage: node scripts/shoot.ts <out-dir> [route ...]   (default route: /dev/gallery)
 // Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them;
 // SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k); SHOOT_SIZE=620x500.
+// SHOOT_CONTRAST=more emulates Increase Contrast; SHOOT_REDUCED_MOTION=1 Reduce Motion.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -36,6 +37,8 @@ try {
       viewport: { width, height },
       deviceScaleFactor: 2,
       colorScheme: scheme,
+      contrast: process.env["SHOOT_CONTRAST"] === "more" ? "more" : "no-preference",
+      reducedMotion: process.env["SHOOT_REDUCED_MOTION"] ? "reduce" : "no-preference",
     });
     for (const route of targets) {
       await page.goto(new URL(route.replace(/^\//, ""), base).toString());
@@ -48,7 +51,8 @@ try {
       for (const selector of actions) await page.click(selector);
       for (const key of keys) await page.keyboard.press(key);
       await page.waitForTimeout(700);
-      const name = `${route.replace(/\W+/g, "-").replace(/^-|-$/g, "") || "overview"}-${scheme}.png`;
+      const variant = process.env["SHOOT_CONTRAST"] === "more" ? "-contrast" : "";
+      const name = `${route.replace(/\W+/g, "-").replace(/^-|-$/g, "") || "overview"}-${scheme}${variant}.png`;
       await page.screenshot({ path: join(outDir, name) });
       process.stdout.write(`${join(outDir, name)}\n`);
     }

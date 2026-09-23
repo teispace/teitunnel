@@ -110,7 +110,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
           disabled={stop.isPending}
           onClick={() => stop.mutate(share.id)}
         >
-          Stop sharing
+          Stop Sharing
         </Button>
       </footer>
 

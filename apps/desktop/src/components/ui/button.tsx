@@ -18,7 +18,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-accent text-on-accent active:brightness-90 [:root[data-window-active=false]_&]:bg-surface-control [:root[data-window-active=false]_&]:text-primary",
+          "bg-accent-fill text-on-accent active:brightness-90 [:root[data-window-active=false]_&]:bg-surface-control [:root[data-window-active=false]_&]:text-primary",
         secondary: "bg-surface-control text-primary active:bg-surface-control-pressed",
         plain: "bg-transparent text-primary active:bg-surface-control",
         destructive: "bg-surface-control text-error active:bg-surface-control-pressed",

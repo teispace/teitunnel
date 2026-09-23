@@ -12,7 +12,8 @@
     "shoot": "node scripts/shoot.ts",
     "e2e:build": "CARGO_TARGET_DIR=$PWD/../../target/e2e cargo build -p fake-cloudflared -p fake-cloudflare && CARGO_TARGET_DIR=$PWD/../../target/e2e tauri build --debug --no-bundle --features e2e --config src-tauri/e2e/tauri.e2e.json",
     "e2e": "wdio run e2e/wdio.conf.ts",
-    "perf": "node scripts/perf.ts"
+    "perf": "node scripts/perf.ts",
+    "a11y": "node scripts/a11y.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.103.2",
@@ -34,6 +35,7 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/router-plugin": "1.168.40",

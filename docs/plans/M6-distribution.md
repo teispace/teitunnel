@@ -28,10 +28,10 @@
 - [ ] GitHub Releases as the canonical source.
 
 ### M6-05 · Polish pass
-- [ ] Full DESIGN review of every screen against macOS 27 System Settings (light/dark, active/inactive, transparency slider extremes, increased contrast, reduce motion).
+- [ ] Full DESIGN review of every screen against macOS 27 System Settings (light/dark, active/inactive, transparency slider extremes, increased contrast, reduce motion). *(Web-level pass done 2026-09-23 with `shoot` (+`SHOOT_CONTRAST=more`, `SHOOT_REDUCED_MOTION=1`): Title Case buttons, untitled Appearance group, contrast tokens. Native material checks in a packaged build need an unlocked screen.)*
 - [ ] App icon (designed to the macOS icon grid, light/dark/tinted variants), About window, Help menu links.
 - [ ] Performance measurement (cold start, idle memory, bundle) recorded in the release notes. Regressions block the release.
-- [ ] Accessibility pass with VoiceOver.
+- [ ] Accessibility pass with VoiceOver. *(Automated part done: axe-core audit of every screen in light/dark × default/increased contrast, no violations (`pnpm --filter @teitunnel/desktop a11y`, D-052); Reduce Motion now reaches `motion` animations. Manual VoiceOver walk-through needs an unlocked screen.)*
 
 ### M6-06 · Docs & community
 - [ ] Docs site (`apps/site`, Astro Starlight or similar, deployed via GitHub Pages) with Getting started, Concepts (routes, tunnels, run modes), Troubleshooting (mirrors the Doctor catalogue), Security, FAQ.

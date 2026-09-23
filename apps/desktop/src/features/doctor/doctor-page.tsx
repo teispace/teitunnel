@@ -214,7 +214,7 @@ export function DoctorPage() {
           title="Couldn't run the checks"
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void doctor.refetch()}>Try again</Button>}
+          action={<Button onClick={() => void doctor.refetch()}>Try Again</Button>}
         />
       );
     }

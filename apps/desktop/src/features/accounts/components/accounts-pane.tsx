@@ -83,7 +83,7 @@ export function AccountsPane() {
         <ConnectSheet
           trigger={
             <Button size="sm">
-              <Plus /> Connect an account
+              <Plus /> Connect an Account
             </Button>
           }
         />

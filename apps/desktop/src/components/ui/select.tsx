@@ -62,7 +62,7 @@ export function Select<T extends string>({
               <SelectPrimitive.Item
                 key={option.value}
                 value={option.value}
-                className="relative flex h-[22px] items-center rounded-[5px] pr-3 pl-6 text-body text-primary outline-none data-highlighted:bg-accent data-highlighted:text-on-accent data-disabled:opacity-40"
+                className="relative flex h-[22px] items-center rounded-[5px] pr-3 pl-6 text-body text-primary outline-none data-highlighted:bg-accent-fill data-highlighted:text-on-accent data-disabled:opacity-40"
               >
                 <SelectPrimitive.ItemIndicator className="absolute left-1.5 inline-flex">
                   <Check aria-hidden className="size-3" strokeWidth={2.5} />

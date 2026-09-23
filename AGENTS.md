@@ -44,4 +44,5 @@ Keep this section in sync with `package.json`.
 - `pnpm build`: packaged app (use it to verify materials and native behaviour)
 - `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]`: WebKit screenshots in light and dark (D-030)
 - `pnpm --filter @teitunnel/desktop perf [seconds]`: frame timing of the log viewer and charts under load, in WebKit (D-051)
+- `pnpm --filter @teitunnel/desktop a11y [routes…]`: axe-core accessibility audit of every screen, light/dark × default/increased contrast (D-052)
 - Before every commit: `pnpm verify` (check + test + cargo-deny) must exit 0.

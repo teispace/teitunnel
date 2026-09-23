@@ -55,7 +55,7 @@ export function CommandPalette() {
                         key={command.id}
                         value={`${command.group} ${command.title}`}
                         onSelect={() => run(command)}
-                        className="group flex h-8 items-center gap-2.5 rounded-[7px] px-2.5 text-body data-[selected=true]:bg-accent data-[selected=true]:text-on-accent"
+                        className="group flex h-8 items-center gap-2.5 rounded-[7px] px-2.5 text-body data-[selected=true]:bg-accent-fill data-[selected=true]:text-on-accent"
                       >
                         <command.icon
                           aria-hidden

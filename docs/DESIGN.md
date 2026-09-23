@@ -102,7 +102,8 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 | `--surface-raised` (popover, sheet) | `#FFFFFF` | `#2C2C2C` |
 | `--surface-control` | `#FFFFFF` | `rgb(255 255 255 / 0.10)` |
 | `--surface-hover` | `rgb(0 0 0 / 0.04)` | `rgb(255 255 255 / 0.05)` |
-| `--surface-selected` | `var(--accent)` | `var(--accent)` |
+| `--accent-fill` | `var(--accent)` (fills that carry white text) | same |
+| `--surface-selected` | `var(--accent-fill)` | `var(--accent-fill)` |
 | `--surface-selected-inactive` | `rgb(0 0 0 / 0.08)` | `rgb(255 255 255 / 0.10)` |
 | `--text-primary` | `rgb(0 0 0 / 0.85)` | `rgb(255 255 255 / 0.85)` |
 | `--text-secondary` | `rgb(0 0 0 / 0.50)` | `rgb(255 255 255 / 0.55)` |
@@ -119,7 +120,9 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 
 - **Accent:** WKWebView's CSS `AccentColor` is a static blue (verified M0). The shell reads `NSColor.controlAccentColor` and the UI sets `--accent` on start and on every window focus (D-023). Tokens use `light-dark()`.
 - **Brand orange** (Cloudflare-adjacent) appears only in the app icon and the About window.
-- Increase contrast doubles separator/border alpha and raises `--text-secondary` to 0.7.
+- Increase contrast doubles separator/border alpha, raises `--text-secondary` to 0.7 and `--text-tertiary` to 0.55, darkens `--accent-fill` (accent 78% + black), and switches status colours to Apple's accessible variants, nudged for grey surfaces. In this mode every screen meets WCAG 2.2 AA contrast (`pnpm --filter @teitunnel/desktop a11y`, D-052).
+- `motion` animations honour Reduce Motion through `<MotionConfig reducedMotion="user">` at the app root (its default ignores the setting).
+- Buttons and menu items use Title Case ("Try Again", "Stop Sharing"); headings, row labels, descriptions and tooltips use sentence case.
 
 ---
 

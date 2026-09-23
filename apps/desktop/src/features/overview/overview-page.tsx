@@ -79,11 +79,11 @@ export function OverviewPage() {
             <div className="flex flex-col items-center gap-2">
               <Button variant="primary" asChild>
                 <Link to="/quick-share" search={{ compose: true }}>
-                  Share a local service
+                  Share a Local Service
                 </Link>
               </Button>
               {accounts.isSuccess && accounts.data.length === 0 ? (
-                <ConnectSheet trigger={<Button variant="plain">Use my own domain…</Button>} />
+                <ConnectSheet trigger={<Button variant="plain">Use My Own Domain…</Button>} />
               ) : null}
             </div>
           }

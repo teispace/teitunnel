@@ -188,7 +188,7 @@ export function LogViewer({ lines, empty, height = 224, onSave }: LogViewerProps
           <button
             type="button"
             onClick={() => setFollowing(true)}
-            className="absolute bottom-2 left-1/2 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full bg-accent px-2.5 text-callout text-on-accent shadow-raised"
+            className="absolute bottom-2 left-1/2 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full bg-accent-fill px-2.5 text-callout text-on-accent shadow-raised"
           >
             <ArrowDown aria-hidden className="size-3" strokeWidth={2.25} /> Jump to Latest
           </button>

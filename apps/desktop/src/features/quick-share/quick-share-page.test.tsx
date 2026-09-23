@@ -90,7 +90,7 @@ describe("QuickSharePage", () => {
     expect(within(card).getByText("https://a-b-c.trycloudflare.com")).toBeTruthy();
     expect(await within(card).findByText("5 requests")).toBeTruthy();
 
-    fireEvent.click(within(card).getByRole("button", { name: "Stop sharing" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
   });
 

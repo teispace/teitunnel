@@ -4,17 +4,18 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-23
-**Phase:** **M5: Observability & always-on** complete, PR #6 ready for review. Next: M6 distribution (needs the maintainer's Developer ID for signing) or M7 (Linux).
+**Phase:** **M6 (non-release parts)** in progress on `milestone/m6-polish-docs` (stacked on #6). The maintainer deferred release work (signing, notarization, updater, release automation, Homebrew) on 2026-09-23.
 **Branch:** `milestone/m5-observability-always-on` (stacked on #5 → #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
-2. M6 distribution: what doesn't need the Developer ID (DMG layout, update feed format, release notes automation) can start; signing/notarization wait for it.
-3. Nightly real-account job (needs the test token).
-4. M7 Linux: wire `core::service::Systemd` (ready, D-051), Linux UI polish.
+1. M6-05 polish: design review of every screen (light/dark/increased contrast/reduce motion), About window + Help links, app icon, performance baseline (cold start, idle memory, bundle), accessibility audit.
+2. M6-06 docs: docs site (`apps/site`), CONTRIBUTING deep-dive. (Pages/labels/discussions are repo settings: maintainer.)
+3. M7 Windows, M8 Linux (`core::service::TaskScheduler` / `Systemd` ready, D-051), then M9.
+4. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
+5. **Maintainer:** review/merge PRs #1–#6 in order; OAuth client; test token.
 
 ## In progress
 - **M5** complete on `milestone/m5-observability-always-on`, PR #6 (ready for review). Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.

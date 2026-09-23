@@ -337,7 +337,7 @@ export function TunnelsPage() {
       title="Couldn't load tunnels"
       message={toIpcError(tunnels.error).message}
       hint={toIpcError(tunnels.error).hint}
-      action={<Button onClick={() => void tunnels.refetch()}>Try again</Button>}
+      action={<Button onClick={() => void tunnels.refetch()}>Try Again</Button>}
     />
   ) : tunnels.isPending ? (
     <div className="flex flex-col gap-2 p-3">
