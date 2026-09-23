@@ -65,8 +65,6 @@ pub async fn accounts_add_token(
 pub enum TokenPage {
     /// "Create API token" with Teitunnel's permissions pre-selected.
     Create,
-    /// The same, plus the Access permissions logins need.
-    CreateWithLogins,
     /// The list of tokens, to add permissions to an existing one.
     Edit,
 }
@@ -76,8 +74,7 @@ pub enum TokenPage {
 #[specta::specta]
 pub fn accounts_open_token_page(app: AppHandle, page: TokenPage) -> Result<(), AppError> {
     let url = match page {
-        TokenPage::Create => token_template_url(false),
-        TokenPage::CreateWithLogins => token_template_url(true),
+        TokenPage::Create => token_template_url(),
         TokenPage::Edit => TOKENS_PAGE.to_owned(),
     };
     app.opener()

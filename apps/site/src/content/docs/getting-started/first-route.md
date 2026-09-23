@@ -11,8 +11,9 @@ A **route** sends a hostname on one of your Cloudflare domains, such as
 Open **Settings ▸ Accounts ▸ Connect an Account**. You can connect with:
 
 - **An API token.** Teitunnel opens Cloudflare's "Create API token" page pre-filled with
-  the permissions it needs: *Cloudflare Tunnel · Edit*, *DNS · Edit*, *Zone · Read* and
-  *Account Settings · Read*. Create it, then paste it into Teitunnel. If *Cloudflare
+  the permissions it needs: *Cloudflare Tunnel · Edit*, *DNS · Edit*, *Zone · Read*,
+  *Account Settings · Read*, and for logins *Access: Apps and Policies · Edit* and
+  *Access: Organizations, Identity Providers, and Groups · Edit*. Create it, then paste it into Teitunnel. If *Cloudflare
   Tunnel* isn't pre-selected, add it by hand.
 - **Your cloudflared login.** If you've run `cloudflared tunnel login` before, Teitunnel
   can use that certificate.

@@ -1422,7 +1422,7 @@
     "stillMissing": "The token still can't manage logins. Check that both permissions are there and include this account.",
     "ready": "Logins are ready",
     "useNewToken": "Use a New Token Instead",
-    "newTokenDetail": "Create a token with Teitunnel's permissions, logins included, then paste it here. It replaces this account's current credential.",
+    "newTokenDetail": "Create a token with every permission Teitunnel uses, then paste it here. It replaces this account's current credential.",
     "otherDetail": "This account is connected with a login that can't manage Access. Connect it with an API token instead; it replaces the current credential.",
     "createToken": "Create Token"
   }

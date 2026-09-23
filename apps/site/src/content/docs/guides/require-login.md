@@ -20,8 +20,8 @@ so in the review if it isn't set up. Your API token also needs two account permi
 **Access: Apps and Policies** (edit) and **Access: Organizations, Identity Providers, and
 Groups** (edit, so Teitunnel can add One-time PIN when there's no login method yet).
 
-Teitunnel's usual token doesn't include these, since most routes don't need a login. If the
-token lacks them, turning on **Require a login** shows how to add them instead of failing:
+Tokens created from Teitunnel's link include them. An older token, or one made by hand, may
+not; then turning on **Require a login** shows how to add them instead of failing:
 
 1. **Open API Tokens** takes you to your tokens in the Cloudflare dashboard.
 2. Choose **Edit** next to the token Teitunnel uses, add the two permissions, then

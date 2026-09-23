@@ -30,7 +30,7 @@ function NewToken({ detail, onConnected }: { detail: string; onConnected: () => 
     <div className="flex flex-col gap-2">
       <p className="text-callout text-secondary">{detail}</p>
       <div>
-        <Button size="sm" onClick={() => void openTokenPage("createWithLogins")}>
+        <Button size="sm" onClick={() => void openTokenPage("create")}>
           {t("accessFix.createToken")} <ExternalLink />
         </Button>
       </div>

@@ -81,7 +81,7 @@ describe("AccessFix", () => {
     expect(screen.queryByRole("button", { name: /Open API Tokens/ })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Create Token/ }));
-    await waitFor(() => expect(opened).toEqual(["createWithLogins"]));
+    await waitFor(() => expect(opened).toEqual(["create"]));
     const field = screen.getByLabelText("API token");
     fireEvent.change(field, { target: { value: "new-token" } });
     // Enter connects (it's inside the route form, which must not submit).

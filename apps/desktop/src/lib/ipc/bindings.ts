@@ -1292,8 +1292,6 @@ export type Theme =
 export type TokenPage = 
 /**  "Create API token" with Teitunnel's permissions pre-selected. */
 "create" | 
-/**  The same, plus the Access permissions logins need. */
-"createWithLogins" | 
 /**  The list of tokens, to add permissions to an existing one. */
 "edit";
 
