@@ -7,7 +7,8 @@
 - [x] Export this Mac's tunnel and routes as a cloudflared `config.yml`, a Docker Compose service (token from `${TUNNEL_TOKEN}`, image pinned to the local cloudflared version), or Terraform for the Cloudflare provider v5 with `import` blocks for the tunnel, its config and each record (records keep their comment, TTL and proxied flag, so the plan is empty). Routes ▸ Export; copy or save to Downloads (D-055).
 
 ### M9-02 · CLI
-- [ ] `apps/cli` over `teitunnel-core`: `teitunnel route add app.xyz.com :3000`, `route list/remove`, `share 3000`, `doctor`, `export`. Same plan → apply engine, plan shown before applying (`--yes` to skip), keychain credentials shared with the app.
+- [x] `apps/cli` (`teitunnel-cli`) over `teitunnel-core`: `accounts`, `routes` (status probed from the connector's `/ready`), `route add/remove` (plan shown, `y/N`, `--yes`, `--replace` for foreign records, verified through the edge afterwards), `export <config-yaml|docker-compose|terraform>`, `--json`. Uses the app's data folder and keychain; never runs connectors (D-056).
+- [ ] `share <port>` (a Quick Share that lives as long as the command), `doctor`, shell completions, and installing the binary with the app (a `teitunnel` symlink, since the build can't share the app's binary name).
 
 ### M9-03 · Protect with Access
 - [ ] Per-route "Require login" (emails / email domain / one-time PIN) via Access applications + policies; optional OAuth scopes; the Access application is part of the route's plan and ownership.

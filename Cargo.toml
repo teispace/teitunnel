@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/desktop/src-tauri", "tools/fake-cloudflared", "tools/fake-cloudflare"]
+members = ["crates/*", "apps/cli", "apps/desktop/src-tauri", "tools/fake-cloudflared", "tools/fake-cloudflare"]
 
 [workspace.package]
 version = "0.1.0"

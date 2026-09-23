@@ -1,0 +1,31 @@
+[package]
+name = "teitunnel-cli"
+description = "Teitunnel's command-line interface: routes and exports from the terminal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# Not `teitunnel`: on case-insensitive disks that would be the same file as the app's
+# `Teitunnel` binary in the shared target directory.
+[[bin]]
+name = "teitunnel-cli"
+path = "src/main.rs"
+
+[dependencies]
+teitunnel-cf-api.workspace = true
+teitunnel-core.workspace = true
+teitunnel-cloudflared.workspace = true
+clap = { version = "4.6.7", features = ["derive"] }
+dirs = "6"
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

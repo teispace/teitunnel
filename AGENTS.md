@@ -29,7 +29,9 @@ When the maintainer says "start" or "continue", follow [`docs/AUTONOMOUS.md`](do
 crates/cf-api        Cloudflare REST client
 crates/cloudflared   cloudflared binary: locate/install/verify, commands, log/metrics parsing
 crates/core          domain, engine (observe→plan→apply→verify), runtime, discovery, doctor, store
+apps/cli             teitunnel-cli: routes and exports from the terminal
 apps/desktop         Tauri shell (src-tauri) + React UI (src)
+apps/site            docs site (Astro Starlight)
 tools/fake-cloudflared  test double
 docs/                all project documentation
 ```

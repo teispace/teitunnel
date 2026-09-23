@@ -43,7 +43,7 @@ export default defineConfig({
         },
         {
           label: "Reference",
-          items: ["reference/doctor", "reference/security", "reference/faq"],
+          items: ["reference/cli", "reference/doctor", "reference/security", "reference/faq"],
         },
       ],
     }),
