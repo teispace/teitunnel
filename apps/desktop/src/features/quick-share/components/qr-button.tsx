@@ -2,6 +2,7 @@ import { QrCode } from "lucide-react";
 import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
+import { t } from "@/lib/i18n";
 import { useQrCode } from "../queries";
 
 /** Shows the URL as a QR code, for opening it on a phone. */
@@ -10,11 +11,11 @@ export function QrButton({ url }: { url: string }) {
   const { data: svg } = useQrCode(url, open);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip content="Show QR code">
+      <Tooltip content={t("quickShare.showQr")}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label="Show QR code"
+            aria-label={t("quickShare.showQr")}
             className="flex size-7 items-center justify-center rounded-full bg-surface-control text-secondary outline-offset-1 active:bg-surface-control-pressed"
           >
             <QrCode aria-hidden className="size-4" strokeWidth={1.75} />

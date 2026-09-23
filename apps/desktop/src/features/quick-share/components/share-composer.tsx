@@ -1,18 +1,15 @@
 import { type FormEvent, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 import { useStartShare } from "../queries";
 import { ServicePicker } from "./service-picker";
 
-const autoStops = [
-  { value: "never", label: "Keep running" },
-  { value: "15", label: "Stop after 15 min" },
-  { value: "60", label: "Stop after 1 hour" },
-  { value: "480", label: "Stop after 8 hours" },
-] as const;
-
-type AutoStop = (typeof autoStops)[number]["value"];
+const AUTO_STOPS = ["never", "15", "60", "480"] as const;
+type AutoStop = (typeof AUTO_STOPS)[number];
+const autoStops = () =>
+  AUTO_STOPS.map((value) => ({ value, label: t(`quickShare.autoStop.${value}`) }));
 
 /** Origin field + auto-stop + one primary action. */
 export function ShareComposer({
@@ -52,14 +49,14 @@ export function ShareComposer({
           describedBy={fieldError ? errorId : undefined}
         />
         <Select
-          label="When to stop"
-          options={autoStops}
+          label={t("quickShare.whenToStop")}
+          options={autoStops()}
           value={autoStop}
           onValueChange={setAutoStop}
           className="h-7"
         />
         <Button type="submit" variant="primary" size="lg" disabled={disabled || start.isPending}>
-          Share
+          {t("quickShare.share")}
         </Button>
       </div>
       {error && error.code !== "cloudflaredMissing" ? (

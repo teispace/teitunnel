@@ -3,6 +3,7 @@ import { useState } from "react";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
+import { t } from "@/lib/i18n";
 import { spring } from "@/lib/motion-tokens";
 import { usePageVisible } from "@/lib/use-page-visible";
 import { ShareCard } from "./components/share-card";
@@ -21,15 +22,13 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
 
   return (
     <LazyMotion features={loadFeatures} strict>
-      <TitlebarToolbar title="Quick Share" separator={scrolled} />
+      <TitlebarToolbar title={t("quickShare.title")} separator={scrolled} />
       <ScrollArea onScrolledChange={setScrolled}>
         <div className="mx-auto flex max-w-[680px] flex-col gap-4 px-5 pt-2 pb-8">
           <section className="flex flex-col gap-3 rounded-card bg-surface-inset p-4">
             <div>
-              <h2 className="text-headline">Share a local service</h2>
-              <p className="mt-0.5 text-callout text-secondary">
-                Get a temporary public URL. Anyone with the link can open it until you stop sharing.
-              </p>
+              <h2 className="text-headline">{t("quickShare.heading")}</h2>
+              <p className="mt-0.5 text-callout text-secondary">{t("quickShare.headingDetail")}</p>
             </div>
             <ShareComposer disabled={missing} autoFocus={compose} />
           </section>
@@ -53,7 +52,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
 
           {shares.length === 0 && !missing ? (
             <p className="px-1 text-center text-callout text-tertiary">
-              Running shares appear here. They stop when you quit Teitunnel.
+              {t("quickShare.emptyHint")}
             </p>
           ) : null}
         </div>

@@ -7,6 +7,7 @@ import { AppShell } from "@/components/patterns/app-shell";
 import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
 import { DoctorBadge } from "@/features/doctor";
+import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
@@ -18,12 +19,15 @@ function MainLayout() {
       sidebar={
         <Sidebar>
           {navigation.map((section) => (
-            <SidebarSection key={section.title ?? "main"} title={section.title}>
+            <SidebarSection
+              key={section.title ?? "main"}
+              title={section.title ? t(section.title) : null}
+            >
               {section.items.map((item) => (
                 <SidebarItem
                   key={item.to}
                   to={item.to}
-                  label={item.label}
+                  label={t(item.label)}
                   icon={item.icon}
                   exact={item.to === "/"}
                   {...(item.to === "/doctor" ? { badge: <DoctorBadge /> } : {})}
@@ -32,8 +36,8 @@ function MainLayout() {
             </SidebarSection>
           ))}
           {import.meta.env.DEV ? (
-            <SidebarSection title="Developer">
-              <SidebarItem to="/dev/gallery" label="Gallery" icon={SwatchBook} />
+            <SidebarSection title={t("nav.developer")}>
+              <SidebarItem to="/dev/gallery" label={t("nav.gallery")} icon={SwatchBook} />
             </SidebarSection>
           ) : null}
         </Sidebar>

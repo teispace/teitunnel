@@ -5,15 +5,16 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import type { LogLine } from "@/lib/ipc/bindings";
 
 type Level = "all" | "warn" | "error";
 
-const levels = [
-  { value: "all", label: "All" },
-  { value: "warn", label: "Warnings" },
-  { value: "error", label: "Errors" },
-] as const;
+const levels = () =>
+  (["all", "warn", "error"] as const).map((value) => ({
+    value,
+    label: t(`log.level.${value}`),
+  }));
 
 const isError = (line: LogLine) => line.level === "error" || line.level === "fatal";
 
@@ -110,30 +111,30 @@ export function LogViewer({ lines, empty, height = 224, onSave }: LogViewerProps
       <div className="flex items-center gap-2">
         <Input
           type="search"
-          aria-label="Search the log"
-          placeholder="Search"
+          aria-label={t("log.search")}
+          placeholder={t("log.searchPlaceholder")}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="min-w-0 flex-1 rounded-full"
         />
         <SegmentedControl
-          label="Show"
+          label={t("log.show")}
           size="sm"
-          segments={levels}
+          segments={levels()}
           value={level}
           onValueChange={setLevel}
         />
         <IconButton
           icon={paused ? Play : Pause}
-          label={paused ? "Resume the log" : "Pause the log"}
+          label={paused ? t("log.resume") : t("log.pause")}
           size="sm"
           onClick={() => setPaused(paused ? null : lines)}
         />
-        <IconButton icon={Copy} label="Copy the visible lines" size="sm" onClick={copy} />
+        <IconButton icon={Copy} label={t("log.copy")} size="sm" onClick={copy} />
         {onSave ? (
           <IconButton
             icon={Download}
-            label="Save the visible lines to a file"
+            label={t("log.save")}
             size="sm"
             disabled={visible.length === 0}
             onClick={() => onSave(visible.map(asText))}
@@ -145,14 +146,14 @@ export function LogViewer({ lines, empty, height = 224, onSave }: LogViewerProps
           ref={scroller}
           onScroll={onScroll}
           role="log"
-          aria-label="Log"
+          aria-label={t("log.label")}
           aria-live="off"
           style={{ height }}
           className="selectable overflow-y-auto rounded-control bg-surface-inset px-2 py-1.5 font-mono text-[11px] leading-4"
         >
           {visible.length === 0 ? (
             <p className="py-1 font-sans text-callout text-secondary">
-              {source.length === 0 ? empty : "No lines match."}
+              {source.length === 0 ? empty : t("log.noMatch")}
             </p>
           ) : (
             <ol className="relative" style={{ height: total }}>

@@ -25,4 +25,14 @@ describe("i18n", () => {
     expect(t("tunnels.routes", { count: 0 })).toBe("0 routes");
     expect(t("tunnels.routes", { count: 1234 })).toBe("1,234 routes");
   });
+
+  it("uses a translation's plural rules and numbers, and English for what it lacks", async () => {
+    await setLanguage("de", {
+      tunnels: { routes_one: "{count} Route", routes_other: "{count} Routen" },
+    });
+    expect(t("tunnels.routes", { count: 1 })).toBe("1 Route");
+    expect(t("tunnels.routes", { count: 1234 })).toBe("1.234 Routen");
+    expect(t("common.cancel")).toBe("Cancel");
+    expect(document.documentElement.lang).toBe("de");
+  });
 });

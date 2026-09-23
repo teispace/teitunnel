@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { usePaneSize } from "@/app/ui-store";
+import { t } from "@/lib/i18n";
 import { ResizeHandle } from "./resize-handle";
 
 interface SplitViewProps {
@@ -39,7 +40,7 @@ export function SplitView({
         {list}
         <ResizeHandle
           edge="right"
-          label="Resize list"
+          label={t("shell.resizeList")}
           size={listWidth}
           min={minListWidth}
           max={maxListWidth}
@@ -54,7 +55,7 @@ export function SplitView({
         >
           <ResizeHandle
             edge="left"
-            label="Resize inspector"
+            label={t("shell.resizeInspector")}
             size={inspectorWidth}
             min={240}
             max={480}

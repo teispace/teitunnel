@@ -10,6 +10,7 @@ import {
   Settings,
   Share,
 } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n";
 import { commands as ipc, type MenuCommand } from "@/lib/ipc/bindings";
 import { navItems } from "./navigation";
 import { useUiStore } from "./ui-store";
@@ -21,8 +22,8 @@ export interface CommandContext {
 
 export interface AppCommand {
   id: string;
-  title: string;
-  group: "Go to" | "Actions" | "View";
+  title: MessageKey;
+  group: "go" | "actions" | "view";
   icon: LucideIcon;
   /** Display form of the shortcut, as shown in menus. */
   shortcut?: string;
@@ -50,7 +51,7 @@ export const appCommands: readonly AppCommand[] = [
     (item, index): AppCommand => ({
       id: `go:${item.to}`,
       title: item.label,
-      group: "Go to",
+      group: "go",
       icon: item.icon,
       shortcut: `⌘${index + 1}`,
       ...(goMenu[index] ? { menu: goMenu[index] } : {}),
@@ -59,8 +60,8 @@ export const appCommands: readonly AppCommand[] = [
   ),
   {
     id: "new-route",
-    title: "New Route",
-    group: "Actions",
+    title: "commands.newRoute",
+    group: "actions",
     icon: Plus,
     shortcut: "⌘N",
     menu: "newRoute",
@@ -68,8 +69,8 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "new-quick-share",
-    title: "New Quick Share",
-    group: "Actions",
+    title: "commands.newQuickShare",
+    group: "actions",
     icon: Share,
     shortcut: "⇧⌘N",
     menu: "newQuickShare",
@@ -77,8 +78,8 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "refresh",
-    title: "Refresh",
-    group: "Actions",
+    title: "commands.refresh",
+    group: "actions",
     icon: RefreshCw,
     shortcut: "⌘R",
     menu: "refresh",
@@ -86,16 +87,16 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "settings",
-    title: "Settings",
-    group: "Actions",
+    title: "commands.settings",
+    group: "actions",
     icon: Settings,
     shortcut: "⌘,",
     run: () => void ipc.appOpenSettings(),
   },
   {
     id: "export-diagnostics",
-    title: "Export Diagnostics",
-    group: "Actions",
+    title: "commands.exportDiagnostics",
+    group: "actions",
     icon: FileArchive,
     menu: "exportDiagnostics",
     run: ({ navigate }) => {
@@ -105,8 +106,8 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "toggle-sidebar",
-    title: "Toggle Sidebar",
-    group: "View",
+    title: "commands.toggleSidebar",
+    group: "view",
     icon: PanelLeft,
     shortcut: "⌥⌘S",
     menu: "toggleSidebar",
@@ -114,8 +115,8 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "toggle-inspector",
-    title: "Toggle Inspector",
-    group: "View",
+    title: "commands.toggleInspector",
+    group: "view",
     icon: PanelRight,
     shortcut: "⌥⌘I",
     menu: "toggleInspector",

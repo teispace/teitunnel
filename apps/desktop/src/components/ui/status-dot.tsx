@@ -1,14 +1,7 @@
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 
 export type Status = "healthy" | "connecting" | "warning" | "error" | "idle";
-
-const labels: Record<Status, string> = {
-  healthy: "Healthy",
-  connecting: "Connecting",
-  warning: "Warning",
-  error: "Error",
-  idle: "Stopped",
-};
 
 /**
  * Status is never colour alone (DESIGN §6): each state also has a shape. Healthy is a
@@ -17,7 +10,7 @@ const labels: Record<Status, string> = {
  */
 export function StatusDot({
   status,
-  label = labels[status],
+  label = t(`status.dot.${status}`),
   className,
 }: {
   status: Status;

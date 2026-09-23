@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent } from "@/components/ui/dialog";
+import { t } from "@/lib/i18n";
 import { commands } from "@/lib/ipc/bindings";
 import { call, toIpcError } from "@/lib/ipc/client";
 import { useUiStore } from "./ui-store";
@@ -18,18 +19,18 @@ export function QuitDialog() {
   return (
     <Dialog open={open} onOpenChange={(next) => !quit.isPending && setOpen(next)}>
       <DialogContent
-        title="Your routes stop when Teitunnel quits"
-        description="They can keep running in the background instead, and start again when you log in. You can change this in Tunnels."
+        title={t("quit.title")}
+        description={t("quit.description")}
         footer={
           <>
             <DialogClose asChild>
-              <Button disabled={quit.isPending}>Cancel</Button>
+              <Button disabled={quit.isPending}>{t("common.cancel")}</Button>
             </DialogClose>
             <Button disabled={quit.isPending} onClick={() => quit.mutate(false)}>
-              Quit Anyway
+              {t("quit.anyway")}
             </Button>
             <Button variant="primary" disabled={quit.isPending} onClick={() => quit.mutate(true)}>
-              {quit.isPending && quit.variables ? "Switching…" : "Keep Routes Running"}
+              {quit.isPending && quit.variables ? t("quit.switching") : t("quit.keep")}
             </Button>
           </>
         }

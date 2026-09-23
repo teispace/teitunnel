@@ -6,7 +6,8 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
-import { formatCount, formatDuration, stripScheme } from "@/lib/format";
+import { formatDuration, stripScheme } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
 import { spring } from "@/lib/motion-tokens";
 import { openUrl } from "@/lib/open-url";
@@ -18,13 +19,13 @@ import { ShareLog } from "./share-log";
 function statusOf(share: QuickShare): { dot: Status; label: string } {
   switch (share.status.status) {
     case "live":
-      return { dot: "healthy", label: "Live" };
+      return { dot: "healthy", label: t("quickShare.status.live") };
     case "starting":
-      return { dot: "connecting", label: "Getting a URL…" };
+      return { dot: "connecting", label: t("quickShare.status.starting") };
     case "reconnecting":
-      return { dot: "warning", label: "Reconnecting…" };
+      return { dot: "warning", label: t("quickShare.status.reconnecting") };
     case "failed":
-      return { dot: "error", label: "Failed" };
+      return { dot: "error", label: t("quickShare.status.failed") };
   }
 }
 
@@ -38,7 +39,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
 
   return (
     <article
-      aria-label={`Quick Share of ${stripScheme(share.origin)}`}
+      aria-label={t("quickShare.cardLabel", { origin: stripScheme(share.origin) })}
       className="flex flex-col gap-3 rounded-card bg-surface-inset p-4"
     >
       <header className="flex items-center gap-2 text-callout">
@@ -68,19 +69,23 @@ export function ShareCard({ share }: { share: QuickShare }) {
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             {share.url ? (
-              <CopyField label="URL" value={share.url} className="h-7 bg-surface-content" />
+              <CopyField
+                label={t("common.url")}
+                value={share.url}
+                className="h-7 bg-surface-content"
+              />
             ) : (
               <div className="flex h-7 items-center rounded-control bg-surface-content px-2 text-body text-tertiary">
-                Waiting for Cloudflare…
+                {t("quickShare.waiting")}
               </div>
             )}
           </div>
           {share.url ? (
             <>
-              <Tooltip content="Open in browser">
+              <Tooltip content={t("quickShare.openInBrowser")}>
                 <IconButton
                   icon={ExternalLink}
-                  label="Open in browser"
+                  label={t("quickShare.openInBrowser")}
                   variant="secondary"
                   size="lg"
                   disabled={!live}
@@ -96,12 +101,14 @@ export function ShareCard({ share }: { share: QuickShare }) {
       <footer className="flex items-center gap-3 text-callout text-secondary">
         {live && stats ? (
           <span className="tabular">
-            {formatCount(stats.requests, "request")}
-            {stats.errors > 0 ? ` · ${formatCount(stats.errors, "error")}` : ""}
+            {t("quickShare.requests", { count: stats.requests })}
+            {stats.errors > 0 ? ` · ${t("quickShare.errors", { count: stats.errors })}` : ""}
           </span>
         ) : null}
         {share.stopAt ? (
-          <span className="tabular">Stops in {formatDuration(share.stopAt - now)}</span>
+          <span className="tabular">
+            {t("quickShare.stopsIn", { duration: formatDuration(share.stopAt - now) })}
+          </span>
         ) : null}
         <Button
           variant="destructive"
@@ -110,11 +117,15 @@ export function ShareCard({ share }: { share: QuickShare }) {
           disabled={stop.isPending}
           onClick={() => stop.mutate(share.id)}
         >
-          Stop Sharing
+          {t("quickShare.stop")}
         </Button>
       </footer>
 
-      <Disclosure title={<span className="text-callout font-normal text-secondary">Log</span>}>
+      <Disclosure
+        title={
+          <span className="text-callout font-normal text-secondary">{t("quickShare.log")}</span>
+        }
+      >
         <ShareLog id={share.id} />
       </Disclosure>
     </article>

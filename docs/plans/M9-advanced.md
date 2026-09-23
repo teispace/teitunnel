@@ -31,4 +31,6 @@ Per-route "Require login": visitors sign in (one-time PIN to their email, or the
 - [x] CIDR routes for WARP clients (default virtual network), Doctor checks of the WARP settings that block them, `cloudflared access` helpers for SSH/RDP/SMB/TCP routes (D-060). Other virtual networks are read but not managed.
 
 ### M9-06 · i18n
-- [ ] Extract strings, community translations.
+- [x] UI strings in typed JSON catalogs (`src/locales/en.json`, `t()`, plurals, locale-aware numbers, lists and durations), language from the system, catalog checks in the test suite, `i18n:missing` script, translator guide in CONTRIBUTING (D-061).
+- [ ] Text produced in Rust (engine and Doctor messages, plan steps, native menus and notifications): send message ids and arguments over IPC instead of English sentences; menus via a Rust catalog.
+- [ ] Community translations: needs translators (and, if the maintainer wants one, a hosted platform such as Weblate reading the JSON files).

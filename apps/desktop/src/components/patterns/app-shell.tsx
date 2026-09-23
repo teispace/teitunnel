@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { usePaneSize, useUiStore } from "@/app/ui-store";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import { ResizeHandle } from "./resize-handle";
 
 export const SIDEBAR = { default: 220, min: 180, max: 300 } as const;
@@ -28,7 +29,7 @@ export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: 
         {sidebar}
         <ResizeHandle
           edge="right"
-          label="Resize sidebar"
+          label={t("shell.resizeSidebar")}
           size={width}
           min={SIDEBAR.min}
           max={SIDEBAR.max}

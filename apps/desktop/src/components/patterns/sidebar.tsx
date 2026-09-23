@@ -6,12 +6,13 @@ import type { NavItem } from "@/app/navigation";
 import { useUiStore } from "@/app/ui-store";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 
 /** Full-height source-list sidebar over the window's native vibrancy (DESIGN §2). */
 export function Sidebar({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <aside
-      aria-label="Sidebar"
+      aria-label={t("shell.sidebar")}
       className="flex h-full w-(--sidebar-width) shrink-0 flex-col bg-surface-sidebar"
     >
       <div
@@ -20,7 +21,7 @@ export function Sidebar({ children, footer }: { children: ReactNode; footer?: Re
       >
         <IconButton
           icon={PanelLeft}
-          label="Hide sidebar"
+          label={t("shell.hideSidebar")}
           onClick={useUiStore.getState().toggleSidebar}
         />
       </div>

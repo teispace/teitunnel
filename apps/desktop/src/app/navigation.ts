@@ -8,15 +8,16 @@ import {
   Stethoscope,
   Waypoints,
 } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n";
 
 export interface NavItem {
   readonly to: "/" | "/routes" | "/quick-share" | "/domains" | "/tunnels" | "/activity" | "/doctor";
-  readonly label: string;
+  readonly label: MessageKey;
   readonly icon: LucideIcon;
 }
 
 export interface NavSection {
-  readonly title: string | null;
+  readonly title: MessageKey | null;
   readonly items: readonly NavItem[];
 }
 
@@ -25,23 +26,23 @@ export const navigation: readonly NavSection[] = [
   {
     title: null,
     items: [
-      { to: "/", label: "Overview", icon: LayoutGrid },
-      { to: "/routes", label: "Routes", icon: Waypoints },
-      { to: "/quick-share", label: "Quick Share", icon: Share },
+      { to: "/", label: "nav.overview", icon: LayoutGrid },
+      { to: "/routes", label: "nav.routes", icon: Waypoints },
+      { to: "/quick-share", label: "nav.quickShare", icon: Share },
     ],
   },
   {
-    title: "Cloudflare",
+    title: "nav.cloudflare",
     items: [
-      { to: "/domains", label: "Domains", icon: Globe },
-      { to: "/tunnels", label: "Tunnels", icon: Network },
+      { to: "/domains", label: "nav.domains", icon: Globe },
+      { to: "/tunnels", label: "nav.tunnels", icon: Network },
     ],
   },
   {
-    title: "Health",
+    title: "nav.health",
     items: [
-      { to: "/activity", label: "Activity", icon: Activity },
-      { to: "/doctor", label: "Doctor", icon: Stethoscope },
+      { to: "/activity", label: "nav.activity", icon: Activity },
+      { to: "/doctor", label: "nav.doctor", icon: Stethoscope },
     ],
   },
 ];

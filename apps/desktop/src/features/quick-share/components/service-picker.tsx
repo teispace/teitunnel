@@ -2,6 +2,7 @@ import { Popover as PopoverPrimitive } from "radix-ui";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import type { LocalService, ServiceKind } from "@/lib/ipc/bindings";
 import { useLocalServices } from "../queries";
 
@@ -32,10 +33,13 @@ const kindLabels: Record<ServiceKind, string> = {
 
 function describe(service: LocalService): string {
   if (service.kind === "system") {
-    const name = service.process === "ControlCenter" ? "AirPlay Receiver" : service.process;
+    const name = service.process === "ControlCenter" ? t("quickShare.airplay") : service.process;
     return `${name} · macOS`;
   }
-  const kind = kindLabels[service.kind] || service.process;
+  const kind =
+    service.kind === "database"
+      ? t("quickShare.kind.database")
+      : kindLabels[service.kind] || service.process;
   return service.project ? `${kind} · ${service.project}` : kind;
 }
 
@@ -107,7 +111,7 @@ export function ServicePicker({
           <Input
             ref={inputRef}
             role="combobox"
-            aria-label="Port or address"
+            aria-label={t("quickShare.portOrAddress")}
             aria-expanded={open}
             aria-controls={listId}
             aria-autocomplete="list"
@@ -116,7 +120,7 @@ export function ServicePicker({
             {...(open && shareable[active]
               ? { "aria-activedescendant": `${listId}-${active}` }
               : {})}
-            placeholder="Port or address, e.g. 3000"
+            placeholder={t("quickShare.placeholder")}
             value={value}
             onChange={(event) => {
               onChange(event.target.value);
@@ -139,12 +143,12 @@ export function ServicePicker({
           className="z-50 w-(--radix-popover-trigger-width) min-w-72 rounded-[10px] p-1 material-panel shadow-raised data-[state=open]:animate-fade-in"
         >
           <div className="px-2 pt-1 pb-1.5 text-footnote font-semibold text-tertiary">
-            Running on this Mac
+            {t("quickShare.running")}
           </div>
           <div
             id={listId}
             role="listbox"
-            aria-label="Detected services"
+            aria-label={t("quickShare.detected")}
             className="max-h-64 overflow-y-auto"
           >
             {shareable.map((service, index) => (

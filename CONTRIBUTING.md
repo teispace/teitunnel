@@ -73,6 +73,24 @@ Routes keep any `originRequest` settings they already have, but the only Advance
 ## How to add an IPC command
 Write it in `apps/desktop/src-tauri/src/ipc/<area>.rs` with `#[tauri::command]` and `#[specta::specta]`, register it in `ipc.rs`, and keep it thin: validate input, call `core`, map errors to `AppError`. Run `pnpm bindings`, then call it through a hook in the feature's `queries.ts`. Types that cross IPC derive `specta::Type` behind the `specta` feature in `core`.
 
+## How to translate Teitunnel
+The app's text is in `apps/desktop/src/locales/en.json`. To add a language, create
+`apps/desktop/src/locales/<language>.json` (a BCP 47 tag such as `de`, `fr` or `pt-BR`)
+with the same keys and your translations; anything you leave out stays in English. Keep
+`{placeholders}` exactly as they are. For counts, provide the plural forms your language
+uses (`_zero`, `_one`, `_two`, `_few`, `_many`, `_other`, per the
+[CLDR plural rules](https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html)).
+Then run:
+
+```sh
+pnpm --filter @teitunnel/desktop i18n:missing <language>   # what's left, and any problems
+pnpm test                                                  # rejects unknown keys and wrong placeholders
+```
+
+The app uses the language set in System Settings (on macOS, per app under
+**General ▸ Language & Region ▸ Applications**). Messages that come from the Rust core
+(errors, plan steps, Doctor findings, the menu bar) are English for now (D-061).
+
 ## Tests
 Every change comes with tests (the table in [CONVENTIONS.md](docs/CONVENTIONS.md) says which kind). Snapshots use `insta`; review them, don't just accept them. Anything that talks to Cloudflare is tested against the in-memory fake (`engine/fake.rs`) or `tools/fake-cloudflare`, never a real account. UI changes need screenshots in light and dark; changes to colours or text need `a11y` to stay clean.
 

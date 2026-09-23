@@ -1,19 +1,29 @@
-/** "12 s", "4 min", "1 h 5 min" (compact, for elapsed time). */
-export function formatDuration(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+import { currentLanguage } from "@/lib/i18n";
+
+const units = new Map<string, Intl.NumberFormat>();
+function unit(value: number, name: "second" | "minute" | "hour") {
+  const key = `${currentLanguage()}:${name}`;
+  let format = units.get(key);
+  if (!format) {
+    format = new Intl.NumberFormat(currentLanguage(), {
+      style: "unit",
+      unit: name,
+      unitDisplay: "short",
+    });
+    units.set(key, format);
+  }
+  return format.format(value);
 }
 
-const counter = new Intl.NumberFormat();
-
-/** "1 request", "1,234 requests". */
-export function formatCount(count: number, noun: string, plural = `${noun}s`): string {
-  return `${counter.format(count)} ${count === 1 ? noun : plural}`;
+/** "12 sec", "4 min", "1 hr 5 min" in English (compact, for elapsed time). */
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return unit(seconds, "second");
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return unit(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? unit(hours, "hour") : `${unit(hours, "hour")} ${unit(rest, "minute")}`;
 }
 
 /** Strips the scheme for display: "https://a.b" → "a.b", "http://localhost:3000" → "localhost:3000". */

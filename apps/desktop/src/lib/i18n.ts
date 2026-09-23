@@ -54,11 +54,11 @@ export function pickLanguage(wanted: readonly string[], available = languages): 
   return "en";
 }
 
-/** Loads the catalog for `language` (before the first render). */
-export async function setLanguage(language: string) {
+/** Loads the catalog for `language` (before the first render); tests pass `catalog`. */
+export async function setLanguage(language: string, catalog?: Messages) {
   const loader = loaders[`../locales/${language}.json`];
-  active = loader ? (await loader()).default : en;
-  locale = loader ? language : "en";
+  active = catalog ?? (loader ? (await loader()).default : en);
+  locale = catalog || loader ? language : "en";
   plurals = new Intl.PluralRules(locale);
   numbers = new Intl.NumberFormat(locale);
   document.documentElement.lang = locale;

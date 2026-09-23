@@ -356,7 +356,14 @@
     "stopped": "Connector stopped",
     "noDns": "No DNS record",
     "dnsElsewhere": "DNS points elsewhere",
-    "live": "Live"
+    "live": "Live",
+    "dot": {
+      "healthy": "Healthy",
+      "connecting": "Connecting",
+      "warning": "Warning",
+      "error": "Error",
+      "idle": "Stopped"
+    }
   },
   "access": {
     "anyoneAt": "anyone at @{domain}"
@@ -654,5 +661,114 @@
     "byInstaller": "Updated by its installer",
     "byInstallerDetail": "Teitunnel doesn't modify a cloudflared it didn't install. With Homebrew, run brew upgrade cloudflared.",
     "useOurs": "Use Teitunnel's Copy"
+  },
+  "quickShare": {
+    "kind": {
+      "database": "Database"
+    },
+    "airplay": "AirPlay Receiver",
+    "portOrAddress": "Port or address",
+    "placeholder": "Port or address, e.g. 3000",
+    "running": "Running on this Mac",
+    "detected": "Detected services",
+    "status": {
+      "live": "Live",
+      "starting": "Getting a URL…",
+      "reconnecting": "Reconnecting…",
+      "failed": "Failed"
+    },
+    "cardLabel": "Quick Share of {origin}",
+    "waiting": "Waiting for Cloudflare…",
+    "openInBrowser": "Open in browser",
+    "requests_one": "{count} request",
+    "requests_other": "{count} requests",
+    "errors_one": "{count} error",
+    "errors_other": "{count} errors",
+    "stopsIn": "Stops in {duration}",
+    "stop": "Stop Sharing",
+    "log": "Log",
+    "logEmpty": "No log output yet.",
+    "autoStop": {
+      "never": "Keep running",
+      "15": "Stop after 15 min",
+      "60": "Stop after 1 hour",
+      "480": "Stop after 8 hours"
+    },
+    "whenToStop": "When to stop",
+    "share": "Share",
+    "title": "Quick Share",
+    "heading": "Share a local service",
+    "headingDetail": "Get a temporary public URL. Anyone with the link can open it until you stop sharing.",
+    "emptyHint": "Running shares appear here. They stop when you quit Teitunnel.",
+    "showQr": "Show QR code"
+  },
+  "nav": {
+    "overview": "Overview",
+    "routes": "Routes",
+    "quickShare": "Quick Share",
+    "cloudflare": "Cloudflare",
+    "domains": "Domains",
+    "tunnels": "Tunnels",
+    "health": "Health",
+    "activity": "Activity",
+    "doctor": "Doctor",
+    "developer": "Developer",
+    "gallery": "Gallery"
+  },
+  "commands": {
+    "group": {
+      "go": "Go to",
+      "actions": "Actions",
+      "view": "View"
+    },
+    "newRoute": "New Route",
+    "newQuickShare": "New Quick Share",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "exportDiagnostics": "Export Diagnostics",
+    "toggleSidebar": "Toggle Sidebar",
+    "toggleInspector": "Toggle Inspector",
+    "palette": "Command palette",
+    "search": "Search commands",
+    "none": "No matching commands"
+  },
+  "quit": {
+    "title": "Your routes stop when Teitunnel quits",
+    "description": "They can keep running in the background instead, and start again when you log in. You can change this in Tunnels.",
+    "anyway": "Quit Anyway",
+    "switching": "Switching…",
+    "keep": "Keep Routes Running"
+  },
+  "error": {
+    "viewFailed": "This view couldn't load"
+  },
+  "shell": {
+    "resizeSidebar": "Resize sidebar",
+    "sidebar": "Sidebar",
+    "hideSidebar": "Hide sidebar",
+    "showSidebar": "Show sidebar",
+    "resizeList": "Resize list",
+    "resizeInspector": "Resize inspector"
+  },
+  "copy": {
+    "copied": "Copied",
+    "copiedLabel": "{label} copied",
+    "copy": "Copy {label}"
+  },
+  "log": {
+    "level": {
+      "all": "All",
+      "warn": "Warnings",
+      "error": "Errors"
+    },
+    "search": "Search the log",
+    "searchPlaceholder": "Search",
+    "show": "Show",
+    "resume": "Resume the log",
+    "pause": "Pause the log",
+    "copy": "Copy the visible lines",
+    "save": "Save the visible lines to a file",
+    "label": "Log",
+    "noMatch": "No lines match."
   }
 }

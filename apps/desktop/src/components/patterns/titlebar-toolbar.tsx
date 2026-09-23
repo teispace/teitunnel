@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useUiStore } from "@/app/ui-store";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 
 interface TitlebarToolbarProps {
   title: ReactNode;
@@ -31,7 +32,7 @@ export function TitlebarToolbar({ title, children, separator = false }: Titlebar
       {collapsed ? (
         <IconButton
           icon={PanelLeft}
-          label="Show sidebar"
+          label={t("shell.showSidebar")}
           onClick={toggleSidebar}
           className="-ml-2"
         />

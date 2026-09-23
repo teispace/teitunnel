@@ -1,6 +1,7 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 
 interface CopyFieldProps {
   value: string;
@@ -44,7 +45,7 @@ export function CopyField({ value, label, className, multiline = false }: CopyFi
       </span>
       <button
         type="button"
-        aria-label={copied ? `${label} copied` : `Copy ${label}`}
+        aria-label={copied ? t("copy.copiedLabel", { label }) : t("copy.copy", { label })}
         onClick={() => void copy()}
         className="relative flex size-5 shrink-0 items-center justify-center rounded-full text-secondary outline-offset-0 active:bg-surface-control"
       >
@@ -66,7 +67,7 @@ export function CopyField({ value, label, className, multiline = false }: CopyFi
         />
       </button>
       <span aria-live="polite" className="sr-only">
-        {copied ? "Copied" : ""}
+        {copied ? t("copy.copied") : ""}
       </span>
     </div>
   );
