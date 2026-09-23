@@ -12,7 +12,7 @@
 Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M6-02 → M6-01/03 → M6-07 → maintainer setup → dry run → v0.1.0 → M6-04.
 
 ### M6-01 · Signing & notarization
-- [ ] Maintainer: Developer ID Application certificate (Account Holder of the Teispace team), App Store Connect API key (notarytool), updater keypair (`pnpm tauri signer generate`); secrets in a protected `release` environment.
+- [x] Maintainer: Developer ID Application certificate (Account Holder of the Teispace team), App Store Connect API key (notarytool), updater keypair; secrets in a protected `release` environment. *(2026-09-23, RELEASING.md status table.)*
 - [ ] Hardened runtime + entitlements (network client/server for the loopback OAuth listener; no unnecessary ones).
 - [ ] macOS: universal build, sign, notarize, staple the `.dmg`.
 - [ ] Windows: SignPath Foundation after v0.1.0 is public (terms need a released project): code signing policy page, MFA, roles; signing step in the workflow; updater `.sig` regenerated after Authenticode signing. v0.1.0 ships unsigned with SmartScreen guidance on the download page.
