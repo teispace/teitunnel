@@ -35,7 +35,7 @@ after it's out).
 | GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true`, Enforce HTTPS | Done 2026-09-23 (the certificate came after removing and re-adding the custom domain; GitHub renews it). |
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
-| Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Files in `~/.tauri/teitunnel-apple/` on the maintainer's Mac. Secrets stored by the maintainer. |
+| Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
 | SignPath Foundation for Windows | After 0.1.0: step 6 |
 
 ## One-time setup (maintainer)
@@ -51,7 +51,7 @@ All secrets below go into this environment, not the repository.
 
 ### 2. Updater key (done on the maintainer's Mac)
 
-The keypair is in `~/.tauri/teitunnel/` (created 2026-09-23; the public key is in
+The keypair was created 2026-09-23 and is kept in the maintainer's password manager (the public key is in
 `apps/desktop/src-tauri/tauri.conf.json`).
 
 ```sh
