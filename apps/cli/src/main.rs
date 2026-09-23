@@ -3,8 +3,18 @@
 //! showing the plan before applying it. It never runs connectors: the app, or an
 //! Always-on service, serves the routes.
 
+/// Writes a line to stdout; a write error (e.g. a closed pipe) ends the command.
+macro_rules! out {
+    ($($arg:tt)*) => {{
+        use std::io::Write as _;
+        writeln!(std::io::stdout().lock(), $($arg)*).map_err(|e| e.to_string())
+    }};
+}
+
 mod context;
+mod doctor;
 mod probe;
+mod share;
 
 use std::{
     io::{self, BufRead, IsTerminal, Write},
@@ -56,6 +66,35 @@ enum Command {
     /// Add, or remove, a route.
     #[command(subcommand)]
     Route(RouteCommand),
+    /// Share a local service at a temporary public URL until you press Ctrl-C.
+    Share {
+        /// What to share: a port (`3000`), `host:port`, or a URL.
+        origin: String,
+        /// Stop by itself after this long, e.g. `30m`, `2h`, `90s`.
+        #[arg(long = "for", value_name = "DURATION", value_parser = share::parse_duration)]
+        stop_after: Option<Duration>,
+        /// Don't print a QR code.
+        #[arg(long)]
+        no_qr: bool,
+    },
+    /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
+    Doctor {
+        /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
+        #[arg(long)]
+        fix: bool,
+        /// With --fix, apply without asking.
+        #[arg(long, short, requires = "fix")]
+        yes: bool,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print a shell completion script, e.g. `teitunnel-cli completions zsh`.
+    Completions {
+        /// The shell.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
     /// Print this Mac's tunnel and routes as config.yml, Docker Compose or Terraform.
     Export {
         /// What to export as.
@@ -139,16 +178,29 @@ async fn main() -> ExitCode {
     }
 }
 
-/// Writes a line to stdout; a write error (e.g. a closed pipe) ends the command.
-macro_rules! out {
-    ($($arg:tt)*) => {
-        writeln!(io::stdout().lock(), $($arg)*).map_err(|e| e.to_string())
-    };
-}
-
 async fn run(command: Command) -> Result<ExitCode, String> {
+    // These don't need the app to be set up.
+    match command {
+        Command::Share {
+            origin,
+            stop_after,
+            no_qr,
+        } => return share::run(&origin, stop_after, !no_qr).await,
+        Command::Completions { shell } => {
+            clap_complete::generate(
+                shell,
+                &mut <Cli as clap::CommandFactory>::command(),
+                "teitunnel-cli",
+                &mut io::stdout(),
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
+        _ => {}
+    }
     let app = App::open()?;
     match command {
+        Command::Share { .. } | Command::Completions { .. } => unreachable!("handled above"),
+        Command::Doctor { fix, yes, json } => doctor::run(&app, json, fix, yes).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes { account, json } => routes(&app, account.as_deref(), json).await,
         Command::Route(RouteCommand::Add {
@@ -309,15 +361,12 @@ fn print_plan(plan: &Plan, account_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Asks before applying, unless `--yes`. Without a terminal to ask on, `--yes` is needed.
-fn confirm(apply: &ApplyArgs) -> Result<bool, String> {
-    if apply.yes {
-        return Ok(true);
-    }
+/// Asks `question` (y/N). Without a terminal to ask on, `--yes` is needed.
+pub(crate) fn confirm(question: &str) -> Result<bool, String> {
     if !io::stdin().is_terminal() {
         return Err("Not a terminal, so nothing to ask. Pass --yes to apply.".into());
     }
-    write!(io::stdout().lock(), "Apply? [y/N] ").map_err(|e| e.to_string())?;
+    write!(io::stdout().lock(), "{question} [y/N] ").map_err(|e| e.to_string())?;
     io::stdout().flush().map_err(|e| e.to_string())?;
     let mut answer = String::new();
     io::stdin()
@@ -355,7 +404,7 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
             "This changes DNS records Teitunnel didn't create. Pass --replace to allow it.".into(),
         );
     }
-    if !confirm(apply)? {
+    if !apply.yes && !confirm("Apply?")? {
         out!("Nothing changed.")?;
         return Ok(ExitCode::SUCCESS);
     }

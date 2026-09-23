@@ -4,6 +4,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use teitunnel_core::{
     accounts::{Account, Accounts},
+    binary::{BinaryManager, Locator},
     engine::{Context, Engine, Local},
     secrets::{KeychainStore, Secrets},
     store::Store,
@@ -30,6 +31,15 @@ pub(crate) struct App {
     pub(crate) accounts: Accounts,
     pub(crate) engine: Engine,
     pub(crate) machine_name: String,
+    /// The cloudflared the app uses (its managed copy, or one on the system).
+    pub(crate) binary: BinaryManager,
+    store: Store,
+}
+
+/// The cloudflared the app would use, found the same way (`TEITUNNEL_CLOUDFLARED`, the
+/// app's managed copy, then the system's).
+pub(crate) fn binary(dir: &std::path::Path) -> BinaryManager {
+    BinaryManager::new(Locator::from_env(dir.join("bin")))
 }
 
 impl App {
@@ -46,8 +56,10 @@ impl App {
         let secrets: Secrets = Arc::new(KeychainStore);
         Ok(Self {
             accounts: Accounts::new(store.clone(), secrets),
-            engine: Engine::new(Local::new(store)),
+            engine: Engine::new(Local::new(store.clone())),
             machine_name: teitunnel_core::machine::machine_name(),
+            binary: binary(&dir),
+            store,
         })
     }
 
@@ -80,6 +92,27 @@ impl App {
             account: &account.id,
             machine_name: &self.machine_name,
         }
+    }
+
+    /// Every account's connector on this Mac, probed.
+    pub(crate) async fn all_connectors(&self) -> ProbedConnectors {
+        let mut connectors = ProbedConnectors::default();
+        for account in self.accounts.list().await.unwrap_or_default() {
+            if let Ok(Some(tunnel)) = self.engine.local().machine_tunnel(&account.id).await {
+                connectors
+                    .probe(&tunnel.tunnel_id, tunnel.metrics_port)
+                    .await;
+            }
+        }
+        connectors
+    }
+
+    /// Doctor issues ignored in the app.
+    pub(crate) async fn ignored_issues(&self) -> Vec<String> {
+        teitunnel_core::settings::load(&self.store)
+            .await
+            .map(|s| s.ignored_issues)
+            .unwrap_or_default()
     }
 
     /// This Mac's connector for `account`, probed.

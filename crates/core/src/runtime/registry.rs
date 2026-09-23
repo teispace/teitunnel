@@ -104,6 +104,44 @@ impl PidRegistry {
     }
 }
 
+/// Registries of short-lived processes (the CLI): one directory per owner under a
+/// shared root, named after the owner's pid and start time, so an owner that died
+/// without stopping its connectors can be told apart from one still running.
+impl PidRegistry {
+    /// This process's registry under `root`.
+    pub fn for_this_process(root: &Path) -> Self {
+        let pid = std::process::id();
+        let started = start_time(pid).unwrap_or_default();
+        Self::new(root.join(format!("{pid}-{started}")))
+    }
+
+    /// Stops the connectors of owners under `root` that are no longer running, and
+    /// removes their registries. Returns the pids stopped.
+    pub async fn reap_abandoned(root: &Path) -> Vec<u32> {
+        let Ok(entries) = fs::read_dir(root) else {
+            return Vec::new();
+        };
+        let mut reaped = Vec::new();
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some((pid, started)) = name
+                .to_str()
+                .and_then(|n| n.split_once('-'))
+                .and_then(|(p, s)| Some((p.parse::<u32>().ok()?, s.parse::<u64>().ok()?)))
+            else {
+                continue;
+            };
+            if start_time(pid) == Some(started) {
+                continue; // The owner is alive: its connectors are its business.
+            }
+            let registry = Self::new(entry.path());
+            reaped.extend(registry.reap_orphans().await);
+            let _ = fs::remove_dir(entry.path());
+        }
+        reaped
+    }
+}
+
 fn read_record(path: &Path) -> Option<PidRecord> {
     let record: PidRecord = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
     (record.marker == MARKER).then_some(record)
@@ -154,6 +192,33 @@ mod tests {
             0,
             "records are cleaned up"
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn reaps_connectors_only_of_owners_that_are_gone() {
+        let root = tempfile::tempdir().unwrap();
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let child_pid = child.id();
+        // An owner that's gone (pid 1's start time never matches 1), and a live one: us.
+        let gone = PidRegistry::new(root.path().join("1-1"));
+        gone.record(&ConnectorId("qs".into()), child_pid);
+        let alive = PidRegistry::for_this_process(root.path());
+        alive.record(&ConnectorId("qs".into()), child_pid);
+        std::fs::create_dir_all(root.path().join("not-an-owner")).unwrap();
+
+        assert_eq!(PidRegistry::reap_abandoned(root.path()).await, [child_pid]);
+        let _ = child.wait();
+        let left: Vec<String> = fs::read_dir(root.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(!left.contains(&"1-1".to_owned()), "{left:?}");
+        assert!(left.contains(&"not-an-owner".to_owned()));
+        assert_eq!(left.len(), 2, "the live owner's registry stays: {left:?}");
     }
 
     #[test]

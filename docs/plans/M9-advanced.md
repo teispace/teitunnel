@@ -8,7 +8,10 @@
 
 ### M9-02 · CLI
 - [x] `apps/cli` (`teitunnel-cli`) over `teitunnel-core`: `accounts`, `routes` (status probed from the connector's `/ready`), `route add/remove` (plan shown, `y/N`, `--yes`, `--replace` for foreign records, verified through the edge afterwards), `export <config-yaml|docker-compose|terraform>`, `--json`. Uses the app's data folder and keychain; never runs connectors (D-056).
-- [ ] `share <port>` (a Quick Share that lives as long as the command), `doctor`, shell completions, and installing the binary with the app (a `teitunnel` symlink, since the build can't share the app's binary name).
+- [x] `share <origin> [--for] [--no-qr]`: a Quick Share for exactly the command's lifetime (Ctrl-C, SIGTERM/SIGHUP, `--for`), URL alone on stdout, QR in a terminal; per-process pid registries under `run-cli/` so the next run reaps a killed CLI's connector; ports spread by pid so concurrent processes don't pick the same one (D-059).
+- [x] `doctor [--fix [--yes]] [--json]`: the app's checks, ignored issues hidden, safe fixes only (`doctor::safe_change`), exit 1 on errors.
+- [x] `completions <shell>` (clap_complete 4.6).
+- [ ] Installing the binary with the app (a `teitunnel` symlink or PATH helper): packaging, so it waits for the deferred release work (M6-03).
 
 ### M9-03 · Protect with Access
 Per-route "Require login": visitors sign in (one-time PIN to their email, or the account's other login methods) before reaching the service. API facts from Cloudflare's OpenAPI schema (`cloudflare/api-schemas`, 2026-09-23): a `self_hosted` Access application (`POST /accounts/{id}/access/apps`, `domain` = hostname + optional path, `session_duration`, inline `policies` with `decision: "allow"` and `include` rules `{email: {email}}` / `{email_domain: {domain}}`); it needs a Zero Trust organization (`GET /access/organizations`); login methods default to every configured identity provider, and One-time PIN is one (`type: "onetimepin"`).

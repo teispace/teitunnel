@@ -293,10 +293,10 @@ async fn orphan_logins<C: CloudApi>(
 
 /// Checks everything: the binary and every connected account. An account that can't
 /// be read becomes an issue itself rather than failing the run.
-pub async fn run(
+pub async fn run<K: Connectors>(
     accounts: &crate::accounts::Accounts,
     engine: &Engine,
-    machine: &crate::machine::MachineTunnels,
+    machine: &K,
     binary: &crate::binary::BinaryManager,
     machine_name: &str,
 ) -> Vec<Issue> {
@@ -361,10 +361,10 @@ pub async fn run(
 }
 
 /// Runs the checks, then applies every safe fix in every account.
-pub async fn fix_all_safe(
+pub async fn fix_all_safe<K: Connectors>(
     accounts: &crate::accounts::Accounts,
     engine: &Engine,
-    machine: &crate::machine::MachineTunnels,
+    machine: &K,
     binary: &crate::binary::BinaryManager,
     machine_name: &str,
 ) -> FixReport {
@@ -403,7 +403,9 @@ pub struct FixReport {
 /// (records and logins) only.
 /// Whether it really is safe is decided by its plan (no confirmation needed = nothing
 /// Teitunnel doesn't own is touched).
-fn candidate(issue: &Issue) -> Option<&Change> {
+/// The change "Fix Safe Issues" may apply for `issue` without review, if any (its plan
+/// still has to need no confirmation).
+pub fn safe_change(issue: &Issue) -> Option<&Change> {
     match issue.fixes.first()? {
         Fix::Change { change, .. }
             if matches!(
@@ -430,7 +432,7 @@ pub async fn fix_safe<C: CloudApi, K: Connectors>(
         .iter()
         .filter(|i| i.account_id.as_deref() == Some(ctx.account))
     {
-        let Some(change) = candidate(issue) else {
+        let Some(change) = safe_change(issue) else {
             report.skipped += 1;
             continue;
         };
@@ -1192,7 +1194,7 @@ mod tests {
             Fix::Change { change: Change::RemoveLogin { domain }, .. } if domain == "old.xyz.com/admin"
         ));
         assert!(
-            candidate(issue).is_some(),
+            safe_change(issue).is_some(),
             "safe: only Teitunnel's own login"
         );
     }

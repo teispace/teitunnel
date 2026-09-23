@@ -17,6 +17,8 @@ pub const QUICK_SHARE_PORTS: Range<u16> = 20400..20500;
 #[derive(Debug, Clone)]
 pub struct PortAllocator {
     range: Range<u16>,
+    /// Where scanning starts, relative to the range's start.
+    offset: u16,
     taken: Arc<Mutex<HashSet<u16>>>,
 }
 
@@ -25,8 +27,19 @@ impl PortAllocator {
     pub fn new(range: Range<u16>) -> Self {
         Self {
             range,
+            offset: 0,
             taken: Arc::default(),
         }
+    }
+
+    /// Starts scanning at an offset derived from `seed` (e.g. the process id). Separate
+    /// processes allocating from the same range at the same moment (the app and a CLI
+    /// share) then rarely try the same port first, which would fail for one of them.
+    #[must_use]
+    pub fn spread(mut self, seed: u32) -> Self {
+        let len = u32::from(self.range.len().try_into().unwrap_or(u16::MAX)).max(1);
+        self.offset = u16::try_from(seed % len).unwrap_or(0);
+        self
     }
 
     /// Reserves a free port, or `None` if the whole range is busy.
@@ -35,9 +48,9 @@ impl PortAllocator {
             .taken
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let port = self
-            .range
-            .clone()
+        let len = self.range.end.saturating_sub(self.range.start);
+        let port = (0..len)
+            .map(|i| self.range.start + (self.offset + i) % len)
             .filter(|port| !taken.contains(port))
             .find(|port| is_free(*port))?;
         taken.insert(port);
@@ -86,6 +99,20 @@ mod tests {
         assert!(QUICK_SHARE_PORTS.contains(&second));
         allocator.release(first);
         assert_eq!(allocator.allocate(), Some(first));
+    }
+
+    #[test]
+    fn spreads_processes_over_the_range() {
+        let a = PortAllocator::new(20450..20460).spread(3);
+        let b = PortAllocator::new(20450..20460).spread(17);
+        let (pa, pb) = (a.allocate().unwrap(), b.allocate().unwrap());
+        assert_ne!(pa, pb, "different processes start in different places");
+        assert!((20450..20460).contains(&pa) && (20450..20460).contains(&pb));
+        // It still wraps around and hands out every port.
+        let all = PortAllocator::new(20460..20464).spread(3);
+        let mut ports: Vec<u16> = std::iter::from_fn(|| all.allocate()).collect();
+        ports.sort_unstable();
+        assert_eq!(ports.len(), 4);
     }
 
     #[test]

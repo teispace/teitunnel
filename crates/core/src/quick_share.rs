@@ -431,9 +431,41 @@ pub fn qr_svg(url: &str) -> Option<String> {
     )
 }
 
+/// Renders `url` as a QR code of Unicode half blocks for a terminal. Light modules are
+/// drawn as blocks, as `qrencode -t utf8` does, so it scans on dark backgrounds (phone
+/// cameras also read the inverted code on light ones).
+pub fn qr_terminal(url: &str) -> Option<String> {
+    use qrcode::{EcLevel, QrCode, render::unicode::Dense1x2};
+    let code = QrCode::with_error_correction_level(url, EcLevel::L).ok()?;
+    Some(
+        code.render::<Dense1x2>()
+            .dark_color(Dense1x2::Light)
+            .light_color(Dense1x2::Dark)
+            .quiet_zone(true)
+            .build(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn renders_qr_for_a_terminal() {
+        let qr = qr_terminal("https://quiet-river-lamp-orbit.trycloudflare.com").unwrap();
+        let lines: Vec<&str> = qr.lines().collect();
+        assert!(lines.len() > 10);
+        assert!(
+            lines
+                .iter()
+                .all(|l| l.chars().count() == lines[0].chars().count()),
+            "square"
+        );
+        assert!(
+            lines[0].chars().all(|c| c == '\u{2588}'),
+            "quiet zone is light"
+        );
+    }
 
     #[test]
     fn renders_qr_svg() {
