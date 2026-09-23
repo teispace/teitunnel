@@ -6,7 +6,8 @@ name: Release
 #   signs, and publishes the release only once every file is attached, so the updater
 #   and the website never see half a release.
 #   Run it by hand (Actions ▸ Release ▸ Run workflow) for a dry run: everything is built
-#   and signed as far as the secrets allow, and kept as a workflow artifact.
+#   and signed as far as the secrets allow, and kept as a workflow artifact. Pull
+#   requests that change the release setup get the same dry run, without secrets.
 #
 # Secrets live in the `release` environment: APPLE_CERTIFICATE (base64 .p12),
 # APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_API_ISSUER, APPLE_API_KEY,
@@ -16,6 +17,13 @@ name: Release
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release/**
+      - release-please-config.json
+      - apps/desktop/src-tauri/tauri.conf.json
+      - apps/desktop/src-tauri/Cargo.toml
   workflow_dispatch:
 
 permissions:
@@ -46,11 +54,11 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     needs: release-please
-    # Runs for a release, or for a dry run by hand.
+    # Runs for a release, or for a dry run (by hand, or a pull request without secrets).
     if: >-
-      always() && (github.event_name == 'workflow_dispatch' ||
+      always() && (github.event_name != 'push' ||
       needs.release-please.outputs.created == 'true')
-    environment: release
+    environment: ${{ github.event_name != 'pull_request' && 'release' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -234,8 +242,8 @@ jobs:
     needs: [release-please, build]
     if: >-
       always() && needs.build.result == 'success' &&
-      (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.created == 'true')
-    environment: release
+      (github.event_name != 'push' || needs.release-please.outputs.created == 'true')
+    environment: ${{ github.event_name != 'pull_request' && 'release' || '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
