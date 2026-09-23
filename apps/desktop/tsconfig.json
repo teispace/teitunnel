@@ -24,7 +24,7 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/*": ["./src/*"], "@locales/*": ["../../locales/*"] }
   },
   "include": ["src"]
 }

@@ -2,6 +2,7 @@
 //! activity. Every Cloudflare change goes through the engine's plan → apply path.
 
 use std::time::Duration;
+use teitunnel_core::text::{UserText, msg::app as m};
 
 use tauri::{AppHandle, Runtime, State, ipc::Channel};
 use tauri_specta::Event;
@@ -107,7 +108,7 @@ pub async fn routes_verify(
 ) -> Result<Verification, AppError> {
     let api = state.accounts.client(&account_id).await?;
     let hostname = teitunnel_core::domain::Hostname::parse(&hostname)
-        .map_err(|e| AppError::invalid("hostname", e.to_string()))?;
+        .map_err(|e| AppError::invalid("hostname", e.text()))?;
     let patience = if wait {
         VERIFY_PATIENCE
     } else {
@@ -214,11 +215,7 @@ pub(crate) async fn start_machine<R: Runtime>(
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .remove(&tunnel.tunnel_id);
     }
-    state
-        .machine
-        .resume(&api, account_id)
-        .await
-        .map_err(AppError::internal)?;
+    state.machine.resume(&api, account_id).await?;
     changed(app, account_id);
     Ok(())
 }
@@ -236,11 +233,7 @@ pub(crate) async fn stop_machine<R: Runtime>(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(tunnel_id.to_owned());
-    state
-        .machine
-        .stop(tunnel_id)
-        .await
-        .map_err(AppError::internal)?;
+    state.machine.stop(tunnel_id).await?;
     changed(app, account_id);
     Ok(())
 }
@@ -269,7 +262,10 @@ pub async fn tunnels_clean(
 pub async fn import_scan() -> Result<Vec<teitunnel_core::import::LocalSetup>, AppError> {
     tauri::async_runtime::spawn_blocking(teitunnel_core::import::scan)
         .await
-        .map_err(|err| AppError::internal(format!("Couldn't look for cloudflared setups: {err}")))
+        .map_err(|err| {
+            tracing::warn!(error = %err, "import scan failed");
+            AppError::internal(m::scan_failed())
+        })
 }
 
 /// cloudflared processes on this Mac that Teitunnel didn't start.
@@ -287,9 +283,7 @@ pub async fn foreign_stop(pid: u32) -> Result<(), AppError> {
     if teitunnel_core::discovery::cloudflared::stop(pid).await {
         Ok(())
     } else {
-        Err(AppError::internal(
-            "That cloudflared isn't running any more.",
-        ))
+        Err(AppError::internal(m::foreign_gone()))
     }
 }
 
@@ -392,9 +386,7 @@ pub async fn routes_export_save(
 ) -> Result<String, AppError> {
     let file = routes_export(state, account_id, format)
         .await?
-        .ok_or_else(|| {
-            AppError::invalid("account", "This Mac has no routes in this account yet.")
-        })?;
+        .ok_or_else(|| AppError::invalid("account", m::no_routes()))?;
     let contents = file.contents;
     crate::ipc::app::save_to_downloads(&app, &file.file_name, move |path| {
         std::fs::write(path, contents)
@@ -421,8 +413,7 @@ pub async fn routes_logs(
             path.as_deref(),
             usize::try_from(limit).unwrap_or(usize::MAX),
         )
-        .await
-        .map_err(AppError::internal)?;
+        .await?;
     Ok(crate::ipc::quick_share::log_lines(&events))
 }
 
@@ -450,7 +441,7 @@ pub async fn tunnels_traffic_history(
         .machine
         .traffic_history(&tunnel_id, range)
         .await
-        .map_err(AppError::internal)
+        .map_err(AppError::from)
 }
 
 /// Whether this Mac's connector can run as a service, and whether it does.
@@ -491,8 +482,7 @@ pub async fn tunnels_set_always_on(
     state
         .machine
         .set_always_on(&api, &account_id, enabled)
-        .await
-        .map_err(AppError::internal)?;
+        .await?;
     changed(&app, &account_id);
     Ok(())
 }

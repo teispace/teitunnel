@@ -296,6 +296,14 @@ export type ActivityRecord = {
 	steps: RecordedStep[],
 	/**  What changed, routes first. */
 	changes: Delta[],
+	/**  What was asked (absent in entries from before messages had keys). */
+	summary?: Text | null,
+	/**  Why it failed, when it did. */
+	error?: Text | null,
+	/**  What couldn't be undone after a failure. */
+	leftovers?: Text[],
+	/**  The routes were applied but this Mac's connector couldn't be started. */
+	connectorError?: Text | null,
 };
 
 /**  Whether this Mac's connector can run as a service, and whether it does. */
@@ -306,14 +314,20 @@ export type AlwaysOn = {
 	enabled: boolean,
 };
 
-/**  An error as shown to the user: what happened, and what to do about it. */
+/**
+ *  An error as shown to the user: what happened, and what to do about it. The text is
+ *  translated by the UI (D-062).
+ */
 export type AppError = {
 	/**  Category for programmatic handling. */
 	code: ErrorCode,
 	/**  One sentence describing what happened. */
-	message: string,
-	/**  What the user can do about it. */
-	hint: string | null,
+	message: Text,
+	/**
+	 *  What the user can do about it (boxed: most errors have none, and a small error
+	 *  keeps every command's `Result` small).
+	 */
+	hint: Text | null,
 	/**  The input field the error refers to. */
 	field: string | null,
 };
@@ -329,6 +343,13 @@ export type AppInfo = {
 	/**  Directory holding the database, logs and managed binaries. */
 	dataDir: string,
 };
+
+/**  A message argument: a number (formatted for the language) or text. */
+export type Arg = 
+/**  A number, e.g. a count (a JavaScript number in the UI). */
+number | null | 
+/**  Anything else, already as text (hostnames, names, versions). */
+string;
 
 /**  Where cloudflared comes from and whether it's new enough. */
 export type BinaryInfo = {
@@ -500,9 +521,9 @@ export type Delta = {
 	/**  Path rule, for routes that have one. */
 	path: string | null,
 	/**  What it was. */
-	before: string | null,
+	before: Text | null,
 	/**  What it became. */
-	after: string | null,
+	after: Text | null,
 };
 
 /**  Where a change happened. */
@@ -666,7 +687,7 @@ export type Fix =
 /**  A change in Cloudflare, previewed as a plan before it's applied. */
 { type: "change"; 
 /**  Button title, e.g. "Fix the DNS Record". */
-label: string; 
+label: Text; 
 /**  The change. */
 change: Change } | 
 /**  Install (or update) the managed cloudflared. */
@@ -738,7 +759,7 @@ export type FoundRoute = {
 	/**  Service, e.g. `http://localhost:3000`. */
 	service: string,
 	/**  Why it can't be imported, if it can't. */
-	unsupported: string | null,
+	unsupported: Text | null,
 };
 
 /**  The result of probing one permission. */
@@ -780,14 +801,16 @@ export type Issue = {
 	severity: Severity,
 	/**  The account it's in, if any. */
 	accountId: string | null,
-	/**  What it's about, e.g. a hostname or a tunnel name. */
+	/**  What it's about, e.g. a hostname or a tunnel name (stable: part of `id`). */
 	subject: string,
+	/**  `subject` as shown to the user. */
+	label: Text,
 	/**  One line. */
-	title: string,
+	title: Text,
 	/**  What it means and what to do. */
-	detail: string,
+	detail: Text,
 	/**  Supporting facts (records, states). */
-	evidence: string[],
+	evidence: Text[],
 	/**  Fixes, the recommended one first. */
 	fixes: Fix[],
 };
@@ -828,7 +851,7 @@ export type LocalSetup = {
 	 */
 	hasGlobalOptions: boolean,
 	/**  Problems reading the file. */
-	problem: string | null,
+	problem: Text | null,
 };
 
 /**  One cloudflared log line, for the log drawer. */
@@ -913,21 +936,21 @@ tunnelId: string | null;
 /**  Hostnames to verify next. */
 verify: string[]; 
 /**  The connector couldn't be started (the routes are configured, though). */
-connectorError: string | null } | 
+connectorError: Text | null } | 
 /**  A step failed and everything done before it was undone. */
 { type: "rolledBack"; 
 /**  Index of the failed step. */
 failedStep: number; 
 /**  Why it failed. */
-error: string } | 
+error: Text } | 
 /**  A step failed and some earlier changes couldn't be undone. */
 { type: "partiallyApplied"; 
 /**  Index of the failed step. */
 failedStep: number; 
 /**  Why it failed. */
-error: string; 
+error: Text; 
 /**  What was left in place. */
-leftovers: string[] };
+leftovers: Text[] };
 
 /**  A plan, as shown in the preview. */
 export type PlanView = {
@@ -987,7 +1010,7 @@ export type RemoteLogState =
 /**  Stopped for good; stop the session and read again to retry. */
 { state: "ended"; 
 /**  Why, in a sentence. */
-message: string };
+message: Text };
 
 /**  A connector's live logs, when it runs on another machine. */
 export type RemoteLogsView = {
@@ -1167,7 +1190,7 @@ export type ShareStatus =
 /**  It failed and won't recover by itself. */
 { status: "failed"; 
 /**  What went wrong, for the user. */
-message: string };
+message: Text };
 
 /**  What a step does, for its icon. */
 export type StepKind = 
@@ -1205,7 +1228,7 @@ export type StepState =
 /**  Failed with a message. */
 { state: "failed"; 
 /**  What went wrong. */
-message: string } | 
+message: Text } | 
 /**  Being undone after a later step failed. */
 { state: "undoing" } | 
 /**  Undone. */
@@ -1213,16 +1236,29 @@ message: string } |
 /**  Couldn't be undone; left in place. */
 { state: "undoFailed"; 
 /**  What went wrong. */
-message: string };
+message: Text };
 
 /**  One step of a plan, as shown in the preview. */
 export type StepView = {
 	/**  What it does. */
 	kind: StepKind,
 	/**  One line for the user. */
-	description: string,
+	description: Text,
 	/**  "Copy as command" text, when there's an equivalent command. */
 	command: string | null,
+};
+
+/**
+ *  A message for the user: a catalog key and its arguments.
+ * 
+ *  Also deserializes from a plain string, shown verbatim: that's how text stored
+ *  before messages had keys (activity history) still loads.
+ */
+export type Text = {
+	/**  The catalog key, e.g. `core.doctor.dnsMissing.title`. */
+	key: string,
+	/**  Values for the message's `{placeholders}`; `count` picks a plural form. */
+	args: { [key in string]: Arg },
 };
 
 /**  Appearance override. */
@@ -1323,7 +1359,7 @@ export type Verification = {
 	/**  What's wrong, if anything. */
 	failure: Failure | null,
 	/**  The failure, in a sentence for the UI. */
-	message: string | null,
+	message: Text | null,
 	/**
 	 *  Cloudflare asked for a login (Access) instead of passing the request on, so the
 	 *  check reached the edge but not the origin behind the login.

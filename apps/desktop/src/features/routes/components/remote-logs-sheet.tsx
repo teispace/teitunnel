@@ -2,7 +2,7 @@ import { LogViewer } from "@/components/patterns/log-viewer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { ConnectorView } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { type RemoteConnector, useRemoteLogs, useSaveLog } from "../queries";
@@ -25,7 +25,7 @@ export function RemoteLogsSheet({ target, onClose }: RemoteLogsSheetProps) {
   const status =
     error?.message ??
     (state?.state === "ended"
-      ? state.message
+      ? translate(state.message)
       : state?.state === "streaming"
         ? null
         : t("remoteLogs.connecting"));

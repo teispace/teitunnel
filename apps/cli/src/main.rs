@@ -330,12 +330,13 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
         let login = route
             .access
             .as_ref()
-            .map(|rule| format!("\tlogin: {}", rule.summary()))
+            .map(|rule| format!("\tlogin: {}", rule.people()))
             .unwrap_or_default();
         out!(
-            "{}{path}\t{}\t{status}{login}",
+            "{}{path}\t{}\t{}{login}",
             route.hostname,
-            route.origin
+            route.origin,
+            status.text().english()
         )?;
         if let Some(client) = &route.client {
             out!("    connect: {}", client.command)?;

@@ -1,5 +1,5 @@
 import type { Status } from "@/components/ui/status-dot";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { ConnectorState, Issue, RouteView, TunnelView } from "@/lib/ipc/bindings";
 
 export function connectorStatus(state: ConnectorState | null): { dot: Status; label: string } {
@@ -32,6 +32,7 @@ export function routeStatus(
   const connector = connectorStatus(tunnel?.connector ?? null);
   if (connector.dot !== "healthy") return connector;
   const issue = issues.find((i) => i.subject === route.hostname && i.severity !== "info");
-  if (issue) return { dot: issue.severity === "error" ? "error" : "warning", label: issue.title };
+  if (issue)
+    return { dot: issue.severity === "error" ? "error" : "warning", label: translate(issue.title) };
   return { dot: "healthy", label: t("status.live") };
 }

@@ -26,8 +26,9 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
+import { summaryOf } from "@/features/activity/model";
 import { useIssues } from "@/features/doctor/queries";
-import { type MessageKey, t } from "@/lib/i18n";
+import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
@@ -103,7 +104,7 @@ function ConnectSection({ client }: { client: ClientAccess }) {
 function TestResult({ result }: { result: Verification }) {
   return result.failure ? (
     <p role="status" className="text-callout text-warning">
-      {result.message}
+      {result.message ? translate(result.message) : null}
     </p>
   ) : (
     <p role="status" className="text-callout text-healthy">
@@ -228,7 +229,7 @@ function RouteInspector({
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="flex flex-col text-callout">
                 <span className={entry.outcome === "applied" ? "" : "text-warning"}>
-                  {entry.summary}
+                  {summaryOf(entry)}
                 </span>
                 <span className="text-secondary">
                   {relativeTime(entry.at)}

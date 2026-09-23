@@ -7,7 +7,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
 import { formatDuration, stripScheme } from "@/lib/format";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
 import { spring } from "@/lib/motion-tokens";
 import { openUrl } from "@/lib/open-url";
@@ -64,7 +64,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
       </header>
 
       {share.status.status === "failed" ? (
-        <p className="text-body text-secondary">{share.status.message}</p>
+        <p className="text-body text-secondary">{translate(share.status.message)}</p>
       ) : (
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">

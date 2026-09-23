@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
+use teitunnel_core::text::{Text, msg::notify as n};
 
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_notification::NotificationExt;
@@ -186,12 +187,12 @@ pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
                 machine_name: &state.machine_name,
             };
             if let Ok(overview) = state.engine.overview(&api, &state.machine, ctx).await {
-                routes.extend(overview.statuses().into_iter().map(|(hostname, status)| {
-                    shell::tray::TrayRoute {
-                        hostname,
-                        status: status.to_owned(),
-                    }
-                }));
+                routes.extend(
+                    overview
+                        .statuses()
+                        .into_iter()
+                        .map(|(hostname, status)| shell::tray::TrayRoute { hostname, status }),
+                );
             }
         }
         let connectors = match (tunnels, running) {
@@ -236,7 +237,7 @@ pub(crate) fn move_connectors_to_current_binary<R: Runtime>(app: &AppHandle<R>) 
                 Ok(false) => {}
                 Err(err) => {
                     tracing::warn!(account = %account.id, %err, "couldn't move the connector to the new cloudflared");
-                    notify(&app, "Routes still use the previous cloudflared", &err);
+                    notify(&app, &n::old_binary(), &err);
                 }
             }
         }
@@ -273,7 +274,7 @@ pub(crate) fn toggle_machine_routes<R: Runtime>(app: &AppHandle<R>) {
             };
             if let Err(err) = result {
                 tracing::warn!(%err, "couldn't switch this Mac's routes from the menu bar");
-                notify(&app, "Couldn't switch routes", &err.to_string());
+                notify(&app, &n::switch_failed(), &err.message);
             }
         }
     });
@@ -329,11 +330,18 @@ fn any_window_focused<R: Runtime>(app: &AppHandle<R>) -> bool {
         .any(|w| w.is_focused().unwrap_or(false))
 }
 
-fn notify<R: Runtime>(app: &AppHandle<R>, title: &str, body: &str) {
+/// Shows a notification in the user's language, unless a Teitunnel window is in front.
+fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     if any_window_focused(app) {
         return;
     }
-    if let Err(err) = app.notification().builder().title(title).body(body).show() {
+    if let Err(err) = app
+        .notification()
+        .builder()
+        .title(title.to_string())
+        .body(body.to_string())
+        .show()
+    {
         tracing::warn!(error = %err, "failed to show notification");
     }
 }
@@ -379,19 +387,11 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                     continue;
                 }
                 match notice {
-                    Some(Notice::Down) => notify(
-                        &app,
-                        "Routes on this Mac are down",
-                        "The connector lost its connection to Cloudflare. Teitunnel keeps retrying.",
-                    ),
-                    Some(Notice::Back) => {
-                        notify(&app, "Routes are back", "The connector is connected again.");
+                    Some(Notice::Down) => notify(&app, &n::routes_down(), &n::routes_down_body()),
+                    Some(Notice::Back) => notify(&app, &n::routes_back(), &n::routes_back_body()),
+                    Some(Notice::CrashLoop) => {
+                        notify(&app, &n::crash_loop(), &n::crash_loop_body());
                     }
-                    Some(Notice::CrashLoop) => notify(
-                        &app,
-                        "The connector keeps stopping",
-                        "Open Teitunnel's Doctor to see why.",
-                    ),
                     None => {}
                 }
             }
@@ -495,12 +495,18 @@ fn notify_transition<R: Runtime>(
     }
     let (title, body) = match (&share.status, before) {
         (ShareStatus::Live, Some(ShareStatus::Starting)) => {
-            ("Quick Share is live", share.url.clone().unwrap_or_default())
+            (n::share_live(), share.url.clone().unwrap_or_default())
         }
-        (ShareStatus::Failed { message }, _) => ("Quick Share stopped working", message.clone()),
+        (ShareStatus::Failed { message }, _) => (n::share_failed(), message.to_string()),
         _ => return,
     };
-    if let Err(err) = app.notification().builder().title(title).body(body).show() {
+    if let Err(err) = app
+        .notification()
+        .builder()
+        .title(title.to_string())
+        .body(body)
+        .show()
+    {
         tracing::warn!(error = %err, "failed to show notification");
     }
 }

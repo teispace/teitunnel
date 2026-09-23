@@ -18,6 +18,7 @@ use tokio::net::{TcpStream, lookup_host};
 
 use super::types::{Snapshot, tunnel_target};
 use crate::domain::{Hostname, RouteOrigin};
+use crate::text::Text;
 
 /// How long one HTTPS probe may take.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -97,24 +98,21 @@ impl Failure {
     }
 
     /// One sentence for the UI.
-    pub fn message(&self) -> String {
+    pub fn message(&self) -> Text {
+        use crate::text::msg::verify as m;
         match self {
-            Self::NoRecord => "There's no DNS record for this hostname.".to_owned(),
-            Self::RecordElsewhere { content } => {
-                format!("The DNS record points at {content}, not at this Mac's tunnel.")
-            }
-            Self::EdgeUnreachable { message } => format!("Couldn't reach Cloudflare: {message}"),
-            Self::CertificateNotCovered => "Cloudflare's free certificate covers one level of subdomain (app.example.com), not deeper names like a.b.example.com. Use a single-level name or add an Advanced Certificate.".to_owned(),
-            Self::NotOnCloudflareYet => "Cloudflare doesn't serve this hostname yet. New records usually take a few seconds.".to_owned(),
-            Self::NoConnector => "Cloudflare can't reach this Mac: the connector isn't connected.".to_owned(),
-            Self::TunnelMismatch => "The hostname points at a tunnel that doesn't serve it.".to_owned(),
-            Self::OriginUnreachable { listening: Some(false) } => {
-                "Nothing is listening on the origin's port. Start your app and test again.".to_owned()
-            }
-            Self::OriginUnreachable { .. } => {
-                "The tunnel works, but the connector couldn't connect to the origin.".to_owned()
-            }
-            Self::OriginTimeout => "The origin didn't answer in time.".to_owned(),
+            Self::NoRecord => m::no_record(),
+            Self::RecordElsewhere { content } => m::record_elsewhere(content),
+            Self::EdgeUnreachable { message } => m::edge_unreachable(message),
+            Self::CertificateNotCovered => m::certificate_not_covered(),
+            Self::NotOnCloudflareYet => m::not_on_cloudflare_yet(),
+            Self::NoConnector => m::no_connector(),
+            Self::TunnelMismatch => m::tunnel_mismatch(),
+            Self::OriginUnreachable {
+                listening: Some(false),
+            } => m::origin_not_listening(),
+            Self::OriginUnreachable { .. } => m::origin_unreachable(),
+            Self::OriginTimeout => m::origin_timeout(),
         }
     }
 }
@@ -131,7 +129,7 @@ pub struct Verification {
     /// What's wrong, if anything.
     pub failure: Option<Failure>,
     /// The failure, in a sentence for the UI.
-    pub message: Option<String>,
+    pub message: Option<Text>,
     /// Cloudflare asked for a login (Access) instead of passing the request on, so the
     /// check reached the edge but not the origin behind the login.
     pub protected: bool,

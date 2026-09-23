@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { rawText } from "@/lib/i18n";
 import type { Change, PlanView, RoutesOverview, RouteView } from "@/lib/ipc/bindings";
 import { RoutesPage } from "./routes-page";
 
@@ -20,7 +21,7 @@ const plan = (change: Change): PlanView => {
   if (change.type === "addRoute" && change.route.hostname.startsWith("bad.")) {
     throw {
       code: "invalidInput",
-      message: "Include the domain, like app.example.com.",
+      message: { key: "core.error.hostname.noDomain", args: {} },
       hint: null,
       field: "hostname",
     };
@@ -28,10 +29,20 @@ const plan = (change: Change): PlanView => {
   const foreign = change.type === "addRoute" && change.route.hostname === "old.xyz.com";
   return {
     steps: [
-      { kind: "putConfig", description: "Update tunnel “Mac” to serve 2 routes", command: null },
+      {
+        kind: "putConfig",
+        description: rawText("Update tunnel “Mac” to serve 2 routes"),
+        command: null,
+      },
       ...(change.type === "removeRoute"
-        ? [{ kind: "deleteRecord" as const, description: "Delete DNS record", command: null }]
-        : [{ kind: "verify" as const, description: "Check it works", command: null }]),
+        ? [
+            {
+              kind: "deleteRecord" as const,
+              description: rawText("Delete DNS record"),
+              command: null,
+            },
+          ]
+        : [{ kind: "verify" as const, description: rawText("Check it works"), command: null }]),
     ],
     warnings: foreign
       ? [

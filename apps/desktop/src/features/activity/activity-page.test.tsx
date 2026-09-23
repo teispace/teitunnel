@@ -4,12 +4,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { rawText } from "@/lib/i18n";
 import type { ActivityEntry, RoutesOverview } from "@/lib/ipc/bindings";
 import { ActivityPage } from "./activity-page";
 
 const step = (description: string, command: string | null) => ({
   kind: "putConfig" as const,
-  description,
+  description: rawText(description),
   command,
 });
 
@@ -28,7 +29,7 @@ const entries: ActivityEntry[] = [
         { step: step("Update tunnel “Mac”", "curl -X PUT …"), state: { state: "undone" } },
         {
           step: step("Add DNS record app.xyz.com", null),
-          state: { state: "failed", message: "record already exists" },
+          state: { state: "failed", message: rawText("record already exists") },
         },
       ],
       changes: [
@@ -37,7 +38,7 @@ const entries: ActivityEntry[] = [
           hostname: "app.xyz.com",
           path: null,
           before: null,
-          after: "http://localhost:3000",
+          after: rawText("http://localhost:3000"),
         },
       ],
     },

@@ -33,6 +33,8 @@ use crate::{
     store::{Store, StoreError},
 };
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// How an account was connected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -82,22 +84,12 @@ pub struct Account {
 #[derive(Debug, thiserror::Error)]
 pub enum AccountError {
     /// Cloudflare rejected the token.
-    #[error(
-        "Cloudflare didn't accept this token. Check that you copied all of it and that it hasn't expired."
-    )]
     InvalidToken,
     /// The token works but can't see any account or zone.
-    #[error(
-        "This token can't access any Cloudflare account or domain. Create it with the Teitunnel template."
-    )]
     NoAccess,
     /// The cert.pem file couldn't be read or parsed.
-    #[error(
-        "That cert.pem doesn't contain a Cloudflare login. Run `cloudflared tunnel login` again, or use an API token."
-    )]
     InvalidCert,
     /// Unknown account.
-    #[error("That account isn't connected.")]
     NotFound,
     /// Cloudflare or the network failed.
     #[error(transparent)]
@@ -112,6 +104,23 @@ pub enum AccountError {
     #[error(transparent)]
     Store(#[from] StoreError),
 }
+
+impl UserText for AccountError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Api(err) => err.text(),
+            Self::OAuth(err) => err.text(),
+            Self::Secret(err) => err.text(),
+            Self::Store(err) => err.text(),
+            Self::InvalidToken => msg::error::account::invalid_token(),
+            Self::NoAccess => msg::error::account::no_access(),
+            Self::InvalidCert => msg::error::account::invalid_cert(),
+            Self::NotFound => msg::error::account::not_found(),
+        }
+    }
+}
+
+english_display!(AccountError);
 
 fn secret_key(account: &str, kind: CredentialKind) -> String {
     format!("cf:{account}:{}", kind.as_str())
@@ -253,11 +262,9 @@ impl Accounts {
     /// [`AccountError::NoAccess`] if the grant reaches nothing, or
     /// [`AccountError::OAuth`] if Cloudflare didn't issue a refresh token.
     pub async fn add_oauth(&self, tokens: oauth::TokenSet) -> Result<Vec<Account>, AccountError> {
-        let refresh = tokens.refresh_token.ok_or_else(|| {
-            AccountError::OAuth(oauth::OAuthError::Exchange(
-                "Cloudflare didn't allow offline access".into(),
-            ))
-        })?;
+        let refresh = tokens
+            .refresh_token
+            .ok_or_else(|| AccountError::OAuth(oauth::OAuthError::NoOfflineAccess))?;
         let client = self.client_with(&tokens.access_token)?;
         let reachable = reachable_accounts(&client).await?;
         let added = self

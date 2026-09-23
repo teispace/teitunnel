@@ -39,10 +39,15 @@ idna.workspace = true
 sha2.workspace = true
 listeners.workspace = true
 ipnet.workspace = true
+intl_pluralrules.workspace = true
+unic-langid.workspace = true
 qrcode.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
 tracing.workspace = true
 uuid.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true

@@ -21,6 +21,8 @@ use crate::{
     store::Store,
 };
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// How long to wait for a URL and a live connection.
 const URL_TIMEOUT: Duration = Duration::from_secs(30);
 /// New trycloudflare.com names take ~3–4 s to reach public DNS (measured, D-037), and
@@ -37,15 +39,26 @@ pub enum QuickShareError {
     #[error(transparent)]
     Binary(#[from] cloudflared::Error),
     /// No free metrics port.
-    #[error("Too many Quick Shares are running.")]
     NoFreePort,
     /// Unknown share.
-    #[error("That Quick Share isn't running.")]
     NotFound,
     /// The supervisor refused.
     #[error(transparent)]
     Runtime(#[from] crate::runtime::SupervisorError),
 }
+
+impl UserText for QuickShareError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Binary(err) => err.text(),
+            Self::Runtime(err) => err.text(),
+            Self::NoFreePort => msg::error::quick_share::no_free_port(),
+            Self::NotFound => msg::error::quick_share::not_found(),
+        }
+    }
+}
+
+english_display!(QuickShareError);
 
 /// Where a share is in its life.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -61,7 +74,7 @@ pub enum ShareStatus {
     /// It failed and won't recover by itself.
     Failed {
         /// What went wrong, for the user.
-        message: String,
+        message: Text,
     },
 }
 
@@ -330,7 +343,7 @@ impl QuickShares {
         }
         self.update(&id, |share| {
             share.status = ShareStatus::Failed {
-                message: "Cloudflare didn't provide a URL in time. Check your internet connection and try again.".into(),
+                message: msg::quick_share::no_url(),
             };
         });
     }
@@ -355,7 +368,7 @@ impl QuickShares {
         let next = match state {
             ConnectorState::Degraded | ConnectorState::Crashed { .. } => ShareStatus::Reconnecting,
             ConnectorState::CrashLoop { .. } => ShareStatus::Failed {
-                message: "cloudflared keeps exiting. See the log for details.".into(),
+                message: msg::quick_share::crash_loop(),
             },
             // First connection: `await_url` decides when the URL is live.
             ConnectorState::Healthy { .. }

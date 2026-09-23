@@ -2,25 +2,36 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why a hostname was rejected. Messages are shown under the field.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum HostnameError {
     /// Nothing entered.
-    #[error("Enter a hostname, like app.example.com.")]
     Empty,
     /// Not a valid DNS name.
-    #[error("That isn't a valid hostname. Use letters, digits and hyphens, separated by dots.")]
     Invalid,
     /// A single label (no dot).
-    #[error("Include the domain, like app.example.com.")]
     NoDomain,
     /// `*` used somewhere other than the whole first label.
-    #[error("A wildcard can only be the first part, like *.example.com.")]
     BadWildcard,
     /// Longer than DNS allows.
-    #[error("That hostname is too long.")]
     TooLong,
 }
+
+impl UserText for HostnameError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Empty => msg::error::hostname::empty(),
+            Self::Invalid => msg::error::hostname::invalid(),
+            Self::NoDomain => msg::error::hostname::no_domain(),
+            Self::BadWildcard => msg::error::hostname::bad_wildcard(),
+            Self::TooLong => msg::error::hostname::too_long(),
+        }
+    }
+}
+
+english_display!(HostnameError);
 
 /// A validated, lowercase, ASCII (punycode) hostname, optionally a leading wildcard.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]

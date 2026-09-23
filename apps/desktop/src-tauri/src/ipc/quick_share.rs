@@ -1,6 +1,7 @@
 //! Quick Share, local services and binary status commands.
 
 use std::time::Duration;
+use teitunnel_core::text::msg::app as m;
 
 use serde::Serialize;
 use specta::Type;
@@ -108,7 +109,7 @@ pub async fn binary_reveal(
         .map_err(teitunnel_core::Error::from)?;
     app.opener()
         .reveal_item_in_dir(&status.path)
-        .map_err(|err| AppError::internal(format!("Couldn't open Finder: {err}")))
+        .map_err(|err| AppError::internal(m::finder(err)))
 }
 
 /// Install progress, streamed to the webview.
@@ -242,5 +243,5 @@ pub(crate) fn log_lines(
 #[tauri::command]
 #[specta::specta]
 pub fn quick_share_qr(url: String) -> Result<String, AppError> {
-    qr_svg(&url).ok_or_else(|| AppError::invalid("url", "That URL is too long for a QR code."))
+    qr_svg(&url).ok_or_else(|| AppError::invalid("url", m::qr_too_long()))
 }

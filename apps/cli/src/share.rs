@@ -139,7 +139,7 @@ pub(crate) async fn run(
             Some(QuickShare {
                 status: ShareStatus::Failed { message },
                 ..
-            }) => break Err(message),
+            }) => break Err(message.english()),
             Some(QuickShare {
                 status: ShareStatus::Live,
                 url: Some(url),

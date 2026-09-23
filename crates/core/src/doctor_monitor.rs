@@ -12,6 +12,7 @@ use std::{
 };
 
 use crate::doctor::{Issue, Severity};
+use crate::text::{Text, msg};
 
 /// How often the Doctor runs in the background (and how fresh a window-triggered run
 /// must be to skip one).
@@ -30,9 +31,9 @@ const QUIET_CHECKS: &[&str] = &[
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DoctorNotice {
     /// Title.
-    pub title: String,
+    pub title: Text,
     /// Body.
-    pub body: String,
+    pub body: Text,
 }
 
 #[derive(Debug, Default)]
@@ -88,12 +89,9 @@ impl DoctorMonitor {
                 body: one.detail.clone(),
             }),
             [first, rest @ ..] => Some(DoctorNotice {
-                title: format!("Teitunnel found {} problems", rest.len() + 1),
-                body: format!(
-                    "{}, and {} more. Open the Doctor to fix them.",
-                    first.title,
-                    rest.len()
-                ),
+                title: msg::notify::doctor_many((rest.len() + 1) as u64),
+                // The first title is rendered into the body in the user's language.
+                body: msg::notify::doctor_many_body(rest.len() as u64, &first.title),
             }),
         }
     }
@@ -110,8 +108,9 @@ mod tests {
             severity,
             account_id: None,
             subject: id.into(),
-            title: format!("{id} is broken"),
-            detail: format!("Fix {id}."),
+            label: msg::raw(id),
+            title: msg::raw(format!("{id} is broken")),
+            detail: msg::raw(format!("Fix {id}.")),
             evidence: Vec::new(),
             fixes: Vec::new(),
         }
@@ -130,8 +129,8 @@ mod tests {
         let notice = monitor
             .record(&[a.clone(), warning.clone()], &none, t0)
             .unwrap();
-        assert_eq!(notice.title, "a is broken");
-        assert_eq!(notice.body, "Fix a.");
+        assert_eq!(notice.title.english(), "a is broken");
+        assert_eq!(notice.body.english(), "Fix a.");
         assert!(!monitor.due(t0 + Duration::from_secs(60)));
         assert!(monitor.due(t0 + INTERVAL));
 
@@ -143,9 +142,9 @@ mod tests {
             issue("c", "dns.conflict", Severity::Error),
         ];
         let notice = monitor.record(&both, &none, t0).unwrap();
-        assert_eq!(notice.title, "Teitunnel found 2 problems");
+        assert_eq!(notice.title.english(), "Teitunnel found 2 problems");
         assert_eq!(
-            notice.body,
+            notice.body.english(),
             "b is broken, and 1 more. Open the Doctor to fix them."
         );
 

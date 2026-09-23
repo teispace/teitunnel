@@ -976,7 +976,7 @@ fn sharing_a_network_creates_the_tunnel_if_needed() {
     assert_eq!(kinds(&p), ["net+"]);
     assert!(p.warnings.is_empty() && !p.requires_confirmation);
     assert_eq!(
-        p.steps[0].describe(&p.tunnel_name),
+        p.steps[0].describe(&p.tunnel_name).english(),
         "Route private network 192.168.1.0/24 to tunnel “Krishna's MacBook Pro”"
     );
 }

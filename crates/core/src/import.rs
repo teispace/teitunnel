@@ -8,6 +8,7 @@ use cf_api::IngressRule;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::text::{Text, msg};
 use crate::{domain::RouteOrigin, engine::RouteInput};
 
 /// Where cloudflared looks for its configuration.
@@ -39,7 +40,7 @@ pub struct FoundRoute {
     /// Service, e.g. `http://localhost:3000`.
     pub service: String,
     /// Why it can't be imported, if it can't.
-    pub unsupported: Option<String>,
+    pub unsupported: Option<Text>,
 }
 
 impl FoundRoute {
@@ -73,7 +74,7 @@ pub struct LocalSetup {
     /// carry over per route yet.
     pub has_global_options: bool,
     /// Problems reading the file.
-    pub problem: Option<String>,
+    pub problem: Option<Text>,
 }
 
 #[derive(Deserialize)]
@@ -114,14 +115,11 @@ fn expand(path: &str, base: &Path) -> PathBuf {
 fn route(rule: &IngressRule) -> Option<FoundRoute> {
     let hostname = rule.hostname.clone()?;
     let unsupported = if hostname.contains('*') && !hostname.starts_with("*.") {
-        Some("Wildcards are only supported as the first label".to_owned())
+        Some(msg::import::wildcard())
     } else if RouteOrigin::parse(&rule.service).is_err() {
-        Some(format!(
-            "“{}” isn't a service Teitunnel routes to",
-            rule.service
-        ))
+        Some(msg::import::service(&rule.service))
     } else if !rule.origin_request.is_empty() {
-        Some("It has per-route settings (originRequest) Teitunnel doesn't edit yet".to_owned())
+        Some(msg::import::origin_request())
     } else {
         None
     };
@@ -147,14 +145,14 @@ pub fn read_setup(path: &Path) -> LocalSetup {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(err) => {
-            setup.problem = Some(format!("Couldn't read it: {err}"));
+            setup.problem = Some(msg::import::unreadable(err));
             return setup;
         }
     };
     let config: ConfigFile = match serde_saphyr::from_str(&text) {
         Ok(config) => config,
         Err(err) => {
-            setup.problem = Some(format!("It isn't valid YAML: {err}"));
+            setup.problem = Some(msg::import::invalid_yaml(err));
             return setup;
         }
     };
@@ -277,8 +275,9 @@ ingress:
         assert!(
             setups[0]
                 .problem
-                .as_deref()
+                .as_ref()
                 .unwrap()
+                .english()
                 .starts_with("It isn't valid YAML")
         );
         assert!(scan_in(&[dir.path().join("missing")]).is_empty());

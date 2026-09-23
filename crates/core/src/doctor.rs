@@ -24,6 +24,7 @@ use crate::{
         tunnel_target,
     },
     runtime::ConnectorState,
+    text::{Text, UserText, msg, msg::doctor as m},
 };
 
 /// How bad an issue is.
@@ -51,7 +52,7 @@ pub enum Fix {
     /// A change in Cloudflare, previewed as a plan before it's applied.
     Change {
         /// Button title, e.g. "Fix the DNS Record".
-        label: String,
+        label: Text,
         /// The change.
         change: Change,
     },
@@ -91,14 +92,16 @@ pub struct Issue {
     pub severity: Severity,
     /// The account it's in, if any.
     pub account_id: Option<String>,
-    /// What it's about, e.g. a hostname or a tunnel name.
+    /// What it's about, e.g. a hostname or a tunnel name (stable: part of `id`).
     pub subject: String,
+    /// `subject` as shown to the user.
+    pub label: Text,
     /// One line.
-    pub title: String,
+    pub title: Text,
     /// What it means and what to do.
-    pub detail: String,
+    pub detail: Text,
     /// Supporting facts (records, states).
-    pub evidence: Vec<String>,
+    pub evidence: Vec<Text>,
     /// Fixes, the recommended one first.
     pub fixes: Vec<Fix>,
 }
@@ -312,7 +315,7 @@ fn split_entry(entry: &cf_api::SplitTunnelEntry) -> Option<IpNet> {
 fn split_tunnel_problem(
     profile: &cf_api::DefaultDeviceProfile,
     range: &IpNet,
-) -> Option<(&'static str, Vec<String>)> {
+) -> Option<(&'static str, Vec<Text>)> {
     if let Some(include) = &profile.include {
         let covered = include
             .iter()
@@ -320,7 +323,7 @@ fn split_tunnel_problem(
             .any(|entry| entry.contains(range));
         return (!covered).then(|| ("network.not_included", Vec::new()));
     }
-    let excluded: Vec<String> = profile
+    let excluded: Vec<Text> = profile
         .exclude
         .iter()
         .flatten()
@@ -328,8 +331,8 @@ fn split_tunnel_problem(
         .filter(|(net, _)| net.contains(range) || range.contains(net))
         .map(
             |(net, e)| match e.description.as_deref().filter(|d| !d.is_empty()) {
-                Some(description) => format!("Excluded: {net} ({description})"),
-                None => format!("Excluded: {net}"),
+                Some(description) => m::network_excluded::excluded_named(net, description),
+                None => m::network_excluded::excluded(net),
             },
         )
         .collect();
@@ -403,14 +406,8 @@ pub async fn run<K: Connectors>(
             machine_name,
         };
         let gathered = async {
-            let api = accounts
-                .client(&account.id)
-                .await
-                .map_err(|e| e.to_string())?;
-            let domains = accounts
-                .domains(&account.id)
-                .await
-                .map_err(|e| e.to_string())?;
+            let api = accounts.client(&account.id).await.map_err(|e| e.text())?;
+            let domains = accounts.domains(&account.id).await.map_err(|e| e.text())?;
             let can_manage = accounts
                 .capabilities(&account.id)
                 .await
@@ -418,7 +415,7 @@ pub async fn run<K: Connectors>(
                 .map(|c| c.can_manage_routes());
             gather(engine, &api, machine, ctx, domains, can_manage)
                 .await
-                .map_err(|e| e.to_string())
+                .map_err(|e| e.text())
         }
         .await;
         match gathered {
@@ -429,7 +426,8 @@ pub async fn run<K: Connectors>(
                 severity: Severity::Error,
                 account_id: Some(account.id.clone()),
                 subject: account.name.clone(),
-                title: format!("Couldn't check {}", account.name),
+                label: msg::raw(&account.name),
+                title: m::unreadable::title(&account.name),
                 detail: message,
                 evidence: Vec::new(),
                 fixes: vec![Fix::Reconnect],
@@ -564,40 +562,72 @@ struct Found<'a> {
     issues: Vec<Issue>,
 }
 
+/// What an issue is about: a stable id part, and how it's shown.
+struct Subject {
+    id: String,
+    label: Text,
+}
+
+impl Subject {
+    /// A subject named in words (translated), with a fixed id.
+    fn named(id: &str, label: Text) -> Self {
+        Self {
+            id: id.to_owned(),
+            label,
+        }
+    }
+}
+
+/// A hostname, tunnel name or range: shown as it is.
+impl From<&str> for Subject {
+    fn from(name: &str) -> Self {
+        Self {
+            id: name.to_owned(),
+            label: msg::raw(name),
+        }
+    }
+}
+
+impl From<&String> for Subject {
+    fn from(name: &String) -> Self {
+        name.as_str().into()
+    }
+}
+
 impl Found<'_> {
     #[allow(clippy::too_many_arguments)]
     fn add(
         &mut self,
         check: &str,
         severity: Severity,
-        subject: &str,
-        title: String,
-        detail: &str,
-        evidence: Vec<String>,
+        subject: impl Into<Subject>,
+        title: Text,
+        detail: Text,
+        evidence: Vec<Text>,
         fixes: Vec<Fix>,
     ) {
+        let subject = subject.into();
         self.issues.push(Issue {
-            id: format!("{check}:{}:{subject}", self.account.unwrap_or("-")),
+            id: format!("{check}:{}:{}", self.account.unwrap_or("-"), subject.id),
             check: check.to_owned(),
             severity,
             account_id: self.account.map(str::to_owned),
-            subject: subject.to_owned(),
+            subject: subject.id,
+            label: subject.label,
             title,
-            detail: detail.to_owned(),
+            detail,
             evidence,
             fixes,
         });
     }
 }
 
-fn describe(record: &DnsRecord) -> String {
-    format!(
-        "{} {} {}{}",
-        record.name,
-        record.kind,
-        record.content,
-        if record.proxied { " (proxied)" } else { "" }
-    )
+fn describe(record: &DnsRecord) -> Text {
+    if record.proxied {
+        m::record_proxied(&record.name, &record.kind, &record.content)
+    } else {
+        m::record(&record.name, &record.kind, &record.content)
+    }
 }
 
 /// Checks on the connector's recent logs: patterns cloudflared prints for problems the
@@ -620,9 +650,9 @@ fn log_checks(found: &mut Found<'_>, tunnel: &str, logs: &[String]) {
             "net.udp_blocked",
             Severity::Warning,
             tunnel,
-            "This network seems to block QUIC (UDP)".into(),
-            "cloudflared falls back to HTTP/2, which works but can be slower to reconnect. If connections keep dropping, check firewall rules for UDP port 7844.",
-            vec![line],
+            m::udp_blocked::title(),
+            m::udp_blocked::detail(),
+            vec![msg::raw(line)],
             Vec::new(),
         );
     }
@@ -631,9 +661,9 @@ fn log_checks(found: &mut Found<'_>, tunnel: &str, logs: &[String]) {
             "origin.tls",
             Severity::Warning,
             tunnel,
-            "An HTTPS origin's certificate isn't trusted".into(),
-            "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the Mac trusts.",
-            vec![line],
+            m::origin_tls::title(),
+            m::origin_tls::detail(),
+            vec![msg::raw(line)],
             Vec::new(),
         );
     }
@@ -642,9 +672,9 @@ fn log_checks(found: &mut Found<'_>, tunnel: &str, logs: &[String]) {
             "net.clock_skew",
             Severity::Warning,
             tunnel,
-            "This Mac's clock may be wrong".into(),
-            "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time and date automatically in System Settings.",
-            vec![line],
+            m::clock_skew::title(),
+            m::clock_skew::detail(),
+            vec![msg::raw(line)],
             Vec::new(),
         );
     }
@@ -662,8 +692,8 @@ pub fn diagnose(facts: &Facts) -> Vec<Issue> {
             "binary.missing",
             Severity::Error,
             "cloudflared",
-            "cloudflared isn't installed".into(),
-            "Routes and Quick Share need cloudflared. Teitunnel can install a verified copy.",
+            m::binary_missing::title(),
+            m::binary_missing::detail(),
             Vec::new(),
             vec![Fix::InstallBinary],
         ),
@@ -671,33 +701,37 @@ pub fn diagnose(facts: &Facts) -> Vec<Issue> {
             "binary.unsupported",
             Severity::Warning,
             "cloudflared",
-            "cloudflared is too old".into(),
-            "Some features need a newer cloudflared. Install the managed copy to update.",
-            version.iter().map(|v| format!("Version {v}")).collect(),
+            m::binary_unsupported::title(),
+            m::binary_unsupported::detail(),
+            version.iter().map(m::binary_unsupported::version).collect(),
             vec![Fix::InstallBinary],
         ),
     }
     for connector in &facts.foreign {
         use crate::discovery::cloudflared::ForeignMode;
-        let what = match &connector.mode {
-            ForeignMode::QuickTunnel { origin } => format!("a Quick Tunnel for {origin}"),
+        use m::foreign_running as f;
+        let title = match &connector.mode {
+            ForeignMode::QuickTunnel { origin } => f::quick_tunnel(origin),
             ForeignMode::Named {
                 tunnel: Some(name), ..
-            } => format!("tunnel {name}"),
-            ForeignMode::Named { .. } => "a tunnel".to_owned(),
-            ForeignMode::Other => "cloudflared".to_owned(),
+            } => f::named(name),
+            ForeignMode::Named { .. } => f::unnamed(),
+            ForeignMode::Other => f::other(),
         };
         found.add(
             "tunnel.foreign_running",
             Severity::Info,
-            &format!("cloudflared (pid {})", connector.pid),
-            format!("cloudflared is running {what} outside Teitunnel"),
+            Subject::named(
+                &format!("cloudflared (pid {})", connector.pid),
+                f::subject(connector.pid),
+            ),
+            title,
             if connector.service {
-                "It was started as a background service. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes."
+                f::detail_service()
             } else {
-                "It was started outside Teitunnel. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes."
+                f::detail()
             },
-            vec![connector.command.clone()],
+            vec![msg::raw(&connector.command)],
             Vec::new(),
         );
     }
@@ -726,9 +760,9 @@ fn diagnose_account(
         found.add(
             "auth.missing_scope",
             Severity::Warning,
-            "Permissions",
-            "This account's token can't manage routes".into(),
-            "Routes need Cloudflare Tunnel · Edit and DNS · Edit. Create a token with those permissions and connect it again.",
+            Subject::named("Permissions", m::missing_scope::subject()),
+            m::missing_scope::title(),
+            m::missing_scope::detail(),
             Vec::new(),
             vec![Fix::Reconnect],
         );
@@ -740,9 +774,13 @@ fn diagnose_account(
                 "zone.pending",
                 Severity::Warning,
                 &domain.name,
-                format!("{} is waiting for its nameservers", domain.name),
-                "Routes on this domain won't work until the registrar uses Cloudflare's nameservers.",
-                domain.name_servers.iter().map(|ns| format!("Nameserver {ns}")).collect(),
+                m::zone_pending::title(&domain.name),
+                m::zone_pending::detail(),
+                domain
+                    .name_servers
+                    .iter()
+                    .map(m::zone_pending::nameserver)
+                    .collect(),
                 Vec::new(),
             );
         }
@@ -752,16 +790,20 @@ fn diagnose_account(
         found.add(
             "config.drift",
             Severity::Warning,
-            "Routes",
-            "This Mac's routes were changed outside Teitunnel".into(),
-            "Keep the changes, or restore what Teitunnel set up.",
-            drift.changes.iter().map(|c| c.hostname.clone()).collect(),
+            Subject::named("Routes", m::config_drift::subject()),
+            m::config_drift::title(),
+            m::config_drift::detail(),
+            drift
+                .changes
+                .iter()
+                .map(|c| msg::raw(&c.hostname))
+                .collect(),
             vec![
                 Fix::KeepTheirs {
                     account_id: account.to_owned(),
                 },
                 Fix::Change {
-                    label: "Restore Mine".into(),
+                    label: m::fix::restore_mine(),
                     change: Change::RestoreConfig,
                 },
             ],
@@ -786,7 +828,7 @@ fn diagnose_account(
             .filter(|r| matches!(r.record.kind.as_str(), "A" | "AAAA" | "CNAME"))
             .collect();
         let fix = || Fix::Change {
-            label: "Fix the DNS Record".into(),
+            label: m::fix::fix_dns(),
             change: Change::AddRoute {
                 route: RouteInput {
                     hostname: hostname.to_owned(),
@@ -806,8 +848,8 @@ fn diagnose_account(
                 "dns.missing",
                 Severity::Error,
                 hostname,
-                format!("{hostname} has no DNS record"),
-                "The tunnel serves this hostname, but nothing points it at the tunnel, so it doesn't resolve.",
+                m::dns_missing::title(hostname),
+                m::dns_missing::detail(),
                 Vec::new(),
                 vec![fix()],
             );
@@ -817,8 +859,8 @@ fn diagnose_account(
                     "dns.not_proxied",
                     Severity::Error,
                     hostname,
-                    format!("{hostname} isn't proxied through Cloudflare"),
-                    "Tunnel hostnames only work when the record is proxied (orange cloud).",
+                    m::dns_not_proxied::title(hostname),
+                    m::dns_not_proxied::detail(),
                     vec![describe(&record.record)],
                     vec![fix()],
                 );
@@ -831,22 +873,16 @@ fn diagnose_account(
                     .ends_with(TUNNEL_SUFFIX)
             });
             let (check, title) = if tunnel_record {
-                (
-                    "dns.wrong_target",
-                    format!("{hostname} points at another tunnel"),
-                )
+                ("dns.wrong_target", m::dns_wrong_target::title(hostname))
             } else {
-                (
-                    "dns.conflict",
-                    format!("Another record answers for {hostname}"),
-                )
+                ("dns.conflict", m::dns_conflict::title(hostname))
             };
             found.add(
                 check,
                 Severity::Error,
                 hostname,
                 title,
-                "Requests for this hostname don't reach this Mac. Point the record at this Mac's tunnel.",
+                m::dns_conflict::detail(),
                 records.iter().map(|r| describe(&r.record)).collect(),
                 vec![fix()],
             );
@@ -860,9 +896,9 @@ fn diagnose_account(
                 "origin.not_listening",
                 Severity::Warning,
                 hostname,
-                format!("Nothing is listening on port {port}"),
-                "Start the app this route sends traffic to; visitors see an error until it runs.",
-                vec![format!("{hostname} → {}", rule.service)],
+                m::origin_not_listening::title(port),
+                m::origin_not_listening::detail(),
+                vec![msg::raw(format!("{hostname} → {}", rule.service))],
                 Vec::new(),
             );
         }
@@ -876,8 +912,8 @@ fn diagnose_account(
                 "tunnel.no_connections",
                 Severity::Error,
                 &tunnel.name,
-                "This Mac's connector isn't running".into(),
-                "Its routes don't answer until the connector runs.",
+                m::no_connections::title(),
+                m::no_connections::detail(),
                 Vec::new(),
                 vec![Fix::StartConnector {
                     account_id: account.to_owned(),
@@ -887,9 +923,9 @@ fn diagnose_account(
                 "tunnel.crash_loop",
                 Severity::Error,
                 &tunnel.name,
-                "This Mac's connector keeps stopping".into(),
-                "cloudflared exited several times in a row. Its logs say why; starting it again retries.",
-                exit_code.iter().map(|c| format!("Last exit code {c}")).collect(),
+                m::crash_loop::title(),
+                m::crash_loop::detail(),
+                exit_code.iter().map(m::crash_loop::exit_code).collect(),
                 vec![Fix::StartConnector {
                     account_id: account.to_owned(),
                 }],
@@ -898,8 +934,8 @@ fn diagnose_account(
                 "tunnel.degraded",
                 Severity::Warning,
                 &tunnel.name,
-                "This Mac's connector lost its connection".into(),
-                "cloudflared is running but not connected to Cloudflare. It reconnects on its own; check the network if it persists.",
+                m::degraded::title(),
+                m::degraded::detail(),
                 Vec::new(),
                 Vec::new(),
             ),
@@ -920,9 +956,9 @@ fn diagnose_account(
                 "tunnel.stale_connections",
                 Severity::Warning,
                 &tunnel.name,
-                "Cloudflare still lists connections for this Mac's tunnel".into(),
-                "This Mac's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it.",
-                vec![format!("{listed} connection{}", if listed == 1 { "" } else { "s" })],
+                m::stale_connections::title(),
+                m::stale_connections::detail(),
+                vec![m::stale_connections::connections(listed as u64)],
                 vec![Fix::CleanConnections {
                     account_id: account.to_owned(),
                     tunnel_id: tunnel.id.clone(),
@@ -951,19 +987,19 @@ fn diagnose_account(
                 "tunnel.other_connectors",
                 Severity::Warning,
                 &tunnel.name,
-                "Another machine also runs this Mac's tunnel".into(),
-                "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this Mac. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes.",
+                m::other_connectors::title(),
+                m::other_connectors::detail(),
                 others
                     .iter()
                     .map(|c| {
                         let colos: Vec<&str> =
                             c.connections.iter().map(|x| x.colo.as_str()).collect();
-                        format!(
+                        msg::raw(format!(
                             "{} · cloudflared {} · {}",
                             c.origin_ip,
                             c.version,
                             colos.join(", ").to_ascii_uppercase()
-                        )
+                        ))
                     })
                     .collect(),
                 Vec::new(),
@@ -974,9 +1010,9 @@ fn diagnose_account(
                 "tunnel.duplicate_local",
                 Severity::Warning,
                 &tunnel.name,
-                "Another cloudflared on this Mac runs this Mac's tunnel".into(),
-                "Two connectors on one Mac add nothing but confusion in logs and metrics. Stop the other one from Tunnels.",
-                twins,
+                m::duplicate_local::title(),
+                m::duplicate_local::detail(),
+                twins.iter().map(msg::raw).collect(),
                 Vec::new(),
             );
         }
@@ -985,11 +1021,11 @@ fn diagnose_account(
                 "tunnel.unused_owned",
                 Severity::Info,
                 &tunnel.name,
-                "This Mac's tunnel has no routes".into(),
-                "It's kept so adding a route is quick. Delete it if you don't need it.",
+                m::unused_owned::title(),
+                m::unused_owned::detail(),
                 Vec::new(),
                 vec![Fix::Change {
-                    label: "Delete the Tunnel".into(),
+                    label: m::fix::delete_tunnel(),
                     change: Change::RemoveTunnel,
                 }],
             );
@@ -1018,7 +1054,7 @@ fn diagnose_account(
                 .is_some_and(|c| c.starts_with("teitunnel:"));
         let ours = tunnel.is_some_and(|t| t.id == tunnel_id);
         let delete = Fix::Change {
-            label: "Delete the Record".into(),
+            label: m::fix::delete_record(),
             change: Change::DeleteRecord {
                 zone_id: zone_id.clone(),
                 hostname: record.name.clone(),
@@ -1034,21 +1070,22 @@ fn diagnose_account(
                 },
                 Severity::Warning,
                 &record.name,
-                format!(
-                    "{} points at this Mac's tunnel but has no route",
-                    record.name
-                ),
-                "Visitors get a 404 from the tunnel. Delete the record, or add a route for it.",
+                m::orphan_route::title(&record.name),
+                m::orphan_route::detail(),
                 vec![describe(record)],
                 vec![delete],
             );
         } else if !known.contains(tunnel_id) {
             found.add(
-                if owned { "dns.orphan_owned" } else { "dns.orphan_foreign" },
+                if owned {
+                    "dns.orphan_owned"
+                } else {
+                    "dns.orphan_foreign"
+                },
                 Severity::Warning,
                 &record.name,
-                format!("{} points at a tunnel that no longer exists", record.name),
-                "The hostname shows a Cloudflare error. Delete the record, or route it to a tunnel.",
+                m::orphan_tunnel::title(&record.name),
+                m::orphan_tunnel::detail(),
                 vec![describe(record)],
                 vec![delete],
             );
@@ -1065,16 +1102,15 @@ fn diagnose_account(
             found.add(
                 "network.proxy_off",
                 Severity::Warning,
-                "Private networks",
-                "WARP clients can't reach private networks".into(),
-                "Gateway's proxy is off, so WARP clients don't send traffic for private networks through Cloudflare. In the Cloudflare Zero Trust dashboard, turn on the Gateway proxy for TCP (and UDP, for services that use it) in the network settings.",
-                vec![format!(
-                    "Shared: {}",
+                Subject::named("Private networks", m::proxy_off::subject()),
+                m::proxy_off::title(),
+                m::proxy_off::detail(),
+                vec![m::proxy_off::shared(
                     shared
                         .iter()
                         .map(ToString::to_string)
                         .collect::<Vec<_>>()
-                        .join(", ")
+                        .join(", "),
                 )],
                 Vec::new(),
             );
@@ -1088,21 +1124,23 @@ fn diagnose_account(
             else {
                 continue;
             };
-            let detail = if check == "network.excluded" {
-                format!(
-                    "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {range} to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {range})."
+            let (title, detail) = if check == "network.excluded" {
+                (
+                    m::network_excluded::title(range),
+                    m::network_excluded::detail(range),
                 )
             } else {
-                format!(
-                    "The default device profile's Split Tunnels only send the listed addresses through WARP, and {range} isn't one of them. In the Cloudflare Zero Trust dashboard, add {range} to Split Tunnels."
+                (
+                    m::network_not_included::title(range),
+                    m::network_not_included::detail(range),
                 )
             };
             found.add(
                 check,
                 Severity::Warning,
-                &range.to_string(),
-                format!("WARP clients don't send {range} to this Mac"),
-                &detail,
+                range.to_string().as_str(),
+                title,
+                detail,
                 evidence,
                 Vec::new(),
             );
@@ -1114,11 +1152,11 @@ fn diagnose_account(
             "access.orphan",
             Severity::Info,
             domain,
-            format!("{domain} still has a login but no route"),
-            "Teitunnel added this login for a route that was removed outside Teitunnel. It protects nothing now, but would ask for a login if the hostname is routed again elsewhere. Remove it, or add the route back.",
-            vec![format!("Access application “Teitunnel · {domain}”")],
+            m::access_orphan::title(domain),
+            m::access_orphan::detail(),
+            vec![m::access_orphan::app(domain)],
             vec![Fix::Change {
-                label: "Remove the Login".into(),
+                label: m::fix::remove_login(),
                 change: Change::RemoveLogin {
                     domain: domain.clone(),
                 },
@@ -1470,7 +1508,7 @@ mod tests {
             .expect("reported");
         assert_eq!(
             issue.evidence,
-            ["198.51.100.9 · cloudflared 2026.9.1 · AMS01"]
+            [msg::raw("198.51.100.9 · cloudflared 2026.9.1 · AMS01")]
         );
         // Only this Mac: nothing to report. Unknown id with a single connector: it's ours.
         for alone in [
@@ -1555,7 +1593,10 @@ mod tests {
                 ("network.proxy_off", "Private networks"),
             ]
         );
-        assert_eq!(issues[0].evidence, ["Excluded: 192.168.0.0/16 (RFC 1918)"]);
+        assert_eq!(
+            issues[0].evidence[0].english(),
+            "Excluded: 192.168.0.0/16 (RFC 1918)"
+        );
 
         // Include mode: only listed ranges go through WARP.
         facts.warp = WarpFacts {

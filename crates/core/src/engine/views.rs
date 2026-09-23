@@ -12,6 +12,7 @@ use super::{
 use crate::{
     domain::{ClientAccess, Hostname, PathRule, PrivateNetwork, RouteOrigin},
     runtime::ConnectorState,
+    text::{Text, UserText, english_display},
 };
 
 /// A route as typed in the add/edit sheet.
@@ -98,18 +99,25 @@ pub enum Change {
 
 /// Rejected input, pointing at the field to fix.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("{message}")]
 pub struct InputError {
     /// `hostname`, `path`, `origin`, `access` or `network`.
     pub field: &'static str,
     /// What's wrong.
-    pub message: String,
+    pub message: Text,
 }
 
-fn invalid(field: &'static str, err: &impl ToString) -> InputError {
+impl UserText for InputError {
+    fn text(&self) -> Text {
+        self.message.clone()
+    }
+}
+
+english_display!(InputError);
+
+fn invalid(field: &'static str, err: &impl UserText) -> InputError {
     InputError {
         field,
-        message: err.to_string(),
+        message: err.text(),
     }
 }
 
@@ -273,7 +281,7 @@ pub struct StepView {
     /// What it does.
     pub kind: StepKind,
     /// One line for the user.
-    pub description: String,
+    pub description: Text,
     /// "Copy as command" text, when there's an equivalent command.
     pub command: Option<String>,
 }
@@ -418,26 +426,71 @@ pub struct NetworkView {
     pub owned: bool,
 }
 
+/// How a route is doing, from its DNS record and this Mac's connector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub enum RouteHealth {
+    /// Serving.
+    Live,
+    /// No DNS record for the hostname.
+    NoDns,
+    /// The record points somewhere else.
+    DnsElsewhere,
+    /// The connector is starting or connecting.
+    Connecting,
+    /// The connector crashed and is restarting.
+    Restarting,
+    /// The connector lost its connection.
+    ConnectionLost,
+    /// The connector keeps exiting.
+    KeepsStopping,
+    /// The connector isn't running.
+    Stopped,
+}
+
+impl RouteHealth {
+    /// Whether the route serves.
+    pub fn is_live(self) -> bool {
+        self == Self::Live
+    }
+
+    /// A few words for the menu bar and the CLI.
+    pub fn text(self) -> Text {
+        use crate::text::msg::route::status as m;
+        match self {
+            Self::Live => m::live(),
+            Self::NoDns => m::no_dns(),
+            Self::DnsElsewhere => m::dns_elsewhere(),
+            Self::Connecting => m::connecting(),
+            Self::Restarting => m::restarting(),
+            Self::ConnectionLost => m::connection_lost(),
+            Self::KeepsStopping => m::keeps_stopping(),
+            Self::Stopped => m::stopped(),
+        }
+    }
+}
+
 impl RoutesOverview {
-    /// Each route's hostname and a short status (menu bar, notifications).
-    pub fn statuses(&self) -> Vec<(String, &'static str)> {
+    /// Each route's hostname and health (menu bar, CLI).
+    pub fn statuses(&self) -> Vec<(String, RouteHealth)> {
         let connector = self.tunnel.as_ref().and_then(|t| t.connector.as_ref());
         self.routes
             .iter()
             .map(|route| {
-                let status = match (&route.dns, connector) {
-                    (DnsState::Missing, _) => "No DNS record",
-                    (DnsState::Elsewhere { .. }, _) => "DNS points elsewhere",
-                    (_, Some(ConnectorState::Healthy { .. })) => "Live",
+                let health = match (&route.dns, connector) {
+                    (DnsState::Missing, _) => RouteHealth::NoDns,
+                    (DnsState::Elsewhere { .. }, _) => RouteHealth::DnsElsewhere,
+                    (_, Some(ConnectorState::Healthy { .. })) => RouteHealth::Live,
                     (_, Some(ConnectorState::Starting | ConnectorState::Connecting)) => {
-                        "Connecting"
+                        RouteHealth::Connecting
                     }
-                    (_, Some(ConnectorState::Crashed { .. })) => "Restarting",
-                    (_, Some(ConnectorState::Degraded)) => "Connection lost",
-                    (_, Some(ConnectorState::CrashLoop { .. })) => "Keeps stopping",
-                    _ => "Stopped",
+                    (_, Some(ConnectorState::Crashed { .. })) => RouteHealth::Restarting,
+                    (_, Some(ConnectorState::Degraded)) => RouteHealth::ConnectionLost,
+                    (_, Some(ConnectorState::CrashLoop { .. })) => RouteHealth::KeepsStopping,
+                    _ => RouteHealth::Stopped,
                 };
-                (route.hostname.clone(), status)
+                (route.hostname.clone(), health)
             })
             .collect()
     }
@@ -609,11 +662,12 @@ mod tests {
         assert_eq!(
             overview.statuses(),
             [
-                ("a.xyz.com".to_owned(), "Live"),
-                ("b.xyz.com".to_owned(), "No DNS record")
+                ("a.xyz.com".to_owned(), RouteHealth::Live),
+                ("b.xyz.com".to_owned(), RouteHealth::NoDns)
             ]
         );
+        assert_eq!(RouteHealth::NoDns.text().english(), "No DNS record");
         overview.tunnel.as_mut().unwrap().connector = None;
-        assert_eq!(overview.statuses()[0].1, "Stopped");
+        assert_eq!(overview.statuses()[0].1, RouteHealth::Stopped);
     }
 }

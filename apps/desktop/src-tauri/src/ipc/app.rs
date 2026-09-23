@@ -3,6 +3,7 @@
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, Manager};
+use teitunnel_core::text::msg::app as m;
 
 use crate::{error::AppError, shell};
 
@@ -93,11 +94,7 @@ pub async fn app_quit(
                 continue;
             }
             let api = state.accounts.client(&account.id).await?;
-            state
-                .machine
-                .set_always_on(&api, &account.id, true)
-                .await
-                .map_err(crate::error::AppError::internal)?;
+            state.machine.set_always_on(&api, &account.id, true).await?;
         }
     }
     state
@@ -126,7 +123,7 @@ pub fn app_set_open_at_login(app: AppHandle, enabled: bool) -> Result<(), AppErr
     } else {
         launcher.disable()
     };
-    result.map_err(|e| AppError::internal(format!("Couldn't change the login item: {e}")))
+    result.map_err(|e| AppError::internal(m::login_item(e)))
 }
 
 /// Writes a file named `name` to Downloads (or home), shows it in Finder, and returns
@@ -141,13 +138,13 @@ pub(crate) async fn save_to_downloads<R: tauri::Runtime>(
         .path()
         .download_dir()
         .or_else(|_| app.path().home_dir())
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .map_err(|e| AppError::internal(m::no_downloads(e)))?;
     let path = dir.join(name);
     let target = path.clone();
     tauri::async_runtime::spawn_blocking(move || write(&target))
         .await
-        .map_err(|e| AppError::internal(e.to_string()))?
-        .map_err(|e| AppError::internal(format!("Couldn't save {name}: {e}")))?;
+        .map_err(|_| AppError::internal(m::interrupted()))?
+        .map_err(|e| AppError::internal(m::save_failed(name, e)))?;
     let _ = app.opener().reveal_item_in_dir(&path);
     Ok(path.display().to_string())
 }

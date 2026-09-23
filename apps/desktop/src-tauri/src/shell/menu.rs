@@ -13,6 +13,7 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
+use teitunnel_core::text::{Text, msg::menu as m};
 
 use crate::{
     ipc::{MenuAction, MenuCommand},
@@ -31,18 +32,18 @@ const CLOUDFLARE_DOCS_URL: &str =
 const RELEASES_URL: &str = "https://github.com/teispace/teitunnel/releases";
 
 /// A menu item the webview handles: (id, label, accelerator (empty: none), command).
-type WebviewItem = (&'static str, &'static str, &'static str, MenuCommand);
+type WebviewItem = (&'static str, fn() -> Text, &'static str, MenuCommand);
 
 const FILE_ITEMS: &[WebviewItem] = &[
     (
         "file.new_route",
-        "New Route…",
+        m::new_route,
         "CmdOrCtrl+N",
         MenuCommand::NewRoute,
     ),
     (
         "file.new_quick_share",
-        "New Quick Share…",
+        m::new_quick_share,
         "CmdOrCtrl+Shift+N",
         MenuCommand::NewQuickShare,
     ),
@@ -51,75 +52,70 @@ const FILE_ITEMS: &[WebviewItem] = &[
 const GO_ITEMS: &[WebviewItem] = &[
     (
         "go.overview",
-        "Overview",
+        m::overview,
         "CmdOrCtrl+1",
         MenuCommand::GoOverview,
     ),
-    ("go.routes", "Routes", "CmdOrCtrl+2", MenuCommand::GoRoutes),
+    ("go.routes", m::routes, "CmdOrCtrl+2", MenuCommand::GoRoutes),
     (
         "go.quick_share",
-        "Quick Share",
+        m::quick_share,
         "CmdOrCtrl+3",
         MenuCommand::GoQuickShare,
     ),
     (
         "go.domains",
-        "Domains",
+        m::domains,
         "CmdOrCtrl+4",
         MenuCommand::GoDomains,
     ),
     (
         "go.tunnels",
-        "Tunnels",
+        m::tunnels,
         "CmdOrCtrl+5",
         MenuCommand::GoTunnels,
     ),
     (
         "go.activity",
-        "Activity",
+        m::activity,
         "CmdOrCtrl+6",
         MenuCommand::GoActivity,
     ),
-    ("go.doctor", "Doctor", "CmdOrCtrl+7", MenuCommand::GoDoctor),
+    ("go.doctor", m::doctor, "CmdOrCtrl+7", MenuCommand::GoDoctor),
 ];
 
 const VIEW_ITEMS: &[WebviewItem] = &[
     (
         "view.toggle_sidebar",
-        "Toggle Sidebar",
+        m::toggle_sidebar,
         "CmdOrCtrl+Alt+S",
         MenuCommand::ToggleSidebar,
     ),
     (
         "view.toggle_inspector",
-        "Toggle Inspector",
+        m::toggle_inspector,
         "CmdOrCtrl+Alt+I",
         MenuCommand::ToggleInspector,
     ),
     (
         "view.palette",
-        "Command Palette…",
+        m::command_palette,
         "CmdOrCtrl+K",
         MenuCommand::CommandPalette,
     ),
     (
         "view.refresh",
-        "Refresh",
+        m::refresh,
         "CmdOrCtrl+R",
         MenuCommand::Refresh,
     ),
 ];
 
 const HELP_ITEMS: &[WebviewItem] = &[
-    (
-        "help.doctor",
-        "Check for Problems",
-        "",
-        MenuCommand::GoDoctor,
-    ),
+    ("help.doctor", m::check_problems, "", MenuCommand::GoDoctor),
     (
         "help.diagnostics",
-        "Export Diagnostics…",
+        m::export_diagnostics,
         "",
         MenuCommand::ExportDiagnostics,
     ),
@@ -147,7 +143,7 @@ fn build_items<R: Runtime>(
     table
         .iter()
         .map(|(id, label, accelerator, _)| {
-            let item = MenuItemBuilder::with_id(*id, *label);
+            let item = MenuItemBuilder::with_id(*id, label().to_string());
             if accelerator.is_empty() {
                 item.build(app)
             } else {
@@ -172,72 +168,71 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .version(Some(info.version.to_string()))
         .copyright(Some("© 2026 Teispace. MIT License."))
         .website(Some("https://github.com/teispace/teitunnel"))
-        .credits(Some(
-            "Routes and Quick Shares run on cloudflared by Cloudflare (Apache-2.0), downloaded from its GitHub releases and verified before use.",
-        ))
+        .credits(Some(m::credits().to_string()))
         .build();
+    let name = &info.name;
 
-    let app_menu = SubmenuBuilder::new(app, &info.name)
-        .about(Some(about))
+    let app_menu = SubmenuBuilder::new(app, name)
+        .about_with_text(m::about(name).to_string(), Some(about))
         .separator()
         .item(
-            &MenuItemBuilder::with_id(SETTINGS, "Settings…")
+            &MenuItemBuilder::with_id(SETTINGS, m::settings().to_string())
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?,
         )
         .separator()
-        .services()
+        .services_with_text(m::services().to_string())
         .separator()
-        .hide()
-        .hide_others()
-        .show_all()
+        .hide_with_text(m::hide(name).to_string())
+        .hide_others_with_text(m::hide_others().to_string())
+        .show_all_with_text(m::show_all().to_string())
         .separator()
-        .quit()
+        .quit_with_text(m::quit(name).to_string())
         .build()?;
 
     let file_items = build_items(app, FILE_ITEMS)?;
-    let file = SubmenuBuilder::new(app, "File")
+    let file = SubmenuBuilder::new(app, m::file().to_string())
         .items(&as_refs(&file_items))
         .separator()
-        .close_window()
+        .close_window_with_text(m::close_window().to_string())
         .build()?;
 
-    let edit = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+    let edit = SubmenuBuilder::new(app, m::edit().to_string())
+        .undo_with_text(m::undo().to_string())
+        .redo_with_text(m::redo().to_string())
         .separator()
-        .cut()
-        .copy()
-        .paste()
-        .select_all()
+        .cut_with_text(m::cut().to_string())
+        .copy_with_text(m::copy().to_string())
+        .paste_with_text(m::paste().to_string())
+        .select_all_with_text(m::select_all().to_string())
         .build()?;
 
     let go_items = build_items(app, GO_ITEMS)?;
     let view_items = build_items(app, VIEW_ITEMS)?;
-    let view = SubmenuBuilder::new(app, "View")
+    let view = SubmenuBuilder::new(app, m::view().to_string())
         .items(&as_refs(&go_items))
         .separator()
         .items(&as_refs(&view_items))
         .separator()
-        .fullscreen()
+        .fullscreen_with_text(m::fullscreen().to_string())
         .build()?;
 
-    let window = SubmenuBuilder::new(app, "Window")
-        .minimize()
-        .maximize()
+    let window = SubmenuBuilder::new(app, m::window().to_string())
+        .minimize_with_text(m::minimize().to_string())
+        .maximize_with_text(m::zoom().to_string())
         .separator()
-        .bring_all_to_front()
+        .bring_all_to_front_with_text(m::bring_all_to_front().to_string())
         .build()?;
 
     let help_items = build_items(app, HELP_ITEMS)?;
-    let help = SubmenuBuilder::new(app, "Help")
-        .text(DOCS, "Teitunnel Documentation")
-        .text(CLOUDFLARE_DOCS, "Cloudflare Tunnel Documentation")
+    let help = SubmenuBuilder::new(app, m::help().to_string())
+        .text(DOCS, m::docs().to_string())
+        .text(CLOUDFLARE_DOCS, m::cloudflare_docs().to_string())
         .separator()
         .items(&as_refs(&help_items))
         .separator()
-        .text(RELEASES, "Release Notes")
-        .text(ISSUE, "Report an Issue…")
+        .text(RELEASES, m::release_notes().to_string())
+        .text(ISSUE, m::report_issue().to_string())
         .build()?;
 
     #[cfg(target_os = "macos")]

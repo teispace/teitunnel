@@ -130,7 +130,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                 {t("connect.signIn")}
               </Button>
             )}
-            {signIn.error && toIpcError(signIn.error).message !== "Sign-in cancelled." ? (
+            {signIn.error && toIpcError(signIn.error).key !== "core.app.signInCancelled" ? (
               <p role="alert" className="text-callout text-error">
                 {toIpcError(signIn.error).message}
               </p>

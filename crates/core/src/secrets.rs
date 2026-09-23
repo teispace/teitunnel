@@ -11,6 +11,8 @@ use std::{
 
 use crate::Secret;
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Keychain service name (D-018).
 pub const SERVICE: &str = "com.teispace.teitunnel";
 
@@ -18,14 +20,21 @@ pub const SERVICE: &str = "com.teispace.teitunnel";
 #[derive(Debug, thiserror::Error)]
 pub enum SecretError {
     /// The keychain refused or failed (locked, denied).
-    #[error("the keychain couldn't be used: {0}")]
     Keychain(String),
     /// There's no credential store at all: on Linux, no Secret Service is running.
-    #[error(
-        "no secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again"
-    )]
     Unavailable,
 }
+
+impl UserText for SecretError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Keychain(detail) => msg::error::secret::keychain(detail),
+            Self::Unavailable => msg::error::secret::unavailable(),
+        }
+    }
+}
+
+english_display!(SecretError);
 
 impl From<keyring::Error> for SecretError {
     fn from(err: keyring::Error) -> Self {

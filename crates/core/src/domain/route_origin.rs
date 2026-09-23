@@ -2,22 +2,33 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why an origin was rejected.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RouteOriginError {
     /// Nothing entered.
-    #[error("Enter a port or an address, like 3000 or localhost:3000.")]
     Empty,
     /// Unknown scheme.
-    #[error("Use http, https, tcp, ssh, rdp, smb or unix.")]
     Scheme,
     /// Malformed address or port.
-    #[error("That address isn't valid. Use host:port, like localhost:3000.")]
     Address,
     /// Bad HTTP status for `http_status:`.
-    #[error("Use a status code between 100 and 599.")]
     Status,
 }
+
+impl UserText for RouteOriginError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Empty => msg::error::route_origin::empty(),
+            Self::Scheme => msg::error::route_origin::scheme(),
+            Self::Address => msg::error::route_origin::address(),
+            Self::Status => msg::error::route_origin::status(),
+        }
+    }
+}
+
+english_display!(RouteOriginError);
 
 /// Where a route sends traffic: the `service` of an ingress rule.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

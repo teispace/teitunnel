@@ -26,7 +26,7 @@ beforeEach(() => {
         if (token !== "good-token") {
           throw {
             code: "invalidInput",
-            message: "Cloudflare didn't accept this token.",
+            message: { key: "core.error.account.invalidToken", args: {} },
             hint: null,
             field: "credential",
           };
@@ -69,7 +69,7 @@ describe("Accounts", () => {
 
     fireEvent.change(field, { target: { value: "bad-token" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "Connect" }));
-    expect(await within(sheet).findByText("Cloudflare didn't accept this token.")).toBeTruthy();
+    expect(await within(sheet).findByText(/^Cloudflare didn't accept this token\./)).toBeTruthy();
 
     fireEvent.change(field, { target: { value: "good-token" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "Connect" }));

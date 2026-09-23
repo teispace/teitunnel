@@ -11,7 +11,7 @@ import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { TextArea } from "@/components/ui/text-area";
 import { ServicePicker } from "@/features/quick-share";
-import { type MessageKey, t } from "@/lib/i18n";
+import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
@@ -563,16 +563,17 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
             <PlanSteps steps={plan.steps} states={apply.steps} />
             {failed ? (
               <div role="alert" className="flex flex-col gap-1 text-callout">
-                <p className="text-error">{failed.error}</p>
+                <p className="text-error">{translate(failed.error)}</p>
                 {failed.type === "rolledBack" ? (
                   <p className="text-secondary">{t("routeSheet.rolledBack")}</p>
                 ) : (
                   <>
                     <p className="text-secondary">{t("routeSheet.leftovers")}</p>
                     <ul className="list-disc pl-5 text-secondary">
-                      {failed.leftovers.map((l) => (
-                        <li key={l}>{l}</li>
-                      ))}
+                      {failed.leftovers.map((leftover) => {
+                        const text = translate(leftover);
+                        return <li key={text}>{text}</li>;
+                      })}
                     </ul>
                   </>
                 )}
@@ -593,7 +594,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
             ) : verify.data.failure ? (
               <>
                 <TriangleAlert aria-hidden className="size-7 text-warning" strokeWidth={1.5} />
-                <p className="max-w-sm text-body">{verify.data.message}</p>
+                <p className="max-w-sm text-body">
+                  {verify.data.message ? translate(verify.data.message) : null}
+                </p>
                 <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
               </>
             ) : verify.data.protected ? (

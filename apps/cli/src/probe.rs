@@ -2,6 +2,7 @@
 //! the CLI never runs connectors itself (the app or an Always-on service does).
 
 use std::collections::HashMap;
+use teitunnel_core::text::{Text, msg};
 
 use teitunnel_core::{Secret, engine::Connectors, runtime::ConnectorState};
 
@@ -48,12 +49,12 @@ impl Connectors for ProbedConnectors {
         _account: &str,
         _tunnel_id: &str,
         _token: Secret<String>,
-    ) -> Result<(), String> {
-        Err(NOT_HERE.to_owned())
+    ) -> Result<(), Text> {
+        Err(msg::raw(NOT_HERE))
     }
 
-    async fn stop(&self, _tunnel_id: &str) -> Result<(), String> {
-        Err(NOT_HERE.to_owned())
+    async fn stop(&self, _tunnel_id: &str) -> Result<(), Text> {
+        Err(msg::raw(NOT_HERE))
     }
 
     async fn deleted(&self, _tunnel_id: &str) {}

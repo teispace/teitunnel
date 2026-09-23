@@ -7,6 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use cf_api::IngressRule;
 use serde::{Deserialize, Serialize};
 
+use crate::text::{Text, msg, msg::activity::delta};
+
 use super::{
     executor::StepState,
     types::{Intent, Plan, Step},
@@ -84,9 +86,9 @@ pub struct Delta {
     /// Path rule, for routes that have one.
     pub path: Option<String>,
     /// What it was.
-    pub before: Option<String>,
+    pub before: Option<Text>,
     /// What it became.
-    pub after: Option<String>,
+    pub after: Option<Text>,
 }
 
 /// A step of the applied plan and how it ended.
@@ -115,6 +117,18 @@ pub struct ActivityRecord {
     pub steps: Vec<RecordedStep>,
     /// What changed, routes first.
     pub changes: Vec<Delta>,
+    /// What was asked (absent in entries from before messages had keys).
+    #[serde(default)]
+    pub summary: Option<Text>,
+    /// Why it failed, when it did.
+    #[serde(default)]
+    pub error: Option<Text>,
+    /// What couldn't be undone after a failure.
+    #[serde(default)]
+    pub leftovers: Vec<Text>,
+    /// The routes were applied but this Mac's connector couldn't be started.
+    #[serde(default)]
+    pub connector_error: Option<Text>,
 }
 
 impl ActivityRecord {
@@ -151,17 +165,26 @@ impl ActivityRecord {
             tunnel: plan.tunnel_name.clone(),
             steps,
             changes,
+            summary: Some(intent.summary()),
+            error: None,
+            leftovers: Vec::new(),
+            connector_error: None,
         }
     }
 }
 
 /// A rule as one line: its service, plus the names of any origin settings.
-fn describe_rule(rule: &IngressRule) -> String {
+fn describe_rule(rule: &IngressRule) -> Text {
     if rule.origin_request.is_empty() {
-        return rule.service.clone();
+        return msg::raw(&rule.service);
     }
     let settings: Vec<&str> = rule.origin_request.keys().map(String::as_str).collect();
-    format!("{} · {}", rule.service, settings.join(", "))
+    msg::raw(format!("{} · {}", rule.service, settings.join(", ")))
+}
+
+/// A DNS record's value, e.g. `A 192.0.2.1`.
+fn record_value(kind: &str, content: &str) -> Text {
+    msg::raw(format!("{kind} {content}"))
 }
 
 type RouteKey = (String, Option<String>);
@@ -174,16 +197,42 @@ fn routes(ingress: &[IngressRule]) -> BTreeMap<RouteKey, &IngressRule> {
 }
 
 /// Who a login lets in, as a line for the before/after list.
-fn login_summary(app: &cf_api::NewAccessApp) -> String {
-    super::access::AccessRule::from_new(app).map_or_else(
-        || "a login with custom rules".to_owned(),
-        |rule| format!("login required: {}", rule.summary()),
-    )
+fn login_summary(app: &cf_api::NewAccessApp) -> Text {
+    super::access::AccessRule::from_new(app).map_or_else(delta::login_custom, |rule| {
+        delta::login_required(rule.people())
+    })
+}
+
+/// `deltas` with their text in English, shaped as they were stored before messages had
+/// keys, so snapshots read naturally and show wording changes.
+#[cfg(test)]
+pub(crate) fn english(deltas: &[Delta]) -> Vec<EnglishDelta> {
+    deltas
+        .iter()
+        .map(|d| EnglishDelta {
+            area: d.area,
+            hostname: d.hostname.clone(),
+            path: d.path.clone(),
+            before: d.before.as_ref().map(Text::english),
+            after: d.after.as_ref().map(Text::english),
+        })
+        .collect()
+}
+
+/// A [`Delta`] with its text in English (tests).
+#[cfg(test)]
+#[derive(Serialize)]
+pub(crate) struct EnglishDelta {
+    area: DeltaArea,
+    hostname: String,
+    path: Option<String>,
+    before: Option<String>,
+    after: Option<String>,
 }
 
 /// What `plan` changes, from its steps' before and after values.
 pub fn deltas(plan: &Plan) -> Vec<Delta> {
-    let tunnel_target = format!("proxied CNAME to tunnel “{}”", plan.tunnel_name);
+    let tunnel_target = delta::tunnel_target(&plan.tunnel_name);
     let mut out = Vec::new();
     for step in &plan.steps {
         match step {
@@ -219,14 +268,14 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 area: DeltaArea::Dns,
                 hostname: hostname.clone(),
                 path: None,
-                before: Some(format!("{} {}", previous.kind, previous.content)),
+                before: Some(record_value(&previous.kind, &previous.content)),
                 after: Some(tunnel_target.clone()),
             }),
             Step::DeleteRecord { record, .. } => out.push(Delta {
                 area: DeltaArea::Dns,
                 hostname: record.name.clone(),
                 path: None,
-                before: Some(format!("{} {}", record.kind, record.content)),
+                before: Some(record_value(&record.kind, &record.content)),
                 after: None,
             }),
             Step::CreateAccessApp { app } => out.push(Delta {
@@ -255,15 +304,14 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 hostname: network.to_string(),
                 path: None,
                 before: None,
-                after: Some(format!("routed to tunnel “{}”", plan.tunnel_name)),
+                after: Some(delta::routed_to(&plan.tunnel_name)),
             }),
             Step::DeleteNetworkRoute { route } => out.push(Delta {
                 area: DeltaArea::Network,
                 hostname: route.network.clone(),
                 path: None,
-                before: Some(format!(
-                    "routed to tunnel “{}”",
-                    route.tunnel_name.as_deref().unwrap_or(&plan.tunnel_name)
+                before: Some(delta::routed_to(
+                    route.tunnel_name.as_deref().unwrap_or(&plan.tunnel_name),
                 )),
                 after: None,
             }),
@@ -343,7 +391,7 @@ mod tests {
                 hostname: "d.xyz.com".into(),
             },
         ]);
-        insta::assert_yaml_snapshot!(deltas(&plan));
+        insta::assert_yaml_snapshot!(english(&deltas(&plan)));
     }
 
     #[test]

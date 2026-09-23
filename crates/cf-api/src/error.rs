@@ -36,6 +36,16 @@ impl Error {
         }
     }
 
+    /// Cloudflare's own explanation, e.g. `Record already exists (code 81053)`, or the
+    /// HTTP status; for other errors, their description.
+    pub fn detail(&self) -> String {
+        match self {
+            Self::Api { status, errors } => first_message(errors, *status),
+            Self::Decode(err) => err.to_string(),
+            Self::Network(message) => message.clone(),
+        }
+    }
+
     /// Whether the credential was rejected or lacks permission (401/403, or code
     /// 10000 "Authentication error").
     pub fn is_auth(&self) -> bool {

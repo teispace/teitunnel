@@ -770,5 +770,488 @@
     "save": "Save the visible lines to a file",
     "label": "Log",
     "noMatch": "No lines match."
+  },
+  "core": {
+    "error": {
+      "hostname": {
+        "empty": "Enter a hostname, like app.example.com.",
+        "invalid": "That isn't a valid hostname. Use letters, digits and hyphens, separated by dots.",
+        "noDomain": "Include the domain, like app.example.com.",
+        "badWildcard": "A wildcard can only be the first part, like *.example.com.",
+        "tooLong": "That hostname is too long."
+      },
+      "origin": {
+        "empty": "Enter a port or a local address, like 3000 or localhost:3000.",
+        "invalidPort": "Port must be a number between 1 and 65535.",
+        "unsupportedScheme": "Only http:// and https:// services can be shared.",
+        "invalidHost": "That doesn't look like a valid address."
+      },
+      "path": {
+        "invalid": "That path pattern isn't valid: {detail}",
+        "unsupported": "cloudflared doesn't support look-around or back-references in paths."
+      },
+      "network": {
+        "invalid": "Enter an IP address or a range like 192.168.1.0/24.",
+        "tooBroad": "{network} is too broad. Use a range of at most /8 (IPv4) or /16 (IPv6).",
+        "unroutable": "{network} can't be reached through a tunnel. Use this Mac's network address instead."
+      },
+      "routeOrigin": {
+        "empty": "Enter a port or an address, like 3000 or localhost:3000.",
+        "scheme": "Use http, https, tcp, ssh, rdp, smb or unix.",
+        "address": "That address isn't valid. Use host:port, like localhost:3000.",
+        "status": "Use a status code between 100 and 599."
+      },
+      "accessRule": {
+        "empty": "Add at least one email address or email domain.",
+        "email": "{value} isn't an email address.",
+        "domain": "{value} isn't an email domain, like example.com."
+      },
+      "accessDomain": {
+        "pathPattern": "A login can only protect a plain path like /admin, not the pattern {pattern}. Remove the path, or protect the whole hostname."
+      },
+      "plan": {
+        "noZone": "{hostname} isn't in any of this account's domains. Add the domain to Cloudflare first.",
+        "routeExists": "{hostname} is already routed. Edit that route instead.",
+        "noSuchRoute": "There's no route for {hostname}.",
+        "noTunnel": "This Mac doesn't have a tunnel yet.",
+        "noSuchRecord": "The DNS record for {hostname} no longer exists.",
+        "zeroTrustNotSetUp": "Requiring a login needs Cloudflare Zero Trust, which isn't set up for this account. Open Zero Trust in the Cloudflare dashboard once to choose a team name (the free plan is enough), then try again.",
+        "noSuchLogin": "Teitunnel didn't add a login for {domain}, or it's already gone.",
+        "accessAppExists": "{domain} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard.",
+        "networkRouted": "{network} is already shared through tunnel “{tunnel}”. Remove that route first.",
+        "noSuchNetwork": "This Mac doesn't share {network}."
+      },
+      "engine": {
+        "stale": "Something changed in Cloudflare since you reviewed this change. Review it again.",
+        "needsConfirmation": "This change replaces DNS records Teitunnel didn't create. Confirm it first.",
+        "nothingToRestore": "Nothing to restore: the routes are as Teitunnel left them."
+      },
+      "observe": {
+        "accessPermission": "This account's token can't manage logins. Create a token that also has Access: Apps and Policies (Edit) and Access: Organizations, Identity Providers, and Groups (Edit), then reconnect."
+      },
+      "cloudflare": {
+        "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
+        "api": "Cloudflare returned an error: {detail}",
+        "decode": "Cloudflare sent a response Teitunnel doesn't understand. Try again later.",
+        "network": "Couldn't reach Cloudflare. Check your internet connection. ({detail})"
+      },
+      "cloudflared": {
+        "invalidVersion": "This cloudflared reports a version Teitunnel doesn't recognise ({version}).",
+        "notFound": "cloudflared isn't installed.",
+        "io": "Couldn't run cloudflared: {detail}",
+        "exited": "cloudflared stopped unexpectedly (exit code {code}).",
+        "exitedSignal": "cloudflared stopped unexpectedly.",
+        "http": "The download failed: {detail}",
+        "verification": "The downloaded cloudflared couldn't be verified, so it wasn't installed: {detail}",
+        "unsupportedPlatform": "Cloudflare doesn't publish cloudflared for this platform.",
+        "timeout": "{operation} took too long."
+      },
+      "store": {
+        "sqlite": "Teitunnel couldn't read or save its data ({detail}).",
+        "migration": "Teitunnel couldn't update its data to this version ({detail}).",
+        "io": "Teitunnel couldn't open its data file ({detail}).",
+        "decode": "Some of Teitunnel's saved data is unreadable ({detail}).",
+        "closed": "Teitunnel is shutting down."
+      },
+      "account": {
+        "invalidToken": "Cloudflare didn't accept this token. Check that you copied all of it and that it hasn't expired.",
+        "noAccess": "This token can't access any Cloudflare account or domain. Create it with the Teitunnel template.",
+        "invalidCert": "That cert.pem doesn't contain a Cloudflare login. Run `cloudflared tunnel login` again, or use an API token.",
+        "notFound": "That account isn't connected."
+      },
+      "oauth": {
+        "timeout": "Sign-in timed out. Try again.",
+        "denied": "Cloudflare sign-in didn't complete: {reason}",
+        "stateMismatch": "The sign-in response didn't match. Try again.",
+        "exchange": "Couldn't finish sign-in with Cloudflare: {detail}",
+        "random": "Couldn't generate a secure sign-in request.",
+        "noPort": "Couldn't start sign-in: ports {ports} are all in use. Close other sign-in windows and try again.",
+        "noOfflineAccess": "Cloudflare didn't allow offline access, so Teitunnel couldn't stay signed in. Try again.",
+        "noCode": "Cloudflare didn't send an authorization code. Try again."
+      },
+      "quickShare": {
+        "noFreePort": "Too many Quick Shares are running.",
+        "notFound": "That Quick Share isn't running."
+      },
+      "connector": {
+        "alreadyRunning": "That connector is already running.",
+        "notFound": "That connector isn't running."
+      },
+      "secret": {
+        "keychain": "The keychain couldn't be used ({detail}). Unlock it and try again.",
+        "unavailable": "No secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again."
+      }
+    },
+    "raw": "{text}",
+    "plan": {
+      "summary": {
+        "addRoute": "Add {target} → {origin}",
+        "changeRoute": "Change {target} → {origin}",
+        "renameRoute": "Rename {before} to {after} → {origin}",
+        "removeRoute": "Remove {target}",
+        "removeTunnel": "Remove every route and delete this Mac's tunnel",
+        "restoreConfig": "Restore this Mac's routes after an outside edit",
+        "deleteRecord": "Delete the DNS record for {hostname}",
+        "removeLogin": "Remove the login from {domain}",
+        "addNetwork": "Share private network {network}",
+        "removeNetwork": "Stop sharing private network {network}",
+        "importRoutes_one": "Import {count} route from cloudflared",
+        "importRoutes_other": "Import {count} routes from cloudflared"
+      },
+      "step": {
+        "createTunnel": "Create tunnel “{name}”",
+        "putConfig_one": "Update tunnel “{tunnel}” to serve {count} route",
+        "putConfig_other": "Update tunnel “{tunnel}” to serve {count} routes",
+        "createRecord": "Add DNS record {hostname} → tunnel “{tunnel}”",
+        "updateRecord": "Point {hostname} at tunnel “{tunnel}” (was {kind} {content})",
+        "deleteRecord": "Delete DNS record {hostname} ({kind} {content})",
+        "stopConnector": "Stop this Mac's connector",
+        "deleteTunnel": "Delete tunnel “{tunnel}”",
+        "addLoginMethod": "Add One-time PIN as a login method",
+        "createAccessApp": "Require a login for {domain} ({people})",
+        "updateAccessApp": "Let only {people} into {domain}",
+        "deleteAccessApp": "Remove the login from {domain}",
+        "createNetworkRoute": "Route private network {network} to tunnel “{tunnel}”",
+        "deleteNetworkRoute": "Remove the route for private network {network}",
+        "verify": "Check https://{hostname} works"
+      }
+    },
+    "activity": {
+      "delta": {
+        "tunnelTarget": "proxied CNAME to tunnel “{tunnel}”",
+        "loginCustom": "a login with custom rules",
+        "loginRequired": "login required: {people}",
+        "routedTo": "routed to tunnel “{tunnel}”"
+      }
+    },
+    "apply": {
+      "tunnelNotCreated": "The tunnel wasn't created.",
+      "configChanged": "The tunnel's configuration was changed elsewhere while applying.",
+      "leftover": {
+        "deleteTunnel": "Tunnel {id} was created and is still there",
+        "restoreConfig": "The tunnel's routes weren't restored to what they were",
+        "deleteRecord": "DNS record {name} was created and is still there",
+        "restoreRecord": "DNS record {name} wasn't restored to {kind} {content}",
+        "recreateRecord": "DNS record {name} ({kind} {content}) was deleted",
+        "startConnector": "This Mac's connector is stopped",
+        "deleteLoginMethod": "One-time PIN was added as a login method and is still there",
+        "deleteAccessApp": "The login for {domain} was added and is still there",
+        "restoreAccessApp": "Who can open {domain} wasn't restored",
+        "recreateAccessApp": "The login for {domain} was removed",
+        "deleteNetworkRoute": "Private network {network} was routed to the tunnel and still is",
+        "recreateNetworkRoute": "The route for private network {network} was removed"
+      }
+    },
+    "machine": {
+      "alwaysOnUnavailable": "Always-on isn't available on this system.",
+      "tokenFile": "Couldn't write the connector's token file: {detail}",
+      "service": "The background service couldn't be set up: {detail}",
+      "alwaysOnTimeout": "The always-on connector didn't connect within 30 seconds. This Mac keeps using the app's connector.",
+      "sessionTimeout": "The app's connector didn't connect within 30 seconds. The always-on connector keeps running.",
+      "updateTimeout": "The connector didn't reconnect within 30 seconds after the update.",
+      "bridgeFailed": "Couldn't restart the always-on connector on the new cloudflared: a temporary connector didn't connect. It keeps running the previous version.",
+      "reinstallFailed": "Couldn't reinstall the always-on connector ({detail}). The app's connector serves the routes for now.",
+      "reconnectTimeout": "The always-on connector didn't reconnect within 30 seconds after the update. The app's connector serves the routes for now.",
+      "noPort": "No free port for the connector's metrics (20300–20399 are all busy).",
+      "noTunnel": "This Mac doesn't have a tunnel yet. Add a route first.",
+      "interrupted": "The operation was interrupted. Try again."
+    },
+    "doctor": {
+      "udpBlocked": {
+        "title": "This network seems to block QUIC (UDP)",
+        "detail": "cloudflared falls back to HTTP/2, which works but can be slower to reconnect. If connections keep dropping, check firewall rules for UDP port 7844."
+      },
+      "originTls": {
+        "title": "An HTTPS origin's certificate isn't trusted",
+        "detail": "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the Mac trusts."
+      },
+      "clockSkew": {
+        "title": "This Mac's clock may be wrong",
+        "detail": "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time and date automatically in System Settings."
+      },
+      "binaryMissing": {
+        "title": "cloudflared isn't installed",
+        "detail": "Routes and Quick Share need cloudflared. Teitunnel can install a verified copy."
+      },
+      "binaryUnsupported": {
+        "title": "cloudflared is too old",
+        "detail": "Some features need a newer cloudflared. Install the managed copy to update.",
+        "version": "Version {version}"
+      },
+      "foreignRunning": {
+        "quickTunnel": "cloudflared is running a Quick Tunnel for {origin} outside Teitunnel",
+        "named": "cloudflared is running tunnel {name} outside Teitunnel",
+        "unnamed": "cloudflared is running a tunnel outside Teitunnel",
+        "other": "cloudflared is running outside Teitunnel",
+        "detailService": "It was started as a background service. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes.",
+        "detail": "It was started outside Teitunnel. Teitunnel leaves it alone; you can stop it from Tunnels, or import its routes.",
+        "subject": "cloudflared (pid {pid})"
+      },
+      "missingScope": {
+        "title": "This account's token can't manage routes",
+        "detail": "Routes need Cloudflare Tunnel · Edit and DNS · Edit. Create a token with those permissions and connect it again.",
+        "subject": "Permissions"
+      },
+      "zonePending": {
+        "title": "{domain} is waiting for its nameservers",
+        "detail": "Routes on this domain won't work until the registrar uses Cloudflare's nameservers.",
+        "nameserver": "Nameserver {nameserver}"
+      },
+      "configDrift": {
+        "title": "This Mac's routes were changed outside Teitunnel",
+        "detail": "Keep the changes, or restore what Teitunnel set up.",
+        "subject": "Routes"
+      },
+      "dnsMissing": {
+        "title": "{hostname} has no DNS record",
+        "detail": "The tunnel serves this hostname, but nothing points it at the tunnel, so it doesn't resolve."
+      },
+      "dnsNotProxied": {
+        "title": "{hostname} isn't proxied through Cloudflare",
+        "detail": "Tunnel hostnames only work when the record is proxied (orange cloud)."
+      },
+      "dnsWrongTarget": {
+        "title": "{hostname} points at another tunnel"
+      },
+      "dnsConflict": {
+        "title": "Another record answers for {hostname}",
+        "detail": "Requests for this hostname don't reach this Mac. Point the record at this Mac's tunnel."
+      },
+      "originNotListening": {
+        "title": "Nothing is listening on port {port}",
+        "detail": "Start the app this route sends traffic to; visitors see an error until it runs."
+      },
+      "noConnections": {
+        "title": "This Mac's connector isn't running",
+        "detail": "Its routes don't answer until the connector runs."
+      },
+      "crashLoop": {
+        "title": "This Mac's connector keeps stopping",
+        "detail": "cloudflared exited several times in a row. Its logs say why; starting it again retries.",
+        "exitCode": "Last exit code {code}"
+      },
+      "degraded": {
+        "title": "This Mac's connector lost its connection",
+        "detail": "cloudflared is running but not connected to Cloudflare. It reconnects on its own; check the network if it persists."
+      },
+      "staleConnections": {
+        "title": "Cloudflare still lists connections for this Mac's tunnel",
+        "detail": "This Mac's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it.",
+        "connections_one": "{count} connection",
+        "connections_other": "{count} connections"
+      },
+      "otherConnectors": {
+        "title": "Another machine also runs this Mac's tunnel",
+        "detail": "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this Mac. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes."
+      },
+      "duplicateLocal": {
+        "title": "Another cloudflared on this Mac runs this Mac's tunnel",
+        "detail": "Two connectors on one Mac add nothing but confusion in logs and metrics. Stop the other one from Tunnels."
+      },
+      "unusedOwned": {
+        "title": "This Mac's tunnel has no routes",
+        "detail": "It's kept so adding a route is quick. Delete it if you don't need it."
+      },
+      "orphanRoute": {
+        "title": "{hostname} points at this Mac's tunnel but has no route",
+        "detail": "Visitors get a 404 from the tunnel. Delete the record, or add a route for it."
+      },
+      "orphanTunnel": {
+        "title": "{hostname} points at a tunnel that no longer exists",
+        "detail": "The hostname shows a Cloudflare error. Delete the record, or route it to a tunnel."
+      },
+      "proxyOff": {
+        "title": "WARP clients can't reach private networks",
+        "detail": "Gateway's proxy is off, so WARP clients don't send traffic for private networks through Cloudflare. In the Cloudflare Zero Trust dashboard, turn on the Gateway proxy for TCP (and UDP, for services that use it) in the network settings.",
+        "subject": "Private networks",
+        "shared": "Shared: {networks}"
+      },
+      "networkExcluded": {
+        "title": "WARP clients don't send {network} to this Mac",
+        "detail": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network}).",
+        "excluded": "Excluded: {range}",
+        "excludedNamed": "Excluded: {range} ({description})"
+      },
+      "networkNotIncluded": {
+        "title": "WARP clients don't send {network} to this Mac",
+        "detail": "The default device profile's Split Tunnels only send the listed addresses through WARP, and {network} isn't one of them. In the Cloudflare Zero Trust dashboard, add {network} to Split Tunnels."
+      },
+      "accessOrphan": {
+        "title": "{domain} still has a login but no route",
+        "detail": "Teitunnel added this login for a route that was removed outside Teitunnel. It protects nothing now, but would ask for a login if the hostname is routed again elsewhere. Remove it, or add the route back.",
+        "app": "Access application “Teitunnel · {domain}”"
+      },
+      "fix": {
+        "restoreMine": "Restore Mine",
+        "fixDns": "Fix the DNS Record",
+        "deleteTunnel": "Delete the Tunnel",
+        "deleteRecord": "Delete the Record",
+        "removeLogin": "Remove the Login"
+      },
+      "unreadable": {
+        "title": "Couldn't check {account}",
+        "detail": "{detail}"
+      },
+      "record": "{name} {kind} {content}",
+      "recordProxied": "{name} {kind} {content} (proxied)"
+    },
+    "notify": {
+      "doctorMany": "Teitunnel found {count} problems",
+      "doctorManyBody_one": "{first}, and {count} more. Open the Doctor to fix them.",
+      "doctorManyBody_other": "{first}, and {count} more. Open the Doctor to fix them.",
+      "oldBinary": "Routes still use the previous cloudflared",
+      "switchFailed": "Couldn't switch routes",
+      "routesDown": "Routes on this Mac are down",
+      "routesDownBody": "The connector lost its connection to Cloudflare. Teitunnel keeps retrying.",
+      "routesBack": "Routes are back",
+      "routesBackBody": "The connector is connected again.",
+      "crashLoop": "The connector keeps stopping",
+      "crashLoopBody": "Open Teitunnel's Doctor to see why.",
+      "shareLive": "Quick Share is live",
+      "shareFailed": "Quick Share stopped working"
+    },
+    "verify": {
+      "noRecord": "There's no DNS record for this hostname.",
+      "recordElsewhere": "The DNS record points at {content}, not at this Mac's tunnel.",
+      "edgeUnreachable": "Couldn't reach Cloudflare: {detail}",
+      "certificateNotCovered": "Cloudflare's free certificate covers one level of subdomain (app.example.com), not deeper names like a.b.example.com. Use a single-level name or add an Advanced Certificate.",
+      "notOnCloudflareYet": "Cloudflare doesn't serve this hostname yet. New records usually take a few seconds.",
+      "noConnector": "Cloudflare can't reach this Mac: the connector isn't connected.",
+      "tunnelMismatch": "The hostname points at a tunnel that doesn't serve it.",
+      "originNotListening": "Nothing is listening on the origin's port. Start your app and test again.",
+      "originUnreachable": "The tunnel works, but the connector couldn't connect to the origin.",
+      "originTimeout": "The origin didn't answer in time."
+    },
+    "remoteLogs": {
+      "noPermission": "This account's token can't read connector logs. It needs Cloudflare Tunnel: Edit.",
+      "noAccess": "Couldn't get access to the logs: {detail}",
+      "connect": "Couldn't connect to the connector's logs: {detail}",
+      "sessionLimit": "This connector already streams its logs elsewhere (a `cloudflared tail`, or another window). Close that and try again.",
+      "idle": "The log stream timed out.",
+      "closed": "The log stream closed.",
+      "closedReason": "The log stream closed: {reason}"
+    },
+    "quickShare": {
+      "noUrl": "Cloudflare didn't provide a URL in time. Check your internet connection and try again.",
+      "crashLoop": "cloudflared keeps exiting. See the log for details."
+    },
+    "import": {
+      "wildcard": "Wildcards are only supported as the first label",
+      "service": "“{service}” isn't a service Teitunnel routes to",
+      "originRequest": "It has per-route settings (originRequest) Teitunnel doesn't edit yet",
+      "unreadable": "Couldn't read it: {detail}",
+      "invalidYaml": "It isn't valid YAML: {detail}"
+    },
+    "oauthPage": {
+      "notFound": "Not found",
+      "mismatch": "Sign-in didn't match",
+      "returnAndRetry": "Return to Teitunnel and try again.",
+      "cancelled": "Sign-in cancelled",
+      "closeTab": "You can close this tab and return to Teitunnel.",
+      "incomplete": "Sign-in didn't complete",
+      "signedIn": "You're signed in"
+    },
+    "app": {
+      "cloudflaredMissing": "cloudflared isn't installed.",
+      "cloudflaredMissingHint": "Install it from the Quick Share page, or run `brew install cloudflared`.",
+      "permissionHint": "Check the token's permissions in Settings ▸ Accounts.",
+      "internalHint": "Try again. If it keeps happening, report an issue from the Help menu.",
+      "unexpected": "Something went wrong inside Teitunnel.",
+      "interrupted": "The operation was interrupted. Try again.",
+      "pasteToken": "Paste the API token you created.",
+      "openBrowser": "Couldn't open the browser: {detail}",
+      "noHome": "Couldn't find your home folder.",
+      "noCert": "No cert.pem found. Run `cloudflared tunnel login` first, or use an API token.",
+      "oauthUnavailable": "Sign in with Cloudflare isn't available in this build.",
+      "signInCancelled": "Sign-in cancelled.",
+      "loginItem": "Couldn't change the login item: {detail}",
+      "noDownloads": "Couldn't find the Downloads folder: {detail}",
+      "saveFailed": "Couldn't save {name}: {detail}",
+      "scanFailed": "Couldn't look for cloudflared setups.",
+      "foreignGone": "That cloudflared isn't running any more.",
+      "noRoutes": "This Mac has no routes in this account yet.",
+      "finder": "Couldn't open Finder: {detail}",
+      "qrTooLong": "That URL is too long for a QR code."
+    },
+    "menu": {
+      "about": "About {app}",
+      "settings": "Settings…",
+      "services": "Services",
+      "hide": "Hide {app}",
+      "hideOthers": "Hide Others",
+      "showAll": "Show All",
+      "quit": "Quit {app}",
+      "file": "File",
+      "newRoute": "New Route…",
+      "newQuickShare": "New Quick Share…",
+      "closeWindow": "Close Window",
+      "edit": "Edit",
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All",
+      "view": "View",
+      "overview": "Overview",
+      "routes": "Routes",
+      "quickShare": "Quick Share",
+      "domains": "Domains",
+      "tunnels": "Tunnels",
+      "activity": "Activity",
+      "doctor": "Doctor",
+      "toggleSidebar": "Toggle Sidebar",
+      "toggleInspector": "Toggle Inspector",
+      "commandPalette": "Command Palette…",
+      "refresh": "Refresh",
+      "fullscreen": "Enter Full Screen",
+      "window": "Window",
+      "minimize": "Minimize",
+      "zoom": "Zoom",
+      "bringAllToFront": "Bring All to Front",
+      "help": "Help",
+      "docs": "Teitunnel Documentation",
+      "cloudflareDocs": "Cloudflare Tunnel Documentation",
+      "checkProblems": "Check for Problems",
+      "exportDiagnostics": "Export Diagnostics…",
+      "releaseNotes": "Release Notes",
+      "reportIssue": "Report an Issue…",
+      "credits": "Routes and Quick Shares run on cloudflared by Cloudflare (Apache-2.0), downloaded from its GitHub releases and verified before use.",
+      "settingsWindow": "Settings"
+    },
+    "tray": {
+      "stopRoutes": "Stop Routes on This Mac",
+      "startRoutes": "Start Routes on This Mac",
+      "shareStarting": "Starting",
+      "shareLive": "Live",
+      "shareReconnecting": "Reconnecting",
+      "shareFailed": "Failed",
+      "copyUrl": "Copy URL",
+      "openInBrowser": "Open in Browser",
+      "stopSharing": "Stop Sharing",
+      "routesStopped": "Routes stopped on this Mac",
+      "routeLive": "Route live",
+      "allLive_one": "{count} route live",
+      "allLive_other": "All {count} routes live",
+      "noShares": "No Quick Shares",
+      "shares": "Quick Shares",
+      "shareLocalPort": "Share a Local Port…",
+      "open": "Open Teitunnel",
+      "quit": "Quit Teitunnel",
+      "notWorking_one": "{failing} of {count} route not working",
+      "notWorking_other": "{failing} of {count} routes not working"
+    },
+    "route": {
+      "status": {
+        "live": "Live",
+        "noDns": "No DNS record",
+        "dnsElsewhere": "DNS points elsewhere",
+        "connecting": "Connecting",
+        "restarting": "Restarting",
+        "connectionLost": "Connection lost",
+        "keepsStopping": "Keeps stopping",
+        "stopped": "Stopped"
+      }
+    }
   }
 }

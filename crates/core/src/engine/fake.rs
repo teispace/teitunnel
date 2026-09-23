@@ -631,16 +631,16 @@ impl Connectors for FakeConnectors {
         _account: &str,
         tunnel_id: &str,
         token: Secret<String>,
-    ) -> Result<(), String> {
+    ) -> Result<(), crate::text::Text> {
         assert_eq!(token.expose(), &format!("token-for-{tunnel_id}"));
         self.call(format!("start {tunnel_id}"));
         self.running.lock().unwrap().insert(tunnel_id.to_owned());
         Ok(())
     }
 
-    async fn stop(&self, tunnel_id: &str) -> Result<(), String> {
+    async fn stop(&self, tunnel_id: &str) -> Result<(), crate::text::Text> {
         if self.fail_stop.load(Ordering::SeqCst) {
-            return Err("injected stop failure".into());
+            return Err(crate::text::msg::raw("injected stop failure"));
         }
         self.call(format!("stop {tunnel_id}"));
         self.running.lock().unwrap().remove(tunnel_id);

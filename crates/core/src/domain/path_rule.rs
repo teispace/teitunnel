@@ -1,15 +1,26 @@
 use serde::{Deserialize, Serialize};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why a path rule was rejected.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PathError {
     /// Not a valid regular expression.
-    #[error("That path pattern isn't valid: {0}")]
     Invalid(String),
     /// Uses syntax Go's RE2 (cloudflared) doesn't support.
-    #[error("cloudflared doesn't support look-around or back-references in paths.")]
     Unsupported,
 }
+
+impl UserText for PathError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Invalid(detail) => msg::error::path::invalid(detail),
+            Self::Unsupported => msg::error::path::unsupported(),
+        }
+    }
+}
+
+english_display!(PathError);
 
 /// A path regex for an ingress rule, e.g. `^/api/`. Validated with Rust's `regex`
 /// (the same RE2-style syntax family as cloudflared's Go regexp).

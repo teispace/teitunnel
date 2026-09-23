@@ -14,7 +14,7 @@ import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { DiagnosticsDialog } from "./diagnostics-dialog";
@@ -31,7 +31,7 @@ const severityOf = (severity: Severity) => ({
 function fixLabel(fix: Fix): string {
   switch (fix.type) {
     case "change":
-      return t("doctor.fix.change", { label: fix.label });
+      return t("doctor.fix.change", { label: translate(fix.label) });
     case "installBinary":
       return t("doctor.fix.installBinary");
     case "startConnector":
@@ -117,10 +117,10 @@ function IssueInspector({
   const severity = severityOf(issue.severity);
   return (
     <Inspector
-      title={issue.title}
+      title={translate(issue.title)}
       subtitle={
         <span className="flex items-center gap-1.5">
-          <StatusDot status={severity.dot} label={severity.label} /> {issue.subject}
+          <StatusDot status={severity.dot} label={severity.label} /> {translate(issue.label)}
         </span>
       }
       actions={
@@ -128,11 +128,14 @@ function IssueInspector({
           {issue.fixes.map((fix, index) =>
             fix.type === "change" && issue.accountId ? (
               <Button
-                key={fix.label}
+                key={fix.label.key}
                 variant={index === 0 ? "primary" : "secondary"}
                 onClick={() =>
                   issue.accountId &&
-                  onReview({ kind: "fix", change: fix.change, label: fix.label }, issue.accountId)
+                  onReview(
+                    { kind: "fix", change: fix.change, label: translate(fix.label) },
+                    issue.accountId,
+                  )
                 }
               >
                 {fixLabel(fix)}
@@ -151,15 +154,18 @@ function IssueInspector({
         </>
       }
     >
-      <p className="selectable text-body">{issue.detail}</p>
+      <p className="selectable text-body">{translate(issue.detail)}</p>
       {issue.evidence.length > 0 ? (
         <InspectorSection title={t("doctor.details")}>
           <ul className="flex flex-col gap-1">
-            {issue.evidence.map((line) => (
-              <li key={line} className="selectable break-all font-mono text-mono text-secondary">
-                {line}
-              </li>
-            ))}
+            {issue.evidence.map((line) => {
+              const text = translate(line);
+              return (
+                <li key={text} className="selectable break-all font-mono text-mono text-secondary">
+                  {text}
+                </li>
+              );
+            })}
           </ul>
         </InspectorSection>
       ) : null}
@@ -266,8 +272,8 @@ export function DoctorPage() {
             onSelect={setSelectedId}
             renderRow={(issue) => (
               <ListRow
-                title={issue.title}
-                subtitle={issue.subject}
+                title={translate(issue.title)}
+                subtitle={translate(issue.label)}
                 leading={
                   <StatusDot
                     status={severityOf(issue.severity).dot}

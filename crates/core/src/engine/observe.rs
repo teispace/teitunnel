@@ -14,6 +14,8 @@ use super::{
 };
 use crate::{domain::Hostname, store::StoreError};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Requests in flight at once while reading DNS records.
 const CONCURRENCY: usize = 4;
 
@@ -30,11 +32,20 @@ pub enum ObserveError {
     #[error(transparent)]
     Store(#[from] StoreError),
     /// Requiring a login needs Access permissions the credential doesn't have.
-    #[error(
-        "This account's token can't manage logins. Create a token that also has Access: Apps and Policies (Edit) and Access: Organizations, Identity Providers, and Groups (Edit), then reconnect."
-    )]
     AccessPermission,
 }
+
+impl UserText for ObserveError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Api(err) => err.text(),
+            Self::Store(err) => err.text(),
+            Self::AccessPermission => msg::error::observe::access_permission(),
+        }
+    }
+}
+
+english_display!(ObserveError);
 
 /// Whether a change reads something optional.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

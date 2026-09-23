@@ -19,6 +19,8 @@ use super::{
     state::{ConnectorId, ConnectorState, RuntimeEvent},
 };
 
+use crate::text::{Text, UserText, english_display, msg};
+
 const EVENT_CAPACITY: usize = 4096;
 const DEFAULT_LOG_CAPACITY: usize = 100_000;
 
@@ -54,12 +56,21 @@ impl ConnectorSpec {
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum SupervisorError {
     /// A connector with this id is already running.
-    #[error("connector {0} is already running")]
     AlreadyRunning(ConnectorId),
     /// No connector with this id.
-    #[error("connector {0} isn't running")]
     NotFound(ConnectorId),
 }
+
+impl UserText for SupervisorError {
+    fn text(&self) -> Text {
+        match self {
+            Self::AlreadyRunning(_) => msg::error::connector::already_running(),
+            Self::NotFound(_) => msg::error::connector::not_found(),
+        }
+    }
+}
+
+english_display!(SupervisorError);
 
 struct Handle_ {
     state: watch::Receiver<ConnectorState>,

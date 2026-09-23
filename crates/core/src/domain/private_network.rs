@@ -9,19 +9,30 @@ use std::{
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use serde::Serialize;
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why a range was rejected. Messages are shown next to the field.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PrivateNetworkError {
     /// Not an IP address or CIDR range.
-    #[error("Enter an IP address or a range like 192.168.1.0/24.")]
     Invalid,
     /// Covers far too much (it would take over a large part of the internet or the LAN).
-    #[error("{0} is too broad. Use a range of at most /8 (IPv4) or /16 (IPv6).")]
     TooBroad(String),
     /// Loopback, link-local, multicast or unspecified: never reachable through a tunnel.
-    #[error("{0} can't be reached through a tunnel. Use this Mac's network address instead.")]
     Unroutable(String),
 }
+
+impl UserText for PrivateNetworkError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Invalid => msg::error::network::invalid(),
+            Self::TooBroad(network) => msg::error::network::too_broad(network),
+            Self::Unroutable(network) => msg::error::network::unroutable(network),
+        }
+    }
+}
+
+english_display!(PrivateNetworkError);
 
 /// A validated range, host bits cleared (`192.168.1.7/24` → `192.168.1.0/24`); a bare
 /// address is a single host (`/32` or `/128`).

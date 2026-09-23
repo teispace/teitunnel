@@ -20,7 +20,11 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use tokio::time::Instant;
 
-use crate::{Secret, runtime::LogBuffer, runtime::LogEvent};
+use crate::{
+    Secret,
+    runtime::{LogBuffer, LogEvent},
+    text::{Text, msg},
+};
 
 /// Lines kept per session.
 const CAPACITY: usize = 2_000;
@@ -65,7 +69,7 @@ pub enum RemoteLogState {
     /// Stopped for good; stop the session and read again to retry.
     Ended {
         /// Why, in a sentence.
-        message: String,
+        message: Text,
     },
 }
 
@@ -262,8 +266,20 @@ fn backoff(attempt: u32) -> Duration {
     Duration::from_secs(u64::from(attempt.min(4)).pow(2).max(1))
 }
 
+/// A stream error for the user.
+fn stream_text(err: &StreamError) -> Text {
+    use crate::text::msg::remote_logs as m;
+    match err {
+        StreamError::Connect(detail) => m::connect(detail),
+        StreamError::SessionLimit => m::session_limit(),
+        StreamError::Idle => m::idle(),
+        StreamError::Closed(None) => m::closed(),
+        StreamError::Closed(Some(reason)) => m::closed_reason(reason),
+    }
+}
+
 async fn run<T: ManagementTokens>(owner: RemoteLogs, tokens: T, key: Key, session: Arc<Session>) {
-    let ended = |message: String| RemoteLogState::Ended { message };
+    let ended = |message: Text| RemoteLogState::Ended { message };
     let mut attempt = 0;
     loop {
         if session.idle() {
@@ -274,15 +290,13 @@ async fn run<T: ManagementTokens>(owner: RemoteLogs, tokens: T, key: Key, sessio
         let token = match tokens.management_token(&key.account, &key.tunnel).await {
             Ok(token) => token,
             Err(err) if err.is_auth() => {
-                session.set(ended(
-                    "This account's token can't read connector logs. It needs Cloudflare Tunnel: Edit.".into(),
-                ));
+                session.set(ended(msg::remote_logs::no_permission()));
                 return;
             }
             Err(err) => {
                 attempt += 1;
                 if attempt >= ATTEMPTS {
-                    session.set(ended(format!("Couldn't get access to the logs: {err}")));
+                    session.set(ended(msg::remote_logs::no_access(err.detail())));
                     return;
                 }
                 tokio::time::sleep(backoff(attempt)).await;
@@ -301,7 +315,7 @@ async fn run<T: ManagementTokens>(owner: RemoteLogs, tokens: T, key: Key, sessio
             Err(err) => {
                 attempt += 1;
                 if !err.is_transient() || attempt >= ATTEMPTS {
-                    session.set(ended(err.to_string()));
+                    session.set(ended(stream_text(&err)));
                     return;
                 }
                 tokio::time::sleep(backoff(attempt)).await;
@@ -334,7 +348,7 @@ async fn run<T: ManagementTokens>(owner: RemoteLogs, tokens: T, key: Key, sessio
                 return;
             }
             Some(err @ StreamError::SessionLimit) => {
-                session.set(ended(err.to_string()));
+                session.set(ended(stream_text(&err)));
                 return;
             }
             // Dropped or timed out: reconnect with a fresh token.
@@ -434,7 +448,10 @@ mod tests {
         let RemoteLogState::Ended { message } = &batch.state else {
             unreachable!()
         };
-        assert!(message.contains("already streams its logs"), "{message}");
+        assert!(
+            message.english().contains("already streams its logs"),
+            "{message:?}"
+        );
         let errors: Vec<_> = batch.lines.iter().filter_map(|l| l.error.clone()).collect();
         assert_eq!(
             errors,
@@ -463,7 +480,7 @@ mod tests {
         })
         .await;
         assert!(
-            matches!(&batch.state, RemoteLogState::Ended { message } if message.contains("Cloudflare Tunnel: Edit"))
+            matches!(&batch.state, RemoteLogState::Ended { message } if message.english().contains("Cloudflare Tunnel: Edit"))
         );
     }
 

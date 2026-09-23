@@ -1,4 +1,12 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import { rawText } from "@/lib/i18n";
+
+/** A message the Rust core would send (`core.*` in the catalog). */
+const core = (key: string, args: Record<string, string | number> = {}) => ({
+  key: `core.${key}`,
+  args,
+});
+
 import type {
   Account,
   ActivityEntry,
@@ -212,25 +220,25 @@ const protectedPlan: PlanView = {
   steps: [
     {
       kind: "loginMethod",
-      description: "Add One-time PIN as a way to sign in (a code sent by email)",
+      description: rawText("Add One-time PIN as a way to sign in (a code sent by email)"),
       command: null,
     },
     {
       kind: "accessApp",
-      description: "Require a login for shop.yx.app: me@xyz.dev, anyone at @teispace.com",
+      description: rawText("Require a login for shop.yx.app: me@xyz.dev, anyone at @teispace.com"),
       command: null,
     },
     {
       kind: "putConfig",
-      description: "Update tunnel “MacBook-Pro” to serve 5 routes",
+      description: rawText("Update tunnel “MacBook-Pro” to serve 5 routes"),
       command: null,
     },
     {
       kind: "createRecord",
-      description: "Point shop.yx.app at tunnel “MacBook-Pro”",
+      description: rawText("Point shop.yx.app at tunnel “MacBook-Pro”"),
       command: null,
     },
-    { kind: "verify", description: "Check https://shop.yx.app works", command: null },
+    { kind: "verify", description: rawText("Check https://shop.yx.app works"), command: null },
   ],
   warnings: [],
   requiresConfirmation: false,
@@ -241,17 +249,17 @@ const addPlan: PlanView = {
   steps: [
     {
       kind: "putConfig",
-      description: "Update tunnel “MacBook-Pro” to serve 5 routes",
+      description: rawText("Update tunnel “MacBook-Pro” to serve 5 routes"),
       command: `curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/${tunnelId}/configurations`,
     },
     {
       kind: "updateRecord",
-      description: "Point shop.yx.app at tunnel “MacBook-Pro” (was A 192.0.2.10)",
+      description: rawText("Point shop.yx.app at tunnel “MacBook-Pro” (was A 192.0.2.10)"),
       command: null,
     },
     {
       kind: "verify",
-      description: "Check https://shop.yx.app works",
+      description: rawText("Check https://shop.yx.app works"),
       command: "curl -I https://shop.yx.app",
     },
   ],
@@ -282,7 +290,7 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "putConfig",
-            description: "Update tunnel “MacBook-Pro” to serve 4 routes",
+            description: rawText("Update tunnel “MacBook-Pro” to serve 4 routes"),
             command:
               'curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/6ff42ae2/configurations',
           },
@@ -291,7 +299,9 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "updateRecord",
-            description: "Point web.teispace.com at tunnel “MacBook-Pro” (was A 192.0.2.10)",
+            description: rawText(
+              "Point web.teispace.com at tunnel “MacBook-Pro” (was A 192.0.2.10)",
+            ),
             command: null,
           },
           state: { state: "done" },
@@ -299,7 +309,9 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "deleteRecord",
-            description: "Delete DNS record app.teispace.com (CNAME 6ff42ae2.cfargotunnel.com)",
+            description: rawText(
+              "Delete DNS record app.teispace.com (CNAME 6ff42ae2.cfargotunnel.com)",
+            ),
             command:
               'curl -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/dns_records/r4',
           },
@@ -311,7 +323,7 @@ const activity: ActivityEntry[] = [
           area: "route",
           hostname: "app.teispace.com",
           path: null,
-          before: "http://localhost:5173",
+          before: rawText("http://localhost:5173"),
           after: null,
         },
         {
@@ -319,21 +331,21 @@ const activity: ActivityEntry[] = [
           hostname: "web.teispace.com",
           path: null,
           before: null,
-          after: "http://localhost:5173 · noTLSVerify",
+          after: rawText("http://localhost:5173 · noTLSVerify"),
         },
         {
           area: "dns",
           hostname: "app.teispace.com",
           path: null,
-          before: "CNAME 6ff42ae2.cfargotunnel.com",
+          before: rawText("CNAME 6ff42ae2.cfargotunnel.com"),
           after: null,
         },
         {
           area: "dns",
           hostname: "web.teispace.com",
           path: null,
-          before: "A 192.0.2.10",
-          after: "proxied CNAME to tunnel “MacBook-Pro”",
+          before: rawText("A 192.0.2.10"),
+          after: rawText("proxied CNAME to tunnel “MacBook-Pro”"),
         },
       ],
     },
@@ -352,7 +364,7 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "putConfig",
-            description: "Update tunnel “MacBook-Pro” to serve 5 routes",
+            description: rawText("Update tunnel “MacBook-Pro” to serve 5 routes"),
             command: null,
           },
           state: { state: "undone" },
@@ -360,12 +372,12 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "createRecord",
-            description: "Add DNS record api.xyz.dev → tunnel “MacBook-Pro”",
+            description: rawText("Add DNS record api.xyz.dev → tunnel “MacBook-Pro”"),
             command: "cloudflared tunnel route dns 'MacBook-Pro' api.xyz.dev",
           },
           state: {
             state: "failed",
-            message: "Cloudflare API error: record already exists (code 81053)",
+            message: rawText("Cloudflare API error: record already exists (code 81053)"),
           },
         },
       ],
@@ -375,14 +387,14 @@ const activity: ActivityEntry[] = [
           hostname: "api.xyz.dev",
           path: "^/v1/",
           before: null,
-          after: "http://localhost:8000",
+          after: rawText("http://localhost:8000"),
         },
         {
           area: "dns",
           hostname: "api.xyz.dev",
           path: null,
           before: null,
-          after: "proxied CNAME to tunnel “MacBook-Pro”",
+          after: rawText("proxied CNAME to tunnel “MacBook-Pro”"),
         },
       ],
     },
@@ -684,10 +696,10 @@ export function installMockIpc(): void {
               severity: "warning",
               accountId: "acc-personal",
               subject: "192.168.1.0/24",
-              title: "WARP clients don't send 192.168.1.0/24 to this Mac",
-              detail:
-                "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for 192.168.1.0/24 to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers 192.168.1.0/24).",
-              evidence: ["Excluded: 192.168.0.0/16"],
+              label: rawText("192.168.1.0/24"),
+              title: core("doctor.networkExcluded.title", { network: "192.168.1.0/24" }),
+              detail: core("doctor.networkExcluded.detail", { network: "192.168.1.0/24" }),
+              evidence: [core("doctor.networkExcluded.excluded", { range: "192.168.0.0/16" })],
               fixes: [],
             },
             {
@@ -696,14 +708,14 @@ export function installMockIpc(): void {
               severity: "error",
               accountId: "acc-personal",
               subject: "docs.teispace.com",
-              title: "docs.teispace.com has no DNS record",
-              detail:
-                "The tunnel serves this hostname, but nothing points it at the tunnel, so it doesn't resolve.",
+              label: rawText("docs.teispace.com"),
+              title: core("doctor.dnsMissing.title", { hostname: "docs.teispace.com" }),
+              detail: core("doctor.dnsMissing.detail"),
               evidence: [],
               fixes: [
                 {
                   type: "change",
-                  label: "Fix the DNS Record",
+                  label: core("doctor.fix.fixDns"),
                   change: {
                     type: "addRoute",
                     route: {
@@ -721,10 +733,10 @@ export function installMockIpc(): void {
               severity: "warning",
               accountId: "acc-personal",
               subject: "api.xyz.dev",
-              title: "Nothing is listening on port 8000",
-              detail:
-                "Start the app this route sends traffic to; visitors see an error until it runs.",
-              evidence: ["api.xyz.dev → http://localhost:8000"],
+              label: rawText("api.xyz.dev"),
+              title: core("doctor.originNotListening.title", { port: "8000" }),
+              detail: core("doctor.originNotListening.detail"),
+              evidence: [rawText("api.xyz.dev → http://localhost:8000")],
               fixes: [],
             },
             {
@@ -733,14 +745,14 @@ export function installMockIpc(): void {
               severity: "warning",
               accountId: "acc-personal",
               subject: "old.xyz.dev",
-              title: "old.xyz.dev points at a tunnel that no longer exists",
-              detail:
-                "The hostname shows a Cloudflare error. Delete the record, or route it to a tunnel.",
-              evidence: ["old.xyz.dev CNAME 0c1f…e2.cfargotunnel.com (proxied)"],
+              label: rawText("old.xyz.dev"),
+              title: core("doctor.orphanTunnel.title", { hostname: "old.xyz.dev" }),
+              detail: core("doctor.orphanTunnel.detail"),
+              evidence: [rawText("old.xyz.dev CNAME 0c1f…e2.cfargotunnel.com (proxied)")],
               fixes: [
                 {
                   type: "change",
-                  label: "Delete the Record",
+                  label: core("doctor.fix.deleteRecord"),
                   change: {
                     type: "deleteRecord",
                     zoneId: "9a7806061c88ada191ed06f989cc3dac",

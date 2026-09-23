@@ -7,6 +7,7 @@ use cf_api::{
 };
 
 use super::types::ZoneRef;
+use crate::text::Text;
 use crate::{Secret, runtime::ConnectorState};
 
 /// The Cloudflare operations the engine needs, for one credential.
@@ -200,9 +201,9 @@ pub trait Connectors: Send + Sync {
         account: &str,
         tunnel_id: &str,
         token: Secret<String>,
-    ) -> impl Future<Output = Result<(), String>> + Send;
+    ) -> impl Future<Output = Result<(), Text>> + Send;
     /// Stops the connector for a tunnel.
-    fn stop(&self, tunnel_id: &str) -> impl Future<Output = Result<(), String>> + Send;
+    fn stop(&self, tunnel_id: &str) -> impl Future<Output = Result<(), Text>> + Send;
     /// The connector's newest log lines (message and error), oldest first.
     fn recent_logs(&self, _tunnel_id: &str, _limit: usize) -> Vec<String> {
         Vec::new()

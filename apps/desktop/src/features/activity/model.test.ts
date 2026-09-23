@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { rawText } from "@/lib/i18n";
 import type { ActivityEntry, ActivityRecord } from "@/lib/ipc/bindings";
 import { commandScript, inZone, matches } from "./model";
 
@@ -73,13 +74,13 @@ describe("commandScript", () => {
       commandScript([
         {
           kind: "createTunnel",
-          description: "Create tunnel “Mac”",
+          description: rawText("Create tunnel “Mac”"),
           command: "cloudflared tunnel create 'Mac'",
         },
-        { kind: "stopConnector", description: "Stop this Mac's connector", command: null },
+        { kind: "stopConnector", description: rawText("Stop this Mac's connector"), command: null },
         {
           kind: "verify",
-          description: "Check https://a.xyz.com works",
+          description: rawText("Check https://a.xyz.com works"),
           command: "curl -I https://a.xyz.com",
         },
       ]),

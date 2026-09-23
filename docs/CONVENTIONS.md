@@ -31,7 +31,8 @@ These apply to humans and agents alike. CI enforces what it can. Review enforces
 - **State:** server state in Query; UI state in Zustand/URL; form state in react-hook-form. Don't mirror server data into Zustand.
 - **Styling:** Tailwind utilities mapped to semantic tokens (`bg-surface-content`, `text-secondary`). No raw hex, arbitrary colours, or `style={{}}` for static values. `cn()` for conditional classes; `cva` for variants.
 - **Accessibility:** Radix primitives for interactive widgets. `aria-label` on icon-only controls.
-- **Text:** every user-visible string (labels, `aria-label`s, placeholders, toasts) comes from `t("area.key")` with the English text in `src/locales/en.json` (D-061). Placeholders are `{name}`; counts use `_one`/`_other` keys and `{count}`. Module-level label maps hold `MessageKey`s and call `t()` at render, since the language loads before the first render, not at import. Write whole sentences as one message; never concatenate translated fragments.
+- **Text:** every user-visible string (labels, `aria-label`s, placeholders, toasts) comes from `t("area.key")` with the English text in `locales/en.json` (D-061). Placeholders are `{name}`; counts use `_one`/`_other` keys and `{count}`. Module-level label maps hold `MessageKey`s and call `t()` at render, since the language loads before the first render, not at import. Write whole sentences as one message; never concatenate translated fragments.
+- **Text from Rust (D-062):** never build a sentence for the user in Rust. Add it to `locales/en.json` under `core`, create it with the generated `text::msg::…` function, and return the `Text`; the UI translates it with `translate()`. Errors implement `UserText` and derive `Display` from it (English, for logs). Technical values go in as arguments (`msg::raw` for text shown as it is).
 - **No `useEffect` for data fetching or derived state.** Effects only sync with external systems (events, DOM).
 
 ## Naming

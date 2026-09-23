@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use super::types::{Intent, RouteSpec};
 use crate::domain::{Hostname, PathRule};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Who may reach a protected route: any of these emails, or anyone at these domains.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -27,15 +29,24 @@ pub struct AccessRule {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AccessRuleError {
     /// Nobody would be allowed in.
-    #[error("Add at least one email address or email domain.")]
     Empty,
     /// Not an email address.
-    #[error("{0} isn't an email address.")]
     Email(String),
     /// Not a domain.
-    #[error("{0} isn't an email domain, like example.com.")]
     Domain(String),
 }
+
+impl UserText for AccessRuleError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Empty => msg::error::access_rule::empty(),
+            Self::Email(value) => msg::error::access_rule::email(value),
+            Self::Domain(value) => msg::error::access_rule::domain(value),
+        }
+    }
+}
+
+english_display!(AccessRuleError);
 
 fn valid_domain(domain: &str) -> bool {
     Hostname::parse(domain).is_ok() && domain.contains('.')
@@ -79,12 +90,13 @@ impl AccessRule {
         })
     }
 
-    /// The rule as a one-line summary, e.g. `me@xyz.com, anyone at @team.com`.
-    pub fn summary(&self) -> String {
+    /// Who's allowed, in any language: `me@xyz.com, @team.com` (`@domain` is everyone
+    /// there).
+    pub fn people(&self) -> String {
         self.emails
             .iter()
             .cloned()
-            .chain(self.email_domains.iter().map(|d| format!("anyone at @{d}")))
+            .chain(self.email_domains.iter().map(|d| format!("@{d}")))
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -124,11 +136,18 @@ impl AccessRule {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AccessDomainError {
     /// Access protects path prefixes, not arbitrary regular expressions.
-    #[error(
-        "A login can only protect a plain path like /admin, not the pattern {0}. Remove the path, or protect the whole hostname."
-    )]
     PathPattern(String),
 }
+
+impl UserText for AccessDomainError {
+    fn text(&self) -> Text {
+        match self {
+            Self::PathPattern(pattern) => msg::error::access_domain::path_pattern(pattern),
+        }
+    }
+}
+
+english_display!(AccessDomainError);
 
 /// The Access domain for a route: the hostname, plus the path when the route's path
 /// rule is a plain prefix (`^/admin`, `/admin/`, `^/admin/.*`).
@@ -346,8 +365,8 @@ mod tests {
             Err(AccessRuleError::Domain("localhost".into()))
         );
         assert_eq!(
-            rule(&["me@xyz.com"], &["team.io"]).summary(),
-            "me@xyz.com, anyone at @team.io"
+            rule(&["me@xyz.com"], &["team.io"]).people(),
+            "me@xyz.com, @team.io"
         );
     }
 

@@ -39,6 +39,8 @@ use super::{
 };
 use crate::domain::{Hostname, RouteOrigin};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// How long a preview may reuse an observation.
 const CACHE_TTL: Duration = Duration::from_secs(5);
 
@@ -52,18 +54,30 @@ pub enum EngineError {
     #[error(transparent)]
     Observe(#[from] ObserveError),
     /// Something changed since the plan was reviewed; here's the new plan.
-    #[error("Something changed in Cloudflare since you reviewed this change. Review it again.")]
     Stale(Box<Plan>),
     /// The plan touches records Teitunnel didn't create and wasn't confirmed.
-    #[error("This change replaces DNS records Teitunnel didn't create. Confirm it first.")]
     NeedsConfirmation,
     /// The request itself is invalid.
     #[error(transparent)]
     Input(#[from] InputError),
     /// "Restore mine" when nothing was changed elsewhere.
-    #[error("Nothing to restore: the routes are as Teitunnel left them.")]
     NothingToRestore,
 }
+
+impl UserText for EngineError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Plan(err) => err.text(),
+            Self::Observe(err) => err.text(),
+            Self::Input(err) => err.text(),
+            Self::Stale(_) => msg::error::engine::stale(),
+            Self::NeedsConfirmation => msg::error::engine::needs_confirmation(),
+            Self::NothingToRestore => msg::error::engine::nothing_to_restore(),
+        }
+    }
+}
+
+english_display!(EngineError);
 
 /// How often a transient verification failure is retried.
 const VERIFY_RETRY: Duration = Duration::from_secs(2);
@@ -101,7 +115,7 @@ pub enum StepState {
     /// Failed with a message.
     Failed {
         /// What went wrong.
-        message: String,
+        message: Text,
     },
     /// Being undone after a later step failed.
     Undoing,
@@ -110,7 +124,7 @@ pub enum StepState {
     /// Couldn't be undone; left in place.
     UndoFailed {
         /// What went wrong.
-        message: String,
+        message: Text,
     },
 }
 
@@ -141,23 +155,23 @@ pub enum Outcome {
         /// Hostnames to verify next.
         verify: Vec<String>,
         /// The connector couldn't be started (the routes are configured, though).
-        connector_error: Option<String>,
+        connector_error: Option<Text>,
     },
     /// A step failed and everything done before it was undone.
     RolledBack {
         /// Index of the failed step.
         failed_step: u32,
         /// Why it failed.
-        error: String,
+        error: Text,
     },
     /// A step failed and some earlier changes couldn't be undone.
     PartiallyApplied {
         /// Index of the failed step.
         failed_step: u32,
         /// Why it failed.
-        error: String,
+        error: Text,
         /// What was left in place.
-        leftovers: Vec<String>,
+        leftovers: Vec<Text>,
     },
 }
 
@@ -213,45 +227,25 @@ enum Undo {
 }
 
 impl Undo {
-    fn leftover(&self) -> String {
+    fn leftover(&self) -> Text {
+        use crate::text::msg::apply::leftover as m;
         match self {
-            Self::DeleteTunnel(id) => format!("Tunnel {id} was created and is still there"),
-            Self::RestoreConfig { .. } => {
-                "The tunnel's routes weren't restored to what they were".to_owned()
+            Self::DeleteTunnel(id) => m::delete_tunnel(id),
+            Self::RestoreConfig { .. } => m::restore_config(),
+            Self::DeleteRecord { name, .. } => m::delete_record(name),
+            Self::RestoreRecord { previous, .. } => {
+                m::restore_record(&previous.name, &previous.kind, &previous.content)
             }
-            Self::DeleteRecord { name, .. } => {
-                format!("DNS record {name} was created and is still there")
+            Self::RecreateRecord { record, .. } => {
+                m::recreate_record(&record.name, &record.kind, &record.content)
             }
-            Self::RestoreRecord { previous, .. } => format!(
-                "DNS record {} wasn't restored to {} {}",
-                previous.name, previous.kind, previous.content
-            ),
-            Self::RecreateRecord { record, .. } => format!(
-                "DNS record {} ({} {}) was deleted",
-                record.name, record.kind, record.content
-            ),
-            Self::StartConnector(_) => "This Mac's connector is stopped".to_owned(),
-            Self::DeleteLoginMethod(_) => {
-                "One-time PIN was added as a login method and is still there".to_owned()
-            }
-            Self::DeleteAccessApp { domain, .. } => {
-                format!("The login for {domain} was added and is still there")
-            }
-            Self::RestoreAccessApp { previous, .. } => {
-                format!("Who can open {} wasn't restored", previous.domain)
-            }
-            Self::RecreateAccessApp(previous) => {
-                format!("The login for {} was removed", previous.domain)
-            }
-            Self::DeleteNetworkRoute { network, .. } => {
-                format!("Private network {network} was routed to the tunnel and still is")
-            }
-            Self::RecreateNetworkRoute(route) => {
-                format!(
-                    "The route for private network {} was removed",
-                    route.network
-                )
-            }
+            Self::StartConnector(_) => m::start_connector(),
+            Self::DeleteLoginMethod(_) => m::delete_login_method(),
+            Self::DeleteAccessApp { domain, .. } => m::delete_access_app(domain),
+            Self::RestoreAccessApp { previous, .. } => m::restore_access_app(&previous.domain),
+            Self::RecreateAccessApp(previous) => m::recreate_access_app(&previous.domain),
+            Self::DeleteNetworkRoute { network, .. } => m::delete_network_route(network),
+            Self::RecreateNetworkRoute(route) => m::recreate_network_route(&route.network),
         }
     }
 }
@@ -659,25 +653,43 @@ impl Engine {
         };
         let outcome = run.execute(&plan, serve, &mut record_progress).await;
         self.invalidate(ctx.account);
-        let record = ActivityRecord::new(intent, &plan, ctx.account, &states);
-
+        let mut record = ActivityRecord::new(intent, &plan, ctx.account, &states);
+        match &outcome {
+            Outcome::Applied {
+                connector_error, ..
+            } => record.connector_error.clone_from(connector_error),
+            Outcome::RolledBack { error, .. } => record.error = Some(error.clone()),
+            Outcome::PartiallyApplied {
+                error, leftovers, ..
+            } => {
+                record.error = Some(error.clone());
+                record.leftovers.clone_from(leftovers);
+            }
+        }
+        // Plain English lines too: search, and apps from before `record` had them.
         let mut detail: Vec<String> = plan
             .steps
             .iter()
             .filter(|s| s.is_mutation())
-            .map(|s| s.describe(&tunnel_name))
+            .map(|s| s.describe(&tunnel_name).english())
             .collect();
         match &outcome {
             Outcome::Applied {
                 connector_error: Some(error),
                 ..
-            } => detail.push(format!("Connector: {error}")),
-            Outcome::RolledBack { error, .. } => detail.push(format!("Failed: {error}")),
+            } => detail.push(format!("Connector: {}", error.english())),
+            Outcome::RolledBack { error, .. } => {
+                detail.push(format!("Failed: {}", error.english()));
+            }
             Outcome::PartiallyApplied {
                 error, leftovers, ..
             } => {
-                detail.push(format!("Failed: {error}"));
-                detail.extend(leftovers.iter().map(|l| format!("Left over: {l}")));
+                detail.push(format!("Failed: {}", error.english()));
+                detail.extend(
+                    leftovers
+                        .iter()
+                        .map(|l| format!("Left over: {}", l.english())),
+                );
             }
             Outcome::Applied { .. } => {}
         }
@@ -685,7 +697,7 @@ impl Engine {
             .local
             .log(
                 ctx.account,
-                &intent.summary(),
+                &intent.summary().english(),
                 outcome.label(),
                 &detail,
                 Some(&record),
@@ -718,13 +730,13 @@ fn warn_local<T>(result: Result<T, crate::store::StoreError>) {
 }
 
 impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
-    fn resolve(&self, tunnel: &TunnelRef) -> Result<String, String> {
+    fn resolve(&self, tunnel: &TunnelRef) -> Result<String, Text> {
         match tunnel {
             TunnelRef::Existing(id) => Ok(id.clone()),
             TunnelRef::Created => self
                 .created
                 .clone()
-                .ok_or_else(|| "The tunnel wasn't created".to_owned()),
+                .ok_or_else(msg::apply::tunnel_not_created),
         }
     }
 
@@ -802,14 +814,14 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         }
     }
 
-    async fn step(&mut self, step: &Step) -> Result<Option<Undo>, String> {
+    async fn step(&mut self, step: &Step) -> Result<Option<Undo>, Text> {
         let (api, account) = (self.api, self.account);
         match step {
             Step::CreateTunnel { name } => {
                 let tunnel = api
                     .create_tunnel(account, name)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(
                     self.local
                         .set_machine_tunnel(account, &tunnel.id, name)
@@ -841,7 +853,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 let record = api
                     .create_record(zone_id, &tunnel_cname(hostname, &target, route_id))
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(
                     self.local
                         .own_record(account, zone_id, &record.id, hostname, route_id)
@@ -868,7 +880,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     &tunnel_cname(hostname, &target, route_id),
                 )
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.text())?;
                 warn_local(
                     self.local
                         .own_record(account, zone_id, record_id, hostname, route_id)
@@ -883,7 +895,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Step::DeleteRecord { zone_id, record } => {
                 api.delete_record(zone_id, &record.id)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(self.local.disown_record(&record.id).await);
                 Ok(Some(Undo::RecreateRecord {
                     zone: zone_id.clone(),
@@ -898,7 +910,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Step::DeleteTunnel { tunnel_id } => {
                 api.delete_tunnel(account, tunnel_id)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(self.local.forget_machine_tunnel(account).await);
                 self.connectors.deleted(tunnel_id).await;
                 Ok(None)
@@ -907,14 +919,14 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 let id = api
                     .create_one_time_pin(account)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 Ok(Some(Undo::DeleteLoginMethod(id)))
             }
             Step::CreateAccessApp { app } => {
                 let created = api
                     .create_access_app(account, app)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(
                     self.local
                         .own_access_app(account, &created.id, &app.domain)
@@ -928,7 +940,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Step::UpdateAccessApp { id, app, previous } => {
                 api.update_access_app(account, id, app)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(self.local.own_access_app(account, id, &app.domain).await);
                 Ok(Some(Undo::RestoreAccessApp {
                     id: id.clone(),
@@ -938,7 +950,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Step::DeleteAccessApp { id, previous } => {
                 api.delete_access_app(account, id)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 warn_local(self.local.disown_access_app(id).await);
                 Ok(Some(Undo::RecreateAccessApp(previous.clone())))
             }
@@ -948,7 +960,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 let route = api
                     .create_network_route(account, &network, &target, NETWORK_COMMENT, None)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 Ok(Some(Undo::DeleteNetworkRoute {
                     id: route.id,
                     network,
@@ -957,7 +969,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Step::DeleteNetworkRoute { route } => {
                 api.delete_network_route(account, &route.id)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateNetworkRoute(route.clone())))
             }
             Step::Verify { .. } => Ok(None),
@@ -965,7 +977,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
     }
 
     /// Starts the connector if it isn't running, with a fresh run token.
-    async fn ensure_connector(&self, tunnel_id: &str) -> Result<(), String> {
+    async fn ensure_connector(&self, tunnel_id: &str) -> Result<(), Text> {
         if self.connectors.is_running(tunnel_id) {
             return Ok(());
         }
@@ -973,7 +985,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .api
             .tunnel_token(self.account, tunnel_id)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.text())?;
         self.connectors.start(self.account, tunnel_id, token).await
     }
 
@@ -983,18 +995,16 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         tunnel: &str,
         ingress: &[IngressRule],
         expected_version: Option<u64>,
-    ) -> Result<(), String> {
+    ) -> Result<(), Text> {
         let current = self
             .api
             .tunnel_config(self.account, tunnel)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.text())?;
         if let Some(expected) = expected_version
             && current.version != expected
         {
-            return Err(
-                "The tunnel's configuration was changed elsewhere while applying".to_owned(),
-            );
+            return Err(msg::apply::config_changed());
         }
         let mut config = current.config.unwrap_or_else(|| TunnelConfig {
             ingress: Vec::new(),
@@ -1006,7 +1016,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .api
             .put_tunnel_config(self.account, tunnel, &config)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.text())?;
         warn_local(
             self.local
                 .set_applied(self.account, written.version, ingress)
@@ -1015,9 +1025,9 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         Ok(())
     }
 
-    async fn undo(&self, undo: &Undo) -> Result<(), String> {
+    async fn undo(&self, undo: &Undo) -> Result<(), Text> {
         let (api, account) = (self.api, self.account);
-        let err = |e: cf_api::Error| e.to_string();
+        let err = |e: cf_api::Error| e.text();
         match undo {
             Undo::DeleteTunnel(id) => {
                 api.delete_tunnel(account, id).await.map_err(err)?;
@@ -1111,7 +1121,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
     async fn roll_back(
         &mut self,
         failed: u32,
-        error: String,
+        error: Text,
         progress: &mut impl FnMut(Progress),
     ) -> Outcome {
         let mut leftovers = Vec::new();

@@ -42,6 +42,10 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
 tokio-util = "0.7"
 ipnet = "2.12"
+# Localization (D-062)
+intl_pluralrules = "7.0.2"
+unic-langid = "0.9.6"
+sys-locale = "0.3.2"
 futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 serde = { version = "1.0.229", features = ["derive"] }

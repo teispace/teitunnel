@@ -42,7 +42,7 @@ beforeEach(() => {
         if (payload["origin"] === "99999") {
           throw {
             code: "invalidInput",
-            message: "Port must be a number between 1 and 65535.",
+            message: { key: "core.error.origin.invalidPort", args: {} },
             hint: null,
             field: "origin",
           };

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { useUiStore } from "@/app/ui-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { rawText } from "@/lib/i18n";
 import type { Issue } from "@/lib/ipc/bindings";
 import { DoctorBadge } from "./doctor-badge";
 import { DoctorPage } from "./doctor-page";
@@ -16,13 +17,14 @@ const issues: Issue[] = [
     severity: "error",
     accountId: "acc",
     subject: "app.xyz.com",
-    title: "app.xyz.com has no DNS record",
-    detail: "Nothing points it at the tunnel.",
+    label: rawText("app.xyz.com"),
+    title: rawText("app.xyz.com has no DNS record"),
+    detail: rawText("Nothing points it at the tunnel."),
     evidence: [],
     fixes: [
       {
         type: "change",
-        label: "Fix the DNS Record",
+        label: rawText("Fix the DNS Record"),
         change: {
           type: "addRoute",
           route: { hostname: "app.xyz.com", path: null, origin: "http://localhost:3000" },
@@ -36,9 +38,10 @@ const issues: Issue[] = [
     severity: "warning",
     accountId: "acc",
     subject: "yx.com",
-    title: "yx.com is waiting for its nameservers",
-    detail: "Routes won't work yet.",
-    evidence: ["Nameserver ada.ns.cloudflare.com"],
+    label: rawText("yx.com"),
+    title: rawText("yx.com is waiting for its nameservers"),
+    detail: rawText("Routes won't work yet."),
+    evidence: [rawText("Nameserver ada.ns.cloudflare.com")],
     fixes: [],
   },
 ];

@@ -23,42 +23,31 @@ use super::{
 };
 use crate::domain::{Hostname, PathRule};
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why no plan could be made. Messages are shown to the user.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PlanError {
     /// The hostname isn't in any zone of the account.
-    #[error("{0} isn't in any of this account's domains. Add the domain to Cloudflare first.")]
     NoZone(String),
     /// A route with this hostname and path already exists.
-    #[error("{0} is already routed. Edit that route instead.")]
     RouteExists(String),
     /// No route with this hostname and path.
-    #[error("There's no route for {0}.")]
     NoSuchRoute(String),
     /// Nothing to remove.
-    #[error("This Mac doesn't have a tunnel yet.")]
     NoTunnel,
     /// The record is gone (or never existed).
-    #[error("The DNS record for {0} no longer exists.")]
     NoSuchRecord(String),
     /// Requiring a login needs Cloudflare Zero Trust.
-    #[error(
-        "Requiring a login needs Cloudflare Zero Trust, which isn't set up for this account. Open Zero Trust in the Cloudflare dashboard once to choose a team name (the free plan is enough), then try again."
-    )]
     ZeroTrustNotSetUp,
     /// No login Teitunnel added covers the domain.
-    #[error("Teitunnel didn't add a login for {0}, or it's already gone.")]
     NoSuchLogin(String),
     /// Someone else's Access application already covers the domain.
-    #[error(
-        "{0} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard."
-    )]
     AccessAppExists(String),
     /// The route's path can't be protected.
     #[error(transparent)]
     AccessDomain(#[from] AccessDomainError),
     /// The range is already routed to another tunnel.
-    #[error("{network} is already shared through tunnel “{tunnel}”. Remove that route first.")]
     NetworkRouted {
         /// The range.
         network: String,
@@ -66,9 +55,30 @@ pub enum PlanError {
         tunnel: String,
     },
     /// This Mac's tunnel doesn't route the range.
-    #[error("This Mac doesn't share {0}.")]
     NoSuchNetwork(String),
 }
+
+impl UserText for PlanError {
+    fn text(&self) -> Text {
+        match self {
+            Self::AccessDomain(err) => err.text(),
+            Self::NoZone(hostname) => msg::error::plan::no_zone(hostname),
+            Self::RouteExists(hostname) => msg::error::plan::route_exists(hostname),
+            Self::NoSuchRoute(hostname) => msg::error::plan::no_such_route(hostname),
+            Self::NoTunnel => msg::error::plan::no_tunnel(),
+            Self::NoSuchRecord(hostname) => msg::error::plan::no_such_record(hostname),
+            Self::ZeroTrustNotSetUp => msg::error::plan::zero_trust_not_set_up(),
+            Self::NoSuchLogin(domain) => msg::error::plan::no_such_login(domain),
+            Self::AccessAppExists(domain) => msg::error::plan::access_app_exists(domain),
+            Self::NetworkRouted {
+                network, tunnel, ..
+            } => msg::error::plan::network_routed(network, tunnel),
+            Self::NoSuchNetwork(network) => msg::error::plan::no_such_network(network),
+        }
+    }
+}
+
+english_display!(PlanError);
 
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
     rule.hostname.as_deref() == Some(hostname.as_str())

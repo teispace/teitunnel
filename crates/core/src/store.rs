@@ -17,25 +17,36 @@ use std::{
 use rusqlite::Connection;
 use tokio::sync::oneshot;
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Errors from the local store.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     /// SQLite reported an error.
-    #[error("database error: {0}")]
     Sqlite(#[from] rusqlite::Error),
     /// A schema migration failed.
-    #[error("database migration failed: {0}")]
     Migration(#[from] rusqlite_migration::Error),
     /// Creating the database directory or file failed.
-    #[error("couldn't prepare the database file: {0}")]
     Io(#[from] std::io::Error),
     /// A stored value couldn't be decoded.
-    #[error("stored value is invalid: {0}")]
     Decode(#[from] serde_json::Error),
     /// The store thread has stopped (the app is shutting down).
-    #[error("the database is closed")]
     Closed,
 }
+
+impl UserText for StoreError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Sqlite(detail) => msg::error::store::sqlite(detail),
+            Self::Migration(detail) => msg::error::store::migration(detail),
+            Self::Io(detail) => msg::error::store::io(detail),
+            Self::Decode(detail) => msg::error::store::decode(detail),
+            Self::Closed => msg::error::store::closed(),
+        }
+    }
+}
+
+english_display!(StoreError);
 
 type Job = Box<dyn FnOnce(&mut Connection) + Send>;
 

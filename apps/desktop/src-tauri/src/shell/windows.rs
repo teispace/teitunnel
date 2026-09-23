@@ -87,7 +87,7 @@ pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()>
         return bring_to_front(&window);
     }
     let builder = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings".into()))
-        .title("Settings")
+        .title(teitunnel_core::text::msg::menu::settings_window().to_string())
         .inner_size(620.0, 500.0)
         .resizable(false)
         .minimizable(false)

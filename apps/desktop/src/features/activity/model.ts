@@ -1,4 +1,4 @@
-import { type MessageKey, t } from "@/lib/i18n";
+import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ActivityEntry, ActivityKind, StepView } from "@/lib/ipc/bindings";
 
 /** What the list shows: everything, only problems, or one kind of change. */
@@ -40,6 +40,18 @@ export function inZone(hostname: string, zone: string): boolean {
   return hostname === zone || hostname.endsWith(`.${zone}`);
 }
 
+/** What was asked, in the user's language (older entries: as stored, in English). */
+export function summaryOf(entry: ActivityEntry): string {
+  return entry.record?.summary ? translate(entry.record.summary) : entry.summary;
+}
+
+/** What a failed undo left in place (older entries: from the stored lines). */
+export function leftoversOf(entry: ActivityEntry): string[] {
+  const leftovers = entry.record?.leftovers;
+  if (leftovers?.length) return leftovers.map(translate);
+  return entry.detail.filter((line) => line.startsWith("Left over"));
+}
+
 /** Hostnames an entry touched (older entries only have their summary). */
 function hostnamesOf(entry: ActivityEntry): readonly string[] {
   return entry.record?.hostnames ?? [];
@@ -57,8 +69,10 @@ export function matches(entry: ActivityEntry, { show, zone, query }: Filter): bo
     if (!touches) return false;
   }
   if (!query) return true;
-  return [entry.summary, ...entry.detail, ...hostnamesOf(entry)].some((text) =>
-    text.toLowerCase().includes(query),
+  const steps = entry.record?.steps.map((s) => translate(s.step.description)) ?? [];
+  // English too, so a search in English still finds entries in another language.
+  return [summaryOf(entry), entry.summary, ...steps, ...entry.detail, ...hostnamesOf(entry)].some(
+    (text) => text.toLowerCase().includes(query),
   );
 }
 
@@ -66,6 +80,6 @@ export function matches(entry: ActivityEntry, { show, zone, query }: Filter): bo
 export function commandScript(steps: readonly StepView[]): string | null {
   const blocks = steps
     .filter((step) => step.command)
-    .map((step) => `# ${step.description}\n${step.command}`);
+    .map((step) => `# ${translate(step.description)}\n${step.command}`);
   return blocks.length > 0 ? `${blocks.join("\n\n")}\n` : null;
 }

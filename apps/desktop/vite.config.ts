@@ -13,7 +13,11 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // The catalogs, shared with the Rust core (D-062).
+      "@locales": fileURLToPath(new URL("../../locales", import.meta.url)),
+    },
   },
   clearScreen: false,
   server: {

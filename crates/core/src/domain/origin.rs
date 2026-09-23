@@ -2,22 +2,33 @@ use std::{fmt, net::IpAddr};
 
 use serde::Serialize;
 
+use crate::text::{Text, UserText, english_display, msg};
+
 /// Why an origin was rejected. Messages are shown to the user as-is.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum OriginError {
     /// Nothing was entered.
-    #[error("Enter a port or a local address, like 3000 or localhost:3000.")]
     Empty,
     /// The port isn't a number between 1 and 65535.
-    #[error("Port must be a number between 1 and 65535.")]
     InvalidPort,
     /// The scheme isn't supported for this kind of share.
-    #[error("Only http:// and https:// services can be shared.")]
     UnsupportedScheme,
     /// The host part is malformed.
-    #[error("That doesn't look like a valid address.")]
     InvalidHost,
 }
+
+impl UserText for OriginError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Empty => msg::error::origin::empty(),
+            Self::InvalidPort => msg::error::origin::invalid_port(),
+            Self::UnsupportedScheme => msg::error::origin::unsupported_scheme(),
+            Self::InvalidHost => msg::error::origin::invalid_host(),
+        }
+    }
+}
+
+english_display!(OriginError);
 
 /// An HTTP(S) origin cloudflared can proxy to, e.g. `http://localhost:3000`.
 ///

@@ -173,6 +173,7 @@ Planner rules:
 - **DNS conflicts:** an existing A/AAAA/CNAME on the hostname that we don't own produces `requires_confirmation` with the existing record shown. It is never overwritten silently.
 - **Idempotent:** planning the same intent against an already-converged state yields an empty plan ("Nothing to change").
 - **Private networks (D-060):** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed). Removing the tunnel deletes the ranges routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
+- **Text:** steps, warnings and errors carry `Text` (catalog key + arguments), never English sentences; the UI translates them (D-062).
 - **Verify** is planned only for routes a browser can open; SSH/RDP/SMB/TCP routes show `cloudflared access` commands instead.
 - Every step has a human description and a "Copy as command" rendering (`cloudflared …` or `curl` for the API).
 

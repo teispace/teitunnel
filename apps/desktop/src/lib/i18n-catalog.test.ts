@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import en from "@locales/en.json";
 import { describe, expect, it } from "vitest";
-import { flatten, problems } from "./catalog";
-import en from "./en.json";
+import { flatten, problems } from "./i18n-catalog";
 
-const dir = join(__dirname);
+const dir = join(__dirname, "../../../../locales");
 const files = readdirSync(dir).filter((f) => f.endsWith(".json") && f !== "en.json");
 
 describe("catalogs", () => {

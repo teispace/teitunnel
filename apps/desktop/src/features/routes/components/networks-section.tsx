@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIssues } from "@/features/doctor/queries";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import { useRoutesOverview } from "../queries";
 
 interface NetworksSectionProps {
@@ -57,7 +57,7 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
                       {problem ? (
                         <p className="flex items-center gap-1 text-callout text-warning">
                           <TriangleAlert aria-hidden className="size-3 shrink-0" strokeWidth={2} />
-                          {problem.title}
+                          {translate(problem.title)}
                         </p>
                       ) : network.owned ? null : (
                         <p className="text-callout text-secondary">{t("networks.foreign")}</p>
@@ -78,7 +78,8 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
             <p key={problem.id} className="flex items-start gap-1.5 text-callout text-warning">
               <TriangleAlert aria-hidden className="mt-0.5 size-3 shrink-0" strokeWidth={2} />
               <span>
-                {problem.title}. <span className="text-secondary">{problem.detail}</span>
+                {translate(problem.title)}.{" "}
+                <span className="text-secondary">{translate(problem.detail)}</span>
               </span>
             </p>
           ))}

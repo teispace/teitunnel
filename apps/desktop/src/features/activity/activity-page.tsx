@@ -26,10 +26,10 @@ import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { useAccounts, useActiveAccount } from "@/features/accounts";
 import { PlanSteps, useActivity, useRoutesOverview, useVerify } from "@/features/routes";
 import { cn } from "@/lib/cn";
-import { type MessageKey, t } from "@/lib/i18n";
+import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ActivityEntry, ActivityRecord, Delta } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { commandScript, matches, type Show, showOptions } from "./model";
+import { commandScript, leftoversOf, matches, type Show, showOptions, summaryOf } from "./model";
 
 const outcomes: Record<string, { dot: Status; label: MessageKey }> = {
   applied: { dot: "healthy", label: "activity.outcome.applied" },
@@ -166,7 +166,7 @@ export function ActivityPage() {
             onSelect={setSelectedId}
             renderRow={(entry) => (
               <ListRow
-                title={entry.summary}
+                title={summaryOf(entry)}
                 subtitle={`${time(entry.at)} · ${outcomeOf(entry).label}`}
                 leading={<StatusDot status={outcomeOf(entry).dot} label={outcomeOf(entry).label} />}
               />
@@ -184,7 +184,7 @@ export function ActivityPage() {
       {selected && active ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <Inspector
-            title={selected.summary}
+            title={summaryOf(selected)}
             subtitle={`${t("time.dayAt", { day: day(selected.at), time: time(selected.at) })} · ${outcomeOf(selected).label}`}
           >
             {selected.record ? (
@@ -192,7 +192,7 @@ export function ActivityPage() {
                 accountId={active.id}
                 outcome={selected.outcome}
                 record={selected.record}
-                leftovers={selected.detail.filter((line) => line.startsWith("Left over"))}
+                leftovers={leftoversOf(selected)}
                 routed={overview?.routes.map((route) => route.hostname) ?? []}
               />
             ) : (
@@ -322,7 +322,7 @@ function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: bool
                 >
                   <span aria-hidden>− </span>
                   <span className="sr-only">{t("activity.before")}</span>
-                  {change.before}
+                  {translate(change.before)}
                 </span>
               ) : null}
               {change.after !== null ? (
@@ -334,7 +334,7 @@ function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: bool
                 >
                   <span aria-hidden>+ </span>
                   <span className="sr-only">{t("activity.after")}</span>
-                  {change.after}
+                  {translate(change.after)}
                 </span>
               ) : null}
             </div>
@@ -361,10 +361,11 @@ function CheckRow({ accountId, hostname }: { accountId: string; hostname: string
     : verify.error
       ? toIpcError(verify.error).message
       : result
-        ? (result.message ??
-          (result.status
+        ? result.message
+          ? translate(result.message)
+          : result.status
             ? t("activity.check.worksStatus", { status: String(result.status) })
-            : t("activity.check.works")))
+            : t("activity.check.works")
         : null;
   return (
     <li className="flex min-h-9 items-center gap-2.5 border-inset border-b-hairline py-1.5 last:border-b-0">

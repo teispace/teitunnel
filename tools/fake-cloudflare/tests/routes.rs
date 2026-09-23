@@ -34,12 +34,17 @@ impl Connectors for Recorder {
             .any(|c| c == &format!("start {tunnel_id}"))
             .then_some(ConnectorState::Healthy { connections: 4 })
     }
-    async fn start(&self, _: &str, tunnel_id: &str, token: Secret<String>) -> Result<(), String> {
+    async fn start(
+        &self,
+        _: &str,
+        tunnel_id: &str,
+        token: Secret<String>,
+    ) -> Result<(), teitunnel_core::text::Text> {
         assert!(token.expose().starts_with("e2e-run-token-"));
         self.0.lock().unwrap().push(format!("start {tunnel_id}"));
         Ok(())
     }
-    async fn stop(&self, tunnel_id: &str) -> Result<(), String> {
+    async fn stop(&self, tunnel_id: &str) -> Result<(), teitunnel_core::text::Text> {
         self.0
             .lock()
             .unwrap()

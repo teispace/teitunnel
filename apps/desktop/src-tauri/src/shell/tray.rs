@@ -11,7 +11,11 @@ use tauri::{
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
-use teitunnel_core::quick_share::{QuickShare, ShareStatus};
+use teitunnel_core::{
+    engine::RouteHealth,
+    quick_share::{QuickShare, ShareStatus},
+    text::{Text, msg::tray as m},
+};
 
 use crate::{
     ipc::{MenuAction, MenuCommand},
@@ -34,8 +38,8 @@ const ROUTES_TOGGLE: &str = "tray.routes_toggle";
 pub struct TrayRoute {
     /// Hostname.
     pub hostname: String,
-    /// Short status, e.g. "Live" or "Connector stopped".
-    pub status: String,
+    /// How it's doing.
+    pub status: RouteHealth,
 }
 
 /// This Mac's connectors, as one switch in the menu.
@@ -66,16 +70,16 @@ impl TrayRoutes {
     /// Whether the icon should show a problem: a route isn't working and it's not
     /// because the user stopped the connectors.
     fn alert(&self) -> bool {
-        !self.routes.iter().all(|r| r.status == "Live")
+        !self.routes.iter().all(|r| r.status.is_live())
             && self.connectors != (TrayConnectors::Stopped { on_purpose: true })
     }
 
     /// The switch's title, if there's anything to switch.
-    fn toggle_title(&self) -> Option<&'static str> {
+    fn toggle_title(&self) -> Option<Text> {
         match self.connectors {
             TrayConnectors::None => None,
-            TrayConnectors::Running => Some("Stop Routes on This Mac"),
-            TrayConnectors::Stopped { .. } => Some("Start Routes on This Mac"),
+            TrayConnectors::Running => Some(m::stop_routes()),
+            TrayConnectors::Stopped { .. } => Some(m::start_routes()),
         }
     }
 }
@@ -153,12 +157,12 @@ fn update<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut (Vec<QuickSha
     }
 }
 
-fn status_label(status: &ShareStatus) -> &'static str {
+fn status_label(status: &ShareStatus) -> Text {
     match status {
-        ShareStatus::Starting => "Starting",
-        ShareStatus::Live => "Live",
-        ShareStatus::Reconnecting => "Reconnecting",
-        ShareStatus::Failed { .. } => "Failed",
+        ShareStatus::Starting => m::share_starting(),
+        ShareStatus::Live => m::share_live(),
+        ShareStatus::Reconnecting => m::share_reconnecting(),
+        ShareStatus::Failed { .. } => m::share_failed(),
     }
 }
 
@@ -172,29 +176,41 @@ fn share_submenu<R: Runtime>(app: &AppHandle<R>, share: &QuickShare) -> tauri::R
     let has_url = share.url.is_some();
     SubmenuBuilder::new(app, format!("{origin} — {}", status_label(&share.status)))
         .item(
-            &MenuItemBuilder::with_id(format!("{COPY}{}", share.id), "Copy URL")
+            &MenuItemBuilder::with_id(format!("{COPY}{}", share.id), m::copy_url().to_string())
                 .enabled(has_url)
                 .build(app)?,
         )
         .item(
-            &MenuItemBuilder::with_id(format!("{OPEN_URL}{}", share.id), "Open in Browser")
-                .enabled(share.status == ShareStatus::Live)
-                .build(app)?,
+            &MenuItemBuilder::with_id(
+                format!("{OPEN_URL}{}", share.id),
+                m::open_in_browser().to_string(),
+            )
+            .enabled(share.status == ShareStatus::Live)
+            .build(app)?,
         )
         .separator()
-        .item(&MenuItemBuilder::with_id(format!("{STOP}{}", share.id), "Stop Sharing").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id(format!("{STOP}{}", share.id), m::stop_sharing().to_string())
+                .build(app)?,
+        )
         .build()
 }
 
 fn route_submenu<R: Runtime>(app: &AppHandle<R>, route: &TrayRoute) -> tauri::Result<Submenu<R>> {
-    SubmenuBuilder::new(app, format!("{} — {}", route.hostname, route.status))
+    SubmenuBuilder::new(app, format!("{} — {}", route.hostname, route.status.text()))
         .item(
-            &MenuItemBuilder::with_id(format!("{ROUTE_COPY}{}", route.hostname), "Copy URL")
-                .build(app)?,
+            &MenuItemBuilder::with_id(
+                format!("{ROUTE_COPY}{}", route.hostname),
+                m::copy_url().to_string(),
+            )
+            .build(app)?,
         )
         .item(
-            &MenuItemBuilder::with_id(format!("{ROUTE_OPEN}{}", route.hostname), "Open in Browser")
-                .build(app)?,
+            &MenuItemBuilder::with_id(
+                format!("{ROUTE_OPEN}{}", route.hostname),
+                m::open_in_browser().to_string(),
+            )
+            .build(app)?,
         )
         .build()
 }
@@ -202,20 +218,19 @@ fn route_submenu<R: Runtime>(app: &AppHandle<R>, route: &TrayRoute) -> tauri::Re
 /// One line summarising the routes, e.g. "All 3 routes live" or "1 of 3 routes down".
 fn health_line(model: &TrayRoutes) -> String {
     if model.connectors == (TrayConnectors::Stopped { on_purpose: true }) {
-        return "Routes stopped on this Mac".to_owned();
+        return m::routes_stopped().to_string();
     }
     let routes = &model.routes;
-    let live = routes.iter().filter(|r| r.status == "Live").count();
-    let total = routes.len();
-    let noun = if total == 1 { "route" } else { "routes" };
+    let live = routes.iter().filter(|r| r.status.is_live()).count() as u64;
+    let total = routes.len() as u64;
     if live == total {
         if total == 1 {
-            "Route live".to_owned()
+            m::route_live().to_string()
         } else {
-            format!("All {total} routes live")
+            m::all_live(total).to_string()
         }
     } else {
-        format!("{} of {total} {noun} not working", total - live)
+        m::not_working(total, total - live).to_string()
     }
 }
 
@@ -238,7 +253,7 @@ fn build_menu<R: Runtime>(
         .build(app)?;
     let toggle = model
         .toggle_title()
-        .map(|title| MenuItemBuilder::with_id(ROUTES_TOGGLE, title).build(app))
+        .map(|title| MenuItemBuilder::with_id(ROUTES_TOGGLE, title.to_string()).build(app))
         .transpose()?;
     let separator = PredefinedMenuItem::separator(app)?;
     let mut route_section: Vec<&dyn IsMenuItem<R>> = Vec::new();
@@ -252,11 +267,14 @@ fn build_menu<R: Runtime>(
     if !route_section.is_empty() {
         route_section.push(&separator);
     }
-    let header = MenuItemBuilder::new(if shares.is_empty() {
-        "No Quick Shares"
-    } else {
-        "Quick Shares"
-    })
+    let header = MenuItemBuilder::new(
+        if shares.is_empty() {
+            m::no_shares()
+        } else {
+            m::shares()
+        }
+        .to_string(),
+    )
     .enabled(false)
     .build(app)?;
     let submenus = shares
@@ -269,11 +287,14 @@ fn build_menu<R: Runtime>(
         .items(&route_section)
         .item(&header)
         .items(&submenu_refs)
-        .item(&MenuItemBuilder::with_id(NEW_SHARE, "Share a Local Port…").build(app)?)
+        .item(&MenuItemBuilder::with_id(NEW_SHARE, m::share_local_port().to_string()).build(app)?)
         .separator()
-        .item(&MenuItemBuilder::with_id(OPEN, "Open Teitunnel").build(app)?)
+        .item(&MenuItemBuilder::with_id(OPEN, m::open().to_string()).build(app)?)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit Teitunnel"))?)
+        .item(&PredefinedMenuItem::quit(
+            app,
+            Some(&m::quit().to_string()),
+        )?)
         .build()
 }
 
@@ -341,16 +362,18 @@ fn share_url<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn route(status: &str) -> TrayRoute {
+    use RouteHealth::{Live, NoDns, Stopped};
+
+    fn route(status: RouteHealth) -> TrayRoute {
         TrayRoute {
             hostname: "a.xyz.com".into(),
-            status: status.into(),
+            status,
         }
     }
 
-    fn model(routes: &[&str], connectors: TrayConnectors) -> TrayRoutes {
+    fn model(routes: &[RouteHealth], connectors: TrayConnectors) -> TrayRoutes {
         TrayRoutes {
-            routes: routes.iter().map(|s| route(s)).collect(),
+            routes: routes.iter().map(|s| route(*s)).collect(),
             connectors,
         }
     }
@@ -358,13 +381,13 @@ mod tests {
     #[test]
     fn summarises_route_health() {
         let running = TrayConnectors::Running;
-        assert_eq!(health_line(&model(&["Live"], running)), "Route live");
+        assert_eq!(health_line(&model(&[Live], running)), "Route live");
         assert_eq!(
-            health_line(&model(&["Live", "Live"], running)),
+            health_line(&model(&[Live, Live], running)),
             "All 2 routes live"
         );
         assert_eq!(
-            health_line(&model(&["Live", "Stopped", "No DNS record"], running)),
+            health_line(&model(&[Live, Stopped, NoDns], running)),
             "2 of 3 routes not working"
         );
     }
@@ -372,18 +395,21 @@ mod tests {
     #[test]
     fn stopping_on_purpose_is_not_a_problem() {
         let stopped = TrayConnectors::Stopped { on_purpose: true };
-        let down = model(&["Connector stopped"], stopped);
+        let down = model(&[Stopped], stopped);
         assert_eq!(health_line(&down), "Routes stopped on this Mac");
         assert!(!down.alert());
-        assert_eq!(down.toggle_title(), Some("Start Routes on This Mac"));
-
-        let crashed = model(
-            &["Connector stopped"],
-            TrayConnectors::Stopped { on_purpose: false },
+        assert_eq!(
+            down.toggle_title().map(|t| t.english()).as_deref(),
+            Some("Start Routes on This Mac")
         );
+
+        let crashed = model(&[Stopped], TrayConnectors::Stopped { on_purpose: false });
         assert!(crashed.alert());
         assert_eq!(
-            model(&["Live"], TrayConnectors::Running).toggle_title(),
+            model(&[Live], TrayConnectors::Running)
+                .toggle_title()
+                .map(|t| t.english())
+                .as_deref(),
             Some("Stop Routes on This Mac")
         );
         assert_eq!(model(&[], TrayConnectors::None).toggle_title(), None);

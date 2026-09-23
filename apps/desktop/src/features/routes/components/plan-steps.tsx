@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
-import { type MessageKey, t } from "@/lib/i18n";
+import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
 
 const kindIcons: Record<StepKind, LucideIcon> = {
@@ -148,9 +148,11 @@ export function PlanSteps({ steps, warnings = [], states, copyable = !states }: 
                   state?.state === "undone" && "text-secondary line-through",
                 )}
               >
-                {step.description}
+                {translate(step.description)}
                 {state && (state.state === "failed" || state.state === "undoFailed") ? (
-                  <span className="mt-0.5 block text-callout text-error">{state.message}</span>
+                  <span className="mt-0.5 block text-callout text-error">
+                    {translate(state.message)}
+                  </span>
                 ) : null}
               </span>
               {state ? <span className="sr-only">{t(stateLabels[state.state])}</span> : null}

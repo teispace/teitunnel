@@ -23,6 +23,11 @@ pub use ipc::export_bindings;
 /// Returns an error when Tauri fails to initialise (e.g. the webview is unavailable).
 pub fn run() -> Result<(), tauri::Error> {
     ipc::mark_launch();
+    // Native text (menus, notifications) in the system's language, like the webview's
+    // (on macOS this honours the per-app language in System Settings).
+    let language =
+        teitunnel_core::text::set_language(&sys_locale::get_locales().collect::<Vec<_>>());
+    tracing::debug!(%language, "language");
     // An E2E build is a test harness, not the app: say so plainly instead of panicking
     // when it's opened by hand.
     #[cfg(feature = "e2e")]

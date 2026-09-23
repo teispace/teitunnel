@@ -1,5 +1,6 @@
 /**
- * Translations. English (`locales/en.json`) is the source: every key exists there, and
+ * Translations. English (`locales/en.json` at the repository root, shared with
+ * the Rust core, D-062) is the source: every key exists there, and
  * `MessageKey` is derived from it, so a typo is a type error. Other languages are JSON
  * files with the same keys, contributed by the community; a missing key falls back to
  * English. The language follows the system's (macOS: per-app language in System
@@ -9,7 +10,7 @@
  * `_zero` `_two` `_few` `_many`) variants is a plural: `t("…", { count })` picks the
  * variant with `Intl.PluralRules`, and `{count}` is formatted for the language.
  */
-import en from "@/locales/en.json";
+import en from "@locales/en.json";
 
 type Catalog = typeof en;
 type Leaves<T, P extends string = ""> = {
@@ -26,8 +27,8 @@ export type Vars = Record<string, string | number>;
 type Messages = { [key: string]: string | Messages };
 
 const loaders = import.meta.glob<{ default: Messages }>([
-  "../locales/*.json",
-  "!../locales/en.json",
+  "../../../../locales/*.json",
+  "!../../../../locales/en.json",
 ]);
 
 /** Languages with a catalog, e.g. `["de", "en", "fr"]`. */
@@ -56,7 +57,7 @@ export function pickLanguage(wanted: readonly string[], available = languages): 
 
 /** Loads the catalog for `language` (before the first render); tests pass `catalog`. */
 export async function setLanguage(language: string, catalog?: Messages) {
-  const loader = loaders[`../locales/${language}.json`];
+  const loader = loaders[`../../../../locales/${language}.json`];
   active = catalog ?? (loader ? (await loader()).default : en);
   locale = catalog || loader ? language : "en";
   plurals = new Intl.PluralRules(locale);
@@ -90,6 +91,26 @@ function find(key: string, vars: Vars | undefined): string {
     if (plural !== undefined) return plural;
   }
   return lookup(active, key) ?? lookup(en, key) ?? key;
+}
+
+/**
+ * A message the Rust core produced (`{ key, args }`), in the current language. Its key
+ * is checked when the core is compiled, so it's always in the catalog.
+ */
+export function translate(text: {
+  key: string;
+  args: Partial<Record<string, string | number | null>>;
+}): string {
+  const vars: Vars = {};
+  for (const [name, value] of Object.entries(text.args)) {
+    if (value !== null && value !== undefined) vars[name] = value;
+  }
+  return t(text.key as MessageKey, vars);
+}
+
+/** Text shown as it is, in any language (fixtures, and text that isn't a message). */
+export function rawText(text: string): { key: string; args: { text: string } } {
+  return { key: "core.raw", args: { text } };
 }
 
 /** The message for `key` in the current language, with `{name}`s filled in. */

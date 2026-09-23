@@ -3,6 +3,7 @@
 
 use tauri::State;
 use teitunnel_core::doctor::{self, FixReport, Issue};
+use teitunnel_core::text::msg::app as m;
 
 use crate::{error::AppError, state::AppState};
 
@@ -126,7 +127,7 @@ async fn bundle(
     };
     tauri::async_runtime::spawn_blocking(move || build(&inputs))
         .await
-        .map_err(|e| AppError::internal(e.to_string()))
+        .map_err(|_| AppError::internal(m::interrupted()))
 }
 
 /// What a diagnostics export would contain (shown before saving).

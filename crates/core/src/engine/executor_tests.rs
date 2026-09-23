@@ -226,7 +226,10 @@ async fn two_domains_from_zero_then_nothing_left() {
     let removal = log[0].record.as_ref().expect("recorded");
     assert_eq!(removal.kind, ActivityKind::RemoveTunnel);
     assert_eq!(removal.hostnames, ["xyz.com", "yx.com"]);
-    insta::assert_yaml_snapshot!("activity_remove_tunnel_changes", removal.changes);
+    insta::assert_yaml_snapshot!(
+        "activity_remove_tunnel_changes",
+        super::activity::english(&removal.changes)
+    );
 }
 
 #[tokio::test]
@@ -701,7 +704,10 @@ async fn failed_undo_reports_what_was_left() {
     };
     assert_eq!(failed_step, 2);
     assert_eq!(leftovers.len(), 1, "{leftovers:?}");
-    assert!(leftovers[0].starts_with("Tunnel "), "{leftovers:?}");
+    assert!(
+        leftovers[0].english().starts_with("Tunnel "),
+        "{leftovers:?}"
+    );
     let log = engine.local().activity("acc", 1).await.unwrap();
     let states: Vec<_> = log[0]
         .record

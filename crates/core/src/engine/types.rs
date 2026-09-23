@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
+use crate::text::Text;
 
 /// The DNS comment that marks a record as created by Teitunnel for a route.
 pub fn ownership_comment(route_id: &str) -> String {
@@ -231,19 +232,18 @@ impl Intent {
     }
 
     /// A one-line summary for the activity log.
-    pub fn summary(&self) -> String {
+    pub fn summary(&self) -> Text {
+        use crate::text::msg::plan::summary as m;
         fn target(hostname: &Hostname, path: Option<&PathRule>) -> String {
             path.map_or_else(
                 || hostname.to_string(),
-                |p| format!("{hostname} (path {})", p.as_str()),
+                |p| format!("{hostname} {}", p.as_str()),
             )
         }
         match self {
-            Self::AddRoute { route } => format!(
-                "Add {} → {}",
-                target(&route.hostname, route.path.as_ref()),
-                route.origin
-            ),
+            Self::AddRoute { route } => {
+                m::add_route(target(&route.hostname, route.path.as_ref()), &route.origin)
+            }
             Self::UpdateRoute {
                 hostname,
                 path,
@@ -252,27 +252,21 @@ impl Intent {
                 let before = target(hostname, path.as_ref());
                 let after = target(&route.hostname, route.path.as_ref());
                 if before == after {
-                    format!("Change {before} → {}", route.origin)
+                    m::change_route(before, &route.origin)
                 } else {
-                    format!("Rename {before} to {after} → {}", route.origin)
+                    m::rename_route(before, after, &route.origin)
                 }
             }
             Self::RemoveRoute { hostname, path } => {
-                format!("Remove {}", target(hostname, path.as_ref()))
+                m::remove_route(target(hostname, path.as_ref()))
             }
-            Self::RemoveTunnel => "Remove every route and delete this Mac's tunnel".to_owned(),
-            Self::RestoreConfig { .. } => {
-                "Restore this Mac's routes after an outside edit".to_owned()
-            }
-            Self::DeleteRecord { hostname, .. } => format!("Delete the DNS record for {hostname}"),
-            Self::RemoveLogin { domain } => format!("Remove the login from {domain}"),
-            Self::AddNetwork { network } => format!("Share private network {network}"),
-            Self::RemoveNetwork { network } => format!("Stop sharing private network {network}"),
-            Self::ImportRoutes { routes } => format!(
-                "Import {} route{} from cloudflared",
-                routes.len(),
-                if routes.len() == 1 { "" } else { "s" }
-            ),
+            Self::RemoveTunnel => m::remove_tunnel(),
+            Self::RestoreConfig { .. } => m::restore_config(),
+            Self::DeleteRecord { hostname, .. } => m::delete_record(hostname),
+            Self::RemoveLogin { domain } => m::remove_login(domain),
+            Self::AddNetwork { network } => m::add_network(network),
+            Self::RemoveNetwork { network } => m::remove_network(network),
+            Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),
         }
     }
 }
@@ -398,52 +392,35 @@ pub enum Step {
 
 impl Step {
     /// A one-line description for the plan preview.
-    pub fn describe(&self, tunnel_name: &str) -> String {
+    pub fn describe(&self, tunnel_name: &str) -> Text {
+        use crate::text::msg::plan::step as m;
+        let people = |app: &NewAccessApp| {
+            super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.people())
+        };
         match self {
-            Self::CreateTunnel { name } => format!("Create tunnel “{name}”"),
-            Self::PutConfig { ingress, .. } => {
-                let routes = ingress.iter().filter(|r| r.hostname.is_some()).count();
-                format!(
-                    "Update tunnel “{tunnel_name}” to serve {routes} route{}",
-                    if routes == 1 { "" } else { "s" }
-                )
-            }
-            Self::CreateRecord { hostname, .. } => {
-                format!("Add DNS record {hostname} → tunnel “{tunnel_name}”")
-            }
+            Self::CreateTunnel { name } => m::create_tunnel(name),
+            Self::PutConfig { ingress, .. } => m::put_config(
+                ingress.iter().filter(|r| r.hostname.is_some()).count() as u64,
+                tunnel_name,
+            ),
+            Self::CreateRecord { hostname, .. } => m::create_record(hostname, tunnel_name),
             Self::UpdateRecord {
                 hostname, previous, ..
-            } => format!(
-                "Point {hostname} at tunnel “{tunnel_name}” (was {} {})",
-                previous.kind, previous.content
-            ),
-            Self::DeleteRecord { record, .. } => format!(
-                "Delete DNS record {} ({} {})",
-                record.name, record.kind, record.content
-            ),
-            Self::StopConnector { .. } => "Stop this Mac's connector".to_owned(),
-            Self::DeleteTunnel { .. } => format!("Delete tunnel “{tunnel_name}”"),
-            Self::AddLoginMethod => "Add One-time PIN as a login method".to_owned(),
-            Self::CreateAccessApp { app } => format!(
-                "Require a login for {} ({})",
-                app.domain,
-                super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.summary())
-            ),
-            Self::UpdateAccessApp { app, .. } => format!(
-                "Let only {} into {}",
-                super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.summary()),
-                app.domain
-            ),
-            Self::DeleteAccessApp { previous, .. } => {
-                format!("Remove the login from {}", previous.domain)
+            } => m::update_record(hostname, tunnel_name, &previous.kind, &previous.content),
+            Self::DeleteRecord { record, .. } => {
+                m::delete_record(&record.name, &record.kind, &record.content)
             }
+            Self::StopConnector { .. } => m::stop_connector(),
+            Self::DeleteTunnel { .. } => m::delete_tunnel(tunnel_name),
+            Self::AddLoginMethod => m::add_login_method(),
+            Self::CreateAccessApp { app } => m::create_access_app(&app.domain, people(app)),
+            Self::UpdateAccessApp { app, .. } => m::update_access_app(people(app), &app.domain),
+            Self::DeleteAccessApp { previous, .. } => m::delete_access_app(&previous.domain),
             Self::CreateNetworkRoute { network, .. } => {
-                format!("Route private network {network} to tunnel “{tunnel_name}”")
+                m::create_network_route(network, tunnel_name)
             }
-            Self::DeleteNetworkRoute { route } => {
-                format!("Remove the route for private network {}", route.network)
-            }
-            Self::Verify { hostname } => format!("Check https://{hostname} works"),
+            Self::DeleteNetworkRoute { route } => m::delete_network_route(&route.network),
+            Self::Verify { hostname } => m::verify(hostname),
         }
     }
 

@@ -4,7 +4,10 @@
 
 use std::{collections::HashSet, fmt::Write as _, io::Write as _, process::ExitCode};
 
-use teitunnel_core::doctor::{self, Issue, Severity, safe_change};
+use teitunnel_core::{
+    doctor::{self, Issue, Severity, safe_change},
+    text::Text,
+};
 
 use crate::{confirm, context::App};
 
@@ -33,12 +36,12 @@ pub(crate) fn render(issues: &[Issue]) -> String {
             text,
             "{:<7} {}  ({})\n        {}",
             label(issue.severity),
-            issue.title,
+            issue.title.english(),
             issue.check,
-            issue.detail
+            issue.detail.english()
         );
         for evidence in &issue.evidence {
-            let _ = writeln!(text, "        · {evidence}");
+            let _ = writeln!(text, "        · {}", evidence.english());
         }
     }
     let errors = issues
@@ -57,6 +60,21 @@ pub(crate) fn render(issues: &[Issue]) -> String {
     }
     text.push('\n');
     text
+}
+
+/// An issue for `--json`: its messages as English text, the rest as the app sees it.
+fn issue_json(issue: &Issue) -> serde_json::Value {
+    serde_json::json!({
+        "id": issue.id,
+        "check": issue.check,
+        "severity": issue.severity,
+        "accountId": issue.account_id,
+        "subject": issue.subject,
+        "title": issue.title.english(),
+        "detail": issue.detail.english(),
+        "evidence": issue.evidence.iter().map(Text::english).collect::<Vec<_>>(),
+        "fixes": issue.fixes,
+    })
 }
 
 /// Exit code for scripts: failure when there's an error.
@@ -84,9 +102,10 @@ pub(crate) async fn run(app: &App, json: bool, fix: bool, yes: bool) -> Result<E
     .collect();
 
     if json {
+        let list: Vec<_> = issues.iter().map(issue_json).collect();
         out!(
             "{}",
-            serde_json::to_string_pretty(&issues).map_err(|e| e.to_string())?
+            serde_json::to_string_pretty(&list).map_err(|e| e.to_string())?
         )?;
     } else {
         write!(std::io::stdout().lock(), "{}", render(&issues)).map_err(|e| e.to_string())?;
@@ -148,7 +167,7 @@ pub(crate) async fn run(app: &App, json: bool, fix: bool, yes: bool) -> Result<E
 
 #[cfg(test)]
 mod tests {
-    use teitunnel_core::{doctor::Fix, engine::Change};
+    use teitunnel_core::{doctor::Fix, engine::Change, text::msg};
 
     use super::*;
 
@@ -159,12 +178,13 @@ mod tests {
             severity,
             account_id: Some("acc".into()),
             subject: "app.xyz.com".into(),
-            title: "app.xyz.com has no DNS record".into(),
-            detail: "Visitors can't reach it.".into(),
-            evidence: vec!["No A, AAAA or CNAME record".into()],
+            label: msg::raw("app.xyz.com"),
+            title: msg::raw("app.xyz.com has no DNS record"),
+            detail: msg::raw("Visitors can't reach it."),
+            evidence: vec![msg::raw("No A, AAAA or CNAME record")],
             fixes: if fix {
                 vec![Fix::Change {
-                    label: "Remove the Login".into(),
+                    label: msg::raw("Remove the Login"),
                     change: Change::RemoveLogin {
                         domain: "old.xyz.com".into(),
                     },

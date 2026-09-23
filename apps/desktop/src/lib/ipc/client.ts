@@ -1,19 +1,29 @@
-import type { AppError, ErrorCode } from "./bindings";
+import { translate } from "@/lib/i18n";
+import type { AppError, ErrorCode, Text } from "./bindings";
 
-/** An error returned by a Rust command, with the fields of `AppError`. */
+/**
+ * An error returned by a Rust command, with the fields of `AppError`. Its message and
+ * hint arrive as catalog keys and are translated here, once (D-062).
+ */
 export class IpcError extends Error {
   readonly code: ErrorCode;
   readonly hint: string | null;
   readonly field: string | null;
+  /** The message's catalog key, to recognise a specific error without its wording. */
+  readonly key: string | null;
 
   constructor(error: AppError) {
-    super(error.message);
+    super(translate(error.message));
     this.name = "IpcError";
     this.code = error.code;
-    this.hint = error.hint;
+    this.hint = error.hint ? translate(error.hint) : null;
     this.field = error.field;
+    this.key = error.message.key;
   }
 }
+
+const isText = (value: unknown): value is Text =>
+  typeof value === "object" && value !== null && "key" in value && "args" in value;
 
 function isAppError(value: unknown): value is AppError {
   return (
@@ -21,7 +31,7 @@ function isAppError(value: unknown): value is AppError {
     value !== null &&
     "code" in value &&
     "message" in value &&
-    typeof value.message === "string"
+    isText(value.message)
   );
 }
 
@@ -29,8 +39,13 @@ function isAppError(value: unknown): value is AppError {
 export function toIpcError(error: unknown): IpcError {
   if (error instanceof IpcError) return error;
   if (isAppError(error)) return new IpcError(error);
-  const message = error instanceof Error ? error.message : String(error);
-  return new IpcError({ code: "internal", message, hint: null, field: null });
+  const text = error instanceof Error ? error.message : String(error);
+  return new IpcError({
+    code: "internal",
+    message: { key: "core.raw", args: { text } },
+    hint: null,
+    field: null,
+  });
 }
 
 /**

@@ -49,6 +49,6 @@ pub use types::{
 };
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{
-    Change, DnsState, InputError, NetworkView, PlanView, RouteInput, RouteView, RoutesOverview,
-    StepKind, StepView, TunnelView, route_id,
+    Change, DnsState, InputError, NetworkView, PlanView, RouteHealth, RouteInput, RouteView,
+    RoutesOverview, StepKind, StepView, TunnelView, route_id,
 };

@@ -2,7 +2,10 @@
 
 use serde::Serialize;
 use specta::Type;
-use teitunnel_core::ErrorKind;
+use teitunnel_core::{
+    ErrorKind,
+    text::{Text, UserText, msg::app as m},
+};
 
 /// Machine-readable error category. The frontend branches on this, never on `message`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
@@ -25,38 +28,46 @@ pub enum ErrorCode {
     PermissionDenied,
 }
 
-/// An error as shown to the user: what happened, and what to do about it.
+/// An error as shown to the user: what happened, and what to do about it. The text is
+/// translated by the UI (D-062).
 #[derive(Debug, Clone, Serialize, Type, thiserror::Error)]
 #[serde(rename_all = "camelCase")]
-#[error("{message}")]
 pub struct AppError {
     /// Category for programmatic handling.
     pub code: ErrorCode,
     /// One sentence describing what happened.
-    pub message: String,
-    /// What the user can do about it.
-    pub hint: Option<String>,
+    pub message: Text,
+    /// What the user can do about it (boxed: most errors have none, and a small error
+    /// keeps every command's `Result` small).
+    pub hint: Option<Box<Text>>,
     /// The input field the error refers to.
     pub field: Option<String>,
 }
 
+/// In English, for logs.
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message.english())
+    }
+}
+
 impl AppError {
-    fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+    fn new(code: ErrorCode, message: Text) -> Self {
         Self {
             code,
-            message: message.into(),
+            message,
             hint: None,
             field: None,
         }
     }
 
     /// An internal error with a user-safe message. Log the cause before calling this.
-    pub fn internal(message: impl Into<String>) -> Self {
+    pub fn internal(message: Text) -> Self {
         Self::new(ErrorCode::Internal, message)
     }
 
     /// Rejected input for `field`.
-    pub fn invalid(field: &str, message: impl Into<String>) -> Self {
+    pub fn invalid(field: &str, message: Text) -> Self {
         Self {
             field: Some(field.to_owned()),
             ..Self::new(ErrorCode::InvalidInput, message)
@@ -65,33 +76,30 @@ impl AppError {
 
     /// Adds a hint telling the user what to do next.
     #[must_use]
-    pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
-        self.hint = Some(hint.into());
+    pub fn with_hint(mut self, hint: Text) -> Self {
+        self.hint = Some(Box::new(hint));
         self
     }
 }
 
 impl From<teitunnel_core::Error> for AppError {
     fn from(err: teitunnel_core::Error) -> Self {
+        let text = err.text();
         match err.kind() {
-            ErrorKind::CloudflaredMissing => Self::new(
-                ErrorCode::CloudflaredMissing,
-                "cloudflared isn't installed.",
-            )
-            .with_hint("Install it from the Quick Share page, or run `brew install cloudflared`."),
-            ErrorKind::NotFound => Self::new(ErrorCode::NotFound, err.to_string()),
-            ErrorKind::InvalidInput => {
-                Self::invalid(err.field().unwrap_or("credential"), err.to_string())
+            ErrorKind::CloudflaredMissing => {
+                Self::new(ErrorCode::CloudflaredMissing, m::cloudflared_missing())
+                    .with_hint(m::cloudflared_missing_hint())
             }
-            ErrorKind::Conflict => Self::new(ErrorCode::Conflict, err.to_string()),
-            ErrorKind::PermissionDenied => Self::new(ErrorCode::PermissionDenied, err.to_string())
-                .with_hint("Check the token's permissions in Settings ▸ Accounts."),
-            ErrorKind::Unavailable => Self::new(ErrorCode::Unavailable, err.to_string()),
+            ErrorKind::NotFound => Self::new(ErrorCode::NotFound, text),
+            ErrorKind::InvalidInput => Self::invalid(err.field().unwrap_or("credential"), text),
+            ErrorKind::Conflict => Self::new(ErrorCode::Conflict, text),
+            ErrorKind::PermissionDenied => {
+                Self::new(ErrorCode::PermissionDenied, text).with_hint(m::permission_hint())
+            }
+            ErrorKind::Unavailable => Self::new(ErrorCode::Unavailable, text),
             ErrorKind::Internal => {
                 tracing::error!(error = %err, "command failed");
-                Self::internal(err.to_string()).with_hint(
-                    "Try again. If it keeps happening, report an issue from the Help menu.",
-                )
+                Self::internal(text).with_hint(m::internal_hint())
             }
         }
     }
@@ -116,15 +124,22 @@ via_core!(
 
 impl From<teitunnel_core::domain::OriginError> for AppError {
     fn from(err: teitunnel_core::domain::OriginError) -> Self {
-        Self::invalid("origin", err.to_string())
+        Self::invalid("origin", err.text())
+    }
+}
+
+/// A failure reported as a message (the machine's connector operations).
+impl From<Text> for AppError {
+    fn from(message: Text) -> Self {
+        tracing::warn!(error = %message.english(), "operation failed");
+        Self::internal(message)
     }
 }
 
 impl From<tauri::Error> for AppError {
     fn from(err: tauri::Error) -> Self {
         tracing::error!(error = %err, "tauri error");
-        Self::internal("Something went wrong inside Teitunnel.")
-            .with_hint("Try again. If it keeps happening, report an issue from the Help menu.")
+        Self::internal(m::unexpected()).with_hint(m::internal_hint())
     }
 }
 
@@ -133,18 +148,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serializes_camel_case_for_the_frontend() {
-        let err = AppError::internal("Couldn't read settings.").with_hint("Restart Teitunnel.");
+    fn serializes_text_for_the_frontend_to_translate() {
+        let err = AppError::invalid("url", m::qr_too_long()).with_hint(m::internal_hint());
         let json = serde_json::to_value(&err).unwrap();
         assert_eq!(
             json,
             serde_json::json!({
-                "code": "internal",
-                "message": "Couldn't read settings.",
-                "hint": "Restart Teitunnel.",
-                "field": null,
+                "code": "invalidInput",
+                "message": { "key": "core.app.qrTooLong", "args": {} },
+                "hint": { "key": "core.app.internalHint", "args": {} },
+                "field": "url",
             })
         );
+        assert_eq!(err.to_string(), "That URL is too long for a QR code.");
     }
 
     #[test]
@@ -159,7 +175,7 @@ mod tests {
         use teitunnel_core::engine::{EngineError, InputError, PlanError};
         let err = AppError::from(EngineError::Input(InputError {
             field: "origin",
-            message: "bad".into(),
+            message: teitunnel_core::text::msg::raw("bad"),
         }));
         assert_eq!(
             (err.code, err.field.as_deref()),

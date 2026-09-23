@@ -16,6 +16,8 @@ use tokio::{
 
 use crate::Secret;
 
+use crate::text::{Text, UserText, english_display, msg, msg::oauth_page as page};
+
 /// Redirect ports registered with the OAuth client (docs/research/cloudflare.md).
 pub const REDIRECT_PORTS: [u16; 3] = [53682, 53683, 53684];
 /// How long to wait for the browser to come back.
@@ -39,26 +41,41 @@ const SCOPES: &[&str] = &[
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthError {
     /// No redirect port is free.
-    #[error(
-        "Couldn't start sign-in: ports {REDIRECT_PORTS:?} are all in use. Close other sign-in windows and try again."
-    )]
     NoPort,
     /// The browser didn't come back in time.
-    #[error("Sign-in timed out. Try again.")]
     Timeout,
     /// The user declined, or Cloudflare reported an error.
-    #[error("Cloudflare sign-in didn't complete: {0}")]
     Denied(String),
     /// The callback didn't match this sign-in (possible forgery).
-    #[error("The sign-in response didn't match. Try again.")]
     StateMismatch,
     /// The token endpoint failed.
-    #[error("Couldn't finish sign-in with Cloudflare: {0}")]
     Exchange(String),
+    /// Cloudflare issued no refresh token, so the sign-in can't last.
+    NoOfflineAccess,
+    /// The callback carried no authorization code.
+    NoCode,
     /// Randomness unavailable (should never happen).
-    #[error("Couldn't generate a secure sign-in request.")]
     Random,
 }
+
+impl UserText for OAuthError {
+    fn text(&self) -> Text {
+        match self {
+            Self::NoPort => {
+                msg::error::oauth::no_port(REDIRECT_PORTS.map(|p| p.to_string()).join(", "))
+            }
+            Self::Timeout => msg::error::oauth::timeout(),
+            Self::Denied(reason) => msg::error::oauth::denied(reason),
+            Self::StateMismatch => msg::error::oauth::state_mismatch(),
+            Self::Exchange(detail) => msg::error::oauth::exchange(detail),
+            Self::NoOfflineAccess => msg::error::oauth::no_offline_access(),
+            Self::NoCode => msg::error::oauth::no_code(),
+            Self::Random => msg::error::oauth::random(),
+        }
+    }
+}
+
+english_display!(OAuthError);
 
 /// Endpoints and client settings.
 #[derive(Debug, Clone)]
@@ -203,13 +220,24 @@ pub async fn start(config: &OAuthConfig) -> Result<PendingLogin, OAuthError> {
     })
 }
 
-const PAGE: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Teitunnel</title><style>
+const PAGE: &str = r#"<!doctype html><html lang="LANG"><head><meta charset="utf-8"><title>Teitunnel</title><style>
 :root{color-scheme:light dark}body{font:15px -apple-system,system-ui,sans-serif;display:grid;place-items:center;height:100vh;margin:0;color:light-dark(#1d1d1f,#f5f5f7);background:light-dark(#fff,#1e1e1e)}
 main{text-align:center;max-width:22rem}h1{font-size:17px;font-weight:600;margin:0 0 6px}p{margin:0;opacity:.6}
 </style></head><body><main><h1>TITLE</h1><p>BODY</p></main></body></html>"#;
 
-async fn respond(stream: &mut TcpStream, status: &str, title: &str, body: &str) {
-    let page = PAGE.replace("TITLE", title).replace("BODY", body);
+/// Escapes text for HTML (translations are text, never markup).
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+async fn respond(stream: &mut TcpStream, status: &str, title: Text, body: Text) {
+    let page = PAGE
+        .replace("LANG", &escape(&crate::text::language()))
+        .replace("TITLE", &escape(&title.to_string()))
+        .replace("BODY", &escape(&body.to_string()));
     let response = format!(
         "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{page}",
         page.len()
@@ -277,27 +305,27 @@ impl PendingLogin {
             let target = request.split_whitespace().nth(1).unwrap_or("/");
             let (path, query) = target.split_once('?').unwrap_or((target, ""));
             if path != "/callback" {
-                respond(&mut stream, "404 Not Found", "Not found", "").await;
+                respond(
+                    &mut stream,
+                    "404 Not Found",
+                    page::not_found(),
+                    msg::raw(""),
+                )
+                .await;
                 continue;
             }
             if query_param(query, "state").as_deref() != Some(self.state.as_str()) {
                 respond(
                     &mut stream,
                     "400 Bad Request",
-                    "Sign-in didn't match",
-                    "Return to Teitunnel and try again.",
+                    page::mismatch(),
+                    page::return_and_retry(),
                 )
                 .await;
                 return Err(OAuthError::StateMismatch);
             }
             if let Some(error) = query_param(query, "error") {
-                respond(
-                    &mut stream,
-                    "200 OK",
-                    "Sign-in cancelled",
-                    "You can close this tab and return to Teitunnel.",
-                )
-                .await;
+                respond(&mut stream, "200 OK", page::cancelled(), page::close_tab()).await;
                 return Err(OAuthError::Denied(
                     query_param(query, "error_description").unwrap_or(error),
                 ));
@@ -306,19 +334,13 @@ impl PendingLogin {
                 respond(
                     &mut stream,
                     "400 Bad Request",
-                    "Sign-in didn't complete",
-                    "Return to Teitunnel and try again.",
+                    page::incomplete(),
+                    page::return_and_retry(),
                 )
                 .await;
-                return Err(OAuthError::Denied("no authorization code".into()));
+                return Err(OAuthError::NoCode);
             };
-            respond(
-                &mut stream,
-                "200 OK",
-                "You're signed in",
-                "You can close this tab and return to Teitunnel.",
-            )
-            .await;
+            respond(&mut stream, "200 OK", page::signed_in(), page::close_tab()).await;
             return Ok(AuthCode {
                 code: Secret::new(code),
                 verifier: self.verifier,

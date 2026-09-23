@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
-import { t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { FoundRoute, LocalSetup, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 
 const key = (route: FoundRoute) => `${route.hostname}${route.path ?? ""}`;
@@ -14,7 +14,7 @@ function inZones(hostname: string, zones: readonly ZoneRef[]) {
 
 /** Why a found route can't be imported into this account, if it can't. */
 function blocker(route: FoundRoute, zones: readonly ZoneRef[], existing: readonly RouteView[]) {
-  if (route.unsupported) return route.unsupported;
+  if (route.unsupported) return translate(route.unsupported);
   if (!inZones(route.hostname, zones)) return t("import.notInAccount");
   if (existing.some((r) => r.hostname === route.hostname && r.path === route.path)) {
     return t("import.alreadyRouted");
@@ -89,7 +89,7 @@ export function ImportSheet({
                 <span className="selectable font-mono text-mono">{setup.configPath}</span>
               </h3>
               {setup.problem ? (
-                <p className="text-callout text-error">{setup.problem}</p>
+                <p className="text-callout text-error">{translate(setup.problem)}</p>
               ) : setup.routes.length === 0 ? (
                 <p className="text-callout text-secondary">{t("import.noRoutes")}</p>
               ) : (

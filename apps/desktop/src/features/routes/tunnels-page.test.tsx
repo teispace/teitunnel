@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { rawText } from "@/lib/i18n";
 import type {
   Change,
   NetworkView,
@@ -35,10 +36,11 @@ function networkPlan(change: Change): PlanView {
     steps: [
       {
         kind: "networkRoute",
-        description:
+        description: rawText(
           change.type === "addNetwork"
             ? `Route private network ${network} to tunnel “Mac”`
             : "Remove the route for private network 192.168.1.0/24",
+        ),
         command: null,
       },
     ],
@@ -117,8 +119,12 @@ beforeEach(() => {
             severity: "warning",
             accountId: "acc",
             subject: "192.168.1.0/24",
-            title: "WARP clients don't send 192.168.1.0/24 to this Mac",
-            detail: "",
+            label: rawText("192.168.1.0/24"),
+            title: {
+              key: "core.doctor.networkExcluded.title",
+              args: { network: "192.168.1.0/24" },
+            },
+            detail: rawText(""),
             evidence: [],
             fixes: [],
           },
@@ -216,7 +222,10 @@ describe("TunnelsPage", () => {
 
   it("says why a stream ended and can try again", async () => {
     remote = {
-      state: { state: "ended", message: "This connector already streams its logs elsewhere." },
+      state: {
+        state: "ended",
+        message: rawText("This connector already streams its logs elsewhere."),
+      },
       lines: [],
     };
     renderPage();

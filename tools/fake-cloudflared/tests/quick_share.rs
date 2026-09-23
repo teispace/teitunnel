@@ -148,7 +148,7 @@ async fn missing_url_fails_with_a_readable_message() {
     let ShareStatus::Failed { message } = failed.status else {
         unreachable!()
     };
-    assert!(message.contains("didn't provide a URL"));
+    assert!(message.english().contains("didn't provide a URL"));
     shares.stop(&share.id).await.unwrap();
 }
 

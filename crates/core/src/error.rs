@@ -112,6 +112,49 @@ impl Error {
     }
 }
 
+impl crate::text::UserText for Error {
+    fn text(&self) -> crate::text::Text {
+        match self {
+            Self::CloudApi(err) => err.text(),
+            Self::Cloudflared(err) => err.text(),
+            Self::Accounts(err) => err.text(),
+            Self::QuickShare(err) => err.text(),
+            Self::Runtime(err) => err.text(),
+            Self::Store(err) => err.text(),
+            Self::Engine(err) => err.text(),
+        }
+    }
+}
+
+impl crate::text::UserText for cf_api::Error {
+    fn text(&self) -> crate::text::Text {
+        use crate::text::msg::error::cloudflare as m;
+        match self {
+            Self::Api { .. } if self.is_auth() => m::permission(self.detail()),
+            Self::Api { .. } => m::api(self.detail()),
+            Self::Decode(_) => m::decode(),
+            Self::Network(detail) => m::network(detail),
+        }
+    }
+}
+
+impl crate::text::UserText for cloudflared::Error {
+    fn text(&self) -> crate::text::Text {
+        use crate::text::msg::error::cloudflared as m;
+        match self {
+            Self::InvalidVersion(version) => m::invalid_version(version),
+            Self::NotFound => m::not_found(),
+            Self::Io(err) => m::io(err),
+            Self::Exited(Some(code)) => m::exited(code),
+            Self::Exited(None) => m::exited_signal(),
+            Self::Http(detail) => m::http(detail),
+            Self::Verification(detail) => m::verification(detail),
+            Self::UnsupportedPlatform => m::unsupported_platform(),
+            Self::Timeout(operation) => m::timeout(operation),
+        }
+    }
+}
+
 /// Result alias for this crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

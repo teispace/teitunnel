@@ -2,6 +2,7 @@
 //! never returned; cert.pem is read here, so its contents never cross IPC.
 
 use std::path::PathBuf;
+use teitunnel_core::text::msg::app as m;
 
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -50,10 +51,7 @@ pub async fn accounts_add_token(
 ) -> Result<Vec<Account>, AppError> {
     let token = Secret::new(token);
     if token.expose().trim().is_empty() {
-        return Err(AppError::invalid(
-            "credential",
-            "Paste the API token you created.",
-        ));
+        return Err(AppError::invalid("credential", m::paste_token()));
     }
     let added = state.accounts.add_token(token).await?;
     changed(&app);
@@ -66,7 +64,7 @@ pub async fn accounts_add_token(
 pub fn accounts_open_token_page(app: AppHandle) -> Result<(), AppError> {
     app.opener()
         .open_url(token_template_url(), None::<&str>)
-        .map_err(|err| AppError::internal(format!("Couldn't open the browser: {err}")))
+        .map_err(|err| AppError::internal(m::open_browser(err)))
 }
 
 /// Whether `~/.cloudflared/cert.pem` (from `cloudflared tunnel login`) exists.
@@ -83,14 +81,10 @@ pub async fn accounts_import_cert(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Account, AppError> {
-    let path =
-        cert_path(&app).ok_or_else(|| AppError::internal("Couldn't find your home folder."))?;
-    let pem = tokio::fs::read_to_string(&path).await.map_err(|_| {
-        AppError::invalid(
-            "credential",
-            "No cert.pem found. Run `cloudflared tunnel login` first, or use an API token.",
-        )
-    })?;
+    let path = cert_path(&app).ok_or_else(|| AppError::internal(m::no_home()))?;
+    let pem = tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|_| AppError::invalid("credential", m::no_cert()))?;
     let account = state.accounts.import_cert(&pem).await?;
     changed(&app);
     Ok(account)
@@ -149,9 +143,11 @@ pub async fn accounts_oauth_sign_in(
     on_url: tauri::ipc::Channel<String>,
 ) -> Result<Vec<Account>, AppError> {
     use teitunnel_core::accounts::{AccountError, oauth};
-    let config = state.accounts.oauth().cloned().ok_or_else(|| {
-        AppError::internal("Sign in with Cloudflare isn't available in this build.")
-    })?;
+    let config = state
+        .accounts
+        .oauth()
+        .cloned()
+        .ok_or_else(|| AppError::internal(m::oauth_unavailable()))?;
     let login = oauth::start(&config).await.map_err(AccountError::from)?;
     let _ = on_url.send(login.authorize_url.clone());
     if let Err(err) = app.opener().open_url(&login.authorize_url, None::<&str>) {
@@ -163,7 +159,7 @@ pub async fn accounts_oauth_sign_in(
     }
     let code = tokio::select! {
         result = login.wait(oauth::LOGIN_TIMEOUT) => result.map_err(AccountError::from)?,
-        _ = cancelled => return Err(AppError::invalid("credential", "Sign-in cancelled.")),
+        _ = cancelled => return Err(AppError::invalid("credential", m::sign_in_cancelled())),
     };
     crate::shell::windows::focus_main(&app);
     let tokens = oauth::exchange(state.accounts.http(), &config, code)
