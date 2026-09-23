@@ -1,10 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { $, browser, expect } from "@wdio/globals";
+import { commandLines } from "./processes";
 
 /** Command lines of running fake connectors (the app must never leave one behind). */
 function fakeConnectors(): string[] {
-  const out = execFileSync("ps", ["-axo", "command="]).toString();
-  return out.split("\n").filter((line) => /fake-cloudflared tunnel .*--url/.test(line));
+  return commandLines().filter((line) => /fake-cloudflared tunnel .*--url/.test(line));
 }
 
 describe("Quick Share", () => {

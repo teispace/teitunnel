@@ -3,7 +3,7 @@
 //
 //   pnpm e2e:build && pnpm e2e
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -12,6 +12,7 @@ const bin = process.platform === "win32" ? ".exe" : "";
 const app = join(root, "target/e2e/debug", `Teitunnel${bin}`);
 const fake = join(root, "target/e2e/debug", `fake-cloudflared${bin}`);
 const dataDir = mkdtempSync(join(tmpdir(), "teitunnel-e2e-"));
+const artifacts = join(import.meta.dirname, "artifacts");
 
 // A stand-in for the Cloudflare API and edge; E2E builds point at it (never at Cloudflare).
 const CLOUDFLARE_PORT = 18787;
@@ -47,6 +48,14 @@ export const config: WebdriverIO.Config = {
   ],
   // The service ends the app abruptly, so no exit hook runs: stop any connector the
   // test left behind (only the fake binary can be running in E2E builds).
+  // A screenshot of every failing test, for platforms nobody is watching (CI uploads
+  // e2e/artifacts).
+  afterTest: async (test, _context, { passed }) => {
+    if (passed) return;
+    mkdirSync(artifacts, { recursive: true });
+    const name = `${test.parent} ${test.title}`.replace(/[^\w-]+/g, "_");
+    await browser.saveScreenshot(join(artifacts, `${name}.png`));
+  },
   afterSession: () => {
     // Stop connectors the app left running (the fake cloudflared).
     try {

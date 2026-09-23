@@ -27,6 +27,7 @@ logs/
 coverage/
 playwright-report/
 test-results/
+apps/desktop/e2e/artifacts/
 
 # Tauri
 apps/desktop/src-tauri/gen/schemas/

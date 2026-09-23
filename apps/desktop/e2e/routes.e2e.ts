@@ -1,10 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { $, browser, expect } from "@wdio/globals";
+import { commandLines } from "./processes";
 
 /** Running fake connectors for named tunnels (`tunnel … run`). */
 function tunnelConnectors(): string[] {
-  const out = execFileSync("ps", ["-axo", "command="]).toString();
-  return out.split("\n").filter((line) => /fake-cloudflared tunnel .* run$/.test(line.trim()));
+  return commandLines().filter((line) => /fake-cloudflared tunnel .* run$/.test(line));
 }
 
 describe("Routes", () => {
@@ -47,7 +46,8 @@ describe("Routes", () => {
     await $("nav").$("a=Tunnels").click();
     // The tunnel list loads after navigating; wait for it rather than racing it.
     const deleteTunnel = await $("button=Delete…");
-    await deleteTunnel.waitForClickable({ timeout: 15_000 });
+    await deleteTunnel.waitForDisplayed({ timeout: 15_000 });
+    await deleteTunnel.scrollIntoView();
     await deleteTunnel.click();
     const del = await $("[role=dialog][aria-labelledby]");
     await del.$("span*=Delete tunnel").waitForExist({ timeout: 15_000 });

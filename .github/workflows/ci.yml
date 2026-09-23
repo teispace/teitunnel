@@ -122,7 +122,13 @@ jobs:
       - name: Build the E2E app (embedded WebDriver, fake cloudflared)
         run: pnpm --filter @teitunnel/desktop e2e:build
       - name: Run E2E (virtual display, session bus)
-        run: xvfb-run -a dbus-run-session -- pnpm --filter @teitunnel/desktop e2e
+        run: xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- pnpm --filter @teitunnel/desktop e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-linux-screenshots
+          path: apps/desktop/e2e/artifacts
+          retention-days: 7
 
   e2e-windows:
     name: E2E (Windows)
@@ -141,6 +147,12 @@ jobs:
         run: pnpm --filter @teitunnel/desktop e2e:build
       - name: Run E2E
         run: pnpm --filter @teitunnel/desktop e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-windows-screenshots
+          path: apps/desktop/e2e/artifacts
+          retention-days: 7
 
   build-macos:
     name: Build macOS app
