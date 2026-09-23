@@ -2,10 +2,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@/app/app";
 import { installErrorReporting } from "@/app/error-reporting";
+import { repairNavigatorLanguage } from "@/app/locale";
 import { isTauri } from "@/app/platform";
 import "@/styles/globals.css";
 
 installErrorReporting();
+// Before any view (and the libraries it loads) reads the language.
+repairNavigatorLanguage();
 
 async function mount() {
   // In a plain browser during development (screenshots, design review), serve fixture
