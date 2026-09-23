@@ -21,11 +21,17 @@
     "description": {
       "network": "Let devices running Cloudflare WARP reach addresses on this Mac's network.",
       "route": "Send a hostname on your domain to a service on this Mac.",
-      "review": "Review what will change in Cloudflare. Nothing changes until you apply."
+      "review": "Review what will change in Cloudflare. Nothing changes until you apply.",
+      "network@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network.",
+      "network@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network.",
+      "route@windows": "Send a hostname on your domain to a service on this PC.",
+      "route@linux": "Send a hostname on your domain to a service on this computer."
     },
     "network": {
       "label": "Network",
-      "help": "An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac."
+      "help": "An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac.",
+      "help@windows": "An address or a range on this PC's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this PC.",
+      "help@linux": "An address or a range on this computer's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this computer."
     },
     "service": {
       "label": "Service",
@@ -48,7 +54,9 @@
     "reading": "Reading your Cloudflare account…",
     "confirm": {
       "publicNetwork": "Send these public addresses through this Mac",
-      "records": "Replace the existing records"
+      "records": "Replace the existing records",
+      "publicNetwork@windows": "Send these public addresses through this PC",
+      "publicNetwork@linux": "Send these public addresses through this computer"
     },
     "rolledBack": "Everything done before the failure was undone. Nothing was left behind.",
     "leftovers": "Some changes couldn't be undone:",
@@ -144,7 +152,11 @@
       "dnsElsewhere": "Points to {content}",
       "connector": "Connector",
       "note": "Note",
-      "remote": "The service isn't on this Mac"
+      "remote": "The service isn't on this Mac",
+      "dnsOk@windows": "Points to this PC's tunnel",
+      "dnsOk@linux": "Points to this computer's tunnel",
+      "remote@windows": "The service isn't on this PC",
+      "remote@linux": "The service isn't on this computer"
     },
     "activity": {
       "undone": " · undone after an error"
@@ -156,14 +168,18 @@
     "new": "New route",
     "connectCloudflare": {
       "title": "Connect Cloudflare",
-      "description": "Routes send a hostname on your domain, like app.example.com, to a service on this Mac."
+      "description": "Routes send a hostname on your domain, like app.example.com, to a service on this Mac.",
+      "description@windows": "Routes send a hostname on your domain, like app.example.com, to a service on this PC.",
+      "description@linux": "Routes send a hostname on your domain, like app.example.com, to a service on this computer."
     },
     "loadFailed": "Couldn't load routes",
     "empty": {
       "title": "No routes yet",
       "noDomains": "Add a domain to your Cloudflare account first. Routes use hostnames on your domains.",
       "description": "A route sends a hostname like app.example.com to a service on this Mac, such as localhost:3000.",
-      "add": "Add Route"
+      "add": "Add Route",
+      "description@windows": "A route sends a hostname like app.example.com to a service on this PC, such as localhost:3000.",
+      "description@linux": "A route sends a hostname like app.example.com to a service on this computer, such as localhost:3000."
     },
     "list": "Routes",
     "otherZone": "Other",
@@ -236,13 +252,25 @@
     "empty": {
       "title": "No tunnels",
       "description": "Teitunnel creates a tunnel for this Mac when you add your first route or share a private network.",
-      "share": "Share a Private Network…"
+      "share": "Share a Private Network…",
+      "description@windows": "Teitunnel creates a tunnel for this PC when you add your first route or share a private network.",
+      "description@linux": "Teitunnel creates a tunnel for this computer when you add your first route or share a private network."
     },
     "list": "Tunnels",
     "group": {
       "cloud": "In Cloudflare",
-      "local": "Also on this Mac"
-    }
+      "local": "Also on this Mac",
+      "local@windows": "Also on this PC",
+      "local@linux": "Also on this computer"
+    },
+    "thisMac@windows": "This PC",
+    "thisMac@linux": "This computer",
+    "stopHere@windows": "Stop on This PC",
+    "stopHere@linux": "Stop on This computer",
+    "startHere@windows": "Start on This PC",
+    "startHere@linux": "Start on This computer",
+    "connectDescription@windows": "Tunnels connect this PC to Cloudflare so your routes can reach it.",
+    "connectDescription@linux": "Tunnels connect this computer to Cloudflare so your routes can reach it."
   },
   "plan": {
     "state": {
@@ -261,7 +289,11 @@
       "tunnelEmpty": "No routes will be left. The tunnel stays, so adding a route later is quick.",
       "remoteOrigin": "{origin} isn't on this Mac. It must be reachable from here.",
       "publicNetwork": "{network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.",
-      "overlapsNetwork": "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
+      "overlapsNetwork": "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins.",
+      "remoteOrigin@windows": "{origin} isn't on this PC. It must be reachable from here.",
+      "remoteOrigin@linux": "{origin} isn't on this computer. It must be reachable from here.",
+      "publicNetwork@windows": "{network} isn't a private range. WARP clients would reach those addresses through this PC instead of the internet.",
+      "publicNetwork@linux": "{network} isn't a private range. WARP clients would reach those addresses through this computer instead of the internet."
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -274,7 +306,9 @@
     "public": "Public",
     "foreign": "Added outside Teitunnel",
     "stop": "Stop sharing {network}",
-    "add": "Share Network…"
+    "add": "Share Network…",
+    "empty@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network, like a NAS or a printer.",
+    "empty@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network, like a NAS or a printer."
   },
   "export": {
     "title": "Export",
@@ -289,14 +323,18 @@
       "configYaml": "The routes as a cloudflared configuration file, to run them as a locally-managed tunnel or keep as a record.",
       "dockerCompose": "A service that runs this tunnel in Docker. The run token isn't included; the file says how to get it.",
       "terraform": "Terraform for the Cloudflare provider, with import blocks that adopt the existing tunnel and records instead of recreating them."
-    }
+    },
+    "empty@windows": "This PC has no routes in this account yet, so there's nothing to export.",
+    "empty@linux": "This computer has no routes in this account yet, so there's nothing to export."
   },
   "import": {
     "title": "Import from cloudflared",
     "description": "These routes are in cloudflared config files on this Mac. Imported routes move to this Mac's tunnel; the files are left as they are.",
     "notInAccount": "Not in this account's domains",
     "alreadyRouted": "Already routed",
-    "noRoutes": "No hostname routes."
+    "noRoutes": "No hostname routes.",
+    "description@windows": "These routes are in cloudflared config files on this PC. Imported routes move to this PC's tunnel; the files are left as they are.",
+    "description@linux": "These routes are in cloudflared config files on this computer. Imported routes move to this computer's tunnel; the files are left as they are."
   },
   "remoteLogs": {
     "connecting": "Connecting to the connector…",
@@ -445,7 +483,9 @@
     "startup": {
       "title": "Startup",
       "footer": "Teitunnel opens in the menu bar, without a window. Routes set to keep running don't need this.",
-      "openAtLogin": "Open at login"
+      "openAtLogin": "Open at login",
+      "footer@windows": "Teitunnel opens in the notification area, without a window. Routes set to keep running don't need this.",
+      "footer@linux": "Teitunnel opens in the system tray, without a window. Routes set to keep running don't need this."
     },
     "tabs": "Settings",
     "appearance": "Appearance",
@@ -459,13 +499,23 @@
       "doctor": "Doctor notifications",
       "shares": "Quick Shares",
       "sharesDetail": "When a share goes live or stops working.",
-      "sharesLabel": "Quick Share notifications"
+      "sharesLabel": "Quick Share notifications",
+      "footer@windows": "Only when no Teitunnel window is in front. Windows decides how they look in Settings ▸ System ▸ Notifications.",
+      "footer@linux": "Only when no Teitunnel window is in front. Your desktop's notification settings decide how they look.",
+      "routesDetail@windows": "When this PC's connector loses its connection for more than 20 seconds.",
+      "routesDetail@linux": "When this computer's connector loses its connection for more than 20 seconds."
     },
     "menuBar": {
       "title": "Menu bar",
       "footer": "Closing the window keeps routes and Quick Shares running. Quit Teitunnel with ⌘Q to stop them.",
       "show": "Show in menu bar",
-      "showDetail": "Status and quick actions without opening the window."
+      "showDetail": "Status and quick actions without opening the window.",
+      "title@windows": "Notification area",
+      "title@linux": "System tray",
+      "footer@windows": "Closing the window keeps routes and Quick Shares running. Quit Teitunnel with Ctrl+Q to stop them.",
+      "footer@linux": "Closing the window keeps routes and Quick Shares running. Quit Teitunnel with Ctrl+Q to stop them.",
+      "show@windows": "Show in the notification area",
+      "show@linux": "Show in the system tray"
     }
   },
   "domains": {
@@ -498,7 +548,9 @@
     "none": "No domains",
     "noMatchesDetail": "No domain contains “{query}”.",
     "noneDetail": "Add a domain in your Cloudflare dashboard, then refresh.",
-    "noSelection": "No domain selected"
+    "noSelection": "No domain selected",
+    "connectDescription@windows": "Use your own domains, like app.example.com, for services on this PC.",
+    "connectDescription@linux": "Use your own domains, like app.example.com, for services on this computer."
   },
   "doctor": {
     "severity": {
@@ -570,7 +622,11 @@
     "traffic": "Traffic on this Mac",
     "requestsPerSecond": "requests/s",
     "sinceStart": "{count} since start",
-    "sparkline": "Requests per second over the last hour"
+    "sparkline": "Requests per second over the last hour",
+    "welcomeDetail@windows": "Share anything running on this PC at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
+    "welcomeDetail@linux": "Share anything running on this computer at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
+    "traffic@windows": "Traffic on this PC",
+    "traffic@linux": "Traffic on this computer"
   },
   "accounts": {
     "credential": {
@@ -584,7 +640,11 @@
     "title": "Cloudflare accounts",
     "footer": "Credentials are stored in your Mac's keychain and only sent to Cloudflare.",
     "none": "No accounts connected",
-    "noneDetail": "Connect one to use your own domains."
+    "noneDetail": "Connect one to use your own domains.",
+    "disconnectDetail@windows": "Teitunnel deletes this account's credentials from Windows Credential Manager. Nothing changes in Cloudflare; running routes keep working until you stop them.",
+    "disconnectDetail@linux": "Teitunnel deletes this account's credentials from your keyring. Nothing changes in Cloudflare; running routes keep working until you stop them.",
+    "footer@windows": "Credentials are stored in Windows Credential Manager and only sent to Cloudflare.",
+    "footer@linux": "Credentials are stored in your keyring and only sent to Cloudflare."
   },
   "capabilities": {
     "allowed": "Allowed",
@@ -618,7 +678,9 @@
     "openCloudflare": "Open Cloudflare",
     "step2": "Paste it here",
     "token": "API token",
-    "tokenPlaceholder": "Paste your token"
+    "tokenPlaceholder": "Paste your token",
+    "description@windows": "Teitunnel uses an API token you create in your Cloudflare dashboard. It's kept in Windows Credential Manager and only sent to Cloudflare.",
+    "description@linux": "Teitunnel uses an API token you create in your Cloudflare dashboard. It's kept in your keyring and only sent to Cloudflare."
   },
   "binary": {
     "progress": {
@@ -640,7 +702,9 @@
     "source": {
       "managed": "Installed by Teitunnel",
       "system": "Your installation (e.g. Homebrew)",
-      "override": "Set by TEITUNNEL_CLOUDFLARED"
+      "override": "Set by TEITUNNEL_CLOUDFLARED",
+      "system@windows": "Your installation (e.g. winget)",
+      "system@linux": "Your installation (e.g. your package manager)"
     },
     "footer": "Teitunnel runs cloudflared, Cloudflare's connector, for every Quick Share and route.",
     "version": "Version",
@@ -660,7 +724,13 @@
     "checkNow": "Check Now",
     "byInstaller": "Updated by its installer",
     "byInstallerDetail": "Teitunnel doesn't modify a cloudflared it didn't install. With Homebrew, run brew upgrade cloudflared.",
-    "useOurs": "Use Teitunnel's Copy"
+    "useOurs": "Use Teitunnel's Copy",
+    "reveal@windows": "Show in File Explorer",
+    "reveal@linux": "Show in File Manager",
+    "homebrew@windows": "Prefer winget?",
+    "homebrew@linux": "Prefer your package manager?",
+    "byInstallerDetail@windows": "Teitunnel doesn't modify a cloudflared it didn't install. With winget, run winget upgrade --id Cloudflare.cloudflared.",
+    "byInstallerDetail@linux": "Teitunnel doesn't modify a cloudflared it didn't install. Update it with your package manager."
   },
   "quickShare": {
     "kind": {
@@ -700,7 +770,9 @@
     "heading": "Share a local service",
     "headingDetail": "Get a temporary public URL. Anyone with the link can open it until you stop sharing.",
     "emptyHint": "Running shares appear here. They stop when you quit Teitunnel.",
-    "showQr": "Show QR code"
+    "showQr": "Show QR code",
+    "running@windows": "Running on this PC",
+    "running@linux": "Running on this computer"
   },
   "nav": {
     "overview": "Overview",
@@ -719,7 +791,8 @@
     "group": {
       "go": "Go to",
       "actions": "Actions",
-      "view": "View"
+      "view": "View",
+      "help": "Help"
     },
     "newRoute": "New Route",
     "newQuickShare": "New Quick Share",
@@ -730,7 +803,12 @@
     "toggleInspector": "Toggle Inspector",
     "palette": "Command palette",
     "search": "Search commands",
-    "none": "No matching commands"
+    "none": "No matching commands",
+    "quit": "Quit Teitunnel",
+    "docs": "Teitunnel Documentation",
+    "cloudflareDocs": "Cloudflare Tunnel Documentation",
+    "releaseNotes": "Release Notes",
+    "reportIssue": "Report an Issue…"
   },
   "quit": {
     "title": "Your routes stop when Teitunnel quits",
@@ -793,7 +871,9 @@
       "network": {
         "invalid": "Enter an IP address or a range like 192.168.1.0/24.",
         "tooBroad": "{network} is too broad. Use a range of at most /8 (IPv4) or /16 (IPv6).",
-        "unroutable": "{network} can't be reached through a tunnel. Use this Mac's network address instead."
+        "unroutable": "{network} can't be reached through a tunnel. Use this Mac's network address instead.",
+        "unroutable@windows": "{network} can't be reached through a tunnel. Use this PC's network address instead.",
+        "unroutable@linux": "{network} can't be reached through a tunnel. Use this computer's network address instead."
       },
       "routeOrigin": {
         "empty": "Enter a port or an address, like 3000 or localhost:3000.",
@@ -819,7 +899,11 @@
         "noSuchLogin": "Teitunnel didn't add a login for {domain}, or it's already gone.",
         "accessAppExists": "{domain} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard.",
         "networkRouted": "{network} is already shared through tunnel “{tunnel}”. Remove that route first.",
-        "noSuchNetwork": "This Mac doesn't share {network}."
+        "noSuchNetwork": "This Mac doesn't share {network}.",
+        "noTunnel@windows": "This PC doesn't have a tunnel yet.",
+        "noTunnel@linux": "This computer doesn't have a tunnel yet.",
+        "noSuchNetwork@windows": "This PC doesn't share {network}.",
+        "noSuchNetwork@linux": "This computer doesn't share {network}."
       },
       "engine": {
         "stale": "Something changed in Cloudflare since you reviewed this change. Review it again.",
@@ -879,7 +963,9 @@
       },
       "secret": {
         "keychain": "The keychain couldn't be used ({detail}). Unlock it and try again.",
-        "unavailable": "No secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again."
+        "unavailable": "No secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again.",
+        "keychain@windows": "Windows Credential Manager couldn't be used ({detail}). Try again.",
+        "keychain@linux": "The keyring couldn't be used ({detail}). Unlock it and try again."
       }
     },
     "raw": "{text}",
@@ -896,7 +982,11 @@
         "addNetwork": "Share private network {network}",
         "removeNetwork": "Stop sharing private network {network}",
         "importRoutes_one": "Import {count} route from cloudflared",
-        "importRoutes_other": "Import {count} routes from cloudflared"
+        "importRoutes_other": "Import {count} routes from cloudflared",
+        "removeTunnel@windows": "Remove every route and delete this PC's tunnel",
+        "removeTunnel@linux": "Remove every route and delete this computer's tunnel",
+        "restoreConfig@windows": "Restore this PC's routes after an outside edit",
+        "restoreConfig@linux": "Restore this computer's routes after an outside edit"
       },
       "step": {
         "createTunnel": "Create tunnel “{name}”",
@@ -913,7 +1003,9 @@
         "deleteAccessApp": "Remove the login from {domain}",
         "createNetworkRoute": "Route private network {network} to tunnel “{tunnel}”",
         "deleteNetworkRoute": "Remove the route for private network {network}",
-        "verify": "Check https://{hostname} works"
+        "verify": "Check https://{hostname} works",
+        "stopConnector@windows": "Stop this PC's connector",
+        "stopConnector@linux": "Stop this computer's connector"
       }
     },
     "activity": {
@@ -939,7 +1031,9 @@
         "restoreAccessApp": "Who can open {domain} wasn't restored",
         "recreateAccessApp": "The login for {domain} was removed",
         "deleteNetworkRoute": "Private network {network} was routed to the tunnel and still is",
-        "recreateNetworkRoute": "The route for private network {network} was removed"
+        "recreateNetworkRoute": "The route for private network {network} was removed",
+        "startConnector@windows": "This PC's connector is stopped",
+        "startConnector@linux": "This computer's connector is stopped"
       }
     },
     "machine": {
@@ -954,7 +1048,11 @@
       "reconnectTimeout": "The always-on connector didn't reconnect within 30 seconds after the update. The app's connector serves the routes for now.",
       "noPort": "No free port for the connector's metrics (20300–20399 are all busy).",
       "noTunnel": "This Mac doesn't have a tunnel yet. Add a route first.",
-      "interrupted": "The operation was interrupted. Try again."
+      "interrupted": "The operation was interrupted. Try again.",
+      "alwaysOnTimeout@windows": "The always-on connector didn't connect within 30 seconds. This PC keeps using the app's connector.",
+      "alwaysOnTimeout@linux": "The always-on connector didn't connect within 30 seconds. This computer keeps using the app's connector.",
+      "noTunnel@windows": "This PC doesn't have a tunnel yet. Add a route first.",
+      "noTunnel@linux": "This computer doesn't have a tunnel yet. Add a route first."
     },
     "doctor": {
       "udpBlocked": {
@@ -963,11 +1061,17 @@
       },
       "originTls": {
         "title": "An HTTPS origin's certificate isn't trusted",
-        "detail": "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the Mac trusts."
+        "detail": "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the Mac trusts.",
+        "detail@windows": "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate Windows trusts.",
+        "detail@linux": "The connector couldn't verify the origin's certificate. Use http:// for a local origin, or a certificate the system trusts."
       },
       "clockSkew": {
         "title": "This Mac's clock may be wrong",
-        "detail": "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time and date automatically in System Settings."
+        "detail": "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time and date automatically in System Settings.",
+        "title@windows": "This PC's clock may be wrong",
+        "title@linux": "This computer's clock may be wrong",
+        "detail@windows": "Certificates look expired or not yet valid, which usually means the clock is off. Turn on Set time automatically in Settings ▸ Time & language.",
+        "detail@linux": "Certificates look expired or not yet valid, which usually means the clock is off. Turn on automatic date and time in your system settings."
       },
       "binaryMissing": {
         "title": "cloudflared isn't installed",
@@ -1000,7 +1104,9 @@
       "configDrift": {
         "title": "This Mac's routes were changed outside Teitunnel",
         "detail": "Keep the changes, or restore what Teitunnel set up.",
-        "subject": "Routes"
+        "subject": "Routes",
+        "title@windows": "This PC's routes were changed outside Teitunnel",
+        "title@linux": "This computer's routes were changed outside Teitunnel"
       },
       "dnsMissing": {
         "title": "{hostname} has no DNS record",
@@ -1015,7 +1121,9 @@
       },
       "dnsConflict": {
         "title": "Another record answers for {hostname}",
-        "detail": "Requests for this hostname don't reach this Mac. Point the record at this Mac's tunnel."
+        "detail": "Requests for this hostname don't reach this Mac. Point the record at this Mac's tunnel.",
+        "detail@windows": "Requests for this hostname don't reach this PC. Point the record at this PC's tunnel.",
+        "detail@linux": "Requests for this hostname don't reach this computer. Point the record at this computer's tunnel."
       },
       "originNotListening": {
         "title": "Nothing is listening on port {port}",
@@ -1023,38 +1131,60 @@
       },
       "noConnections": {
         "title": "This Mac's connector isn't running",
-        "detail": "Its routes don't answer until the connector runs."
+        "detail": "Its routes don't answer until the connector runs.",
+        "title@windows": "This PC's connector isn't running",
+        "title@linux": "This computer's connector isn't running"
       },
       "crashLoop": {
         "title": "This Mac's connector keeps stopping",
         "detail": "cloudflared exited several times in a row. Its logs say why; starting it again retries.",
-        "exitCode": "Last exit code {code}"
+        "exitCode": "Last exit code {code}",
+        "title@windows": "This PC's connector keeps stopping",
+        "title@linux": "This computer's connector keeps stopping"
       },
       "degraded": {
         "title": "This Mac's connector lost its connection",
-        "detail": "cloudflared is running but not connected to Cloudflare. It reconnects on its own; check the network if it persists."
+        "detail": "cloudflared is running but not connected to Cloudflare. It reconnects on its own; check the network if it persists.",
+        "title@windows": "This PC's connector lost its connection",
+        "title@linux": "This computer's connector lost its connection"
       },
       "staleConnections": {
         "title": "Cloudflare still lists connections for this Mac's tunnel",
         "detail": "This Mac's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it.",
         "connections_one": "{count} connection",
-        "connections_other": "{count} connections"
+        "connections_other": "{count} connections",
+        "title@windows": "Cloudflare still lists connections for this PC's tunnel",
+        "title@linux": "Cloudflare still lists connections for this computer's tunnel",
+        "detail@windows": "This PC's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it.",
+        "detail@linux": "This computer's connector isn't running, so they're left over, or another machine runs this tunnel with its token. Clean them up if nothing else should run it."
       },
       "otherConnectors": {
         "title": "Another machine also runs this Mac's tunnel",
-        "detail": "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this Mac. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes."
+        "detail": "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this Mac. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes.",
+        "title@windows": "Another machine also runs this PC's tunnel",
+        "title@linux": "Another machine also runs this computer's tunnel",
+        "detail@windows": "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this PC. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes.",
+        "detail@linux": "Cloudflare splits requests between the machines running a tunnel, and each sends them to its own services, so some visitors reach the other machine instead of this computer. Stop cloudflared there (see its logs in Tunnels to find it), or rotate the tunnel's token by deleting and re-adding the routes."
       },
       "duplicateLocal": {
         "title": "Another cloudflared on this Mac runs this Mac's tunnel",
-        "detail": "Two connectors on one Mac add nothing but confusion in logs and metrics. Stop the other one from Tunnels."
+        "detail": "Two connectors on one Mac add nothing but confusion in logs and metrics. Stop the other one from Tunnels.",
+        "title@windows": "Another cloudflared on this PC runs this PC's tunnel",
+        "title@linux": "Another cloudflared on this computer runs this computer's tunnel",
+        "detail@windows": "Two connectors on one PC add nothing but confusion in logs and metrics. Stop the other one from Tunnels.",
+        "detail@linux": "Two connectors on one computer add nothing but confusion in logs and metrics. Stop the other one from Tunnels."
       },
       "unusedOwned": {
         "title": "This Mac's tunnel has no routes",
-        "detail": "It's kept so adding a route is quick. Delete it if you don't need it."
+        "detail": "It's kept so adding a route is quick. Delete it if you don't need it.",
+        "title@windows": "This PC's tunnel has no routes",
+        "title@linux": "This computer's tunnel has no routes"
       },
       "orphanRoute": {
         "title": "{hostname} points at this Mac's tunnel but has no route",
-        "detail": "Visitors get a 404 from the tunnel. Delete the record, or add a route for it."
+        "detail": "Visitors get a 404 from the tunnel. Delete the record, or add a route for it.",
+        "title@windows": "{hostname} points at this PC's tunnel but has no route",
+        "title@linux": "{hostname} points at this computer's tunnel but has no route"
       },
       "orphanTunnel": {
         "title": "{hostname} points at a tunnel that no longer exists",
@@ -1070,11 +1200,17 @@
         "title": "WARP clients don't send {network} to this Mac",
         "detail": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network}).",
         "excluded": "Excluded: {range}",
-        "excludedNamed": "Excluded: {range} ({description})"
+        "excludedNamed": "Excluded: {range} ({description})",
+        "title@windows": "WARP clients don't send {network} to this PC",
+        "title@linux": "WARP clients don't send {network} to this computer",
+        "detail@windows": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this PC. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network}).",
+        "detail@linux": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this computer. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network})."
       },
       "networkNotIncluded": {
         "title": "WARP clients don't send {network} to this Mac",
-        "detail": "The default device profile's Split Tunnels only send the listed addresses through WARP, and {network} isn't one of them. In the Cloudflare Zero Trust dashboard, add {network} to Split Tunnels."
+        "detail": "The default device profile's Split Tunnels only send the listed addresses through WARP, and {network} isn't one of them. In the Cloudflare Zero Trust dashboard, add {network} to Split Tunnels.",
+        "title@windows": "WARP clients don't send {network} to this PC",
+        "title@linux": "WARP clients don't send {network} to this computer"
       },
       "accessOrphan": {
         "title": "{domain} still has a login but no route",
@@ -1108,7 +1244,9 @@
       "crashLoop": "The connector keeps stopping",
       "crashLoopBody": "Open Teitunnel's Doctor to see why.",
       "shareLive": "Quick Share is live",
-      "shareFailed": "Quick Share stopped working"
+      "shareFailed": "Quick Share stopped working",
+      "routesDown@windows": "Routes on this PC are down",
+      "routesDown@linux": "Routes on this computer are down"
     },
     "verify": {
       "noRecord": "There's no DNS record for this hostname.",
@@ -1120,7 +1258,11 @@
       "tunnelMismatch": "The hostname points at a tunnel that doesn't serve it.",
       "originNotListening": "Nothing is listening on the origin's port. Start your app and test again.",
       "originUnreachable": "The tunnel works, but the connector couldn't connect to the origin.",
-      "originTimeout": "The origin didn't answer in time."
+      "originTimeout": "The origin didn't answer in time.",
+      "recordElsewhere@windows": "The DNS record points at {content}, not at this PC's tunnel.",
+      "recordElsewhere@linux": "The DNS record points at {content}, not at this computer's tunnel.",
+      "noConnector@windows": "Cloudflare can't reach this PC: the connector isn't connected.",
+      "noConnector@linux": "Cloudflare can't reach this computer: the connector isn't connected."
     },
     "remoteLogs": {
       "noPermission": "This account's token can't read connector logs. It needs Cloudflare Tunnel: Edit.",
@@ -1171,7 +1313,13 @@
       "foreignGone": "That cloudflared isn't running any more.",
       "noRoutes": "This Mac has no routes in this account yet.",
       "finder": "Couldn't open Finder: {detail}",
-      "qrTooLong": "That URL is too long for a QR code."
+      "qrTooLong": "That URL is too long for a QR code.",
+      "noRoutes@windows": "This PC has no routes in this account yet.",
+      "noRoutes@linux": "This computer has no routes in this account yet.",
+      "finder@windows": "Couldn't open File Explorer: {detail}",
+      "finder@linux": "Couldn't open the file manager: {detail}",
+      "cloudflaredMissingHint@windows": "Install it from the Quick Share page, or run `winget install --id Cloudflare.cloudflared`.",
+      "cloudflaredMissingHint@linux": "Install it from the Quick Share page, or with your package manager."
     },
     "menu": {
       "about": "About {app}",
@@ -1239,7 +1387,13 @@
       "open": "Open Teitunnel",
       "quit": "Quit Teitunnel",
       "notWorking_one": "{failing} of {count} route not working",
-      "notWorking_other": "{failing} of {count} routes not working"
+      "notWorking_other": "{failing} of {count} routes not working",
+      "stopRoutes@windows": "Stop Routes on This PC",
+      "stopRoutes@linux": "Stop Routes on This computer",
+      "startRoutes@windows": "Start Routes on This PC",
+      "startRoutes@linux": "Start Routes on This computer",
+      "routesStopped@windows": "Routes stopped on this PC",
+      "routesStopped@linux": "Routes stopped on this computer"
     },
     "route": {
       "status": {

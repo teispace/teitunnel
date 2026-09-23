@@ -4,19 +4,19 @@
 //! are forwarded to the webview as a typed [`MenuAction`] event. The Edit menu is not
 //! optional: without it, ⌘C/⌘V/⌘A don't work in text fields on macOS.
 
-use tauri::{
-    AppHandle, Runtime,
-    menu::{
-        AboutMetadataBuilder, IsMenuItem, Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder,
-        SubmenuBuilder,
-    },
+use tauri::{AppHandle, Runtime, menu::MenuEvent};
+// Building the menu bar is macOS-only (D-063); handling its items isn't (the tray uses
+// the same event path).
+#[cfg(target_os = "macos")]
+use tauri::menu::{
+    AboutMetadataBuilder, IsMenuItem, Menu, MenuBuilder, MenuItem, MenuItemBuilder, SubmenuBuilder,
 };
 use tauri_plugin_opener::OpenerExt;
 use tauri_specta::Event;
 use teitunnel_core::text::{Text, msg::menu as m};
 
 use crate::{
-    ipc::{MenuAction, MenuCommand},
+    ipc::{MenuAction, MenuCommand, app::HelpLink},
     shell::{tray, windows},
 };
 
@@ -25,11 +25,6 @@ const DOCS: &str = "help.docs";
 const ISSUE: &str = "help.issue";
 const CLOUDFLARE_DOCS: &str = "help.cloudflare_docs";
 const RELEASES: &str = "help.releases";
-const DOCS_URL: &str = "https://github.com/teispace/teitunnel#readme";
-const ISSUE_URL: &str = "https://github.com/teispace/teitunnel/issues/new/choose";
-const CLOUDFLARE_DOCS_URL: &str =
-    "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/";
-const RELEASES_URL: &str = "https://github.com/teispace/teitunnel/releases";
 
 /// A menu item the webview handles: (id, label, accelerator (empty: none), command).
 type WebviewItem = (&'static str, fn() -> Text, &'static str, MenuCommand);
@@ -136,6 +131,7 @@ fn command_for(id: &str) -> Option<MenuCommand> {
         .map(|(.., command)| *command)
 }
 
+#[cfg(target_os = "macos")]
 fn build_items<R: Runtime>(
     app: &AppHandle<R>,
     table: &[WebviewItem],
@@ -153,6 +149,7 @@ fn build_items<R: Runtime>(
         .collect()
 }
 
+#[cfg(target_os = "macos")]
 fn as_refs<R: Runtime>(items: &[MenuItem<R>]) -> Vec<&dyn IsMenuItem<R>> {
     items
         .iter()
@@ -160,7 +157,8 @@ fn as_refs<R: Runtime>(items: &[MenuItem<R>]) -> Vec<&dyn IsMenuItem<R>> {
         .collect()
 }
 
-/// Builds the application menu bar.
+/// Builds the application menu bar (macOS only, D-063).
+#[cfg(target_os = "macos")]
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let info = app.package_info();
     let about = AboutMetadataBuilder::new()
@@ -251,10 +249,10 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
     let id = event.id().as_ref();
     let result = match id {
         SETTINGS => windows::open_settings(app),
-        DOCS => open_url(app, DOCS_URL),
-        ISSUE => open_url(app, ISSUE_URL),
-        CLOUDFLARE_DOCS => open_url(app, CLOUDFLARE_DOCS_URL),
-        RELEASES => open_url(app, RELEASES_URL),
+        DOCS => open_url(app, HelpLink::Docs.url()),
+        ISSUE => open_url(app, HelpLink::ReportIssue.url()),
+        CLOUDFLARE_DOCS => open_url(app, HelpLink::CloudflareDocs.url()),
+        RELEASES => open_url(app, HelpLink::ReleaseNotes.url()),
         other if tray::on_event(app, other) => Ok(()),
         other => match command_for(other) {
             Some(command) => {

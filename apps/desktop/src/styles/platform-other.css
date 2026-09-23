@@ -1,0 +1,84 @@
+/*
+ * Windows and Linux chrome (D-063). There's no vibrancy there, so surfaces are solid,
+ * the title bar is the system's own (`tauri.windows.conf.json`, `tauri.linux.conf.json`)
+ * and the accent is the platform's default. The inactive-window greying is a macOS
+ * convention; other platforms keep selections coloured.
+ */
+
+:root[data-platform="windows"],
+:root[data-platform="linux"] {
+  --traffic-light-inset: 0px;
+  --toolbar-height: 48px;
+  --sidebar-icon: var(--text-secondary);
+}
+
+/* Windows 11: Mica-like neutral base for the window and navigation pane, white cards
+   over it; Segoe UI Variable; Windows' default accent blue. */
+:root[data-platform="windows"] {
+  --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --accent: light-dark(#005fb8, #60cdff);
+  --text-on-accent: light-dark(#ffffff, #000000);
+  --surface-window: light-dark(#f3f3f3, #202020);
+  --surface-sidebar: light-dark(#f3f3f3, #202020);
+  --surface-content: light-dark(#fafafa, #272727);
+}
+
+/* GNOME (Adwaita): sidebar and content tones, Cantarell or the system font, the
+   default blue accent. KDE picks the same stack and reads well with it. */
+:root[data-platform="linux"] {
+  --font-sans: Cantarell, "Noto Sans", Ubuntu, system-ui, sans-serif;
+  --font-mono: "Source Code Pro", "DejaVu Sans Mono", ui-monospace, monospace;
+  --accent: light-dark(#3584e4, #78aeed);
+  --surface-window: light-dark(#ebebed, #2e2e32);
+  --surface-sidebar: light-dark(#ebebed, #2e2e32);
+  --surface-content: light-dark(#fafafb, #222226);
+}
+
+/* Solid window: nothing shows through where macOS would draw a material. */
+:root[data-platform="windows"] body,
+:root[data-platform="linux"] body {
+  background: var(--surface-window);
+}
+
+/* Selections stay coloured when the window isn't in front (undoing the macOS rule). */
+:root[data-platform="windows"][data-window-active="false"],
+:root[data-platform="linux"][data-window-active="false"] {
+  --surface-selected: var(--accent-fill);
+  --sidebar-icon: var(--text-secondary);
+}
+
+:root[data-platform="windows"][data-window-active="false"] {
+  --text-on-accent: light-dark(#ffffff, #000000);
+}
+
+:root[data-platform="linux"][data-window-active="false"] {
+  --text-on-accent: #ffffff;
+}
+
+/* Navigation selection: a neutral fill, as in Windows 11 and GNOME (an accent fill with
+   white text is a macOS sidebar). Windows adds its accent pill. */
+:root:is([data-platform="windows"], [data-platform="linux"])
+[data-sidebar-item][data-status="active"] {
+  position: relative;
+  background: var(--surface-sidebar-selected);
+  color: var(--text-primary);
+}
+
+:root:is([data-platform="windows"], [data-platform="linux"])
+  [data-sidebar-item][data-status="active"]
+  svg {
+  color: var(--text-primary);
+}
+
+:root[data-platform="windows"] [data-sidebar-item][data-status="active"]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 16px;
+  translate: 0 -50%;
+  border-radius: 1.5px;
+  background: var(--accent);
+}

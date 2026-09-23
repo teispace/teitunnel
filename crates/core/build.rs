@@ -91,6 +91,11 @@ fn emit(out: &mut String, node: &Map<String, Value>, path: &str, depth: usize) {
     let mut leaves: BTreeMap<String, (String, bool)> = BTreeMap::new();
     for (key, value) in node {
         let Value::String(text) = value else { continue };
+        // A platform's wording (`key@windows`) is picked at runtime; the base message
+        // defines the function.
+        if key.contains('@') {
+            continue;
+        }
         match plural_base(key) {
             Some(base) => {
                 let entry = leaves

@@ -96,13 +96,36 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<(
         .icon_as_template(true)
         .tooltip("Teitunnel")
         .menu(&build_menu(app, &[], &TrayRoutes::default())?)
-        .show_menu_on_left_click(true)
+        // macOS and Linux (StatusNotifierItem) show the menu on click. On Windows a
+        // left click opens the app and the menu is on the right click, as there.
+        .show_menu_on_left_click(!cfg!(target_os = "windows"))
+        .on_tray_icon_event(|tray, event| {
+            if cfg!(target_os = "windows")
+                && let tauri::tray::TrayIconEvent::Click {
+                    button: tauri::tray::MouseButton::Left,
+                    button_state: tauri::tray::MouseButtonState::Up,
+                    ..
+                } = event
+            {
+                windows::focus_main(tray.app_handle());
+            }
+        })
         .build(app)?;
+    VISIBLE.store(visible, std::sync::atomic::Ordering::SeqCst);
     tray.set_visible(visible)
+}
+
+/// Whether the icon is meant to show (the "Show in menu bar" setting, once installed).
+static VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the menu bar (tray) icon is showing.
+pub fn is_visible() -> bool {
+    VISIBLE.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 /// Shows or hides the menu bar icon (the "Show in menu bar" setting).
 pub fn set_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
+    VISIBLE.store(visible, std::sync::atomic::Ordering::SeqCst);
     if let Some(tray) = app.tray_by_id(ID)
         && let Err(err) = tray.set_visible(visible)
     {

@@ -60,7 +60,7 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_wdio_webdriver::init())
         .plugin(tauri_plugin_wdio::init());
 
-    builder
+    let builder = builder
         // Must be first so a second launch exits before initialising anything else.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             shell::windows::focus_main(app);
@@ -74,8 +74,12 @@ pub fn run() -> Result<(), tauri::Error> {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
         ))
-        .invoke_handler(specta.invoke_handler())
-        .menu(shell::menu::build)
+        .invoke_handler(specta.invoke_handler());
+    // Only macOS has a global menu bar. Windows and Linux apps keep their commands in
+    // the window: shortcuts and the command palette (D-063).
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(shell::menu::build);
+    builder
         .on_menu_event(|app, event| shell::menu::on_event(app, &event))
         .setup(move |app| {
             // An isolated run (`TEITUNNEL_DATA_DIR`: E2E, measurements) logs there too.
@@ -100,7 +104,10 @@ pub fn run() -> Result<(), tauri::Error> {
             tauri::RunEvent::ExitRequested { api, .. } => bootstrap::on_exit_requested(app, &api),
             // Clicking the Dock icon with no visible window reopens the main window.
             #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen { has_visible_windows: false, .. } => shell::windows::focus_main(app),
+            tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => shell::windows::focus_main(app),
             _ => {}
         });
     Ok(())

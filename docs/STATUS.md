@@ -11,8 +11,8 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
-2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
+1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
+2. Distribution for Windows/Linux is deferred with the other release work.
 3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; private networks and `cloudflared access` helpers (M9-05) done; M9-06 i18n: UI and Rust-side text done (D-061, D-062); community translations remain (needs translators).
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
@@ -24,6 +24,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M7/M8 shell pass (D-063): opaque windows with native title bars on Windows/Linux, solid platform surfaces and fonts, neutral navigation selection (Windows accent pill), no menu bar there (Ctrl shortcuts matched by physical key, Help and Quit in the palette), tray left-click opens the app on Windows, closing quits when the tray icon is hidden, `key@windows`/`key@linux` wording for macOS terms (UI and core) with a coverage test, winget advice on Windows. Preview any platform in dev with `?platform=windows|linux` (shoot).
 - 2026-09-23: M9-06 Rust-side text: `Text { key, args }` from the core with typed constructors generated from `locales/en.json` (`core.*`), translated by the UI; errors, plan, activity, Doctor, verify, menus (incl. macOS predefined items), tray and notifications (D-062). Catalogs moved to `locales/`. Fixed: the Quick Share service list closed the moment the field was clicked (Radix treated the field as outside the list).
 - 2026-09-23: M9-06 i18n (UI): every user-visible string in the React UI moved to typed JSON catalogs with `t()` (plurals via `Intl.PluralRules`, locale-aware numbers, lists and durations), system language with per-message English fallback, catalog validation test, `i18n:missing` script, translator guide (D-061). Durations now read "12 sec", "1 hr 5 min" (Intl units).
 - 2026-09-23: M9-05 private networks: share a CIDR range with WARP clients through this Mac's tunnel (engine steps with rollback, default virtual network, conflicts/overlaps/public-range confirmation), Tunnels ▸ Private Networks + sheet, CLI `network add/remove` and `networks`, Doctor WARP checks (`network.excluded`, `network.not_included`, `network.proxy_off`), `cloudflared access` commands for SSH/RDP/SMB/TCP routes (no HTTPS verify for them), docs guide (D-060). fake-cloudflare serves teamnet endpoints.

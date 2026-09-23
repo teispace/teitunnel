@@ -1,0 +1,19 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Teitunnel",
+        "width": 1120,
+        "height": 720,
+        "minWidth": 880,
+        "minHeight": 560,
+        "center": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "transparent": false,
+        "decorations": true
+      }
+    ]
+  }
+}

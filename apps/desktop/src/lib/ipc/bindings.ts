@@ -27,6 +27,13 @@ export const commands = {
 	/**  Opens the Settings window (same as ⌘,). */
 	appOpenSettings: () => __TAURI_INVOKE<null>("app_open_settings"),
 	/**
+	 *  Quits like ⌘Q: asks first when routes run on the app's connectors (Windows and
+	 *  Linux have no app menu to quit from).
+	 */
+	appRequestQuit: () => __TAURI_INVOKE<void>("app_request_quit"),
+	/**  Opens a help page in the browser (the Help menu on macOS, the palette everywhere). */
+	appOpenHelp: (link: HelpLink) => __TAURI_INVOKE<null>("app_open_help", { link }),
+	/**
 	 *  Quits after the user confirmed. With `keep_running`, this Mac's connectors switch to
 	 *  Always-on first (so routes stay up); if that fails, the app stays open.
 	 */
@@ -770,6 +777,17 @@ export type Grant =
 "no" | 
 /**  Couldn't be checked right now. */
 "unknown";
+
+/**  A page of help on the web. */
+export type HelpLink = 
+/**  Teitunnel's documentation. */
+"docs" | 
+/**  Cloudflare Tunnel's documentation. */
+"cloudflareDocs" | 
+/**  Release notes. */
+"releaseNotes" | 
+/**  Report an issue. */
+"reportIssue";
 
 /**  A span of persisted history. */
 export type HistoryRange = 

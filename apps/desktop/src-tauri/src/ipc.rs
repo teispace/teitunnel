@@ -36,6 +36,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             app::app_accent_color,
             app::app_report_error,
             app::app_open_settings,
+            app::app_request_quit,
+            app::app_open_help,
             app::app_quit,
             app::app_open_at_login,
             app::app_set_open_at_login,

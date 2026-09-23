@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { pickLanguage, setLanguage, t } from "./i18n";
+import { pickLanguage, setLanguage, setPlatformVariant, t, translate } from "./i18n";
 
-afterEach(() => setLanguage("en"));
+afterEach(() => {
+  setPlatformVariant(null);
+  return setLanguage("en");
+});
 
 describe("i18n", () => {
   it("picks the closest catalog and falls back to English", () => {
@@ -34,5 +37,18 @@ describe("i18n", () => {
     expect(t("tunnels.routes", { count: 1234 })).toBe("1.234 Routen");
     expect(t("common.cancel")).toBe("Cancel");
     expect(document.documentElement.lang).toBe("de");
+  });
+
+  it("uses a platform's wording where the message has one", () => {
+    expect(t("tunnels.thisMac")).toBe("This Mac");
+    setPlatformVariant("windows");
+    expect(t("tunnels.thisMac")).toBe("This PC");
+    expect(translate({ key: "core.doctor.unusedOwned.title", args: {} })).toBe(
+      "This PC's tunnel has no routes",
+    );
+    // No variant: the message as it is.
+    expect(t("common.cancel")).toBe("Cancel");
+    setPlatformVariant("linux");
+    expect(t("tunnels.thisMac")).toBe("This computer");
   });
 });

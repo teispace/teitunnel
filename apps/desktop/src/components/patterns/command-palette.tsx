@@ -3,19 +3,22 @@ import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { Search } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { type AppCommand, appCommands } from "@/app/commands";
+import { type AppCommand, commandsFor } from "@/app/commands";
+import { detectPlatform } from "@/app/platform";
+import { formatShortcut } from "@/app/shortcuts";
 import { useUiStore } from "@/app/ui-store";
 import { Kbd } from "@/components/ui/kbd";
 import { t } from "@/lib/i18n";
 
-const groups: readonly AppCommand["group"][] = ["go", "actions", "view"];
+const groups: readonly AppCommand["group"][] = ["go", "actions", "view", "help"];
 
-/** ⌘K: jump anywhere, run any command. Same command list as the menu bar. */
+/** ⌘K (Ctrl+K): jump anywhere, run any command. Same command list as the menu bar. */
 export function CommandPalette() {
   const open = useUiStore((state) => state.paletteOpen);
   const setOpen = useUiStore((state) => state.setPaletteOpen);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const platform = detectPlatform();
 
   const run = (command: AppCommand) => {
     setOpen(false);
@@ -49,8 +52,11 @@ export function CommandPalette() {
                   heading={t(`commands.group.${group}`)}
                   className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-footnote [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-tertiary"
                 >
-                  {appCommands
-                    .filter((command) => command.group === group)
+                  {commandsFor(platform)
+                    // Opening the palette from the palette would be a no-op.
+                    .filter(
+                      (command) => command.group === group && command.id !== "command-palette",
+                    )
                     .map((command) => (
                       <Command.Item
                         key={command.id}
@@ -66,7 +72,7 @@ export function CommandPalette() {
                         <span className="flex-1 truncate">{t(command.title)}</span>
                         {command.shortcut ? (
                           <Kbd
-                            keys={command.shortcut}
+                            keys={formatShortcut(command.shortcut, platform)}
                             className="group-data-[selected=true]:text-on-accent/70"
                           />
                         ) : null}

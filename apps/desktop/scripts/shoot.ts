@@ -48,7 +48,8 @@ try {
     for (const route of targets) {
       await page.goto(new URL(route.replace(/^\//, ""), base).toString());
       await page.waitForSelector("h1");
-      await page.addStyleTag({ content: VIBRANCY });
+      // macOS only: other platforms draw solid surfaces (`?platform=windows|linux`).
+      if (!route.includes("platform=")) await page.addStyleTag({ content: VIBRANCY });
       await page.evaluate(() => {
         document.documentElement.dataset["windowActive"] = "true";
       });

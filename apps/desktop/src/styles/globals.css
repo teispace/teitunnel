@@ -2,6 +2,7 @@
 @import "./tokens.css";
 @import "./motion.css";
 @import "./platform-macos.css";
+@import "./platform-other.css";
 
 /*
  * Tailwind theme → semantic tokens. Tailwind's default palette is removed so only

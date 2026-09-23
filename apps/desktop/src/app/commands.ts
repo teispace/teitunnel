@@ -1,18 +1,25 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { useNavigate } from "@tanstack/react-router";
 import {
+  BookOpen,
   FileArchive,
   type LucideIcon,
+  MessageSquareWarning,
   PanelLeft,
   PanelRight,
   Plus,
+  Power,
   RefreshCw,
+  ScrollText,
+  Search,
   Settings,
   Share,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n";
-import { commands as ipc, type MenuCommand } from "@/lib/ipc/bindings";
+import { type HelpLink, commands as ipc, type MenuCommand } from "@/lib/ipc/bindings";
 import { navItems } from "./navigation";
+import type { Platform } from "./platform";
+import type { Shortcut } from "./shortcuts";
 import { useUiStore } from "./ui-store";
 
 export interface CommandContext {
@@ -23,14 +30,23 @@ export interface CommandContext {
 export interface AppCommand {
   id: string;
   title: MessageKey;
-  group: "go" | "actions" | "view";
+  group: "go" | "actions" | "view" | "help";
   icon: LucideIcon;
-  /** Display form of the shortcut, as shown in menus. */
-  shortcut?: string;
+  /** Its keyboard shortcut (⌘ on macOS, Ctrl elsewhere). */
+  shortcut?: Shortcut;
+  /** Only on these platforms (default: all). */
+  platforms?: readonly Platform[];
   /** The menu-bar item that triggers it, if any. */
   menu?: MenuCommand;
   run: (context: CommandContext) => void;
 }
+
+const helpLinks: readonly [HelpLink, MessageKey, LucideIcon][] = [
+  ["docs", "commands.docs", BookOpen],
+  ["cloudflareDocs", "commands.cloudflareDocs", BookOpen],
+  ["releaseNotes", "commands.releaseNotes", ScrollText],
+  ["reportIssue", "commands.reportIssue", MessageSquareWarning],
+];
 
 const goMenu: readonly MenuCommand[] = [
   "goOverview",
@@ -53,7 +69,7 @@ export const appCommands: readonly AppCommand[] = [
       title: item.label,
       group: "go",
       icon: item.icon,
-      shortcut: `⌘${index + 1}`,
+      shortcut: { key: String(index + 1) },
       ...(goMenu[index] ? { menu: goMenu[index] } : {}),
       run: ({ navigate }) => void navigate({ to: item.to }),
     }),
@@ -63,7 +79,7 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.newRoute",
     group: "actions",
     icon: Plus,
-    shortcut: "⌘N",
+    shortcut: { key: "N" },
     menu: "newRoute",
     run: ({ navigate }) => void navigate({ to: "/routes", search: { add: true } }),
   },
@@ -72,7 +88,7 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.newQuickShare",
     group: "actions",
     icon: Share,
-    shortcut: "⇧⌘N",
+    shortcut: { key: "N", shift: true },
     menu: "newQuickShare",
     run: ({ navigate }) => void navigate({ to: "/quick-share", search: { compose: true } }),
   },
@@ -81,7 +97,7 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.refresh",
     group: "actions",
     icon: RefreshCw,
-    shortcut: "⌘R",
+    shortcut: { key: "R" },
     menu: "refresh",
     run: ({ queryClient }) => void queryClient.invalidateQueries(),
   },
@@ -90,7 +106,7 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.settings",
     group: "actions",
     icon: Settings,
-    shortcut: "⌘,",
+    shortcut: { key: "," },
     run: () => void ipc.appOpenSettings(),
   },
   {
@@ -109,7 +125,7 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.toggleSidebar",
     group: "view",
     icon: PanelLeft,
-    shortcut: "⌥⌘S",
+    shortcut: { key: "S", alt: true },
     menu: "toggleSidebar",
     run: () => useUiStore.getState().toggleSidebar(),
   },
@@ -118,11 +134,43 @@ export const appCommands: readonly AppCommand[] = [
     title: "commands.toggleInspector",
     group: "view",
     icon: PanelRight,
-    shortcut: "⌥⌘I",
+    shortcut: { key: "I", alt: true },
     menu: "toggleInspector",
     run: () => useUiStore.getState().toggleInspector(),
   },
+  {
+    id: "command-palette",
+    title: "commands.palette",
+    group: "view",
+    icon: Search,
+    shortcut: { key: "K" },
+    run: () => useUiStore.getState().setPaletteOpen(true),
+  },
+  ...helpLinks.map(
+    ([link, title, icon]): AppCommand => ({
+      id: `help:${link}`,
+      title,
+      group: "help",
+      icon,
+      run: () => void ipc.appOpenHelp(link),
+    }),
+  ),
+  {
+    id: "quit",
+    title: "commands.quit",
+    group: "actions",
+    icon: Power,
+    shortcut: { key: "Q" },
+    // macOS quits from the app menu (⌘Q), which also runs this confirmation.
+    platforms: ["windows", "linux"],
+    run: () => void ipc.appRequestQuit(),
+  },
 ];
+
+/** The commands available on `platform`. */
+export function commandsFor(platform: Platform): AppCommand[] {
+  return appCommands.filter((c) => !c.platforms || c.platforms.includes(platform));
+}
 
 /** Runs the command bound to a menu-bar item. The palette itself is handled by the caller. */
 export function runMenuCommand(menu: MenuCommand, context: CommandContext): boolean {

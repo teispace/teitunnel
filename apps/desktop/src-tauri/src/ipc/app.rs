@@ -76,6 +76,52 @@ pub fn app_open_settings(app: AppHandle) -> Result<(), AppError> {
     Ok(shell::windows::open_settings(&app)?)
 }
 
+/// Quits like ⌘Q: asks first when routes run on the app's connectors (Windows and
+/// Linux have no app menu to quit from).
+#[tauri::command]
+#[specta::specta]
+pub fn app_request_quit(app: AppHandle) {
+    app.exit(0);
+}
+
+/// A page of help on the web.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum HelpLink {
+    /// Teitunnel's documentation.
+    Docs,
+    /// Cloudflare Tunnel's documentation.
+    CloudflareDocs,
+    /// Release notes.
+    ReleaseNotes,
+    /// Report an issue.
+    ReportIssue,
+}
+
+impl HelpLink {
+    /// Its address.
+    pub const fn url(self) -> &'static str {
+        match self {
+            Self::Docs => "https://github.com/teispace/teitunnel#readme",
+            Self::CloudflareDocs => {
+                "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
+            }
+            Self::ReleaseNotes => "https://github.com/teispace/teitunnel/releases",
+            Self::ReportIssue => "https://github.com/teispace/teitunnel/issues/new/choose",
+        }
+    }
+}
+
+/// Opens a help page in the browser (the Help menu on macOS, the palette everywhere).
+#[tauri::command]
+#[specta::specta]
+pub fn app_open_help(app: AppHandle, link: HelpLink) -> Result<(), AppError> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(link.url(), None::<&str>)
+        .map_err(|err| AppError::internal(m::open_browser(err)))
+}
+
 /// Quits after the user confirmed. With `keep_running`, this Mac's connectors switch to
 /// Always-on first (so routes stay up); if that fails, the app stays open.
 #[tauri::command]

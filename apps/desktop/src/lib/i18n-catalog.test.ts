@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import en from "@locales/en.json";
 import { describe, expect, it } from "vitest";
-import { flatten, problems } from "./i18n-catalog";
+import { flatten, missingPlatformWording, problems } from "./i18n-catalog";
 
 const dir = join(__dirname, "../../../../locales");
 const files = readdirSync(dir).filter((f) => f.endsWith(".json") && f !== "en.json");
@@ -22,6 +22,13 @@ describe("catalogs", () => {
       expect(problems(en, catalog)).toEqual([]);
     },
   );
+
+  it("words macOS-only terms for Windows and Linux too", () => {
+    expect(missingPlatformWording(en)).toEqual([]);
+    expect(
+      missingPlatformWording({ a: "On this Mac", "a@windows": "On this PC", b: "{n} on this Mac" }),
+    ).toEqual(["a@linux: missing", "b@windows: missing", "b@linux: missing"]);
+  });
 
   it("flags unknown keys and wrong placeholders", () => {
     expect(

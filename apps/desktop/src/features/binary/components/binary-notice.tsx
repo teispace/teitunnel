@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
+import { detectPlatform } from "@/app/platform";
 import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -30,6 +31,19 @@ export function describeProgress(progress: InstallProgress | null): {
       return { label: t("binary.progress.verifying") };
     case "installing":
       return { label: t("binary.progress.installing") };
+  }
+}
+
+/** The package manager's command for cloudflared, where there's one everyone has. */
+function packageCommand(outdated: boolean): string | null {
+  switch (detectPlatform()) {
+    case "macos":
+      return outdated ? "brew upgrade cloudflared" : "brew install cloudflared";
+    case "windows":
+      return `winget ${outdated ? "upgrade" : "install"} --id Cloudflare.cloudflared`;
+    default:
+      // Linux: each distribution packages it differently (or not at all).
+      return null;
   }
 }
 
@@ -96,17 +110,21 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
             {error.message}
           </p>
         ) : null}
-        <Disclosure
-          title={
-            <span className="text-callout font-normal text-secondary">{t("binary.homebrew")}</span>
-          }
-        >
-          <CopyField
-            label={t("binary.command")}
-            value={outdated ? "brew upgrade cloudflared" : "brew install cloudflared"}
-            className="max-w-80"
-          />
-        </Disclosure>
+        {packageCommand(outdated) ? (
+          <Disclosure
+            title={
+              <span className="text-callout font-normal text-secondary">
+                {t("binary.homebrew")}
+              </span>
+            }
+          >
+            <CopyField
+              label={t("binary.command")}
+              value={packageCommand(outdated) ?? ""}
+              className="max-w-80"
+            />
+          </Disclosure>
+        ) : null}
       </div>
     </section>
   );

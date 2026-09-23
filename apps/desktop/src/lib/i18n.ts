@@ -19,9 +19,14 @@ type Leaves<T, P extends string = ""> = {
 type AllKeys = Leaves<Catalog>;
 type PluralBase<K> = K extends `${infer B}_other` ? B : never;
 type PluralVariant = `${string}_${"zero" | "one" | "two" | "few" | "many" | "other"}`;
+type PlatformVariant = `${string}@${string}`;
+type BaseKeys = Exclude<AllKeys, PlatformVariant>;
 
-/** A message's key, e.g. `routes.empty.title`. Plurals are named without the suffix. */
-export type MessageKey = Exclude<AllKeys, PluralVariant> | PluralBase<AllKeys>;
+/**
+ * A message's key, e.g. `routes.empty.title`. Plurals are named without the suffix;
+ * platform variants (`key@windows`) are picked automatically.
+ */
+export type MessageKey = Exclude<BaseKeys, PluralVariant> | PluralBase<BaseKeys>;
 export type Vars = Record<string, string | number>;
 
 type Messages = { [key: string]: string | Messages };
@@ -38,6 +43,13 @@ export const languages = [
 ].sort();
 
 let locale = "en";
+/** The platform whose wording variants apply (`key@windows`), e.g. "PC" for "Mac". */
+let platform: string | null = null;
+
+/** Uses `key@<name>` variants where a message has them (call once, at startup). */
+export function setPlatformVariant(name: string | null) {
+  platform = name;
+}
 let active: Messages = en;
 let plurals = new Intl.PluralRules("en");
 let numbers = new Intl.NumberFormat("en");
@@ -79,18 +91,23 @@ function lookup(messages: Messages, key: string): string | undefined {
   return typeof node === "string" ? node : undefined;
 }
 
+/** A message in `messages`: the platform's variant if it has one, else the message. */
+function pick(messages: Messages, key: string): string | undefined {
+  return (platform && lookup(messages, `${key}@${platform}`)) ?? lookup(messages, key);
+}
+
 function find(key: string, vars: Vars | undefined): string {
   const count = vars?.["count"];
   if (typeof count === "number") {
     const rule = plurals.select(count);
     const plural =
-      lookup(active, `${key}_${rule}`) ??
-      lookup(active, `${key}_other`) ??
-      lookup(en, `${key}_${new Intl.PluralRules("en").select(count)}`) ??
-      lookup(en, `${key}_other`);
+      pick(active, `${key}_${rule}`) ??
+      pick(active, `${key}_other`) ??
+      pick(en, `${key}_${new Intl.PluralRules("en").select(count)}`) ??
+      pick(en, `${key}_other`);
     if (plural !== undefined) return plural;
   }
-  return lookup(active, key) ?? lookup(en, key) ?? key;
+  return pick(active, key) ?? pick(en, key) ?? key;
 }
 
 /**

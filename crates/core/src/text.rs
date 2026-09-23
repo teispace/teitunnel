@@ -289,22 +289,36 @@ pub fn language() -> String {
     current().language.clone()
 }
 
+/// The platform whose wording variants apply (`key@windows`: "this PC" for "this Mac").
+const PLATFORM: &str = if cfg!(target_os = "windows") {
+    "windows"
+} else if cfg!(target_os = "linux") {
+    "linux"
+} else {
+    "macos"
+};
+
+impl Catalog {
+    /// `key`'s message: this platform's variant if there is one, else the message.
+    fn get(&self, key: &str) -> Option<&str> {
+        self.messages
+            .get(&format!("{key}@{PLATFORM}"))
+            .or_else(|| self.messages.get(key))
+            .map(String::as_str)
+    }
+}
+
 fn lookup<'a>(catalog: &'a Catalog, english: &'a Catalog, text: &Text) -> Option<&'a str> {
     if let Some(Arg::Num(count)) = text.args.get("count") {
-        let variant = |c: &'a Catalog| {
-            c.messages
-                .get(&format!("{}_{}", text.key, c.category(*count)))
-                .or_else(|| c.messages.get(&format!("{}_other", text.key)))
+        let plural = |c: &'a Catalog| {
+            c.get(&format!("{}_{}", text.key, c.category(*count)))
+                .or_else(|| c.get(&format!("{}_other", text.key)))
         };
-        if let Some(found) = variant(catalog).or_else(|| variant(english)) {
+        if let Some(found) = plural(catalog).or_else(|| plural(english)) {
             return Some(found);
         }
     }
-    catalog
-        .messages
-        .get(&text.key)
-        .or_else(|| english.messages.get(&text.key))
-        .map(String::as_str)
+    catalog.get(&text.key).or_else(|| english.get(&text.key))
 }
 
 fn render(catalog: &Catalog, text: &Text) -> String {
@@ -372,6 +386,16 @@ mod tests {
             "Mac has {thing}"
         );
         assert_eq!(render(&Text::new("nope")), "nope");
+    }
+
+    #[test]
+    fn prefers_this_platforms_wording() {
+        let catalog = Catalog::load(
+            "en",
+            &format!(r#"{{"a": "on this Mac", "a@{PLATFORM}": "here", "b": "as is"}}"#),
+        );
+        assert_eq!(render(&catalog, &Text::new("a")), "here");
+        assert_eq!(render(&catalog, &Text::new("b")), "as is");
     }
 
     #[test]

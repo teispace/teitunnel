@@ -105,12 +105,18 @@ pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()>
 }
 
 /// Closing the main window keeps Teitunnel running in the menu bar (tunnels stay up);
-/// ⌘Q quits. The Dock icon or the menu bar item brings the window back.
+/// ⌘Q quits. The Dock icon or the menu bar item brings the window back. On Windows and
+/// Linux, where the tray icon is the only way back, closing quits when it's hidden
+/// (asking first if routes run, like quitting).
 pub(crate) fn on_window_event<R: Runtime>(window: &tauri::Window<R>, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::CloseRequested { api, .. } = event
         && window.label() == MAIN
     {
         api.prevent_close();
+        if !cfg!(target_os = "macos") && !super::tray::is_visible() {
+            window.app_handle().exit(0);
+            return;
+        }
         if let Err(err) = window.hide() {
             tracing::warn!(error = %err, "failed to hide main window");
         }

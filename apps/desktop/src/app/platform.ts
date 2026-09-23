@@ -3,8 +3,20 @@ import { commands } from "@/lib/ipc/bindings";
 
 export type Platform = "macos" | "windows" | "linux";
 
-/** Best-effort platform detection before `app_info` resolves (for first-paint chrome). */
+let detected: Platform | undefined;
+
+/** The platform (read once: it can't change while the app runs). */
 export function detectPlatform(): Platform {
+  detected ??= readPlatform();
+  return detected;
+}
+
+function readPlatform(): Platform {
+  // Development in a browser (screenshots): `?platform=windows` previews another chrome.
+  if (import.meta.env.DEV && !isTauri()) {
+    const wanted = new URLSearchParams(window.location.search).get("platform");
+    if (wanted === "macos" || wanted === "windows" || wanted === "linux") return wanted;
+  }
   const ua = navigator.userAgent;
   if (ua.includes("Mac")) return "macos";
   if (ua.includes("Windows")) return "windows";

@@ -79,6 +79,7 @@ export function SidebarItem({ to, label, icon: Icon, badge, exact = false }: Sid
         to={to}
         activeOptions={{ exact }}
         draggable={false}
+        data-sidebar-item
         onMouseDown={(event) => {
           if (event.button === 0 && !event.metaKey && !event.shiftKey) void navigate({ to });
         }}
