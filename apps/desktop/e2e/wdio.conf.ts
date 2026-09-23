@@ -9,13 +9,13 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../../..");
 const bin = process.platform === "win32" ? ".exe" : "";
-const app = join(root, "target/debug", `Teitunnel${bin}`);
-const fake = join(root, "target/debug", `fake-cloudflared${bin}`);
+const app = join(root, "target/e2e/debug", `Teitunnel${bin}`);
+const fake = join(root, "target/e2e/debug", `fake-cloudflared${bin}`);
 const dataDir = mkdtempSync(join(tmpdir(), "teitunnel-e2e-"));
 
 // A stand-in for the Cloudflare API and edge; E2E builds point at it (never at Cloudflare).
 const CLOUDFLARE_PORT = 18787;
-const fakeCloudflare = spawn(join(root, "target/debug", `fake-cloudflare${bin}`), [
+const fakeCloudflare = spawn(join(root, "target/e2e/debug", `fake-cloudflare${bin}`), [
   String(CLOUDFLARE_PORT),
 ]);
 

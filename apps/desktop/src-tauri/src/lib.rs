@@ -22,6 +22,20 @@ pub use ipc::export_bindings;
 /// # Errors
 /// Returns an error when Tauri fails to initialise (e.g. the webview is unavailable).
 pub fn run() -> Result<(), tauri::Error> {
+    // An E2E build is a test harness, not the app: say so plainly instead of panicking
+    // when it's opened by hand.
+    #[cfg(feature = "e2e")]
+    if std::env::var_os("TEITUNNEL_CLOUDFLARED").is_none() {
+        #[allow(clippy::print_stderr)]
+        {
+            eprintln!(
+                "This is Teitunnel's end-to-end test build (built with --features e2e). \
+                 It only runs under `pnpm e2e`. For the app, run `pnpm dev` or \
+                 `pnpm tauri build --debug`."
+            );
+        }
+        std::process::exit(2);
+    }
     let specta = ipc::builder();
 
     #[cfg(debug_assertions)]
