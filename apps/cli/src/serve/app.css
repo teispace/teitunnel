@@ -39,10 +39,13 @@
   box-sizing: border-box;
 }
 [hidden] {
-  display: none !important;
+  display: none;
 }
 body {
   margin: 0;
+}
+a {
+  color: var(--accent);
 }
 code {
   font:
@@ -62,9 +65,6 @@ code {
 }
 .brand {
   font-size: 16px;
-}
-.bar button {
-  margin-left: auto;
 }
 main {
   max-width: 960px;
@@ -239,11 +239,11 @@ dialog::backdrop {
   gap: 8px;
   margin-top: 12px;
 }
-a {
-  color: var(--accent);
-}
 @media (max-width: 640px) {
   .row {
     grid-template-columns: 1fr;
   }
+}
+.bar button {
+  margin-left: auto;
 }
