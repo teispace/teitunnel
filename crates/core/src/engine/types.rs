@@ -185,6 +185,11 @@ pub enum Intent {
         /// Record id.
         record_id: String,
     },
+    /// Remove a login Teitunnel added whose route is gone (Doctor cleanup).
+    RemoveLogin {
+        /// The Access domain (hostname and optional path).
+        domain: String,
+    },
     /// Put back the routes Teitunnel last wrote, undoing an edit made elsewhere.
     RestoreConfig {
         /// The ingress Teitunnel last applied.
@@ -204,7 +209,7 @@ impl Intent {
                 Some(vec![hostname])
             }
             Self::RemoveTunnel => None,
-            Self::RestoreConfig { .. } => Some(Vec::new()),
+            Self::RestoreConfig { .. } | Self::RemoveLogin { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
         }
     }
@@ -244,6 +249,7 @@ impl Intent {
                 "Restore this Mac's routes after an outside edit".to_owned()
             }
             Self::DeleteRecord { hostname, .. } => format!("Delete the DNS record for {hostname}"),
+            Self::RemoveLogin { domain } => format!("Remove the login from {domain}"),
             Self::ImportRoutes { routes } => format!(
                 "Import {} route{} from cloudflared",
                 routes.len(),

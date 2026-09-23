@@ -11,6 +11,7 @@ const kindLabels: Record<ActivityKind, string> = {
   deleteRecord: "DNS Cleanups",
   restoreConfig: "Restores",
   removeTunnel: "Tunnel Removals",
+  removeLogin: "Login Removals",
 };
 
 export const showOptions: readonly { value: Show; label: string }[] = [

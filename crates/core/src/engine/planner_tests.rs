@@ -882,3 +882,34 @@ fn removing_takes_the_login_down_last() {
     };
     assert!(plan(&again, &snapshot).unwrap().is_empty());
 }
+
+#[test]
+fn only_a_login_without_a_route_is_removed_on_its_own() {
+    let me = people(&["me@xyz.com"], &[]);
+    let snapshot = with_access(
+        with_app(),
+        1,
+        vec![
+            access_app("a1", "app.xyz.com", &me, true),
+            access_app("a2", "old.xyz.com", &me, true),
+            access_app("x1", "legacy.xyz.com", &me, false),
+        ],
+    );
+    let remove_login = |domain: &str| Intent::RemoveLogin {
+        domain: domain.into(),
+    };
+    assert_eq!(
+        kinds(&plan(&remove_login("old.xyz.com"), &snapshot).unwrap()),
+        ["app-"]
+    );
+    assert_eq!(
+        plan(&remove_login("app.xyz.com"), &snapshot),
+        Err(PlanError::RouteExists("app.xyz.com".into())),
+        "a routed login goes with its route"
+    );
+    assert_eq!(
+        plan(&remove_login("legacy.xyz.com"), &snapshot),
+        Err(PlanError::NoSuchLogin("legacy.xyz.com".into())),
+        "someone else's application is never removed"
+    );
+}

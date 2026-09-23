@@ -75,14 +75,15 @@ impl Error {
                     ErrorKind::InvalidInput
                 }
                 E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
-                E::Plan(P::NoSuchRoute(_) | P::NoTunnel | P::NoSuchRecord(_)) => {
-                    ErrorKind::NotFound
-                }
+                E::Plan(
+                    P::NoSuchRoute(_) | P::NoTunnel | P::NoSuchRecord(_) | P::NoSuchLogin(_),
+                ) => ErrorKind::NotFound,
                 E::Stale(_)
                 | E::NeedsConfirmation
                 | E::NothingToRestore
                 | E::Plan(P::AccessAppExists(_)) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
+                E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
             },

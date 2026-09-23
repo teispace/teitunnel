@@ -27,6 +27,11 @@ pub enum ObserveError {
     /// The local database failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// Requiring a login needs Access permissions the credential doesn't have.
+    #[error(
+        "This account's token can't manage logins. Create a token that also has Access: Apps and Policies (Edit) and Access: Organizations, Identity Providers, and Groups (Edit), then reconnect."
+    )]
+    AccessPermission,
 }
 
 /// Reads the zones, this Mac's tunnel and the DNS records for `hostnames` (every
@@ -158,6 +163,7 @@ async fn observe_access<C: CloudApi>(
             tracing::warn!("couldn't read Access applications: {err}");
             return Ok(None);
         }
+        Err(err) if err.is_auth() => return Err(ObserveError::AccessPermission),
         Err(err) => return Err(err.into()),
     };
     let mut apps: Vec<ObservedAccessApp> = apps

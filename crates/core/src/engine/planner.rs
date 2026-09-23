@@ -43,6 +43,9 @@ pub enum PlanError {
         "Requiring a login needs Cloudflare Zero Trust, which isn't set up for this account. Open Zero Trust in the Cloudflare dashboard once to choose a team name (the free plan is enough), then try again."
     )]
     ZeroTrustNotSetUp,
+    /// No login Teitunnel added covers the domain.
+    #[error("Teitunnel didn't add a login for {0}, or it's already gone.")]
+    NoSuchLogin(String),
     /// Someone else's Access application already covers the domain.
     #[error(
         "{0} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard."
@@ -494,6 +497,25 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 zone_id: zone_id.clone(),
                 record: record.record.clone(),
             });
+        }
+        Intent::RemoveLogin { domain } => {
+            let routed = rules.iter().any(|r| {
+                r.hostname
+                    .as_deref()
+                    .and_then(|h| Hostname::parse(h).ok())
+                    .is_some_and(|h| {
+                        let path = r.path.as_deref().and_then(|p| PathRule::parse(p).ok());
+                        access_domain(&h, path.as_ref())
+                            .is_ok_and(|d| d.eq_ignore_ascii_case(domain))
+                    })
+            });
+            if routed {
+                return Err(PlanError::RouteExists(domain.clone()));
+            }
+            b.unprotect(domain);
+            if b.steps.is_empty() {
+                return Err(PlanError::NoSuchLogin(domain.clone()));
+            }
         }
         Intent::RestoreConfig { ingress } => {
             let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;

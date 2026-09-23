@@ -64,6 +64,11 @@ pub enum Change {
     RemoveTunnel,
     /// Undo an outside edit of this Mac's routes.
     RestoreConfig,
+    /// Remove a login Teitunnel added whose route is gone.
+    RemoveLogin {
+        /// The Access domain, e.g. `app.example.com` or `app.example.com/admin`.
+        domain: String,
+    },
     /// Add several routes at once (import from an existing cloudflared setup).
     ImportRoutes {
         /// The routes.
@@ -203,6 +208,9 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             zone_id: zone_id.clone(),
             hostname: parse_hostname(hostname)?,
             record_id: record_id.clone(),
+        },
+        Change::RemoveLogin { domain } => Intent::RemoveLogin {
+            domain: domain.trim().to_ascii_lowercase(),
         },
         // Filled in by the engine from the drift record.
         Change::RestoreConfig => Intent::RestoreConfig {

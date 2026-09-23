@@ -38,6 +38,7 @@ Each problem's check id (in code type) appears in diagnostics exports and bug re
 | **A record points at a tunnel that no longer exists** `dns.orphan_owned` / `dns.orphan_foreign` | Visitors see a Cloudflare error. Delete the record, or route it to a tunnel. |
 | **Nothing is listening on a route's port** `origin.not_listening` | Start the app the route sends traffic to. |
 | **An HTTPS origin's certificate isn't trusted** `origin.tls` | Use `http://` for a local origin, or a certificate this Mac trusts. |
+| **A login is left without its route** `access.orphan` | Teitunnel added a login for a route that was removed elsewhere. **Fix Safe Issues** removes it (only logins Teitunnel created). |
 | **This Mac's routes were changed outside Teitunnel** `config.drift` | Keep the changes, or restore what Teitunnel set up. |
 
 `_owned` means Teitunnel created the record, so **Fix Safe Issues** may delete it;

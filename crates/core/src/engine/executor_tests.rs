@@ -541,7 +541,13 @@ async fn a_token_that_cant_read_access_still_manages_plain_routes() {
         .preview(&cloud, CTX, &protected(add("r3", "web.xyz.com", "3000")))
         .await
         .unwrap_err();
-    assert!(matches!(err, EngineError::Observe(_)), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            EngineError::Observe(super::observe::ObserveError::AccessPermission)
+        ),
+        "{err:?}"
+    );
 }
 
 #[tokio::test]
@@ -1083,6 +1089,71 @@ async fn fixing_safe_issues_never_touches_foreign_records() {
         assert!(report.fixed >= 1, "seed {seed}: {report:?}");
         assert!(report.failed.is_empty(), "seed {seed}: {report:?}");
     }
+}
+
+#[tokio::test]
+async fn a_login_left_behind_by_an_outside_edit_is_found_and_removed() {
+    use crate::doctor::{BinaryFact, Facts, diagnose, fix_safe, gather};
+
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(zero_trust()),
+        FakeConnectors::default(),
+    );
+    run(
+        &engine,
+        &cloud,
+        &conns,
+        &protected(add("r1", "app.xyz.com", "3000")),
+    )
+    .await;
+    run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
+    // Someone else's application, for a hostname with no route: never touched.
+    cloud.state.lock().unwrap().access_apps.insert(
+        "theirs".into(),
+        super::access::app_definition("old.xyz.com", &me()),
+    );
+    let facts = gather(&engine, &cloud, &conns, CTX, Vec::new(), Some(true))
+        .await
+        .unwrap();
+    assert!(
+        facts.orphan_logins.is_empty(),
+        "a routed login isn't an orphan"
+    );
+
+    // The route is removed in the dashboard; its login stays.
+    {
+        let mut state = cloud.state.lock().unwrap();
+        let tunnel = state.tunnels.values_mut().next().unwrap();
+        let config = tunnel.config.as_mut().unwrap();
+        config
+            .ingress
+            .retain(|r| r.hostname.as_deref() != Some("app.xyz.com"));
+    }
+    engine.invalidate("acc");
+    let facts = gather(&engine, &cloud, &conns, CTX, Vec::new(), Some(true))
+        .await
+        .unwrap();
+    assert_eq!(facts.orphan_logins, ["app.xyz.com"]);
+    let issues = diagnose(&Facts {
+        binary: BinaryFact::Ok,
+        accounts: vec![facts],
+        foreign: Vec::new(),
+    });
+    let report = fix_safe(&engine, &cloud, &conns, CTX, &issues).await;
+    assert!(report.failed.is_empty(), "{report:?}");
+    let apps = cloud.snapshot().access_apps;
+    assert_eq!(apps.keys().collect::<Vec<_>>(), ["theirs"]);
+    assert!(
+        engine
+            .local()
+            .owned_access_apps("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let log = engine.local().activity("acc", 1).await.unwrap();
+    assert_eq!(log[0].summary, "Remove the login from app.xyz.com");
 }
 
 #[tokio::test]

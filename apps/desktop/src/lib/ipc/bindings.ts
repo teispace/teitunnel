@@ -269,7 +269,9 @@ export type ActivityKind =
 /**  A DNS record was deleted (Doctor cleanup). */
 "deleteRecord" | 
 /**  Routes were restored after an outside edit. */
-"restoreConfig";
+"restoreConfig" | 
+/**  A login whose route was gone was removed (Doctor cleanup). */
+"removeLogin";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -367,6 +369,10 @@ path: string | null } |
 { type: "removeTunnel" } | 
 /**  Undo an outside edit of this Mac's routes. */
 { type: "restoreConfig" } | 
+/**  Remove a login Teitunnel added whose route is gone. */
+{ type: "removeLogin"; 
+/**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
+domain: string } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 { type: "importRoutes"; 
 /**  The routes. */

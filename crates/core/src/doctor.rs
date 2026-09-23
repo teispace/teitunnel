@@ -16,10 +16,10 @@ use tokio::net::TcpStream;
 
 use crate::{
     accounts::{Domain, DomainStatus},
-    domain::RouteOrigin,
+    domain::{Hostname, PathRule, RouteOrigin},
     engine::{
         AccessNeed, Change, CloudApi, Connectors, Context, Drift, Engine, EngineError,
-        ObserveError, RouteInput, Snapshot, TunnelSummary, observe, tunnel_target,
+        ObserveError, RouteInput, Snapshot, TunnelSummary, access_domain, observe, tunnel_target,
     },
     runtime::ConnectorState,
 };
@@ -140,6 +140,8 @@ pub struct AccountFacts {
     pub listening: HashMap<u16, bool>,
     /// This Mac's connector's recent log lines.
     pub logs: Vec<String>,
+    /// Logins Teitunnel added that still exist but whose route is gone (Access domains).
+    pub orphan_logins: Vec<String>,
 }
 
 /// Everything the checks look at.
@@ -233,6 +235,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         .as_ref()
         .map(|t| connectors.recent_logs(&t.id, 500))
         .unwrap_or_default();
+    let orphan_logins = orphan_logins(engine, api, ctx.account, &snapshot).await;
     Ok(AccountFacts {
         account_id: ctx.account.to_owned(),
         snapshot,
@@ -245,7 +248,47 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         connector,
         listening,
         logs,
+        orphan_logins,
     })
+}
+
+/// Logins Teitunnel added for routes that no longer exist, confirmed to still be in
+/// Cloudflare. Best effort: a token that can't read Access finds none.
+async fn orphan_logins<C: CloudApi>(
+    engine: &Engine,
+    api: &C,
+    account: &str,
+    snapshot: &Snapshot,
+) -> Vec<String> {
+    let Ok(owned) = engine.local().owned_access_apps(account).await else {
+        return Vec::new();
+    };
+    let routed: HashSet<String> = snapshot
+        .routes()
+        .into_iter()
+        .filter_map(|rule| {
+            let host = Hostname::parse(rule.hostname.as_deref()?).ok()?;
+            let path = rule.path.as_deref().and_then(|p| PathRule::parse(p).ok());
+            access_domain(&host, path.as_ref()).ok()
+        })
+        .map(|d| d.to_ascii_lowercase())
+        .collect();
+    let candidates: Vec<(String, String)> = owned
+        .into_iter()
+        .filter(|(_, domain)| !routed.contains(&domain.to_ascii_lowercase()))
+        .collect();
+    let mut found: Vec<String> = stream::iter(candidates)
+        .map(|(id, domain)| async move {
+            let apps = api.access_apps_for(account, &domain).await.ok()?;
+            apps.iter().any(|a| a.id == id).then_some(domain)
+        })
+        .buffered(4)
+        .filter_map(std::future::ready)
+        .collect()
+        .await;
+    found.sort_unstable();
+    found.dedup();
+    found
 }
 
 /// Checks everything: the binary and every connected account. An account that can't
@@ -356,7 +399,8 @@ pub struct FixReport {
     pub failed: Vec<String>,
 }
 
-/// Whether an issue's fix may run without review: DNS repairs and orphan deletions only.
+/// Whether an issue's fix may run without review: DNS repairs and orphan deletions
+/// (records and logins) only.
 /// Whether it really is safe is decided by its plan (no confirmation needed = nothing
 /// Teitunnel doesn't own is touched).
 fn candidate(issue: &Issue) -> Option<&Change> {
@@ -364,7 +408,7 @@ fn candidate(issue: &Issue) -> Option<&Change> {
         Fix::Change { change, .. }
             if matches!(
                 change,
-                Change::AddRoute { .. } | Change::DeleteRecord { .. }
+                Change::AddRoute { .. } | Change::DeleteRecord { .. } | Change::RemoveLogin { .. }
             ) =>
         {
             Some(change)
@@ -892,6 +936,23 @@ fn diagnose_account(
         }
     }
 
+    for domain in &facts.orphan_logins {
+        found.add(
+            "access.orphan",
+            Severity::Info,
+            domain,
+            format!("{domain} still has a login but no route"),
+            "Teitunnel added this login for a route that was removed outside Teitunnel. It protects nothing now, but would ask for a login if the hostname is routed again elsewhere. Remove it, or add the route back.",
+            vec![format!("Access application “Teitunnel · {domain}”")],
+            vec![Fix::Change {
+                label: "Remove the Login".into(),
+                change: Change::RemoveLogin {
+                    domain: domain.clone(),
+                },
+            }],
+        );
+    }
+
     found.issues
 }
 
@@ -967,6 +1028,7 @@ mod tests {
             connector: Some(ConnectorState::Healthy { connections: 4 }),
             listening: HashMap::from([(3000, true)]),
             logs: Vec::new(),
+            orphan_logins: Vec::new(),
         }
     }
 
@@ -1078,6 +1140,27 @@ mod tests {
         assert!(
             !issues.iter().any(|i| i.subject == "app.xyz.com"),
             "a routed hostname isn't an orphan"
+        );
+    }
+
+    #[test]
+    fn a_login_without_its_route_can_be_removed() {
+        let mut facts = healthy();
+        facts.orphan_logins.push("old.xyz.com/admin".into());
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts],
+            foreign: Vec::new(),
+        });
+        let issue = issues.iter().find(|i| i.check == "access.orphan").unwrap();
+        assert_eq!(issue.severity, Severity::Info);
+        assert!(matches!(
+            &issue.fixes[0],
+            Fix::Change { change: Change::RemoveLogin { domain }, .. } if domain == "old.xyz.com/admin"
+        ));
+        assert!(
+            candidate(issue).is_some(),
+            "safe: only Teitunnel's own login"
         );
     }
 

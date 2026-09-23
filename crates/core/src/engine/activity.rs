@@ -32,6 +32,8 @@ pub enum ActivityKind {
     DeleteRecord,
     /// Routes were restored after an outside edit.
     RestoreConfig,
+    /// A login whose route was gone was removed (Doctor cleanup).
+    RemoveLogin,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -44,6 +46,7 @@ impl From<&Intent> for ActivityKind {
             Intent::ImportRoutes { .. } => Self::ImportRoutes,
             Intent::DeleteRecord { .. } => Self::DeleteRecord,
             Intent::RestoreConfig { .. } => Self::RestoreConfig,
+            Intent::RemoveLogin { .. } => Self::RemoveLogin,
         }
     }
 }

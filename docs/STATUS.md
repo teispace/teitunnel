@@ -13,7 +13,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 ## Next up
 1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
 2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
-3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done; next M9-03 follow-ups (Doctor check for orphaned Access apps), then M9-04 replicas.
+3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); next M9-04 replicas and remote connectors.
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
 6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.

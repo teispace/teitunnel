@@ -271,7 +271,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     kind === "remove" ||
     kind === "removeTunnel" ||
     (mode?.kind === "fix" &&
-      (mode.change.type === "deleteRecord" || mode.change.type === "removeTunnel"));
+      (mode.change.type === "deleteRecord" ||
+        mode.change.type === "removeTunnel" ||
+        mode.change.type === "removeLogin"));
   const failed = outcome && outcome.type !== "applied" ? outcome : null;
   const url = stage === "done" && verify.variables ? `https://${verify.variables.hostname}` : null;
 

@@ -273,6 +273,10 @@ impl AccessNeed {
                 owned: true,
                 ..Self::default()
             },
+            Intent::RemoveLogin { domain } => Self {
+                domains: vec![domain.clone()],
+                ..Self::default()
+            },
             Intent::ImportRoutes { .. }
             | Intent::DeleteRecord { .. }
             | Intent::RestoreConfig { .. } => Self::default(),
