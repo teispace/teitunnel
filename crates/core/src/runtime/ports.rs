@@ -89,27 +89,30 @@ pub(crate) fn is_free(port: u16) -> bool {
 mod tests {
     use super::*;
 
+    // Each test has its own block, away from the ranges a running Teitunnel uses
+    // (20300–20500), so tests don't collide with the app or with each other.
+
     #[test]
     fn skips_taken_and_busy_ports() {
-        let allocator = PortAllocator::new(QUICK_SHARE_PORTS);
+        let allocator = PortAllocator::new(24000..24010);
         let first = allocator.allocate().unwrap();
         let _busy = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, first + 1));
         let second = allocator.allocate().unwrap();
         assert_ne!(first, second);
-        assert!(QUICK_SHARE_PORTS.contains(&second));
+        assert!((24000..24010).contains(&second));
         allocator.release(first);
         assert_eq!(allocator.allocate(), Some(first));
     }
 
     #[test]
     fn spreads_processes_over_the_range() {
-        let a = PortAllocator::new(20450..20460).spread(3);
-        let b = PortAllocator::new(20450..20460).spread(17);
+        let a = PortAllocator::new(24010..24020).spread(3);
+        let b = PortAllocator::new(24010..24020).spread(17);
         let (pa, pb) = (a.allocate().unwrap(), b.allocate().unwrap());
         assert_ne!(pa, pb, "different processes start in different places");
-        assert!((20450..20460).contains(&pa) && (20450..20460).contains(&pb));
+        assert!((24010..24020).contains(&pa) && (24010..24020).contains(&pb));
         // It still wraps around and hands out every port.
-        let all = PortAllocator::new(20460..20464).spread(3);
+        let all = PortAllocator::new(24020..24024).spread(3);
         let mut ports: Vec<u16> = std::iter::from_fn(|| all.allocate()).collect();
         ports.sort_unstable();
         assert_eq!(ports.len(), 4);
@@ -117,7 +120,7 @@ mod tests {
 
     #[test]
     fn exhausts_gracefully() {
-        let allocator = PortAllocator::new(20499..20500);
+        let allocator = PortAllocator::new(24030..24031);
         let only = allocator.allocate();
         assert!(only.is_some());
         assert_eq!(allocator.allocate(), None);
@@ -125,10 +128,10 @@ mod tests {
 
     #[test]
     fn claims_a_remembered_port_once() {
-        let allocator = PortAllocator::new(20390..20395);
-        assert!(allocator.claim(20391));
-        assert!(!allocator.claim(20391), "already handed out");
-        assert!(!allocator.claim(20100), "outside the range");
-        assert_ne!(allocator.allocate(), Some(20391));
+        let allocator = PortAllocator::new(24040..24045);
+        assert!(allocator.claim(24041));
+        assert!(!allocator.claim(24041), "already handed out");
+        assert!(!allocator.claim(24100), "outside the range");
+        assert_ne!(allocator.allocate(), Some(24041));
     }
 }

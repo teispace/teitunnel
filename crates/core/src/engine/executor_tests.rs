@@ -205,9 +205,10 @@ async fn two_domains_from_zero_then_nothing_left() {
 
     let log = engine.local().activity("acc", 10).await.unwrap();
     assert_eq!(log.len(), 3);
+    // The wording names the platform ("this Mac", "this PC"…).
     assert_eq!(
         log[0].summary,
-        "Remove every route and delete this Mac's tunnel"
+        crate::text::msg::plan::summary::remove_tunnel().english()
     );
     assert_eq!(log[2].summary, "Add xyz.com → http://localhost:3000");
     assert!(log.iter().all(|e| e.outcome == "applied"));

@@ -419,11 +419,12 @@ mod tests {
     fn stopping_on_purpose_is_not_a_problem() {
         let stopped = TrayConnectors::Stopped { on_purpose: true };
         let down = model(&[Stopped], stopped);
-        assert_eq!(health_line(&down), "Routes stopped on this Mac");
+        // The wording names the platform ("this Mac", "this PC"…).
+        assert_eq!(health_line(&down), m::routes_stopped().english());
         assert!(!down.alert());
         assert_eq!(
-            down.toggle_title().map(|t| t.english()).as_deref(),
-            Some("Start Routes on This Mac")
+            down.toggle_title().map(|t| t.english()),
+            Some(m::start_routes().english())
         );
 
         let crashed = model(&[Stopped], TrayConnectors::Stopped { on_purpose: false });
@@ -431,9 +432,8 @@ mod tests {
         assert_eq!(
             model(&[Live], TrayConnectors::Running)
                 .toggle_title()
-                .map(|t| t.english())
-                .as_deref(),
-            Some("Stop Routes on This Mac")
+                .map(|t| t.english()),
+            Some(m::stop_routes().english())
         );
         assert_eq!(model(&[], TrayConnectors::None).toggle_title(), None);
     }

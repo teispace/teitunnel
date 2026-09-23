@@ -1389,9 +1389,9 @@
       "notWorking_one": "{failing} of {count} route not working",
       "notWorking_other": "{failing} of {count} routes not working",
       "stopRoutes@windows": "Stop Routes on This PC",
-      "stopRoutes@linux": "Stop Routes on This computer",
+      "stopRoutes@linux": "Stop Routes on This Computer",
       "startRoutes@windows": "Start Routes on This PC",
-      "startRoutes@linux": "Start Routes on This computer",
+      "startRoutes@linux": "Start Routes on This Computer",
       "routesStopped@windows": "Routes stopped on this PC",
       "routesStopped@linux": "Routes stopped on this computer"
     },
