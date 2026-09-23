@@ -201,6 +201,21 @@ describe("TunnelsPage", () => {
     expect(calls.find((c) => c.cmd === "routes_preview")?.args["tunnelId"]).toBe("t-mac");
   });
 
+  it("runs another machine's tunnel here after warning about the split", async () => {
+    renderPage();
+    fireEvent.mouseDown(await screen.findByRole("option", { name: /home-lab/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run on This Mac…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Run “home-lab” on this Mac?" });
+    expect(within(dialog).getByText(/split its requests between both machines/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Run on This Mac" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "tunnels_adopt")?.args).toMatchObject({
+        accountId: "acc",
+        tunnelId: "t-server",
+      }),
+    );
+  });
+
   it("shares a private network and stops sharing it", async () => {
     renderPage();
     expect(await screen.findByText(/reach addresses on this Mac's network/)).toBeTruthy();

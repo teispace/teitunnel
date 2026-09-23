@@ -303,7 +303,27 @@
     "startHere@linux": "Start on This computer",
     "connectDescription@windows": "Tunnels connect this PC to Cloudflare so your routes can reach it.",
     "connectDescription@linux": "Tunnels connect this computer to Cloudflare so your routes can reach it.",
-    "new": "New tunnel"
+    "new": "New tunnel",
+    "adopt": {
+      "button": "Run on This Mac…",
+      "title": "Run “{name}” on this Mac?",
+      "detail": "Its routes stay as they are in Cloudflare, and this Mac serves them too. Only do this if this Mac runs the services they point to.",
+      "elsewhere": "Another machine runs this tunnel now. Cloudflare will split its requests between both machines, so only do this if this Mac runs the same services.",
+      "confirm": "Run on This Mac",
+      "done": "“{name}” now runs on this Mac",
+      "button@windows": "Run on This PC…",
+      "title@windows": "Run “{name}” on this PC?",
+      "detail@windows": "Its routes stay as they are in Cloudflare, and this PC serves them too. Only do this if this PC runs the services they point to.",
+      "elsewhere@windows": "Another machine runs this tunnel now. Cloudflare will split its requests between both machines, so only do this if this PC runs the same services.",
+      "confirm@windows": "Run on This PC",
+      "done@windows": "“{name}” now runs on this PC",
+      "button@linux": "Run on This Computer…",
+      "title@linux": "Run “{name}” on this computer?",
+      "detail@linux": "Its routes stay as they are in Cloudflare, and this computer serves them too. Only do this if this computer runs the services they point to.",
+      "elsewhere@linux": "Another machine runs this tunnel now. Cloudflare will split its requests between both machines, so only do this if this computer runs the same services.",
+      "confirm@linux": "Run on This Computer",
+      "done@linux": "“{name}” now runs on this computer"
+    }
   },
   "plan": {
     "state": {
@@ -1022,6 +1042,13 @@
         "unavailable": "No secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again.",
         "keychain@windows": "Windows Credential Manager couldn't be used ({detail}). Try again.",
         "keychain@linux": "The keyring couldn't be used ({detail}). Unlock it and try again."
+      },
+      "adopt": {
+        "alreadyHere": "This Mac already runs that tunnel.",
+        "alreadyHere@windows": "This PC already runs that tunnel.",
+        "alreadyHere@linux": "This computer already runs that tunnel.",
+        "gone": "That tunnel doesn't exist any more.",
+        "locallyConfigured": "“{name}” is configured with a local config file, so Teitunnel can't manage its routes. Import its routes instead."
       }
     },
     "raw": "{text}",

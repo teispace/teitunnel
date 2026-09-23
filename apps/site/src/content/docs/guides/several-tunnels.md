@@ -30,6 +30,16 @@ tunnels aren't touched. Private networks stay on the default tunnel.
 The Doctor checks each tunnel on its own, and its fixes apply to the tunnel the problem is
 on.
 
+## Run an existing tunnel here
+A tunnel made elsewhere in the account (in the dashboard, or by Teitunnel on another
+machine) can run on this machine too: select it in **Tunnels** and choose **Run on This
+Mac…**. Nothing changes in Cloudflare; its routes stay as they are and this machine serves
+them as well. If another machine runs it at the same time, Cloudflare splits requests
+between both, so only do this when this machine runs the same services (to serve one
+hostname from several machines on purpose, use [load balancing](/guides/load-balancing/)).
+Tunnels configured with a local config file can't be run this way; import their routes
+instead.
+
 ## From the terminal
 
 ```sh
@@ -38,5 +48,6 @@ teitunnel-cli tunnel create staging
 teitunnel-cli route add beta.example.com 4000 --tunnel staging
 teitunnel-cli route remove beta.example.com          # finds the tunnel by itself
 teitunnel-cli export config-yaml --tunnel staging
+teitunnel-cli tunnel adopt home-lab                  # run an existing tunnel here too
 teitunnel-cli tunnel delete staging
 ```

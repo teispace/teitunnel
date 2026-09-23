@@ -1916,3 +1916,38 @@ async fn a_route_leaving_a_balanced_hostname_leaves_its_pool() {
     let state = cloud.snapshot();
     assert_eq!(state.lb_pools.values().next().unwrap().origins.len(), 2);
 }
+
+#[tokio::test]
+async fn adopts_an_existing_tunnel_without_changing_cloudflare() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let theirs = other_machine(&cloud, "api.xyz.com");
+    let before = cloud.snapshot();
+    let mutations = cloud.mutations();
+
+    engine.adopt(&cloud, "acc", &theirs).await.unwrap();
+    assert_eq!(
+        cloud.mutations(),
+        mutations,
+        "nothing changes in Cloudflare"
+    );
+    assert_eq!(cloud.snapshot(), before);
+    let tunnels = engine.local().tunnels("acc").await.unwrap();
+    let adopted = tunnels.iter().find(|t| t.tunnel_id == theirs).unwrap();
+    assert!(!adopted.is_default);
+    assert_eq!(adopted.name, "server");
+
+    // Its routes show up with this machine's.
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert!(overview.routes.iter().any(|r| r.hostname == "api.xyz.com"));
+
+    // Not twice, and not one that doesn't exist.
+    assert!(matches!(
+        engine.adopt(&cloud, "acc", &theirs).await,
+        Err(EngineError::Adopt(_))
+    ));
+    assert!(matches!(
+        engine.adopt(&cloud, "acc", "nope").await,
+        Err(EngineError::Adopt(_))
+    ));
+}

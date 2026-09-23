@@ -227,6 +227,11 @@ export const commands = {
 	 *  login), without a gap.
 	 */
 	tunnelsSetAlwaysOn: (accountId: string, tunnelId: string | null, enabled: boolean) => __TAURI_INVOKE<null>("tunnels_set_always_on", { accountId, tunnelId, enabled }),
+	/**
+	 *  Runs an existing tunnel of the account on this Mac too (nothing changes in
+	 *  Cloudflare), then starts its connector.
+	 */
+	tunnelsAdopt: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_adopt", { accountId, tunnelId }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**

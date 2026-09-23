@@ -64,6 +64,8 @@ pub enum EngineError {
     Input(#[from] InputError),
     /// "Restore mine" when nothing was changed elsewhere.
     NothingToRestore,
+    /// The tunnel can't be run on this Mac too (why, for the user).
+    Adopt(Text),
 }
 
 impl UserText for EngineError {
@@ -75,6 +77,7 @@ impl UserText for EngineError {
             Self::Stale(_) => msg::error::engine::stale(),
             Self::NeedsConfirmation => msg::error::engine::needs_confirmation(),
             Self::NothingToRestore => msg::error::engine::nothing_to_restore(),
+            Self::Adopt(text) => text.clone(),
         }
     }
 }
@@ -555,6 +558,46 @@ impl Engine {
         account: &str,
     ) -> Result<Vec<TunnelSummary>, EngineError> {
         Ok(super::tunnels::list(api, connectors, &self.local, account).await?)
+    }
+
+    /// Runs an existing tunnel of the account on this Mac too: it becomes one of this
+    /// Mac's tunnels (not the default), and its routes stay as they are in Cloudflare.
+    /// Nothing changes in Cloudflare. If another machine runs it, both serve it: requests
+    /// are split between them (D-058), so only adopt a tunnel whose services this Mac has.
+    ///
+    /// # Errors
+    /// [`EngineError::Adopt`] if the tunnel doesn't exist, is already this Mac's, or is
+    /// configured locally (its routes live in a config file Teitunnel can't manage).
+    pub async fn adopt<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+        tunnel_id: &str,
+    ) -> Result<(), EngineError> {
+        let ours = self
+            .local
+            .tunnels(account)
+            .await
+            .map_err(ObserveError::from)?;
+        if ours.iter().any(|t| t.tunnel_id == tunnel_id) {
+            return Err(EngineError::Adopt(msg::error::adopt::already_here()));
+        }
+        let tunnel = api
+            .tunnel(account, tunnel_id)
+            .await
+            .map_err(ObserveError::from)?
+            .ok_or_else(|| EngineError::Adopt(msg::error::adopt::gone()))?;
+        if !tunnel.remote_config {
+            return Err(EngineError::Adopt(msg::error::adopt::locally_configured(
+                &tunnel.name,
+            )));
+        }
+        self.local
+            .add_tunnel(account, &tunnel.id, &tunnel.name)
+            .await
+            .map_err(ObserveError::from)?;
+        self.invalidate(account);
+        Ok(())
     }
 
     /// Plans `intent` for review. May reuse an observation up to 5 s old.

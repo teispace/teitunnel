@@ -93,6 +93,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::tunnels_traffic_history,
             routes::tunnels_always_on,
             routes::tunnels_set_always_on,
+            routes::tunnels_adopt,
             doctor::doctor_run,
             doctor::doctor_set_ignored,
             doctor::doctor_fix_safe,

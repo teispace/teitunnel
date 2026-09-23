@@ -27,6 +27,7 @@ import { NetworksSection } from "./components/networks-section";
 import { RemoteLogsSheet } from "./components/remote-logs-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
+  useAdoptTunnel,
   useAlwaysOn,
   useForeignConnectors,
   useSaveLog,
@@ -234,6 +235,8 @@ function TunnelInspector({
             <Button variant="destructive" onClick={onDelete}>
               {t("tunnels.delete")}
             </Button>
+          ) : tunnel.routes !== null ? (
+            <AdoptButton tunnel={tunnel} accountId={accountId} />
           ) : null}
         </>
       }
@@ -280,6 +283,43 @@ function TunnelInspector({
         <p className="text-callout text-secondary">{t("tunnels.notOurs")}</p>
       ) : null}
     </Inspector>
+  );
+}
+
+/** Runs a tunnel of the account on this Mac too, after saying what that means. */
+function AdoptButton({ tunnel, accountId }: { tunnel: TunnelSummary; accountId: string }) {
+  const adopt = useAdoptTunnel(accountId);
+  const elsewhere = tunnel.connectors.length > 0;
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>{t("tunnels.adopt.button")}</Button>
+      </DialogTrigger>
+      <DialogContent
+        title={t("tunnels.adopt.title", { name: tunnel.name })}
+        description={elsewhere ? t("tunnels.adopt.elsewhere") : t("tunnels.adopt.detail")}
+        footer={
+          <>
+            <DialogClose asChild>
+              <Button>{t("common.cancel")}</Button>
+            </DialogClose>
+            <DialogClose asChild>
+              <Button
+                variant="primary"
+                onClick={() =>
+                  adopt.mutate(tunnel.id, {
+                    onSuccess: () => toast.success(t("tunnels.adopt.done", { name: tunnel.name })),
+                    onError: (error) => toast.error(toIpcError(error).message),
+                  })
+                }
+              >
+                {t("tunnels.adopt.confirm")}
+              </Button>
+            </DialogClose>
+          </>
+        }
+      />
+    </Dialog>
   );
 }
 

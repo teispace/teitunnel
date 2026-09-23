@@ -90,6 +90,7 @@ impl Error {
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
+                | E::Adopt(_)
                 | E::NeedsConfirmation
                 | E::NothingToRestore
                 | E::Plan(

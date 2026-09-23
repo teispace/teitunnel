@@ -187,6 +187,23 @@ pub async fn tunnels_list(
         .await?)
 }
 
+/// Runs an existing tunnel of the account on this Mac too (nothing changes in
+/// Cloudflare), then starts its connector.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_adopt(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    tunnel_id: String,
+) -> Result<(), AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    state.engine.adopt(&api, &account_id, &tunnel_id).await?;
+    state.machine.resume(&api, &account_id).await?;
+    changed(&app, &account_id);
+    Ok(())
+}
+
 /// Starts this Mac's connector for the account's tunnel.
 #[tauri::command]
 #[specta::specta]

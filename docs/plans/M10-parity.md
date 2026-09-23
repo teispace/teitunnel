@@ -12,7 +12,7 @@
 ### M10-02 · Several tunnels per machine
 - [x] Tunnels on this machine: create named tunnels (e.g. production, staging) besides the default; each route chooses its tunnel (default: the machine tunnel).
 - [x] Start/stop, Always-on and delete per tunnel (plan → apply; deleting removes its routes' DNS it owns).
-- [ ] Adopt an existing tunnel of the account to run on this machine (fetch its token; refuse if it's remotely managed by another tool without consent).
+- [x] Adopt an existing tunnel of the account to run on this machine: local only, refused for locally configured tunnels, confirmation that explains the split when another machine runs it (app, CLI `tunnel adopt`).
 - [x] CLI: `tunnels`, `tunnel create|delete`, `--tunnel` on changes and export (D-067). Start/stop from the CLI waits for M10-04 (the CLI doesn't run connectors yet).
 - [x] Doctor per tunnel, fixes on the issue's tunnel; routes list shows the carrying tunnel.
 

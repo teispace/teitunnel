@@ -226,6 +226,15 @@ enum TunnelCommand {
         #[command(flatten)]
         apply: ApplyArgs,
     },
+    /// Run an existing tunnel of the account on this machine too (nothing changes in
+    /// Cloudflare). If another machine runs it, requests are split between them.
+    Adopt {
+        /// The tunnel's name or id.
+        name: String,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+    },
     /// Delete one of this machine's tunnels, with its routes and the DNS records
     /// Teitunnel created for them.
     Delete {
@@ -479,6 +488,9 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Tunnel(TunnelCommand::Create { name, apply }) => {
             change_routes(&app, Change::CreateTunnel { name }, &apply).await
         }
+        Command::Tunnel(TunnelCommand::Adopt { name, account }) => {
+            adopt(&app, &name, account.as_deref()).await
+        }
         Command::Tunnel(TunnelCommand::Delete { name, mut apply }) => {
             apply.tunnel = Some(name);
             change_routes(&app, Change::RemoveTunnel, &apply).await
@@ -550,6 +562,36 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
             )?;
         }
     }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn adopt(app: &App, name: &str, account: Option<&str>) -> Result<ExitCode, String> {
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let tunnels = api.tunnels(&account.id).await.map_err(|e| e.to_string())?;
+    let tunnel = tunnels
+        .iter()
+        .find(|t| t.name.eq_ignore_ascii_case(name) || t.id == name)
+        .ok_or_else(|| format!("The account has no tunnel named “{name}”."))?;
+    if !tunnel.connections.is_empty() {
+        let _ = writeln!(
+            io::stderr().lock(),
+            "Note: another machine runs “{}” now. Cloudflare will split its requests between both machines.",
+            tunnel.name
+        );
+    }
+    app.engine
+        .adopt(&api, &account.id, &tunnel.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    out!(
+        "“{}” is now one of this machine's tunnels. Run it with `teitunnel-cli up` or the app.",
+        tunnel.name
+    )?;
     Ok(ExitCode::SUCCESS)
 }
 

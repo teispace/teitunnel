@@ -309,3 +309,12 @@ export function useSetAlwaysOn(accountId: string, tunnelId: string | null = null
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
   });
 }
+
+/** Runs an existing tunnel of the account on this Mac too (nothing changes in Cloudflare). */
+export function useAdoptTunnel(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tunnelId: string) => call(commands.tunnelsAdopt(accountId, tunnelId)),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+  });
+}
