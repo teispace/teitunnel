@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+:root {
+  --tt-accent: oklch(0.62 0.19 255);
+}
+
+.dark {
+  --tt-accent: oklch(0.7 0.16 255);
+}

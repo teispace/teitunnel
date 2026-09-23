@@ -42,9 +42,9 @@
 - [x] Balanced badge and detail in Routes, the plan warns with a single endpoint, `PermissionFix` lists the permissions and the add-on on refusal. Per-endpoint health from the pool health API is left for later.
 
 ### M10-08 · Everything documented
-- [ ] Docs site on Fumadocs (every feature and step, CLI and API references, guides) and a landing page (see M11).
+- [x] Docs site on Fumadocs (every feature and step, CLI and API references, guides) and a landing page (see M11).
 
 # M11: Landing page and docs site
-- [ ] Landing page in the style of cursor.com: product-led hero with the real app, feature sections, platform downloads, FAQ; fast, accessible, dark/light.
-- [ ] Docs on Fumadocs (Next.js): getting started, every feature, guides (server, Docker, cloud VMs, Access, private networks), CLI reference, API reference, troubleshooting, search.
+- [x] Landing page in the style of cursor.com: product-led hero with the real app, feature sections, platform downloads, FAQ; fast, accessible, dark/light (D-073).
+- [x] Docs on Fumadocs (Next.js): getting started, every feature, guides (server, Docker, cloud VMs, Access, private networks, accounts, load balancing), CLI reference, API reference, Doctor checks, search.
 - [ ] Deploy (with the release work).

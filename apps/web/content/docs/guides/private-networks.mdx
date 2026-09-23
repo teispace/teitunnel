@@ -1,0 +1,68 @@
+---
+title: Private networks and SSH
+description: Let WARP users reach addresses on this machine's network, and connect to SSH, RDP and TCP routes.
+---
+
+## Share a private network
+A route publishes one service at a hostname. A **private network** goes further: people
+signed in to your Cloudflare Zero Trust organization with the **WARP** client can reach
+addresses on this machine's network, like a NAS at `192.168.1.20` or a whole range such as
+`192.168.1.0/24`, as if they were at home.
+
+In **Tunnels**, select this machine's tunnel and choose **Share Network…** under
+**Private Networks** (or **Share a Private Network…** when this machine has no tunnel yet).
+Enter an address or a range and review the plan. Teitunnel routes the range to this machine's
+tunnel and makes sure the connector runs. To stop, use the remove button next to the range.
+
+From the terminal:
+
+```sh
+teitunnel-cli network add 192.168.1.0/24
+teitunnel-cli networks
+teitunnel-cli network remove 192.168.1.0/24
+```
+
+### What Teitunnel checks
+- A range already routed to another tunnel is refused; remove it there first.
+- A range that overlaps another tunnel's is allowed, with a warning: for addresses both
+  cover, the narrower range wins.
+- A public range (not `10.x`, `172.16–31.x`, `192.168.x`, `100.64–127.x` or `fd00::/8`) needs
+  a confirmation, because WARP users would reach those addresses through this machine instead of
+  the internet.
+- Ranges broader than `/8` (IPv4) or `/16` (IPv6), loopback and link-local addresses are
+  refused.
+
+Routes go in the account's default virtual network. Removing this machine's tunnel removes the
+ranges routed to it; other tunnels' ranges are never touched.
+
+### When WARP users can't reach it
+The **Doctor** reads your WARP settings once you share a network and warns about the two
+usual causes, which only you can change in the Zero Trust dashboard:
+
+- **Split Tunnels exclude the range.** Cloudflare's default device profile excludes private
+  address space such as `192.168.0.0/16`, so WARP sends that traffic to the local network.
+  Remove or narrow the entry (`network.excluded`), or, in include mode, add the range
+  (`network.not_included`).
+- **The Gateway proxy is off** (`network.proxy_off`). Turn it on for TCP, and UDP if your
+  services use it.
+
+Your API token needs **Cloudflare Tunnel** (edit) to manage ranges, and Zero Trust read
+access for the Doctor to check WARP settings. Without them, routes keep working and the
+private networks section says what's missing.
+
+## Connect to SSH, RDP and TCP routes
+A route can also carry SSH, Remote Desktop, SMB or any TCP service: use an origin like
+`ssh://localhost:22`, `rdp://localhost:3389` or `tcp://localhost:5432`. A browser can't open
+these, so the route's inspector shows what visitors run instead, with **cloudflared**
+installed on their computer:
+
+```sh
+# SSH
+ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.example.com
+# a database (then connect to localhost:5432)
+cloudflared access tcp --hostname db.example.com --url localhost:5432
+```
+
+For SSH it also gives an `~/.ssh/config` entry, so plain `ssh ssh.example.com` works.
+Combine it with [Require a login](/docs/guides/require-login) so only the people you choose can
+connect: cloudflared opens the browser to sign in the first time.

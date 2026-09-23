@@ -15,8 +15,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M7](plans/M7-windows.md) | v1.1 | Windows | 🚧 Core done; needs Windows hardware |
 | [M8](plans/M8-linux.md) | v1.2 | Linux | 🚧 Core done; needs a Linux desktop |
 | [M9](plans/M9-advanced.md) | v1.x | Export, CLI, Access protection, replicas, private networks | 🚧 Export, CLI, Access, remote connectors, private networks and UI i18n done |
-| [M10](plans/M10-parity.md) | v1.x | Parity and beyond: fix in place, several tunnels, share on your domain, headless server, Docker, browser UI + API, load balancing | Next |
-| [M11](plans/M10-parity.md#m11-landing-page-and-docs-site) | — | Landing page and Fumadocs docs site | After M10 |
+| [M10](plans/M10-parity.md) | v1.x | Parity and beyond: fix in place, several tunnels, share on your domain, headless server, Docker, browser UI + API, load balancing | ✅ Done |
+| [M11](plans/M10-parity.md#m11-landing-page-and-docs-site) | — | Landing page and Fumadocs docs site | ✅ Built; deploys with the release work |
 
 **Order (maintainer, 2026-09-23):** M10 → M11 → release work (M6 signing with the existing Developer ID, updater, release automation, channels, deploys) last.
 
@@ -63,8 +63,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [ ] M6-05 Polish pass · [ ] M6-06 Docs & community
 
 ### M10: Parity and beyond
-- [x] M10-01 Fix in place · [ ] M10-02 Several tunnels per machine · [ ] M10-03 Share on your domain · [ ] M10-04 Headless server
-- [ ] M10-05 Container · [ ] M10-06 Browser UI + API · [ ] M10-07 Load balancing · [ ] M10-08 Docs
+- [x] M10-01 Fix in place · [x] M10-02 Several tunnels per machine · [x] M10-03 Share on your domain · [x] M10-04 Headless server
+- [x] M10-05 Container · [x] M10-06 Browser UI + API · [x] M10-07 Load balancing · [x] M10-08 Docs
 
 ### M11: Landing page and docs site
-- [ ] Landing page · [ ] Fumadocs docs · [ ] Deploy (with release work)
+- [x] Landing page · [x] Fumadocs docs · [ ] Deploy (with release work)

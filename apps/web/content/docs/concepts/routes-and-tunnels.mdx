@@ -1,0 +1,34 @@
+---
+title: Routes and tunnels
+description: How Teitunnel maps hostnames to services on your computer.
+---
+
+## One tunnel per Mac, per account
+
+The first time you add a route in a Cloudflare account, Teitunnel creates a
+**remotely-managed tunnel** for this machine, named after it. Every route you add in that
+account goes on that tunnel. Its token is stored in the keychain, and a **connector**
+(`cloudflared tunnel run`) on this machine holds its connections to Cloudflare's edge.
+
+The **Tunnels** view lists every tunnel in the account, with this machine's first: its
+connectors, where they connect (e.g. `AMS01`), traffic and logs. Other cloudflared
+processes running on this machine are listed too, so nothing runs unnoticed.
+
+## What a route is
+
+A route is two things in Cloudflare, kept in step:
+
+1. An **ingress rule** on the tunnel: *requests for `app.example.com` (optionally only
+   under a path) go to `http://localhost:3000`*.
+2. A **proxied CNAME** from `app.example.com` to `<tunnel-id>.cfargotunnel.com`, so the
+   hostname resolves to Cloudflare, which sends the request down the tunnel.
+
+Teitunnel shows a route as **Live** only when both are right and the connector is
+connected. Otherwise it says what's wrong ("No DNS record", "Nothing is listening on
+port 8000") and the [Doctor](/docs/reference/doctor) offers a fix.
+
+## Edits made elsewhere
+
+If the tunnel's routes are changed outside Teitunnel (in the Cloudflare dashboard, say),
+Routes shows a banner with what changed. You can keep those changes or restore what
+Teitunnel set up; nothing is overwritten silently.

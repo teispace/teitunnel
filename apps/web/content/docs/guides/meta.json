@@ -1,0 +1,15 @@
+{
+  "title": "Guides",
+  "pages": [
+    "accounts",
+    "import",
+    "export",
+    "require-login",
+    "private-networks",
+    "several-tunnels",
+    "servers",
+    "load-balancing",
+    "observability",
+    "menu-bar"
+  ]
+}

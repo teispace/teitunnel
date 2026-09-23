@@ -1,14 +1,15 @@
 name: Docs
 
-# Builds the docs site (apps/site) on every change to it. Deploying to GitHub Pages is
+# Builds the website (apps/web: landing page and docs, Next.js + Fumadocs, static) on
+# every change to it. Deploying to GitHub Pages is
 # opt-in: enable Pages (Settings > Pages > Source: GitHub Actions) and set the
 # repository variable DEPLOY_DOCS to "true" (D-053).
 on:
   pull_request:
-    paths: ["apps/site/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+    paths: ["apps/web/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
   push:
     branches: [main]
-    paths: ["apps/site/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+    paths: ["apps/web/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
   workflow_dispatch:
 
 permissions:
@@ -30,11 +31,13 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @teitunnel/site build
+      - run: pnpm --filter @teitunnel/web build
+        env:
+          BASE_PATH: /teitunnel
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
         with:
-          path: apps/site/dist
+          path: apps/web/out
 
   deploy:
     name: Deploy to GitHub Pages

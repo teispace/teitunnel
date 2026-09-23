@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-0. **M10** ([plan](plans/M10-parity.md)), in order: M10-01 fix in place → M10-02 several tunnels → M10-03 share on your domain → M10-04 headless server → M10-05 container → M10-06 browser UI + API → M10-07 load balancing; then **M11** landing page + Fumadocs docs; release work last (maintainer, 2026-09-23). Cloudify analysis: [research/cloudify.md](research/cloudify.md).
+0. **M10/M11 done** ([plan](plans/M10-parity.md), Cloudify analysis in [research/cloudify.md](research/cloudify.md)). Small follow-ups: listing terminal-started trycloudflare shares in the app; per-endpoint load-balancer health. Next: release work (signing with the maintainer's Developer ID, updater, release automation, channels incl. ghcr.io image and winget/Homebrew, website deploy), done last per the maintainer (2026-09-23).
 1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
 2. Distribution for Windows/Linux is deferred with the other release work.
 3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; private networks and `cloudflared access` helpers (M9-05) done; M9-06 i18n: UI and Rust-side text done (D-061, D-062); community translations remain (needs translators).
@@ -25,6 +25,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M11 website (D-073): `apps/web` (Next.js + Fumadocs, static): landing page with real app screenshots, all docs migrated and reworded for every platform, new Accounts and permissions and Server API pages, static search; Astro site removed; Docs workflow builds it (deploy with the release work). Also M10-02 adopt an existing tunnel (D-072).
 - 2026-09-23: M10-07 load balancing across machines (D-071): monitor, pool of tunnel endpoints and load balancer through plan → apply with full undo; routes join/leave pools; app, CLI `route balance|unbalance`, dashboard; guide.
 - 2026-09-23: M10-06 server dashboard and API (D-070): `teitunnel-cli serve` (tunnels + locked-down web dashboard + preview/apply API with OpenAPI), argon2id password, API keys, rate limiting, CSP; E2E over raw HTTP.
 - 2026-09-23: M10-04/05 headless and containers (D-069): API token from the environment (never stored), `setup`, `up`, `always-on on|off|status` with sandboxed systemd system units as root, `routes --check`, CLI says "this machine"; Docker image + Compose recipe, CI build and smoke test; site guide Servers and containers (VPS, AWS, Azure, GCP, Docker, Compose, Kubernetes).

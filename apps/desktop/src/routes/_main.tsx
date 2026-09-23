@@ -9,6 +9,11 @@ import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/side
 import { DoctorBadge } from "@/features/doctor";
 import { t } from "@/lib/i18n";
 
+/** The developer section, in dev builds; `?clean` hides it (screenshots for the website). */
+const SHOW_DEV =
+  import.meta.env.DEV &&
+  !(typeof window !== "undefined" && new URLSearchParams(window.location.search).has("clean"));
+
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
 });
@@ -35,7 +40,7 @@ function MainLayout() {
               ))}
             </SidebarSection>
           ))}
-          {import.meta.env.DEV ? (
+          {SHOW_DEV ? (
             <SidebarSection title={t("nav.developer")}>
               <SidebarItem to="/dev/gallery" label={t("nav.gallery")} icon={SwatchBook} />
             </SidebarSection>

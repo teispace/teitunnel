@@ -1,0 +1,75 @@
+---
+title: Install
+description: Install Teitunnel on macOS, Windows or Linux, the command line on a server, or the Docker image.
+---
+
+Teitunnel is a desktop app for **macOS 14 or later**, **Windows 10 and 11**, and **Linux**
+(GNOME, KDE and other desktops with a system tray), plus a command line and a Docker image
+for servers. Download builds from [GitHub Releases](https://github.com/teispace/teitunnel/releases).
+
+<Tabs items={["macOS", "Windows", "Linux", "Command line", "Docker"]}>
+  <Tab value="macOS">
+    Open the disk image and drag **Teitunnel** to **Applications**. It runs on Apple silicon
+    and Intel Macs, lives in the menu bar as well as the Dock, and keeps credentials in your
+    keychain.
+  </Tab>
+  <Tab value="Windows">
+    Run the installer. Teitunnel adds an icon to the notification area, keeps credentials in
+    Windows Credential Manager, and can keep routes running with Task Scheduler.
+  </Tab>
+  <Tab value="Linux">
+    Use the AppImage or the package for your distribution. Credentials are kept by the Secret
+    Service (GNOME Keyring or KWallet), which must be installed and unlocked; routes can keep
+    running as a `systemd --user` service.
+  </Tab>
+  <Tab value="Command line">
+    `teitunnel-cli` comes with the app, and is also released on its own for servers. Put it on
+    your `PATH`, then see [Servers and containers](/docs/guides/servers) and the
+    [command reference](/docs/reference/cli).
+
+    ```sh
+    teitunnel-cli --version
+    teitunnel-cli completions zsh > ~/.zfunc/_teitunnel-cli   # shell completion
+    ```
+  </Tab>
+  <Tab value="Docker">
+    The image has the command line and Cloudflare's own `cloudflared`, runs as a non-root user
+    and keeps its state in `/data`:
+
+    ```sh
+    docker run -d --name teitunnel --restart unless-stopped \
+      -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
+    ```
+
+    See [Servers and containers](/docs/guides/servers#docker).
+  </Tab>
+</Tabs>
+
+To build it yourself instead, see the
+[contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
+
+## cloudflared
+
+Routes and Quick Shares run on [cloudflared](https://github.com/cloudflare/cloudflared),
+Cloudflare's connector. On first launch Teitunnel looks for one already installed (Homebrew,
+winget or your package manager). If there isn't one, choose **Install cloudflared** and
+Teitunnel downloads the latest release from GitHub and checks it before use:
+
+- the download must match the digest GitHub publishes,
+- the binary must match the checksum in Cloudflare's release notes,
+- and, on macOS, its code signature must be Cloudflare's.
+
+The managed copy lives in Teitunnel's own folder and is updated from
+**Settings ▸ cloudflared**. When it updates, running connectors move to the new version
+without dropping your routes.
+
+## Next
+
+<Cards>
+  <Card title="Share a local service" href="/docs/getting-started/quick-share">
+    A public URL in a few seconds, no account needed.
+  </Card>
+  <Card title="Your first route" href="/docs/getting-started/first-route">
+    Put a service on your own domain.
+  </Card>
+</Cards>

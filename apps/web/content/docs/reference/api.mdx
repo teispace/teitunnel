@@ -1,0 +1,71 @@
+---
+title: Server API
+description: Automate a Teitunnel server with its HTTP API.
+---
+
+`teitunnel-cli serve` runs a server's tunnels and offers a small HTTP API next to its web
+dashboard (see [Servers and containers](/docs/guides/servers#web-dashboard-and-api)). The
+machine-readable description is at `/api/openapi.json`.
+
+## Authentication
+
+Create a key on the server and send it as a bearer token:
+
+```sh
+teitunnel-cli api-key create deploy     # printed once; store it as a secret
+teitunnel-cli api-key list
+teitunnel-cli api-key revoke 3
+```
+
+```http
+Authorization: Bearer ttk_…
+```
+
+Keys are stored only as hashes. The browser dashboard signs in with a password instead.
+
+## Endpoints
+
+| Method | Path | Does |
+|---|---|---|
+| `GET` | `/api/overview` | Accounts, this machine's tunnels and routes with their status, shares on your domains |
+| `POST` | `/api/preview` | Plans a change. Nothing changes. |
+| `POST` | `/api/apply` | Applies exactly the plan you previewed |
+
+## Making a change
+
+A change is two calls. The preview returns the plan and its **fingerprint**; applying sends
+the same change with that fingerprint. If anything changed in Cloudflare in between, apply
+answers `409` and nothing is changed: preview again.
+
+```sh
+curl -s -X POST http://127.0.0.1:8765/api/preview \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"accountId":"…","change":{"type":"addRoute","route":{"hostname":"app.example.com","origin":"3000","path":null,"access":null}}}'
+```
+
+The response lists the steps (in English) and warnings; `requiresConfirmation` is `true` when
+the change would replace DNS records Teitunnel didn't create. To apply:
+
+```sh
+curl -s -X POST http://127.0.0.1:8765/api/apply \
+  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"accountId":"…","change":{…the same change…},"fingerprint":"…","confirmed":false}'
+```
+
+The outcome is `applied`, or `rolledBack` (nothing is left changed) or `partiallyApplied`
+(with what couldn't be undone).
+
+## Changes
+
+| `type` | Fields |
+|---|---|
+| `addRoute` | `route: { hostname, origin, path, access }` |
+| `updateRoute` | `hostname`, `path`, `route` |
+| `removeRoute` | `hostname`, `path` |
+| `createTunnel` | `name` |
+| `removeTunnel` | (with `tunnelId` to choose which) |
+| `balanceRoute`, `unbalanceRoute` | `hostname` |
+| `addNetwork`, `removeNetwork` | `network` |
+
+`tunnelId` (next to `accountId`) picks one of the machine's tunnels; without it, the default
+tunnel. `access` is `{ "emails": [...], "emailDomains": [...] }` or `null`.

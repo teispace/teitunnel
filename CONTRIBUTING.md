@@ -47,7 +47,7 @@ crates/core          everything the app does, with no Tauri dependency:
 apps/cli               teitunnel-cli: the same engine from the terminal
 apps/desktop/src-tauri the Tauri shell: IPC commands, menus, tray, windows. No business logic.
 apps/desktop/src       the React UI: features/<name>/ with queries.ts for data
-apps/site              the docs site (Astro Starlight)
+apps/web               the website: landing page and docs (Next.js + Fumadocs)
 tools/                 fake-cloudflared and fake-cloudflare, the test doubles
 ```
 
@@ -61,7 +61,7 @@ Rules that aren't negotiable (see AGENTS.md): secrets never cross IPC and live o
 3. **Offer a fix if you can.** A fix that changes Cloudflare is a `Fix::Change` holding a `Change`, so it goes through the planner like everything else. If it only touches what Teitunnel owns, consider whether `fix_safe` should apply it.
 4. **Test it** in `doctor.rs`'s tests: build `Facts`, call `diagnose`, assert the issue and its fix.
 5. **Notifications:** errors notify once when they appear. If the problem is already announced another way, or flaps with the network, add its id to `QUIET_CHECKS` in `doctor_monitor.rs`.
-6. **Document it** in `apps/site/src/content/docs/reference/doctor.md`.
+6. **Document it** in `apps/web/content/docs/reference/doctor.mdx`.
 
 ## How to make an origin setting editable
 Routes keep any `originRequest` settings they already have, but the only Advanced setting in the UI today is the path. To make one editable (say `noTLSVerify`):

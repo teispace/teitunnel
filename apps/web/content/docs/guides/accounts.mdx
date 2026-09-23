@@ -1,0 +1,61 @@
+---
+title: Accounts and permissions
+description: Connect Cloudflare accounts, what the token needs, and how to fix a missing permission.
+---
+
+Quick Share needs no account. Everything on your own domains goes through a Cloudflare
+account you connect in **Settings ▸ Accounts ▸ Connect an Account**.
+
+## Ways to connect
+
+- **An API token** (recommended). **Open Cloudflare** opens the dashboard's *Create API
+  token* page with Teitunnel's permissions already selected, for all your accounts and
+  domains. Create it, copy it, and paste it into Teitunnel. It's stored in your system's
+  keychain and only ever sent to Cloudflare.
+- **Your cloudflared login.** If you've run `cloudflared tunnel login`, Teitunnel can use
+  that certificate. It only works for the one domain you chose then, and can't manage
+  logins or load balancing.
+
+One token can reach several Cloudflare accounts; each one it reaches is connected. When
+several accounts are connected, the Routes, Domains and Tunnels views have an account menu,
+and the command line takes `--account`.
+
+## What the token needs
+
+| Permission | For |
+|---|---|
+| Account · Cloudflare Tunnel · Edit | Creating and running tunnels, private networks, connector logs |
+| Zone · DNS · Edit | The DNS records of your routes |
+| Zone · Zone · Read | Listing your domains |
+| Account · Account Settings · Read | Naming the account |
+| Account · Access: Apps and Policies · Edit | [Logins](/docs/guides/require-login) in front of routes |
+| Account · Access: Organizations, Identity Providers, and Groups · Edit | Adding the one-time code login method |
+| Account · Load Balancing: Monitors and Pools · Edit, Zone · Load Balancers · Edit | [Load balancing](/docs/guides/load-balancing) (not in the template; add them if you use it) |
+
+**Settings ▸ Accounts ▸ Permissions** shows what the connected token can do, checked
+against Cloudflare without changing anything.
+
+## When a permission is missing
+
+Teitunnel doesn't stop at an error. Wherever something needs a permission the token lacks,
+it shows which permissions to add and why, with:
+
+1. **Open API Tokens**: your tokens in the Cloudflare dashboard.
+2. Choose **Edit** next to the token you connected, add the permissions, then **Continue to
+   Summary** and **Update Token**. The token itself doesn't change, so there's nothing to
+   paste.
+3. Switch back to Teitunnel. It checks again when its window becomes active, and carries on
+   where you were (a reviewed change is planned again).
+
+Or choose **Use a New Token Instead**: create a token with every permission and paste it;
+it replaces the account's credential. Accounts connected with a cloudflared login always
+take this path.
+
+Two things only the dashboard can do are handled the same way: setting up Cloudflare Zero
+Trust (for logins) links to the Zero Trust onboarding and continues when you come back, and
+adding a domain to Cloudflare links to its *Add a site* page.
+
+## Disconnecting
+
+**Disconnect** stops this machine's connectors for the account and deletes its credentials
+from the keychain. Nothing changes in Cloudflare: its tunnels, routes and DNS records stay.

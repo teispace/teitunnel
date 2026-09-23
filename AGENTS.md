@@ -31,7 +31,7 @@ crates/cloudflared   cloudflared binary: locate/install/verify, commands, log/me
 crates/core          domain, engine (observe→plan→apply→verify), runtime, discovery, doctor, store
 apps/cli             teitunnel-cli: routes and exports from the terminal
 apps/desktop         Tauri shell (src-tauri) + React UI (src)
-apps/site            docs site (Astro Starlight)
+apps/web             website: landing page and docs (Next.js + Fumadocs, static export)
 tools/fake-cloudflared  test double
 docs/                all project documentation
 ```
@@ -44,7 +44,8 @@ Keep this section in sync with `package.json`.
 - `pnpm test`: vitest + cargo nextest
 - `pnpm bindings`: regenerate IPC bindings
 - `pnpm build`: packaged app (use it to verify materials and native behaviour)
-- `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]`: WebKit screenshots in light and dark (D-030); add `?platform=windows` or `?platform=linux` to a route to preview that platform's chrome
+- `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]`: WebKit screenshots in light and dark (D-030); add `?platform=windows` or `?platform=linux` to a route to preview that platform's chrome, `?clean` to hide the developer section (website screenshots)
+- `pnpm --filter @teitunnel/web dev` / `build`: the website (landing page + docs, `apps/web`, static export in `out/`; `BASE_PATH=/teitunnel` for GitHub Pages)
 - `pnpm --filter @teitunnel/desktop perf [seconds]`: frame timing of the log viewer and charts under load, in WebKit (D-051)
 - `pnpm --filter @teitunnel/desktop a11y [routes…]`: axe-core accessibility audit of every screen, light/dark × default/increased contrast (D-052)
 - `pnpm --filter @teitunnel/desktop perf:app [app] [runs]`: bundle size, cold start and idle memory of a packaged build (docs/research/performance.md)

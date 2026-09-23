@@ -1,6 +1,10 @@
 # Dependencies & builds
 node_modules/
 dist/
+.next/
+out/
+.source/
+next-env.d.ts
 dist-ssr/
 target/
 *.tsbuildinfo

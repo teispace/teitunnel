@@ -10,7 +10,10 @@
       "!**/fixtures",
       "!**/routeTree.gen.ts",
       "!**/lib/ipc/bindings.ts",
-      "!**/styles/motion.css"
+      "!**/styles/motion.css",
+      "!**/.next",
+      "!**/out",
+      "!**/.source"
     ]
   },
   "formatter": {

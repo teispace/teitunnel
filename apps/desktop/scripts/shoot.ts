@@ -6,7 +6,9 @@
 // Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them;
 // SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k); SHOOT_SIZE=620x500.
 // SHOOT_CONTRAST=more emulates Increase Contrast; SHOOT_REDUCED_MOTION=1 Reduce Motion.
-// SHOOT_FILL=<selector=>value;…> types into fields before the actions run.
+// SHOOT_FILL=<selector=>value;…> types into fields before the actions run (after them with
+// SHOOT_FILL_LATE=1, e.g. inside a sheet the actions open); SHOOT_THEN=<sel;sel> clicks after
+// the fills.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -15,6 +17,8 @@ import { createServer } from "vite";
 const [outDir = "screenshots", ...routes] = process.argv.slice(2);
 const targets = routes.length > 0 ? routes : ["/dev/gallery"];
 const actions = (process.env["SHOOT_ACTIONS"] ?? "").split(";").filter(Boolean);
+const then = (process.env["SHOOT_THEN"] ?? "").split(";").filter(Boolean);
+const fillLate = Boolean(process.env["SHOOT_FILL_LATE"]);
 const scrollTo = process.env["SHOOT_SCROLL"];
 const keys = (process.env["SHOOT_KEYS"] ?? "").split(";").filter(Boolean);
 const fills = (process.env["SHOOT_FILL"] ?? "")
@@ -54,8 +58,10 @@ try {
         document.documentElement.dataset["windowActive"] = "true";
       });
       if (scrollTo) await page.locator(scrollTo).first().scrollIntoViewIfNeeded();
-      for (const [selector, value] of fills) await page.fill(selector, value ?? "");
+      if (!fillLate) for (const [selector, value] of fills) await page.fill(selector, value ?? "");
       for (const selector of actions) await page.click(selector);
+      if (fillLate) for (const [selector, value] of fills) await page.fill(selector, value ?? "");
+      for (const selector of then) await page.click(selector);
       for (const key of keys) await page.keyboard.press(key);
       await page.waitForTimeout(700);
       const variant = process.env["SHOOT_CONTRAST"] === "more" ? "-contrast" : "";
