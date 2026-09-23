@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Teitunnel</title>
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="bar">
+      <strong class="brand">Teitunnel</strong>
+      <span id="machine" class="muted"></span>
+      <button id="signout" type="button" class="plain" hidden>Sign Out</button>
+    </header>
+
+    <main id="signin" class="card narrow" hidden>
+      <h1>Sign in</h1>
+      <p class="muted">Enter the password set with <code>teitunnel-cli serve --set-password</code>.</p>
+      <form id="signin-form">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" required />
+        <p id="signin-error" class="error" role="alert"></p>
+        <button type="submit" class="primary">Sign In</button>
+      </form>
+    </main>
+
+    <main id="dashboard" hidden>
+      <div id="accounts"></div>
+      <section class="card" aria-labelledby="shares-title">
+        <h2 id="shares-title">Shares on your domains</h2>
+        <ul id="shares" class="list"></ul>
+      </section>
+      <p class="muted small">
+        API for automation: <a href="/api/openapi.json">OpenAPI</a>. Create a key with
+        <code>teitunnel-cli api-key create NAME</code>.
+      </p>
+    </main>
+
+    <dialog id="review">
+      <form method="dialog" id="review-form">
+        <h2 id="review-title">Review</h2>
+        <p class="muted">Nothing changes in Cloudflare until you apply.</p>
+        <ul id="review-warnings" class="warnings"></ul>
+        <ol id="review-steps" class="steps"></ol>
+        <label id="review-confirm-row" class="check" hidden>
+          <input id="review-confirm" type="checkbox" /> Replace the records Teitunnel didn't create
+        </label>
+        <p id="review-error" class="error" role="alert"></p>
+        <div class="actions">
+          <button type="submit" value="cancel" class="plain">Cancel</button>
+          <button id="review-apply" type="submit" value="apply" class="primary">Apply</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

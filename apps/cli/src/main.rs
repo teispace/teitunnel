@@ -15,6 +15,7 @@ macro_rules! out {
 mod context;
 mod doctor;
 mod probe;
+mod serve;
 mod share;
 mod up;
 
@@ -59,6 +60,27 @@ enum Command {
     Setup,
     /// Run this machine's tunnels in the foreground until stopped (servers, containers).
     Up,
+    /// Run this machine's tunnels plus a web dashboard and JSON API (servers).
+    ///
+    /// Listens on 127.0.0.1:8765 unless told otherwise. Sign in with the password set by
+    /// `--set-password` (or TEITUNNEL_WEB_PASSWORD); automation uses API keys.
+    Serve {
+        /// Where to listen.
+        #[arg(long, default_value = "127.0.0.1:8765")]
+        listen: std::net::SocketAddr,
+        /// Allow listening on a non-loopback address (put TLS in front of it).
+        #[arg(long)]
+        allow_remote: bool,
+        /// Mark the session cookie Secure (when served over HTTPS).
+        #[arg(long)]
+        secure_cookies: bool,
+        /// Set the dashboard password (read from the terminal) and exit.
+        #[arg(long)]
+        set_password: bool,
+    },
+    /// Create, list or revoke API keys for the server API.
+    #[command(subcommand)]
+    ApiKey(ApiKeyCommand),
     /// Keep this machine's tunnels running as an OS service, even after a restart.
     AlwaysOn {
         /// `on`, `off` or `status`.
@@ -176,6 +198,22 @@ enum Command {
         /// One of this machine's tunnels, by name (default: the default tunnel).
         #[arg(long)]
         tunnel: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ApiKeyCommand {
+    /// Create a key (shown once).
+    Create {
+        /// What it's for, e.g. `deploy`.
+        name: String,
+    },
+    /// List keys (names only).
+    List,
+    /// Revoke a key by its id (from `list`).
+    Revoke {
+        /// The key's id.
+        id: i64,
     },
 }
 
@@ -346,6 +384,26 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             unreachable!("handled above")
         }
         Command::Up => up::up(&app).await,
+        Command::Serve {
+            set_password: true, ..
+        } => set_web_password(&app).await,
+        Command::Serve {
+            listen,
+            allow_remote,
+            secure_cookies,
+            ..
+        } => {
+            serve::run(
+                app,
+                serve::Options {
+                    listen,
+                    allow_remote,
+                    secure_cookies,
+                },
+            )
+            .await
+        }
+        Command::ApiKey(command) => api_keys(&app, command).await,
         Command::AlwaysOn {
             action,
             account,
@@ -595,6 +653,59 @@ async fn setup() -> Result<ExitCode, String> {
     out!("Connected:")?;
     for account in &added {
         out!("  {}\t{}", account.name, account.id)?;
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn set_web_password(app: &App) -> Result<ExitCode, String> {
+    write!(
+        io::stdout().lock(),
+        "New dashboard password (12+ characters): "
+    )
+    .map_err(|e| e.to_string())?;
+    io::stdout().flush().map_err(|e| e.to_string())?;
+    let mut password = String::new();
+    io::stdin()
+        .lock()
+        .read_line(&mut password)
+        .map_err(|e| e.to_string())?;
+    teitunnel_core::web_auth::set_password(app.store(), password.trim_end_matches(['\r', '\n']))
+        .await
+        .map_err(|e| e.to_string())?;
+    out!("Password set. Start the dashboard with `teitunnel-cli serve`.")?;
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn api_keys(app: &App, command: ApiKeyCommand) -> Result<ExitCode, String> {
+    use teitunnel_core::web_auth;
+    match command {
+        ApiKeyCommand::Create { name } => {
+            let key = web_auth::create_api_key(app.store(), &name)
+                .await
+                .map_err(|e| e.to_string())?;
+            out!("{key}")?;
+            let _ = writeln!(
+                io::stderr().lock(),
+                "Keep it safe: it isn't stored and can't be shown again. Use it as `Authorization: Bearer <key>`."
+            );
+        }
+        ApiKeyCommand::List => {
+            for key in web_auth::api_keys(app.store())
+                .await
+                .map_err(|e| e.to_string())?
+            {
+                out!("{}\t{}", key.id, key.name)?;
+            }
+        }
+        ApiKeyCommand::Revoke { id } => {
+            if !web_auth::revoke_api_key(app.store(), id)
+                .await
+                .map_err(|e| e.to_string())?
+            {
+                return Err(format!("No API key with id {id}."));
+            }
+            out!("Revoked.")?;
+        }
     }
     Ok(ExitCode::SUCCESS)
 }

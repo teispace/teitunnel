@@ -82,7 +82,7 @@ pub(crate) async fn interrupted() {
     }
 }
 
-fn status(message: &str) {
+pub(crate) fn status(message: &str) {
     use std::io::Write as _;
     let _ = writeln!(io::stderr().lock(), "{message}");
 }

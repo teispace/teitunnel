@@ -202,6 +202,11 @@ impl App {
         }
     }
 
+    /// The database.
+    pub(crate) fn store(&self) -> &Store {
+        &self.store
+    }
+
     /// The engine context for `account`.
     pub(crate) fn context<'a>(&'a self, account: &'a Account) -> Context<'a> {
         Context {

@@ -31,6 +31,8 @@ teitunnel-cli setup                         # store an API token in the keychain
 teitunnel-cli up                            # run this machine's tunnels (servers, Docker)
 teitunnel-cli always-on on                  # as a service (a system unit as root)
 teitunnel-cli routes --check                # exit 1 unless every route is live
+teitunnel-cli serve                         # tunnels + web dashboard and API
+teitunnel-cli api-key create deploy         # a key for the API (shown once)
 ```
 
 | Option | Meaning |

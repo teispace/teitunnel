@@ -33,9 +33,9 @@
 - [x] Compose recipe (`docker/compose.yaml`): route to containers by service name; healthcheck; docs.
 
 ### M10-06 · Browser UI and local API for headless machines
-- [ ] `teitunnel-cli serve`: the same React UI in a browser over an HTTP transport (the IPC commands behind one typed adapter), loopback-only by default.
-- [ ] Auth: a password set at `setup` (argon2), session cookie (HttpOnly, SameSite=Strict), CSRF protection, rate limiting; secrets never returned.
-- [ ] Documented HTTP API (OpenAPI) with API keys for automation.
+- [x] `teitunnel-cli serve`: tunnels + a focused web dashboard (not the desktop UI: D-070), loopback-only by default.
+- [x] Auth: password (argon2id), session cookie (HttpOnly, SameSite=Strict), CSRF header, rate limiting, strict CSP; secrets never returned.
+- [x] Documented HTTP API (`/api/openapi.json`) with API keys for automation (`teitunnel-cli api-key create|list|revoke`).
 
 ### M10-07 · Load balancing across machines
 - [ ] When the account has Cloudflare Load Balancing: a route can be served by several machines' tunnels through a pool with a health monitor (plan → apply, undo, ownership).

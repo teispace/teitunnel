@@ -114,6 +114,27 @@ spec:
 Route to Services by their cluster name, e.g.
 `kubectl exec deploy/teitunnel -- teitunnel-cli route add app.example.com http://web.default.svc:80 --yes`.
 
+## Web dashboard and API
+`teitunnel-cli serve` runs the tunnels like `up` and adds a small dashboard: every
+tunnel and route with its status, adding and removing routes and tunnels (each change is
+reviewed before it's applied), and shares on your domains.
+
+```sh
+teitunnel-cli serve --set-password      # once; or set TEITUNNEL_WEB_PASSWORD
+teitunnel-cli serve                     # http://127.0.0.1:8765
+```
+
+It listens on this machine only. To reach it from elsewhere, publish it through Teitunnel
+itself with a login (`teitunnel-cli route add admin.example.com http://127.0.0.1:8765
+--allow you@example.com`), or pass `--listen 0.0.0.0:8765 --allow-remote` behind a TLS
+proxy with `--secure-cookies`.
+
+For automation, create an API key (`teitunnel-cli api-key create deploy`, shown once) and
+call the API with `Authorization: Bearer <key>`. A change is two calls: `POST
+/api/preview` returns the plan and its fingerprint, and `POST /api/apply` applies exactly
+that plan (or answers 409 if Cloudflare changed in between). The API is described at
+`/api/openapi.json`.
+
 ## Temporary shares from a server
 `teitunnel-cli share 8080` prints a random `trycloudflare.com` address for as long as the
 command runs; `--on demo.example.com` uses your own domain instead.

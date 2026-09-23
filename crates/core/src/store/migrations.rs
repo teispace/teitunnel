@@ -128,6 +128,17 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
+    // 10: sign-in for the web dashboard on servers (hashes only, never the secret)
+    M::up(
+        "CREATE TABLE web_credentials (
+            id         INTEGER PRIMARY KEY,
+            kind       TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            hash       TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX web_credentials_password ON web_credentials (kind) WHERE kind = 'password';",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
