@@ -1,0 +1,119 @@
+---
+title: Servers and containers
+description: Run Teitunnel's routes on a VPS, a cloud VM (AWS, Azure, GCP) or in Docker, without the app.
+---
+
+The app is for your computer. On a server, `teitunnel-cli` does the same job from the
+terminal: it adds routes through the same reviewed plans, and runs the connectors itself
+or as a system service.
+
+## The API token
+A server usually has no keychain, so Teitunnel doesn't store the token there. Give it to
+each command instead:
+
+```sh
+export CLOUDFLARE_API_TOKEN=…            # or
+export CLOUDFLARE_API_TOKEN_FILE=/run/secrets/cloudflare_api_token
+```
+
+The token is checked, used for that command and never written to disk. Create it in the
+Cloudflare dashboard with **Cloudflare Tunnel · Edit**, **DNS · Edit** and **Zone · Read**
+(add the two **Access** permissions if routes should require a login). On a machine that
+does have a keychain, `teitunnel-cli setup` stores it there once instead.
+
+## Any Linux server (VPS, EC2, Azure VM, Compute Engine)
+
+```sh
+teitunnel-cli route add app.example.com 3000 --yes   # creates this server's tunnel
+sudo -E teitunnel-cli always-on on                   # a systemd service, started at boot
+teitunnel-cli routes                                 # status
+```
+
+Run as root, `always-on` installs a **system** unit in `/etc/systemd/system`: it starts at
+boot, restarts when it stops, and runs sandboxed (no new privileges, a read-only system,
+writing only its log). As a normal user it installs a user unit instead, which stops at
+logout unless lingering is on (`loginctl enable-linger`). `always-on off` removes it;
+`always-on status` shows it.
+
+Nothing about the cloud provider matters: the connector only makes outbound connections to
+Cloudflare, so no inbound port, load balancer or security-group rule is needed. Keep the
+origin (your app) listening on `localhost`.
+
+Without systemd, run `teitunnel-cli up` under the supervisor you have (runit, s6,
+OpenRC, a `@reboot` job): it runs every tunnel of the machine in the foreground and stops
+them on `SIGTERM`.
+
+## Docker
+The image has the CLI and Cloudflare's own `cloudflared`, runs as a non-root user, keeps
+its state in `/data`, and runs `up` by default:
+
+```sh
+docker volume create teitunnel
+docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
+  ghcr.io/teispace/teitunnel route add app.example.com http://web:80 --yes
+docker run -d --name teitunnel --restart unless-stopped \
+  -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app ghcr.io/teispace/teitunnel
+```
+
+Routes point at other containers by name (`http://web:80`) when they share a network.
+The container's health check is `teitunnel-cli routes --check`, which fails unless every
+route is live.
+
+### Docker Compose
+
+```yaml
+services:
+  teitunnel:
+    image: ghcr.io/teispace/teitunnel:latest
+    environment:
+      CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
+    secrets: [cloudflare_api_token]
+    volumes: [teitunnel:/data]
+    restart: unless-stopped
+  web:
+    image: nginx:alpine
+
+secrets:
+  cloudflare_api_token:
+    file: ./cloudflare_api_token
+volumes:
+  teitunnel:
+```
+
+```sh
+docker compose up -d
+docker compose run --rm teitunnel route add app.example.com http://web:80 --yes
+docker compose restart teitunnel
+```
+
+### Kubernetes
+Run one replica with the token in a Secret and `/data` on a small volume:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: teitunnel }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: teitunnel } }
+  template:
+    metadata: { labels: { app: teitunnel } }
+    spec:
+      containers:
+        - name: teitunnel
+          image: ghcr.io/teispace/teitunnel:latest
+          env:
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom: { secretKeyRef: { name: cloudflare, key: api-token } }
+          volumeMounts: [{ name: data, mountPath: /data }]
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: teitunnel }
+```
+
+Route to Services by their cluster name, e.g.
+`kubectl exec deploy/teitunnel -- teitunnel-cli route add app.example.com http://web.default.svc:80 --yes`.
+
+## Temporary shares from a server
+`teitunnel-cli share 8080` prints a random `trycloudflare.com` address for as long as the
+command runs; `--on demo.example.com` uses your own domain instead.

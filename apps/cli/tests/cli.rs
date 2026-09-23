@@ -19,7 +19,7 @@ fn says_what_to_do_before_the_app_is_set_up() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("hasn't been set up on this Mac yet"),
+        stderr.contains("hasn't been set up on this machine yet"),
         "{stderr}"
     );
     assert!(output.stdout.is_empty());

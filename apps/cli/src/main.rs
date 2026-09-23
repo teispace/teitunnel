@@ -1,7 +1,8 @@
 //! `teitunnel-cli`: Teitunnel's routes from the terminal. It uses the app's accounts,
-//! keychain and database, and makes every change through the same plan → apply engine,
-//! showing the plan before applying it. It never runs connectors: the app, or an
-//! Always-on service, serves the routes.
+//! keychain and database (or, on a server, an API token from the environment), and makes
+//! every change through the same plan → apply engine, showing the plan before applying
+//! it. Connectors run in the app, as Always-on services, or in `teitunnel-cli up`
+//! (servers and containers); `share` runs its own for the command's lifetime.
 
 /// Writes a line to stdout; a write error (e.g. a closed pipe) ends the command.
 macro_rules! out {
@@ -15,6 +16,7 @@ mod context;
 mod doctor;
 mod probe;
 mod share;
+mod up;
 
 use std::{
     io::{self, BufRead, IsTerminal, Write},
@@ -25,7 +27,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
     domain::Hostname,
-    engine::{AccessRule, Approval, Change, Edge, Outcome, Plan, RouteInput, StepState, Warning},
+    engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, StepState, Warning},
     export::{ExportFormat, render},
 };
 
@@ -48,13 +50,34 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Connect a Cloudflare account with an API token (stored in the OS keychain).
+    ///
+    /// On a server or in a container without a keychain, don't store it: set
+    /// `CLOUDFLARE_API_TOKEN` (or `CLOUDFLARE_API_TOKEN_FILE`) for each command instead.
+    /// The token needs Cloudflare Tunnel, DNS and Zone permissions; create one from the
+    /// template at https://dash.cloudflare.com/profile/api-tokens.
+    Setup,
+    /// Run this machine's tunnels in the foreground until stopped (servers, containers).
+    Up,
+    /// Keep this machine's tunnels running as an OS service, even after a restart.
+    AlwaysOn {
+        /// `on`, `off` or `status`.
+        #[arg(value_enum)]
+        action: AlwaysOnAction,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Only this tunnel (by name); default: all of the account's.
+        #[arg(long)]
+        tunnel: Option<String>,
+    },
     /// List connected Cloudflare accounts.
     Accounts {
         /// Print JSON.
         #[arg(long)]
         json: bool,
     },
-    /// List this Mac's routes and their status.
+    /// List this machine's routes and their status.
     Routes {
         /// Account name or id (needed when several are connected).
         #[arg(long, short)]
@@ -62,11 +85,15 @@ enum Command {
         /// Print JSON.
         #[arg(long)]
         json: bool,
+        /// Exit with 1 unless every route is live (a health check for containers and
+        /// monitoring). Checks every account when none is named.
+        #[arg(long)]
+        check: bool,
     },
     /// Add, or remove, a route.
     #[command(subcommand)]
     Route(RouteCommand),
-    /// List the private networks this Mac shares with WARP clients.
+    /// List the private networks this machine shares with WARP clients.
     Networks {
         /// Account name or id.
         #[arg(long, short)]
@@ -138,7 +165,7 @@ enum Command {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
-    /// Print this Mac's tunnel and routes as config.yml, Docker Compose or Terraform.
+    /// Print this machine's tunnel and routes as config.yml, Docker Compose or Terraform.
     Export {
         /// What to export as.
         #[arg(value_enum)]
@@ -173,7 +200,7 @@ enum TunnelCommand {
 
 #[derive(Debug, Subcommand)]
 enum RouteCommand {
-    /// Route a hostname to a service on this Mac, e.g. `app.example.com 3000`.
+    /// Route a hostname to a service on this machine, e.g. `app.example.com 3000`.
     Add {
         /// Public hostname on one of the account's domains.
         hostname: String,
@@ -203,14 +230,14 @@ enum RouteCommand {
 
 #[derive(Debug, Subcommand)]
 enum NetworkCommand {
-    /// Let WARP clients reach a range through this Mac, e.g. `192.168.1.0/24`.
+    /// Let WARP clients reach a range through this machine, e.g. `192.168.1.0/24`.
     Add {
         /// An IP address or CIDR range.
         network: String,
         #[command(flatten)]
         apply: ApplyArgs,
     },
-    /// Stop routing a range through this Mac.
+    /// Stop routing a range through this machine.
     Remove {
         /// The range.
         network: String,
@@ -235,6 +262,13 @@ struct ApplyArgs {
     /// or the default tunnel for a new one.
     #[arg(long)]
     tunnel: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AlwaysOnAction {
+    On,
+    Off,
+    Status,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -276,6 +310,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: None,
             ..
         } => return share::run(&origin, stop_after, !no_qr).await,
+        Command::Setup => return setup().await,
         Command::Completions { shell } => {
             clap_complete::generate(
                 shell,
@@ -287,7 +322,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         }
         _ => {}
     }
-    let app = App::open()?;
+    let app = App::open().await?;
     match command {
         Command::Share {
             origin,
@@ -307,10 +342,30 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             )
             .await
         }
-        Command::Share { .. } | Command::Completions { .. } => unreachable!("handled above"),
+        Command::Share { .. } | Command::Completions { .. } | Command::Setup => {
+            unreachable!("handled above")
+        }
+        Command::Up => up::up(&app).await,
+        Command::AlwaysOn {
+            action,
+            account,
+            tunnel,
+        } => {
+            let action = match action {
+                AlwaysOnAction::On => up::AlwaysOn::On,
+                AlwaysOnAction::Off => up::AlwaysOn::Off,
+                AlwaysOnAction::Status => up::AlwaysOn::Status,
+            };
+            up::always_on(&app, action, account.as_deref(), tunnel.as_deref()).await
+        }
         Command::Doctor { fix, yes, json } => doctor::run(&app, json, fix, yes).await,
         Command::Accounts { json } => accounts(&app, json).await,
-        Command::Routes { account, json } => routes(&app, account.as_deref(), json).await,
+        Command::Routes {
+            account,
+            json,
+            check: true,
+        } => check_routes(&app, account.as_deref(), json).await,
+        Command::Routes { account, json, .. } => routes(&app, account.as_deref(), json).await,
         Command::Route(RouteCommand::Add {
             hostname,
             origin,
@@ -505,6 +560,45 @@ async fn tunnel_for(
     }
 }
 
+/// Connects the accounts an API token reaches. With a token in the environment it only
+/// checks it (nothing is stored); otherwise it reads one from the terminal and stores it
+/// in the OS keychain.
+async fn setup() -> Result<ExitCode, String> {
+    if std::env::var_os("CLOUDFLARE_API_TOKEN").is_some()
+        || std::env::var_os("CLOUDFLARE_API_TOKEN_FILE").is_some()
+        || std::env::var_os("TEITUNNEL_API_TOKEN").is_some()
+        || std::env::var_os("TEITUNNEL_API_TOKEN_FILE").is_some()
+    {
+        let app = App::open().await?;
+        let accounts = app.accounts.list().await.map_err(|e| e.to_string())?;
+        out!("The token from the environment works. It isn't stored; set it for each command.")?;
+        for account in &accounts {
+            out!("  {}\t{}", account.name, account.id)?;
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+    out!(
+        "Create a token at https://dash.cloudflare.com/profile/api-tokens with Cloudflare Tunnel · Edit, DNS · Edit and Zone · Read, then paste it here."
+    )?;
+    write!(io::stdout().lock(), "API token: ").map_err(|e| e.to_string())?;
+    io::stdout().flush().map_err(|e| e.to_string())?;
+    let mut token = String::new();
+    io::stdin()
+        .lock()
+        .read_line(&mut token)
+        .map_err(|e| e.to_string())?;
+    let token = token.trim().to_owned();
+    if token.is_empty() {
+        return Err("No token given.".into());
+    }
+    let added = context::connect(teitunnel_core::Secret::new(token)).await?;
+    out!("Connected:")?;
+    for account in &added {
+        out!("  {}\t{}", account.name, account.id)?;
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 async fn accounts(app: &App, json: bool) -> Result<ExitCode, String> {
     let accounts = app.accounts.list().await.map_err(|e| e.to_string())?;
     if json {
@@ -558,7 +652,7 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
         return Ok(ExitCode::SUCCESS);
     }
     if overview.routes.is_empty() {
-        out!("No routes on this Mac in {}.", account.name)?;
+        out!("No routes on this machine in {}.", account.name)?;
     }
     // With several tunnels, say which one carries each route.
     let tunnel_name = |id: Option<&str>| {
@@ -593,6 +687,51 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
     Ok(ExitCode::SUCCESS)
 }
 
+/// `routes --check`: 0 when every route of the named account (or of every account) is
+/// live, 1 otherwise; prints the ones that aren't.
+async fn check_routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    let accounts = match account {
+        Some(_) => vec![app.account(account).await?],
+        None => app.accounts.list().await.map_err(|e| e.to_string())?,
+    };
+    let mut down = Vec::new();
+    for account in &accounts {
+        let api = app
+            .accounts
+            .client(&account.id)
+            .await
+            .map_err(|e| e.to_string())?;
+        let connectors = app.connectors(account).await;
+        let overview = app
+            .engine
+            .overview(&api, &connectors, app.context(account))
+            .await
+            .map_err(|e| e.to_string())?;
+        down.extend(
+            overview
+                .statuses()
+                .into_iter()
+                .filter(|(_, health)| !health.is_live()),
+        );
+    }
+    if json {
+        let list: Vec<_> = down
+            .iter()
+            .map(|(hostname, health)| serde_json::json!({ "hostname": hostname, "status": health }))
+            .collect();
+        out!("{}", serde_json::Value::Array(list))?;
+    } else {
+        for (hostname, health) in &down {
+            out!("{hostname}\t{}", health.text().english())?;
+        }
+    }
+    Ok(if down.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}
+
 async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
     let account = app.account(account).await?;
     let api = app
@@ -616,7 +755,7 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
         )?;
     } else if networks.is_empty() {
         out!(
-            "This Mac doesn't share any private network in {}.",
+            "This machine doesn't share any private network in {}.",
             account.name
         )?;
     } else {
@@ -675,10 +814,10 @@ fn warning_text(warning: &Warning) -> String {
             "No routes will be left. The tunnel stays, so adding a route later is quick.".into()
         }
         Warning::RemoteOrigin { origin } => {
-            format!("{origin} isn't on this Mac. It must be reachable from here.")
+            format!("{origin} isn't on this machine. It must be reachable from here.")
         }
         Warning::PublicNetwork { network } => format!(
-            "{network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet."
+            "{network} isn't a private range. WARP clients would reach those addresses through this machine instead of the internet."
         ),
         Warning::OverlapsNetwork {
             network,
@@ -825,7 +964,7 @@ async fn check(
             api,
             app.context(account),
             &host,
-            Edge::Cloudflare,
+            context::edge(),
             VERIFY_PATIENCE,
         )
         .await
@@ -868,7 +1007,7 @@ async fn export(
         .export_input(&api, ctx, None)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("This Mac has no routes in {} yet.", account.name))?;
+        .ok_or_else(|| format!("This machine has no routes in {} yet.", account.name))?;
     let file = render(&input, format.into());
     write!(io::stdout().lock(), "{}", file.contents).map_err(|e| e.to_string())?;
     Ok(ExitCode::SUCCESS)

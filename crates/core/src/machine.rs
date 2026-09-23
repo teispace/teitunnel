@@ -407,6 +407,11 @@ impl MachineTunnels {
         account: &str,
         tunnel: &crate::engine::LocalTunnel,
     ) -> Result<(), Text> {
+        // Without a service manager (`teitunnel-cli up`), an Always-on tunnel is its
+        // service's to run: starting it here too would run it twice.
+        if tunnel.always_on && self.manager.is_none() {
+            return Ok(());
+        }
         if tunnel.always_on && self.manager.is_some() {
             let port = tunnel.metrics_port.unwrap_or(0);
             let label = launchd::label(&tunnel.tunnel_id);
@@ -578,6 +583,40 @@ impl MachineTunnels {
             .set_always_on(id, always_on)
             .await
             .map_err(|e| e.text())
+    }
+
+    /// Turns Always-on off for one of `account`'s tunnels without starting a connector in
+    /// this process: the service is removed and its routes stop until the app (or
+    /// `teitunnel-cli up`) runs it. For the command line.
+    ///
+    /// # Errors
+    /// A message.
+    pub async fn disable_service(&self, account: &str, tunnel: Option<&str>) -> Result<(), Text> {
+        let tunnel = self
+            .local
+            .tunnel(account, tunnel)
+            .await
+            .map_err(|e| e.text())?
+            .ok_or_else(msg::machine::no_tunnel)?;
+        let manager = self
+            .manager
+            .as_ref()
+            .ok_or_else(msg::machine::always_on_unavailable)?;
+        manager
+            .uninstall(&launchd::label(&tunnel.tunnel_id))
+            .await
+            .map_err(msg::machine::service)?;
+        self.remove_token_file(&tunnel.tunnel_id);
+        self.local
+            .set_always_on(&tunnel.tunnel_id, false)
+            .await
+            .map_err(|e| e.text())
+    }
+
+    /// The state of a tunnel's service (`None`: no service manager here).
+    pub async fn service_state(&self, tunnel_id: &str) -> Option<crate::service::AgentState> {
+        let manager = self.manager.as_ref()?;
+        Some(manager.state(&launchd::label(tunnel_id)).await)
     }
 
     /// Moves `account`'s connectors onto the current cloudflared binary (after an update),

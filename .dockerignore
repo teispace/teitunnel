@@ -1,0 +1,8 @@
+target
+node_modules
+**/node_modules
+apps/desktop/dist
+apps/site/dist
+apps/site/.astro
+.git
+*.log

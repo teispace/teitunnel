@@ -23,14 +23,14 @@
 - [ ] Random-address (trycloudflare) shares started in a terminal show only there; listing them in the app needs a shared registry of their URLs.
 
 ### M10-04 · Headless server mode
-- [ ] `teitunnel-cli setup`: interactive (or flags/env) account connect with a token, stored in the OS keychain, or in a root-only file on servers without one (`TEITUNNEL_TOKEN_FILE`).
-- [ ] Connectors without the app: `teitunnel-cli up` runs the machine's tunnels in the foreground (for containers/systemd), `always-on on|off|status` installs services.
-- [ ] System-level services for servers: systemd system unit when root, cron `@reboot` fallback without systemd.
-- [ ] Guides: any VPS, AWS, Azure, GCP.
+- [x] `teitunnel-cli setup` stores a token in the OS keychain; without a keychain the token comes from `CLOUDFLARE_API_TOKEN(_FILE)` per command and is never stored (D-069).
+- [x] Connectors without the app: `teitunnel-cli up` runs the machine's tunnels in the foreground (for containers/supervisors), `always-on on|off|status` installs services; `routes --check` for health checks.
+- [x] System-level services for servers: sandboxed systemd system units when root. No cron fallback: `up` under any supervisor instead (cron runs a shell).
+- [x] Guides: any VPS, AWS, Azure, GCP, systemd, Docker, Compose, Kubernetes (site: Servers and containers).
 
 ### M10-05 · Container
-- [ ] Docker image (`ghcr.io/teispace/teitunnel`: CLI + verified cloudflared, non-root, multi-arch) running `teitunnel-cli up`.
-- [ ] Compose recipe: route to containers by service name; healthcheck; docs.
+- [x] Docker image (`docker/Dockerfile`: CLI + Cloudflare's cloudflared image, distroless non-root, `/data` volume, `up`, health check), built and smoke-tested in CI. Publishing to `ghcr.io` (multi-arch) comes with the release work.
+- [x] Compose recipe (`docker/compose.yaml`): route to containers by service name; healthcheck; docs.
 
 ### M10-06 · Browser UI and local API for headless machines
 - [ ] `teitunnel-cli serve`: the same React UI in a browser over an HTTP transport (the IPC commands behind one typed adapter), loopback-only by default.

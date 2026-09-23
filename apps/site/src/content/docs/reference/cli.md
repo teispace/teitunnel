@@ -27,6 +27,10 @@ teitunnel-cli shares                        # shares on your domains, from anywh
 teitunnel-cli shares --stop demo.example.com
 teitunnel-cli doctor                        # check for problems; exits 1 on an error
 teitunnel-cli doctor --fix                  # apply the safe fixes
+teitunnel-cli setup                         # store an API token in the keychain
+teitunnel-cli up                            # run this machine's tunnels (servers, Docker)
+teitunnel-cli always-on on                  # as a service (a system unit as root)
+teitunnel-cli routes --check                # exit 1 unless every route is live
 ```
 
 | Option | Meaning |
@@ -41,8 +45,11 @@ teitunnel-cli doctor --fix                  # apply the safe fixes
 | `--no-qr` | `share`: don't print a QR code. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
 
-The CLI doesn't run your routes' connectors. Routes are served by the app while it's
-open, or all the time with [Always-on](/teitunnel/concepts/run-modes/). After adding a
+Routes are served by the app while it's open, all the time with
+[Always-on](/teitunnel/concepts/run-modes/) (`always-on on` from the CLI), or by
+`teitunnel-cli up` on a server or in a container. Without the app, give the API token in
+`CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_TOKEN_FILE`; it's never stored
+([Servers and containers](/guides/servers/)). After adding a
 route, the CLI checks it through Cloudflare and exits with status 1 if it doesn't work yet.
 
 `share` is the exception: it runs a Quick Share for exactly as long as the command. Ctrl-C,

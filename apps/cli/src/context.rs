@@ -3,10 +3,13 @@
 use std::{path::PathBuf, sync::Arc};
 
 use teitunnel_core::{
+    Secret,
     accounts::{Account, Accounts},
     binary::{BinaryManager, Locator},
     engine::{Context, Engine, Local},
-    secrets::{KeychainStore, Secrets},
+    machine::{MachineTunnels, ServicePaths},
+    runtime::{PidRegistry, PortAllocator, Supervisor, TUNNEL_PORTS},
+    secrets::{KeychainStore, MemoryStore, Secrets},
     store::Store,
 };
 
@@ -25,6 +28,65 @@ pub(crate) fn data_dir() -> Result<PathBuf, String> {
         .ok_or_else(|| "Couldn't find the data folder.".to_owned())
 }
 
+/// An API token from the environment (`CLOUDFLARE_API_TOKEN` or `TEITUNNEL_API_TOKEN`,
+/// or a `…_FILE` variant naming a file that holds it, as Docker secrets do), for servers
+/// and containers without a keychain. It's used for this command only, never stored.
+fn env_token() -> Result<Option<Secret<String>>, String> {
+    for name in ["TEITUNNEL_API_TOKEN", "CLOUDFLARE_API_TOKEN"] {
+        if let Ok(token) = std::env::var(name)
+            && !token.trim().is_empty()
+        {
+            return Ok(Some(Secret::new(token.trim().to_owned())));
+        }
+        if let Some(path) = std::env::var_os(format!("{name}_FILE")) {
+            let token = std::fs::read_to_string(&path).map_err(|e| {
+                format!(
+                    "Couldn't read {name}_FILE ({}): {e}",
+                    PathBuf::from(&path).display()
+                )
+            })?;
+            return Ok(Some(Secret::new(token.trim().to_owned())));
+        }
+    }
+    Ok(None)
+}
+
+/// Cloudflare's API, or (debug builds only, for tests) `TEITUNNEL_API_BASE`. A release
+/// build never lets the environment redirect where the API token is sent.
+fn accounts(store: Store, secrets: Secrets) -> Accounts {
+    if cfg!(debug_assertions)
+        && let Ok(base) = std::env::var("TEITUNNEL_API_BASE")
+    {
+        return Accounts::with_api_base(store, secrets, &base, None);
+    }
+    Accounts::new(store, secrets)
+}
+
+/// Where route checks go: Cloudflare's edge, or (debug builds only, for tests)
+/// `TEITUNNEL_EDGE`.
+pub(crate) fn edge() -> teitunnel_core::engine::Edge {
+    if cfg!(debug_assertions)
+        && let Some(addr) = std::env::var("TEITUNNEL_EDGE")
+            .ok()
+            .and_then(|a| a.parse().ok())
+    {
+        return teitunnel_core::engine::Edge::Test(addr);
+    }
+    teitunnel_core::engine::Edge::Cloudflare
+}
+
+/// Connects every account `token` reaches and stores it in the OS keychain (creating the
+/// database if needed): `teitunnel-cli setup` on a machine without the app.
+pub(crate) async fn connect(token: Secret<String>) -> Result<Vec<Account>, String> {
+    let dir = data_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let store = Store::open(&dir.join("teitunnel.db")).map_err(|e| e.to_string())?;
+    let accounts = accounts(store, Arc::new(KeychainStore));
+    accounts.add_token(token).await.map_err(|e| {
+        format!("{e}. Without a keychain (a server or container), set CLOUDFLARE_API_TOKEN for each command instead.")
+    })
+}
+
 /// Shared state for one command.
 #[derive(Debug)]
 pub(crate) struct App {
@@ -33,6 +95,9 @@ pub(crate) struct App {
     pub(crate) machine_name: String,
     /// The cloudflared the app uses (its managed copy, or one on the system).
     pub(crate) binary: BinaryManager,
+    /// The keychain, or (with a token from the environment) memory only.
+    secrets: Secrets,
+    dir: PathBuf,
     store: Store,
 }
 
@@ -43,24 +108,75 @@ pub(crate) fn binary(dir: &std::path::Path) -> BinaryManager {
 }
 
 impl App {
-    /// Opens the app's database and keychain.
-    pub(crate) fn open() -> Result<Self, String> {
+    /// Opens the app's database and keychain. With an API token in the environment it
+    /// works without the app (servers, containers): the database is created if needed,
+    /// and the accounts the token reaches are used with the token kept in memory.
+    pub(crate) async fn open() -> Result<Self, String> {
         let dir = data_dir()?;
-        if !dir.join("teitunnel.db").exists() {
+        let token = env_token()?;
+        if token.is_none() && !dir.join("teitunnel.db").exists() {
             return Err(
-                "Teitunnel hasn't been set up on this Mac yet. Open the app and connect an account first."
+                "Teitunnel hasn't been set up on this machine yet. Open the app and connect an account, or set CLOUDFLARE_API_TOKEN (see `teitunnel-cli setup --help`)."
                     .to_owned(),
             );
         }
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let store = Store::open(&dir.join("teitunnel.db")).map_err(|e| e.to_string())?;
-        let secrets: Secrets = Arc::new(KeychainStore);
+        let secrets: Secrets = if token.is_some() {
+            Arc::new(MemoryStore::default())
+        } else {
+            Arc::new(KeychainStore)
+        };
+        let accounts = accounts(store.clone(), Arc::clone(&secrets));
+        if let Some(token) = token {
+            accounts
+                .add_token(token)
+                .await
+                .map_err(|e| format!("The API token from the environment didn't work: {e}"))?;
+        }
         Ok(Self {
-            accounts: Accounts::new(store.clone(), secrets),
+            accounts,
             engine: Engine::new(Local::new(store.clone())),
             machine_name: teitunnel_core::machine::machine_name(),
             binary: binary(&dir),
+            secrets,
+            dir,
             store,
         })
+    }
+
+    /// This machine's connectors, run by this process (`teitunnel-cli up`), with the
+    /// system's service manager for Always-on (`services`; systemd's system instance when
+    /// running as root, for servers). The supervisor is returned too, to stop this
+    /// process's connectors when it ends.
+    pub(crate) async fn machine(&self, services: bool) -> (MachineTunnels, Supervisor) {
+        let runs = self.dir.join("run-cli");
+        PidRegistry::reap_abandoned(&runs).await;
+        let supervisor = Supervisor::new(
+            PidRegistry::for_this_process(&runs),
+            tokio::runtime::Handle::current(),
+        );
+        let machine = MachineTunnels::new(
+            supervisor.clone(),
+            self.binary.clone(),
+            PortAllocator::new(TUNNEL_PORTS).spread(std::process::id()),
+            Arc::clone(&self.secrets),
+            self.engine.local().clone(),
+        );
+        let manager = services
+            .then(|| teitunnel_core::service::for_this_platform(&self.dir, true))
+            .flatten();
+        let machine = match manager {
+            Some(manager) => machine.with_services(
+                manager,
+                ServicePaths {
+                    tokens: self.dir.join("tokens"),
+                    logs: self.dir.join("logs").join("connectors"),
+                },
+            ),
+            None => machine,
+        };
+        (machine, supervisor)
     }
 
     /// The account named (by id or name) or, with none named, the only one.

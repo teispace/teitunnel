@@ -1,0 +1,29 @@
+# Teitunnel next to your services: routes point at them by service name.
+#
+#   printf '%s' "$TOKEN" > cloudflare_api_token     # a token with Tunnel, DNS, Zone
+#   docker compose up -d
+#   docker compose run --rm teitunnel route add app.example.com http://web:80 --yes
+#   docker compose restart teitunnel                  # pick up the new tunnel
+services:
+  teitunnel:
+    image: ghcr.io/teispace/teitunnel:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
+    secrets:
+      - cloudflare_api_token
+    volumes:
+      - teitunnel:/data
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+
+secrets:
+  cloudflare_api_token:
+    file: ./cloudflare_api_token
+
+volumes:
+  teitunnel:

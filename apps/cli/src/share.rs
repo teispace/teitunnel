@@ -59,7 +59,7 @@ fn store(dir: &Path) -> Result<Store, String> {
 
 /// Resolves when the terminal asks the command to end: Ctrl-C, or (Unix) the terminal
 /// closing or a `kill`.
-async fn interrupted() {
+pub(crate) async fn interrupted() {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{SignalKind, signal};

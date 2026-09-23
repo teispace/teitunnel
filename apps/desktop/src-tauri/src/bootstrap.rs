@@ -119,24 +119,11 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
 fn service_manager(
     data_dir: &std::path::Path,
 ) -> Option<Arc<dyn teitunnel_core::service::ServiceManager>> {
-    use teitunnel_core::service::{
-        Launchd, ProcessServices, ServiceManager, Systemd, TaskScheduler,
-    };
-    fn shared(manager: impl ServiceManager + 'static) -> Arc<dyn ServiceManager> {
-        Arc::new(manager)
-    }
     if cfg!(feature = "e2e") {
-        return Some(shared(ProcessServices::default()));
+        return Some(Arc::new(teitunnel_core::service::ProcessServices::default()));
     }
-    if cfg!(target_os = "macos") {
-        Launchd::for_current_user().map(shared)
-    } else if cfg!(target_os = "linux") {
-        Systemd::for_current_user().map(shared)
-    } else if cfg!(windows) {
-        TaskScheduler::for_current_user(data_dir.join("tasks")).map(shared)
-    } else {
-        None
-    }
+    // The app runs in a user's session: their own services, never the system's.
+    teitunnel_core::service::for_this_platform(data_dir, false)
 }
 
 /// The keychain, the Cloudflare API and the edge the verifier probes.

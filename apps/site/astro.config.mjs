@@ -45,6 +45,7 @@ export default defineConfig({
             "guides/require-login",
             "guides/private-networks",
             "guides/several-tunnels",
+            "guides/servers",
             "guides/observability",
             "guides/menu-bar",
           ],

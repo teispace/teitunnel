@@ -9,10 +9,8 @@ use std::{
     pin::Pin,
 };
 
-use cloudflared::{
-    launchd,
-    service::{AgentState, ServiceSpec},
-};
+pub use cloudflared::service::AgentState;
+use cloudflared::{launchd, service::ServiceSpec};
 
 /// A boxed future (the port is object-safe so the app can pick a backend at runtime).
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -154,6 +152,7 @@ async fn remove_if_present(path: &Path) -> Result<(), String> {
 #[derive(Debug, Clone)]
 pub struct Systemd {
     units_dir: PathBuf,
+    scope: cloudflared::systemd::Scope,
 }
 
 impl Systemd {
@@ -164,8 +163,36 @@ impl Systemd {
         let home = PathBuf::from(std::env::var_os("HOME")?);
         Some(Self {
             units_dir: cloudflared::systemd::units_dir(&home),
+            scope: cloudflared::systemd::Scope::User,
         })
     }
+
+    /// The system manager (units start at boot), or `None` unless this process runs as
+    /// root on a machine booted with systemd. For servers.
+    pub fn for_system() -> Option<Self> {
+        (is_root() && std::path::Path::new("/run/systemd/system").is_dir()).then(|| Self {
+            units_dir: PathBuf::from(cloudflared::systemd::SYSTEM_UNITS_DIR),
+            scope: cloudflared::systemd::Scope::System,
+        })
+    }
+
+    /// Whether units start at boot (system) rather than with the user's session.
+    pub fn is_system(&self) -> bool {
+        self.scope == cloudflared::systemd::Scope::System
+    }
+}
+
+/// Whether this process's effective user is root (Linux: from `/proc/self/status`).
+pub fn is_root() -> bool {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| {
+            status
+                .lines()
+                .find_map(|line| line.strip_prefix("Uid:"))
+                .and_then(|ids| ids.split_whitespace().nth(1).map(|euid| euid == "0"))
+        })
+        .unwrap_or(false)
 }
 
 impl ServiceManager for Systemd {
@@ -181,18 +208,18 @@ impl ServiceManager for Systemd {
                     .map_err(|e| e.to_string())?;
             }
             let path = self.units_dir.join(agent.unit_name());
-            tokio::fs::write(&path, agent.unit())
+            tokio::fs::write(&path, agent.unit_for(self.scope))
                 .await
                 .map_err(|e| format!("Couldn't write {}: {e}", path.display()))?;
             check(
-                systemd::daemon_reload(),
+                systemd::daemon_reload(self.scope),
                 "systemd couldn't reload its units",
             )
             .await?;
             // `enable --now` restarts nothing that's already running: restart explicitly.
-            let _ = run(systemd::disable_now(&agent.unit_name())).await;
+            let _ = run(systemd::disable_now(self.scope, &agent.unit_name())).await;
             check(
-                systemd::enable_now(&agent.unit_name()),
+                systemd::enable_now(self.scope, &agent.unit_name()),
                 "systemd couldn't start the connector",
             )
             .await
@@ -203,16 +230,21 @@ impl ServiceManager for Systemd {
         Box::pin(async move {
             use cloudflared::systemd;
             let unit = format!("{label}.service");
-            let _ = run(systemd::disable_now(&unit)).await;
+            let _ = run(systemd::disable_now(self.scope, &unit)).await;
             remove_if_present(&self.units_dir.join(&unit)).await?;
-            let _ = run(systemd::daemon_reload()).await;
+            let _ = run(systemd::daemon_reload(self.scope)).await;
             Ok(())
         })
     }
 
     fn state<'a>(&'a self, label: &'a str) -> BoxFuture<'a, AgentState> {
         Box::pin(async move {
-            match run(cloudflared::systemd::show(&format!("{label}.service"))).await {
+            match run(cloudflared::systemd::show(
+                self.scope,
+                &format!("{label}.service"),
+            ))
+            .await
+            {
                 Ok((0, text)) => cloudflared::systemd::parse_show(&text),
                 _ => AgentState::default(),
             }
@@ -451,5 +483,30 @@ mod tests {
         // Rewriting replaces the file (a rotated token).
         write_token_file(&tokens, "t1", "rotated").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "rotated");
+    }
+}
+
+/// The service manager for Always-on connectors here: launchd (macOS), Task Scheduler
+/// (Windows), or systemd, whose system instance is preferred with `prefer_system` when
+/// running as root (a server), else the user's. `None` where none is usable.
+pub fn for_this_platform(
+    data_dir: &std::path::Path,
+    prefer_system: bool,
+) -> Option<std::sync::Arc<dyn ServiceManager>> {
+    fn shared(manager: impl ServiceManager + 'static) -> std::sync::Arc<dyn ServiceManager> {
+        std::sync::Arc::new(manager)
+    }
+    if cfg!(target_os = "macos") {
+        Launchd::for_current_user().map(shared)
+    } else if cfg!(target_os = "linux") {
+        prefer_system
+            .then(Systemd::for_system)
+            .flatten()
+            .or_else(Systemd::for_current_user)
+            .map(shared)
+    } else if cfg!(windows) {
+        TaskScheduler::for_current_user(data_dir.join("tasks")).map(shared)
+    } else {
+        None
     }
 }
