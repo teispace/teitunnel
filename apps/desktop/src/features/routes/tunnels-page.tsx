@@ -20,8 +20,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Switch } from "@/components/ui/switch";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
-import { type MessageKey, t } from "@/lib/i18n";
-import type { ConnectorView, ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
+import { IssueCallout, tunnelIssues } from "@/features/doctor";
+import { useIssues } from "@/features/doctor/queries";
+import { type MessageKey, t, translate } from "@/lib/i18n";
+import type { ConnectorView, ForeignConnector, Issue, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { NetworksSection } from "./components/networks-section";
 import { RemoteLogsSheet } from "./components/remote-logs-sheet";
@@ -142,11 +144,19 @@ const cloudStatus: Record<string, { dot: Status; label: MessageKey }> = {
   inactive: { dot: "idle", label: "tunnels.status.inactive" },
 };
 
-function statusOf(tunnel: TunnelSummary) {
+function statusOf(tunnel: TunnelSummary, issues: readonly Issue[] = []) {
   const status = cloudStatus[tunnel.status];
-  return status
+  const base = status
     ? { dot: status.dot, label: t(status.label) }
     : { dot: "idle" as const, label: tunnel.status };
+  // A Doctor issue about this machine's connector is worse news than Cloudflare's view.
+  const [issue] = issues;
+  if (issue && (base.dot === "healthy" || base.dot === "idle" || issue.severity === "error"))
+    return {
+      dot: issue.severity === "error" ? ("error" as const) : ("warning" as const),
+      label: translate(issue.title),
+    };
+  return base;
 }
 
 function formatDate(value: string) {
@@ -191,12 +201,15 @@ function ConnectorRow({
 
 function TunnelInspector({
   tunnel,
+  issues,
   accountId,
   onDelete,
   onConnectorLogs,
   onSheet,
 }: {
   tunnel: TunnelSummary;
+  /** Doctor issues about this tunnel. */
+  issues: Issue[];
   accountId: string;
   onDelete: () => void;
   onConnectorLogs: (connector: ConnectorView) => void;
@@ -214,8 +227,8 @@ function TunnelInspector({
       title={tunnel.name}
       subtitle={
         <span className="flex items-center gap-1.5">
-          <StatusDot status={statusOf(tunnel).dot} label={statusOf(tunnel).label} />
-          {statusOf(tunnel).label}
+          <StatusDot status={statusOf(tunnel, issues).dot} label={statusOf(tunnel, issues).label} />
+          {statusOf(tunnel, issues).label}
           {tunnel.thisMac ? <Badge>{t("tunnels.thisMac")}</Badge> : null}
         </span>
       }
@@ -241,6 +254,9 @@ function TunnelInspector({
         </>
       }
     >
+      {issues.map((issue) => (
+        <IssueCallout key={issue.id} issue={issue} />
+      ))}
       <InspectorSection title={t("tunnels.details")}>
         <KeyValueGrid
           items={[
@@ -377,6 +393,9 @@ export function TunnelsPage() {
   const [sheet, setSheet] = useState<SheetMode | null>(null);
   const [remote, setRemote] = useState<{ tunnelId: string; connector: ConnectorView } | null>(null);
   const foreign = useForeignConnectors(true);
+  const { issues } = useIssues();
+  const issuesOf = (tunnel: TunnelSummary) =>
+    active ? tunnelIssues(issues, active.id, tunnel) : [];
   const list: Entry[] = [
     ...(tunnels.data ?? []).map((tunnel): Entry => ({ kind: "tunnel", tunnel })),
     ...(foreign.data ?? []).map((process): Entry => ({ kind: "foreign", process })),
@@ -473,8 +492,8 @@ export function TunnelsPage() {
                 subtitle={subtitle(entry.tunnel)}
                 leading={
                   <StatusDot
-                    status={statusOf(entry.tunnel).dot}
-                    label={statusOf(entry.tunnel).label}
+                    status={statusOf(entry.tunnel, issuesOf(entry.tunnel)).dot}
+                    label={statusOf(entry.tunnel, issuesOf(entry.tunnel)).label}
                   />
                 }
               />
@@ -502,6 +521,7 @@ export function TunnelsPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <TunnelInspector
             tunnel={selected.tunnel}
+            issues={issuesOf(selected.tunnel)}
             accountId={active.id}
             onDelete={() => setSheet({ kind: "removeTunnel", tunnelId: selected.tunnel.id })}
             onSheet={setSheet}

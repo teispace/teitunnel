@@ -60,7 +60,7 @@
 ### M4-07 · UI: Doctor
 - [x] Sidebar badge with the issue count (errors only). The Doctor view groups issues by severity then subject. The Inspector shows explanation, evidence (log lines, records), and Fix (with a plan preview). *(Done; log-line evidence comes with M5 logs.)*
 - [x] "Fix all safe issues". *(Applies each fix through its own fresh plan and reports fixed/skipped/failed, instead of one combined preview.)*
-- [ ] Issues also appear inline on the affected route/tunnel rows.
+- [x] Issues also appear inline on the affected route/tunnel rows. *(Route and tunnel rows take the issue's severity and title as their status; their inspectors show each issue with Fix… / Details…, which opens the Doctor on it (`/doctor?issue=<id>`). Matching lives in `features/doctor/match.ts`.)*
 
 ### M4-08 · Cleanup center
 - [x] A Doctor sub-view listing everything removable: owned orphans, stale tunnels, old managed binaries, old logs, Quick Share history. Multi-select, then one combined plan. *(Covered by the Doctor instead of a separate view: owned orphans, the unused tunnel and stale connections are issues with fixes, and Fix Safe Issues applies the owned-only ones in one go. Quick Share history and app logs are bounded already.)*

@@ -18,6 +18,7 @@ import { TunnelsPage } from "./tunnels-page";
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let remote: RemoteLogsView;
 let networks: NetworkView[];
+let tunnelIssue: boolean;
 
 const mac: TunnelSummary = {
   id: "t-mac",
@@ -91,6 +92,7 @@ const server: TunnelSummary = {
 beforeEach(() => {
   calls = [];
   networks = [];
+  tunnelIssue = false;
   remote = {
     state: { state: "streaming" },
     lines: [
@@ -130,6 +132,23 @@ beforeEach(() => {
       }
       case "doctor_run":
         return [
+          ...(tunnelIssue
+            ? [
+                {
+                  id: "tunnel.no_connections:acc:Mac",
+                  check: "tunnel.no_connections",
+                  severity: "error",
+                  accountId: "acc",
+                  subject: "Mac",
+                  label: rawText("Mac"),
+                  title: { key: "core.doctor.noConnections.title", args: {} },
+                  detail: { key: "core.doctor.noConnections.detail", args: {} },
+                  evidence: [],
+                  fixes: [{ type: "startConnector", accountId: "acc" }],
+                  tunnelId: null,
+                },
+              ]
+            : []),
           {
             id: "network.excluded:acc:192.168.1.0/24",
             check: "network.excluded",
@@ -307,5 +326,25 @@ describe("TunnelsPage", () => {
       expect(calls.filter((c) => c.cmd === "tunnels_remote_logs_stop").length).toBe(1),
     );
     await waitFor(() => expect(within(sheet).queryByRole("alert")).toBeNull());
+  });
+
+  it("shows the Doctor's problem with this Mac's tunnel on its row and in the inspector", async () => {
+    tunnelIssue = true;
+    renderPage();
+    const row = await screen.findByRole("option", { name: /Mac/ });
+    await waitFor(() =>
+      expect(
+        within(row).getByRole("img", { name: "This Mac's connector isn't running" }),
+      ).toBeTruthy(),
+    );
+    expect(
+      await screen.findByText("Its routes don't answer until the connector runs."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Fix…" })).toBeTruthy();
+    // Another machine's tunnel isn't affected.
+    fireEvent.mouseDown(screen.getByRole("option", { name: /home-lab/ }));
+    await waitFor(() =>
+      expect(screen.queryByText("Its routes don't answer until the connector runs.")).toBeNull(),
+    );
   });
 });

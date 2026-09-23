@@ -28,6 +28,7 @@ let extra: TunnelView | null;
 let accessEdit: "yes" | "no";
 let accessDenied: boolean;
 let refusal: { key: string; args: Record<string, string>; field?: string } | null;
+let originDown: boolean;
 
 const plan = (change: Change): PlanView => {
   if (refusal) {
@@ -112,6 +113,7 @@ beforeEach(() => {
   accessEdit = "yes";
   accessDenied = false;
   refusal = null;
+  originDown = false;
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
@@ -127,6 +129,24 @@ beforeEach(() => {
           zones,
           networks: [],
         } satisfies RoutesOverview;
+      case "doctor_run":
+        return originDown
+          ? [
+              {
+                id: "origin.not_listening:acc:app.xyz.com",
+                check: "origin.not_listening",
+                severity: "error",
+                accountId: "acc",
+                subject: "app.xyz.com",
+                label: rawText("app.xyz.com"),
+                title: { key: "core.doctor.originNotListening.title", args: { port: "3000" } },
+                detail: { key: "core.doctor.originNotListening.detail", args: {} },
+                evidence: [],
+                fixes: [],
+                tunnelId: null,
+              },
+            ]
+          : [];
       case "routes_preview":
         return plan(payload["change"] as Change);
       case "routes_balance_health":
@@ -581,5 +601,17 @@ describe("RoutesPage", () => {
     );
     fireEvent.click(within(sheet).getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("# terraform\ntunnel: t1\n"));
+  });
+
+  it("explains a Doctor problem with the route in its inspector", async () => {
+    originDown = true;
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Start the app this route sends traffic to; visitors see an error until it runs.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Nothing is listening on port 3000").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Details…" })).toBeTruthy();
   });
 });

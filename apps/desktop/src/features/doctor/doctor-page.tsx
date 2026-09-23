@@ -190,11 +190,11 @@ function IssueInspector({
 }
 
 /** Problems Teitunnel found, worst first, each with a fix or clear guidance. */
-export function DoctorPage() {
+export function DoctorPage({ initialIssue = null }: { initialIssue?: string | null } = {}) {
   const doctor = useIssues();
   const { issues, ignoredCount, ignoredIds } = doctor;
   const setIgnored = useSetIgnored();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialIssue);
   const [sheet, setSheet] = useState<{ mode: SheetMode; accountId: string } | null>(null);
   const selected = issues.find((i) => i.id === selectedId) ?? issues[0] ?? null;
 

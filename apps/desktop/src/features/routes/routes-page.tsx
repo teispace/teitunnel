@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
+import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
@@ -182,6 +183,9 @@ function RouteInspector({
         </>
       }
     >
+      {routeIssues(issues, route.hostname).map((issue) => (
+        <IssueCallout key={issue.id} issue={issue} />
+      ))}
       {test.data ? <TestResult result={test.data} /> : null}
       {test.error ? (
         <p role="alert" className="text-callout text-error">
