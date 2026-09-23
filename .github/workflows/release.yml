@@ -84,6 +84,8 @@ jobs:
             target: aarch64-unknown-linux-gnu
             bundles: deb,rpm,appimage
     runs-on: ${{ matrix.runner }}
+    # Room for Apple's slow first notarizations; a stuck job still ends well before 6 h.
+    timeout-minutes: 300
     defaults:
       run:
         shell: bash
@@ -194,8 +196,18 @@ jobs:
           (cd "$RUNNER_TEMP" && ditto -c -k teitunnel-cli "$GITHUB_WORKSPACE/dist/teitunnel-cli_${v}_macos-universal.zip")
           if [ "${SIGNED:-}" = 1 ]; then
             # The DMG and the CLI are notarized too; the DMG gets the ticket stapled.
+            # Apple's first submissions for a new team can take hours; later ones minutes. A
+            # rejection or a timeout fails the job with Apple's log instead of hanging.
+            auth=(--key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER")
             for f in "dist/Teitunnel_${v}_universal.dmg" "dist/teitunnel-cli_${v}_macos-universal.zip"; do
-              xcrun notarytool submit "$f" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
+              result=$(xcrun notarytool submit "$f" "${auth[@]}" --wait --timeout 3h --output-format json) || true
+              id=$(jq -r '.id // empty' <<<"$result")
+              status=$(jq -r '.status // "unknown"' <<<"$result")
+              echo "Notarization of $(basename "$f"): $status${id:+ ($id)}"
+              if [ "$status" != "Accepted" ]; then
+                [ -n "$id" ] && xcrun notarytool log "$id" "${auth[@]}" || echo "$result"
+                exit 1
+              fi
             done
             xcrun stapler staple "dist/Teitunnel_${v}_universal.dmg"
             spctl --assess --type open --context context:primary-signature -v "dist/Teitunnel_${v}_universal.dmg"

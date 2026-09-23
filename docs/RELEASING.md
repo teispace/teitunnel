@@ -93,6 +93,17 @@ gh secret set APPLE_API_ISSUER --env release --body "<Issuer ID>"
 gh secret set APPLE_API_KEY_P8 --env release < AuthKey_<KeyID>.p8
 ```
 
+**Slow notarization.** A release submits three things to Apple: the app (by Tauri), the DMG
+and the CLI. A new team's first submissions go through a deeper check that can take hours;
+later ones take minutes. The macOS job waits up to 3 hours per file and fails with Apple's log
+if one is rejected (`timeout-minutes: 300` on the job). To see Apple's side, with the key
+from the password manager:
+
+```sh
+xcrun notarytool history --key AuthKey_<KeyID>.p8 --key-id <Key ID> --issuer <Issuer ID>
+xcrun notarytool log <submission id> --key AuthKey_<KeyID>.p8 --key-id <Key ID> --issuer <Issuer ID>
+```
+
 ### 5. Website
 
 - Settings ▸ Pages ▸ Source: **GitHub Actions**; custom domain `teitunnel.teispace.com`,
