@@ -31,6 +31,8 @@ use crate::{
 
 /// How long a new connector may take to connect before a mode switch is abandoned.
 const SWITCH_TIMEOUT: Duration = Duration::from_secs(30);
+/// How many of a connector's newest log lines are searched for one route's.
+const ROUTE_LOG_SCAN: usize = 5_000;
 
 /// The supervisor id of a tunnel's connector.
 pub fn connector_id(tunnel_id: &str) -> ConnectorId {
@@ -242,6 +244,12 @@ impl MachineTunnels {
             Err(_) => None,
         };
         if service {
+            // launchd appends to the log forever; keep it bounded.
+            if let Some(file) = self.service_log(tunnel)
+                && let Err(err) = crate::connector_logs::rotate_if_large(&file)
+            {
+                tracing::warn!(%err, "couldn't rotate a connector log");
+            }
             let state = match endpoints.ready().await {
                 Ok(ready) if ready.ready_connections > 0 => ConnectorState::Healthy {
                     connections: ready.ready_connections,
@@ -270,13 +278,8 @@ impl MachineTunnels {
     /// The connector's newest log events, oldest first. Always-on connectors' come from
     /// their log file.
     pub fn logs(&self, tunnel_id: &str, limit: usize) -> Vec<Arc<cloudflared::LogEvent>> {
-        if self.is_always_on(tunnel_id)
-            && let Some(paths) = &self.paths
-        {
-            let file = paths.logs.join(format!("{tunnel_id}.log"));
-            let text = std::fs::read_to_string(file).unwrap_or_default();
-            let lines: Vec<&str> = text.lines().collect();
-            return lines[lines.len().saturating_sub(limit)..]
+        if let Some(file) = self.service_log(tunnel_id) {
+            return crate::connector_logs::tail_lines(&file, limit)
                 .iter()
                 .map(|line| Arc::new(cloudflared::parse_line(line)))
                 .collect();
@@ -284,6 +287,48 @@ impl MachineTunnels {
         self.supervisor
             .logs(&connector_id(tunnel_id), limit)
             .unwrap_or_default()
+    }
+
+    /// The newest `limit` log events about requests for one route of `account`'s tunnel
+    /// (matched by its rule in the ingress Teitunnel applied), oldest first.
+    ///
+    /// # Errors
+    /// Database errors, as a message.
+    pub async fn route_logs(
+        &self,
+        account: &str,
+        hostname: &str,
+        path: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<Arc<cloudflared::LogEvent>>, String> {
+        let local = |e: crate::store::StoreError| e.to_string();
+        let Some(tunnel) = self.local.machine_tunnel(account).await.map_err(local)? else {
+            return Ok(Vec::new());
+        };
+        let ingress = self
+            .local
+            .applied_ingress(account)
+            .await
+            .map_err(local)?
+            .unwrap_or_default();
+        let Some(filter) = crate::connector_logs::RouteFilter::new(&ingress, hostname, path) else {
+            return Ok(Vec::new());
+        };
+        // Scan everything held: most lines aren't about this route.
+        let mut matching: Vec<_> = self
+            .logs(&tunnel.tunnel_id, ROUTE_LOG_SCAN)
+            .into_iter()
+            .filter(|e| filter.matches(e))
+            .collect();
+        matching.drain(..matching.len().saturating_sub(limit));
+        Ok(matching)
+    }
+
+    /// An Always-on connector's log file.
+    fn service_log(&self, tunnel_id: &str) -> Option<PathBuf> {
+        let paths = self.paths.as_ref()?;
+        self.is_always_on(tunnel_id)
+            .then(|| paths.logs.join(format!("{tunnel_id}.log")))
     }
 
     /// The run token: from the keychain, else fetched (and stored).

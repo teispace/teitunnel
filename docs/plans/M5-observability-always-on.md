@@ -20,9 +20,9 @@
 - [x] Route/tunnel inspector "Traffic" section, plus an Overview traffic summary. *(Tunnel inspector: Hour/Day/Week, requests and failures per second, round trip, response classes. Overview: this Mac's rate, total and last-hour sparkline, polled every 10 s. Per-route traffic and "top routes" need per-hostname metrics cloudflared doesn't expose.)*
 
 ### M5-03 · Log viewer
-- [ ] `logs_subscribe(connector, filter) -> Channel<LogBatch>` (server-side filter by level/text to save IPC), plus `logs_history(connector, before, limit)`.
+- [x] Log reads: `tunnels_logs(tunnel, limit)` and `routes_logs(account, hostname, path, limit)` polled every 2 s; the route filter runs in the backend, level/text in the window (D-050). *(A push subscription isn't needed at ≤1,000 lines; same reasoning as D-046.)*
 - [x] `LogViewer` pattern: virtualized, monospace, level colouring (tokens), follow-tail with auto-pause on scroll up and a "Jump to latest" pill, search with highlight, level filter, pause/resume, copy selection, export to file. *(Done except virtualization and export: the backend caps at 1,000 lines, which renders without it; copy covers export for now.)*
-- [ ] Per-route view (filters log events mentioning its hostname) and per-connector view.
+- [x] Per-route view and per-connector view. *(Routes ▸ Logs matches events by the route's `ingressRule` + `originService` in the applied ingress (research/cloudflare.md); Tunnels ▸ Logs per connector. Always-on log files are bounded and tail-read, D-050.)*
 
 ### M5-04 · Activity view
 - [x] Timeline of applied plans and steps (what/when, per account), with the before/after diff, "Copy as command" (per step and all at once), and re-run verify. Filters by kind/problems and domain. *(Structured `ActivityRecord` per entry, D-047. No tunnel filter: one machine tunnel per account.)*

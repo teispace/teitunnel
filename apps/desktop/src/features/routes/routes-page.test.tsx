@@ -117,6 +117,17 @@ beforeEach(() => {
       case "routes_keep_theirs":
         drift = false;
         return null;
+      case "routes_logs":
+        return payload["hostname"] === "app.xyz.com"
+          ? [
+              {
+                time: null,
+                level: "error",
+                message: "Request failed",
+                error: "dial tcp 127.0.0.1:3000: connect: connection refused",
+              },
+            ]
+          : [];
       case "routes_activity":
       case "services_list":
         return [];
@@ -150,6 +161,11 @@ describe("RoutesPage", () => {
     expect(within(row).getByRole("img", { name: "Live" })).toBeTruthy();
     expect(screen.getByText("xyz.com", { selector: "[role=presentation]" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "app.xyz.com" })).toBeTruthy();
+    // The route's own log lines, as the backend filtered them.
+    expect(await screen.findByText(/connection refused/)).toBeTruthy();
+    expect(calls.some((c) => c.cmd === "routes_logs" && c.args["hostname"] === "app.xyz.com")).toBe(
+      true,
+    );
   });
 
   it("adds a route: form → review → apply → verified", async () => {

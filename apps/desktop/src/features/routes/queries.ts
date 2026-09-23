@@ -161,6 +161,16 @@ export function useStopForeign() {
 }
 
 /** This Mac's connector's newest log lines, polled while shown. */
+/** Log lines about one route's requests (filtered in the backend by its ingress rule). */
+export function useRouteLogs(accountId: string, hostname: string, path: string | null) {
+  return useQuery({
+    queryKey: ["routes", "routeLogs", accountId, hostname, path],
+    queryFn: () => call(commands.routesLogs(accountId, hostname, path, 500)),
+    refetchInterval: 2000,
+    staleTime: 0,
+  });
+}
+
 export function useTunnelLogs(tunnelId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["routes", "logs", tunnelId],
@@ -171,7 +181,6 @@ export function useTunnelLogs(tunnelId: string, enabled: boolean) {
   });
 }
 
-/** This Mac's connector traffic for a tunnel, refreshed with each 10 s sample. */
 /**
  * A connector's live traffic, polled every second while shown (which also keeps the
  * backend sampling at 1 s, D-046). Each poll fetches only samples newer than the last

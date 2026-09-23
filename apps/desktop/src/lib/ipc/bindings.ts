@@ -139,6 +139,11 @@ export const commands = {
 	/**  The newest log lines of this Mac's connector for a tunnel. */
 	tunnelsLogs: (tunnelId: string, limit: number) => __TAURI_INVOKE<LogLine[]>("tunnels_logs", { tunnelId, limit }),
 	/**
+	 *  The newest log lines about requests for one route (its failed requests, and every
+	 *  request when cloudflared logs at debug level).
+	 */
+	routesLogs: (accountId: string, hostname: string, path: string | null, limit: number) => __TAURI_INVOKE<LogLine[]>("routes_logs", { accountId, hostname, path, limit }),
+	/**
 	 *  This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
 	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
 	 */

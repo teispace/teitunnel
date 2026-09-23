@@ -531,6 +531,18 @@ export function installMockIpc(): void {
           ];
         case "tunnels_always_on":
           return { supported: true, enabled: false };
+        case "routes_logs":
+          return payload["hostname"] === "api.xyz.dev"
+            ? [
+                {
+                  time: null,
+                  level: "error",
+                  message: "Request failed",
+                  error:
+                    "Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared: dial tcp [::1]:8000: connect: connection refused",
+                },
+              ]
+            : [];
         case "tunnels_logs":
           return [
             {

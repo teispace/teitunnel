@@ -308,6 +308,30 @@ pub fn tunnels_logs(
     )
 }
 
+/// The newest log lines about requests for one route (its failed requests, and every
+/// request when cloudflared logs at debug level).
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_logs(
+    state: State<'_, AppState>,
+    account_id: String,
+    hostname: String,
+    path: Option<String>,
+    limit: u32,
+) -> Result<Vec<crate::ipc::quick_share::LogLine>, AppError> {
+    let events = state
+        .machine
+        .route_logs(
+            &account_id,
+            &hostname,
+            path.as_deref(),
+            usize::try_from(limit).unwrap_or(usize::MAX),
+        )
+        .await
+        .map_err(AppError::internal)?;
+    Ok(crate::ipc::quick_share::log_lines(&events))
+}
+
 /// This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
 /// without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
 #[tauri::command]

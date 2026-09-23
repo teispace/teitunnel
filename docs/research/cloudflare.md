@@ -108,3 +108,9 @@ Source: https://developers.cloudflare.com/fundamentals/api/reference/template/
 - The hostname isn't in public DNS for the first ~2–3 s after it appears: first lookups at +0/+1/+2 s returned NXDOMAIN; +4 s and +7 s resolved (probed once per fresh hostname via `dns.google/resolve`).
 - NXDOMAIN answers for `*.trycloudflare.com` carry the zone SOA (minimum 1800), so resolvers may cache the negative answer for **up to 30 minutes**. An early lookup (by us or a browser) breaks the URL for that resolver.
 - Consequence (D-037): never query DNS early; show a share as live (and enable Open) only 6 s after the hostname first appears and a connection is registered.
+
+## Request-scoped log fields (verified 2026-09-23)
+Source: `proxy/logger.go` and `proxy/proxy.go` in cloudflare/cloudflared (master).
+- Every HTTP request's logger carries `originService` (the rule's service string), `ingressRule` (index of the matched rule), `connIndex`, and `cfRay` when present; `lbProbe` for load-balancer probes. TCP streams carry `destAddr` and `flowID`.
+- Failed requests are logged at **error** level with those fields (`logRequestError`); successful requests (`logHTTPRequest`, with `host` and `path`) and origin responses only at **debug**.
+- So at the default `info` level a route's log shows its failures; a per-route view matches `ingressRule` + `originService` against the applied ingress (the index alone can point at another route in lines logged before a config change).

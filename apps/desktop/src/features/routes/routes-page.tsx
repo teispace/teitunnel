@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/patterns/error-state";
 import { Inspector, InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { ListPane, ListRow } from "@/components/patterns/list-pane";
+import { LogViewer } from "@/components/patterns/log-viewer";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import { openUrl } from "@/lib/open-url";
 import { DriftBanner } from "./components/drift-banner";
 import { ImportSheet } from "./components/import-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
-import { useActivity, useLocalSetups, useRoutesOverview, useVerify } from "./queries";
+import { useActivity, useLocalSetups, useRouteLogs, useRoutesOverview, useVerify } from "./queries";
 import { connectorStatus, routeStatus } from "./status";
 
 const routeKey = (route: RouteView) => `${route.hostname}${route.path ?? ""}`;
@@ -72,7 +73,10 @@ function RouteInspector({
   // A test result belongs to the route it was run for.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset when the route changes
   useEffect(() => test.reset(), [route.hostname]);
-  const history = (activity.data ?? []).filter((e) => e.summary.includes(route.hostname));
+  const history = (activity.data ?? []).filter((e) =>
+    // Older entries only have a summary to go by.
+    e.record ? e.record.hostnames.includes(route.hostname) : e.summary.includes(route.hostname),
+  );
 
   return (
     <Inspector
@@ -127,6 +131,9 @@ function RouteInspector({
           ]}
         />
       </InspectorSection>
+      {route.local && tunnel ? (
+        <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
+      ) : null}
       {history.length > 0 ? (
         <InspectorSection title="Activity">
           <ul className="flex flex-col gap-1.5">
@@ -340,5 +347,26 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         }}
       />
     </>
+  );
+}
+
+function RouteLogs({
+  accountId,
+  hostname,
+  path,
+}: {
+  accountId: string;
+  hostname: string;
+  path: string | null;
+}) {
+  const lines = useRouteLogs(accountId, hostname, path).data ?? [];
+  return (
+    <InspectorSection title="Logs">
+      <LogViewer
+        lines={lines}
+        height={160}
+        empty="No failed requests. cloudflared logs requests that fail; it logs every request only at debug level."
+      />
+    </InspectorSection>
   );
 }
