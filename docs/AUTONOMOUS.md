@@ -18,10 +18,12 @@ For sessions where the maintainer says "start" or "continue" and then leaves. Th
 9. **Update docs:** tick the plan and ROADMAP, update STATUS (completed, next, notes), DECISIONS, research. Update memory if something durable was learned. Commit.
 10. Continue with the next task. At the end of a milestone, go through its exit criteria one by one, fix gaps, then move to the next milestone.
 
-## Git flow
-- One branch per milestone: `milestone/m0-foundations`. Open a **draft PR** to `main` early so CI runs on every push.
-- Commit per task (or smaller). Push after each task.
-- When all exit criteria pass and CI is green, mark the PR **ready for review**. Merging is the maintainer's call (D-033): continue on a branch stacked on the finished milestone, with a draft PR based on that branch, and retarget it to `main` after the merge.
+## Git flow (D-080)
+- `main` is the trunk and always releasable. Work on a short-lived branch named after its Conventional Commit type, e.g. `feat/origin-settings`, `fix/arm64-appimage`, branched from an up-to-date `main`.
+- Open a **draft PR** to `main` early so CI runs on every push. Commit per task (or smaller); push after each task.
+- The PR title is a Conventional Commit (`feat(routes): …`): PRs are squash-merged (the only merge method the repo allows), so the title becomes the commit release-please reads for the version and changelog.
+- When CI is green, mark it ready. Merging is the maintainer's call unless they say otherwise; don't stack new work on an unmerged branch for long.
+- Merged branches are deleted automatically. Never push to `main` directly, never force-push it.
 - If CI fails: fix before starting new work. Never merge red.
 
 ## When blocked

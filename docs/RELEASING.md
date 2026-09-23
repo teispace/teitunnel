@@ -31,7 +31,7 @@ after it's out).
 | Step | State |
 |---|---|
 | `release` environment (deploys from `main` and `v*` tags only) | Done 2026-09-23 |
-| Updater key secrets (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) | Done 2026-09-23. **Maintainer: back up `~/.tauri/teitunnel/updater.key` and `updater.key.password` in a password manager.** |
+| Updater key secrets (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) | Done 2026-09-23; key, password and public key backed up by the maintainer. |
 | GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true` | Done 2026-09-23. Turn on **Enforce HTTPS** once the certificate is issued (after the first deploy from `main`). |
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |

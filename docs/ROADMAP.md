@@ -39,7 +39,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ### M1: cloudflared + Quick Share (v0.1.0)
 - [x] M1-01 Locate + version · [x] M1-02 Managed install · [x] M1-03 Command builders · [x] M1-04 Log parser
 - [x] M1-05 Local endpoints · [x] M1-06 fake-cloudflared · [x] M1-07 Supervisor · [x] M1-08 Port discovery
-- [x] M1-09 Quick Share · [x] M1-10 Onboarding (binary) · [x] M1-11 Notifications · [x] M1-12 Tests/E2E · [ ] M1-13 Release (workflow and notes ready; signing decision and tag: maintainer)
+- [x] M1-09 Quick Share · [x] M1-10 Onboarding (binary) · [x] M1-11 Notifications · [x] M1-12 Tests/E2E · [x] M1-13 Release (folded into M6: v0.1.0 public beta, D-074)
 
 ### M2: Accounts & Domains (v0.2.0)
 - [x] M2-01 cf-api foundation · [x] M2-02 Accounts/zones (real fixtures pending) · [x] M2-03 Capabilities · [x] M2-04 OAuth (hidden until the client is registered)

@@ -4,8 +4,8 @@
 > Update it after **every** task (see "Docs" in [CONVENTIONS.md](CONVENTIONS.md)).
 
 **Last updated:** 2026-09-23
-**Phase:** **M6 (non-release parts)** in progress on `milestone/m6-polish-docs` (stacked on #6). The maintainer deferred release work (signing, notarization, updater, release automation, Homebrew) on 2026-09-23.
-**Branch:** `milestone/m5-observability-always-on` (stacked on #5 → #4 → #3 → #2 → #1). The prototype is archived at tag `legacy-prototype` / branch `legacy/prototype`.
+**Phase:** M0–M11 and the release work are on `main` (2026-09-23). Next: the maintainer's Apple signing setup, a signed dry run, then v0.1.0 (see Next up and [RELEASING.md](RELEASING.md)).
+**Branch:** `main` (trunk; short-lived branches + PRs, D-080). The milestone branches were fast-forwarded into `main` and deleted. The prototype is archived at tag `legacy-prototype`.
 
 ## Working mode: AUTONOMOUS
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
@@ -78,15 +78,14 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 | Cloudflare OAuth public client + verify teispace.com | M2-04 (built; hidden until then) | Redirects `http://127.0.0.1:{53682,53683,53684}/callback`. Put the client id in `crates/core/src/accounts/oauth.rs` (`CLIENT_ID`) and confirm the scope ids in `SCOPES` |
 | Confirm the "Cloudflare Tunnel" permission key in the token template | M2-05 | Open the link from Connect Cloudflare once; if Tunnel isn't pre-selected, tell me the right key (research/cloudflare.md) |
 | Test Cloudflare account/zone + API token for nightly E2E | M1-12 / M3-11 | Store as GitHub Actions secrets |
-| Apple Developer ID (signing + notarization) | M6-01 | The maintainer has a Developer ID and will set up signing; release work is done last (2026-09-23) |
+| Apple Developer ID certificate + App Store Connect API key | M6-01, v0.1.0 | Account Holder of Teispace creates them; steps and secret names in RELEASING.md (the rest of the release setup is done) |
 
 ## Open questions
 - Windows Authenticode check of cloudflared: allow a small isolated crate with audited `unsafe` (WinVerifyTrust), or rely on the release checksums on Windows? (M7-02)
-- v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session
-- **Resume point:** branch `milestone/m6-polish-docs` (M9 work stacks here). M9-05 and M9-06 (except community translations) are committed. Next: M7/M8 platform work, or maintainer items; see the plan. When adding user text in Rust, follow CONVENTIONS (Text from Rust). Follow-ups from M9-05: other virtual networks are read but not managed; the real-edge behaviour of an HTTP probe against SSH routes was not checked (verify is now skipped for them).
-- Previous resume point: branch `milestone/m5-observability-always-on`. Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- **Resume point:** `main`. Start new work on a branch from it (D-080). Next: maintainer items (Apple signing), then the v0.1.0 release; M7/M8 real-machine checks need hardware. When adding user text in Rust, follow CONVENTIONS (Text from Rust). Follow-ups from M9-05: other virtual networks are read but not managed; the real-edge behaviour of an HTTP probe against SSH routes was not checked (verify is now skipped for them).
+- Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
 - Engine entry points (crates/core/src/engine): `Engine::{preview, apply, verify, drift, keep_theirs}`; ports `CloudApi` (impl for `cf_api::Client`, fake in `engine/fake.rs`) and `Connectors` (impl `machine::MachineTunnels`). Desktop must call `MachineTunnels::forget_account` before `Accounts::remove`.
 - **Locked screen:** during unattended sessions the screen locks; macOS then stops compositing windows and `screencapture` returns blank content. Never send clicks/keys while locked. Use `pnpm --filter @teitunnel/desktop shoot` (WebKit) instead (D-030). Keep the Mac awake with `caffeinate -dimsu`.
 - Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.

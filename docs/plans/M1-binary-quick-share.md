@@ -83,6 +83,6 @@
 - [x] Nightly workflow: real cloudflared, real Quick Share against a local HTTP server; fetch the public URL and expect 200.
 
 ### M1-13 · Release v0.1.0
-- [ ] Decide signing (see STATUS open questions). If there's no Developer ID yet, ship an unsigned DMG labelled "developer preview" with clear Gatekeeper instructions.
+- [x] Decide signing: superseded by M6 and D-074 (Developer ID of Teispace, notarized; the first release is the v0.1.0 public beta).
 - [x] `release.yml`: on tag `v*`, build a universal macOS DMG and attach it to a **draft** GitHub Release with `docs/release-notes/<tag>.md` and SHA-256 sums.
 - [x] README: screenshot, install instructions (Gatekeeper note for the unsigned preview).
