@@ -1,0 +1,18 @@
+---
+source: crates/core/src/export.rs
+expression: file.contents
+---
+# cloudflared configuration for tunnel "MacBook-Pro", exported by Teitunnel.
+# This tunnel is managed remotely (its routes live in Cloudflare), so cloudflared
+# run with its token ignores the ingress below. Use this file to run the same
+# routes as a locally-managed tunnel, or as a record of them.
+tunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+credentials-file: /etc/cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json
+ingress:
+  - hostname: "app.xyz.com"
+    service: "http://localhost:3000"
+  - hostname: "api.xyz.com"
+    path: "^/v1/"
+    service: "http://localhost:8000"
+    originRequest: {"connectTimeout":10,"httpHostHeader":"api.local","matchSNItoHost":false,"noTLSVerify":true}
+  - service: "http_status:404"

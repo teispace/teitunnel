@@ -15,6 +15,7 @@ pub mod doctor_monitor;
 pub mod domain;
 pub mod engine;
 mod error;
+pub mod export;
 pub mod health;
 pub mod import;
 pub mod machine;

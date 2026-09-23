@@ -39,7 +39,7 @@ export default defineConfig({
         },
         {
           label: "Guides",
-          items: ["guides/import", "guides/observability", "guides/menu-bar"],
+          items: ["guides/import", "guides/export", "guides/observability", "guides/menu-bar"],
         },
         {
           label: "Reference",

@@ -1,0 +1,22 @@
+---
+source: crates/core/src/export.rs
+expression: file.contents
+---
+# Runs tunnel "MacBook-Pro" in Docker, exported by Teitunnel.
+# Its routes live in Cloudflare:
+#   app.xyz.com -> http://localhost:3000
+#   api.xyz.com (path ^/v1/) -> http://localhost:8000
+# Origins must be reachable from the container: "localhost" is the container
+# itself, so use host.docker.internal or the other services' names instead.
+#
+# The run token isn't included. Get it with:
+#   cloudflared tunnel token 6ff42ae2-765d-4adf-8112-31c55c1551ef
+# and put it in an .env file next to this one as TUNNEL_TOKEN=...
+# Stop the connector on the Mac once this one is connected, if it should move.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    restart: unless-stopped

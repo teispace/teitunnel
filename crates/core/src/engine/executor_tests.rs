@@ -968,3 +968,45 @@ async fn imports_routes_from_an_old_tunnel() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn exports_the_routes_and_records_as_they_are() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    assert!(
+        engine
+            .export_input(&cloud, CTX, None)
+            .await
+            .unwrap()
+            .is_none(),
+        "nothing to export without a tunnel"
+    );
+    run(&engine, &cloud, &conns, &add("r1", "xyz.com", "3000")).await;
+    run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
+    engine.invalidate("acc");
+
+    let input = engine
+        .export_input(&cloud, CTX, Some("2026.9.1".into()))
+        .await
+        .unwrap()
+        .expect("a tunnel");
+    let hostnames: Vec<_> = input
+        .ingress
+        .iter()
+        .filter_map(|r| r.hostname.as_deref())
+        .collect();
+    assert_eq!(hostnames, ["xyz.com", "yx.com"]);
+    let records: Vec<_> = input
+        .records
+        .iter()
+        .map(|r| (r.hostname.as_str(), r.comment.as_deref()))
+        .collect();
+    assert_eq!(
+        records,
+        [
+            ("xyz.com", Some("teitunnel:route=r1")),
+            ("yx.com", Some("teitunnel:route=r2"))
+        ]
+    );
+    let terraform = crate::export::render(&input, crate::export::ExportFormat::Terraform);
+    assert_eq!(terraform.contents.matches("import {").count(), 4);
+}

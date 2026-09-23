@@ -530,6 +530,12 @@ export function installMockIpc(): void {
           ];
         case "tunnels_always_on":
           return { supported: true, enabled: false };
+        case "routes_export":
+          return {
+            fileName: "config.yml",
+            contents:
+              '# cloudflared configuration for tunnel "MacBook-Pro" (6ff42ae2-765d-4adf-8112-31c55c1551ef), exported by Teitunnel.\ntunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef\ncredentials-file: /etc/cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json\ningress:\n  - hostname: "app.teispace.com"\n    service: "http://localhost:5173"\n  - hostname: "api.xyz.dev"\n    path: "^/v1/"\n    service: "http://localhost:8000"\n  - service: "http_status:404"\n',
+          };
         case "routes_logs":
           return payload["hostname"] === "api.xyz.dev"
             ? [

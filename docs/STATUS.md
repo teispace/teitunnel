@@ -13,7 +13,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 ## Next up
 1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
 2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
-3. M9 advanced features.
+3. M9 advanced features (`docs/plans/M9-advanced.md`): Export done; next the CLI (M9-02).
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
 6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.
@@ -24,6 +24,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M9-01 Export (config.yml, Docker Compose, Terraform v5 with import blocks) (D-055). M7/M8 groundwork: services per platform, no console windows, Secret Service error, E2E jobs for Linux/Windows (D-054). Fixed: bare IPv6 origins.
 - 2026-09-23: M6 non-release work: accessibility (WCAG AA under Increase Contrast, axe audit clean), Help menu + About credits, performance baseline (14.7 MB, ~0.6 s start), docs site (apps/site), CONTRIBUTING deep-dive; dev mocks and screenshots use neutral names.
 - 2026-09-23: M5 complete. Service adapters for systemd/Task Scheduler behind a neutral `ServiceSpec`; exit criteria measured with `pnpm --filter @teitunnel/desktop perf` (60 fps under load, D-051).
 - 2026-09-23: M5-03 complete: virtualized log viewer, Save to Downloads (redacted).

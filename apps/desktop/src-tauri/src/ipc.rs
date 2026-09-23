@@ -79,6 +79,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::foreign_stop,
             routes::tunnels_logs,
             routes::routes_logs,
+            routes::routes_export,
+            routes::routes_export_save,
             routes::tunnels_traffic,
             routes::tunnels_traffic_history,
             routes::tunnels_always_on,

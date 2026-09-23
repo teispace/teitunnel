@@ -308,6 +308,51 @@ pub fn tunnels_logs(
     )
 }
 
+/// This Mac's tunnel and routes as `config.yml`, Docker Compose or Terraform. `None` if
+/// this Mac has no tunnel in the account. Never contains a secret.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_export(
+    state: State<'_, AppState>,
+    account_id: String,
+    format: teitunnel_core::export::ExportFormat,
+) -> Result<Option<teitunnel_core::export::ExportFile>, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    let version = state
+        .binary
+        .current()
+        .await
+        .ok()
+        .and_then(|b| b.version)
+        .map(|v| v.to_string());
+    let input = state
+        .engine
+        .export_input(&api, context(&state, &account_id), version)
+        .await?;
+    Ok(input.map(|input| teitunnel_core::export::render(&input, format)))
+}
+
+/// Saves an export to Downloads and shows it in Finder. Returns its path.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_export_save(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_id: String,
+    format: teitunnel_core::export::ExportFormat,
+) -> Result<String, AppError> {
+    let file = routes_export(state, account_id, format)
+        .await?
+        .ok_or_else(|| {
+            AppError::invalid("account", "This Mac has no routes in this account yet.")
+        })?;
+    let contents = file.contents;
+    crate::ipc::app::save_to_downloads(&app, &file.file_name, move |path| {
+        std::fs::write(path, contents)
+    })
+    .await
+}
+
 /// The newest log lines about requests for one route (its failed requests, and every
 /// request when cloudflared logs at debug level).
 #[tauri::command]

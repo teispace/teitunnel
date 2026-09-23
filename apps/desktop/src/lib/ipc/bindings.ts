@@ -152,6 +152,18 @@ export const commands = {
 	 */
 	routesLogs: (accountId: string, hostname: string, path: string | null, limit: number) => __TAURI_INVOKE<LogLine[]>("routes_logs", { accountId, hostname, path, limit }),
 	/**
+	 *  This Mac's tunnel and routes as `config.yml`, Docker Compose or Terraform. `None` if
+	 *  this Mac has no tunnel in the account. Never contains a secret.
+	 */
+	routesExport: (accountId: string, format: ExportFormat) => __TAURI_INVOKE<{
+	/**  Suggested file name, e.g. `config.yml`. */
+	fileName: string,
+	/**  The file. */
+	contents: string,
+} | null>("routes_export", { accountId, format }),
+	/**  Saves an export to Downloads and shows it in Finder. Returns its path. */
+	routesExportSave: (accountId: string, format: ExportFormat) => __TAURI_INVOKE<string>("routes_export_save", { accountId, format }),
+	/**
 	 *  This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
 	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
 	 */
@@ -524,6 +536,23 @@ export type ErrorCode =
 "conflict" | 
 /**  The Cloudflare credential lacks a permission. */
 "permissionDenied";
+
+/**  A rendered export. */
+export type ExportFile = {
+	/**  Suggested file name, e.g. `config.yml`. */
+	fileName: string,
+	/**  The file. */
+	contents: string,
+};
+
+/**  What to export as. */
+export type ExportFormat = 
+/**  A cloudflared `config.yml` (ingress rules). */
+"configYaml" | 
+/**  A Docker Compose service running the tunnel. */
+"dockerCompose" | 
+/**  Terraform for the Cloudflare provider v5, with `import` blocks. */
+"terraform";
 
 /**  Why a route doesn't work. */
 export type Failure = 

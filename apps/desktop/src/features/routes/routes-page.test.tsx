@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Change, PlanView, RoutesOverview, RouteView } from "@/lib/ipc/bindings";
@@ -117,6 +117,11 @@ beforeEach(() => {
       case "routes_keep_theirs":
         drift = false;
         return null;
+      case "routes_export":
+        return {
+          fileName: payload["format"] === "terraform" ? "teitunnel.tf" : "config.yml",
+          contents: `# ${String(payload["format"])}\ntunnel: t1\n`,
+        };
       case "routes_logs":
         return payload["hostname"] === "app.xyz.com"
           ? [
@@ -244,5 +249,27 @@ describe("RoutesPage", () => {
     await waitFor(() =>
       expect(screen.queryByText("Routes were changed outside Teitunnel")).toBeNull(),
     );
+  });
+
+  it("exports the routes as config.yml or Terraform and copies them", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Export" }));
+    const sheet = await screen.findByRole("dialog", { name: "Export" });
+    const preview = await within(sheet).findByRole("textbox", { name: "config.yml contents" });
+    expect((preview as HTMLTextAreaElement).value).toContain("# configYaml");
+    fireEvent.click(within(sheet).getByRole("radio", { name: "Terraform" }));
+    await waitFor(() =>
+      expect(
+        (
+          within(sheet).getByRole("textbox", {
+            name: "teitunnel.tf contents",
+          }) as HTMLTextAreaElement
+        ).value,
+      ).toContain("# terraform"),
+    );
+    fireEvent.click(within(sheet).getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("# terraform\ntunnel: t1\n"));
   });
 });

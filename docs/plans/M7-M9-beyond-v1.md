@@ -19,6 +19,8 @@ Full plan: [M8-linux.md](M8-linux.md).
 - Packages: AppImage, deb, rpm, Flatpak (Flathub), AUR.
 
 ## M9: Advanced features (v1.x)
+Full plan: [M9-advanced.md](M9-advanced.md).
+
 - **Protect with Access:** per-route toggle "Require login" (emails / email domain / one-time PIN) via Access applications + policies. Optional OAuth scopes.
 - **Private networks:** CIDR routes and virtual networks for WARP clients; `cloudflared access` helpers for SSH/RDP/TCP on the client side.
 - **Remote connectors:** manage tunnels running on other machines, with remote log streaming via the Management API (`POST …/management` token + websocket).

@@ -365,6 +365,54 @@ impl Engine {
         Ok(overview(&snapshot, |id| connectors.state(id)))
     }
 
+    /// What an export of this Mac's tunnel is made from: its routes and the proxied
+    /// CNAMEs that point at it. `None` if this Mac has no tunnel in the account.
+    ///
+    /// # Errors
+    /// Observation errors.
+    pub async fn export_input<C: CloudApi>(
+        &self,
+        api: &C,
+        ctx: Context<'_>,
+        cloudflared_version: Option<String>,
+    ) -> Result<Option<crate::export::ExportInput>, EngineError> {
+        let snapshot = self.snapshot(api, ctx, &Intent::RemoveTunnel, true).await?;
+        let Some(tunnel) = snapshot.tunnel else {
+            return Ok(None);
+        };
+        let target = super::types::tunnel_target(&tunnel.id);
+        let routed: std::collections::HashSet<&str> = tunnel
+            .ingress
+            .iter()
+            .filter_map(|r| r.hostname.as_deref())
+            .collect();
+        let records = snapshot
+            .records
+            .iter()
+            .filter(|r| {
+                r.record.kind == "CNAME"
+                    && r.record.content.eq_ignore_ascii_case(&target)
+                    && routed.contains(r.record.name.as_str())
+            })
+            .map(|r| crate::export::ExportRecord {
+                zone_id: r.zone_id.clone(),
+                record_id: r.record.id.clone(),
+                hostname: r.record.name.clone(),
+                comment: r.record.comment.clone(),
+                ttl: r.record.ttl,
+                proxied: r.record.proxied,
+            })
+            .collect();
+        Ok(Some(crate::export::ExportInput {
+            account_id: snapshot.account_id,
+            tunnel_id: tunnel.id,
+            tunnel_name: tunnel.name,
+            ingress: tunnel.ingress,
+            records,
+            cloudflared_version,
+        }))
+    }
+
     /// Every tunnel in the account, this Mac's first.
     ///
     /// # Errors

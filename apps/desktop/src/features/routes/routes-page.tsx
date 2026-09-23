@@ -1,4 +1,13 @@
-import { ExternalLink, FileInput, Pencil, Plus, RefreshCw, Trash2, Waypoints } from "lucide-react";
+import {
+  ExternalLink,
+  FileInput,
+  FileOutput,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Waypoints,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useUiStore } from "@/app/ui-store";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -21,6 +30,7 @@ import type { RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { DriftBanner } from "./components/drift-banner";
+import { ExportSheet } from "./components/export-sheet";
 import { ImportSheet } from "./components/import-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
@@ -173,6 +183,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const setups = useLocalSetups(active !== null);
   const importable = (setups.data ?? []).some((s) => s.routes.some((r) => !r.unsupported));
   const routes = overview.data?.routes ?? [];
@@ -209,6 +220,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           label="Import from cloudflared"
           onClick={() => setImporting(true)}
         />
+      ) : null}
+      {active && overview.data?.tunnel ? (
+        <IconButton icon={FileOutput} label="Export" onClick={() => setExporting(true)} />
       ) : null}
       {active && overview.isSuccess ? (
         <IconButton
@@ -330,6 +344,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           mode={sheet}
           onClose={() => setSheet(null)}
         />
+      ) : null}
+      {active ? (
+        <ExportSheet accountId={active.id} open={exporting} onClose={() => setExporting(false)} />
       ) : null}
       <ImportSheet
         open={importing}
