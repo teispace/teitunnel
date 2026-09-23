@@ -34,6 +34,7 @@ import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ip
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { describeAllowed } from "./access";
+import { BalanceHealth } from "./components/balance-health";
 import { DriftBanner } from "./components/drift-banner";
 import { ExportSheet } from "./components/export-sheet";
 import { ImportSheet } from "./components/import-sheet";
@@ -125,10 +126,13 @@ function RouteInspector({
   onEdit,
   onRemove,
   onBalance,
+  localTunnelIds,
 }: {
   route: RouteView;
   tunnel: TunnelView | null;
   accountId: string;
+  /** This machine's tunnels. */
+  localTunnelIds: string[];
   onEdit: () => void;
   onRemove: () => void;
   /** Start or stop load balancing the route. */
@@ -232,6 +236,13 @@ function RouteInspector({
           ]}
         />
       </InspectorSection>
+      {route.balanced ? (
+        <BalanceHealth
+          accountId={accountId}
+          hostname={route.hostname}
+          localTunnelIds={localTunnelIds}
+        />
+      ) : null}
       {route.local && tunnel ? (
         <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
       ) : null}
@@ -436,6 +447,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
               route={selected}
               tunnel={carrier(selected)}
               accountId={active.id}
+              localTunnelIds={tunnels.map((t) => t.id)}
               onEdit={() => setSheet({ kind: "edit", route: selected })}
               onRemove={() => setSheet({ kind: "remove", route: selected })}
               onBalance={() =>

@@ -169,6 +169,80 @@ pub(crate) async fn observe<C: CloudApi>(
     }
 }
 
+/// How one machine's tunnel behind a balanced route does, from Cloudflare's health
+/// checks in each region.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct EndpointHealth {
+    /// Tunnel id.
+    pub tunnel_id: String,
+    /// The endpoint's name (the tunnel's).
+    pub name: String,
+    /// Whether it gets traffic.
+    pub enabled: bool,
+    /// Regions whose checks pass.
+    pub healthy_regions: u32,
+    /// Regions that checked it (0 until the first checks come in).
+    pub regions: u32,
+    /// Why checks fail, in Cloudflare's words (e.g. "HTTP timeout occurred").
+    pub reason: Option<String>,
+}
+
+/// The health of each endpoint of Teitunnel's pool for `hostname`, in pool order;
+/// empty when there's no such pool.
+///
+/// # Errors
+/// API errors (no add-on or permission).
+pub async fn health<C: CloudApi>(
+    api: &C,
+    account: &str,
+    hostname: &str,
+) -> Result<Vec<EndpointHealth>, crate::Error> {
+    let mark = marker(hostname);
+    let Some(pool) = api
+        .lb_pools(account)
+        .await?
+        .into_iter()
+        .find(|p| p.description == mark)
+    else {
+        return Ok(Vec::new());
+    };
+    let health = api.lb_pool_health(account, &pool.id).await?;
+    Ok(pool
+        .origins
+        .iter()
+        .map(|origin| {
+            let seen: Vec<&cf_api::OriginHealth> = health
+                .regions
+                .values()
+                .flatten()
+                .filter(|h| h.address.eq_ignore_ascii_case(&origin.address))
+                .collect();
+            let healthy = seen.iter().filter(|h| h.healthy).count();
+            let reason = seen.iter().filter(|h| !h.healthy).find_map(|h| {
+                h.failure_reason.clone().or_else(|| {
+                    h.response_code
+                        .filter(|c| *c > 0)
+                        .map(|c| format!("HTTP {c}"))
+                })
+            });
+            EndpointHealth {
+                tunnel_id: origin
+                    .address
+                    .strip_suffix(".cfargotunnel.com")
+                    .unwrap_or(&origin.address)
+                    .to_owned(),
+                name: origin.name.clone(),
+                enabled: origin.enabled,
+                healthy_regions: u32::try_from(healthy).unwrap_or(u32::MAX),
+                regions: u32::try_from(seen.len()).unwrap_or(u32::MAX),
+                reason,
+            }
+        })
+        .collect())
+}
+
 /// The account's tunnels whose remote configuration routes `hostname`, by name.
 async fn serving_tunnels<C: CloudApi>(
     api: &C,

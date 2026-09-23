@@ -221,6 +221,12 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// How a pool's endpoints do, per Cloudflare region.
+    fn lb_pool_health(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::PoolHealth>> + Send;
     /// A zone's load balancers.
     fn load_balancers(
         &self,
@@ -481,6 +487,10 @@ impl CloudApi for Client {
 
     async fn delete_lb_pool(&self, account: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_lb_pool(self, account, id).await
+    }
+
+    async fn lb_pool_health(&self, account: &str, id: &str) -> cf_api::Result<cf_api::PoolHealth> {
+        Client::lb_pool_health(self, account, id).await
     }
 
     async fn load_balancers(&self, zone: &str) -> cf_api::Result<Vec<cf_api::LoadBalancer>> {

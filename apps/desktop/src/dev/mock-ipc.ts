@@ -174,7 +174,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
-      balanced: false,
+      balanced: true,
       zone: "teispace.com",
       dns: { state: "ok" },
       access: null,
@@ -537,6 +537,25 @@ export function installMockIpc(): void {
               900,
             ),
           );
+        case "routes_balance_health":
+          return [
+            {
+              tunnelId,
+              name: "MacBook Pro",
+              enabled: true,
+              healthyRegions: 3,
+              regions: 3,
+              reason: null,
+            },
+            {
+              tunnelId: "t-server",
+              name: "home-lab",
+              enabled: true,
+              healthyRegions: 2,
+              regions: 3,
+              reason: "HTTP timeout occurred",
+            },
+          ];
         case "routes_drift":
           return new URLSearchParams(window.location.search).has("drift")
             ? {

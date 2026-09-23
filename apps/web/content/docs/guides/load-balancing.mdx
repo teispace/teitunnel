@@ -34,6 +34,13 @@ The plan shows what's created before anything is:
 With only one machine serving the route so far, the plan warns you: add the route on
 another machine and balance again to include it.
 
+## See how each machine is doing
+The route's details list **Machines**: every endpoint of the pool, with the result of
+Cloudflare's health checks from each region that checks it ("Healthy in all 3 regions",
+"Healthy in 2 of 3 regions", or failing with Cloudflare's reason, such as a timeout). The
+machine you're on is marked. Checks run about once a minute; the list refreshes while it's
+open.
+
 ## Machines joining and leaving
 A machine that adds the route later joins the pool by itself, instead of taking the DNS
 record over. Removing the route on a machine takes it out of the pool; when the last one

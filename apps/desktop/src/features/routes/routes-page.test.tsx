@@ -5,7 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { rawText } from "@/lib/i18n";
-import type { Change, PlanView, RoutesOverview, RouteView, TunnelView } from "@/lib/ipc/bindings";
+import type {
+  Change,
+  EndpointHealth,
+  PlanView,
+  RoutesOverview,
+  RouteView,
+  TunnelView,
+} from "@/lib/ipc/bindings";
 import { RoutesPage } from "./routes-page";
 
 const zones = [
@@ -122,6 +129,25 @@ beforeEach(() => {
         } satisfies RoutesOverview;
       case "routes_preview":
         return plan(payload["change"] as Change);
+      case "routes_balance_health":
+        return [
+          {
+            tunnelId: "t1",
+            name: "Mac",
+            enabled: true,
+            healthyRegions: 3,
+            regions: 3,
+            reason: null,
+          },
+          {
+            tunnelId: "t9",
+            name: "server",
+            enabled: true,
+            healthyRegions: 0,
+            regions: 3,
+            reason: "HTTP timeout occurred",
+          },
+        ] satisfies EndpointHealth[];
       case "routes_apply": {
         const change = payload["change"] as Change;
         if (change.type === "addRoute") {
@@ -335,6 +361,14 @@ describe("RoutesPage", () => {
     renderPage();
     const row = await screen.findByRole("option", { name: /app\.xyz\.com/ });
     expect(within(row).getByText("Balanced")).toBeTruthy();
+    // Each machine's health from Cloudflare's checks, this one marked.
+    expect(await screen.findByText("Mac (this Mac)")).toBeTruthy();
+    expect(screen.getByText("Healthy in all 3 regions")).toBeTruthy();
+    expect(screen.getByText("Failing its health checks: HTTP timeout occurred")).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "routes_balance_health")?.args).toMatchObject({
+      accountId: "acc",
+      hostname: "app.xyz.com",
+    });
     fireEvent.click(screen.getByRole("button", { name: "Stop Load Balancing…" }));
     const dialog = await screen.findByRole("dialog", { name: "Stop Load Balancing" });
     await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");

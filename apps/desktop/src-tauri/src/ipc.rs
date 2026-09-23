@@ -76,6 +76,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::routes_apply,
             routes::routes_verify,
             routes::routes_drift,
+            routes::routes_balance_health,
             routes::routes_keep_theirs,
             routes::routes_activity,
             routes::tunnels_list,

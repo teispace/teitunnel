@@ -202,6 +202,17 @@ export function useRouteLogs(accountId: string, hostname: string, path: string |
   });
 }
 
+/** Each machine's health behind a load-balanced route (Cloudflare checks about once a minute). */
+export function useBalanceHealth(accountId: string, hostname: string) {
+  return useQuery({
+    queryKey: ["routes", "balanceHealth", accountId, hostname],
+    queryFn: () => call(commands.routesBalanceHealth(accountId, hostname)),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+    retry: false,
+  });
+}
+
 export interface RemoteConnector {
   accountId: string;
   tunnelId: string;

@@ -161,7 +161,8 @@
       "address": "Address",
       "details": "Details",
       "activity": "Activity",
-      "logs": "Logs"
+      "logs": "Logs",
+      "machines": "Machines"
     },
     "detail": {
       "service": "Service",
@@ -219,6 +220,20 @@
       "start": "Load Balance…",
       "stop": "Stop Load Balancing…",
       "on": "Across every tunnel that routes it"
+    },
+    "health": {
+      "local": "{name} (this Mac)",
+      "local@windows": "{name} (this PC)",
+      "local@linux": "{name} (this computer)",
+      "healthy_one": "Healthy in {count} region",
+      "healthy_other": "Healthy in all {count} regions",
+      "partly_one": "Healthy in {healthy} of {count} region",
+      "partly_other": "Healthy in {healthy} of {count} regions",
+      "failing": "Failing its health checks",
+      "failingBecause": "Failing its health checks: {reason}",
+      "pending": "Waiting for the first health checks",
+      "disabled": "Not getting traffic",
+      "none": "Cloudflare has no pool for this route yet."
     }
   },
   "tunnels": {

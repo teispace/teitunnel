@@ -152,6 +152,8 @@ export const commands = {
 	/**  Routes that differ. */
 	changes: RuleChange[],
 } | null>("routes_drift", { accountId }),
+	/**  How each machine behind a load-balanced route does, from Cloudflare's health checks. */
+	routesBalanceHealth: (accountId: string, hostname: string) => __TAURI_INVOKE<EndpointHealth[]>("routes_balance_health", { accountId, hostname }),
 	/**  Accepts an outside edit as the new baseline ("Keep theirs"). */
 	routesKeepTheirs: (accountId: string) => __TAURI_INVOKE<null>("routes_keep_theirs", { accountId }),
 	/**  Recent changes in an account, newest first. */
@@ -676,6 +678,25 @@ export type Drift = {
 	currentVersion: number,
 	/**  Routes that differ. */
 	changes: RuleChange[],
+};
+
+/**
+ *  How one machine's tunnel behind a balanced route does, from Cloudflare's health
+ *  checks in each region.
+ */
+export type EndpointHealth = {
+	/**  Tunnel id. */
+	tunnelId: string,
+	/**  The endpoint's name (the tunnel's). */
+	name: string,
+	/**  Whether it gets traffic. */
+	enabled: boolean,
+	/**  Regions whose checks pass. */
+	healthyRegions: number,
+	/**  Regions that checked it (0 until the first checks come in). */
+	regions: number,
+	/**  Why checks fail, in Cloudflare's words (e.g. "HTTP timeout occurred"). */
+	reason: string | null,
 };
 
 /**  Emitted after anything changes, so the UI can invalidate the affected queries. */

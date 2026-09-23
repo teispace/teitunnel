@@ -57,6 +57,8 @@ pub(crate) struct CloudState {
     pub(crate) lb_monitors: BTreeMap<String, cf_api::Monitor>,
     pub(crate) lb_pools: BTreeMap<String, cf_api::Pool>,
     pub(crate) load_balancers: BTreeMap<String, (String, cf_api::LoadBalancer)>,
+    /// Pool endpoints (by address) whose health checks fail.
+    pub(crate) lb_failing: BTreeSet<String>,
 }
 
 /// State with ids and versions stripped, for "is it back to how it was?" checks.
@@ -682,6 +684,30 @@ impl CloudApi for FakeCloud {
         }
         state.lb_pools.remove(id);
         Ok(())
+    }
+
+    async fn lb_pool_health(&self, _account: &str, id: &str) -> cf_api::Result<cf_api::PoolHealth> {
+        let state = self.state.lock().unwrap();
+        let pool = state.lb_pools.get(id).ok_or_else(not_found)?;
+        let seen = pool
+            .origins
+            .iter()
+            .map(|o| {
+                let failing = state.lb_failing.contains(&o.address);
+                cf_api::OriginHealth {
+                    address: o.address.clone(),
+                    healthy: !failing,
+                    failure_reason: failing.then(|| "HTTP timeout occurred".to_owned()),
+                    response_code: Some(if failing { 0 } else { 200 }),
+                }
+            })
+            .collect::<Vec<_>>();
+        Ok(cf_api::PoolHealth {
+            regions: ["Amsterdam, NL", "Tokyo, JP"]
+                .into_iter()
+                .map(|r| (r.to_owned(), seen.clone()))
+                .collect(),
+        })
     }
 
     async fn load_balancers(&self, zone: &str) -> cf_api::Result<Vec<cf_api::LoadBalancer>> {

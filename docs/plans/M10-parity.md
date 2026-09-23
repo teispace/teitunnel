@@ -39,7 +39,7 @@
 
 ### M10-07 · Load balancing across machines
 - [x] When the account has Cloudflare Load Balancing: a route can be served by several machines' tunnels through a pool with a health monitor (plan → apply, undo, ownership; D-071).
-- [x] Balanced badge and detail in Routes, the plan warns with a single endpoint, `PermissionFix` lists the permissions and the add-on on refusal. Per-endpoint health from the pool health API is left for later.
+- [x] Balanced badge and detail in Routes, the plan warns with a single endpoint, `PermissionFix` lists the permissions and the add-on on refusal. Per-endpoint health from the pool health API: the inspector's Machines section.
 
 ### M10-08 · Everything documented
 - [x] Docs site on Fumadocs (every feature and step, CLI and API references, guides) and a landing page (see M11).

@@ -1784,6 +1784,38 @@ async fn load_balances_a_route_across_machines_and_back() {
             .contains("app.xyz.com")
     );
 
+    // Each machine's health, from the pool's checks in every region.
+    cloud
+        .state
+        .lock()
+        .unwrap()
+        .lb_failing
+        .insert(super::types::tunnel_target(&theirs));
+    let health = super::balance::health(&cloud, "acc", "app.xyz.com")
+        .await
+        .unwrap();
+    assert_eq!(health.len(), 2);
+    for endpoint in &health {
+        assert_eq!(endpoint.regions, 2);
+        if endpoint.tunnel_id == theirs {
+            assert_eq!(endpoint.healthy_regions, 0);
+            assert_eq!(endpoint.reason.as_deref(), Some("HTTP timeout occurred"));
+        } else {
+            assert_eq!(endpoint.tunnel_id, ours.tunnel_id);
+            assert_eq!(
+                (endpoint.healthy_regions, endpoint.reason.as_ref()),
+                (2, None)
+            );
+        }
+    }
+    assert!(
+        super::balance::health(&cloud, "acc", "other.xyz.com")
+            .await
+            .unwrap()
+            .is_empty(),
+        "no pool, nothing to report"
+    );
+
     // Applying again changes nothing.
     let again = engine
         .preview(&cloud, CTX, &balance("app.xyz.com"))

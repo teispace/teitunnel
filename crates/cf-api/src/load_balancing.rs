@@ -99,6 +99,65 @@ pub struct LoadBalancer {
     pub proxied: bool,
 }
 
+/// How one endpoint of a pool does, as seen from one Cloudflare region.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginHealth {
+    /// The endpoint's address (`<tunnel id>.cfargotunnel.com` for a tunnel).
+    pub address: String,
+    /// Whether the region's checks pass.
+    pub healthy: bool,
+    /// Why they fail, in Cloudflare's words.
+    pub failure_reason: Option<String>,
+    /// The status code of the last check.
+    pub response_code: Option<u16>,
+}
+
+/// A pool's health per region.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PoolHealth {
+    /// Region name (e.g. `Amsterdam, NL`) → its view of each endpoint.
+    pub regions: BTreeMap<String, Vec<OriginHealth>>,
+}
+
+impl PoolHealth {
+    /// Reads `pop_health`: region → `{ healthy, origins: [{ <address>: {...} }] }`.
+    /// Anything that doesn't fit is skipped rather than failing the read.
+    fn from_result(result: &serde_json::Value) -> Self {
+        let mut regions = BTreeMap::new();
+        let Some(pops) = result.get("pop_health").and_then(|v| v.as_object()) else {
+            return Self { regions };
+        };
+        for (region, pop) in pops {
+            let Some(origins) = pop.get("origins").and_then(|v| v.as_array()) else {
+                continue;
+            };
+            let seen = origins
+                .iter()
+                .filter_map(|o| o.as_object())
+                .flat_map(|o| o.iter())
+                .map(|(address, check)| OriginHealth {
+                    address: address.clone(),
+                    healthy: check
+                        .get("healthy")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false),
+                    failure_reason: check
+                        .get("failure_reason")
+                        .and_then(|v| v.as_str())
+                        .filter(|r| !r.is_empty() && *r != "No failures")
+                        .map(str::to_owned),
+                    response_code: check
+                        .get("response_code")
+                        .and_then(serde_json::Value::as_u64)
+                        .and_then(|c| u16::try_from(c).ok()),
+                })
+                .collect();
+            regions.insert(region.clone(), seen);
+        }
+        Self { regions }
+    }
+}
+
 fn monitors(account: &str) -> String {
     format!(
         "/accounts/{}/load_balancers/monitors",
@@ -177,6 +236,17 @@ impl Client {
     pub async fn delete_lb_pool(&self, account: &str, id: &str) -> Result<()> {
         self.delete(&format!("{}/{}", pools(account), crate::encode(id)))
             .await
+    }
+
+    /// How the pool's endpoints do, per Cloudflare region.
+    ///
+    /// # Errors
+    /// API errors.
+    pub async fn lb_pool_health(&self, account: &str, id: &str) -> Result<PoolHealth> {
+        let result: serde_json::Value = self
+            .get(&format!("{}/{}/health", pools(account), crate::encode(id)))
+            .await?;
+        Ok(PoolHealth::from_result(&result))
     }
 
     /// A zone's load balancers.
@@ -260,6 +330,42 @@ mod tests {
         };
         let created = client.create_lb_pool("a1", &pool).await.unwrap();
         assert_eq!(created.id, "p1");
+    }
+
+    #[tokio::test]
+    async fn reads_pool_health_per_region() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/load_balancers/pools/p1/health"))
+            .respond_with(ok(&json!({
+                "pool_id": "p1",
+                "pop_health": {
+                    "Amsterdam, NL": {"healthy": true, "origins": [
+                        {"t1.cfargotunnel.com": {"healthy": true, "rtt": "12.1ms",
+                            "failure_reason": "No failures", "response_code": 200}},
+                        {"t2.cfargotunnel.com": {"healthy": false,
+                            "failure_reason": "HTTP timeout occurred", "response_code": 0}}
+                    ]},
+                    "Broken": {"healthy": true}
+                }
+            })))
+            .mount(&server)
+            .await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        let health = client.lb_pool_health("a1", "p1").await.unwrap();
+        assert_eq!(
+            health.regions.len(),
+            1,
+            "a region without origins is skipped"
+        );
+        let seen = &health.regions["Amsterdam, NL"];
+        assert_eq!(seen[0].address, "t1.cfargotunnel.com");
+        assert!(seen[0].healthy && seen[0].failure_reason.is_none());
+        assert!(!seen[1].healthy);
+        assert_eq!(
+            seen[1].failure_reason.as_deref(),
+            Some("HTTP timeout occurred")
+        );
     }
 
     #[tokio::test]

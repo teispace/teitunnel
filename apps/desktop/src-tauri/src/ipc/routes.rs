@@ -6,10 +6,13 @@ use teitunnel_core::text::{UserText, msg::app as m};
 
 use tauri::{AppHandle, Runtime, State, ipc::Channel};
 use tauri_specta::Event;
-use teitunnel_core::engine::Connectors;
 use teitunnel_core::engine::{
     ActivityEntry, Approval, Change, Context, Drift, Outcome, PlanView, Progress, RoutesOverview,
     TunnelSummary, Verification,
+};
+use teitunnel_core::engine::{
+    Connectors,
+    balance::{self, EndpointHealth},
 };
 
 use crate::{
@@ -134,6 +137,18 @@ pub async fn routes_verify(
             patience,
         )
         .await?)
+}
+
+/// How each machine behind a load-balanced route does, from Cloudflare's health checks.
+#[tauri::command]
+#[specta::specta]
+pub async fn routes_balance_health(
+    state: State<'_, AppState>,
+    account_id: String,
+    hostname: String,
+) -> Result<Vec<EndpointHealth>, AppError> {
+    let api = state.accounts.client(&account_id).await?;
+    Ok(balance::health(&api, &account_id, &hostname).await?)
 }
 
 /// An outside edit of this Mac's routes (on any of its tunnels), if there is one.

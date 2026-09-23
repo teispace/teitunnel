@@ -25,7 +25,7 @@ pub use client::{API_BASE, Client};
 pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
-pub use load_balancing::{LoadBalancer, Monitor, Origin, Pool};
+pub use load_balancing::{LoadBalancer, Monitor, Origin, OriginHealth, Pool, PoolHealth};
 pub use management::{
     Connector, ConnectorConnection, LogStream, MANAGEMENT_BASE, RemoteLog, StreamError,
 };
