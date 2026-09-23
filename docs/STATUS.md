@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-0. **Next:** a signed dry run from `main` (Actions ▸ Release ▸ Run workflow), check the notarized DMG, then merge release-please's "chore: release 0.1.0" PR (#8) to publish v0.1.0. Afterwards: the SignPath application (the site is live on HTTPS).
+0. **Next:** let the signed dry run from `main` finish (run 35885859016: Apple's first notarization for the team was still *In Progress* on 2026-09-24; later ones take minutes), check the notarized DMG, then merge release-please's "chore: release 0.1.0" PR (#8) to publish v0.1.0. Afterwards: the SignPath application (the site is live on HTTPS).
    Earlier plan (D-074): ~~M6-02 updater~~ (D-075) → ~~M6-03 release workflow + release-please~~ → ~~M6-07 download pages~~ (D-076) → maintainer setup, step by step in [RELEASING.md](RELEASING.md) (Apple cert + API key, updater key, `release` environment, Pages) → dry run → v0.1.0 public beta (website only; Windows unsigned until SignPath) → M6-04 channels.
    Earlier: **M10/M11 done** ([plan](plans/M10-parity.md), Cloudify analysis in [research/cloudify.md](research/cloudify.md)). All follow-ups done. Next: release work (signing with the maintainer's Developer ID, updater, release automation, channels incl. ghcr.io image and winget/Homebrew, website deploy to teitunnel.teispace.com: GitHub Pages + Cloudflare DNS CNAME `teitunnel` → `teispace.github.io`, then point the app's Help link there), done last per the maintainer (2026-09-23).
 1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
@@ -19,12 +19,10 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; private networks and `cloudflared access` helpers (M9-05) done; M9-06 i18n: UI and Rust-side text done (D-061, D-062); community translations remain (needs translators).
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
-6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.
+6. **Maintainer:** OAuth client; test token.
 
 ## In progress
-- **M6 (non-release)** on `milestone/m6-polish-docs`, draft PR #7: polish (Title Case, contrast tokens, Reduce Motion, Help menu), a11y audit (D-052), performance baseline, docs site (D-053), CONTRIBUTING.
-- **M5** complete on `milestone/m5-observability-always-on`, PR #6 (ready for review). Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.
-- **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
+- Signed release dry run (Actions run 35885859016): every platform built; macOS waits on Apple's first notarization of the team (submission a509fe81, *In Progress*).
 
 ## Recently completed
 - 2026-09-23: Website polish (D-081): download page rebuilt as system tiles + one panel (main file, format chips, install command); live Quick Share and Doctor demos; how-it-works and CLI sections moved under the hero; carousel removed.
