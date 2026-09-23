@@ -9,23 +9,32 @@
 
 ---
 
+Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M6-02 → M6-01/03 → M6-07 → maintainer setup → dry run → v0.1.0 → M6-04.
+
 ### M6-01 · Signing & notarization
-- [ ] Apple Developer ID (maintainer prerequisite). CI secrets: certificate p12, password, App Store Connect API key for notarytool.
+- [ ] Maintainer: Developer ID Application certificate (Account Holder of the Teispace team), App Store Connect API key (notarytool), updater keypair (`pnpm tauri signer generate`); secrets in a protected `release` environment.
 - [ ] Hardened runtime + entitlements (network client/server for the loopback OAuth listener; no unnecessary ones).
-- [ ] `release.yml`: build a universal binary (or separate arm64/x64 builds), sign, notarize, staple, then a DMG with a designed background and Applications link.
+- [ ] macOS: universal build, sign, notarize, staple the `.dmg`.
+- [ ] Windows: SignPath Foundation after v0.1.0 is public (terms need a released project): code signing policy page, MFA, roles; signing step in the workflow; updater `.sig` regenerated after Authenticode signing. v0.1.0 ships unsigned with SmartScreen guidance on the download page.
 
 ### M6-02 · Updater
-- [ ] `tauri-plugin-updater` with a minisign keypair (private key in CI secrets only). `latest.json` on GitHub Releases.
+- [ ] `tauri-plugin-updater` with a minisign keypair (private key in CI secrets only). `latest.json` on GitHub Releases (`releases/latest/download/latest.json`).
 - [ ] UX: a quiet check on launch and daily. A native-style "Update available" in the menu and Settings; install on quit or "Restart now". Release notes shown.
 - [ ] Setting to disable update checks (D-019).
 
 ### M6-03 · Release automation
-- [ ] release-please (conventional commits → changelog → version bump PR → tag → release workflow).
-- [ ] Versioning: SemVer. Pre-1.0 minors are milestone releases.
+- [ ] `release.yml`: matrix (macOS universal; Windows x64 + arm64 NSIS; Linux x64 + arm64 `.deb`/`.rpm`/AppImage on Ubuntu 22.04), CLI archives, SHA256SUMS, build provenance, `latest.json`; draft release, published by a final job only when every asset is uploaded; `workflow_dispatch` dry run that builds without publishing; actions pinned by commit.
+- [ ] release-please (conventional commits → changelog → version bump PR → tag → the builds above in the same workflow). One version for app, CLI and image; pre-1.0 breaking changes bump the minor.
+- [ ] Versioning: SemVer. v0.1.0 is the public beta.
 
-### M6-04 · Channels
-- [ ] Homebrew: own tap `teispace/homebrew-tap` first (cask auto-bumped by CI), then submit to homebrew/cask once notability criteria are met.
-- [ ] GitHub Releases as the canonical source.
+### M6-04 · Channels (after v0.1.0)
+- [ ] Website only at first (D-074). Later: Homebrew tap (`teispace/homebrew-tap`), winget, ghcr.io multi-arch image, apt/dnf repository, "Install command line tool" in the app.
+
+### M6-07 · Download experience (website)
+- [ ] Hero button by detected OS (macOS universal; Windows x64/arm64 via User-Agent Client Hints; Linux menu of `.deb`/`.rpm`/AppImage per arch); fallback lists everything without JavaScript.
+- [ ] `/download` page (version, date, release notes, requirements, checksums, CLI and Docker) and a per-OS "Your download is starting" page with install steps (Slack-style), incl. the unsigned-Windows SmartScreen note.
+- [ ] Code signing policy, privacy, and "Verify your download" pages (SignPath requirements).
+- [ ] Site rebuilt by the release workflow so links point at the latest release; deploy to teitunnel.teispace.com (GitHub Pages + Cloudflare DNS).
 
 ### M6-05 · Polish pass
 - [ ] Full DESIGN review of every screen against macOS 27 System Settings (light/dark, active/inactive, transparency slider extremes, increased contrast, reduce motion). *(Web-level pass done 2026-09-23 with `shoot` (+`SHOOT_CONTRAST=more`, `SHOOT_REDUCED_MOTION=1`): Title Case buttons, untitled Appearance group, contrast tokens. Native material checks in a packaged build need an unlocked screen.)*

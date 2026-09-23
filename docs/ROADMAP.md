@@ -11,7 +11,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M3](plans/M3-routes-engine.md) | v0.3.0 | Plan → apply engine, routes across domains, DNS ownership, drift | ✅ Done (PR #4; nightly waits for a test token) |
 | [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | ✅ Done (PR #5) |
 | [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | ✅ Done (PR #6) |
-| [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
+| [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, releases, downloads (v0.1.0 public beta first, D-074) | Planned |
 | [M7](plans/M7-windows.md) | v1.1 | Windows | 🚧 Core done; needs Windows hardware |
 | [M8](plans/M8-linux.md) | v1.2 | Linux | 🚧 Core done; needs a Linux desktop |
 | [M9](plans/M9-advanced.md) | v1.x | Export, CLI, Access protection, replicas, private networks | 🚧 Export, CLI, Access, remote connectors, private networks and UI i18n done |
@@ -59,7 +59,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M5-05 launchd always-on · [x] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
 
 ### M6: Distribution (v1.0.0)
-- [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Homebrew
+- [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Channels (after v0.1.0) · [ ] M6-07 Download experience (D-074)
 - [ ] M6-05 Polish pass · [ ] M6-06 Docs & community
 
 ### M10: Parity and beyond
