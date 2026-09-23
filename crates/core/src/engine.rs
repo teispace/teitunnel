@@ -7,6 +7,7 @@
 
 mod access;
 mod activity;
+pub mod balance;
 mod cloud;
 mod drift;
 mod executor;

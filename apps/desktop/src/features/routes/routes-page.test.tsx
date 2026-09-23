@@ -92,6 +92,7 @@ beforeEach(() => {
       local: true,
       tunnelId: "t1",
       temporary: false,
+      balanced: false,
       zone: "xyz.com",
       dns: { state: "ok" },
       access: null,
@@ -133,6 +134,7 @@ beforeEach(() => {
               local: true,
               tunnelId: "t1",
               temporary: false,
+              balanced: false,
               zone: "yx.com",
               dns: { state: "ok" },
               access: change.route.access ?? null,
@@ -143,6 +145,7 @@ beforeEach(() => {
             type: "applied",
             tunnelId: "t1",
             temporary: false,
+            balanced: false,
             verify: [change.route.hostname],
             connectorError: null,
           };
@@ -166,6 +169,7 @@ beforeEach(() => {
           ? {
               tunnelId: "t1",
               temporary: false,
+              balanced: false,
               appliedVersion: 1,
               currentVersion: 2,
               changes: [
@@ -230,6 +234,7 @@ describe("RoutesPage", () => {
         local: true,
         tunnelId: "t1",
         temporary: false,
+        balanced: false,
         zone: "xyz.com",
         dns: { state: "ok" },
         access: null,
@@ -310,6 +315,33 @@ describe("RoutesPage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
     await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
     expect(calls.find((c) => c.cmd === "routes_preview")?.args["tunnelId"]).toBe("t2");
+  });
+
+  it("load balances a route through a reviewed plan, and marks it", async () => {
+    renderPage();
+    await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    fireEvent.click(screen.getByRole("button", { name: "Load Balance…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Load Balance Route" });
+    await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
+    const preview = calls.find((c) => c.cmd === "routes_preview");
+    expect(preview?.args).toMatchObject({
+      tunnelId: "t1",
+      change: { type: "balanceRoute", hostname: "app.xyz.com" },
+    });
+  });
+
+  it("offers to stop load balancing a balanced route", async () => {
+    routes = [{ ...(routes[0] as RouteView), balanced: true }];
+    renderPage();
+    const row = await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    expect(within(row).getByText("Balanced")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop Load Balancing…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Stop Load Balancing" });
+    await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
+    expect(calls.find((c) => c.cmd === "routes_preview")?.args["change"]).toEqual({
+      type: "unbalanceRoute",
+      hostname: "app.xyz.com",
+    });
   });
 
   it("puts a login in front of a new route", async () => {

@@ -17,6 +17,8 @@ export type PermissionNeed =
   | { kind: "dns"; zone: string }
   /** DNS on at least one domain (routes need one to be useful at all). */
   | { kind: "anyDns" }
+  /** Cloudflare Load Balancing (a paid add-on); not probed, so shown only on refusal. */
+  | { kind: "loadBalancing" }
   | { kind: "access" };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
@@ -35,6 +37,8 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.zones.some((z) => z.zoneName === need.zone && z.dnsEdit === "no");
     case "anyDns":
       return caps.zones.length > 0 && caps.zones.every((z) => z.dnsEdit === "no");
+    case "loadBalancing":
+      return false;
     case "access":
       return caps.accessEdit === "no";
   }
@@ -56,6 +60,11 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
       ];
     case "anyDns":
       return [{ name: t("permissionFix.dns"), why: t("permissionFix.anyDnsWhy") }];
+    case "loadBalancing":
+      return [
+        { name: t("permissionFix.lbPools"), why: t("permissionFix.lbWhy") },
+        { name: t("permissionFix.lbBalancers"), why: t("permissionFix.lbWhy") },
+      ];
     case "access":
       return [
         { name: t("permissionFix.accessApps"), why: t("permissionFix.accessAppsWhy") },

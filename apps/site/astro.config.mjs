@@ -46,6 +46,7 @@ export default defineConfig({
             "guides/private-networks",
             "guides/several-tunnels",
             "guides/servers",
+            "guides/load-balancing",
             "guides/observability",
             "guides/menu-bar",
           ],

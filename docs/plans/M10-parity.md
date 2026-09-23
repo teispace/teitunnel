@@ -38,8 +38,8 @@
 - [x] Documented HTTP API (`/api/openapi.json`) with API keys for automation (`teitunnel-cli api-key create|list|revoke`).
 
 ### M10-07 · Load balancing across machines
-- [ ] When the account has Cloudflare Load Balancing: a route can be served by several machines' tunnels through a pool with a health monitor (plan → apply, undo, ownership).
-- [ ] Health per origin in the UI; the Doctor explains when the add-on is missing.
+- [x] When the account has Cloudflare Load Balancing: a route can be served by several machines' tunnels through a pool with a health monitor (plan → apply, undo, ownership; D-071).
+- [x] Balanced badge and detail in Routes, the plan warns with a single endpoint, `PermissionFix` lists the permissions and the add-on on refusal. Per-endpoint health from the pool health API is left for later.
 
 ### M10-08 · Everything documented
 - [ ] Docs site on Fumadocs (every feature and step, CLI and API references, guides) and a landing page (see M11).

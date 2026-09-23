@@ -85,14 +85,18 @@ impl Error {
                     | P::NoTunnel
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
-                    | P::NoSuchNetwork(_),
+                    | P::NoSuchNetwork(_)
+                    | P::NotBalanced(_),
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
                 | E::NeedsConfirmation
                 | E::NothingToRestore
                 | E::Plan(
-                    P::AccessAppExists(_) | P::NetworkRouted { .. } | P::RoutedElsewhere { .. },
+                    P::AccessAppExists(_)
+                    | P::NetworkRouted { .. }
+                    | P::RoutedElsewhere { .. }
+                    | P::BalancerExists(_),
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,

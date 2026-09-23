@@ -346,6 +346,51 @@ impl Local {
             .await
     }
 
+    /// Records whether Teitunnel load balances `hostname`.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn set_balanced(
+        &self,
+        account: &str,
+        hostname: &str,
+        balanced: bool,
+    ) -> Result<(), StoreError> {
+        let (account, hostname) = (account.to_owned(), hostname.to_ascii_lowercase());
+        self.store
+            .call(move |conn| {
+                if balanced {
+                    conn.execute(
+                        "INSERT OR IGNORE INTO balanced_routes (account_id, hostname) VALUES (?1, ?2)",
+                        params![account, hostname],
+                    )?;
+                } else {
+                    conn.execute(
+                        "DELETE FROM balanced_routes WHERE account_id = ?1 AND hostname = ?2",
+                        params![account, hostname],
+                    )?;
+                }
+                Ok(())
+            })
+            .await
+    }
+
+    /// Hostnames Teitunnel load balances in `account`.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn balanced(&self, account: &str) -> Result<HashSet<String>, StoreError> {
+        let account = account.to_owned();
+        self.store
+            .call(move |conn| {
+                let mut stmt =
+                    conn.prepare("SELECT hostname FROM balanced_routes WHERE account_id = ?1")?;
+                let rows = stmt.query_map(params![account], |row| row.get::<_, String>(0))?;
+                Ok(rows.collect::<Result<HashSet<_>, _>>()?)
+            })
+            .await
+    }
+
     /// Remembers a temporary route ("share on your domain").
     ///
     /// # Errors

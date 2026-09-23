@@ -139,6 +139,14 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT;
         CREATE UNIQUE INDEX web_credentials_password ON web_credentials (kind) WHERE kind = 'password';",
     ),
+    // 11: routes this machine load balances (for the routes view)
+    M::up(
+        "CREATE TABLE balanced_routes (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

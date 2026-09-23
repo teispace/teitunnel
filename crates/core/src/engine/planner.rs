@@ -67,6 +67,10 @@ pub enum PlanError {
     InvalidTunnelName,
     /// Another tunnel in the account has the name.
     TunnelNameTaken(String),
+    /// A load balancer Teitunnel didn't create already answers for the hostname.
+    BalancerExists(String),
+    /// Teitunnel doesn't load balance the hostname.
+    NotBalanced(String),
 }
 
 impl UserText for PlanError {
@@ -90,6 +94,8 @@ impl UserText for PlanError {
             }
             Self::InvalidTunnelName => msg::error::plan::invalid_tunnel_name(),
             Self::TunnelNameTaken(name) => msg::error::plan::tunnel_name_taken(name),
+            Self::BalancerExists(hostname) => msg::error::plan::balancer_exists(hostname),
+            Self::NotBalanced(hostname) => msg::error::plan::not_balanced(hostname),
         }
     }
 }
@@ -140,6 +146,137 @@ impl<'a> Builder<'a> {
                 });
                 TunnelRef::Created
             }
+        }
+    }
+
+    /// The pool endpoints for `hostname`: every tunnel that routes it except this
+    /// Mac's, plus this Mac's (`own`) when it routes it after the change.
+    fn endpoints(&self, own: Option<&TunnelRef>) -> Vec<super::types::PoolEndpoint> {
+        use super::types::PoolEndpoint;
+        let ours = self.snapshot.tunnel.as_ref().map(|t| t.id.as_str());
+        let mut endpoints: Vec<PoolEndpoint> = self
+            .snapshot
+            .balance
+            .iter()
+            .flat_map(|b| &b.serving)
+            .filter(|t| Some(t.id.as_str()) != ours)
+            .map(|t| PoolEndpoint {
+                tunnel: TunnelRef::Existing(t.id.clone()),
+                name: t.name.clone(),
+            })
+            .collect();
+        if let Some(tunnel) = own {
+            let name = self
+                .snapshot
+                .tunnel
+                .as_ref()
+                .map_or_else(|| self.snapshot.machine_name.clone(), |t| t.name.clone());
+            endpoints.push(PoolEndpoint {
+                tunnel: tunnel.clone(),
+                name,
+            });
+        }
+        endpoints
+    }
+
+    /// Makes Teitunnel's pool for `hostname` send traffic to `endpoints`: a new pool (and
+    /// monitor) when there's none, an update when they differ. Returns the pool.
+    fn sync_pool(
+        &mut self,
+        hostname: &str,
+        endpoints: Vec<super::types::PoolEndpoint>,
+    ) -> Option<super::types::LbRef> {
+        use super::types::LbRef;
+        let state = self.snapshot.balance.as_ref()?;
+        let monitor = match &state.monitor {
+            Some(monitor) => LbRef::Existing(monitor.id.clone()),
+            None => {
+                self.steps.push(Step::CreateLbMonitor {
+                    hostname: hostname.to_owned(),
+                });
+                LbRef::Created
+            }
+        };
+        match &state.pool {
+            Some(pool) => {
+                let wanted: std::collections::BTreeSet<String> = endpoints
+                    .iter()
+                    .map(|e| match &e.tunnel {
+                        TunnelRef::Existing(id) => super::types::tunnel_target(id),
+                        TunnelRef::Created => String::new(),
+                    })
+                    .collect();
+                let current: std::collections::BTreeSet<String> =
+                    pool.origins.iter().map(|o| o.address.clone()).collect();
+                let same_monitor =
+                    matches!(&monitor, LbRef::Existing(id) if pool.monitor.as_deref() == Some(id));
+                if wanted != current || !same_monitor {
+                    self.steps.push(Step::UpdateLbPool {
+                        hostname: hostname.to_owned(),
+                        id: pool.id.clone(),
+                        monitor,
+                        endpoints,
+                        previous: pool.clone(),
+                    });
+                }
+                Some(LbRef::Existing(pool.id.clone()))
+            }
+            None => {
+                self.steps.push(Step::CreateLbPool {
+                    hostname: hostname.to_owned(),
+                    monitor,
+                    endpoints,
+                });
+                Some(LbRef::Created)
+            }
+        }
+    }
+
+    /// Whether Teitunnel load balances the hostname now.
+    fn balanced(&self) -> bool {
+        self.snapshot
+            .balance
+            .as_ref()
+            .is_some_and(super::balance::BalanceState::active)
+    }
+
+    /// For a route of a balanced hostname: joins the pool instead of pointing the DNS
+    /// record at this Mac (the load balancer answers for the hostname). Otherwise, DNS.
+    fn serve(
+        &mut self,
+        hostname: &Hostname,
+        tunnel: &TunnelRef,
+        route_id: &str,
+    ) -> Result<(), PlanError> {
+        if self.balanced() {
+            let endpoints = self.endpoints(Some(tunnel));
+            self.sync_pool(hostname.as_str(), endpoints);
+            return Ok(());
+        }
+        self.ensure_dns(hostname, tunnel, route_id)
+    }
+
+    /// Removes everything Teitunnel made to balance the hostname.
+    fn unbalance(&mut self) {
+        let Some(state) = self
+            .snapshot
+            .balance
+            .clone()
+            .filter(super::balance::BalanceState::active)
+        else {
+            return;
+        };
+        if let Some(balancer) = state.balancer {
+            self.steps.push(Step::DeleteLoadBalancer {
+                zone_id: state.zone_id.clone(),
+                balancer,
+            });
+        }
+        if let Some(pool) = state.pool {
+            self.steps.push(Step::DeleteLbPool { pool });
+        }
+        if let Some(monitor) = state.monitor {
+            self.steps.push(Step::DeleteLbMonitor { monitor });
         }
     }
 
@@ -402,7 +539,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                     if let Some(rule) = &route.access {
                         b.protect(&route_domain(route)?, rule)?;
                     }
-                    b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
+                    b.serve(&route.hostname, &tunnel, &route.id)?;
                     b.verify_route(route);
                     return Ok(b.finish());
                 }
@@ -416,7 +553,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             let mut desired = rules.clone();
             desired.push(route.to_rule());
             b.put_config(&tunnel, desired);
-            b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
+            b.serve(&route.hostname, &tunnel, &route.id)?;
             b.verify_route(route);
         }
         Intent::UpdateRoute {
@@ -503,10 +640,67 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             b.put_config(&TunnelRef::Existing(tunnel_id.clone()), desired);
             if !hostname_still_used {
                 b.release_dns(hostname.as_str(), &tunnel_id);
+                // Leaving a balanced hostname: out of its pool, or, as the last tunnel
+                // serving it, the load balancing goes too.
+                if b.balanced() {
+                    let endpoints = b.endpoints(None);
+                    if endpoints.is_empty() {
+                        b.unbalance();
+                    } else {
+                        b.sync_pool(hostname.as_str(), endpoints);
+                    }
+                }
             }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
             }
+        }
+        Intent::BalanceRoute { hostname } => {
+            let zone_id = b.zone_id(hostname)?;
+            let tunnel_id = snapshot
+                .tunnel
+                .as_ref()
+                .map(|t| t.id.clone())
+                .ok_or(PlanError::NoTunnel)?;
+            if !rules
+                .iter()
+                .any(|r| r.hostname.as_deref() == Some(hostname.as_str()))
+            {
+                return Err(PlanError::NoSuchRoute(hostname.to_string()));
+            }
+            let state = snapshot
+                .balance
+                .as_ref()
+                .ok_or_else(|| PlanError::NoZone(hostname.to_string()))?;
+            if !state.owned() {
+                return Err(PlanError::BalancerExists(hostname.to_string()));
+            }
+            let endpoints = b.endpoints(Some(&TunnelRef::Existing(tunnel_id)));
+            if endpoints.len() == 1 {
+                b.warnings.push(Warning::SingleEndpoint {
+                    hostname: hostname.to_string(),
+                });
+            }
+            let pool = b.sync_pool(hostname.as_str(), endpoints);
+            if state.balancer.is_none()
+                && let Some(pool) = pool
+            {
+                b.steps.push(Step::CreateLoadBalancer {
+                    zone_id,
+                    hostname: hostname.to_string(),
+                    pool,
+                });
+            }
+        }
+        Intent::UnbalanceRoute { hostname } => {
+            if !snapshot
+                .balance
+                .as_ref()
+                .is_some_and(super::balance::BalanceState::active)
+            {
+                return Err(PlanError::NotBalanced(hostname.to_string()));
+            }
+            b.unbalance();
         }
         Intent::CreateTunnel { name } => {
             let name = name.trim();

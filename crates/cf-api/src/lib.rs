@@ -9,6 +9,7 @@ mod client;
 mod dns;
 mod envelope;
 mod error;
+mod load_balancing;
 mod management;
 mod networks;
 mod probe;
@@ -24,6 +25,7 @@ pub use client::{API_BASE, Client};
 pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
+pub use load_balancing::{LoadBalancer, Monitor, Origin, Pool};
 pub use management::{
     Connector, ConnectorConnection, LogStream, MANAGEMENT_BASE, RemoteLog, StreamError,
 };

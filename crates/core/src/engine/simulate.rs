@@ -138,6 +138,86 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     state.routes.retain(|r| r.id != route.id);
                 }
             }
+            Step::CreateLbMonitor { hostname } => {
+                if let Some(state) = next.balance.as_mut() {
+                    let mut monitor = super::balance::monitor_for(hostname);
+                    monitor.id = "sim-monitor".into();
+                    state.monitor = Some(monitor);
+                }
+            }
+            Step::CreateLbPool {
+                hostname,
+                endpoints,
+                ..
+            }
+            | Step::UpdateLbPool {
+                hostname,
+                endpoints,
+                ..
+            } => {
+                let tunnel = next
+                    .tunnel
+                    .as_ref()
+                    .map(|t| t.id.clone())
+                    .unwrap_or_default();
+                if let Some(state) = next.balance.as_mut() {
+                    let origins = endpoints
+                        .iter()
+                        .map(|e| {
+                            let id = match &e.tunnel {
+                                TunnelRef::Existing(id) => id.clone(),
+                                TunnelRef::Created => tunnel.clone(),
+                            };
+                            super::balance::origin_for(hostname, &id, &e.name)
+                        })
+                        .collect();
+                    let monitor = state.monitor.as_ref().map(|m| m.id.clone());
+                    let id = state
+                        .pool
+                        .as_ref()
+                        .map_or_else(|| "sim-pool".to_owned(), |p| p.id.clone());
+                    state.pool = Some(cf_api::Pool {
+                        id,
+                        name: super::balance::pool_name(hostname),
+                        description: super::balance::marker(hostname),
+                        enabled: true,
+                        monitor,
+                        origins,
+                    });
+                }
+            }
+            Step::CreateLoadBalancer { hostname, .. } => {
+                if let Some(state) = next.balance.as_mut() {
+                    let pool = state
+                        .pool
+                        .as_ref()
+                        .map(|p| p.id.clone())
+                        .unwrap_or_default();
+                    state.balancer = Some(cf_api::LoadBalancer {
+                        id: "sim-lb".into(),
+                        name: hostname.clone(),
+                        description: super::balance::marker(hostname),
+                        default_pools: vec![pool.clone()],
+                        fallback_pool: pool,
+                        proxied: true,
+                    });
+                }
+            }
+            Step::DeleteLoadBalancer { .. } => {
+                if let Some(state) = next.balance.as_mut() {
+                    state.balancer = None;
+                }
+            }
+            Step::DeleteLbPool { .. } => {
+                if let Some(state) = next.balance.as_mut() {
+                    state.pool = None;
+                }
+            }
+            Step::DeleteLbMonitor { .. } => {
+                if let Some(state) = next.balance.as_mut() {
+                    state.monitor = None;
+                }
+            }
             Step::StopConnector { .. } | Step::Verify { .. } => {}
         }
     }

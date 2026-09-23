@@ -301,7 +301,9 @@ impl AccessNeed {
             | Intent::RestoreConfig { .. }
             | Intent::AddNetwork { .. }
             | Intent::RemoveNetwork { .. }
-            | Intent::CreateTunnel { .. } => Self::default(),
+            | Intent::CreateTunnel { .. }
+            | Intent::BalanceRoute { .. }
+            | Intent::UnbalanceRoute { .. } => Self::default(),
         }
     }
 

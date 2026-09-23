@@ -82,6 +82,7 @@ beforeEach(() => {
               local: true,
               tunnelId: "t1",
               temporary: false,
+              balanced: false,
               zone: "yx.com",
               dns: { state: "ok" },
               access: null,

@@ -38,6 +38,9 @@ export type SheetMode =
   /** Delete one of this Mac's tunnels (the default one when no id is given). */
   | { kind: "removeTunnel"; tunnelId?: string | null }
   | { kind: "createTunnel" }
+  /** Load balance a route across the tunnels that route its hostname, or stop. */
+  | { kind: "balance"; route: RouteView }
+  | { kind: "unbalance"; route: RouteView }
   | { kind: "addNetwork" }
   | { kind: "removeNetwork"; network: string }
   /** A Doctor fix: any change, reviewed like the others, on the issue's tunnel. */
@@ -52,6 +55,8 @@ const titles: Record<SheetMode["kind"], MessageKey> = {
   restore: "routeSheet.title.restore",
   removeTunnel: "routeSheet.title.removeTunnel",
   createTunnel: "routeSheet.title.createTunnel",
+  balance: "routeSheet.title.balance",
+  unbalance: "routeSheet.title.unbalance",
   addNetwork: "routeSheet.title.addNetwork",
   removeNetwork: "routeSheet.title.removeNetwork",
   fix: "routeSheet.title.fix",
@@ -64,6 +69,8 @@ const applyLabels: Record<SheetMode["kind"], MessageKey> = {
   restore: "routeSheet.apply.restore",
   removeTunnel: "routeSheet.apply.removeTunnel",
   createTunnel: "routeSheet.apply.createTunnel",
+  balance: "routeSheet.apply.balance",
+  unbalance: "routeSheet.apply.unbalance",
   addNetwork: "routeSheet.apply.addNetwork",
   removeNetwork: "routeSheet.apply.removeNetwork",
   fix: "routeSheet.apply.fix",
@@ -126,6 +133,8 @@ function tunnelOf(mode: SheetMode): string | null {
   switch (mode.kind) {
     case "edit":
     case "remove":
+    case "balance":
+    case "unbalance":
       return mode.route.tunnelId;
     case "restore":
     case "removeTunnel":
@@ -166,6 +175,10 @@ function changeFor(mode: SheetMode, form: Form) {
       return { type: "removeTunnel" } satisfies Change;
     case "createTunnel":
       return { type: "createTunnel", name: form.tunnelName } satisfies Change;
+    case "balance":
+      return { type: "balanceRoute", hostname: mode.route.hostname } satisfies Change;
+    case "unbalance":
+      return { type: "unbalanceRoute", hostname: mode.route.hostname } satisfies Change;
     case "addNetwork":
       return { type: "addNetwork", network: form.network } satisfies Change;
     case "removeNetwork":
@@ -208,6 +221,10 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
         : null;
     case "addNetwork":
       return { type: "removeNetwork", network: change.network };
+    case "balanceRoute":
+      return { type: "unbalanceRoute", hostname: change.hostname };
+    case "unbalanceRoute":
+      return { type: "balanceRoute", hostname: change.hostname };
     case "removeNetwork":
       return mode.kind === "removeNetwork" ? { type: "addNetwork", network: change.network } : null;
     default:
@@ -222,6 +239,8 @@ const doneMessages: Record<SheetMode["kind"], MessageKey> = {
   restore: "routeSheet.done.restore",
   removeTunnel: "routeSheet.done.removeTunnel",
   createTunnel: "routeSheet.done.createTunnel",
+  balance: "routeSheet.done.balance",
+  unbalance: "routeSheet.done.unbalance",
   addNetwork: "routeSheet.done.addNetwork",
   removeNetwork: "routeSheet.done.removeNetwork",
   fix: "routeSheet.done.fix",
@@ -365,13 +384,19 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
   // disables Review) and listed when Cloudflare refuses, with the fix in place.
   const routeZone =
     mode?.kind === "edit" || mode?.kind === "remove" ? mode.route.zone : zoneOf(hostname, zones);
-  const needs: PermissionNeed[] = [
-    { kind: "tunnels" },
-    ...(routeZone && kind !== "addNetwork" && kind !== "removeNetwork" && kind !== "createTunnel"
-      ? [{ kind: "dns" as const, zone: routeZone }]
-      : []),
-    ...(allowed !== null && hasForm(kind) ? [{ kind: "access" as const }] : []),
-  ];
+  const needs: PermissionNeed[] =
+    kind === "balance" || kind === "unbalance"
+      ? [{ kind: "loadBalancing" }]
+      : [
+          { kind: "tunnels" },
+          ...(routeZone &&
+          kind !== "addNetwork" &&
+          kind !== "removeNetwork" &&
+          kind !== "createTunnel"
+            ? [{ kind: "dns" as const, zone: routeZone }]
+            : []),
+          ...(allowed !== null && hasForm(kind) ? [{ kind: "access" as const }] : []),
+        ];
   const gaps = stage === "form" && caps ? missingNeeds(caps, needs) : [];
   const failure = preview.error
     ? toIpcError(preview.error)

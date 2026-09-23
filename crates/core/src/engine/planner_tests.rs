@@ -93,6 +93,7 @@ fn fresh() -> Snapshot {
         tunnel: None,
         tunnel_names: Vec::new(),
         elsewhere: Vec::new(),
+        balance: None,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -543,6 +544,7 @@ fn scenarios() {
     let taken = Snapshot {
         tunnel_names: vec!["Krishna's MacBook Pro".into()],
         elsewhere: Vec::new(),
+        balance: None,
         ..fresh()
     };
 
@@ -736,6 +738,13 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::UpdateAccessApp { .. } => "app~",
             Step::DeleteAccessApp { .. } => "app-",
             Step::CreateNetworkRoute { .. } => "net+",
+            Step::CreateLbMonitor { .. } => "monitor+",
+            Step::CreateLbPool { .. } => "pool+",
+            Step::UpdateLbPool { .. } => "pool~",
+            Step::CreateLoadBalancer { .. } => "lb+",
+            Step::DeleteLoadBalancer { .. } => "lb-",
+            Step::DeleteLbPool { .. } => "pool-",
+            Step::DeleteLbMonitor { .. } => "monitor-",
             Step::DeleteNetworkRoute { .. } => "net-",
             Step::Verify { .. } => "verify",
         })

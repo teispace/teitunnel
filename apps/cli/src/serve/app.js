@@ -125,6 +125,8 @@ function describeWarning(warning) {
       return `${warning.origin} isn't on this machine. It must be reachable from here.`;
     case "tunnelEmpty":
       return "No routes will be left on the tunnel.";
+    case "singleEndpoint":
+      return `Only this tunnel serves ${warning.hostname} so far. Add the same route on another machine to fail over to.`;
     default:
       return warning.type;
   }
@@ -220,6 +222,22 @@ function accountCard(account) {
         tunnels.length > 1 && tunnel ? el("span", { class: "badge", text: tunnel.name }) : null,
         route.access ? el("span", { class: "badge", text: "Login" }) : null,
         route.temporary ? el("span", { class: "badge", text: "Temporary" }) : null,
+        route.balanced ? el("span", { class: "badge", text: "Balanced" }) : null,
+        el("button", {
+          text: route.balanced ? "Stop Balancing…" : "Load Balance…",
+          onclick: () =>
+            review(
+              account.id,
+              route.tunnelId,
+              {
+                type: route.balanced ? "unbalanceRoute" : "balanceRoute",
+                hostname: route.hostname,
+              },
+              route.balanced
+                ? `Stop load balancing ${route.hostname}`
+                : `Load balance ${route.hostname}`,
+            ),
+        }),
         el("button", {
           class: "danger",
           text: "Remove…",

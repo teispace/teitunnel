@@ -28,6 +28,7 @@ static EMPTY: Snapshot = Snapshot {
     records: Vec::new(),
     access: None,
     networks: None,
+    balance: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -227,6 +228,23 @@ enum Undo {
         network: String,
     },
     RecreateNetworkRoute(super::networks::ObservedNetworkRoute),
+    DeleteLbMonitor(String),
+    DeleteLbPool(String),
+    RestoreLbPool {
+        id: String,
+        previous: cf_api::Pool,
+    },
+    DeleteLoadBalancer {
+        zone: String,
+        id: String,
+        hostname: String,
+    },
+    RecreateLoadBalancer {
+        zone: String,
+        balancer: cf_api::LoadBalancer,
+    },
+    RecreateLbPool(cf_api::Pool),
+    RecreateLbMonitor(cf_api::Monitor),
 }
 
 impl Undo {
@@ -249,6 +267,15 @@ impl Undo {
             Self::RecreateAccessApp(previous) => m::recreate_access_app(&previous.domain),
             Self::DeleteNetworkRoute { network, .. } => m::delete_network_route(network),
             Self::RecreateNetworkRoute(route) => m::recreate_network_route(&route.network),
+            Self::DeleteLbMonitor(_) => m::delete_lb_monitor(),
+            Self::DeleteLbPool(_) => m::delete_lb_pool(),
+            Self::RestoreLbPool { .. } => m::restore_lb_pool(),
+            Self::DeleteLoadBalancer { hostname, .. } => m::delete_load_balancer(hostname),
+            Self::RecreateLoadBalancer { balancer, .. } => {
+                m::recreate_load_balancer(&balancer.name)
+            }
+            Self::RecreateLbPool(pool) => m::recreate_lb_pool(&pool.name),
+            Self::RecreateLbMonitor(_) => m::recreate_lb_monitor(),
         }
     }
 }
@@ -454,7 +481,13 @@ impl Engine {
             .shares(Some(ctx.account))
             .await
             .map_err(ObserveError::from)?;
+        let balanced = self
+            .local
+            .balanced(ctx.account)
+            .await
+            .map_err(ObserveError::from)?;
         for route in &mut merged.routes {
+            route.balanced = balanced.contains(&route.hostname.to_ascii_lowercase());
             route.temporary = route.path.is_none()
                 && shares
                     .iter()
@@ -729,6 +762,9 @@ impl Engine {
                 (_, None) => Slot::Default,
             },
             created: None,
+            created_monitor: None,
+            created_pool: None,
+            renamed: std::sync::Mutex::default(),
             done: Vec::new(),
             covered: Vec::new(),
         };
@@ -812,6 +848,12 @@ struct Run<'a, C, K> {
     /// How a tunnel this run creates is remembered.
     slot: Slot<'a>,
     created: Option<String>,
+    /// The monitor and pool this run created (for steps referring to them).
+    created_monitor: Option<String>,
+    created_pool: Option<String>,
+    /// Load-balancing objects recreated while rolling back get new ids: old → new, so
+    /// what refers to them is recreated pointing at the new ones.
+    renamed: std::sync::Mutex<std::collections::HashMap<String, String>>,
     done: Vec<(u32, Undo)>,
     /// Completed steps with no undo of their own: another step's undo reverses them
     /// (e.g. a new tunnel's config goes with the tunnel).
@@ -844,6 +886,53 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 .clone()
                 .ok_or_else(msg::apply::tunnel_not_created),
         }
+    }
+
+    fn resolve_lb(
+        reference: &super::types::LbRef,
+        created: Option<&String>,
+    ) -> Result<String, Text> {
+        match reference {
+            super::types::LbRef::Existing(id) => Ok(id.clone()),
+            super::types::LbRef::Created => created.cloned().ok_or_else(msg::apply::lb_not_created),
+        }
+    }
+
+    /// The pool for `hostname` sending traffic to `endpoints` (tunnels resolved).
+    fn pool_for(
+        &self,
+        hostname: &str,
+        monitor: &super::types::LbRef,
+        endpoints: &[super::types::PoolEndpoint],
+    ) -> Result<cf_api::Pool, Text> {
+        use super::balance;
+        let origins = endpoints
+            .iter()
+            .map(|e| {
+                Ok(balance::origin_for(
+                    hostname,
+                    &self.resolve(&e.tunnel)?,
+                    &e.name,
+                ))
+            })
+            .collect::<Result<Vec<_>, Text>>()?;
+        Ok(cf_api::Pool {
+            id: String::new(),
+            name: balance::pool_name(hostname),
+            description: balance::marker(hostname),
+            enabled: true,
+            monitor: Some(Self::resolve_lb(monitor, self.created_monitor.as_ref())?),
+            origins,
+        })
+    }
+
+    fn renamed(&self, id: &str) -> String {
+        self.renamed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| id.to_owned())
     }
 
     fn was_owned(&self, record_id: &str) -> bool {
@@ -1082,6 +1171,96 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateNetworkRoute(route.clone())))
             }
+            Step::CreateLbMonitor { hostname } => {
+                let monitor = api
+                    .create_lb_monitor(account, &super::balance::monitor_for(hostname))
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_monitor = Some(monitor.id.clone());
+                Ok(Some(Undo::DeleteLbMonitor(monitor.id)))
+            }
+            Step::CreateLbPool {
+                hostname,
+                monitor,
+                endpoints,
+            } => {
+                let pool = self.pool_for(hostname, monitor, endpoints)?;
+                let created = api
+                    .create_lb_pool(account, &pool)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_pool = Some(created.id.clone());
+                Ok(Some(Undo::DeleteLbPool(created.id)))
+            }
+            Step::UpdateLbPool {
+                hostname,
+                id,
+                monitor,
+                endpoints,
+                previous,
+            } => {
+                let pool = self.pool_for(hostname, monitor, endpoints)?;
+                api.update_lb_pool(account, id, &pool)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RestoreLbPool {
+                    id: id.clone(),
+                    previous: previous.clone(),
+                }))
+            }
+            Step::CreateLoadBalancer {
+                zone_id,
+                hostname,
+                pool,
+            } => {
+                let pool = Self::resolve_lb(pool, self.created_pool.as_ref())?;
+                let balancer = api
+                    .create_load_balancer(
+                        zone_id,
+                        &cf_api::LoadBalancer {
+                            id: String::new(),
+                            name: hostname.clone(),
+                            description: super::balance::marker(hostname),
+                            default_pools: vec![pool.clone()],
+                            fallback_pool: pool,
+                            proxied: true,
+                        },
+                    )
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.set_balanced(account, hostname, true).await);
+                Ok(Some(Undo::DeleteLoadBalancer {
+                    zone: zone_id.clone(),
+                    id: balancer.id,
+                    hostname: hostname.clone(),
+                }))
+            }
+            Step::DeleteLoadBalancer { zone_id, balancer } => {
+                api.delete_load_balancer(zone_id, &balancer.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .set_balanced(account, &balancer.name, false)
+                        .await,
+                );
+                Ok(Some(Undo::RecreateLoadBalancer {
+                    zone: zone_id.clone(),
+                    balancer: balancer.clone(),
+                }))
+            }
+            Step::DeleteLbPool { pool } => {
+                api.delete_lb_pool(account, &pool.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RecreateLbPool(pool.clone())))
+            }
+            Step::DeleteLbMonitor { monitor } => {
+                api.delete_lb_monitor(account, &monitor.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RecreateLbMonitor(monitor.clone())))
+            }
             Step::Verify { .. } => Ok(None),
         }
     }
@@ -1223,6 +1402,50 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 )
                 .await
                 .map_err(err)?;
+            }
+            Undo::DeleteLbMonitor(id) => api.delete_lb_monitor(account, id).await.map_err(err)?,
+            Undo::DeleteLbPool(id) => api.delete_lb_pool(account, id).await.map_err(err)?,
+            Undo::RestoreLbPool { id, previous } => {
+                api.update_lb_pool(account, id, previous)
+                    .await
+                    .map_err(err)?;
+            }
+            Undo::DeleteLoadBalancer { zone, id, hostname } => {
+                api.delete_load_balancer(zone, id).await.map_err(err)?;
+                warn_local(self.local.set_balanced(account, hostname, false).await);
+            }
+            // Rolled back in reverse: the monitor comes back first, then the pool (with
+            // the monitor's new id), then the load balancer (with the pool's).
+            Undo::RecreateLbMonitor(monitor) => {
+                let created = api.create_lb_monitor(account, monitor).await.map_err(err)?;
+                self.renamed
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(monitor.id.clone(), created.id);
+            }
+            Undo::RecreateLbPool(pool) => {
+                let mut pool = pool.clone();
+                pool.monitor = pool.monitor.as_deref().map(|id| self.renamed(id));
+                let old = std::mem::take(&mut pool.id);
+                let created = api.create_lb_pool(account, &pool).await.map_err(err)?;
+                self.renamed
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .insert(old, created.id);
+            }
+            Undo::RecreateLoadBalancer { zone, balancer } => {
+                let mut balancer = balancer.clone();
+                balancer.id = String::new();
+                balancer.default_pools = balancer
+                    .default_pools
+                    .iter()
+                    .map(|id| self.renamed(id))
+                    .collect();
+                balancer.fallback_pool = self.renamed(&balancer.fallback_pool);
+                api.create_load_balancer(zone, &balancer)
+                    .await
+                    .map_err(err)?;
+                warn_local(self.local.set_balanced(account, &balancer.name, true).await);
             }
         }
         Ok(())

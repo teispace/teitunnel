@@ -12,6 +12,7 @@ teitunnel-cli route add app.example.com 3000 # route a hostname to localhost:300
 teitunnel-cli route add api.example.com 8000 --path '^/v1/'
 teitunnel-cli route add admin.example.com 3000 --allow me@example.com --allow @example.com
 teitunnel-cli route remove app.example.com
+teitunnel-cli route balance app.example.com  # load balance across machines (paid add-on)
 teitunnel-cli network add 192.168.1.0/24     # let WARP users reach a range
 teitunnel-cli networks                       # the ranges this Mac shares
 teitunnel-cli network remove 192.168.1.0/24

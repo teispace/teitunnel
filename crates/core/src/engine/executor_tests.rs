@@ -1673,3 +1673,246 @@ async fn the_doctor_checks_and_fixes_each_tunnel_on_its_own() {
         ["app.xyz.com"]
     );
 }
+
+/// Another machine's tunnel in the account that routes `hostname` too.
+fn other_machine(cloud: &FakeCloud, hostname: &str) -> String {
+    let mut state = cloud.state.lock().unwrap();
+    state.load_balancing = true;
+    let id = "00000000-0000-4000-8000-0000000000b2".to_owned();
+    state.tunnels.insert(
+        id.clone(),
+        super::fake::FakeTunnel {
+            name: "server".into(),
+            version: 1,
+            config: Some(cf_api::TunnelConfig {
+                ingress: vec![
+                    cf_api::IngressRule {
+                        hostname: Some(hostname.into()),
+                        path: None,
+                        service: "http://localhost:3000".into(),
+                        origin_request: Map::new(),
+                        extra: Map::new(),
+                    },
+                    cf_api::IngressRule {
+                        hostname: None,
+                        path: None,
+                        service: "http_status:404".into(),
+                        origin_request: Map::new(),
+                        extra: Map::new(),
+                    },
+                ],
+                origin_request: Map::new(),
+                extra: Map::new(),
+            }),
+        },
+    );
+    id
+}
+
+fn balance(hostname: &str) -> Intent {
+    Intent::BalanceRoute {
+        hostname: Hostname::parse(hostname).unwrap(),
+    }
+}
+
+fn unbalance(hostname: &str) -> Intent {
+    Intent::UnbalanceRoute {
+        hostname: Hostname::parse(hostname).unwrap(),
+    }
+}
+
+#[tokio::test]
+async fn load_balances_a_route_across_machines_and_back() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let ours = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
+    let theirs = other_machine(&cloud, "app.xyz.com");
+
+    let plan = engine
+        .preview(&cloud, CTX, &balance("app.xyz.com"))
+        .await
+        .unwrap();
+    let kinds: Vec<&str> = plan
+        .steps
+        .iter()
+        .map(|s| match s {
+            super::types::Step::CreateLbMonitor { .. } => "monitor+",
+            super::types::Step::CreateLbPool { .. } => "pool+",
+            super::types::Step::CreateLoadBalancer { .. } => "lb+",
+            _ => "other",
+        })
+        .collect();
+    assert_eq!(kinds, ["monitor+", "pool+", "lb+"]);
+    assert!(
+        plan.warnings.is_empty(),
+        "two machines: no single-endpoint warning"
+    );
+
+    run(&engine, &cloud, &conns, &balance("app.xyz.com")).await;
+    let state = cloud.snapshot();
+    let (_, lb) = state
+        .load_balancers
+        .values()
+        .next()
+        .expect("a load balancer");
+    assert_eq!(lb.name, "app.xyz.com");
+    assert!(lb.proxied);
+    let pool = state.lb_pools.values().next().expect("a pool");
+    let mut addresses: Vec<&str> = pool.origins.iter().map(|o| o.address.as_str()).collect();
+    addresses.sort_unstable();
+    let mut expected = vec![
+        super::types::tunnel_target(&ours.tunnel_id),
+        super::types::tunnel_target(&theirs),
+    ];
+    expected.sort();
+    assert_eq!(addresses, expected);
+    assert!(
+        pool.origins
+            .iter()
+            .all(|o| o.header["Host"] == ["app.xyz.com"])
+    );
+    assert_eq!(
+        pool.monitor.as_deref(),
+        state.lb_monitors.keys().next().map(String::as_str)
+    );
+    assert!(
+        engine
+            .local()
+            .balanced("acc")
+            .await
+            .unwrap()
+            .contains("app.xyz.com")
+    );
+
+    // Applying again changes nothing.
+    let again = engine
+        .preview(&cloud, CTX, &balance("app.xyz.com"))
+        .await
+        .unwrap();
+    assert!(again.steps.is_empty(), "{:?}", again.steps);
+
+    // Stopping removes all three, and only them.
+    run(&engine, &cloud, &conns, &unbalance("app.xyz.com")).await;
+    let state = cloud.snapshot();
+    assert!(
+        state.load_balancers.is_empty()
+            && state.lb_pools.is_empty()
+            && state.lb_monitors.is_empty()
+    );
+    assert!(
+        !engine
+            .local()
+            .balanced("acc")
+            .await
+            .unwrap()
+            .contains("app.xyz.com")
+    );
+    assert!(matches!(
+        engine.preview(&cloud, CTX, &unbalance("app.xyz.com")).await,
+        Err(EngineError::Plan(super::planner::PlanError::NotBalanced(_)))
+    ));
+}
+
+#[tokio::test]
+async fn load_balancing_rolls_back_completely() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    other_machine(&cloud, "app.xyz.com");
+    let before = cloud.snapshot();
+
+    // The load balancer fails: the pool and monitor made before it go.
+    let intent = balance("app.xyz.com");
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    cloud.reset_failures();
+    cloud.fail_once(2);
+    let outcome = engine
+        .apply(
+            &cloud,
+            &conns,
+            CTX,
+            &intent,
+            Approval {
+                fingerprint: &plan.fingerprint,
+                confirmed: false,
+            },
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Outcome::RolledBack { .. }), "{outcome:?}");
+    assert_eq!(cloud.snapshot().normalized(), before.normalized());
+    let state = cloud.snapshot();
+    assert!(state.lb_pools.is_empty() && state.lb_monitors.is_empty());
+
+    // Stopping fails at the last step: the load balancer and pool come back, the pool
+    // pointing at the monitor and the load balancer at the recreated pool.
+    cloud.reset_failures();
+    run(&engine, &cloud, &conns, &balance("app.xyz.com")).await;
+    let intent = unbalance("app.xyz.com");
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    cloud.reset_failures();
+    cloud.fail_once(2);
+    let outcome = engine
+        .apply(
+            &cloud,
+            &conns,
+            CTX,
+            &intent,
+            Approval {
+                fingerprint: &plan.fingerprint,
+                confirmed: false,
+            },
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Outcome::RolledBack { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    let (_, lb) = state
+        .load_balancers
+        .values()
+        .next()
+        .expect("the load balancer is back");
+    let pool = state.lb_pools.values().next().expect("the pool is back");
+    assert_eq!(lb.default_pools, std::slice::from_ref(&pool.id));
+    assert_eq!(lb.fallback_pool, pool.id);
+    assert!(
+        state
+            .lb_monitors
+            .contains_key(pool.monitor.as_deref().unwrap())
+    );
+    assert!(
+        engine
+            .local()
+            .balanced("acc")
+            .await
+            .unwrap()
+            .contains("app.xyz.com")
+    );
+}
+
+#[tokio::test]
+async fn a_route_leaving_a_balanced_hostname_leaves_its_pool() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let ours = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
+    let theirs = other_machine(&cloud, "app.xyz.com");
+    run(&engine, &cloud, &conns, &balance("app.xyz.com")).await;
+
+    run(&engine, &cloud, &conns, &remove("app.xyz.com")).await;
+    let state = cloud.snapshot();
+    let pool = state
+        .lb_pools
+        .values()
+        .next()
+        .expect("the pool stays for the other machine");
+    let addresses: Vec<&str> = pool.origins.iter().map(|o| o.address.as_str()).collect();
+    assert_eq!(addresses, [super::types::tunnel_target(&theirs)]);
+    assert!(!addresses.contains(&super::types::tunnel_target(&ours.tunnel_id).as_str()));
+    assert_eq!(state.load_balancers.len(), 1);
+
+    // Adding it back joins the pool instead of taking the DNS record over.
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let state = cloud.snapshot();
+    assert_eq!(state.lb_pools.values().next().unwrap().origins.len(), 2);
+}

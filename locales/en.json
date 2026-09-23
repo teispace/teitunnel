@@ -79,7 +79,9 @@
       "addNetwork": "Share a Private Network",
       "removeNetwork": "Stop Sharing Network",
       "fix": "Fix Issue",
-      "createTunnel": "New Tunnel"
+      "createTunnel": "New Tunnel",
+      "balance": "Load Balance Route",
+      "unbalance": "Stop Load Balancing"
     },
     "apply": {
       "add": "Add Route",
@@ -90,7 +92,9 @@
       "addNetwork": "Share",
       "removeNetwork": "Stop Sharing",
       "fix": "Apply",
-      "createTunnel": "Create Tunnel"
+      "createTunnel": "Create Tunnel",
+      "balance": "Load Balance",
+      "unbalance": "Stop Load Balancing"
     },
     "done": {
       "add": "Route added",
@@ -101,7 +105,9 @@
       "addNetwork": "Network shared",
       "removeNetwork": "Network no longer shared",
       "fix": "Fixed",
-      "createTunnel": "Tunnel created"
+      "createTunnel": "Tunnel created",
+      "balance": "Route load balanced",
+      "unbalance": "Load balancing stopped"
     },
     "tunnelName": {
       "label": "Name",
@@ -173,7 +179,8 @@
       "dnsOk@windows": "Points to this PC's tunnel",
       "dnsOk@linux": "Points to this computer's tunnel",
       "remote@windows": "The service isn't on this PC",
-      "remote@linux": "The service isn't on this computer"
+      "remote@linux": "The service isn't on this computer",
+      "balancing": "Load balancing"
     },
     "activity": {
       "undone": " · undone after an error"
@@ -206,7 +213,13 @@
       "empty": "No failed requests. Successful ones aren't logged."
     },
     "viaTunnel": "→ {origin} · {tunnel}",
-    "temporary": "Temporary"
+    "temporary": "Temporary",
+    "balanced": "Balanced",
+    "balance": {
+      "start": "Load Balance…",
+      "stop": "Stop Load Balancing…",
+      "on": "Across every tunnel that routes it"
+    }
   },
   "tunnels": {
     "foreign": {
@@ -313,7 +326,8 @@
       "remoteOrigin@windows": "{origin} isn't on this PC. It must be reachable from here.",
       "remoteOrigin@linux": "{origin} isn't on this computer. It must be reachable from here.",
       "publicNetwork@windows": "{network} isn't a private range. WARP clients would reach those addresses through this PC instead of the internet.",
-      "publicNetwork@linux": "{network} isn't a private range. WARP clients would reach those addresses through this computer instead of the internet."
+      "publicNetwork@linux": "{network} isn't a private range. WARP clients would reach those addresses through this computer instead of the internet.",
+      "singleEndpoint": "Only this tunnel serves {hostname} so far. Add the same route on another machine so the load balancer has somewhere to fail over to."
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -438,7 +452,9 @@
       "removeLogin": "Login Removals",
       "addNetwork": "Networks Shared",
       "removeNetwork": "Networks Unshared",
-      "createTunnel": "Tunnels Created"
+      "createTunnel": "Tunnels Created",
+      "balanceRoute": "Load Balancing Started",
+      "unbalanceRoute": "Load Balancing Stopped"
     },
     "show": {
       "all": "All Changes",
@@ -477,7 +493,8 @@
       "route": "Route",
       "dns": "DNS record",
       "network": "Private network",
-      "access": "Login"
+      "access": "Login",
+      "loadBalancing": "Load balancing"
     },
     "before": "Before: ",
     "after": "After: ",
@@ -937,7 +954,9 @@
         "noSuchNetwork@linux": "This computer doesn't share {network}.",
         "routedElsewhere": "{hostname} is already routed on tunnel “{tunnel}”. Remove it there first, or edit it there.",
         "invalidTunnelName": "Enter a tunnel name of up to 64 characters.",
-        "tunnelNameTaken": "The account already has a tunnel named “{name}”. Choose another name."
+        "tunnelNameTaken": "The account already has a tunnel named “{name}”. Choose another name.",
+        "balancerExists": "{hostname} already has a load balancer Teitunnel didn't create. Change it in the Cloudflare dashboard.",
+        "notBalanced": "Teitunnel doesn't load balance {hostname}."
       },
       "engine": {
         "stale": "Something changed in Cloudflare since you reviewed this change. Review it again.",
@@ -1024,7 +1043,9 @@
         "removeTunnel@linux": "Remove every route and delete this computer's tunnel",
         "restoreConfig@windows": "Restore this PC's routes after an outside edit",
         "restoreConfig@linux": "Restore this computer's routes after an outside edit",
-        "createTunnel": "Create tunnel “{name}”"
+        "createTunnel": "Create tunnel “{name}”",
+        "balanceRoute": "Load balance {hostname}",
+        "unbalanceRoute": "Stop load balancing {hostname}"
       },
       "step": {
         "createTunnel": "Create tunnel “{name}”",
@@ -1043,7 +1064,16 @@
         "deleteNetworkRoute": "Remove the route for private network {network}",
         "verify": "Check https://{hostname} works",
         "stopConnector@windows": "Stop this PC's connector",
-        "stopConnector@linux": "Stop this computer's connector"
+        "stopConnector@linux": "Stop this computer's connector",
+        "createLbMonitor": "Create a health check for {hostname}",
+        "createLbPool_one": "Create a pool for {hostname} with {count} tunnel",
+        "createLbPool_other": "Create a pool for {hostname} with {count} tunnels",
+        "updateLbPool_one": "Send {hostname} to {count} tunnel",
+        "updateLbPool_other": "Send {hostname} to {count} tunnels",
+        "createLoadBalancer": "Load balance {hostname} across its tunnels",
+        "deleteLoadBalancer": "Stop load balancing {hostname}",
+        "deleteLbPool": "Delete the pool “{name}”",
+        "deleteLbMonitor": "Delete the health check"
       }
     },
     "activity": {
@@ -1051,7 +1081,9 @@
         "tunnelTarget": "proxied CNAME to tunnel “{tunnel}”",
         "loginCustom": "a login with custom rules",
         "loginRequired": "login required: {people}",
-        "routedTo": "routed to tunnel “{tunnel}”"
+        "routedTo": "routed to tunnel “{tunnel}”",
+        "endpoints_one": "load balanced across {count} tunnel",
+        "endpoints_other": "load balanced across {count} tunnels"
       }
     },
     "apply": {
@@ -1071,8 +1103,16 @@
         "deleteNetworkRoute": "Private network {network} was routed to the tunnel and still is",
         "recreateNetworkRoute": "The route for private network {network} was removed",
         "startConnector@windows": "This PC's connector is stopped",
-        "startConnector@linux": "This computer's connector is stopped"
-      }
+        "startConnector@linux": "This computer's connector is stopped",
+        "deleteLbMonitor": "A health check was created and is still there",
+        "deleteLbPool": "A load-balancing pool was created and is still there",
+        "restoreLbPool": "The load-balancing pool wasn't restored to what it was",
+        "deleteLoadBalancer": "A load balancer for {hostname} was created and is still there",
+        "recreateLoadBalancer": "The load balancer for {hostname} wasn't put back",
+        "recreateLbPool": "The load-balancing pool “{name}” wasn't put back",
+        "recreateLbMonitor": "The health check wasn't put back"
+      },
+      "lbNotCreated": "The load-balancing pool or health check wasn't created."
     },
     "machine": {
       "alwaysOnUnavailable": "Always-on isn't available on this system.",
@@ -1473,7 +1513,10 @@
     "useNewToken": "Use a New Token Instead",
     "newTokenDetail": "Create a token with every permission Teitunnel uses, then paste it here. It replaces this account's current credential.",
     "otherDetail": "This account is connected with a login whose permissions can't be changed. Connect it with an API token instead; it replaces the current credential.",
-    "createToken": "Create Token"
+    "createToken": "Create Token",
+    "lbPools": "Account · Load Balancing: Monitors and Pools · Edit",
+    "lbBalancers": "Zone · Load Balancers · Edit",
+    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",
@@ -1485,6 +1528,7 @@
   },
   "errorHelp": {
     "addDomain": "Add a Domain to Cloudflare",
-    "openAccessApps": "Open Access Applications"
+    "openAccessApps": "Open Access Applications",
+    "openLoadBalancing": "Open Load Balancing"
   }
 }

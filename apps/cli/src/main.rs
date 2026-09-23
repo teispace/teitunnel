@@ -254,6 +254,21 @@ enum RouteCommand {
         #[command(flatten)]
         apply: ApplyArgs,
     },
+    /// Load balance a route across every machine that routes its hostname (Cloudflare
+    /// Load Balancing, a paid add-on): add the same route on each machine first.
+    Balance {
+        /// Hostname.
+        hostname: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// Stop load balancing a route (its DNS record serves it again).
+    Unbalance {
+        /// Hostname.
+        hostname: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
     /// Remove a route (and its DNS record, if Teitunnel created it).
     Remove {
         /// Hostname.
@@ -441,6 +456,12 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             };
             change_routes(&app, change, &apply).await
         }
+        Command::Route(RouteCommand::Balance { hostname, apply }) => {
+            change_routes(&app, Change::BalanceRoute { hostname }, &apply).await
+        }
+        Command::Route(RouteCommand::Unbalance { hostname, apply }) => {
+            change_routes(&app, Change::UnbalanceRoute { hostname }, &apply).await
+        }
         Command::Route(RouteCommand::Remove {
             hostname,
             path,
@@ -610,7 +631,10 @@ async fn tunnel_for(
             });
     }
     match change {
-        Change::RemoveRoute { hostname, .. } | Change::UpdateRoute { hostname, .. } => local
+        Change::RemoveRoute { hostname, .. }
+        | Change::UpdateRoute { hostname, .. }
+        | Change::BalanceRoute { hostname }
+        | Change::UnbalanceRoute { hostname } => local
             .tunnel_routing(&account.id, hostname)
             .await
             .map_err(|e| e.to_string()),
@@ -920,6 +944,9 @@ fn warning_text(warning: &Warning) -> String {
         ),
         Warning::KeepsForeignRecord { hostname } => format!(
             "The DNS record for {hostname} wasn't created by Teitunnel, so it's left in place."
+        ),
+        Warning::SingleEndpoint { hostname } => format!(
+            "Only this machine serves {hostname} so far: add the same route on another machine for the load balancer to fail over to."
         ),
         Warning::TunnelEmpty => {
             "No routes will be left. The tunnel stays, so adding a route later is quick.".into()

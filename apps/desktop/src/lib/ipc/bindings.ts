@@ -314,7 +314,11 @@ export type ActivityKind =
 /**  A private network stopped being shared. */
 "removeNetwork" | 
 /**  Another tunnel was created for this Mac. */
-"createTunnel";
+"createTunnel" | 
+/**  A route started being load balanced. */
+"balanceRoute" | 
+/**  A route stopped being load balanced. */
+"unbalanceRoute";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -431,6 +435,14 @@ hostname: string;
 path: string | null } | 
 /**  Remove every route and delete this Mac's tunnel. */
 { type: "removeTunnel" } | 
+/**  Load balance a route across the tunnels that route its hostname. */
+{ type: "balanceRoute"; 
+/**  Hostname. */
+hostname: string } | 
+/**  Stop load balancing a route. */
+{ type: "unbalanceRoute"; 
+/**  Hostname. */
+hostname: string } | 
 /**  Create another tunnel for this Mac. */
 { type: "createTunnel"; 
 /**  Its name. */
@@ -571,7 +583,9 @@ export type DeltaArea =
 /**  A private network route. */
 "network" | 
 /**  A route's login (Cloudflare Access). */
-"access";
+"access" | 
+/**  A route's load balancing. */
+"loadBalancing";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -1122,6 +1136,8 @@ export type RouteView = {
 	tunnelId: string | null,
 	/**  A share on your domain: removed when the share stops. */
 	temporary: boolean,
+	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
+	balanced: boolean,
 };
 
 /**  Everything the Routes view shows for an account. */
@@ -1285,6 +1301,8 @@ export type StepKind =
 "accessApp" | 
 /**  Route or stop routing a private network. */
 "networkRoute" | 
+/**  Load balance a route, or stop. */
+"loadBalancer" | 
 /**  Check the route works. */
 "verify";
 
@@ -1451,6 +1469,10 @@ export type Verification = {
 
 /**  Something the user should know before applying. */
 export type Warning = 
+/**  Only one tunnel serves the hostname: there's nothing to fail over to yet. */
+{ type: "singleEndpoint"; 
+/**  Hostname. */
+hostname: string } | 
 /**  A record Teitunnel didn't create will be replaced. */
 { type: "replacesForeignRecord"; 
 /**  Hostname. */

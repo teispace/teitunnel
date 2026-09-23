@@ -124,12 +124,15 @@ function RouteInspector({
   accountId,
   onEdit,
   onRemove,
+  onBalance,
 }: {
   route: RouteView;
   tunnel: TunnelView | null;
   accountId: string;
   onEdit: () => void;
   onRemove: () => void;
+  /** Start or stop load balancing the route. */
+  onBalance: () => void;
 }) {
   const { issues } = useIssues();
   const status = routeStatus(route, tunnel, issues);
@@ -167,6 +170,11 @@ function RouteInspector({
               </Button>
             </>
           )}
+          {route.client ? null : (
+            <Button onClick={onBalance}>
+              {route.balanced ? t("routes.balance.stop") : t("routes.balance.start")}
+            </Button>
+          )}
           <IconButton icon={Pencil} label={t("routes.edit")} variant="secondary" onClick={onEdit} />
           <IconButton
             icon={Trash2}
@@ -198,6 +206,9 @@ function RouteInspector({
               ? [{ label: t("routes.detail.path"), value: route.path, mono: true }]
               : []),
             { label: t("routes.detail.domain"), value: route.zone ?? "—" },
+            ...(route.balanced
+              ? [{ label: t("routes.detail.balancing"), value: t("routes.balance.on") }]
+              : []),
             {
               label: t("routes.detail.login"),
               value: route.access ? describeAllowed(route.access) : t("routes.detail.noLogin"),
@@ -398,9 +409,10 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
                   }
                   leading={<StatusDot status={status.dot} label={status.label} />}
                   trailing={
-                    route.access || route.temporary ? (
+                    route.access || route.temporary || route.balanced ? (
                       <span className="flex items-center gap-1.5">
                         {route.temporary ? <Badge>{t("routes.temporary")}</Badge> : null}
+                        {route.balanced ? <Badge>{t("routes.balanced")}</Badge> : null}
                         {route.access ? (
                           <LockKeyhole
                             role="img"
@@ -426,6 +438,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
               accountId={active.id}
               onEdit={() => setSheet({ kind: "edit", route: selected })}
               onRemove={() => setSheet({ kind: "remove", route: selected })}
+              onBalance={() =>
+                setSheet({ kind: selected.balanced ? "unbalance" : "balance", route: selected })
+              }
             />
           </div>
         ) : null}

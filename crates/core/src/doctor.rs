@@ -1267,6 +1267,7 @@ mod tests {
                 }),
                 tunnel_names: Vec::new(),
                 elsewhere: Vec::new(),
+                balance: None,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

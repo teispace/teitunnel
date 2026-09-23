@@ -180,6 +180,64 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's load-balancing monitors (a paid add-on; 403 without it).
+    fn lb_monitors(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::Monitor>>> + Send;
+    /// Creates a monitor.
+    fn create_lb_monitor(
+        &self,
+        account: &str,
+        monitor: &cf_api::Monitor,
+    ) -> impl Future<Output = cf_api::Result<cf_api::Monitor>> + Send;
+    /// Deletes a monitor.
+    fn delete_lb_monitor(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's load-balancing pools.
+    fn lb_pools(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::Pool>>> + Send;
+    /// Creates a pool.
+    fn create_lb_pool(
+        &self,
+        account: &str,
+        pool: &cf_api::Pool,
+    ) -> impl Future<Output = cf_api::Result<cf_api::Pool>> + Send;
+    /// Replaces a pool.
+    fn update_lb_pool(
+        &self,
+        account: &str,
+        id: &str,
+        pool: &cf_api::Pool,
+    ) -> impl Future<Output = cf_api::Result<cf_api::Pool>> + Send;
+    /// Deletes a pool.
+    fn delete_lb_pool(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// A zone's load balancers.
+    fn load_balancers(
+        &self,
+        zone: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::LoadBalancer>>> + Send;
+    /// Creates a load balancer.
+    fn create_load_balancer(
+        &self,
+        zone: &str,
+        balancer: &cf_api::LoadBalancer,
+    ) -> impl Future<Output = cf_api::Result<cf_api::LoadBalancer>> + Send;
+    /// Deletes a load balancer.
+    fn delete_load_balancer(
+        &self,
+        zone: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
 
 /// This Mac's side of a tunnel: the connector process and its token.
@@ -382,5 +440,62 @@ impl CloudApi for Client {
 
     async fn delete_login_method(&self, account: &str, id: &str) -> cf_api::Result<()> {
         self.delete_identity_provider(account, id).await
+    }
+
+    async fn lb_monitors(&self, account: &str) -> cf_api::Result<Vec<cf_api::Monitor>> {
+        Client::lb_monitors(self, account).await
+    }
+
+    async fn create_lb_monitor(
+        &self,
+        account: &str,
+        monitor: &cf_api::Monitor,
+    ) -> cf_api::Result<cf_api::Monitor> {
+        Client::create_lb_monitor(self, account, monitor).await
+    }
+
+    async fn delete_lb_monitor(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_lb_monitor(self, account, id).await
+    }
+
+    async fn lb_pools(&self, account: &str) -> cf_api::Result<Vec<cf_api::Pool>> {
+        Client::lb_pools(self, account).await
+    }
+
+    async fn create_lb_pool(
+        &self,
+        account: &str,
+        pool: &cf_api::Pool,
+    ) -> cf_api::Result<cf_api::Pool> {
+        Client::create_lb_pool(self, account, pool).await
+    }
+
+    async fn update_lb_pool(
+        &self,
+        account: &str,
+        id: &str,
+        pool: &cf_api::Pool,
+    ) -> cf_api::Result<cf_api::Pool> {
+        Client::update_lb_pool(self, account, id, pool).await
+    }
+
+    async fn delete_lb_pool(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_lb_pool(self, account, id).await
+    }
+
+    async fn load_balancers(&self, zone: &str) -> cf_api::Result<Vec<cf_api::LoadBalancer>> {
+        Client::load_balancers(self, zone).await
+    }
+
+    async fn create_load_balancer(
+        &self,
+        zone: &str,
+        balancer: &cf_api::LoadBalancer,
+    ) -> cf_api::Result<cf_api::LoadBalancer> {
+        Client::create_load_balancer(self, zone, balancer).await
+    }
+
+    async fn delete_load_balancer(&self, zone: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_load_balancer(self, zone, id).await
     }
 }

@@ -42,6 +42,10 @@ pub enum ActivityKind {
     RemoveNetwork,
     /// Another tunnel was created for this Mac.
     CreateTunnel,
+    /// A route started being load balanced.
+    BalanceRoute,
+    /// A route stopped being load balanced.
+    UnbalanceRoute,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -58,6 +62,8 @@ impl From<&Intent> for ActivityKind {
             Intent::AddNetwork { .. } => Self::AddNetwork,
             Intent::RemoveNetwork { .. } => Self::RemoveNetwork,
             Intent::CreateTunnel { .. } => Self::CreateTunnel,
+            Intent::BalanceRoute { .. } => Self::BalanceRoute,
+            Intent::UnbalanceRoute { .. } => Self::UnbalanceRoute,
         }
     }
 }
@@ -75,6 +81,8 @@ pub enum DeltaArea {
     Network,
     /// A route's login (Cloudflare Access).
     Access,
+    /// A route's load balancing.
+    LoadBalancing,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -318,7 +326,45 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 )),
                 after: None,
             }),
+            Step::CreateLbPool {
+                hostname,
+                endpoints,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::LoadBalancing,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(delta::endpoints(endpoints.len() as u64)),
+            }),
+            Step::UpdateLbPool {
+                hostname,
+                endpoints,
+                previous,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::LoadBalancing,
+                hostname: hostname.clone(),
+                path: None,
+                before: Some(delta::endpoints(previous.origins.len() as u64)),
+                after: Some(delta::endpoints(endpoints.len() as u64)),
+            }),
+            Step::DeleteLbPool { pool } => out.push(Delta {
+                area: DeltaArea::LoadBalancing,
+                hostname: pool
+                    .description
+                    .strip_prefix("teitunnel:lb=")
+                    .unwrap_or(&pool.name)
+                    .to_owned(),
+                path: None,
+                before: Some(delta::endpoints(pool.origins.len() as u64)),
+                after: None,
+            }),
             Step::AddLoginMethod
+            | Step::CreateLbMonitor { .. }
+            | Step::CreateLoadBalancer { .. }
+            | Step::DeleteLoadBalancer { .. }
+            | Step::DeleteLbMonitor { .. }
             | Step::CreateTunnel { .. }
             | Step::StopConnector { .. }
             | Step::DeleteTunnel { .. }

@@ -11,6 +11,7 @@ import {
   Power,
   RotateCcw,
   Route as RouteIcon,
+  Split,
   TriangleAlert,
   Waypoints,
   X,
@@ -31,6 +32,7 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   loginMethod: KeyRound,
   accessApp: LockKeyhole,
   networkRoute: Network,
+  loadBalancer: Split,
   verify: CircleCheck,
 };
 
@@ -85,6 +87,8 @@ function warningText(warning: Warning): string {
       return t("plan.warning.publicNetwork", warning);
     case "overlapsNetwork":
       return t("plan.warning.overlapsNetwork", warning);
+    case "singleEndpoint":
+      return t("plan.warning.singleEndpoint", warning);
   }
 }
 

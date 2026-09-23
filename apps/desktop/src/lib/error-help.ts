@@ -63,6 +63,12 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.plan.routedElsewhere": input,
   "core.error.plan.invalidTunnelName": input,
   "core.error.plan.tunnelNameTaken": input,
+  "core.error.plan.balancerExists": {
+    kind: "link",
+    label: "errorHelp.openLoadBalancing",
+    url: "https://dash.cloudflare.com/?to=/:account/load-balancing",
+  },
+  "core.error.plan.notBalanced": retry,
   "core.error.engine.stale": fix,
   "core.error.engine.needsConfirmation": fix,
   "core.error.engine.nothingToRestore": retry,

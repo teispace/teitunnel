@@ -7,6 +7,7 @@ import {
   Network,
   RefreshCw,
   Route as RouteIcon,
+  Split,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -290,6 +291,7 @@ const areas: Record<Delta["area"], { icon: LucideIcon; label: MessageKey }> = {
   dns: { icon: Globe, label: "activity.area.dns" },
   network: { icon: Network, label: "activity.area.network" },
   access: { icon: LockKeyhole, label: "activity.area.access" },
+  loadBalancing: { icon: Split, label: "activity.area.loadBalancing" },
 };
 
 /** Before/after, one block per route, record or login, like a diff. */

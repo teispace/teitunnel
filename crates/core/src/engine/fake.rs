@@ -51,6 +51,12 @@ pub(crate) struct CloudState {
     pub(crate) device_settings: Option<cf_api::DeviceSettings>,
     /// The default device profile (`None`: can't be read).
     pub(crate) device_profile: Option<cf_api::DefaultDeviceProfile>,
+    /// Load balancing is available (the add-on and the permission); reads 403 otherwise.
+    pub(crate) load_balancing: bool,
+    /// Monitors, pools and load balancers (by zone) by id.
+    pub(crate) lb_monitors: BTreeMap<String, cf_api::Monitor>,
+    pub(crate) lb_pools: BTreeMap<String, cf_api::Pool>,
+    pub(crate) load_balancers: BTreeMap<String, (String, cf_api::LoadBalancer)>,
 }
 
 /// State with ids and versions stripped, for "is it back to how it was?" checks.
@@ -146,6 +152,16 @@ fn forbidden() -> cf_api::Error {
         errors: vec![ApiMessage {
             code: 10000,
             message: "Authentication error".into(),
+        }],
+    }
+}
+
+fn conflict() -> cf_api::Error {
+    cf_api::Error::Api {
+        status: 409,
+        errors: vec![ApiMessage {
+            code: 1002,
+            message: "still referenced".into(),
         }],
     }
 }
@@ -571,6 +587,136 @@ impl CloudApi for FakeCloud {
         } else {
             Ok(())
         }
+    }
+
+    async fn lb_monitors(&self, _account: &str) -> cf_api::Result<Vec<cf_api::Monitor>> {
+        let state = self.state.lock().unwrap();
+        if !state.load_balancing {
+            return Err(forbidden());
+        }
+        Ok(state.lb_monitors.values().cloned().collect())
+    }
+
+    async fn create_lb_monitor(
+        &self,
+        _account: &str,
+        monitor: &cf_api::Monitor,
+    ) -> cf_api::Result<cf_api::Monitor> {
+        self.mutate()?;
+        let mut created = monitor.clone();
+        created.id = self.next_id("mon");
+        self.state
+            .lock()
+            .unwrap()
+            .lb_monitors
+            .insert(created.id.clone(), created.clone());
+        Ok(created)
+    }
+
+    async fn delete_lb_monitor(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        // Cloudflare refuses to delete a monitor a pool still uses.
+        if state
+            .lb_pools
+            .values()
+            .any(|p| p.monitor.as_deref() == Some(id))
+        {
+            return Err(conflict());
+        }
+        state.lb_monitors.remove(id);
+        Ok(())
+    }
+
+    async fn lb_pools(&self, _account: &str) -> cf_api::Result<Vec<cf_api::Pool>> {
+        let state = self.state.lock().unwrap();
+        if !state.load_balancing {
+            return Err(forbidden());
+        }
+        Ok(state.lb_pools.values().cloned().collect())
+    }
+
+    async fn create_lb_pool(
+        &self,
+        _account: &str,
+        pool: &cf_api::Pool,
+    ) -> cf_api::Result<cf_api::Pool> {
+        self.mutate()?;
+        let mut created = pool.clone();
+        created.id = self.next_id("pool");
+        self.state
+            .lock()
+            .unwrap()
+            .lb_pools
+            .insert(created.id.clone(), created.clone());
+        Ok(created)
+    }
+
+    async fn update_lb_pool(
+        &self,
+        _account: &str,
+        id: &str,
+        pool: &cf_api::Pool,
+    ) -> cf_api::Result<cf_api::Pool> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        let Some(existing) = state.lb_pools.get_mut(id) else {
+            return Err(not_found());
+        };
+        let mut updated = pool.clone();
+        updated.id = id.to_owned();
+        *existing = updated.clone();
+        Ok(updated)
+    }
+
+    async fn delete_lb_pool(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        // Cloudflare refuses to delete a pool a load balancer still uses.
+        if state
+            .load_balancers
+            .values()
+            .any(|(_, lb)| lb.default_pools.iter().any(|p| p == id) || lb.fallback_pool == id)
+        {
+            return Err(conflict());
+        }
+        state.lb_pools.remove(id);
+        Ok(())
+    }
+
+    async fn load_balancers(&self, zone: &str) -> cf_api::Result<Vec<cf_api::LoadBalancer>> {
+        let state = self.state.lock().unwrap();
+        if !state.load_balancing {
+            return Err(forbidden());
+        }
+        Ok(state
+            .load_balancers
+            .values()
+            .filter(|(z, _)| z == zone)
+            .map(|(_, lb)| lb.clone())
+            .collect())
+    }
+
+    async fn create_load_balancer(
+        &self,
+        zone: &str,
+        balancer: &cf_api::LoadBalancer,
+    ) -> cf_api::Result<cf_api::LoadBalancer> {
+        self.mutate()?;
+        let mut created = balancer.clone();
+        created.id = self.next_id("lb");
+        self.state
+            .lock()
+            .unwrap()
+            .load_balancers
+            .insert(created.id.clone(), (zone.to_owned(), created.clone()));
+        Ok(created)
+    }
+
+    async fn delete_load_balancer(&self, _zone: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state.lock().unwrap().load_balancers.remove(id);
+        Ok(())
     }
 }
 

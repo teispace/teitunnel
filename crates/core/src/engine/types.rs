@@ -122,6 +122,9 @@ pub struct Snapshot {
     /// Private network routes; read only when a change involves them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub networks: Option<super::networks::NetworkState>,
+    /// Load balancing for the hostname involved; read only when a change involves it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance: Option<super::balance::BalanceState>,
 }
 
 impl Snapshot {
@@ -192,6 +195,16 @@ pub enum Intent {
         /// Its name.
         name: String,
     },
+    /// Load balance a route across every tunnel that routes its hostname.
+    BalanceRoute {
+        /// Hostname.
+        hostname: Hostname,
+    },
+    /// Stop load balancing a route (its DNS record serves it again).
+    UnbalanceRoute {
+        /// Hostname.
+        hostname: Hostname,
+    },
     /// Add several routes at once (importing an existing cloudflared setup). Routes
     /// that already exist unchanged are skipped.
     ImportRoutes {
@@ -237,9 +250,10 @@ impl Intent {
             Self::UpdateRoute {
                 hostname, route, ..
             } => Some(vec![hostname, &route.hostname]),
-            Self::RemoveRoute { hostname, .. } | Self::DeleteRecord { hostname, .. } => {
-                Some(vec![hostname])
-            }
+            Self::RemoveRoute { hostname, .. }
+            | Self::DeleteRecord { hostname, .. }
+            | Self::BalanceRoute { hostname }
+            | Self::UnbalanceRoute { hostname } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -287,8 +301,29 @@ impl Intent {
             Self::RemoveNetwork { network } => m::remove_network(network),
             Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),
             Self::CreateTunnel { name } => m::create_tunnel(name),
+            Self::BalanceRoute { hostname } => m::balance_route(hostname),
+            Self::UnbalanceRoute { hostname } => m::unbalance_route(hostname),
         }
     }
+}
+
+/// Which monitor or pool a step refers to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "id", rename_all = "camelCase")]
+pub enum LbRef {
+    /// One that exists.
+    Existing(String),
+    /// The one created earlier in the same plan.
+    Created,
+}
+
+/// One tunnel as a pool endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PoolEndpoint {
+    /// The tunnel.
+    pub tunnel: TunnelRef,
+    /// Its name (the endpoint's name).
+    pub name: String,
 }
 
 /// Which tunnel a step refers to.
@@ -403,6 +438,59 @@ pub enum Step {
         /// The route (for rollback and review).
         route: super::networks::ObservedNetworkRoute,
     },
+    /// Create the health monitor for a balanced hostname.
+    CreateLbMonitor {
+        /// Hostname.
+        hostname: String,
+    },
+    /// Create the pool of tunnels serving a hostname.
+    CreateLbPool {
+        /// Hostname.
+        hostname: String,
+        /// Its monitor.
+        monitor: LbRef,
+        /// Endpoints.
+        endpoints: Vec<PoolEndpoint>,
+    },
+    /// Change which tunnels a hostname's pool sends traffic to.
+    UpdateLbPool {
+        /// Hostname.
+        hostname: String,
+        /// The pool.
+        id: String,
+        /// Its monitor.
+        monitor: LbRef,
+        /// Endpoints.
+        endpoints: Vec<PoolEndpoint>,
+        /// What it was, for rollback.
+        previous: cf_api::Pool,
+    },
+    /// Put a load balancer in front of the hostname.
+    CreateLoadBalancer {
+        /// Zone id.
+        zone_id: String,
+        /// Hostname.
+        hostname: String,
+        /// Its pool.
+        pool: LbRef,
+    },
+    /// Remove the hostname's load balancer.
+    DeleteLoadBalancer {
+        /// Zone id.
+        zone_id: String,
+        /// The load balancer, for rollback.
+        balancer: cf_api::LoadBalancer,
+    },
+    /// Remove the hostname's pool.
+    DeleteLbPool {
+        /// The pool, for rollback.
+        pool: cf_api::Pool,
+    },
+    /// Remove the hostname's health monitor.
+    DeleteLbMonitor {
+        /// The monitor, for rollback.
+        monitor: cf_api::Monitor,
+    },
     /// Probe the hostname end to end.
     Verify {
         /// Hostname.
@@ -440,6 +528,21 @@ impl Step {
                 m::create_network_route(network, tunnel_name)
             }
             Self::DeleteNetworkRoute { route } => m::delete_network_route(&route.network),
+            Self::CreateLbMonitor { hostname } => m::create_lb_monitor(hostname),
+            Self::CreateLbPool {
+                hostname,
+                endpoints,
+                ..
+            } => m::create_lb_pool(endpoints.len() as u64, hostname),
+            Self::UpdateLbPool {
+                hostname,
+                endpoints,
+                ..
+            } => m::update_lb_pool(endpoints.len() as u64, hostname),
+            Self::CreateLoadBalancer { hostname, .. } => m::create_load_balancer(hostname),
+            Self::DeleteLoadBalancer { balancer, .. } => m::delete_load_balancer(&balancer.name),
+            Self::DeleteLbPool { pool } => m::delete_lb_pool(&pool.name),
+            Self::DeleteLbMonitor { .. } => m::delete_lb_monitor(),
             Self::Verify { hostname } => m::verify(hostname),
         }
     }
@@ -510,6 +613,11 @@ impl Step {
     rename_all_fields = "camelCase"
 )]
 pub enum Warning {
+    /// Only one tunnel serves the hostname: there's nothing to fail over to yet.
+    SingleEndpoint {
+        /// Hostname.
+        hostname: String,
+    },
     /// A record Teitunnel didn't create will be replaced.
     ReplacesForeignRecord {
         /// Hostname.

@@ -72,6 +72,8 @@ pub struct ObserveNeed {
     /// The names of the account's tunnels, even when the target tunnel exists (to name
     /// a new one).
     pub tunnel_names: bool,
+    /// Load balancing for a hostname.
+    pub balance: super::balance::BalanceNeed,
 }
 
 impl ObserveNeed {
@@ -91,6 +93,25 @@ impl ObserveNeed {
                 _ => Want::No,
             },
             tunnel_names: matches!(intent, Intent::CreateTunnel { .. }),
+            balance: match intent {
+                Intent::BalanceRoute { hostname } | Intent::UnbalanceRoute { hostname } => {
+                    super::balance::BalanceNeed {
+                        hostname: Some(hostname.to_string()),
+                        want: Want::Yes,
+                    }
+                }
+                // A route joining or leaving a balanced hostname updates its pool, when
+                // load balancing can be read at all.
+                Intent::AddRoute { route } => super::balance::BalanceNeed {
+                    hostname: Some(route.hostname.to_string()),
+                    want: Want::IfAllowed,
+                },
+                Intent::RemoveRoute { hostname, .. } => super::balance::BalanceNeed {
+                    hostname: Some(hostname.to_string()),
+                    want: Want::IfAllowed,
+                },
+                _ => super::balance::BalanceNeed::default(),
+            },
         }
     }
 }
@@ -168,9 +189,14 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
-    let (access, networks) = tokio::try_join!(
+    let (access, networks, balance) = tokio::try_join!(
         observe_access(api, local, account, &need.access, &names),
         observe_networks(api, account, need.networks),
+        async {
+            super::balance::observe(api, account, &zones, &need.balance)
+                .await
+                .map_err(ObserveError::from)
+        },
     )?;
 
     Ok(Snapshot {
@@ -183,6 +209,7 @@ pub async fn observe<C: CloudApi>(
         records,
         access,
         networks,
+        balance,
     })
 }
 

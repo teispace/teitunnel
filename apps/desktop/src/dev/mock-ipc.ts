@@ -174,6 +174,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
+      balanced: false,
       zone: "teispace.com",
       dns: { state: "ok" },
       access: null,
@@ -186,6 +187,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
+      balanced: false,
       zone: "teispace.com",
       dns: { state: "missing" },
       access: null,
@@ -198,6 +200,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
+      balanced: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: { emails: ["me@xyz.dev"], emailDomains: ["teispace.com"] },
@@ -210,6 +213,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
+      balanced: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: { emails: ["me@xyz.dev"], emailDomains: [] },
@@ -227,6 +231,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       tunnelId,
       temporary: false,
+      balanced: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: null,
@@ -537,6 +542,7 @@ export function installMockIpc(): void {
             ? {
                 tunnelId,
                 temporary: false,
+                balanced: false,
                 appliedVersion: 7,
                 currentVersion: 8,
                 changes: [
@@ -622,6 +628,7 @@ export function installMockIpc(): void {
               accountId: "acc-personal",
               tunnelId: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
               temporary: false,
+              balanced: false,
               routes: [
                 {
                   hostname: "blog.teispace.com",

@@ -64,6 +64,16 @@ pub enum Change {
     },
     /// Remove every route and delete this Mac's tunnel.
     RemoveTunnel,
+    /// Load balance a route across the tunnels that route its hostname.
+    BalanceRoute {
+        /// Hostname.
+        hostname: String,
+    },
+    /// Stop load balancing a route.
+    UnbalanceRoute {
+        /// Hostname.
+        hostname: String,
+    },
     /// Create another tunnel for this Mac.
     CreateTunnel {
         /// Its name.
@@ -219,6 +229,12 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         },
         Change::RemoveTunnel => Intent::RemoveTunnel,
         Change::CreateTunnel { name } => Intent::CreateTunnel { name: name.clone() },
+        Change::BalanceRoute { hostname } => Intent::BalanceRoute {
+            hostname: parse_hostname(hostname)?,
+        },
+        Change::UnbalanceRoute { hostname } => Intent::UnbalanceRoute {
+            hostname: parse_hostname(hostname)?,
+        },
         Change::ImportRoutes { routes } => Intent::ImportRoutes {
             routes: routes
                 .iter()
@@ -275,6 +291,8 @@ pub enum StepKind {
     AccessApp,
     /// Route or stop routing a private network.
     NetworkRoute,
+    /// Load balance a route, or stop.
+    LoadBalancer,
     /// Check the route works.
     Verify,
 }
@@ -326,6 +344,13 @@ impl Step {
                 Self::CreateNetworkRoute { .. } | Self::DeleteNetworkRoute { .. } => {
                     StepKind::NetworkRoute
                 }
+                Self::CreateLbMonitor { .. }
+                | Self::CreateLbPool { .. }
+                | Self::UpdateLbPool { .. }
+                | Self::CreateLoadBalancer { .. }
+                | Self::DeleteLoadBalancer { .. }
+                | Self::DeleteLbPool { .. }
+                | Self::DeleteLbMonitor { .. } => StepKind::LoadBalancer,
                 Self::Verify { .. } => StepKind::Verify,
             },
             description: self.describe(tunnel_name),
@@ -391,6 +416,8 @@ pub struct RouteView {
     pub tunnel_id: Option<String>,
     /// A share on your domain: removed when the share stops.
     pub temporary: bool,
+    /// Load balanced across tunnels (Cloudflare Load Balancing).
+    pub balanced: bool,
 }
 
 /// This Mac's tunnel.
@@ -572,6 +599,7 @@ pub(crate) fn overview(
                 hostname,
                 tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
                 temporary: false,
+                balanced: false,
             })
         })
         .collect();
@@ -667,6 +695,7 @@ mod tests {
             client: None,
             tunnel_id: None,
             temporary: false,
+            balanced: false,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),
