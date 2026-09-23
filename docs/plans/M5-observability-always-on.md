@@ -10,14 +10,14 @@
 ---
 
 ### M5-01 · Metrics pipeline
-- [ ] Scraper per connector (1 s while subscribed, 10 s otherwise). *(Started: 10 s sampler for this Mac's connectors into a 1 h ring buffer with restart-safe deltas (`core::traffic`), `tunnels_traffic`; 1 s subscriptions and rollups remain.)* Derived series: requests/s, error rate, response-code classes, HA connections, RTT (latest/smoothed), active TCP/UDP sessions.
-- [ ] In-memory ring buffer (3,600 points per series). Minute rollups go to `metrics_rollup` (7-day retention, pruned daily).
-- [ ] Edge locations from the connections API (colo names) and from log events.
-- [ ] Commands: `metrics_subscribe(tunnel) -> Channel<MetricsBatch>`, `metrics_history(tunnel, range)`.
+- [x] Scraper per connector (1 s while watched, 10 s otherwise). Derived series: requests/s, failed/s, response-code classes, HA connections, smoothed RTT, requests in flight. *(`core::traffic`; the 1 s rate is a lease renewed by each read, D-046. TCP/UDP session counts are parsed (`active_sessions`) but not charted yet.)*
+- [x] In-memory ring buffer (3,600 points per series). Minute rollups go to `metrics_rollup` (7-day retention, pruned on write).
+- [ ] Edge locations from the connections API (colo names) and from log events. *(Locations from `/metrics` are shown; colo names from the API remain.)*
+- [x] Commands: `tunnels_traffic(tunnel, since)` (cursor polling instead of a Channel subscription, D-046), `tunnels_traffic_history(tunnel, day|week)`.
 
 ### M5-02 · Charts
-- [ ] `Sparkline` and `TimeSeriesChart` patterns on uPlot *(An SVG `Sparkline` exists and the Tunnels inspector has a Traffic section; uPlot time series remain.)*, styled from tokens (theme-aware, redrawn on theme change), with hover crosshair and tooltip, tabular digits, and no animation except appending data.
-- [ ] Route/tunnel inspector "Traffic" section, plus an Overview with health summary and top routes by traffic.
+- [x] `TimeSeriesChart` pattern on uPlot, styled from tokens (theme-aware, repainted on appearance change), with hover crosshair and readout, tabular digits, gaps where data is missing, and no animation except appending data. *(The SVG `Sparkline` stays for tiny inline charts.)*
+- [ ] Route/tunnel inspector "Traffic" section, plus an Overview with health summary and top routes by traffic. *(Tunnel inspector done: Hour/Day/Week, requests and failures per second, round trip, response classes. Per-route traffic needs per-hostname metrics cloudflared doesn't expose; Overview top routes remain.)*
 
 ### M5-03 · Log viewer
 - [ ] `logs_subscribe(connector, filter) -> Channel<LogBatch>` (server-side filter by level/text to save IPC), plus `logs_history(connector, before, limit)`.

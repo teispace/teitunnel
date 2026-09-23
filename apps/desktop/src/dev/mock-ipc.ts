@@ -436,17 +436,17 @@ export function installMockIpc(): void {
           ];
         case "tunnels_traffic":
           return {
-            points: Array.from({ length: 120 }, (_, i) => ({
-              at: now - (120 - i) * 10_000,
-              requests: Math.round(8 + 6 * Math.sin(i / 9) + (i % 7) * 1.5 + (i > 90 ? 12 : 0)),
-              errors: i % 40 === 0 ? 1 : 0,
-            })),
+            series: mockSeries(now, 3_600, 1),
             totalRequests: 18_204,
             totalErrors: 12,
             connections: 4,
             rttMs: 18.4,
             locations: ["ams01", "fra08"],
           };
+        case "tunnels_traffic_history": {
+          const week = payload["range"] === "week";
+          return mockSeries(now, week ? 336 : 288, week ? 1_800 : 300);
+        }
         case "doctor_run":
           return [
             {
@@ -532,4 +532,36 @@ export function installMockIpc(): void {
     },
     { shouldMockEvents: true },
   );
+}
+
+/** A plausible traffic series: `count` intervals of `span` seconds ending at `now`. */
+function mockSeries(now: number, count: number, span: number) {
+  const at: number[] = [];
+  const requests: number[] = [];
+  const errors: number[] = [];
+  const rttMs: (number | null)[] = [];
+  for (let i = 0; i < count; i++) {
+    // Leave a gap, as when the Mac slept.
+    if (i > count * 0.3 && i < count * 0.36) continue;
+    const t = i / count;
+    const rate = 6 + 5 * Math.sin(t * 9) + 3 * Math.sin(t * 41) + (t > 0.8 ? 7 : 0);
+    at.push(now - (count - i) * span * 1000);
+    requests.push(Math.max(0, Math.round(rate * span)));
+    errors.push(i % 97 === 0 ? Math.max(1, Math.round(span / 20)) : 0);
+    rttMs.push(18 + 4 * Math.sin(t * 13));
+  }
+  const zeros = at.map(() => 0);
+  return {
+    at,
+    span: at.map(() => span),
+    requests,
+    errors,
+    ok: requests.map((n) => Math.round(n * 0.96)),
+    redirects: requests.map((n) => Math.round(n * 0.02)),
+    clientErrors: requests.map((n) => Math.round(n * 0.015)),
+    serverErrors: errors,
+    concurrent: zeros,
+    connections: at.map(() => 4),
+    rttMs,
+  };
 }

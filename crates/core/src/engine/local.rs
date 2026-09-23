@@ -1,6 +1,6 @@
 //! What the engine remembers locally: this Mac's tunnel per account, which DNS records
-//! Teitunnel created (the ownership index, a backup for the record comment), and the
-//! activity log.
+//! Teitunnel created (the ownership index, a backup for the record comment), the
+//! activity log, and per-minute connector traffic.
 
 use std::{
     collections::HashSet,
@@ -11,7 +11,10 @@ use cf_api::IngressRule;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
-use crate::store::{Store, StoreError};
+use crate::{
+    store::{Store, StoreError},
+    traffic::{MinuteRollup, RETENTION},
+};
 
 /// This Mac's tunnel in an account.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -357,9 +360,182 @@ impl Local {
     }
 }
 
+/// Rollups for the same minute (a connector restarted mid-minute) add up.
+const UPSERT_ROLLUP: &str = "INSERT INTO metrics_rollup (tunnel_id, minute, requests, errors,
+        status_2xx, status_3xx, status_4xx, status_5xx, concurrent_max, connections_min,
+        rtt_sum_ms, rtt_samples)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+     ON CONFLICT (tunnel_id, minute) DO UPDATE SET
+        requests = requests + excluded.requests,
+        errors = errors + excluded.errors,
+        status_2xx = status_2xx + excluded.status_2xx,
+        status_3xx = status_3xx + excluded.status_3xx,
+        status_4xx = status_4xx + excluded.status_4xx,
+        status_5xx = status_5xx + excluded.status_5xx,
+        concurrent_max = max(concurrent_max, excluded.concurrent_max),
+        connections_min = min(connections_min, excluded.connections_min),
+        rtt_sum_ms = rtt_sum_ms + excluded.rtt_sum_ms,
+        rtt_samples = rtt_samples + excluded.rtt_samples";
+
+#[allow(clippy::cast_possible_wrap)]
+fn stored(n: u64) -> i64 {
+    i64::try_from(n).unwrap_or(i64::MAX)
+}
+
+fn loaded(n: i64) -> u64 {
+    u64::try_from(n).unwrap_or(0)
+}
+
+impl Local {
+    /// Saves finished minutes of traffic and drops those older than the retention.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn save_rollups(&self, rollups: Vec<MinuteRollup>) -> Result<(), StoreError> {
+        if rollups.is_empty() {
+            return Ok(());
+        }
+        let oldest = now_ms() / 60_000 - i64::try_from(RETENTION.as_secs() / 60).unwrap_or(0);
+        self.store
+            .call(move |conn| {
+                let tx = conn.transaction()?;
+                {
+                    let mut insert = tx.prepare_cached(UPSERT_ROLLUP)?;
+                    for r in &rollups {
+                        let [s2, s3, s4, s5] = r.classes.map(stored);
+                        insert.execute(params![
+                            r.tunnel,
+                            r.minute,
+                            stored(r.requests),
+                            stored(r.errors),
+                            s2,
+                            s3,
+                            s4,
+                            s5,
+                            r.concurrent_max,
+                            r.connections_min,
+                            r.rtt_sum_ms,
+                            r.rtt_samples,
+                        ])?;
+                    }
+                    tx.execute(
+                        "DELETE FROM metrics_rollup WHERE minute < ?1",
+                        params![oldest],
+                    )?;
+                }
+                tx.commit()?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// A tunnel's rollups from `since_minute` on, oldest first.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn rollups(
+        &self,
+        tunnel_id: &str,
+        since_minute: i64,
+    ) -> Result<Vec<MinuteRollup>, StoreError> {
+        let tunnel = tunnel_id.to_owned();
+        self.store
+            .call(move |conn| {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT minute, requests, errors, status_2xx, status_3xx, status_4xx,
+                            status_5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples
+                     FROM metrics_rollup WHERE tunnel_id = ?1 AND minute >= ?2 ORDER BY minute",
+                )?;
+                let rows = stmt
+                    .query_map(params![tunnel, since_minute], |row| {
+                        Ok(MinuteRollup {
+                            tunnel: tunnel.clone(),
+                            minute: row.get(0)?,
+                            requests: loaded(row.get(1)?),
+                            errors: loaded(row.get(2)?),
+                            classes: [
+                                loaded(row.get(3)?),
+                                loaded(row.get(4)?),
+                                loaded(row.get(5)?),
+                                loaded(row.get(6)?),
+                            ],
+                            concurrent_max: row.get(7)?,
+                            connections_min: row.get(8)?,
+                            rtt_sum_ms: row.get(9)?,
+                            rtt_samples: row.get(10)?,
+                        })
+                    })?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .await
+    }
+
+    /// Deletes a tunnel's traffic history (the tunnel was deleted).
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn forget_rollups(&self, tunnel_id: &str) -> Result<(), StoreError> {
+        let tunnel = tunnel_id.to_owned();
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "DELETE FROM metrics_rollup WHERE tunnel_id = ?1",
+                    params![tunnel],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn rollups_merge_expire_and_forget() {
+        let local = Local::new(Store::open_in_memory().unwrap());
+        let now = now_ms() / 60_000;
+        let rollup = |minute, requests, connections_min| MinuteRollup {
+            tunnel: "t".into(),
+            minute,
+            requests,
+            errors: 1,
+            classes: [requests, 0, 0, 1],
+            concurrent_max: 2,
+            connections_min,
+            rtt_sum_ms: 30.0,
+            rtt_samples: 2,
+        };
+        local
+            .save_rollups(vec![
+                rollup(now - 1, 10, 4),
+                rollup(now - 8 * 24 * 60, 5, 4),
+            ])
+            .await
+            .unwrap();
+        // Same minute again (restart): counts add, the gauges keep their extremes.
+        local
+            .save_rollups(vec![rollup(now - 1, 3, 2)])
+            .await
+            .unwrap();
+        let rows = local.rollups("t", 0).await.unwrap();
+        assert_eq!(rows.len(), 1, "older than 7 days is dropped");
+        assert_eq!(
+            (
+                rows[0].requests,
+                rows[0].errors,
+                rows[0].connections_min,
+                rows[0].rtt_samples
+            ),
+            (13, 2, 2, 4)
+        );
+        assert_eq!(rows[0].classes, [13, 0, 0, 2]);
+        assert!(local.rollups("t", now).await.unwrap().is_empty());
+        local.forget_rollups("t").await.unwrap();
+        assert!(local.rollups("t", 0).await.unwrap().is_empty());
+    }
 
     #[tokio::test]
     async fn round_trips() {

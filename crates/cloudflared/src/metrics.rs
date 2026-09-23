@@ -88,11 +88,46 @@ impl MetricsSnapshot {
 
     /// Latest QUIC round-trip time in milliseconds, averaged over connections.
     pub fn rtt_ms(&self) -> Option<f64> {
-        let rtts: Vec<f64> = self
-            .values("quic_client_latest_rtt")
+        self.mean("quic_client_latest_rtt")
+    }
+
+    /// Smoothed QUIC round-trip time in milliseconds, averaged over connections; steadier
+    /// than [`Self::rtt_ms`], so it's the one charted.
+    pub fn smoothed_rtt_ms(&self) -> Option<f64> {
+        self.mean("quic_client_smoothed_rtt")
+            .or_else(|| self.rtt_ms())
+    }
+
+    /// Active proxied TCP and UDP sessions (`cloudflared access`, private networks).
+    pub fn active_sessions(&self) -> u64 {
+        to_count(
+            self.sum("cloudflared_tcp_active_sessions")
+                + self.sum("cloudflared_udp_active_sessions"),
+        )
+    }
+
+    /// Responses so far by status class: `[2xx, 3xx, 4xx, 5xx]` (1xx counts as 2xx).
+    pub fn responses_by_class(&self) -> [u64; 4] {
+        let mut classes = [0; 4];
+        for (code, count) in self.responses_by_code() {
+            let index = match code {
+                ..300 => 0,
+                300..400 => 1,
+                400..500 => 2,
+                _ => 3,
+            };
+            classes[index] += count;
+        }
+        classes
+    }
+
+    fn mean(&self, name: &str) -> Option<f64> {
+        let values: Vec<f64> = self
+            .values(name)
             .map(|s| s.value)
+            .filter(|v| v.is_finite())
             .collect();
-        (!rtts.is_empty()).then(|| rtts.iter().sum::<f64>() / rtts.len() as f64)
+        (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
     }
 
     /// Responses by HTTP status code.
@@ -223,6 +258,19 @@ mod tests {
             MetricsSnapshot::parse(text).responses_by_code(),
             [(200, 40), (502, 2)]
         );
+    }
+
+    #[test]
+    fn derives_classes_sessions_and_smoothed_rtt() {
+        let text = "cloudflared_tunnel_response_by_code{status_code=\"101\"} 1\ncloudflared_tunnel_response_by_code{status_code=\"200\"} 40\ncloudflared_tunnel_response_by_code{status_code=\"304\"} 3\ncloudflared_tunnel_response_by_code{status_code=\"404\"} 5\ncloudflared_tunnel_response_by_code{status_code=\"502\"} 2\ncloudflared_tcp_active_sessions 2\ncloudflared_udp_active_sessions 1\nquic_client_smoothed_rtt{conn_index=\"0\"} 20\nquic_client_smoothed_rtt{conn_index=\"1\"} 30\n";
+        let snapshot = MetricsSnapshot::parse(text);
+        assert_eq!(snapshot.responses_by_class(), [41, 3, 5, 2]);
+        assert_eq!(snapshot.active_sessions(), 3);
+        assert_eq!(snapshot.smoothed_rtt_ms(), Some(25.0));
+        // Falls back to the latest RTT when the smoothed one is missing.
+        let latest = MetricsSnapshot::parse("quic_client_latest_rtt 12\n");
+        assert_eq!(latest.smoothed_rtt_ms(), Some(12.0));
+        assert_eq!(MetricsSnapshot::default().smoothed_rtt_ms(), None);
     }
 
     #[test]

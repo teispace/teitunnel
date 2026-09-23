@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
-import { type Change, commands, type Progress, type StepState } from "@/lib/ipc/bindings";
+import {
+  type Change,
+  commands,
+  type HistoryRange,
+  type Progress,
+  type StepState,
+  type Traffic,
+} from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
+import { appendSeries } from "@/lib/traffic";
 
 export function useRoutesOverview(accountId: string | null) {
   return useQuery({
@@ -164,13 +172,38 @@ export function useTunnelLogs(tunnelId: string, enabled: boolean) {
 }
 
 /** This Mac's connector traffic for a tunnel, refreshed with each 10 s sample. */
-export function useTraffic(tunnelId: string, enabled: boolean) {
+/**
+ * A connector's live traffic, polled every second while shown (which also keeps the
+ * backend sampling at 1 s, D-046). Each poll fetches only samples newer than the last
+ * one held, and appends them.
+ */
+export function useLiveTraffic(tunnelId: string) {
+  const client = useQueryClient();
+  const queryKey = ["routes", "traffic", tunnelId];
   return useQuery({
-    queryKey: ["routes", "traffic", tunnelId],
-    queryFn: () => call(commands.tunnelsTraffic(tunnelId)),
-    enabled,
-    refetchInterval: 10_000,
+    queryKey,
+    queryFn: async (): Promise<Traffic | null> => {
+      const held = client.getQueryData<Traffic | null>(queryKey);
+      const since = held?.series.at.at(-1) ?? null;
+      const next = await call(commands.tunnelsTraffic(tunnelId, since));
+      if (!next) return null;
+      return held ? { ...next, series: appendSeries(held.series, next.series) } : next;
+    },
+    refetchInterval: 1_000,
     staleTime: 0,
+    // Drop the hour of samples soon after the view closes.
+    gcTime: 30_000,
+  });
+}
+
+/** A tunnel's traffic over the last day or week, from per-minute history. */
+export function useTrafficHistory(tunnelId: string, range: HistoryRange | null) {
+  return useQuery({
+    queryKey: ["routes", "trafficHistory", tunnelId, range],
+    queryFn: () => call(commands.tunnelsTrafficHistory(tunnelId, range ?? "day")),
+    enabled: range !== null,
+    refetchInterval: 60_000,
+    placeholderData: (previous) => previous,
   });
 }
 

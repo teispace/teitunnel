@@ -192,6 +192,15 @@ async fn switches_to_always_on_and_back_without_a_gap() {
         machine.state("t2"),
         Some(ConnectorState::Healthy { .. })
     ));
+    // A second scrape makes the first interval; reading with `since` returns only newer.
+    machine.sample_once().await;
+    let traffic = machine.traffic("t2", None).expect("sampled");
+    assert_eq!(traffic.series.len(), 1);
+    assert_eq!(traffic.total_requests, 7);
+    assert_eq!(traffic.connections, 1);
+    assert_eq!(traffic.locations, ["ams01"]);
+    let last = traffic.series.at[0];
+    assert!(machine.traffic("t2", Some(last)).unwrap().series.is_empty());
 
     // Always-on → Session: the app's connector connects, then the service goes.
     machine.set_always_on(&unused, "acc", false).await.unwrap();
@@ -217,5 +226,10 @@ async fn switches_to_always_on_and_back_without_a_gap() {
             "uninstall com.teispace.teitunnel.connector.t2"
         ]
     );
+    assert!(
+        machine.traffic("t2", None).is_some(),
+        "traffic history survives the mode switch"
+    );
     machine.stop("t2").await.unwrap();
+    assert!(machine.traffic("t2", None).is_none());
 }

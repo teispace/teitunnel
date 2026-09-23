@@ -287,14 +287,31 @@ pub fn tunnels_logs(
     )
 }
 
-/// The last hour of this Mac's connector traffic for a tunnel.
+/// This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
+/// without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
 #[tauri::command]
 #[specta::specta]
 pub fn tunnels_traffic(
     state: State<'_, AppState>,
     tunnel_id: String,
+    since: Option<f64>,
 ) -> Option<teitunnel_core::traffic::Traffic> {
-    state.machine.traffic(&tunnel_id)
+    state.machine.traffic(&tunnel_id, since)
+}
+
+/// A tunnel's traffic over the last day or week, from per-minute history.
+#[tauri::command]
+#[specta::specta]
+pub async fn tunnels_traffic_history(
+    state: State<'_, AppState>,
+    tunnel_id: String,
+    range: teitunnel_core::traffic::HistoryRange,
+) -> Result<teitunnel_core::traffic::TrafficSeries, AppError> {
+    state
+        .machine
+        .traffic_history(&tunnel_id, range)
+        .await
+        .map_err(AppError::internal)
 }
 
 /// Whether this Mac's connector can run as a service, and whether it does.

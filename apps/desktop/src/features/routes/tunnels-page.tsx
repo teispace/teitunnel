@@ -8,7 +8,6 @@ import { Inspector, InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { ListPane, ListRow } from "@/components/patterns/list-pane";
 import { LogViewer } from "@/components/patterns/log-viewer";
-import { Sparkline } from "@/components/patterns/sparkline";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Badge } from "@/components/ui/badge";
@@ -28,11 +27,11 @@ import {
   useForeignConnectors,
   useSetAlwaysOn,
   useStopForeign,
-  useTraffic,
   useTunnelAction,
   useTunnelLogs,
   useTunnels,
 } from "./queries";
+import { TunnelTraffic } from "./tunnel-traffic";
 
 type Entry =
   | { kind: "tunnel"; tunnel: TunnelSummary }
@@ -268,36 +267,6 @@ function AlwaysOnRow({ accountId }: { accountId: string }) {
           }
         />
       </div>
-    </InspectorSection>
-  );
-}
-
-function TunnelTraffic({ tunnelId }: { tunnelId: string }) {
-  const { data: traffic } = useTraffic(tunnelId, true);
-  if (!traffic) return null;
-  const recent = traffic.points.slice(-6).reduce((sum, p) => sum + p.requests, 0);
-  return (
-    <InspectorSection title="Traffic">
-      <Sparkline values={traffic.points.map((p) => p.requests)} label="Requests in the last hour" />
-      <KeyValueGrid
-        items={[
-          {
-            label: "Last minute",
-            value: `${recent.toLocaleString()} request${recent === 1 ? "" : "s"}`,
-          },
-          {
-            label: "Since start",
-            value: `${traffic.totalRequests.toLocaleString()} requests, ${traffic.totalErrors.toLocaleString()} failed`,
-          },
-          { label: "Connections", value: String(traffic.connections) },
-          ...(traffic.rttMs !== null
-            ? [{ label: "Round trip", value: `${Math.round(traffic.rttMs)} ms` }]
-            : []),
-          ...(traffic.locations.length > 0
-            ? [{ label: "Edge", value: traffic.locations.join(", ").toUpperCase() }]
-            : []),
-        ]}
-      />
     </InspectorSection>
   );
 }

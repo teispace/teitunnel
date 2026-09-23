@@ -225,7 +225,7 @@ Stopped ─start─▶ Starting ─spawned─▶ Connecting ─ready≥1─▶ H
 - **Metrics port:** each tunnel gets a stable port from `20300..20399` (Quick Shares use `20400..20499`), stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide.
 - **Health:** poll `GET /ready` every 250 ms until the first connection, then every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
 - **Logs:** JSON lines on stderr are parsed into `LogEvent { ts, level, message, fields }`. They go into a per-connector ring buffer (100k events) and are fanned out to subscribers.
-- **Metrics:** scrape `/metrics` every 1 s while a metrics view is subscribed, otherwise every 10 s. Values go into a ring buffer (1 h at 1 s), and 1-min rollups are persisted for 7 days.
+- **Metrics:** scrape `/metrics` every 1 s while a traffic view polls (a 5 s lease per read, D-046), otherwise every 10 s. Values go into a ring buffer (3,600 samples), and 1-min rollups are persisted for 7 days.
 - **Restarts:** exponential backoff with jitter (1 s → 60 s cap). More than 5 crashes in 2 min is a **crash loop**: stop retrying and raise a Doctor issue with the last 50 log lines.
 - **Shutdown:** SIGTERM, then SIGKILL after 5 s. On app exit (`RunEvent::ExitRequested`), stop all Session connectors concurrently within the deadline.
 
@@ -306,7 +306,7 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `routes_meta` | route_id ↔ (tunnel_id, hostname, path): stable ids, since Cloudflare ingress rules have none |
 | `activity` | id, ts, plan_id, intent, step, status, error, before/after JSON |
 | `quick_shares` | history (origin, url, start/stop) |
-| `metrics_rollup` | tunnel_id, minute, requests, errors, rtt_p50, ha_conns |
+| `metrics_rollup` | tunnel_id, minute, requests, errors, status_2xx…5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples |
 | `settings` | key/value JSON |
 
 App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `teitunnel.db`). Logs go to `~/Library/Logs/com.teispace.teitunnel/`.

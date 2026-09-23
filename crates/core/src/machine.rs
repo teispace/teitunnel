@@ -26,6 +26,7 @@ use crate::{
     runtime::{ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, Supervisor},
     secrets::{Secrets, spawn_blocking},
     service::{ServiceManager, write_token_file},
+    traffic,
 };
 
 /// How long a new connector may take to connect before a mode switch is abandoned.
@@ -78,7 +79,7 @@ pub struct MachineTunnels {
     services: Arc<Mutex<HashMap<String, Service>>>,
     manager: Option<Arc<dyn ServiceManager>>,
     paths: Option<ServicePaths>,
-    traffic: crate::traffic::TrafficLog,
+    traffic: traffic::TrafficLog,
 }
 
 async fn wait_ready(port: u16, timeout: Duration) -> bool {
@@ -118,7 +119,7 @@ impl MachineTunnels {
             services: Arc::default(),
             manager: None,
             paths: None,
-            traffic: crate::traffic::TrafficLog::default(),
+            traffic: traffic::TrafficLog::default(),
         }
     }
 
@@ -148,50 +149,121 @@ impl MachineTunnels {
         self.services().contains_key(tunnel_id)
     }
 
-    /// The last hour of a tunnel connector's traffic (None until it has been sampled).
-    pub fn traffic(&self, tunnel_id: &str) -> Option<crate::traffic::Traffic> {
-        self.traffic.get(tunnel_id)
+    /// A tunnel connector's recent traffic: the samples after `since` (ms; all of the
+    /// last hour without it) and the latest numbers. None until it has been sampled.
+    /// Reading keeps the connector on the 1 s sampling rate for a few seconds.
+    pub fn traffic(&self, tunnel_id: &str, since: Option<f64>) -> Option<traffic::Traffic> {
+        self.traffic.watch(tunnel_id);
+        self.traffic.get(tunnel_id, since)
     }
 
-    /// Samples every connector's metrics every 10 s, and refreshes Always-on connectors'
-    /// state from their `/ready` endpoint. Run once, in the background.
+    /// A tunnel's persisted traffic for `range`, bucketed for charting.
+    ///
+    /// # Errors
+    /// Database errors, as a message.
+    pub async fn traffic_history(
+        &self,
+        tunnel_id: &str,
+        range: traffic::HistoryRange,
+    ) -> Result<traffic::TrafficSeries, String> {
+        #[allow(clippy::cast_possible_truncation)]
+        let now = (traffic::now_ms() / 60_000.0) as i64;
+        let rollups = self
+            .local
+            .rollups(tunnel_id, now - range.minutes())
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(traffic::bucket(&rollups, range))
+    }
+
+    /// Samples connectors' metrics (every second while watched, else every 10 s),
+    /// persists finished minutes, and refreshes Always-on connectors' state from their
+    /// `/ready` endpoint. Run once, in the background.
     pub async fn sample_forever(self) {
-        let mut tick = tokio::time::interval(crate::traffic::INTERVAL);
+        let mut tick = tokio::time::interval(traffic::LIVE_INTERVAL);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tick.tick().await;
-            self.sample_once().await;
+            self.sample(false).await;
         }
     }
 
-    /// One sampling pass (also used by tests).
+    /// Samples every connector now (tests).
     pub async fn sample_once(&self) {
-        let mut running: Vec<(String, u16)> =
-            self.held().iter().map(|(t, p)| (t.clone(), *p)).collect();
-        let services: Vec<(String, u16)> = self
-            .services()
+        self.sample(true).await;
+    }
+
+    /// The metrics port of each running connector. While switching modes both run;
+    /// the service is the one that stays when switching on, and it's out of `services`
+    /// when switching off, so it wins.
+    fn metrics_ports(&self) -> HashMap<String, (u16, bool)> {
+        let mut ports: HashMap<String, (u16, bool)> = self
+            .held()
             .iter()
-            .map(|(t, s)| (t.clone(), s.port))
+            .map(|(t, p)| (t.clone(), (*p, false)))
             .collect();
-        running.extend(services.iter().cloned());
-        for (tunnel, port) in running {
-            let Ok(endpoints) = cloudflared::Endpoints::new(port) else {
-                continue;
+        ports.extend(
+            self.services()
+                .iter()
+                .map(|(t, s)| (t.clone(), (s.port, true))),
+        );
+        ports
+    }
+
+    async fn sample(&self, force: bool) {
+        let now = std::time::Instant::now();
+        let due: Vec<(String, (u16, bool))> = self
+            .metrics_ports()
+            .into_iter()
+            .filter(|(tunnel, _)| self.traffic.take_due(tunnel, now) || force)
+            .collect();
+        let scrapes = due
+            .iter()
+            .map(|(tunnel, (port, service))| self.sample_one(tunnel, *port, *service));
+        let rollups: Vec<_> = futures_util::future::join_all(scrapes)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+        if let Err(err) = self.local.save_rollups(rollups).await {
+            tracing::warn!(%err, "couldn't save connector traffic");
+        }
+    }
+
+    async fn sample_one(
+        &self,
+        tunnel: &str,
+        port: u16,
+        service: bool,
+    ) -> Option<traffic::MinuteRollup> {
+        let endpoints = cloudflared::Endpoints::new(port).ok()?;
+        let rollup = match endpoints.metrics().await {
+            Ok(metrics) => self.traffic.record_now(tunnel, metrics),
+            Err(_) => None,
+        };
+        if service {
+            let state = match endpoints.ready().await {
+                Ok(ready) if ready.ready_connections > 0 => ConnectorState::Healthy {
+                    connections: ready.ready_connections,
+                },
+                Ok(_) => ConnectorState::Connecting,
+                Err(_) => ConnectorState::Stopped,
             };
-            if let Ok(metrics) = endpoints.metrics().await {
-                self.traffic.record_now(&tunnel, metrics);
+            if let Some(service) = self.services().get_mut(tunnel) {
+                service.state = state;
             }
-            if services.iter().any(|(t, _)| *t == tunnel) {
-                let state = match endpoints.ready().await {
-                    Ok(ready) if ready.ready_connections > 0 => ConnectorState::Healthy {
-                        connections: ready.ready_connections,
-                    },
-                    Ok(_) => ConnectorState::Connecting,
-                    Err(_) => ConnectorState::Stopped,
-                };
-                if let Some(service) = self.services().get_mut(&tunnel) {
-                    service.state = state;
-                }
-            }
+        }
+        rollup
+    }
+
+    /// Forgets a tunnel's live traffic once no connector runs for it, keeping its
+    /// unfinished minute.
+    async fn traffic_stopped(&self, tunnel_id: &str) {
+        if self.held().contains_key(tunnel_id) || self.services().contains_key(tunnel_id) {
+            return;
+        }
+        if let Some(partial) = self.traffic.forget(tunnel_id) {
+            let _ = self.local.save_rollups(vec![partial]).await;
         }
     }
 
@@ -359,7 +431,7 @@ impl MachineTunnels {
         if let Some(service) = service {
             self.ports.release(service.port);
         }
-        self.traffic.forget(tunnel_id);
+        self.traffic_stopped(tunnel_id).await;
         Ok(())
     }
 
@@ -554,16 +626,19 @@ impl Connectors for MachineTunnels {
         }
         // Not running is fine: the goal is that it's stopped.
         let _ = self.supervisor.stop(&connector_id(tunnel_id)).await;
-        self.traffic.forget(tunnel_id);
         let port = self.held().remove(tunnel_id);
         if let Some(port) = port {
             self.ports.release(port);
         }
+        self.traffic_stopped(tunnel_id).await;
         Ok(())
     }
 
     async fn deleted(&self, tunnel_id: &str) {
         self.remove_token_file(tunnel_id);
+        if let Err(err) = self.local.forget_rollups(tunnel_id).await {
+            tracing::warn!(%err, "couldn't delete the tunnel's traffic history");
+        }
         let secrets = self.secrets.clone();
         let key = token_key(tunnel_id);
         if let Err(err) = spawn_blocking(move || secrets.delete(&key)).await {

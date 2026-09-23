@@ -138,21 +138,26 @@ export const commands = {
 	foreignStop: (pid: number) => __TAURI_INVOKE<null>("foreign_stop", { pid }),
 	/**  The newest log lines of this Mac's connector for a tunnel. */
 	tunnelsLogs: (tunnelId: string, limit: number) => __TAURI_INVOKE<LogLine[]>("tunnels_logs", { tunnelId, limit }),
-	/**  The last hour of this Mac's connector traffic for a tunnel. */
-	tunnelsTraffic: (tunnelId: string) => __TAURI_INVOKE<{
-	/**  The last hour, oldest first. */
-	points: TrafficPoint[],
+	/**
+	 *  This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
+	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
+	 */
+	tunnelsTraffic: (tunnelId: string, since: number | null) => __TAURI_INVOKE<{
+	/**  Samples newer than the read's `since` (all of them without it), oldest first. */
+	series: TrafficSeries,
 	/**  Requests since the connector started. */
 	totalRequests: number,
 	/**  Failed requests since the connector started. */
 	totalErrors: number,
 	/**  Edge connections now. */
 	connections: number,
-	/**  Round-trip time to the edge, in milliseconds. */
+	/**  Round-trip time to the edge now, in milliseconds. */
 	rttMs: number | null,
 	/**  Edge locations, e.g. `AMS`. */
 	locations: string[],
-} | null>("tunnels_traffic", { tunnelId }),
+} | null>("tunnels_traffic", { tunnelId, since }),
+	/**  A tunnel's traffic over the last day or week, from per-minute history. */
+	tunnelsTrafficHistory: (tunnelId: string, range: HistoryRange) => __TAURI_INVOKE<TrafficSeries>("tunnels_traffic_history", { tunnelId, range }),
 	/**  Whether this Mac's connector for the account keeps running when Teitunnel quits. */
 	tunnelsAlwaysOn: (accountId: string) => __TAURI_INVOKE<AlwaysOn>("tunnels_always_on", { accountId }),
 	/**
@@ -571,6 +576,13 @@ export type Grant =
 /**  Couldn't be checked right now. */
 "unknown";
 
+/**  A span of persisted history. */
+export type HistoryRange = 
+/**  The last 24 hours, in 5-minute buckets. */
+"day" | 
+/**  The last 7 days, in 30-minute buckets. */
+"week";
+
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
 /**  Downloading: bytes received of total. */
@@ -977,30 +989,46 @@ export type Theme =
 /**  Always dark. */
 "dark";
 
-/**  Traffic of one tunnel's connector on this Mac. */
+/**  Live traffic of one tunnel's connector on this Mac. */
 export type Traffic = {
-	/**  The last hour, oldest first. */
-	points: TrafficPoint[],
+	/**  Samples newer than the read's `since` (all of them without it), oldest first. */
+	series: TrafficSeries,
 	/**  Requests since the connector started. */
 	totalRequests: number,
 	/**  Failed requests since the connector started. */
 	totalErrors: number,
 	/**  Edge connections now. */
 	connections: number,
-	/**  Round-trip time to the edge, in milliseconds. */
+	/**  Round-trip time to the edge now, in milliseconds. */
 	rttMs: number | null,
 	/**  Edge locations, e.g. `AMS`. */
 	locations: string[],
 };
 
-/**  One sample interval. */
-export type TrafficPoint = {
-	/**  Milliseconds since the epoch. */
-	at: number | null,
+/**  Samples as columns: entry `i` of every column belongs to the same interval. */
+export type TrafficSeries = {
+	/**  End of each interval, in milliseconds since the epoch; ascending. */
+	at: number[],
+	/**  Seconds each interval covers (rates are counts divided by this). */
+	span: number[],
 	/**  Requests during the interval. */
-	requests: number,
-	/**  Failed requests during the interval. */
-	errors: number,
+	requests: number[],
+	/**  Failed requests (the origin couldn't be reached) during the interval. */
+	errors: number[],
+	/**  1xx and 2xx responses. */
+	ok: number[],
+	/**  3xx responses. */
+	redirects: number[],
+	/**  4xx responses. */
+	clientErrors: number[],
+	/**  5xx responses. */
+	serverErrors: number[],
+	/**  Most requests in flight at once (at the sample; the peak for rollups). */
+	concurrent: number[],
+	/**  Edge connections (at the sample; the lowest for rollups). */
+	connections: number[],
+	/**  Smoothed round trip to the edge, in milliseconds (the mean for rollups). */
+	rttMs: (number | null)[],
 };
 
 /**  A tunnel in the account. */

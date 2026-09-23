@@ -64,6 +64,25 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT;
         CREATE INDEX activity_account_at ON activity (account_id, at DESC);",
     ),
+    // 5: per-minute traffic of this Mac's connectors, kept 7 days
+    M::up(
+        "CREATE TABLE metrics_rollup (
+            tunnel_id       TEXT NOT NULL,
+            minute          INTEGER NOT NULL,
+            requests        INTEGER NOT NULL,
+            errors          INTEGER NOT NULL,
+            status_2xx      INTEGER NOT NULL,
+            status_3xx      INTEGER NOT NULL,
+            status_4xx      INTEGER NOT NULL,
+            status_5xx      INTEGER NOT NULL,
+            concurrent_max  INTEGER NOT NULL,
+            connections_min INTEGER NOT NULL,
+            rtt_sum_ms      REAL NOT NULL,
+            rtt_samples     INTEGER NOT NULL,
+            PRIMARY KEY (tunnel_id, minute)
+        ) STRICT, WITHOUT ROWID;
+        CREATE INDEX metrics_rollup_minute ON metrics_rollup (minute);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
