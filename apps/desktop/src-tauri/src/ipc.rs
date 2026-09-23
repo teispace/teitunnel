@@ -10,6 +10,7 @@ mod accounts;
 pub(crate) mod app;
 pub(crate) use app::mark_launch;
 mod doctor;
+mod domain_shares;
 mod events;
 mod quick_share;
 mod routes;
@@ -43,6 +44,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             app::app_set_open_at_login,
             settings::settings_get,
             settings::settings_set,
+            domain_shares::domain_shares_list,
+            domain_shares::domain_shares_start,
+            domain_shares::domain_shares_stop,
             quick_share::binary_status,
             quick_share::binary_install,
             quick_share::binary_check_update,

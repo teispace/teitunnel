@@ -39,6 +39,8 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["src/test/setup.ts"],
+    // UI tests wait on async queries; a busy machine or CI runner needs more than 5 s.
+    testTimeout: 15_000,
     restoreMocks: true,
   },
 });

@@ -46,6 +46,21 @@ export const commands = {
 	settingsGet: () => __TAURI_INVOKE<Settings>("settings_get"),
 	/**  Updates the given settings and returns the result. Every window is notified. */
 	settingsSet: (patch: SettingsPatch) => __TAURI_INVOKE<Settings>("settings_set", { patch }),
+	/**  Shares on your domains, in every account, oldest first. */
+	domainSharesList: () => __TAURI_INVOKE<DomainShare[]>("domain_shares_list"),
+	/**
+	 *  Shares a local service at a hostname on one of the account's domains, through this
+	 *  Mac's tunnel, until it's stopped, `stop_after_minutes` pass, or Teitunnel quits. Never
+	 *  replaces a DNS record Teitunnel didn't create.
+	 */
+	domainSharesStart: (accountId: string, hostname: string, origin: string, stopAfterMinutes: number | null, access: {
+	/**  Email addresses, e.g. `me@xyz.com`. */
+	emails: string[],
+	/**  Email domains, e.g. `xyz.com`. */
+	emailDomains: string[],
+} | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access }),
+	/**  Stops a share on your domain: its route, DNS record and login are removed. */
+	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
 	/**  The cloudflared binary in use, or `null` if none is installed. */
 	binaryStatus: () => __TAURI_INVOKE<{
 	/**  Absolute path. */
@@ -587,6 +602,22 @@ export type Domain = {
 	paused: boolean,
 };
 
+/**  A temporary route, as remembered. */
+export type DomainShare = {
+	/**  Account id. */
+	accountId: string,
+	/**  The public hostname. */
+	hostname: string,
+	/**  The service shared, as the user gave it. */
+	origin: string,
+	/**  [`APP_OWNER`], or the CLI process that started it. */
+	owner: string,
+	/**  When it ends by itself (milliseconds since the epoch). */
+	expiresAt: number | null,
+	/**  When it started (milliseconds since the epoch). */
+	createdAt: number | null,
+};
+
 /**  Where a domain is in its setup. */
 export type DomainStatus = 
 /**  Active on Cloudflare: routes can use it. */
@@ -1089,6 +1120,8 @@ export type RouteView = {
 	client: ClientAccess | null,
 	/**  The tunnel of this Mac's that carries it. */
 	tunnelId: string | null,
+	/**  A share on your domain: removed when the share stops. */
+	temporary: boolean,
 };
 
 /**  Everything the Routes view shows for an account. */

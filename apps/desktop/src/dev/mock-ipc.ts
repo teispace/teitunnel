@@ -173,6 +173,7 @@ const routesOverview: RoutesOverview = {
       origin: "http://localhost:5173",
       local: true,
       tunnelId,
+      temporary: false,
       zone: "teispace.com",
       dns: { state: "ok" },
       access: null,
@@ -184,6 +185,7 @@ const routesOverview: RoutesOverview = {
       origin: "http://localhost:4321",
       local: true,
       tunnelId,
+      temporary: false,
       zone: "teispace.com",
       dns: { state: "missing" },
       access: null,
@@ -195,6 +197,7 @@ const routesOverview: RoutesOverview = {
       origin: "http://localhost:3000",
       local: true,
       tunnelId,
+      temporary: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: { emails: ["me@xyz.dev"], emailDomains: ["teispace.com"] },
@@ -206,6 +209,7 @@ const routesOverview: RoutesOverview = {
       origin: "ssh://localhost:22",
       local: true,
       tunnelId,
+      temporary: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: { emails: ["me@xyz.dev"], emailDomains: [] },
@@ -222,6 +226,7 @@ const routesOverview: RoutesOverview = {
       origin: "http://localhost:8000",
       local: true,
       tunnelId,
+      temporary: false,
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: null,
@@ -531,6 +536,7 @@ export function installMockIpc(): void {
           return new URLSearchParams(window.location.search).has("drift")
             ? {
                 tunnelId,
+                temporary: false,
                 appliedVersion: 7,
                 currentVersion: 8,
                 changes: [
@@ -615,6 +621,7 @@ export function installMockIpc(): void {
               tunnel: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
               accountId: "acc-personal",
               tunnelId: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
+              temporary: false,
               routes: [
                 {
                   hostname: "blog.teispace.com",

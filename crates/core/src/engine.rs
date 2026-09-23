@@ -23,7 +23,7 @@ mod views;
 #[cfg(test)]
 mod executor_tests;
 #[cfg(test)]
-mod fake;
+pub(crate) mod fake;
 #[cfg(test)]
 mod planner_tests;
 #[cfg(test)]

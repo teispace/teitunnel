@@ -116,6 +116,18 @@ const MIGRATIONS: &[M<'static>] = &[
                    metrics_port, run_mode, created_at FROM tunnels_local;
         DROP TABLE tunnels_local;",
     ),
+    // 9: temporary routes ("share on your domain"), removed when they stop or expire
+    M::up(
+        "CREATE TABLE domain_shares (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            origin     TEXT NOT NULL,
+            owner      TEXT NOT NULL,
+            expires_at INTEGER,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

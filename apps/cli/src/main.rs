@@ -100,6 +100,16 @@ enum Command {
         /// Don't print a QR code.
         #[arg(long)]
         no_qr: bool,
+        /// Share at this hostname on one of your domains instead of a random
+        /// trycloudflare.com address (removed again when the command ends).
+        #[arg(long, value_name = "HOSTNAME")]
+        on: Option<String>,
+        /// With --on: the account, when several are connected.
+        #[arg(long, short, requires = "on")]
+        account: Option<String>,
+        /// With --on: require a login (an email address, or `@domain`); repeatable.
+        #[arg(long, value_name = "EMAIL|@DOMAIN", requires = "on")]
+        allow: Vec<String>,
     },
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
@@ -254,6 +264,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             stop_after,
             no_qr,
+            on: None,
+            ..
         } => return share::run(&origin, stop_after, !no_qr).await,
         Command::Completions { shell } => {
             clap_complete::generate(
@@ -268,6 +280,24 @@ async fn run(command: Command) -> Result<ExitCode, String> {
     }
     let app = App::open()?;
     match command {
+        Command::Share {
+            origin,
+            stop_after,
+            on: Some(hostname),
+            account,
+            allow,
+            ..
+        } => {
+            share::run_on_domain(
+                &app,
+                &hostname,
+                &origin,
+                account.as_deref(),
+                access_rule(&allow),
+                stop_after,
+            )
+            .await
+        }
         Command::Share { .. } | Command::Completions { .. } => unreachable!("handled above"),
         Command::Doctor { fix, yes, json } => doctor::run(&app, json, fix, yes).await,
         Command::Accounts { json } => accounts(&app, json).await,
@@ -781,6 +811,38 @@ mod tests {
     #[test]
     fn the_command_line_is_well_formed() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn parses_a_share_on_a_domain() {
+        let cli = Cli::try_parse_from([
+            "teitunnel-cli",
+            "share",
+            "3000",
+            "--on",
+            "demo.example.com",
+            "--for",
+            "2h",
+            "--allow",
+            "@team.io",
+        ])
+        .unwrap();
+        let Command::Share {
+            on,
+            stop_after,
+            allow,
+            ..
+        } = cli.command
+        else {
+            panic!("not a share");
+        };
+        assert_eq!(on.as_deref(), Some("demo.example.com"));
+        assert_eq!(stop_after, Some(Duration::from_secs(7200)));
+        assert_eq!(allow, ["@team.io"]);
+        // Account and logins only make sense on your own domain.
+        assert!(
+            Cli::try_parse_from(["teitunnel-cli", "share", "3000", "--allow", "@x.io"]).is_err()
+        );
     }
 
     #[test]

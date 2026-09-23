@@ -219,6 +219,97 @@ fn describe(duration: Duration) -> String {
     parts.join(" ")
 }
 
+/// `teitunnel-cli share <origin> --on <hostname>`: a temporary route on one of the
+/// account's domains, through this machine's tunnel, for as long as the command runs
+/// (or `--for`). The app, or an Always-on connector, serves it; the app also removes it
+/// if this command dies without doing so.
+pub(crate) async fn run_on_domain(
+    app: &crate::context::App,
+    hostname: &str,
+    origin: &str,
+    account: Option<&str>,
+    allow: Option<teitunnel_core::engine::AccessRule>,
+    stop_after: Option<Duration>,
+) -> Result<ExitCode, String> {
+    use teitunnel_core::{
+        domain_shares::{self, ShareRequest},
+        engine::Outcome,
+        runtime,
+    };
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let connectors = app.connectors(&account).await;
+    let ctx = app.context(&account);
+    let expires_at = stop_after
+        .map(|d| domain_shares::now_ms() + u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+    let owner = runtime::this_process();
+    let outcome = domain_shares::start(
+        &app.engine,
+        &api,
+        &connectors,
+        ctx,
+        ShareRequest {
+            hostname,
+            origin,
+            access: allow,
+            expires_at,
+            owner: &owner,
+        },
+    )
+    .await
+    .map_err(|e| match e {
+        teitunnel_core::engine::EngineError::NeedsConfirmation => {
+            format!("{hostname} has a DNS record Teitunnel didn't create. Choose another hostname.")
+        }
+        other => other.to_string(),
+    })?;
+    let hostname = hostname.trim().to_ascii_lowercase();
+    match outcome {
+        Outcome::Applied {
+            connector_error, ..
+        } => {
+            out!("https://{hostname}")?;
+            if let Some(error) = connector_error {
+                status(&format!("Note: {}", error.english()));
+            }
+            let until = stop_after.map_or_else(
+                || "Press Ctrl-C to stop.".to_owned(),
+                |d| format!("Stops in {}, or press Ctrl-C.", describe(d)),
+            );
+            status(&format!(
+                "{origin} is public at https://{hostname}. {until}"
+            ));
+        }
+        Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } => {
+            return Err(error.english());
+        }
+    }
+    match stop_after {
+        Some(after) => {
+            tokio::select! {
+                () = interrupted() => {}
+                () = tokio::time::sleep(after) => {}
+            }
+        }
+        None => interrupted().await,
+    }
+    let stopped = domain_shares::stop(&app.engine, &api, &connectors, ctx, &hostname).await;
+    match stopped {
+        Ok(()) => {
+            status("Stopped sharing; the route and its DNS record are removed.");
+            Ok(ExitCode::SUCCESS)
+        }
+        Err(message) => Err(format!(
+            "Couldn't remove the route: {}. Teitunnel removes it the next time it runs.",
+            message.english()
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

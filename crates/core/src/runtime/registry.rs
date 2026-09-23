@@ -147,6 +147,20 @@ fn read_record(path: &Path) -> Option<PidRecord> {
     (record.marker == MARKER).then_some(record)
 }
 
+/// This process, as `<pid>-<start time>`: stable for its lifetime, never reused.
+pub fn this_process() -> String {
+    let pid = std::process::id();
+    format!("{pid}-{}", start_time(pid).unwrap_or_default())
+}
+
+/// Whether the process `identity` (from [`this_process`]) is still running.
+pub fn is_running(identity: &str) -> bool {
+    identity
+        .split_once('-')
+        .and_then(|(pid, started)| Some((pid.parse::<u32>().ok()?, started.parse::<u64>().ok()?)))
+        .is_some_and(|(pid, started)| start_time(pid) == Some(started))
+}
+
 fn start_time(pid: u32) -> Option<u64> {
     let mut system = System::new();
     let pid = Pid::from_u32(pid);

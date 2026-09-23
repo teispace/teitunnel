@@ -20,6 +20,7 @@ import { ListPane, ListRow } from "@/components/patterns/list-pane";
 import { LogViewer } from "@/components/patterns/log-viewer";
 import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
@@ -397,13 +398,18 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
                   }
                   leading={<StatusDot status={status.dot} label={status.label} />}
                   trailing={
-                    route.access ? (
-                      <LockKeyhole
-                        role="img"
-                        aria-label={t("routes.requiresLogin")}
-                        className="size-3.5"
-                        strokeWidth={1.75}
-                      />
+                    route.access || route.temporary ? (
+                      <span className="flex items-center gap-1.5">
+                        {route.temporary ? <Badge>{t("routes.temporary")}</Badge> : null}
+                        {route.access ? (
+                          <LockKeyhole
+                            role="img"
+                            aria-label={t("routes.requiresLogin")}
+                            className="size-3.5"
+                            strokeWidth={1.75}
+                          />
+                        ) : null}
+                      </span>
                     ) : null
                   }
                 />

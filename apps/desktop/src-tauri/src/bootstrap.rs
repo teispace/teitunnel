@@ -91,6 +91,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     watch_tray_routes(app.clone());
     watch_connector_health(app.clone());
     watch_doctor(app.clone());
+    watch_domain_shares(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
 
     Ok(AppState {
@@ -437,6 +438,47 @@ pub(crate) async fn doctor_ran<R: Runtime>(
 
 /// Runs the Doctor in the background when nothing else has for a while (the window
 /// runs it while open), so problems are noticed with the window closed.
+/// Ends shares on your domain that are over: on launch also the app's own from its last
+/// run (they end when it quits; this catches a crash), then every 30 s the expired ones
+/// and those of CLI processes that exited.
+fn watch_domain_shares<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::domain_shares::{self, APP_OWNER};
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        let mut launch = true;
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let now = domain_shares::now_ms();
+            let before = state.engine.local().shares(None).await.unwrap_or_default();
+            if before.is_empty() {
+                launch = false;
+                continue;
+            }
+            let from_last_run = std::mem::take(&mut launch);
+            domain_shares::sweep(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.machine_name,
+                |share| share.is_over(now) || (from_last_run && share.owner == APP_OWNER),
+            )
+            .await;
+            let after = state.engine.local().shares(None).await.unwrap_or_default();
+            if after.len() != before.len() {
+                let _ = crate::ipc::EntityChanged {
+                    kind: crate::ipc::EntityKind::QuickShares,
+                    id: None,
+                }
+                .emit(&app);
+                refresh_tray_routes(&app);
+            }
+        }
+    });
+}
+
 fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
@@ -560,15 +602,24 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
     if state.shutting_down.swap(true, Ordering::SeqCst) {
         return; // second pass: let it exit
     }
-    if state.supervisor.ids().is_empty() {
-        return;
-    }
+    // Shares on your domain end with the app; the check is quick when there are none.
     api.prevent_exit();
     let quick_shares = state.quick_shares.clone();
     let supervisor = state.supervisor.clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let stop = async {
+            if let Some(state) = app.try_state::<AppState>() {
+                use teitunnel_core::domain_shares::{self, APP_OWNER};
+                domain_shares::sweep(
+                    &state.accounts,
+                    &state.engine,
+                    &state.machine,
+                    &state.machine_name,
+                    |share| share.owner == APP_OWNER,
+                )
+                .await;
+            }
             quick_shares.stop_all().await;
             supervisor.stop_all().await;
         };

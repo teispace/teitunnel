@@ -4,19 +4,66 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { QuickShare } from "@/lib/ipc/bindings";
+import type { Account, DomainShare, QuickShare } from "@/lib/ipc/bindings";
 import { QuickSharePage } from "./quick-share-page";
 
 let shares: QuickShare[];
 let binaryInstalled: boolean;
+let accounts: Account[];
+let domainShares: DomainShare[];
+let calls: { cmd: string; args: Record<string, unknown> }[];
 
 beforeEach(() => {
   shares = [];
   binaryInstalled = true;
+  accounts = [];
+  domainShares = [];
+  calls = [];
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
+    calls.push({ cmd, args: payload });
     switch (cmd) {
+      case "accounts_list":
+        return accounts;
+      case "domains_list":
+        return [
+          {
+            id: "z1",
+            name: "xyz.com",
+            status: "active",
+            nameServers: [],
+            originalNameServers: [],
+            plan: null,
+            paused: false,
+          },
+          {
+            id: "z2",
+            name: "pending.dev",
+            status: "pending",
+            nameServers: [],
+            originalNameServers: [],
+            plan: null,
+            paused: false,
+          },
+        ];
+      case "domain_shares_list":
+        return domainShares;
+      case "domain_shares_start":
+        domainShares = [
+          {
+            accountId: String(payload["accountId"]),
+            hostname: String(payload["hostname"]),
+            origin: String(payload["origin"]),
+            owner: "app",
+            expiresAt: null,
+            createdAt: Date.now(),
+          },
+        ];
+        return { type: "applied", tunnelId: "t1", verify: [], connectorError: null };
+      case "domain_shares_stop":
+        domainShares = [];
+        return null;
       case "binary_status":
         return binaryInstalled
           ? {
@@ -89,6 +136,35 @@ describe("QuickSharePage", () => {
     const card = await screen.findByRole("article", { name: "Quick Share of localhost:3000" });
     expect(within(card).getByText("https://a-b-c.trycloudflare.com")).toBeTruthy();
     expect(await within(card).findByText("5 requests")).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
+    await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+  });
+
+  it("shares on a subdomain of your own domain, then removes it", async () => {
+    accounts = [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+    renderPage();
+    fireEvent.change(screen.getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "3000" },
+    });
+    // Only active domains are offered.
+    const address = await screen.findByRole("combobox", { name: "Address" });
+    fireEvent.click(address);
+    expect(screen.queryByRole("option", { name: "On pending.dev" })).toBeNull();
+    fireEvent.click(await screen.findByRole("option", { name: "On xyz.com" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Subdomain" }), {
+      target: { value: "demo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+
+    const card = await screen.findByRole("article", { name: "Share at demo.xyz.com" });
+    expect(within(card).getByText("https://demo.xyz.com")).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "domain_shares_start")?.args).toMatchObject({
+      accountId: "acc",
+      hostname: "demo.xyz.com",
+      origin: "3000",
+    });
+    expect(calls.some((c) => c.cmd === "quick_share_start")).toBe(false);
 
     fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());

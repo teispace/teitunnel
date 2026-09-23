@@ -205,7 +205,8 @@
     "logs": {
       "empty": "No failed requests. Successful ones aren't logged."
     },
-    "viaTunnel": "→ {origin} · {tunnel}"
+    "viaTunnel": "→ {origin} · {tunnel}",
+    "temporary": "Temporary"
   },
   "tunnels": {
     "foreign": {
@@ -789,7 +790,20 @@
     "emptyHint": "Running shares appear here. They stop when you quit Teitunnel.",
     "showQr": "Show QR code",
     "running@windows": "Running on this PC",
-    "running@linux": "Running on this computer"
+    "running@linux": "Running on this computer",
+    "address": {
+      "label": "Address",
+      "random": "Random address",
+      "onDomain": "On {domain}",
+      "subdomain": "Subdomain",
+      "subdomainPlaceholder": "demo"
+    },
+    "domain": {
+      "cardLabel": "Share at {hostname}",
+      "onYourDomain": "On your domain",
+      "endsWithApp": "Removed when you stop it or quit Teitunnel",
+      "fromCli": "Started from the command line"
+    }
   },
   "nav": {
     "overview": "Overview",

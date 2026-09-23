@@ -81,6 +81,7 @@ beforeEach(() => {
               origin: "http://localhost:8000",
               local: true,
               tunnelId: "t1",
+              temporary: false,
               zone: "yx.com",
               dns: { state: "ok" },
               access: null,

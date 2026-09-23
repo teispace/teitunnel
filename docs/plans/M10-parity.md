@@ -17,8 +17,8 @@
 - [x] Doctor per tunnel, fixes on the issue's tunnel; routes list shows the carrying tunnel.
 
 ### M10-03 · Share on your own domain
-- [ ] Quick Share option "On my domain": a temporary route (hostname on a chosen zone) on the machine tunnel, removed when the share stops, expires or the app quits (and cleaned by the Doctor if left behind).
-- [ ] Optional expiry and login (Access) for it; CLI `share --on app.example.com`.
+- [x] Quick Share option "On my domain": a temporary route (hostname on a chosen zone) on the machine tunnel, removed when the share stops, expires or the app quits (and cleaned by the Doctor if left behind).
+- [x] Optional expiry and login (Access) for it; CLI `share --on app.example.com` (D-068). The app's composer offers expiry; a login is available from the CLI (`--allow`) and the IPC.
 - [ ] `share list` / `share stop` across the app and CLI processes.
 
 ### M10-04 · Headless server mode

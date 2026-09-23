@@ -13,6 +13,7 @@ pub mod discovery;
 pub mod doctor;
 pub mod doctor_monitor;
 pub mod domain;
+pub mod domain_shares;
 pub mod engine;
 mod error;
 pub mod export;

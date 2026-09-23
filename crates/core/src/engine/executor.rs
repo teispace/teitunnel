@@ -449,6 +449,17 @@ impl Engine {
         merged
             .routes
             .sort_by(|a, b| (&a.zone, &a.hostname, &a.path).cmp(&(&b.zone, &b.hostname, &b.path)));
+        let shares = self
+            .local
+            .shares(Some(ctx.account))
+            .await
+            .map_err(ObserveError::from)?;
+        for route in &mut merged.routes {
+            route.temporary = route.path.is_none()
+                && shares
+                    .iter()
+                    .any(|s| s.hostname.eq_ignore_ascii_case(&route.hostname));
+        }
         Ok(merged)
     }
 

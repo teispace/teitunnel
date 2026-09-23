@@ -6,9 +6,10 @@ import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { t } from "@/lib/i18n";
 import { spring } from "@/lib/motion-tokens";
 import { usePageVisible } from "@/lib/use-page-visible";
+import { DomainShareCard } from "./components/domain-share-card";
 import { ShareCard } from "./components/share-card";
 import { ShareComposer } from "./components/share-composer";
-import { useQuickShares } from "./queries";
+import { useDomainShares, useQuickShares } from "./queries";
 
 const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 
@@ -16,6 +17,7 @@ const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const { data: shares = [] } = useQuickShares();
+  const domainShares = useDomainShares().data ?? [];
   const binary = useBinaryStatus();
   const visible = usePageVisible();
   const missing = binary.isSuccess && !binaryReady(binary.data);
@@ -36,6 +38,18 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
           {missing ? <BinaryNotice binary={binary.data ?? null} /> : null}
 
           <AnimatePresence initial={false}>
+            {domainShares.map((share) => (
+              <m.div
+                key={`${share.accountId}/${share.hostname}`}
+                layout
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
+                transition={spring("smooth")}
+              >
+                <DomainShareCard share={share} />
+              </m.div>
+            ))}
             {shares.map((share) => (
               <m.div
                 key={share.id}
@@ -50,7 +64,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             ))}
           </AnimatePresence>
 
-          {shares.length === 0 && !missing ? (
+          {shares.length === 0 && domainShares.length === 0 && !missing ? (
             <p className="px-1 text-center text-callout text-tertiary">
               {t("quickShare.emptyHint")}
             </p>

@@ -389,6 +389,8 @@ pub struct RouteView {
     pub client: Option<ClientAccess>,
     /// The tunnel of this Mac's that carries it.
     pub tunnel_id: Option<String>,
+    /// A share on your domain: removed when the share stops.
+    pub temporary: bool,
 }
 
 /// This Mac's tunnel.
@@ -569,6 +571,7 @@ pub(crate) fn overview(
                 dns,
                 hostname,
                 tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
+                temporary: false,
             })
         })
         .collect();
@@ -663,6 +666,7 @@ mod tests {
             access: None,
             client: None,
             tunnel_id: None,
+            temporary: false,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),

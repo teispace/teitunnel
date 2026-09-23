@@ -17,7 +17,7 @@ export function useAccounts() {
 
 /** The account shown in Domains/Routes: the remembered one if still connected, else the first. */
 export function useActiveAccount(): Account | null {
-  const { data: accounts = [] } = useAccounts();
+  const accounts = useAccounts().data ?? [];
   const activeId = useUiStore((state) => state.activeAccountId);
   return accounts.find((a) => a.id === activeId) ?? accounts[0] ?? null;
 }

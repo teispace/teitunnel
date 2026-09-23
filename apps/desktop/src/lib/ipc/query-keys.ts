@@ -12,6 +12,8 @@ export const queryKeys = {
     all: () => ["quickShares"] as const,
     stats: (id: string) => ["quickShares", "stats", id] as const,
     logs: (id: string) => ["quickShares", "logs", id] as const,
+    /** Shares on your own domains. */
+    domain: () => ["quickShares", "domain"] as const,
   },
   qr: (value: string) => ["qr", value] as const,
   services: {

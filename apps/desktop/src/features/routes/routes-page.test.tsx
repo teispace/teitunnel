@@ -91,6 +91,7 @@ beforeEach(() => {
       origin: "http://localhost:3000",
       local: true,
       tunnelId: "t1",
+      temporary: false,
       zone: "xyz.com",
       dns: { state: "ok" },
       access: null,
@@ -131,6 +132,7 @@ beforeEach(() => {
               origin: `http://localhost:${change.route.origin}`,
               local: true,
               tunnelId: "t1",
+              temporary: false,
               zone: "yx.com",
               dns: { state: "ok" },
               access: change.route.access ?? null,
@@ -140,6 +142,7 @@ beforeEach(() => {
           return {
             type: "applied",
             tunnelId: "t1",
+            temporary: false,
             verify: [change.route.hostname],
             connectorError: null,
           };
@@ -162,6 +165,7 @@ beforeEach(() => {
         return drift
           ? {
               tunnelId: "t1",
+              temporary: false,
               appliedVersion: 1,
               currentVersion: 2,
               changes: [
@@ -225,6 +229,7 @@ describe("RoutesPage", () => {
         origin: "ssh://localhost:22",
         local: true,
         tunnelId: "t1",
+        temporary: false,
         zone: "xyz.com",
         dns: { state: "ok" },
         access: null,

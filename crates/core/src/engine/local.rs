@@ -346,6 +346,86 @@ impl Local {
             .await
     }
 
+    /// Remembers a temporary route ("share on your domain").
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn record_share(
+        &self,
+        share: &crate::domain_shares::DomainShare,
+    ) -> Result<(), StoreError> {
+        let share = share.clone();
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "INSERT INTO domain_shares (account_id, hostname, origin, owner, expires_at, created_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                     ON CONFLICT (account_id, hostname) DO UPDATE SET origin = ?3, owner = ?4,
+                       expires_at = ?5, created_at = ?6",
+                    params![
+                        share.account_id,
+                        share.hostname,
+                        share.origin,
+                        share.owner,
+                        share.expires_at.and_then(|t| i64::try_from(t).ok()),
+                        i64::try_from(share.created_at).unwrap_or(i64::MAX),
+                    ],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Forgets a temporary route (it was removed).
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn forget_share(&self, account: &str, hostname: &str) -> Result<(), StoreError> {
+        let (account, hostname) = (account.to_owned(), hostname.to_owned());
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "DELETE FROM domain_shares WHERE account_id = ?1 AND hostname = ?2",
+                    params![account, hostname],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Temporary routes, in `account` or everywhere (`None`), oldest first.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn shares(
+        &self,
+        account: Option<&str>,
+    ) -> Result<Vec<crate::domain_shares::DomainShare>, StoreError> {
+        let account = account.map(str::to_owned);
+        self.store
+            .call(move |conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT account_id, hostname, origin, owner, expires_at, created_at
+                     FROM domain_shares WHERE ?1 IS NULL OR account_id = ?1
+                     ORDER BY created_at, hostname",
+                )?;
+                let rows = stmt.query_map(params![account], |row| {
+                    Ok(crate::domain_shares::DomainShare {
+                        account_id: row.get(0)?,
+                        hostname: row.get(1)?,
+                        origin: row.get(2)?,
+                        owner: row.get(3)?,
+                        expires_at: row
+                            .get::<_, Option<i64>>(4)?
+                            .and_then(|t| u64::try_from(t).ok()),
+                        created_at: u64::try_from(row.get::<_, i64>(5)?).unwrap_or_default(),
+                    })
+                })?;
+                Ok(rows.collect::<Result<Vec<_>, _>>()?)
+            })
+            .await
+    }
+
     /// Ids of DNS records Teitunnel created in `account`.
     ///
     /// # Errors
