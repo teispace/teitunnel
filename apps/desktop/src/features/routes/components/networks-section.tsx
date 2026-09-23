@@ -1,10 +1,13 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Trash2, TriangleAlert } from "lucide-react";
 import { InspectorSection } from "@/components/patterns/inspector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { PermissionFix } from "@/features/accounts";
 import { useIssues } from "@/features/doctor/queries";
 import { t, translate } from "@/lib/i18n";
+import { queryKeys } from "@/lib/ipc/query-keys";
 import { useRoutesOverview } from "../queries";
 
 interface NetworksSectionProps {
@@ -20,6 +23,7 @@ interface NetworksSectionProps {
 export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionProps) {
   const overview = useRoutesOverview(accountId);
   const { issues } = useIssues();
+  const queryClient = useQueryClient();
   if (!overview.data) return null;
   const networks = overview.data.networks;
   const problems = issues.filter(
@@ -30,7 +34,19 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
   return (
     <InspectorSection title={t("networks.title")}>
       {networks === null ? (
-        <p className="text-callout text-secondary">{t("networks.noPermission")}</p>
+        <div className="flex flex-col gap-3">
+          <p className="text-callout text-secondary">{t("networks.noPermission")}</p>
+          <PermissionFix
+            accountId={accountId}
+            needs={[{ kind: "tunnels" }]}
+            refused
+            onReady={() =>
+              void queryClient.invalidateQueries({
+                queryKey: queryKeys.routes.overview(accountId),
+              })
+            }
+          />
+        </div>
       ) : (
         <>
           {networks.length === 0 ? (

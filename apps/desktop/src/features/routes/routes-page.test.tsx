@@ -18,8 +18,13 @@ let calls: { cmd: string; args: Record<string, unknown> }[];
 let drift: boolean;
 let accessEdit: "yes" | "no";
 let accessDenied: boolean;
+let refusal: { key: string; args: Record<string, string>; field?: string } | null;
 
 const plan = (change: Change): PlanView => {
+  if (refusal) {
+    const { field = null, ...message } = refusal;
+    throw { code: "permissionDenied", message, hint: null, field };
+  }
   if (accessDenied) {
     throw {
       code: "permissionDenied",
@@ -86,6 +91,7 @@ beforeEach(() => {
   drift = false;
   accessEdit = "yes";
   accessDenied = false;
+  refusal = null;
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
@@ -297,8 +303,9 @@ describe("RoutesPage", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Require a login" }));
-    expect(await within(dialog).findByText("Logins need two more permissions")).toBeTruthy();
-    expect(within(dialog).queryByRole("textbox", { name: "Who can sign in" })).toBeNull();
+    expect(await within(dialog).findByText("The token needs 2 more permissions")).toBeTruthy();
+    // What was typed stays; only Review waits for the permission.
+    expect(within(dialog).getByRole("textbox", { name: "Who can sign in" })).toBeTruthy();
     expect(within(dialog).getByRole("button", { name: "Review" }).hasAttribute("disabled")).toBe(
       true,
     );
@@ -306,8 +313,9 @@ describe("RoutesPage", () => {
     // The permission is added in Cloudflare; returning to the app picks it up.
     accessEdit = "yes";
     fireEvent(window, new Event("focus"));
-    expect(await within(dialog).findByRole("textbox", { name: "Who can sign in" })).toBeTruthy();
-    expect(within(dialog).queryByText("Logins need two more permissions")).toBeNull();
+    await waitFor(() =>
+      expect(within(dialog).queryByText("The token needs 2 more permissions")).toBeNull(),
+    );
   });
 
   it("turns Cloudflare's Access refusal into the fix, then reviews again", async () => {
@@ -317,7 +325,7 @@ describe("RoutesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove route" }));
     const dialog = await screen.findByRole("dialog", { name: "Remove Route" });
     accessEdit = "no";
-    expect(await within(dialog).findByText("Logins need two more permissions")).toBeTruthy();
+    expect(await within(dialog).findByText("The token needs 2 more permissions")).toBeTruthy();
     expect(within(dialog).queryByText(/can't manage logins\. In Cloudflare/)).toBeNull();
     expect(within(dialog).queryByText("Reading your Cloudflare account…")).toBeNull();
 
@@ -325,6 +333,52 @@ describe("RoutesPage", () => {
     accessEdit = "yes";
     fireEvent(window, new Event("focus"));
     expect(await within(dialog).findByText("Delete DNS record")).toBeTruthy();
+  });
+
+  it("sends the user to set up Zero Trust, then continues on return", async () => {
+    refusal = { key: "core.error.plan.zeroTrustNotSetUp", args: {} };
+    const dialog = await openAddSheet();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5000" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    expect(await within(dialog).findByText("Set up Cloudflare Zero Trust")).toBeTruthy();
+
+    refusal = null;
+    fireEvent(window, new Event("focus"));
+    expect(await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes")).toBeTruthy();
+  });
+
+  it("links to adding a domain when the hostname's domain isn't in Cloudflare", async () => {
+    refusal = {
+      key: "core.error.plan.noZone",
+      args: { hostname: "app.new.dev" },
+      field: "hostname",
+    };
+    const dialog = await openAddSheet();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5000" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    expect(await within(dialog).findByText(/app\.new\.dev isn't in any/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /Add a Domain to Cloudflare/ }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "plugin:opener|open_url")?.args["url"]).toBe(
+        "https://dash.cloudflare.com/?to=/acc/add-site",
+      ),
+    );
+  });
+
+  it("lists the route's permissions when Cloudflare refuses", async () => {
+    refusal = { key: "core.error.cloudflare.permission", args: { detail: "10000" } };
+    renderPage();
+    await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    fireEvent.click(screen.getByRole("button", { name: "Remove route" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove Route" });
+    expect(await within(dialog).findByText("The token needs 2 more permissions")).toBeTruthy();
+    expect(within(dialog).getByText("Account · Cloudflare Tunnel · Edit")).toBeTruthy();
+    expect(within(dialog).getByText(/Include xyz\.com under Zone Resources/)).toBeTruthy();
+    expect(within(dialog).queryByText(/Cloudflare refused/)).toBeNull();
   });
 
   it("keeps a route's login when editing it, and can remove it", async () => {

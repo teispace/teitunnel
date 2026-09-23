@@ -300,7 +300,7 @@
   },
   "networks": {
     "title": "Private Networks",
-    "noPermission": "This account's API token can't read private networks. Give it the Cloudflare Tunnel permission to share them.",
+    "noPermission": "This account's API token can't read private networks.",
     "empty": "Let devices running Cloudflare WARP reach addresses on this Mac's network, like a NAS or a printer.",
     "list": "Private networks",
     "public": "Public",
@@ -653,13 +653,9 @@
     "checking": "Checking permissions…",
     "failed": "Couldn't check permissions.",
     "zones": "See your domains",
-    "zonesHint": "Add Zone · Read to the token.",
     "tunnels": "Create and manage tunnels",
-    "tunnelsHint": "Add Cloudflare Tunnel · Edit to the token.",
     "dns": "Edit DNS for {zone}",
-    "dnsHint": "Add DNS · Edit for this domain.",
-    "access": "Protect routes with Access (optional)",
-    "accessHint": "Needed to require a login. Add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to the token."
+    "access": "Protect routes with Access (optional)"
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -1409,21 +1405,45 @@
       }
     }
   },
-  "accessFix": {
-    "title": "Logins need two more permissions",
+  "permissionFix": {
+    "title_one": "The token needs one more permission",
+    "title_other": "The token needs {count} more permissions",
+    "tunnels": "Account · Cloudflare Tunnel · Edit",
+    "tunnelsWhy": "To create the tunnel and serve routes through it.",
+    "zones": "Zone · Zone · Read",
+    "zonesWhy": "To list your domains.",
+    "dns": "Zone · DNS · Edit",
+    "dnsWhy": "To add the route's DNS record on {zone}. Include {zone} under Zone Resources.",
+    "anyDnsWhy": "To add routes' DNS records. Include your domains under Zone Resources.",
+    "accessApps": "Account · Access: Apps and Policies · Edit",
+    "accessAppsWhy": "To put a login in front of a route.",
+    "accessOrg": "Account · Access: Organizations, Identity Providers, and Groups · Edit",
+    "accessOrgWhy": "To add the one-time code login method when the account has none.",
     "editDetail": "Add them to this account's API token in Cloudflare. The token itself stays the same, so there's nothing to paste.",
     "step1": "Choose Edit next to the token you connected (Cloudflare names it “Teitunnel” if you used the link).",
-    "step2": "Add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit.",
+    "step2": "Add the permissions above, and check that this account and your domains are included under the resources.",
     "step3": "Choose Continue to Summary, then Update Token.",
     "openTokens": "Open API Tokens",
     "checkAgain": "Check Again",
     "checking": "Checking…",
     "autoCheck": "Teitunnel checks again when you come back.",
-    "stillMissing": "The token still can't manage logins. Check that both permissions are there and include this account.",
-    "ready": "Logins are ready",
+    "stillMissing": "The token still lacks some of them. Check the permissions and that this account and domain are included.",
+    "ready": "Permissions updated",
     "useNewToken": "Use a New Token Instead",
     "newTokenDetail": "Create a token with every permission Teitunnel uses, then paste it here. It replaces this account's current credential.",
-    "otherDetail": "This account is connected with a login that can't manage Access. Connect it with an API token instead; it replaces the current credential.",
+    "otherDetail": "This account is connected with a login whose permissions can't be changed. Connect it with an API token instead; it replaces the current credential.",
     "createToken": "Create Token"
+  },
+  "zeroTrustFix": {
+    "title": "Set up Cloudflare Zero Trust",
+    "detail": "Logins use Cloudflare Zero Trust, which is free for up to 50 users. The account hasn't used it yet, and only the dashboard can set it up.",
+    "step1": "Open Zero Trust and choose a team name.",
+    "step2": "Pick the Free plan when asked, then come back.",
+    "open": "Open Zero Trust",
+    "tryAgain": "Try Again"
+  },
+  "errorHelp": {
+    "addDomain": "Add a Domain to Cloudflare",
+    "openAccessApps": "Open Access Applications"
   }
 }

@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, RefreshCw, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -11,12 +12,13 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
-import { ConnectSheet } from "@/features/accounts";
+import { ConnectSheet, PermissionFix } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
 import { t, translate } from "@/lib/i18n";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { queryKeys } from "@/lib/ipc/query-keys";
 import { DiagnosticsDialog } from "./diagnostics-dialog";
 import { hasSafeCandidates, useFixSafe, useIssues, useSetIgnored } from "./queries";
 
@@ -114,6 +116,7 @@ function IssueInspector({
   onReview: (mode: SheetMode, accountId: string) => void;
 }) {
   const setIgnored = useSetIgnored();
+  const queryClient = useQueryClient();
   const severity = severityOf(issue.severity);
   return (
     <Inspector
@@ -155,6 +158,14 @@ function IssueInspector({
       }
     >
       <p className="selectable text-body">{translate(issue.detail)}</p>
+      {issue.check === "auth.missing_scope" && issue.accountId ? (
+        <PermissionFix
+          accountId={issue.accountId}
+          needs={[{ kind: "tunnels" }, { kind: "anyDns" }]}
+          refused
+          onReady={() => void queryClient.invalidateQueries({ queryKey: queryKeys.doctor.all() })}
+        />
+      ) : null}
       {issue.evidence.length > 0 ? (
         <InspectorSection title={t("doctor.details")}>
           <ul className="flex flex-col gap-1">

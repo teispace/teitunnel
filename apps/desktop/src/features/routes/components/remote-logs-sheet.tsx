@@ -2,6 +2,7 @@ import { LogViewer } from "@/components/patterns/log-viewer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { PermissionFix } from "@/features/accounts";
 import { t, translate } from "@/lib/i18n";
 import type { ConnectorView } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -22,6 +23,8 @@ export function RemoteLogsSheet({ target, onClose }: RemoteLogsSheetProps) {
   const save = useSaveLog();
   const state = logs.data?.state;
   const error = logs.error ? toIpcError(logs.error) : null;
+  const noPermission =
+    state?.state === "ended" && state.message.key === "core.remoteLogs.noPermission";
   const status =
     error?.message ??
     (state?.state === "ended"
@@ -57,7 +60,14 @@ export function RemoteLogsSheet({ target, onClose }: RemoteLogsSheetProps) {
         }
       >
         <div className="flex flex-col gap-3">
-          {status ? (
+          {noPermission && target ? (
+            <PermissionFix
+              accountId={target.accountId}
+              needs={[{ kind: "tunnels" }]}
+              refused
+              onReady={() => void logs.retry()}
+            />
+          ) : status ? (
             <p
               role={state?.state === "ended" || error ? "alert" : "status"}
               className={

@@ -63,7 +63,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [ ] M6-05 Polish pass · [ ] M6-06 Docs & community
 
 ### M10: Parity and beyond
-- [ ] M10-01 Fix in place · [ ] M10-02 Several tunnels per machine · [ ] M10-03 Share on your domain · [ ] M10-04 Headless server
+- [x] M10-01 Fix in place · [ ] M10-02 Several tunnels per machine · [ ] M10-03 Share on your domain · [ ] M10-04 Headless server
 - [ ] M10-05 Container · [ ] M10-06 Browser UI + API · [ ] M10-07 Load balancing · [ ] M10-08 Docs
 
 ### M11: Landing page and docs site

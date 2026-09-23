@@ -10,8 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { TextArea } from "@/components/ui/text-area";
-import { AccessFix, useCapabilities } from "@/features/accounts";
+import {
+  missingNeeds,
+  PermissionFix,
+  type PermissionNeed,
+  useCapabilities,
+  ZeroTrustFix,
+} from "@/features/accounts";
 import { ServicePicker } from "@/features/quick-share";
+import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
@@ -56,8 +63,28 @@ const applyLabels: Record<SheetMode["kind"], MessageKey> = {
   fix: "routeSheet.apply.fix",
 };
 
-/** The error for a credential that can't manage Access (logins). */
+/** Errors the sheet can fix in place instead of reporting. */
 const ACCESS_PERMISSION = "core.error.observe.accessPermission";
+const PERMISSION = "core.error.cloudflare.permission";
+const ZERO_TRUST = "core.error.plan.zeroTrustNotSetUp";
+
+/** The Cloudflare page that resolves `error`, as a button (see `lib/error-help`). */
+function ErrorLink({ error, accountId }: { error: IpcError | null; accountId: string }) {
+  const link = errorLink(error?.key);
+  if (!link) return null;
+  return (
+    <div>
+      <Button size="sm" onClick={() => void openUrl(link.url.replace(":account", accountId))}>
+        {t(link.label)} <ExternalLink />
+      </Button>
+    </div>
+  );
+}
+
+function zoneOf(hostname: string, zones: readonly ZoneRef[]): string | undefined {
+  const host = hostname.toLowerCase();
+  return zones.find((z) => host === z.name || host.endsWith(`.${z.name}`))?.name;
+}
 
 function shortOrigin(origin: string) {
   return origin.replace(/^http:\/\/localhost:/, "");
@@ -195,7 +222,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const preview = usePreview(accountId);
   const apply = useApply(accountId);
   const verify = useVerify(accountId);
-  const accessMissing = useCapabilities(accountId).data?.accessEdit === "no";
+  const caps = useCapabilities(accountId).data;
 
   const review = (next: Change, why: string | null = null) => {
     setChange(next);
@@ -288,27 +315,60 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     const error = preview.error ? toIpcError(preview.error) : null;
     return error?.field === field ? error.message : null;
   };
-  const errorKey = (preview.error && toIpcError(preview.error).key) ?? null;
-  // A missing Access permission is fixable in place: show how instead of the error.
-  const needsAccess = errorKey === ACCESS_PERMISSION || (allowed !== null && accessMissing);
-  const retryAfterAccess = () => {
-    if (errorKey !== ACCESS_PERMISSION) return;
-    preview.reset();
-    if (stage === "review" && change) review(change);
-  };
-  const generalError: IpcError | null =
-    errorKey === ACCESS_PERMISSION
-      ? null
-      : preview.error &&
-          !["hostname", "origin", "path", "access", "network"].includes(
-            toIpcError(preview.error).field ?? "",
-          )
-        ? toIpcError(preview.error)
-        : apply.error && toIpcError(apply.error).code !== "conflict"
-          ? toIpcError(apply.error)
-          : null;
-
   const kind = mode?.kind ?? "add";
+
+  // What this change needs from the credential. Checked before review (a known gap
+  // disables Review) and listed when Cloudflare refuses, with the fix in place.
+  const routeZone =
+    mode?.kind === "edit" || mode?.kind === "remove" ? mode.route.zone : zoneOf(hostname, zones);
+  const needs: PermissionNeed[] = [
+    { kind: "tunnels" },
+    ...(routeZone && kind !== "addNetwork" && kind !== "removeNetwork"
+      ? [{ kind: "dns" as const, zone: routeZone }]
+      : []),
+    ...(allowed !== null && hasForm(kind) ? [{ kind: "access" as const }] : []),
+  ];
+  const gaps = stage === "form" && caps ? missingNeeds(caps, needs) : [];
+  const failure = preview.error
+    ? toIpcError(preview.error)
+    : apply.error
+      ? toIpcError(apply.error)
+      : null;
+  const refusedNeeds: PermissionNeed[] | null =
+    failure?.key === ACCESS_PERMISSION
+      ? [{ kind: "access" }]
+      : failure?.key === PERMISSION
+        ? needs
+        : null;
+  // After the fix, run the same review again.
+  const retry = () => {
+    if (!mode || !failure) return;
+    preview.reset();
+    apply.reset();
+    review(
+      stage === "review" && change
+        ? change
+        : changeFor(mode, { hostname, origin, path, allowed, network }),
+    );
+  };
+  const fixCard = refusedNeeds ? (
+    <PermissionFix accountId={accountId} needs={refusedNeeds} refused onReady={retry} />
+  ) : failure?.key === ZERO_TRUST ? (
+    <ZeroTrustFix onRetry={retry} retrying={preview.isPending} />
+  ) : gaps.length > 0 ? (
+    <PermissionFix accountId={accountId} needs={needs} />
+  ) : null;
+  const generalError: IpcError | null = fixCard
+    ? null
+    : preview.error &&
+        !["hostname", "origin", "path", "access", "network"].includes(
+          toIpcError(preview.error).field ?? "",
+        )
+      ? toIpcError(preview.error)
+      : apply.error && toIpcError(apply.error).code !== "conflict"
+        ? toIpcError(apply.error)
+        : null;
+
   const destructive =
     kind === "remove" ||
     kind === "removeTunnel" ||
@@ -335,7 +395,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               disabled={
                 preview.isPending ||
                 (kind === "addNetwork" ? network : origin).trim() === "" ||
-                (allowed !== null && accessMissing)
+                gaps.length > 0
               }
             >
               {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
@@ -440,6 +500,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 />
               )}
             </Field>
+            {fixCard}
             {generalError ? (
               <p role="alert" className="text-callout text-error">
                 {generalError.message}
@@ -476,6 +537,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 />
               )}
             </Field>
+            {fieldError("hostname") ? <ErrorLink error={failure} accountId={accountId} /> : null}
             <Disclosure
               title={t("routeSheet.advanced")}
               defaultOpen={path !== "" || allowed !== null}
@@ -506,13 +568,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   />
                   {t("routeSheet.login.toggle")}
                 </label>
-                {allowed !== null && needsAccess ? (
-                  <AccessFix
-                    accountId={accountId}
-                    refused={errorKey === ACCESS_PERMISSION}
-                    onReady={retryAfterAccess}
-                  />
-                ) : allowed !== null ? (
+                {allowed !== null ? (
                   <Field
                     label={t("routeSheet.login.label")}
                     error={fieldError("access")}
@@ -532,9 +588,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 ) : null}
               </div>
             </Disclosure>
-            {errorKey === ACCESS_PERMISSION && allowed === null ? (
-              <AccessFix accountId={accountId} refused onReady={retryAfterAccess} />
-            ) : null}
+            {fixCard}
             {generalError ? (
               <p role="alert" className="text-callout text-error">
                 {generalError.message}
@@ -561,9 +615,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 <Spinner className="size-3.5" /> {t("routeSheet.reading")}
               </div>
             )}
-            {errorKey === ACCESS_PERMISSION ? (
-              <AccessFix accountId={accountId} refused onReady={retryAfterAccess} />
-            ) : null}
+            {fixCard}
             {plan?.requiresConfirmation && !preview.isPending ? (
               <label htmlFor="route-confirm" className="flex items-center gap-2 text-body">
                 <Checkbox
@@ -584,6 +636,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 ) : null}
               </p>
             ) : null}
+            <ErrorLink error={generalError} accountId={accountId} />
           </div>
         ) : null}
 

@@ -5,9 +5,9 @@
 **Verification:** unit + E2E against fake-cloudflare/fake-cloudflared; server mode in the Linux CI job; Docker image built in CI.
 
 ### M10-01 · Fix in place (no dead ends)
-- [ ] Shared "fix" card (link to the right Cloudflare page, re-check on focus, resume) for every credential/permission gap: Tunnel · Edit, DNS · Edit per domain, Zone · Read, private networks (Tunnel · Edit / Zero Trust), connector logs, Access (done, D-064).
-- [ ] Zero Trust organization missing: open the Zero Trust onboarding page, re-check, continue.
-- [ ] Sweep every user-facing error (core catalog) into "fixable" (gets an action) or "informational" (clear wording); a test keeps the list complete.
+- [x] Shared "fix" card (link to the right Cloudflare page, re-check on focus, resume) for every credential/permission gap: Tunnel · Edit, DNS · Edit per domain, Zone · Read, private networks (Tunnel · Edit / Zero Trust), connector logs, Access (done, D-064).
+- [x] Zero Trust organization missing: open the Zero Trust onboarding page, re-check, continue.
+- [x] Sweep every user-facing error (core catalog) into "fixable" (gets an action) or "informational" (clear wording); a test keeps the list complete (D-066).
 
 ### M10-02 · Several tunnels per machine
 - [ ] Tunnels on this machine: create named tunnels (e.g. production, staging) besides the default; each route chooses its tunnel (default: the machine tunnel).
