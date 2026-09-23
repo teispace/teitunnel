@@ -5,26 +5,39 @@ description: Install Teitunnel on macOS, Windows or Linux, the command line on a
 
 Teitunnel is a desktop app for **macOS 14 or later**, **Windows 10 and 11**, and **Linux**
 (GNOME, KDE and other desktops with a system tray), plus a command line and a Docker image
-for servers. Download builds from [GitHub Releases](https://github.com/teispace/teitunnel/releases).
+for servers. Get it from the [download page](/download/), which picks the right file for
+your system. Every file is also on [GitHub Releases](https://github.com/teispace/teitunnel/releases),
+and you can [verify it](/docs/reference/verify).
 
 <Tabs items={["macOS", "Windows", "Linux", "Command line", "Docker"]}>
   <Tab value="macOS">
-    Open the disk image and drag **Teitunnel** to **Applications**. It runs on Apple silicon
-    and Intel Macs, lives in the menu bar as well as the Dock, and keeps credentials in your
-    keychain.
+    Open the disk image and drag **Teitunnel** to **Applications**. One download runs on
+    Apple silicon and Intel Macs. It's signed by Teispace and notarized by Apple, lives in the
+    menu bar as well as the Dock, and keeps credentials in your keychain.
   </Tab>
   <Tab value="Windows">
-    Run the installer. Teitunnel adds an icon to the notification area, keeps credentials in
-    Windows Credential Manager, and can keep routes running with Task Scheduler.
+    Run the installer for your PC (x64, or Arm64 for Windows on Arm). It installs for your
+    user without an administrator. This beta isn't code-signed yet, so Windows may say it
+    protected your PC: choose **More info ▸ Run anyway**. Teitunnel adds an icon to the
+    notification area, keeps credentials in Windows Credential Manager, and can keep routes
+    running with Task Scheduler.
   </Tab>
   <Tab value="Linux">
-    Use the AppImage or the package for your distribution. Credentials are kept by the Secret
-    Service (GNOME Keyring or KWallet), which must be installed and unlocked; routes can keep
-    running as a `systemd --user` service.
+    Install the package for your distribution, or run the AppImage:
+
+    ```sh
+    sudo apt install ./Teitunnel_*_amd64.deb      # Ubuntu, Debian
+    sudo dnf install ./Teitunnel-*.x86_64.rpm     # Fedora (zypper on openSUSE)
+    chmod +x Teitunnel_*.AppImage && ./Teitunnel_*.AppImage
+    ```
+
+    It needs WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 40 or later). Credentials are
+    kept by the Secret Service (GNOME Keyring or KWallet), which must be installed and
+    unlocked; routes can keep running as a `systemd --user` service.
   </Tab>
   <Tab value="Command line">
-    `teitunnel-cli` comes with the app, and is also released on its own for servers. Put it on
-    your `PATH`, then see [Servers and containers](/docs/guides/servers) and the
+    `teitunnel-cli` is released on its own for macOS, Windows and Linux (x64 and Arm64): get
+    it from the [download page](/download/#cli) and put it on your `PATH`, then see [Servers and containers](/docs/guides/servers) and the
     [command reference](/docs/reference/cli).
 
     ```sh
@@ -40,6 +53,11 @@ for servers. Download builds from [GitHub Releases](https://github.com/teispace/
     docker run -d --name teitunnel --restart unless-stopped \
       -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
     ```
+
+    <Callout>
+      The image is published to `ghcr.io` from a release after the first beta. Until then,
+      build it from the repository: `docker build -f docker/Dockerfile -t teitunnel .`
+    </Callout>
 
     See [Servers and containers](/docs/guides/servers#docker).
   </Tab>

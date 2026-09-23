@@ -32,7 +32,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Served at the root of teitunnel.teispace.com (public/CNAME sets the custom domain).
+      # The download pages link to the latest release; the release workflow runs this by
+      # hand after publishing, and then a missing release fails the build.
       - run: pnpm --filter @teitunnel/web build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUIRE_RELEASE: ${{ github.event_name == 'workflow_dispatch' }}
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
         with:

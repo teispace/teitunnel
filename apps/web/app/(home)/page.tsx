@@ -17,7 +17,9 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { DownloadButton } from "@/components/download-button";
 import { ButtonLink, Section, Shot } from "@/components/landing";
+import { latestRelease } from "@/lib/release";
 import { site } from "@/lib/site";
 
 const capabilities: { icon: typeof Zap; title: string; body: string; href: string }[] = [
@@ -121,7 +123,9 @@ const faq: { q: string; a: ReactNode }[] = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const release = await latestRelease();
+  const downloads = release?.downloads ?? [];
   return (
     <main className="flex flex-col">
       {/* Hero */}
@@ -142,14 +146,18 @@ export default function Home() {
             to your Cloudflare account before it happens.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <ButtonLink href={site.releases} primary external>
-              <Download className="size-4" /> Download
-            </ButtonLink>
+            <DownloadButton downloads={downloads} showAlternative={false} />
             <ButtonLink href="/docs">
               Read the docs <ArrowRight className="size-4" />
             </ButtonLink>
           </div>
-          <p className="mt-4 text-sm text-fd-muted-foreground">Free and open source.</p>
+          <p className="mt-4 text-sm text-fd-muted-foreground">
+            Free and open source
+            {release ? ` · Beta ${release.version}` : " · Beta"} ·{" "}
+            <a className="underline-offset-4 hover:underline" href="/download/">
+              All platforms
+            </a>
+          </p>
           <div className="mt-16 w-full max-w-5xl md:mt-20">
             <Shot
               name="routes"
@@ -307,8 +315,8 @@ export default function Home() {
               your platform's look.
             </p>
             <div className="mt-6">
-              <ButtonLink href={site.releases} primary external>
-                <Download className="size-4" /> Download
+              <ButtonLink href="/download/" primary>
+                <Download className="size-4" /> All downloads
               </ButtonLink>
             </div>
           </div>
@@ -353,30 +361,13 @@ sudo -E teitunnel-cli always-on on`}</code>
             Free, open source, and made to feel at home on your platform.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <ButtonLink href={site.releases} primary external>
-              <Download className="size-4" /> Download
-            </ButtonLink>
+            <DownloadButton downloads={downloads} showAlternative={false} />
             <ButtonLink href="/docs">
               Read the docs <ArrowRight className="size-4" />
             </ButtonLink>
           </div>
         </div>
       </section>
-
-      <footer className="border-t border-fd-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-fd-muted-foreground md:flex-row md:items-center md:justify-between">
-          <p>Teitunnel is free and open source. Not affiliated with Cloudflare.</p>
-          <nav className="flex gap-6">
-            <a href={`${site.basePath}/docs`}>Docs</a>
-            <a href={site.github} target="_blank" rel="noopener noreferrer">
-              GitHub
-            </a>
-            <a href={site.releases} target="_blank" rel="noopener noreferrer">
-              Releases
-            </a>
-          </nav>
-        </div>
-      </footer>
     </main>
   );
 }

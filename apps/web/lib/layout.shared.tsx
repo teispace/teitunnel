@@ -16,7 +16,7 @@ export function baseOptions(): BaseLayoutProps {
     githubUrl: site.github,
     links: [
       { text: "Docs", url: "/docs", active: "nested-url" },
-      { text: "Download", url: site.releases, external: true },
+      { text: "Download", url: "/download/" },
     ],
   };
 }

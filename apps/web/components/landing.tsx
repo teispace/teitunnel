@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { asset } from "@/lib/site";
+import { asset, site } from "@/lib/site";
 
 /** A screenshot of the app, in the reader's color scheme. */
 export function Shot({ name, alt, priority }: { name: string; alt: string; priority?: boolean }) {
@@ -57,6 +57,13 @@ export function Section({
   );
 }
 
+/** The site's pill buttons. */
+export function buttonClass(primary: boolean): string {
+  return primary
+    ? "inline-flex h-11 items-center gap-2 rounded-full bg-fd-foreground px-6 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
+    : "inline-flex h-11 items-center gap-2 rounded-full border border-fd-border px-6 text-sm font-medium transition-colors hover:bg-fd-accent";
+}
+
 export function ButtonLink({
   href,
   children,
@@ -68,9 +75,7 @@ export function ButtonLink({
   primary?: boolean;
   external?: boolean;
 }) {
-  const className = primary
-    ? "inline-flex h-11 items-center gap-2 rounded-full bg-fd-foreground px-6 text-sm font-medium text-fd-background transition-opacity hover:opacity-85"
-    : "inline-flex h-11 items-center gap-2 rounded-full border border-fd-border px-6 text-sm font-medium transition-colors hover:bg-fd-accent";
+  const className = buttonClass(primary);
   if (external) {
     return (
       <a href={href} className={className} target="_blank" rel="noopener noreferrer">
@@ -82,5 +87,37 @@ export function ButtonLink({
     <Link href={href} className={className}>
       {children}
     </Link>
+  );
+}
+
+/** The footer of the landing and download pages. */
+export function SiteFooter() {
+  const links: [string, string][] = [
+    ["Download", "/download/"],
+    ["Docs", "/docs"],
+    ["Privacy", "/privacy/"],
+    ["Code signing", "/code-signing/"],
+  ];
+  return (
+    <footer className="border-t border-fd-border">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-10 text-sm text-fd-muted-foreground md:flex-row md:items-center md:justify-between">
+        <p>Teitunnel is free and open source. Not affiliated with Cloudflare.</p>
+        <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2">
+          {links.map(([label, href]) => (
+            <Link key={href} href={href} className="hover:text-fd-foreground">
+              {label}
+            </Link>
+          ))}
+          <a
+            href={site.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-fd-foreground"
+          >
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </footer>
   );
 }

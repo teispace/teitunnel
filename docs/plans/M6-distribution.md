@@ -23,18 +23,18 @@ Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M
 - [x] Setting to disable update checks (D-019): Check for updates automatically.
 
 ### M6-03 · Release automation
-- [ ] `release.yml`: matrix (macOS universal; Windows x64 + arm64 NSIS; Linux x64 + arm64 `.deb`/`.rpm`/AppImage on Ubuntu 22.04), CLI archives, SHA256SUMS, build provenance, `latest.json`; draft release, published by a final job only when every asset is uploaded; `workflow_dispatch` dry run that builds without publishing; actions pinned by commit.
-- [ ] release-please (conventional commits → changelog → version bump PR → tag → the builds above in the same workflow). One version for app, CLI and image; pre-1.0 breaking changes bump the minor.
+- [x] `release.yml`: matrix (macOS universal; Windows x64 + arm64 NSIS; Linux x64 + arm64 `.deb`/`.rpm`/AppImage on Ubuntu 22.04), CLI archives, SHA256SUMS, build provenance, `latest.json`; draft release, published by a final job only when every asset is uploaded; `workflow_dispatch` dry run that builds without publishing; actions pinned by commit.
+- [x] release-please (conventional commits → changelog → version bump PR → tag → the builds above in the same workflow). One version for app, CLI and image; pre-1.0 breaking changes bump the minor.
 - [ ] Versioning: SemVer. v0.1.0 is the public beta.
 
 ### M6-04 · Channels (after v0.1.0)
 - [ ] Website only at first (D-074). Later: Homebrew tap (`teispace/homebrew-tap`), winget, ghcr.io multi-arch image, apt/dnf repository, "Install command line tool" in the app.
 
 ### M6-07 · Download experience (website)
-- [ ] Hero button by detected OS (macOS universal; Windows x64/arm64 via User-Agent Client Hints; Linux menu of `.deb`/`.rpm`/AppImage per arch); fallback lists everything without JavaScript.
-- [ ] `/download` page (version, date, release notes, requirements, checksums, CLI and Docker) and a per-OS "Your download is starting" page with install steps (Slack-style), incl. the unsigned-Windows SmartScreen note.
-- [ ] Code signing policy, privacy, and "Verify your download" pages (SignPath requirements).
-- [ ] Site rebuilt by the release workflow so links point at the latest release; deploy to teitunnel.teispace.com (GitHub Pages + Cloudflare DNS).
+- [x] Hero button by detected OS (macOS universal; Windows x64/arm64 via User-Agent Client Hints; Linux menu of `.deb`/`.rpm`/AppImage per arch); fallback lists everything without JavaScript.
+- [x] `/download` page (version, date, release notes, requirements, checksums, CLI and Docker) and a per-OS "Your download is starting" page with install steps (Slack-style), incl. the unsigned-Windows SmartScreen note.
+- [x] Code signing policy, privacy, and "Verify your download" pages (SignPath requirements).
+- [ ] Site rebuilt by the release workflow so links point at the latest release *(done: `gh workflow run docs.yml` after publishing, D-076)*; deploy to teitunnel.teispace.com (GitHub Pages + Cloudflare DNS): needs the maintainer.
 
 ### M6-05 · Polish pass
 - [ ] Full DESIGN review of every screen against macOS 27 System Settings (light/dark, active/inactive, transparency slider extremes, increased contrast, reduce motion). *(Web-level pass done 2026-09-23 with `shoot` (+`SHOOT_CONTRAST=more`, `SHOOT_REDUCED_MOTION=1`): Title Case buttons, untitled Appearance group, contrast tokens. Native material checks in a packaged build need an unlocked screen.)*

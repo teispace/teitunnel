@@ -1,0 +1,48 @@
+---
+title: Verify your download
+description: Check that a Teitunnel download is the one built from this repository.
+---
+
+Every release lists the SHA-256 of each file in `SHA256SUMS.txt`, and each file carries
+GitHub build provenance: a signed statement of the workflow run and commit that built it.
+
+## Checksum
+
+Download `SHA256SUMS.txt` from the same release, then compare:
+
+<Tabs items={["macOS", "Linux", "Windows"]}>
+  <Tab value="macOS">
+    ```sh
+    shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+    ```
+  </Tab>
+  <Tab value="Linux">
+    ```sh
+    sha256sum -c SHA256SUMS.txt --ignore-missing
+    ```
+  </Tab>
+  <Tab value="Windows">
+    ```powershell
+    Get-FileHash .\Teitunnel_*_x64-setup.exe -Algorithm SHA256
+    ```
+    Compare the hash with the file's line in `SHA256SUMS.txt`.
+  </Tab>
+</Tabs>
+
+## Build provenance
+
+With the [GitHub CLI](https://cli.github.com):
+
+```sh
+gh attestation verify Teitunnel_0.1.0_universal.dmg --repo teispace/teitunnel
+```
+
+It succeeds only for a file built by Teitunnel's release workflow from this repository.
+
+## Signatures
+
+- **macOS:** the app is signed by Teispace and notarized: `spctl -a -vv /Applications/Teitunnel.app`
+  should say `source=Notarized Developer ID`.
+- **Windows:** this beta isn't code-signed yet (see the [code signing policy](/code-signing/)).
+- **Updates** are verified by the app itself against the key built into it, before they're
+  installed.

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "typecheck": "fumadocs-mdx && tsc --noEmit"
+    "typecheck": "fumadocs-mdx && tsc --noEmit",
+    "test": "node --test lib/*.test.ts"
   },
   "dependencies": {
     "fumadocs-core": "16.15.13",
