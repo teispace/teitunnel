@@ -10,6 +10,9 @@ interface UiState {
   /** The "quit while routes run" question is showing. */
   quitOpen: boolean;
   setQuitOpen: (open: boolean) => void;
+  /** The Export Diagnostics dialog is showing (opened from the Doctor or Help menu). */
+  diagnosticsOpen: boolean;
+  setDiagnosticsOpen: (open: boolean) => void;
   /** The Cloudflare account shown in Domains/Routes. */
   activeAccountId: string | null;
   /**
@@ -34,6 +37,8 @@ export const useUiStore = create<UiState>()(
       paletteOpen: false,
       quitOpen: false,
       setQuitOpen: (quitOpen) => set({ quitOpen }),
+      diagnosticsOpen: false,
+      setDiagnosticsOpen: (diagnosticsOpen) => set({ diagnosticsOpen }),
       activeAccountId: null,
       legacyIgnoredIssues: [],
       clearLegacyIgnoredIssues: () => set({ legacyIgnoredIssues: [] }),

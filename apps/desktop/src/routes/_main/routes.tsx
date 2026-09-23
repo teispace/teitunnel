@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { RoutesPage } from "@/features/routes";
 
 interface RoutesSearch {
-  /** Open the New Route sheet (⌘N, "New route" in the palette). */
+  /** Open the New Route sheet (⌘N, "New Route" in the palette). */
   add?: boolean;
 }
 

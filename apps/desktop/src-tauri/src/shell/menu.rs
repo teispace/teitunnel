@@ -22,10 +22,15 @@ use crate::{
 const SETTINGS: &str = "settings";
 const DOCS: &str = "help.docs";
 const ISSUE: &str = "help.issue";
+const CLOUDFLARE_DOCS: &str = "help.cloudflare_docs";
+const RELEASES: &str = "help.releases";
 const DOCS_URL: &str = "https://github.com/teispace/teitunnel#readme";
 const ISSUE_URL: &str = "https://github.com/teispace/teitunnel/issues/new/choose";
+const CLOUDFLARE_DOCS_URL: &str =
+    "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/";
+const RELEASES_URL: &str = "https://github.com/teispace/teitunnel/releases";
 
-/// A menu item the webview handles: (id, label, accelerator, command).
+/// A menu item the webview handles: (id, label, accelerator (empty: none), command).
 type WebviewItem = (&'static str, &'static str, &'static str, MenuCommand);
 
 const FILE_ITEMS: &[WebviewItem] = &[
@@ -105,8 +110,27 @@ const VIEW_ITEMS: &[WebviewItem] = &[
     ),
 ];
 
+const HELP_ITEMS: &[WebviewItem] = &[
+    (
+        "help.doctor",
+        "Check for Problems",
+        "",
+        MenuCommand::GoDoctor,
+    ),
+    (
+        "help.diagnostics",
+        "Export Diagnostics…",
+        "",
+        MenuCommand::ExportDiagnostics,
+    ),
+];
+
 fn all_items() -> impl Iterator<Item = &'static WebviewItem> {
-    FILE_ITEMS.iter().chain(GO_ITEMS).chain(VIEW_ITEMS)
+    FILE_ITEMS
+        .iter()
+        .chain(GO_ITEMS)
+        .chain(VIEW_ITEMS)
+        .chain(HELP_ITEMS)
 }
 
 /// Maps a menu item id to the command it forwards, if any.
@@ -123,9 +147,12 @@ fn build_items<R: Runtime>(
     table
         .iter()
         .map(|(id, label, accelerator, _)| {
-            MenuItemBuilder::with_id(*id, *label)
-                .accelerator(*accelerator)
-                .build(app)
+            let item = MenuItemBuilder::with_id(*id, *label);
+            if accelerator.is_empty() {
+                item.build(app)
+            } else {
+                item.accelerator(*accelerator).build(app)
+            }
         })
         .collect()
 }
@@ -145,6 +172,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .version(Some(info.version.to_string()))
         .copyright(Some("© 2026 Teispace. MIT License."))
         .website(Some("https://github.com/teispace/teitunnel"))
+        .credits(Some(
+            "Routes and Quick Shares run on cloudflared by Cloudflare (Apache-2.0), downloaded from its GitHub releases and verified before use.",
+        ))
         .build();
 
     let app_menu = SubmenuBuilder::new(app, &info.name)
@@ -199,8 +229,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .bring_all_to_front()
         .build()?;
 
+    let help_items = build_items(app, HELP_ITEMS)?;
     let help = SubmenuBuilder::new(app, "Help")
         .text(DOCS, "Teitunnel Documentation")
+        .text(CLOUDFLARE_DOCS, "Cloudflare Tunnel Documentation")
+        .separator()
+        .items(&as_refs(&help_items))
+        .separator()
+        .text(RELEASES, "Release Notes")
         .text(ISSUE, "Report an Issue…")
         .build()?;
 
@@ -222,6 +258,8 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
         SETTINGS => windows::open_settings(app),
         DOCS => open_url(app, DOCS_URL),
         ISSUE => open_url(app, ISSUE_URL),
+        CLOUDFLARE_DOCS => open_url(app, CLOUDFLARE_DOCS_URL),
+        RELEASES => open_url(app, RELEASES_URL),
         other if tray::on_event(app, other) => Ok(()),
         other => match command_for(other) {
             Some(command) => {
@@ -252,17 +290,23 @@ mod tests {
     fn ids_and_accelerators_are_unique() {
         let count = all_items().count();
         let ids: HashSet<_> = all_items().map(|(id, ..)| id).collect();
-        let keys: HashSet<_> = all_items()
+        let shortcuts: Vec<_> = all_items()
             .map(|(_, _, key, _)| key)
+            .filter(|key| !key.is_empty())
             .chain([&"CmdOrCtrl+,"])
             .collect();
+        let unique: HashSet<_> = shortcuts.iter().collect();
         assert_eq!(ids.len(), count);
-        assert_eq!(keys.len(), count + 1);
+        assert_eq!(unique.len(), shortcuts.len());
     }
 
     #[test]
     fn maps_ids_to_commands() {
         assert_eq!(command_for("go.doctor"), Some(MenuCommand::GoDoctor));
+        assert_eq!(
+            command_for("help.diagnostics"),
+            Some(MenuCommand::ExportDiagnostics)
+        );
         assert_eq!(command_for(SETTINGS), None);
         assert_eq!(command_for("nope"), None);
     }

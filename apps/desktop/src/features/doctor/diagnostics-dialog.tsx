@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileArchive } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
+import { useUiStore } from "@/app/ui-store";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
@@ -20,7 +20,8 @@ function size(bytes: number) {
  * keys), then saves it to Downloads.
  */
 export function DiagnosticsDialog() {
-  const [open, setOpen] = useState(false);
+  const open = useUiStore((state) => state.diagnosticsOpen);
+  const setOpen = useUiStore((state) => state.setDiagnosticsOpen);
   const preview = useQuery({
     queryKey: ["diagnostics", "preview"],
     queryFn: () => call(commands.diagnosticsPreview()),

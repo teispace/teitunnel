@@ -60,6 +60,8 @@ pub enum MenuCommand {
     GoDoctor,
     /// Quit was chosen while routes run through the app: ask what to do.
     ConfirmQuit,
+    /// Help ▸ Export Diagnostics…
+    ExportDiagnostics,
 }
 
 /// Emitted when a menu-bar item that the webview handles is chosen.

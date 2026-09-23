@@ -776,7 +776,9 @@ export type MenuCommand =
 /**  View ▸ Doctor (⌘7). */
 "goDoctor" | 
 /**  Quit was chosen while routes run through the app: ask what to do. */
-"confirmQuit";
+"confirmQuit" | 
+/**  Help ▸ Export Diagnostics… */
+"exportDiagnostics";
 
 /**
  *  An HTTP(S) origin cloudflared can proxy to, e.g. `http://localhost:3000`.

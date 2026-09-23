@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { useNavigate } from "@tanstack/react-router";
 import {
+  FileArchive,
   type LucideIcon,
   PanelLeft,
   PanelRight,
@@ -58,7 +59,7 @@ export const appCommands: readonly AppCommand[] = [
   ),
   {
     id: "new-route",
-    title: "New route",
+    title: "New Route",
     group: "Actions",
     icon: Plus,
     shortcut: "⌘N",
@@ -92,8 +93,19 @@ export const appCommands: readonly AppCommand[] = [
     run: () => void ipc.appOpenSettings(),
   },
   {
+    id: "export-diagnostics",
+    title: "Export Diagnostics",
+    group: "Actions",
+    icon: FileArchive,
+    menu: "exportDiagnostics",
+    run: ({ navigate }) => {
+      void navigate({ to: "/doctor" });
+      useUiStore.getState().setDiagnosticsOpen(true);
+    },
+  },
+  {
     id: "toggle-sidebar",
-    title: "Toggle sidebar",
+    title: "Toggle Sidebar",
     group: "View",
     icon: PanelLeft,
     shortcut: "⌥⌘S",
@@ -102,7 +114,7 @@ export const appCommands: readonly AppCommand[] = [
   },
   {
     id: "toggle-inspector",
-    title: "Toggle inspector",
+    title: "Toggle Inspector",
     group: "View",
     icon: PanelRight,
     shortcut: "⌥⌘I",
