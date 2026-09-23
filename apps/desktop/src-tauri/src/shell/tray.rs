@@ -91,6 +91,18 @@ fn update<R: Runtime>(
     let Some(tray) = app.tray_by_id(ID) else {
         return;
     };
+    // A dot on the icon when a route isn't working (template images stay monochrome).
+    let icon = if routes.iter().all(|r| r.status == "Live") {
+        tauri::include_image!("icons/tray-template.png")
+    } else {
+        tauri::include_image!("icons/tray-template-alert.png")
+    };
+    if let Err(err) = tray
+        .set_icon(Some(icon))
+        .and_then(|()| tray.set_icon_as_template(true))
+    {
+        tracing::warn!(error = %err, "failed to update the menu bar icon");
+    }
     match build_menu(app, &shares, &routes) {
         Ok(menu) => {
             if let Err(err) = tray.set_menu(Some(menu)) {
