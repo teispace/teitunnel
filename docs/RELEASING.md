@@ -26,6 +26,18 @@ setup get an unsigned dry run automatically.
 The first release is **0.1.0** (`release-as` in `release-please-config.json`; remove that line
 after it's out).
 
+## Setup status
+
+| Step | State |
+|---|---|
+| `release` environment (deploys from `main` and `v*` tags only) | Done 2026-09-23 |
+| Updater key secrets (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) | Done 2026-09-23. **Maintainer: back up `~/.tauri/teitunnel/updater.key` and `updater.key.password` in a password manager.** |
+| GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true` | Done 2026-09-23. Turn on **Enforce HTTPS** once the certificate is issued (after the first deploy from `main`). |
+| Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
+| Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
+| Apple Developer ID certificate + notarization key | **To do** (Account Holder): steps 3 and 4 |
+| SignPath Foundation for Windows | After 0.1.0: step 6 |
+
 ## One-time setup (maintainer)
 
 ### 1. The `release` environment
