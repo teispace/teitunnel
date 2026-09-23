@@ -395,4 +395,51 @@ mod tests {
             Err("proxyType")
         );
     }
+
+    fn arb_options() -> impl proptest::strategy::Strategy<Value = OriginOptions> {
+        use proptest::prelude::*;
+        let text = proptest::option::of("[a-z0-9.:-]{0,12}");
+        let secs = proptest::option::of(0u32..100_000);
+        (
+            (text.clone(), text.clone(), text, any::<[bool; 5]>()),
+            (secs.clone(), secs.clone(), secs.clone(), secs.clone(), secs),
+        )
+            .prop_map(|((host, name, ca, flags), (a, b, c, d, n))| OriginOptions {
+                http_host_header: host,
+                origin_server_name: name,
+                match_sni_to_host: flags[0],
+                no_tls_verify: flags[1],
+                ca_pool: ca.map(|p| format!("/{p}")),
+                http2_origin: flags[2],
+                disable_chunked_encoding: flags[3],
+                connect_timeout: a,
+                tls_timeout: b,
+                tcp_keep_alive: c,
+                keep_alive_timeout: d,
+                keep_alive_connections: n,
+                no_happy_eyeballs: flags[4],
+                proxy_type: None,
+            })
+    }
+
+    proptest::proptest! {
+        /// Written and read back, settings are the same; validating twice changes nothing.
+        #[test]
+        fn round_trips_and_validation_is_idempotent(options in arb_options()) {
+            if let Ok(valid) = options.validated() {
+                let mut map = Map::new();
+                valid.apply(&mut map);
+                proptest::prop_assert_eq!(&OriginOptions::from_map(&map), &valid);
+                proptest::prop_assert_eq!(valid.validated().unwrap(), valid);
+            }
+        }
+
+        /// Durations never panic, and whole seconds read as themselves.
+        #[test]
+        fn durations(input in ".{0,12}", seconds in 1u32..86_400) {
+            let _ = seconds_of(&Value::String(input));
+            proptest::prop_assert_eq!(seconds_of(&Value::String(format!("{seconds}s"))), Some(seconds));
+            proptest::prop_assert_eq!(seconds_of(&serde_json::json!(seconds)), Some(seconds));
+        }
+    }
 }

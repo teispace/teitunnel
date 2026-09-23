@@ -80,4 +80,15 @@ mod tests {
         ));
         assert_eq!(PathRule::parse("^/(?!admin)"), Err(PathError::Unsupported));
     }
+
+    proptest::proptest! {
+        /// Whatever is typed, parsing never panics, and a valid rule parses back to itself.
+        #[test]
+        fn never_panics_and_reparses(input in ".{0,40}") {
+            if let Ok(rule) = PathRule::parse(&input) {
+                let again = PathRule::parse(rule.as_str()).expect("a valid rule stays valid");
+                proptest::prop_assert_eq!(again, rule);
+            }
+        }
+    }
 }

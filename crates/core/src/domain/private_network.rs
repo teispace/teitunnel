@@ -175,4 +175,21 @@ mod tests {
         assert!(net("10.1.0.0/16").overlaps(&net("10.0.0.0/8")));
         assert!(!net("10.1.0.0/16").overlaps(&net("10.2.0.0/16")));
     }
+
+    proptest::proptest! {
+        /// Any IPv4 address and prefix gives the network it's in, which reads back as
+        /// itself; parsing never panics on noise.
+        #[test]
+        fn networks_are_canonical(a: u8, b: u8, c: u8, d: u8, prefix in 0u8..=32) {
+            if let Ok(network) = PrivateNetwork::parse(&format!("{a}.{b}.{c}.{d}/{prefix}")) {
+                let text = network.to_string();
+                proptest::prop_assert_eq!(PrivateNetwork::parse(&text).unwrap().to_string(), text);
+            }
+        }
+
+        #[test]
+        fn never_panics(input in ".{0,30}") {
+            let _ = PrivateNetwork::parse(&input);
+        }
+    }
 }
