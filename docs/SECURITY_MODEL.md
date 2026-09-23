@@ -51,7 +51,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 ### Supply chain
 - **cloudflared downloads:** HTTPS from GitHub Releases. SHA256 is checked against the checksums published in the release notes. On macOS, `codesign --verify --strict` is also run and the Developer ID Team ID is checked against Cloudflare's. The install is atomic, and the previous version is kept for rollback.
-- **App updates:** Tauri updater with signature verification (minisign key; the private key lives only in CI secrets).
+- **App updates:** Tauri updater with signature verification (minisign key; the public key is built into the app, the private key lives only in CI secrets, with an offline backup held by the maintainer). The download is verified before it's kept, and installed only at restart or quit. A check fetches `latest.json` from the latest GitHub release and sends nothing about the user (D-075).
 - **Dependencies:** `cargo deny` (advisories, licenses, bans, sources) and `pnpm audit` in CI. Lockfiles are committed. Dependabot/Renovate is grouped weekly.
 - **Releases** are built only in GitHub Actions from tagged commits. macOS builds are signed with a Developer ID and notarized.
 

@@ -48,6 +48,19 @@ for servers. Download builds from [GitHub Releases](https://github.com/teispace/
 To build it yourself instead, see the
 [contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
 
+## Updates
+
+Teitunnel checks for a new version when it opens and once a day, and downloads it in the
+background. Every update is signed, and the app refuses one whose signature doesn't match
+the key built into it. When an update is ready, the sidebar says so: choose
+**Restart to Update**, or just quit, and it installs. On Linux, `.deb` and `.rpm`
+installs wait for **Restart to Update**, because your system asks for an administrator
+password.
+
+A check downloads one small file from GitHub and sends nothing about you. To check only
+when you ask, turn off **Settings ▸ General ▸ Check for updates automatically**; on macOS,
+**Teitunnel ▸ Check for Updates…** checks now.
+
 ## cloudflared
 
 Routes and Quick Shares run on [cloudflared](https://github.com/cloudflare/cloudflared),

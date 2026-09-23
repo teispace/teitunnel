@@ -4,7 +4,7 @@
 //! are forwarded to the webview as a typed [`MenuAction`] event. The Edit menu is not
 //! optional: without it, ⌘C/⌘V/⌘A don't work in text fields on macOS.
 
-use tauri::{AppHandle, Runtime, menu::MenuEvent};
+use tauri::{AppHandle, Manager, Runtime, menu::MenuEvent};
 // Building the menu bar is macOS-only (D-063); handling its items isn't (the tray uses
 // the same event path).
 #[cfg(target_os = "macos")]
@@ -25,6 +25,7 @@ const DOCS: &str = "help.docs";
 const ISSUE: &str = "help.issue";
 const CLOUDFLARE_DOCS: &str = "help.cloudflare_docs";
 const RELEASES: &str = "help.releases";
+const CHECK_UPDATES: &str = "app.check_updates";
 
 /// A menu item the webview handles: (id, label, accelerator (empty: none), command).
 type WebviewItem = (&'static str, fn() -> Text, &'static str, MenuCommand);
@@ -172,6 +173,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     let app_menu = SubmenuBuilder::new(app, name)
         .about_with_text(m::about(name).to_string(), Some(about))
+        .text(CHECK_UPDATES, m::check_updates().to_string())
         .separator()
         .item(
             &MenuItemBuilder::with_id(SETTINGS, m::settings().to_string())
@@ -253,6 +255,7 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
         ISSUE => open_url(app, HelpLink::ReportIssue.url()),
         CLOUDFLARE_DOCS => open_url(app, HelpLink::CloudflareDocs.url()),
         RELEASES => open_url(app, HelpLink::ReleaseNotes.url()),
+        CHECK_UPDATES => check_updates(app),
         other if tray::on_event(app, other) => Ok(()),
         other => match command_for(other) {
             Some(command) => {
@@ -265,6 +268,18 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
     if let Err(err) = result {
         tracing::warn!(menu = id, error = %err, "menu action failed");
     }
+}
+
+/// App menu ▸ Check for Updates…: Settings shows the result.
+fn check_updates<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    windows::open_settings(app)?;
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(updates) = app.try_state::<crate::shell::updates::Updates>() {
+            updates.check(&app, true).await;
+        }
+    });
+    Ok(())
 }
 
 fn open_url<R: Runtime>(app: &AppHandle<R>, url: &str) -> tauri::Result<()> {

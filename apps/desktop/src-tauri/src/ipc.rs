@@ -16,6 +16,7 @@ mod quick_share;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
 mod settings;
+mod updates;
 
 use std::path::PathBuf;
 
@@ -32,6 +33,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
         .error_handling(ErrorHandlingMode::Throw)
         .commands(collect_commands![
             app::app_info,
+            updates::updates_status,
+            updates::updates_check,
+            updates::updates_restart,
             app::app_save_log,
             app::app_ready,
             app::app_accent_color,

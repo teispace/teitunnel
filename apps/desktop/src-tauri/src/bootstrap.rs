@@ -614,6 +614,13 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
         if tokio::time::timeout(SHUTDOWN_DEADLINE, stop).await.is_err() {
             tracing::warn!("connectors didn't stop in time; exiting anyway");
         }
+        // Last: a downloaded update installs now (on Windows its installer takes over).
+        let restart = app
+            .try_state::<crate::shell::updates::Updates>()
+            .is_some_and(|updates| updates.finish_on_exit());
+        if restart {
+            app.restart();
+        }
         app.exit(0);
     });
 }

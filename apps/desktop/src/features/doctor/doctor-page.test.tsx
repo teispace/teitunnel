@@ -57,6 +57,7 @@ const settings = () => ({
   notifyConnectors: true,
   notifyQuickShares: true,
   notifyDoctor: true,
+  checkForUpdates: true,
   ignoredIssues: ignored,
 });
 

@@ -591,6 +591,24 @@
       "show@linux": "Show in the system tray"
     }
   },
+  "updates": {
+    "title": "Updates",
+    "version": "Teitunnel {version}",
+    "upToDate": "Up to date",
+    "notChecked": "Not checked yet",
+    "checking": "Checking for updates…",
+    "downloading": "Downloading version {version}…",
+    "downloadingPercent": "Downloading version {version}… {percent}%",
+    "ready": "Version {version} is ready to install.",
+    "lastChecked": "Last checked: {when}",
+    "checkNow": "Check Now",
+    "restart": "Restart to Update",
+    "releaseNotes": "Release Notes",
+    "automatic": "Check for updates automatically",
+    "footer": "Teitunnel checks once a day and downloads updates in the background. A check sends nothing about you.",
+    "installsOnQuit": "The update installs when you quit Teitunnel, or now with Restart to Update.",
+    "installsOnRestart": "Restart to Update installs it. Your system asks for an administrator password."
+  },
   "domains": {
     "status": {
       "active": "Active",
@@ -1489,7 +1507,8 @@
       "releaseNotes": "Release Notes",
       "reportIssue": "Report an Issue…",
       "credits": "Routes and Quick Shares run on cloudflared by Cloudflare (Apache-2.0), downloaded from its GitHub releases and verified before use.",
-      "settingsWindow": "Settings"
+      "settingsWindow": "Settings",
+      "checkUpdates": "Check for Updates…"
     },
     "tray": {
       "stopRoutes": "Stop Routes on This Mac",
@@ -1530,6 +1549,12 @@
         "keepsStopping": "Keeps stopping",
         "stopped": "Stopped"
       }
+    },
+    "updates": {
+      "development": "Development builds don't update themselves.",
+      "unknownInstall": "This copy wasn't installed from a Teitunnel download, so it can't update itself. Download the latest version from teitunnel.teispace.com.",
+      "checkFailed": "Couldn't check for updates: {detail}",
+      "downloadFailed": "Couldn't download the update: {detail}"
     }
   },
   "permissionFix": {

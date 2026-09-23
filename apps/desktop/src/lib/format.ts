@@ -1,4 +1,4 @@
-import { currentLanguage } from "@/lib/i18n";
+import { currentLanguage, t } from "@/lib/i18n";
 
 const units = new Map<string, Intl.NumberFormat>();
 function unit(value: number, name: "second" | "minute" | "hour") {
@@ -29,4 +29,13 @@ export function formatDuration(ms: number): string {
 /** Strips the scheme for display: "https://a.b" → "a.b", "http://localhost:3000" → "localhost:3000". */
 export function stripScheme(url: string): string {
   return url.replace(/^[a-z]+:\/\//i, "");
+}
+
+/** "Just now", "5 min ago", then a date and time (for timestamps in Unix ms). */
+export function relativeTime(at: number | null): string {
+  if (at === null) return "";
+  const minutes = Math.round((Date.now() - at) / 60_000);
+  if (minutes < 1) return t("time.justNow");
+  if (minutes < 60) return t("time.minutesAgo", { count: minutes });
+  return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }

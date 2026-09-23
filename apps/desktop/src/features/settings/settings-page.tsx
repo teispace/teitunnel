@@ -5,6 +5,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
 import { CloudflaredPane } from "@/features/binary";
+import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { useOpenAtLogin, useSetOpenAtLogin, useSettings, useUpdateSettings } from "./queries";
@@ -106,6 +107,7 @@ function GeneralPane() {
           />
         </GroupedRow>
       </GroupedSection>
+      <UpdateSection />
       <OpenAtLogin />
       <GroupedSection
         title={t("settings.notifications.title")}

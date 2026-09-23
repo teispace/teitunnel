@@ -10,6 +10,12 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns the app version, platform and data directory. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**  Where updates stand. */
+	updatesStatus: () => __TAURI_INVOKE<UpdateStatus>("updates_status"),
+	/**  Checks for an update now (and downloads it), even with automatic checks off. */
+	updatesCheck: () => __TAURI_INVOKE<UpdateStatus>("updates_check"),
+	/**  Quits, installs the downloaded update and starts the new version. */
+	updatesRestart: () => __TAURI_INVOKE<void>("updates_restart"),
 	/**
 	 *  Saves log lines (as shown, after filtering) to a text file in Downloads, with
 	 *  anything secret-looking redacted, and shows it in Finder. Returns its path.
@@ -716,7 +722,9 @@ export type EntityKind =
 /**  Connected Cloudflare accounts (and their domains). */
 "accounts" | 
 /**  Routes and this Mac's tunnel (id: the account). */
-"routes";
+"routes" | 
+/**  App updates. */
+"updates";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -1272,6 +1280,8 @@ export type Settings = {
 	notifyQuickShares: boolean,
 	/**  Notify when the Doctor finds a new error. */
 	notifyDoctor: boolean,
+	/**  Check for app updates by itself (at launch and daily). */
+	checkForUpdates: boolean,
 	/**
 	 *  Doctor issues the user chose to ignore (stable issue ids). Changed with
 	 *  [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
@@ -1291,6 +1301,8 @@ export type SettingsPatch = {
 	notifyQuickShares?: boolean | null,
 	/**  Doctor notifications on or off. */
 	notifyDoctor?: boolean | null,
+	/**  Automatic update checks on or off. */
+	checkForUpdates?: boolean | null,
 };
 
 /**  How bad an issue is. */
@@ -1492,6 +1504,47 @@ export type UpdateInfo = {
 	latest: string,
 	/**  Whether it's newer than the one in use (or none is installed). */
 	available: boolean,
+};
+
+/**  Where an update stands. */
+export type UpdateState = 
+/**  Nothing checked yet. */
+{ state: "idle" } | 
+/**  Asking whether there's a newer version. */
+{ state: "checking" } | 
+/**  This is the latest version. */
+{ state: "upToDate" } | 
+/**  Downloading a newer version. */
+{ state: "downloading"; 
+/**  The version being downloaded. */
+version: string; 
+/**  Share downloaded, 0–1, when the size is known. */
+progress: number | null } | 
+/**  Downloaded and verified; installs on restart (or on quit, see `install_on_quit`). */
+{ state: "ready"; 
+/**  The new version. */
+version: string; 
+/**  Its release notes (Markdown). */
+notes: string | null } | 
+/**  Checking or downloading failed; the next check tries again. */
+{ state: "failed"; 
+/**  Why. */
+message: Text };
+
+/**  What the app shows about updates. */
+export type UpdateStatus = {
+	/**  The running version. */
+	currentVersion: string,
+	/**  Why this copy can't update itself, if it can't (checks are off then). */
+	unsupported: Text | null,
+	/**  Automatic checks are on. */
+	automatic: boolean,
+	/**  When the last check finished (Unix ms). */
+	lastChecked: number | null,
+	/**  Where an update stands. */
+	state: UpdateState,
+	/**  A ready update installs when the app quits. */
+	installOnQuit: boolean,
 };
 
 /**  The result of checking one hostname. */

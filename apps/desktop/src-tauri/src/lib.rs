@@ -69,6 +69,7 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Open at login starts hidden, into the menu bar (`--hidden`).
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -94,6 +95,8 @@ pub fn run() -> Result<(), tauri::Error> {
 
             shell::windows::init_start_hidden();
             app.manage(bootstrap::init(app.handle())?);
+            app.manage(shell::updates::Updates::new());
+            shell::updates::spawn_schedule(app.handle());
             shell::windows::show_main_after_timeout(app.handle());
             tracing::info!(version = %app.package_info().version, "teitunnel started");
             Ok(())

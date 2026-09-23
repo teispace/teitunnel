@@ -16,6 +16,8 @@ pub enum EntityKind {
     Accounts,
     /// Routes and this Mac's tunnel (id: the account).
     Routes,
+    /// App updates.
+    Updates,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

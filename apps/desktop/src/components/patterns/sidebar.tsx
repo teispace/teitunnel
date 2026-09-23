@@ -31,7 +31,7 @@ export function Sidebar({ children, footer }: { children: ReactNode; footer?: Re
       >
         {children}
       </nav>
-      {footer ? <div className="shrink-0 px-2.5 pb-2.5">{footer}</div> : null}
+      {footer ? <div className="shrink-0 px-2.5 pb-2.5 empty:hidden">{footer}</div> : null}
     </aside>
   );
 }

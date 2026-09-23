@@ -18,9 +18,9 @@ Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M
 - [ ] Windows: SignPath Foundation after v0.1.0 is public (terms need a released project): code signing policy page, MFA, roles; signing step in the workflow; updater `.sig` regenerated after Authenticode signing. v0.1.0 ships unsigned with SmartScreen guidance on the download page.
 
 ### M6-02 · Updater
-- [ ] `tauri-plugin-updater` with a minisign keypair (private key in CI secrets only). `latest.json` on GitHub Releases (`releases/latest/download/latest.json`).
-- [ ] UX: a quiet check on launch and daily. A native-style "Update available" in the menu and Settings; install on quit or "Restart now". Release notes shown.
-- [ ] Setting to disable update checks (D-019).
+- [x] `tauri-plugin-updater` with a minisign keypair (private key in CI secrets only). `latest.json` on GitHub Releases (`releases/latest/download/latest.json`). *(D-075; keypair in `~/.tauri/teitunnel/` on the maintainer's Mac.)*
+- [x] UX: a quiet check on launch and daily. Check for Updates… in the app menu, Settings ▸ General ▸ Updates (version, progress, Restart to Update, Release Notes), a sidebar notice when ready; installs on quit (not `.deb`/`.rpm`) or on Restart to Update.
+- [x] Setting to disable update checks (D-019): Check for updates automatically.
 
 ### M6-03 · Release automation
 - [ ] `release.yml`: matrix (macOS universal; Windows x64 + arm64 NSIS; Linux x64 + arm64 `.deb`/`.rpm`/AppImage on Ubuntu 22.04), CLI archives, SHA256SUMS, build provenance, `latest.json`; draft release, published by a final job only when every asset is uploaded; `workflow_dispatch` dry run that builds without publishing; actions pinned by commit.

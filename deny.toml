@@ -36,7 +36,7 @@ wildcards = "deny"
 allow-wildcard-paths = true
 deny = [
   # Keep the Tauri boundary: only the desktop crate may depend on Tauri.
-  { crate = "tauri", wrappers = ["teitunnel-desktop", "tauri-plugin-single-instance", "tauri-plugin-window-state", "tauri-plugin-opener", "tauri-plugin-clipboard-manager", "tauri-plugin-notification", "tauri-plugin-autostart", "tauri-plugin-wdio-webdriver", "tauri-plugin-wdio", "tauri-specta", "tauri-specta-macros"] },
+  { crate = "tauri", wrappers = ["teitunnel-desktop", "tauri-plugin-single-instance", "tauri-plugin-window-state", "tauri-plugin-opener", "tauri-plugin-clipboard-manager", "tauri-plugin-notification", "tauri-plugin-autostart", "tauri-plugin-updater", "tauri-plugin-wdio-webdriver", "tauri-plugin-wdio", "tauri-specta", "tauri-specta-macros"] },
   { crate = "openssl-sys", wrappers = [] },
 ]
 

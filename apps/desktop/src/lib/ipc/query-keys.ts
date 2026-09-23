@@ -39,6 +39,9 @@ export const queryKeys = {
   doctor: {
     all: () => ["doctor"] as const,
   },
+  updates: {
+    status: () => ["updates", "status"] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -61,5 +64,7 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       ];
     case "routes":
       return [queryKeys.routes.all(), queryKeys.doctor.all()];
+    case "updates":
+      return [queryKeys.updates.status()];
   }
 }

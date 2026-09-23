@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-0. **Release work now (D-074, maintainer 2026-09-23):** M6-02 updater → M6-01/03 release workflow + release-please → M6-07 download pages → maintainer setup (Apple cert + API key, updater key, `release` environment, Pages) → dry run → v0.1.0 public beta (website only; Windows unsigned until SignPath) → M6-04 channels.
+0. **Release work now (D-074, maintainer 2026-09-23):** ~~M6-02 updater~~ (done, D-075) → M6-01/03 release workflow + release-please → M6-07 download pages → maintainer setup (Apple cert + API key, updater key, `release` environment, Pages) → dry run → v0.1.0 public beta (website only; Windows unsigned until SignPath) → M6-04 channels.
    Earlier: **M10/M11 done** ([plan](plans/M10-parity.md), Cloudify analysis in [research/cloudify.md](research/cloudify.md)). All follow-ups done. Next: release work (signing with the maintainer's Developer ID, updater, release automation, channels incl. ghcr.io image and winget/Homebrew, website deploy to teitunnel.teispace.com: GitHub Pages + Cloudflare DNS CNAME `teitunnel` → `teispace.github.io`, then point the app's Help link there), done last per the maintainer (2026-09-23).
 1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
 2. Distribution for Windows/Linux is deferred with the other release work.
@@ -26,6 +26,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M6-02 updater (D-075): background check at launch and daily, verified download, Restart to Update (Settings, sidebar notice, app menu), installs on quit except `.deb`/`.rpm`, setting to turn automatic checks off. Updater keypair generated in `~/.tauri/teitunnel/` (not in the repo). Distribution plan D-074, research `docs/research/distribution.md`.
 - 2026-09-23: M10 follow-ups: shares started with `teitunnel-cli share` (random address) are listed on Quick Share and can be stopped there (`core::cli_shares`); a load-balanced route shows each machine's health from Cloudflare's checks per region (D-071). Website set up for teitunnel.teispace.com (D-073).
 - 2026-09-23: M11 website (D-073): `apps/web` (Next.js + Fumadocs, static): landing page with real app screenshots, all docs migrated and reworded for every platform, new Accounts and permissions and Server API pages, static search; Astro site removed; Docs workflow builds it (deploy with the release work). Also M10-02 adopt an existing tunnel (D-072).
 - 2026-09-23: M10-07 load balancing across machines (D-071): monitor, pool of tunnel endpoints and load balancer through plan → apply with full undo; routes join/leave pools; app, CLI `route balance|unbalance`, dashboard; guide.

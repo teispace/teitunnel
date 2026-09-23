@@ -37,6 +37,8 @@ pub struct Settings {
     pub notify_quick_shares: bool,
     /// Notify when the Doctor finds a new error.
     pub notify_doctor: bool,
+    /// Check for app updates by itself (at launch and daily).
+    pub check_for_updates: bool,
     /// Doctor issues the user chose to ignore (stable issue ids). Changed with
     /// [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
     pub ignored_issues: Vec<String>,
@@ -50,6 +52,7 @@ impl Default for Settings {
             notify_connectors: true,
             notify_quick_shares: true,
             notify_doctor: true,
+            check_for_updates: true,
             ignored_issues: Vec::new(),
         }
     }
@@ -75,6 +78,9 @@ pub struct SettingsPatch {
     /// Doctor notifications on or off.
     #[serde(default)]
     pub notify_doctor: Option<bool>,
+    /// Automatic update checks on or off.
+    #[serde(default)]
+    pub check_for_updates: Option<bool>,
 }
 
 const THEME: &str = "theme";
@@ -83,6 +89,7 @@ const NOTIFY_CONNECTORS: &str = "notifyConnectors";
 const NOTIFY_QUICK_SHARES: &str = "notifyQuickShares";
 const NOTIFY_DOCTOR: &str = "notifyDoctor";
 const IGNORED_ISSUES: &str = "ignoredIssues";
+const CHECK_FOR_UPDATES: &str = "checkForUpdates";
 
 /// Loads all settings.
 ///
@@ -101,6 +108,8 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                 notify_quick_shares: read(conn, NOTIFY_QUICK_SHARES)?
                     .unwrap_or(defaults.notify_quick_shares),
                 notify_doctor: read(conn, NOTIFY_DOCTOR)?.unwrap_or(defaults.notify_doctor),
+                check_for_updates: read(conn, CHECK_FOR_UPDATES)?
+                    .unwrap_or(defaults.check_for_updates),
                 ignored_issues: read(conn, IGNORED_ISSUES)?.unwrap_or(defaults.ignored_issues),
             })
         })
@@ -129,6 +138,9 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             }
             if let Some(on) = patch.notify_doctor {
                 write(&tx, NOTIFY_DOCTOR, &on)?;
+            }
+            if let Some(on) = patch.check_for_updates {
+                write(&tx, CHECK_FOR_UPDATES, &on)?;
             }
             tx.commit()?;
             Ok(())

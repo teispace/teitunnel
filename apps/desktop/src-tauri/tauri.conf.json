@@ -26,9 +26,14 @@
         "transparent": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 19, "y": 28 },
+        "trafficLightPosition": {
+          "x": 19,
+          "y": 28
+        },
         "windowEffects": {
-          "effects": ["sidebar"],
+          "effects": [
+            "sidebar"
+          ],
           "state": "followsWindowActiveState"
         },
         "dragDropEnabled": false,
@@ -58,13 +63,18 @@
         "object-src": "'none'",
         "base-uri": "'none'"
       },
-      "dangerousDisableAssetCspModification": ["style-src"],
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ],
       "freezePrototype": true
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "DeveloperTool",
     "shortDescription": "A native control center for Cloudflare Tunnel",
     "copyright": "© 2026 Teispace",
@@ -77,6 +87,17 @@
     ],
     "macOS": {
       "minimumSystemVersion": "14.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY2Rjk0NzU5OEEzQ0Y3QzgKUldUSTl6eUtXVWY1WmpBWUI5N1pvVHpuN3orUmZOU3FURG5TNVo2Q1V4dmRnRGFTMTVzVVNrTSsK",
+      "endpoints": [
+        "https://github.com/teispace/teitunnel/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

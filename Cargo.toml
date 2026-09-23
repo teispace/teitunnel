@@ -27,6 +27,7 @@ tauri-plugin-opener = "2.5"
 tauri-plugin-clipboard-manager = "2.3.3"
 tauri-plugin-notification = "2.4.0"
 tauri-plugin-autostart = "2.5.1"
+tauri-plugin-updater = "2.12.0"
 # E2E only (never in release builds): embedded WebDriver for @wdio/tauri-service.
 tauri-plugin-wdio-webdriver = "1.4.0"
 tauri-plugin-wdio = "1.4.0"

@@ -29,6 +29,7 @@ import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
 import { useIssues } from "@/features/doctor/queries";
+import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -53,14 +54,6 @@ const routeKey = (route: RouteView) => `${route.hostname}${route.path ?? ""}`;
 
 function displayOrigin(origin: string) {
   return origin.replace(/^http:\/\/localhost:/, "localhost:");
-}
-
-function relativeTime(at: number | null) {
-  if (at === null) return "";
-  const minutes = Math.round((Date.now() - at) / 60_000);
-  if (minutes < 1) return t("time.justNow");
-  if (minutes < 60) return t("time.minutesAgo", { count: minutes });
-  return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 const clientApps: Record<ClientAccess["protocol"], MessageKey> = {

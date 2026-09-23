@@ -33,6 +33,7 @@ pub mod settings;
 pub mod store;
 pub mod text;
 pub mod traffic;
+pub mod updates;
 pub mod web_auth;
 
 pub use cloudflared::Error as CloudflaredError;

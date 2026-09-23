@@ -22,6 +22,7 @@ import type {
   SettingsPatch,
   ShareStats,
   TunnelSummary,
+  UpdateStatus,
 } from "@/lib/ipc/bindings";
 
 /**
@@ -37,8 +38,24 @@ let settings: Settings = {
   notifyConnectors: true,
   notifyQuickShares: true,
   notifyDoctor: true,
+  checkForUpdates: true,
   ignoredIssues: [],
 };
+
+/** `?update` shows a downloaded update (sidebar notice, Settings). */
+function updateStatus(): UpdateStatus {
+  const ready = new URLSearchParams(window.location.search).has("update");
+  return {
+    currentVersion: "0.1.0",
+    unsupported: null,
+    automatic: settings.checkForUpdates,
+    lastChecked: now - 12 * 60_000,
+    state: ready
+      ? { state: "ready", version: "0.2.0", notes: "### Features\n- Load balancing health" }
+      : { state: "upToDate" },
+    installOnQuit: true,
+  };
+}
 
 let shares: QuickShare[] = [
   {
@@ -457,6 +474,11 @@ export function installMockIpc(): void {
           return appInfo;
         case "settings_get":
           return settings;
+        case "updates_status":
+        case "updates_check":
+          return updateStatus();
+        case "updates_restart":
+          return null;
         case "settings_set": {
           const patch = payload["patch"] as SettingsPatch;
           settings = {
@@ -465,6 +487,7 @@ export function installMockIpc(): void {
             notifyConnectors: patch.notifyConnectors ?? settings.notifyConnectors,
             notifyQuickShares: patch.notifyQuickShares ?? settings.notifyQuickShares,
             notifyDoctor: patch.notifyDoctor ?? settings.notifyDoctor,
+            checkForUpdates: patch.checkForUpdates ?? settings.checkForUpdates,
             ignoredIssues: settings.ignoredIssues,
           };
           return settings;

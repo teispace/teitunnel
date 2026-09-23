@@ -7,6 +7,7 @@ import { AppShell } from "@/components/patterns/app-shell";
 import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
 import { DoctorBadge } from "@/features/doctor";
+import { UpdateNotice } from "@/features/updates";
 import { t } from "@/lib/i18n";
 
 /** The developer section, in dev builds; `?clean` hides it (screenshots for the website). */
@@ -22,7 +23,7 @@ function MainLayout() {
   return (
     <AppShell
       sidebar={
-        <Sidebar>
+        <Sidebar footer={<UpdateNotice />}>
           {navigation.map((section) => (
             <SidebarSection
               key={section.title ?? "main"}
