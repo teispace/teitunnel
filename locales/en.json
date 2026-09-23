@@ -736,7 +736,10 @@
     "description": "A file to attach to a bug report. Tokens, keys and passwords are removed; hostnames and account ids stay so the problem can be understood.",
     "saving": "Saving…",
     "collecting": "Collecting…",
-    "files": "Files"
+    "files": "Files",
+    "cloudflared": "Include cloudflared's own report",
+    "cloudflaredHelp": "From this machine's connector: its logs, metrics, system details and traceroutes to Cloudflare. It takes up to two minutes, and Teitunnel can't redact it, so look through it before sharing.",
+    "savingCloudflared": "Asking cloudflared…"
   },
   "overview": {
     "title": "Overview",

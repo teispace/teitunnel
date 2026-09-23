@@ -192,6 +192,33 @@ impl QuickTunnelCmd {
     }
 }
 
+/// `cloudflared tunnel diag`: cloudflared's own diagnostic report of a running
+/// connector (2024.12.2+). It writes `cloudflared-diag-<time>.zip` into the working
+/// directory, so run it in a directory of its own.
+#[derive(Debug, Clone)]
+pub struct DiagCmd {
+    /// The connector's local metrics server port.
+    pub metrics_port: u16,
+}
+
+impl DiagCmd {
+    /// Builds the launch spec for `binary`.
+    pub fn build(&self, binary: &Path) -> CommandSpec {
+        CommandSpec {
+            program: binary.to_path_buf(),
+            args: [
+                "tunnel".to_owned(),
+                "diag".to_owned(),
+                "--metrics".to_owned(),
+                format!("127.0.0.1:{}", self.metrics_port),
+            ]
+            .map(OsString::from)
+            .to_vec(),
+            token: None,
+        }
+    }
+}
+
 /// `cloudflared tunnel run`: a connector for a remotely managed named tunnel.
 #[derive(Debug, Clone)]
 pub struct RunCmd {
@@ -250,6 +277,19 @@ mod tests {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect()
+    }
+
+    #[test]
+    fn diag_targets_the_connectors_metrics_server() {
+        let spec = DiagCmd {
+            metrics_port: 20411,
+        }
+        .build(Path::new("/opt/homebrew/bin/cloudflared"));
+        assert_eq!(
+            args(&spec),
+            ["tunnel", "diag", "--metrics", "127.0.0.1:20411"]
+        );
+        assert!(spec.env_names().is_empty());
     }
 
     #[test]

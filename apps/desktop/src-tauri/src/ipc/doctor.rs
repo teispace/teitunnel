@@ -149,17 +149,46 @@ pub async fn diagnostics_preview(
 }
 
 /// Saves the diagnostics bundle to Downloads and shows it in Finder. Returns its path.
+/// With `include_cloudflared`, cloudflared's own report of this machine's connector is
+/// added as it is (it can take a minute: it runs traceroutes).
 #[tauri::command]
 #[specta::specta]
 pub async fn diagnostics_export(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
+    include_cloudflared: bool,
 ) -> Result<String, AppError> {
-    let files = bundle(&app, &state).await?;
-    crate::ipc::app::save_to_downloads(
-        &app,
-        &teitunnel_core::diagnostics::file_name(),
-        move |path| teitunnel_core::diagnostics::write(&files, path),
-    )
+    use teitunnel_core::diagnostics::{self, BundleFile, CLOUDFLARED_REPORT_TIMEOUT};
+    let mut files = bundle(&app, &state).await?;
+    let mut attachments = Vec::new();
+    if include_cloudflared {
+        let port = state
+            .machine
+            .running_metrics_ports()
+            .first()
+            .map(|(_, port)| *port);
+        let outcome = match (port, state.binary.current().await) {
+            (None, _) => Err("no connector is running on this machine".to_owned()),
+            (_, Err(_)) => Err("cloudflared isn't installed".to_owned()),
+            (Some(metrics_port), Ok(binary)) => {
+                diagnostics::cloudflared_report(
+                    &binary.path,
+                    metrics_port,
+                    CLOUDFLARED_REPORT_TIMEOUT,
+                )
+                .await
+            }
+        };
+        match outcome {
+            Ok(report) => attachments.push(report),
+            Err(reason) => files.push(BundleFile {
+                name: "cloudflared-diag.txt".into(),
+                text: format!("No cloudflared report: {reason}\n"),
+            }),
+        }
+    }
+    crate::ipc::app::save_to_downloads(&app, &diagnostics::file_name(), move |path| {
+        diagnostics::write(&files, &attachments, path)
+    })
     .await
 }

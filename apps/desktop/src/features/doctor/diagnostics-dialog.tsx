@@ -1,8 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileArchive } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useUiStore } from "@/app/ui-store";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { Spinner } from "@/components/ui/spinner";
@@ -30,8 +32,9 @@ export function DiagnosticsDialog() {
     staleTime: 0,
     gcTime: 0,
   });
+  const [withCloudflared, setWithCloudflared] = useState(false);
   const save = useMutation({
-    mutationFn: () => call(commands.diagnosticsExport()),
+    mutationFn: () => call(commands.diagnosticsExport(withCloudflared)),
     onSuccess: (path) => {
       setOpen(false);
       toast.success(t("diagnostics.saved"), { description: path });
@@ -56,7 +59,11 @@ export function DiagnosticsDialog() {
               disabled={!preview.isSuccess || save.isPending}
               onClick={() => save.mutate()}
             >
-              {save.isPending ? t("diagnostics.saving") : t("export.save")}
+              {save.isPending
+                ? withCloudflared
+                  ? t("diagnostics.savingCloudflared")
+                  : t("diagnostics.saving")
+                : t("export.save")}
             </Button>
           </>
         }
@@ -86,6 +93,18 @@ export function DiagnosticsDialog() {
             ))}
           </ul>
         )}
+        <div className="mt-4 flex flex-col gap-1">
+          <label htmlFor="diag-cloudflared" className="flex items-center gap-2 text-body">
+            <Checkbox
+              id="diag-cloudflared"
+              checked={withCloudflared}
+              disabled={save.isPending}
+              onCheckedChange={(value) => setWithCloudflared(value === true)}
+            />
+            {t("diagnostics.cloudflared")}
+          </label>
+          <p className="pl-6 text-callout text-secondary">{t("diagnostics.cloudflaredHelp")}</p>
+        </div>
       </DialogContent>
     </Dialog>
   );

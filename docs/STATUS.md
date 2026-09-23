@@ -26,6 +26,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M4-09 follow-up: diagnostics export can include `cloudflared tunnel diag` for this machine's connector (opt-in, time-limited, marked as not redacted). Property tests for every input parser (M3-02). No sidebar account switcher (D-079).
 - 2026-09-23: M3-02 origin settings (D-078): every `originRequest` field typed and validated, in the route sheet (Advanced ▸ Origin settings), the CLI (`route add --no-tls-verify …`) and import (file-wide settings merged, Go durations); unknown settings always kept.
 - 2026-09-23: M4-07 follow-up: Doctor issues inline on route and tunnel rows and inspectors, with Fix…/Details… opening the Doctor on that issue.
 - 2026-09-23: Install the CLI from the app (D-077): bundled in every package, Settings ▸ General ▸ Command line (symlink on macOS, per-user copy on Windows/AppImage, refreshed after updates). Release setup done with the maintainer's permission: `release` environment, updater secrets, Pages + domain, Cloudflare CNAME, org-verified domain (see RELEASING.md status table).

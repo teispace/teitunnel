@@ -128,11 +128,81 @@ pub fn summarize(files: &[BundleFile]) -> Vec<FileSummary> {
         .collect()
 }
 
+/// A file added as it is: cloudflared's own report, which Teitunnel can't redact (the
+/// preview says so).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attachment {
+    /// Path inside the archive.
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
+
+/// How long `cloudflared tunnel diag` may take (it runs traceroutes).
+pub const CLOUDFLARED_REPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Runs `cloudflared tunnel diag` (the `binary` at hand) against the connector whose
+/// metrics server listens on `metrics_port`, in a directory of its own, and returns the
+/// zip it writes there. The directory is removed after.
+///
+/// # Errors
+/// Why there's no report, in a sentence for `cloudflared-diag.txt`.
+pub async fn cloudflared_report(
+    binary: &Path,
+    metrics_port: u16,
+    timeout: std::time::Duration,
+) -> Result<Attachment, String> {
+    let spec = cloudflared::DiagCmd { metrics_port }.build(binary);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let dir = std::env::temp_dir().join(format!("teitunnel-diag-{}-{nanos}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|e| format!("couldn't make a folder for it: {e}"))?;
+    let result = report_in(spec.to_command(), &dir, timeout).await;
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+/// Runs `command` in `dir` and picks up the report it leaves there.
+async fn report_in(
+    mut command: tokio::process::Command,
+    dir: &Path,
+    timeout: std::time::Duration,
+) -> Result<Attachment, String> {
+    command
+        .current_dir(dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    let status = tokio::time::timeout(timeout, command.status())
+        .await
+        .map_err(|_| format!("cloudflared took longer than {} s", timeout.as_secs()))?
+        .map_err(|e| format!("couldn't start cloudflared: {e}"))?;
+    let zip = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("cloudflared-diag") && n.ends_with(".zip"))
+        });
+    match zip {
+        Some(path) => std::fs::read(&path)
+            .map(|bytes| Attachment {
+                name: "cloudflared-diag.zip".into(),
+                bytes,
+            })
+            .map_err(|e| e.to_string()),
+        None => Err(format!("cloudflared made no report (exit status {status})")),
+    }
+}
+
 /// Writes the bundle as `.tar.gz` (readable only by the user).
 ///
 /// # Errors
 /// File system errors.
-pub fn write(files: &[BundleFile], path: &Path) -> std::io::Result<()> {
+pub fn write(files: &[BundleFile], attachments: &[Attachment], path: &Path) -> std::io::Result<()> {
     let file = std::fs::File::create(path)?;
     #[cfg(unix)]
     {
@@ -143,17 +213,21 @@ pub fn write(files: &[BundleFile], path: &Path) -> std::io::Result<()> {
     let mtime = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    for f in files {
+    let entries = files
+        .iter()
+        .map(|f| (f.name.as_str(), f.text.as_bytes()))
+        .chain(
+            attachments
+                .iter()
+                .map(|a| (a.name.as_str(), a.bytes.as_slice())),
+        );
+    for (name, bytes) in entries {
         let mut header = tar::Header::new_gnu();
-        header.set_size(f.text.len() as u64);
+        header.set_size(bytes.len() as u64);
         header.set_mode(0o600);
         header.set_mtime(mtime);
         header.set_cksum();
-        archive.append_data(
-            &mut header,
-            format!("teitunnel-diagnostics/{}", f.name),
-            f.text.as_bytes(),
-        )?;
+        archive.append_data(&mut header, format!("teitunnel-diagnostics/{name}"), bytes)?;
     }
     archive.into_inner()?.finish()?.flush()
 }
@@ -231,24 +305,56 @@ mod tests {
         );
 
         let out = dir.path().join("bundle.tar.gz");
-        write(&files, &out).unwrap();
+        let report = Attachment {
+            name: "cloudflared-diag.zip".into(),
+            bytes: vec![0x50, 0x4b, 0x03, 0x04],
+        };
+        write(&files, std::slice::from_ref(&report), &out).unwrap();
         let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(
             std::fs::File::open(&out).unwrap(),
         ));
         let mut seen = Vec::new();
         for entry in archive.entries().unwrap() {
             let mut entry = entry.unwrap();
-            let mut text = String::new();
-            entry.read_to_string(&mut text).unwrap();
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes).unwrap();
             seen.push(entry.path().unwrap().display().to_string());
-            assert!(!text.contains("eyJhIjoi"));
+            assert!(!String::from_utf8_lossy(&bytes).contains("eyJhIjoi"));
         }
-        assert_eq!(seen.len(), 4);
+        assert_eq!(seen.len(), 5);
+        assert_eq!(seen[4], "teitunnel-diagnostics/cloudflared-diag.zip");
         assert!(seen[0].starts_with("teitunnel-diagnostics/"));
         assert_eq!(
             summarize(&files)[0].excerpt,
             "Teitunnel 0.4.0\nmacOS 27.0 (arm64)"
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn picks_up_cloudflareds_report_and_gives_up_in_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut touch = tokio::process::Command::new("touch");
+        touch.arg("cloudflared-diag-2026-09-23T10-00-00.zip");
+        let report = report_in(touch, dir.path(), std::time::Duration::from_secs(10))
+            .await
+            .unwrap();
+        assert_eq!(report.name, "cloudflared-diag.zip");
+
+        let empty = tempfile::tempdir().unwrap();
+        let mut nothing = tokio::process::Command::new("true");
+        nothing.arg("--");
+        let err = report_in(nothing, empty.path(), std::time::Duration::from_secs(10))
+            .await
+            .unwrap_err();
+        assert!(err.contains("no report"), "{err}");
+
+        let mut sleep = tokio::process::Command::new("sleep");
+        sleep.arg("5");
+        let err = report_in(sleep, empty.path(), std::time::Duration::from_millis(200))
+            .await
+            .unwrap_err();
+        assert!(err.contains("longer than"), "{err}");
     }
 
     #[test]

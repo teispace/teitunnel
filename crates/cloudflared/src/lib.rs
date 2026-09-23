@@ -20,7 +20,7 @@ pub mod task_scheduler;
 mod version;
 
 pub use command::{
-    CommandSpec, LogLevel, Protocol, QuickTunnelCmd, RunCmd, TokenSource, TunnelToken,
+    CommandSpec, DiagCmd, LogLevel, Protocol, QuickTunnelCmd, RunCmd, TokenSource, TunnelToken,
 };
 pub use endpoints::{Endpoints, Ready};
 pub use error::{Error, Result};

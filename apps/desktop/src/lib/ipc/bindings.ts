@@ -264,8 +264,12 @@ export const commands = {
 	doctorFixSafe: () => __TAURI_INVOKE<FixReport>("doctor_fix_safe"),
 	/**  What a diagnostics export would contain (shown before saving). */
 	diagnosticsPreview: () => __TAURI_INVOKE<FileSummary[]>("diagnostics_preview"),
-	/**  Saves the diagnostics bundle to Downloads and shows it in Finder. Returns its path. */
-	diagnosticsExport: () => __TAURI_INVOKE<string>("diagnostics_export"),
+	/**
+	 *  Saves the diagnostics bundle to Downloads and shows it in Finder. Returns its path.
+	 *  With `include_cloudflared`, cloudflared's own report of this machine's connector is
+	 *  added as it is (it can take a minute: it runs traceroutes).
+	 */
+	diagnosticsExport: (includeCloudflared: boolean) => __TAURI_INVOKE<string>("diagnostics_export", { includeCloudflared }),
 };
 
 /** Events */

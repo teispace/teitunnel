@@ -77,3 +77,8 @@ Each problem's check id (in code type) appears in diagnostics exports and bug re
 **Help ▸ Export Diagnostics…** saves a file to attach to a bug report: app logs, the
 Doctor report and versions. Tokens, keys and passwords are removed; hostnames and
 account ids stay so the problem can be understood. You see what's in it before it's saved.
+
+Tick **Include cloudflared's own report** to add `cloudflared tunnel diag` for this
+machine's connector: its logs, metrics, system details and traceroutes to Cloudflare. It
+takes up to two minutes, and Teitunnel can't redact it, so look through it before you share
+it. Cloudflare support often asks for this file.

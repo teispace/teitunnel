@@ -196,6 +196,18 @@ impl MachineTunnels {
         self.sample(true).await;
     }
 
+    /// Metrics ports of this machine's running connectors, by tunnel id (for
+    /// `cloudflared tunnel diag`).
+    pub fn running_metrics_ports(&self) -> Vec<(String, u16)> {
+        let mut ports: Vec<(String, u16)> = self
+            .metrics_ports()
+            .into_iter()
+            .map(|(tunnel, (port, _))| (tunnel, port))
+            .collect();
+        ports.sort();
+        ports
+    }
+
     /// The metrics port of each running connector. While switching modes both run;
     /// the service is the one that stays when switching on, and it's out of `services`
     /// when switching off, so it wins.
