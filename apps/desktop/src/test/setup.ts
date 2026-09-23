@@ -25,3 +25,17 @@ if (typeof window !== "undefined") {
       dispatchEvent: () => false,
     }) satisfies MediaQueryList;
 }
+// jsdom does no layout, so every element measures 0×0 and virtualized lists would
+// render no rows. Give elements a plausible size instead.
+if (typeof HTMLElement !== "undefined") {
+  for (const [prop, value] of [
+    ["offsetHeight", 480],
+    ["offsetWidth", 640],
+  ] as const) {
+    if (
+      Object.getOwnPropertyDescriptor(HTMLElement.prototype, prop)?.get?.call(document.body) === 0
+    ) {
+      Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => value });
+    }
+  }
+}

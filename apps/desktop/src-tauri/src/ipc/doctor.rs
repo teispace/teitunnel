@@ -147,22 +147,11 @@ pub async fn diagnostics_export(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
-    use tauri::Manager;
-    use tauri_plugin_opener::OpenerExt;
     let files = bundle(&app, &state).await?;
-    let dir = app
-        .path()
-        .download_dir()
-        .or_else(|_| app.path().home_dir())
-        .map_err(|e| AppError::internal(e.to_string()))?;
-    let path = dir.join(teitunnel_core::diagnostics::file_name());
-    let target = path.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        teitunnel_core::diagnostics::write(&files, &target)
-    })
+    crate::ipc::app::save_to_downloads(
+        &app,
+        &teitunnel_core::diagnostics::file_name(),
+        move |path| teitunnel_core::diagnostics::write(&files, path),
+    )
     .await
-    .map_err(|e| AppError::internal(e.to_string()))?
-    .map_err(|e| AppError::internal(format!("Couldn't save the diagnostics: {e}")))?;
-    let _ = app.opener().reveal_item_in_dir(&path);
-    Ok(path.display().to_string())
 }

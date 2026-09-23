@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { LogLine } from "@/lib/ipc/bindings";
 import { LogViewer } from "./log-viewer";
 
@@ -53,5 +53,23 @@ describe("LogViewer", () => {
     expect(within(screen.getByRole("log")).getAllByRole("listitem")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Resume the log" }));
     expect(within(screen.getByRole("log")).getAllByRole("listitem")).toHaveLength(4);
+  });
+
+  it("renders only the rows in view, however many lines there are", () => {
+    const many = Array.from({ length: 5_000 }, (_, i) => line("info", `request ${i}`));
+    render(<LogViewer lines={many} empty="Nothing yet." />);
+    const rendered = within(screen.getByRole("log")).getAllByRole("listitem");
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.length).toBeLessThan(200);
+  });
+
+  it("saves the visible lines as text", () => {
+    const onSave = vi.fn();
+    render(<LogViewer lines={lines} empty="Nothing yet." onSave={onSave} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Errors" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save the visible lines to a file" }));
+    expect(onSave).toHaveBeenCalledWith([
+      "Unable to reach the origin service dial tcp 127.0.0.1:3000: connection refused",
+    ]);
   });
 });

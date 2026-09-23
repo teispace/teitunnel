@@ -160,6 +160,12 @@ pub fn write(files: &[BundleFile], path: &Path) -> std::io::Result<()> {
 
 /// `teitunnel-diagnostics-2026-09-23-1405.tar.gz` for the current UTC time.
 pub fn file_name() -> String {
+    timestamped_name("teitunnel-diagnostics", "tar.gz")
+}
+
+/// `<prefix>-2026-09-23-1405.<extension>` for the current UTC time: names for files the
+/// app saves, sorted by when they were made.
+pub fn timestamped_name(prefix: &str, extension: &str) -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -167,7 +173,7 @@ pub fn file_name() -> String {
     let (y, m, d) = civil_from_days(days);
     let minutes = (secs % 86_400) / 60;
     format!(
-        "teitunnel-diagnostics-{y:04}-{m:02}-{d:02}-{:02}{:02}.tar.gz",
+        "{prefix}-{y:04}-{m:02}-{d:02}-{:02}{:02}.{extension}",
         minutes / 60,
         minutes % 60
     )
@@ -257,5 +263,7 @@ mod tests {
         assert_eq!(civil_from_days(0), (1970, 1, 1));
         assert_eq!(civil_from_days(20_719), (2026, 9, 23));
         assert!(file_name().starts_with("teitunnel-diagnostics-20"));
+        let log = timestamped_name("teitunnel-log", "txt");
+        assert!(log.starts_with("teitunnel-log-20") && log.ends_with(".txt"));
     }
 }

@@ -23,7 +23,14 @@ import { openUrl } from "@/lib/open-url";
 import { DriftBanner } from "./components/drift-banner";
 import { ImportSheet } from "./components/import-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
-import { useActivity, useLocalSetups, useRouteLogs, useRoutesOverview, useVerify } from "./queries";
+import {
+  useActivity,
+  useLocalSetups,
+  useRouteLogs,
+  useRoutesOverview,
+  useSaveLog,
+  useVerify,
+} from "./queries";
 import { connectorStatus, routeStatus } from "./status";
 
 const routeKey = (route: RouteView) => `${route.hostname}${route.path ?? ""}`;
@@ -360,11 +367,13 @@ function RouteLogs({
   path: string | null;
 }) {
   const lines = useRouteLogs(accountId, hostname, path).data ?? [];
+  const save = useSaveLog();
   return (
     <InspectorSection title="Logs">
       <LogViewer
         lines={lines}
         height={160}
+        onSave={save}
         empty="No failed requests. cloudflared logs requests that fail; it logs every request only at debug level."
       />
     </InspectorSection>

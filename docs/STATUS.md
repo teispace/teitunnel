@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. M5 rest: log viewer virtualization + export (M5-03), edge colo names (M5-01), close-window setting (M5-06), systemd/Task Scheduler adapter stubs (M5-05).
+1. M5 rest: edge colo names (M5-01), close-window setting (M5-06), systemd/Task Scheduler adapter stubs (M5-05).
 2. Nightly real-account job (needs the maintainer's test token).
 3. M6 distribution (signing/notarization need the maintainer's Developer ID).
 4. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
@@ -21,6 +21,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M5-03 complete: virtualized log viewer, Save to Downloads (redacted).
 - 2026-09-23: M5-03 per-route logs (backend filter by rule + service), bounded and tail-read Always-on log files (D-050).
 - 2026-09-23: M5-02 complete: Overview traffic card.
 - 2026-09-23: M5-05 cloudflared updates move running connectors onto the new binary without a gap (D-049).

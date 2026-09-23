@@ -7,7 +7,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 mod accounts;
-mod app;
+pub(crate) mod app;
 mod doctor;
 mod events;
 mod quick_share;
@@ -30,6 +30,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
         .error_handling(ErrorHandlingMode::Throw)
         .commands(collect_commands![
             app::app_info,
+            app::app_save_log,
             app::app_ready,
             app::app_accent_color,
             app::app_report_error,

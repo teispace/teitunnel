@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   type Change,
   commands,
@@ -9,7 +10,7 @@ import {
   type StepState,
   type Traffic,
 } from "@/lib/ipc/bindings";
-import { call } from "@/lib/ipc/client";
+import { call, toIpcError } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
 import { appendSeries } from "@/lib/traffic";
 
@@ -161,6 +162,16 @@ export function useStopForeign() {
 }
 
 /** This Mac's connector's newest log lines, polled while shown. */
+/** Saves log lines to Downloads (redacted) and shows the file in Finder. */
+export function useSaveLog() {
+  const { mutate } = useMutation({
+    mutationFn: (lines: string[]) => call(commands.appSaveLog(lines)),
+    onSuccess: () => toast.success("Saved the log to Downloads"),
+    onError: (error) => toast.error(toIpcError(error).message),
+  });
+  return mutate;
+}
+
 /** Log lines about one route's requests (filtered in the backend by its ingress rule). */
 export function useRouteLogs(accountId: string, hostname: string, path: string | null) {
   return useQuery({

@@ -25,6 +25,7 @@ import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
   useAlwaysOn,
   useForeignConnectors,
+  useSaveLog,
   useSetAlwaysOn,
   useStopForeign,
   useTunnelAction,
@@ -273,9 +274,10 @@ function AlwaysOnRow({ accountId }: { accountId: string }) {
 
 function TunnelLogs({ tunnelId }: { tunnelId: string }) {
   const lines = useTunnelLogs(tunnelId, true).data ?? [];
+  const save = useSaveLog();
   return (
     <InspectorSection title="Logs">
-      <LogViewer lines={lines} empty="The connector hasn't logged anything yet." />
+      <LogViewer lines={lines} empty="The connector hasn't logged anything yet." onSave={save} />
     </InspectorSection>
   );
 }

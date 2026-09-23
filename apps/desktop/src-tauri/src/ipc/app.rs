@@ -113,3 +113,44 @@ pub fn app_set_open_at_login(app: AppHandle, enabled: bool) -> Result<(), AppErr
     };
     result.map_err(|e| AppError::internal(format!("Couldn't change the login item: {e}")))
 }
+
+/// Writes a file named `name` to Downloads (or home), shows it in Finder, and returns
+/// its path. `write` runs off the async runtime.
+pub(crate) async fn save_to_downloads<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    name: &str,
+    write: impl FnOnce(&std::path::Path) -> std::io::Result<()> + Send + 'static,
+) -> Result<String, AppError> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().home_dir())
+        .map_err(|e| AppError::internal(e.to_string()))?;
+    let path = dir.join(name);
+    let target = path.clone();
+    tauri::async_runtime::spawn_blocking(move || write(&target))
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?
+        .map_err(|e| AppError::internal(format!("Couldn't save {name}: {e}")))?;
+    let _ = app.opener().reveal_item_in_dir(&path);
+    Ok(path.display().to_string())
+}
+
+/// Saves log lines (as shown, after filtering) to a text file in Downloads, with
+/// anything secret-looking redacted, and shows it in Finder. Returns its path.
+#[tauri::command]
+#[specta::specta]
+pub async fn app_save_log(app: AppHandle, lines: Vec<String>) -> Result<String, AppError> {
+    let name = teitunnel_core::diagnostics::timestamped_name("teitunnel-log", "txt");
+    save_to_downloads(&app, &name, move |path| {
+        let mut text = lines
+            .iter()
+            .map(|line| teitunnel_core::redact::redact(line).into_owned())
+            .collect::<Vec<_>>()
+            .join("\n");
+        text.push('\n');
+        std::fs::write(path, text)
+    })
+    .await
+}

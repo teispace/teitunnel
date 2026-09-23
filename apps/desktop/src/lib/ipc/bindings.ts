@@ -10,6 +10,11 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns the app version, platform and data directory. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**
+	 *  Saves log lines (as shown, after filtering) to a text file in Downloads, with
+	 *  anything secret-looking redacted, and shows it in Finder. Returns its path.
+	 */
+	appSaveLog: (lines: string[]) => __TAURI_INVOKE<string>("app_save_log", { lines }),
 	/**  Called by a webview once its first frame is painted; shows its window. */
 	appReady: () => __TAURI_INVOKE<void>("app_ready"),
 	/**  The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default. */
