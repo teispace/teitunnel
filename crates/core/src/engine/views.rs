@@ -6,10 +6,11 @@ use sha2::{Digest, Sha256};
 
 use super::{
     access::{AccessRule, access_domain},
+    networks::NETWORK_COMMENT,
     types::{Intent, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef, tunnel_target},
 };
 use crate::{
-    domain::{Hostname, PathRule, RouteOrigin},
+    domain::{ClientAccess, Hostname, PathRule, PrivateNetwork, RouteOrigin},
     runtime::ConnectorState,
 };
 
@@ -74,6 +75,16 @@ pub enum Change {
         /// The routes.
         routes: Vec<RouteInput>,
     },
+    /// Let WARP clients reach a private range through this Mac's tunnel.
+    AddNetwork {
+        /// An IP address or CIDR range, e.g. `192.168.1.0/24`.
+        network: String,
+    },
+    /// Stop sharing a private range.
+    RemoveNetwork {
+        /// The range.
+        network: String,
+    },
     /// Delete one DNS record (an orphan found by the Doctor).
     DeleteRecord {
         /// Zone id.
@@ -89,7 +100,7 @@ pub enum Change {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{message}")]
 pub struct InputError {
-    /// `hostname`, `path`, `origin` or `access`.
+    /// `hostname`, `path`, `origin`, `access` or `network`.
     pub field: &'static str,
     /// What's wrong.
     pub message: String,
@@ -209,6 +220,12 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             hostname: parse_hostname(hostname)?,
             record_id: record_id.clone(),
         },
+        Change::AddNetwork { network } => Intent::AddNetwork {
+            network: PrivateNetwork::parse(network).map_err(|e| invalid("network", &e))?,
+        },
+        Change::RemoveNetwork { network } => Intent::RemoveNetwork {
+            network: PrivateNetwork::parse(network).map_err(|e| invalid("network", &e))?,
+        },
         Change::RemoveLogin { domain } => Intent::RemoveLogin {
             domain: domain.trim().to_ascii_lowercase(),
         },
@@ -242,6 +259,8 @@ pub enum StepKind {
     LoginMethod,
     /// Create, change or remove a route's login.
     AccessApp,
+    /// Route or stop routing a private network.
+    NetworkRoute,
     /// Check the route works.
     Verify,
 }
@@ -290,6 +309,9 @@ impl Step {
                 Self::CreateAccessApp { .. }
                 | Self::UpdateAccessApp { .. }
                 | Self::DeleteAccessApp { .. } => StepKind::AccessApp,
+                Self::CreateNetworkRoute { .. } | Self::DeleteNetworkRoute { .. } => {
+                    StepKind::NetworkRoute
+                }
                 Self::Verify { .. } => StepKind::Verify,
             },
             description: self.describe(tunnel_name),
@@ -349,6 +371,8 @@ pub struct RouteView {
     pub dns: DnsState,
     /// Who may reach it, when Teitunnel added a login.
     pub access: Option<AccessRule>,
+    /// What visitors run to reach it, for SSH, RDP, SMB and TCP routes.
+    pub client: Option<ClientAccess>,
 }
 
 /// This Mac's tunnel.
@@ -375,6 +399,23 @@ pub struct RoutesOverview {
     pub routes: Vec<RouteView>,
     /// Domains routes can use.
     pub zones: Vec<ZoneRef>,
+    /// Private networks shared through this Mac's tunnel, sorted; `None` when the
+    /// credential can't read them.
+    pub networks: Option<Vec<NetworkView>>,
+}
+
+/// A private network shared through this Mac's tunnel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkView {
+    /// The range, e.g. `192.168.1.0/24`.
+    pub network: String,
+    /// In private address space (a public range takes those addresses over for WARP
+    /// clients).
+    pub private: bool,
+    /// Teitunnel added it (otherwise it was added in the dashboard or with cloudflared).
+    pub owned: bool,
 }
 
 impl RoutesOverview {
@@ -442,9 +483,14 @@ pub(crate) fn overview(
                 let app = a.app(&domain).filter(|app| app.owned)?;
                 app.rule.clone()
             });
+            let origin = RouteOrigin::parse(&rule.service).ok();
             Some(RouteView {
                 access,
-                local: RouteOrigin::parse(&rule.service).is_ok_and(|o| o.is_local()),
+                client: parsed
+                    .as_ref()
+                    .zip(origin.as_ref())
+                    .and_then(|(h, o)| ClientAccess::of(h, o)),
+                local: origin.is_some_and(|o| o.is_local()),
                 origin: rule.service.clone(),
                 path: rule.path.clone(),
                 zone,
@@ -462,6 +508,28 @@ pub(crate) fn overview(
         }),
         routes,
         zones: snapshot.zones.clone(),
+        networks: snapshot.networks.as_ref().map(|state| {
+            let Some(tunnel) = &snapshot.tunnel else {
+                return Vec::new();
+            };
+            let mut networks: Vec<(PrivateNetwork, NetworkView)> = state
+                .of_tunnel(&tunnel.id)
+                .filter_map(|r| {
+                    let range = r.range()?;
+                    Some((
+                        range,
+                        NetworkView {
+                            network: range.to_string(),
+                            private: range.is_private(),
+                            owned: r.comment == NETWORK_COMMENT,
+                        },
+                    ))
+                })
+                .collect();
+            networks.sort_by_key(|a| a.0);
+            networks.dedup_by(|a, b| a.0 == b.0);
+            networks.into_iter().map(|(_, view)| view).collect()
+        }),
     }
 }
 
@@ -517,6 +585,7 @@ mod tests {
     fn route_statuses_combine_dns_and_connector() {
         let route = |host: &str, dns: DnsState| RouteView {
             access: None,
+            client: None,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),
@@ -535,6 +604,7 @@ mod tests {
                 route("b.xyz.com", DnsState::Missing),
             ],
             zones: Vec::new(),
+            networks: None,
         };
         assert_eq!(
             overview.statuses(),

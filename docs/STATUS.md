@@ -13,7 +13,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 ## Next up
 1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
 2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
-3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; next M9-05 private networks.
+3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done (incl. Doctor `access.orphan`); remote connectors and logs done (M9-04); CLI extras (`share`, `doctor`, completions) done; private networks and `cloudflared access` helpers (M9-05) done; next M9-06 i18n.
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
 6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.
@@ -24,6 +24,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M9-05 private networks: share a CIDR range with WARP clients through this Mac's tunnel (engine steps with rollback, default virtual network, conflicts/overlaps/public-range confirmation), Tunnels ▸ Private Networks + sheet, CLI `network add/remove` and `networks`, Doctor WARP checks (`network.excluded`, `network.not_included`, `network.proxy_off`), `cloudflared access` commands for SSH/RDP/SMB/TCP routes (no HTTPS verify for them), docs guide (D-060). fake-cloudflare serves teamnet endpoints.
 - 2026-09-23: M9-02 CLI extras: `share` (Quick Share for the command's lifetime, reaping of a killed CLI's connector), `doctor` (checks, safe fixes, exit codes), shell completions (D-059). Fixed: concurrent processes could pick the same metrics port (allocation now spread by pid).
 - 2026-09-23: M9-04 remote connectors: machines per tunnel with This Mac marked, live logs of any connector through Cloudflare's management relay, Doctor warning when another machine runs this Mac's tunnel; replicas deliberately left to Export (D-058).
 - 2026-09-23: M9-03 Require a login (Cloudflare Access): engine steps with rollback, ownership index, Access read only when needed, verify recognizes the login redirect, route sheet + list + inspector, CLI `--allow`, docs guide (D-057). Fixed: views using charts crashed on WebKitGTK under `LANG=C` (uPlot passed the invalid `navigator.language` to `Intl`); the app now repairs the language at startup (Linux E2E failure).
@@ -64,7 +65,8 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session
-- **Resume point:** branch `milestone/m5-observability-always-on`. Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
+- **Resume point:** branch `milestone/m6-polish-docs` (M9 work stacks here). M9-05 is committed; next is M9-06 i18n (see the plan). Follow-ups from M9-05: other virtual networks are read but not managed; the real-edge behaviour of an HTTP probe against SSH routes was not checked (verify is now skipped for them).
+- Previous resume point: branch `milestone/m5-observability-always-on`. Check `gh run list` first; fix red CI before new work. Then continue with "Next up".
 - Engine entry points (crates/core/src/engine): `Engine::{preview, apply, verify, drift, keep_theirs}`; ports `CloudApi` (impl for `cf_api::Client`, fake in `engine/fake.rs`) and `Connectors` (impl `machine::MachineTunnels`). Desktop must call `MachineTunnels::forget_account` before `Accounts::remove`.
 - **Locked screen:** during unattended sessions the screen locks; macOS then stops compositing windows and `screencapture` returns blank content. Never send clicks/keys while locked. Use `pnpm --filter @teitunnel/desktop shoot` (WebKit) instead (D-030). Keep the Mac awake with `caffeinate -dimsu`.
 - Visual verification helpers (recreate in the scratchpad if missing): a Swift `winid` tool (CGWindowList → window id), `screencapture -x -o -l <id>`, and Pillow for pixel sampling. Reference screenshots: System Settings and Finder on macOS 27.

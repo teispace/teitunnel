@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   type LucideIcon,
   Minus,
+  Network,
   Power,
   RotateCcw,
   Route as RouteIcon,
@@ -28,6 +29,7 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   deleteTunnel: Waypoints,
   loginMethod: KeyRound,
   accessApp: LockKeyhole,
+  networkRoute: Network,
   verify: CircleCheck,
 };
 
@@ -78,6 +80,10 @@ function warningText(warning: Warning): string {
       return "No routes will be left. The tunnel stays, so adding a route later is quick.";
     case "remoteOrigin":
       return `${warning.origin} isn't on this Mac. It must be reachable from here.`;
+    case "publicNetwork":
+      return `${warning.network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.`;
+    case "overlapsNetwork":
+      return `${warning.network} overlaps ${warning.other}, which goes through tunnel “${warning.tunnel}”. For addresses in both, the narrower range wins.`;
   }
 }
 

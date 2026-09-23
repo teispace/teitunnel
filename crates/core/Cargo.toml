@@ -38,6 +38,7 @@ getrandom.workspace = true
 idna.workspace = true
 sha2.workspace = true
 listeners.workspace = true
+ipnet.workspace = true
 qrcode.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
 tracing.workspace = true

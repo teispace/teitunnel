@@ -10,6 +10,7 @@ mod dns;
 mod envelope;
 mod error;
 mod management;
+mod networks;
 mod probe;
 mod resources;
 mod token;
@@ -25,6 +26,9 @@ pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
 pub use management::{
     Connector, ConnectorConnection, LogStream, MANAGEMENT_BASE, RemoteLog, StreamError,
+};
+pub use networks::{
+    DefaultDeviceProfile, DeviceSettings, NetworkRoute, SplitTunnelEntry, VirtualNetwork,
 };
 pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};

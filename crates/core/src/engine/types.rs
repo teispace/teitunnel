@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::domain::{Hostname, PathRule, RouteOrigin};
+use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
 
 /// The DNS comment that marks a record as created by Teitunnel for a route.
 pub fn ownership_comment(route_id: &str) -> String {
@@ -105,6 +105,9 @@ pub struct Snapshot {
     /// Access for the domains involved; read only when a change involves a login.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub access: Option<super::access::AccessState>,
+    /// Private network routes; read only when a change involves them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub networks: Option<super::networks::NetworkState>,
 }
 
 impl Snapshot {
@@ -185,6 +188,16 @@ pub enum Intent {
         /// Record id.
         record_id: String,
     },
+    /// Let WARP clients reach a private range through this Mac's tunnel.
+    AddNetwork {
+        /// The range.
+        network: PrivateNetwork,
+    },
+    /// Stop routing a private range to this Mac's tunnel.
+    RemoveNetwork {
+        /// The range.
+        network: PrivateNetwork,
+    },
     /// Remove a login Teitunnel added whose route is gone (Doctor cleanup).
     RemoveLogin {
         /// The Access domain (hostname and optional path).
@@ -209,7 +222,10 @@ impl Intent {
                 Some(vec![hostname])
             }
             Self::RemoveTunnel => None,
-            Self::RestoreConfig { .. } | Self::RemoveLogin { .. } => Some(Vec::new()),
+            Self::RestoreConfig { .. }
+            | Self::RemoveLogin { .. }
+            | Self::AddNetwork { .. }
+            | Self::RemoveNetwork { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
         }
     }
@@ -250,6 +266,8 @@ impl Intent {
             }
             Self::DeleteRecord { hostname, .. } => format!("Delete the DNS record for {hostname}"),
             Self::RemoveLogin { domain } => format!("Remove the login from {domain}"),
+            Self::AddNetwork { network } => format!("Share private network {network}"),
+            Self::RemoveNetwork { network } => format!("Stop sharing private network {network}"),
             Self::ImportRoutes { routes } => format!(
                 "Import {} route{} from cloudflared",
                 routes.len(),
@@ -359,6 +377,18 @@ pub enum Step {
         /// What it was, for rollback.
         previous: NewAccessApp,
     },
+    /// Route a private range to the tunnel (default virtual network).
+    CreateNetworkRoute {
+        /// The range.
+        network: PrivateNetwork,
+        /// Target tunnel.
+        tunnel: TunnelRef,
+    },
+    /// Remove a private range's route.
+    DeleteNetworkRoute {
+        /// The route (for rollback and review).
+        route: super::networks::ObservedNetworkRoute,
+    },
     /// Probe the hostname end to end.
     Verify {
         /// Hostname.
@@ -407,6 +437,12 @@ impl Step {
             Self::DeleteAccessApp { previous, .. } => {
                 format!("Remove the login from {}", previous.domain)
             }
+            Self::CreateNetworkRoute { network, .. } => {
+                format!("Route private network {network} to tunnel “{tunnel_name}”")
+            }
+            Self::DeleteNetworkRoute { route } => {
+                format!("Remove the route for private network {}", route.network)
+            }
             Self::Verify { hostname } => format!("Check https://{hostname} works"),
         }
     }
@@ -449,6 +485,13 @@ impl Step {
             }
             Self::DeleteAccessApp { id, .. } => Some(format!(
                 "curl -X DELETE {auth} {API}/accounts/{account_id}/access/apps/{id}"
+            )),
+            Self::CreateNetworkRoute { network, .. } => Some(format!(
+                "cloudflared tunnel route ip add {network} '{tunnel_name}'"
+            )),
+            Self::DeleteNetworkRoute { route } => Some(format!(
+                "cloudflared tunnel route ip delete {}",
+                route.network
             )),
             Self::Verify { hostname } => Some(format!("curl -I https://{hostname}")),
             _ => None,
@@ -499,6 +542,22 @@ pub enum Warning {
     RemoteOrigin {
         /// The origin.
         origin: String,
+    },
+    /// The range isn't private address space: WARP clients would send traffic for those
+    /// public addresses to this Mac instead of the internet.
+    PublicNetwork {
+        /// The range.
+        network: String,
+    },
+    /// Part of the range is already routed to another tunnel; the more specific route
+    /// wins for the addresses both cover.
+    OverlapsNetwork {
+        /// The range being added.
+        network: String,
+        /// The other route's range.
+        other: String,
+        /// The other route's tunnel.
+        tunnel: String,
     },
 }
 

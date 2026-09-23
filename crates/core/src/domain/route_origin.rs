@@ -126,6 +126,14 @@ impl RouteOrigin {
         rest.rsplit_once(':')?.1.parse().ok()
     }
 
+    /// Whether a browser can open it: HTTP(S) and sockets, not SSH, RDP, SMB or raw TCP
+    /// (those need `cloudflared access` on the visitor's side).
+    pub fn is_web(&self) -> bool {
+        !["tcp://", "ssh://", "rdp://", "smb://"]
+            .iter()
+            .any(|scheme| self.0.starts_with(scheme))
+    }
+
     /// Whether the origin points at this machine.
     pub fn is_local(&self) -> bool {
         let Some((_, rest)) = self.0.split_once("://") else {

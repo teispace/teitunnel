@@ -12,6 +12,9 @@ teitunnel-cli route add app.example.com 3000 # route a hostname to localhost:300
 teitunnel-cli route add api.example.com 8000 --path '^/v1/'
 teitunnel-cli route add admin.example.com 3000 --allow me@example.com --allow @example.com
 teitunnel-cli route remove app.example.com
+teitunnel-cli network add 192.168.1.0/24     # let WARP users reach a range
+teitunnel-cli networks                       # the ranges this Mac shares
+teitunnel-cli network remove 192.168.1.0/24
 teitunnel-cli export terraform > teitunnel.tf
 teitunnel-cli accounts
 teitunnel-cli share 3000 --for 30m          # a temporary public URL, until Ctrl-C
@@ -24,7 +27,7 @@ teitunnel-cli doctor --fix                  # apply the safe fixes
 | `-a, --account <name or id>` | Which account, when several are connected. |
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/guides/require-login/)). |
-| `--replace` | Also allow replacing or deleting DNS records Teitunnel didn't create. |
+| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/guides/private-networks/)). |
 | `--json` | Machine-readable output for `accounts`, `routes` and `doctor`. |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |

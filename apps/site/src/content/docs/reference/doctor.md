@@ -57,6 +57,14 @@ Each problem's check id (in code type) appears in diagnostics exports and bug re
 | **cloudflared is running outside Teitunnel** `tunnel.foreign_running` | For your information: another cloudflared process on this Mac. |
 | **This Mac's tunnel has no routes** `tunnel.unused_owned` | Kept so adding a route is quick. Delete it if you don't need it. |
 
+## Private networks
+
+| Problem | What to do |
+|---|---|
+| **WARP clients don't send a range to this Mac** `network.excluded` | The default device profile's Split Tunnels exclude it. Remove or narrow that entry in the Zero Trust dashboard. |
+| **WARP clients don't send a range to this Mac** `network.not_included` | Split Tunnels are in include mode and don't list the range. Add it in the Zero Trust dashboard. |
+| **WARP clients can't reach private networks** `network.proxy_off` | Turn on the Gateway proxy (TCP, and UDP if needed) in the Zero Trust dashboard. |
+
 ## Network and system
 
 | Problem | What to do |

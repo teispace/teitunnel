@@ -152,6 +152,7 @@ const routesOverview: RoutesOverview = {
       zone: "teispace.com",
       dns: { state: "ok" },
       access: null,
+      client: null,
     },
     {
       hostname: "docs.teispace.com",
@@ -161,6 +162,7 @@ const routesOverview: RoutesOverview = {
       zone: "teispace.com",
       dns: { state: "missing" },
       access: null,
+      client: null,
     },
     {
       hostname: "xyz.dev",
@@ -170,6 +172,22 @@ const routesOverview: RoutesOverview = {
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: { emails: ["me@xyz.dev"], emailDomains: ["teispace.com"] },
+      client: null,
+    },
+    {
+      hostname: "ssh.xyz.dev",
+      path: null,
+      origin: "ssh://localhost:22",
+      local: true,
+      zone: "xyz.dev",
+      dns: { state: "ok" },
+      access: { emails: ["me@xyz.dev"], emailDomains: [] },
+      client: {
+        protocol: "ssh",
+        command: 'ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.xyz.dev',
+        localAddress: null,
+        sshConfig: "Host ssh.xyz.dev\n  ProxyCommand cloudflared access ssh --hostname %h",
+      },
     },
     {
       hostname: "api.xyz.dev",
@@ -179,6 +197,7 @@ const routesOverview: RoutesOverview = {
       zone: "xyz.dev",
       dns: { state: "ok" },
       access: null,
+      client: null,
     },
   ],
   zones: [
@@ -186,6 +205,7 @@ const routesOverview: RoutesOverview = {
     { id: "9a7806061c88ada191ed06f989cc3dac", name: "xyz.dev" },
     { id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", name: "yx.app" },
   ],
+  networks: [{ network: "192.168.1.0/24", private: true, owned: true }],
 };
 
 const protectedPlan: PlanView = {
@@ -658,6 +678,18 @@ export function installMockIpc(): void {
         }
         case "doctor_run":
           return [
+            {
+              id: "network.excluded:acc-personal:192.168.1.0/24",
+              check: "network.excluded",
+              severity: "warning",
+              accountId: "acc-personal",
+              subject: "192.168.1.0/24",
+              title: "WARP clients don't send 192.168.1.0/24 to this Mac",
+              detail:
+                "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for 192.168.1.0/24 to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers 192.168.1.0/24).",
+              evidence: ["Excluded: 192.168.0.0/16"],
+              fixes: [],
+            },
             {
               id: "dns.missing:acc-personal:docs.teispace.com",
               check: "dns.missing",

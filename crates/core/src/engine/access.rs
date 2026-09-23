@@ -279,7 +279,9 @@ impl AccessNeed {
             },
             Intent::ImportRoutes { .. }
             | Intent::DeleteRecord { .. }
-            | Intent::RestoreConfig { .. } => Self::default(),
+            | Intent::RestoreConfig { .. }
+            | Intent::AddNetwork { .. }
+            | Intent::RemoveNetwork { .. } => Self::default(),
         }
     }
 

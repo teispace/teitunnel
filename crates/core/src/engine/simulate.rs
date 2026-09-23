@@ -3,6 +3,7 @@
 
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp},
+    networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute},
     types::{
         ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, ownership_comment,
         tunnel_target,
@@ -114,6 +115,27 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
             Step::DeleteAccessApp { id, .. } => {
                 if let Some(access) = next.access.as_mut() {
                     access.apps.retain(|a| a.id != *id);
+                }
+            }
+            Step::CreateNetworkRoute { network, tunnel } => {
+                record_ids += 1;
+                let state = next.networks.get_or_insert_with(|| NetworkState {
+                    default_vnet: None,
+                    routes: Vec::new(),
+                });
+                let virtual_network_id = state.default_vnet.clone();
+                state.routes.push(ObservedNetworkRoute {
+                    id: format!("sim-net-{record_ids}"),
+                    network: network.to_string(),
+                    tunnel_id: resolve(tunnel),
+                    tunnel_name: None,
+                    virtual_network_id,
+                    comment: NETWORK_COMMENT.into(),
+                });
+            }
+            Step::DeleteNetworkRoute { route } => {
+                if let Some(state) = next.networks.as_mut() {
+                    state.routes.retain(|r| r.id != route.id);
                 }
             }
             Step::StopConnector { .. } | Step::Verify { .. } => {}

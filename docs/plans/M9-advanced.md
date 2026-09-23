@@ -28,7 +28,7 @@ Per-route "Require login": visitors sign in (one-time PIN to their email, or the
 - [x] Replicas ("run the same tunnel on several machines") deliberately not a one-click feature: Teitunnel's routes point at this Mac's localhost, so a second connector would get a share of requests for services it doesn't have. Running elsewhere stays Export (Docker Compose / config.yml) for origins reachable from both (D-058).
 
 ### M9-05 · Private networks
-- [ ] CIDR routes and virtual networks for WARP clients; `cloudflared access` helpers for SSH/RDP/TCP.
+- [x] CIDR routes for WARP clients (default virtual network), Doctor checks of the WARP settings that block them, `cloudflared access` helpers for SSH/RDP/SMB/TCP routes (D-060). Other virtual networks are read but not managed.
 
 ### M9-06 · i18n
 - [ ] Extract strings, community translations.

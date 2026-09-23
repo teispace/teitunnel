@@ -278,7 +278,11 @@ export type ActivityKind =
 /**  Routes were restored after an outside edit. */
 "restoreConfig" | 
 /**  A login whose route was gone was removed (Doctor cleanup). */
-"removeLogin";
+"removeLogin" | 
+/**  A private network was shared. */
+"addNetwork" | 
+/**  A private network stopped being shared. */
+"removeNetwork";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -384,6 +388,14 @@ domain: string } |
 { type: "importRoutes"; 
 /**  The routes. */
 routes: RouteInput[] } | 
+/**  Let WARP clients reach a private range through this Mac's tunnel. */
+{ type: "addNetwork"; 
+/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+network: string } | 
+/**  Stop sharing a private range. */
+{ type: "removeNetwork"; 
+/**  The range. */
+network: string } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 { type: "deleteRecord"; 
 /**  Zone id. */
@@ -392,6 +404,29 @@ zoneId: string;
 hostname: string; 
 /**  Record id. */
 recordId: string };
+
+/**  What a visitor runs to reach a non-HTTP route. */
+export type ClientAccess = {
+	/**  The protocol. */
+	protocol: ClientProtocol,
+	/**  The command to run (SSH: to connect; others: to open the local port). */
+	command: string,
+	/**  Where the visitor's app connects once the command runs (`None` for SSH). */
+	localAddress: string | null,
+	/**  An `~/.ssh/config` entry, so plain `ssh <hostname>` works (SSH only). */
+	sshConfig: string | null,
+};
+
+/**  The protocol a non-HTTP route carries. */
+export type ClientProtocol = 
+/**  SSH. */
+"ssh" | 
+/**  Remote Desktop. */
+"rdp" | 
+/**  Windows file sharing. */
+"smb" | 
+/**  Any TCP service (a database, …). */
+"tcp";
 
 /**  One edge connection of a connector. */
 export type ConnectionView = {
@@ -476,6 +511,8 @@ export type DeltaArea =
 "route" | 
 /**  A DNS record. */
 "dns" | 
+/**  A private network route. */
+"network" | 
 /**  A route's login (Cloudflare Access). */
 "access";
 
@@ -845,6 +882,19 @@ export type MenuCommand =
 /**  Help ▸ Export Diagnostics… */
 "exportDiagnostics";
 
+/**  A private network shared through this Mac's tunnel. */
+export type NetworkView = {
+	/**  The range, e.g. `192.168.1.0/24`. */
+	network: string,
+	/**
+	 *  In private address space (a public range takes those addresses over for WARP
+	 *  clients).
+	 */
+	private: boolean,
+	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
+	owned: boolean,
+};
+
 /**
  *  An HTTP(S) origin cloudflared can proxy to, e.g. `http://localhost:3000`.
  * 
@@ -978,6 +1028,8 @@ export type RouteView = {
 	dns: DnsState,
 	/**  Who may reach it, when Teitunnel added a login. */
 	access: AccessRule | null,
+	/**  What visitors run to reach it, for SSH, RDP, SMB and TCP routes. */
+	client: ClientAccess | null,
 };
 
 /**  Everything the Routes view shows for an account. */
@@ -988,6 +1040,11 @@ export type RoutesOverview = {
 	routes: RouteView[],
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
+	/**
+	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
+	 *  credential can't read them.
+	 */
+	networks: NetworkView[] | null,
 };
 
 /**  One route that differs between what Teitunnel wrote and what's there now. */
@@ -1132,6 +1189,8 @@ export type StepKind =
 "loginMethod" | 
 /**  Create, change or remove a route's login. */
 "accessApp" | 
+/**  Route or stop routing a private network. */
+"networkRoute" | 
 /**  Check the route works. */
 "verify";
 
@@ -1299,7 +1358,25 @@ hostname: string } |
 /**  The origin isn't on this Mac, so it must be reachable from here. */
 { type: "remoteOrigin"; 
 /**  The origin. */
-origin: string };
+origin: string } | 
+/**
+ *  The range isn't private address space: WARP clients would send traffic for those
+ *  public addresses to this Mac instead of the internet.
+ */
+{ type: "publicNetwork"; 
+/**  The range. */
+network: string } | 
+/**
+ *  Part of the range is already routed to another tunnel; the more specific route
+ *  wins for the addresses both cover.
+ */
+{ type: "overlapsNetwork"; 
+/**  The range being added. */
+network: string; 
+/**  The other route's range. */
+other: string; 
+/**  The other route's tunnel. */
+tunnel: string };
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {

@@ -6,12 +6,14 @@ interface CopyFieldProps {
   value: string;
   label: string;
   className?: string;
+  /** Show every line (e.g. a config snippet) instead of one truncated line. */
+  multiline?: boolean;
 }
 
 const CONFIRM_MS = 1400;
 
 /** A selectable monospace value with a copy button that confirms with a tick. */
-export function CopyField({ value, label, className }: CopyFieldProps) {
+export function CopyField({ value, label, className, multiline = false }: CopyFieldProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -26,11 +28,18 @@ export function CopyField({ value, label, className }: CopyFieldProps) {
   return (
     <div
       className={cn(
-        "flex h-6 min-w-0 items-center rounded-control bg-surface-inset pr-0.5 pl-2",
+        "flex min-w-0 rounded-control bg-surface-inset pr-0.5 pl-2",
+        multiline ? "items-start py-0.5" : "h-6 items-center",
         className,
       )}
     >
-      <span className="selectable min-w-0 flex-1 truncate font-mono text-mono" title={value}>
+      <span
+        className={cn(
+          "selectable min-w-0 flex-1 font-mono text-mono",
+          multiline ? "overflow-x-auto whitespace-pre py-0.5" : "truncate",
+        )}
+        title={multiline ? undefined : value}
+      >
         {value}
       </span>
       <button

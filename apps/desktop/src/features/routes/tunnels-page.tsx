@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import type { ConnectorView, ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { NetworksSection } from "./components/networks-section";
 import { RemoteLogsSheet } from "./components/remote-logs-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
 import {
@@ -182,11 +183,13 @@ function TunnelInspector({
   accountId,
   onDelete,
   onConnectorLogs,
+  onSheet,
 }: {
   tunnel: TunnelSummary;
   accountId: string;
   onDelete: () => void;
   onConnectorLogs: (connector: ConnectorView) => void;
+  onSheet: (mode: SheetMode) => void;
 }) {
   const action = useTunnelAction(accountId);
   const running = tunnel.connector !== null && tunnel.connector.state !== "stopped";
@@ -253,6 +256,13 @@ function TunnelInspector({
           </ul>
         )}
       </InspectorSection>
+      {tunnel.thisMac ? (
+        <NetworksSection
+          accountId={accountId}
+          onAdd={() => onSheet({ kind: "addNetwork" })}
+          onRemove={(network) => onSheet({ kind: "removeNetwork", network })}
+        />
+      ) : null}
       {tunnel.thisMac ? <AlwaysOnRow accountId={accountId} /> : null}
       {tunnel.thisMac ? <TunnelTraffic tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
@@ -376,7 +386,12 @@ export function TunnelsPage() {
     <EmptyState
       icon={Network}
       title="No tunnels"
-      description="Teitunnel creates a tunnel for this Mac when you add your first route."
+      description="Teitunnel creates a tunnel for this Mac when you add your first route or share a private network."
+      action={
+        active ? (
+          <Button onClick={() => setSheet({ kind: "addNetwork" })}>Share a Private Network…</Button>
+        ) : undefined
+      }
     />
   ) : (
     <SplitView
@@ -427,6 +442,7 @@ export function TunnelsPage() {
             tunnel={selected.tunnel}
             accountId={active.id}
             onDelete={() => setSheet({ kind: "removeTunnel" })}
+            onSheet={setSheet}
             onConnectorLogs={(connector) => setRemote({ tunnelId: selected.tunnel.id, connector })}
           />
         </div>

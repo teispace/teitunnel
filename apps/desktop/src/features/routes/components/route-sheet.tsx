@@ -25,6 +25,8 @@ export type SheetMode =
   | { kind: "remove"; route: RouteView }
   | { kind: "restore" }
   | { kind: "removeTunnel" }
+  | { kind: "addNetwork" }
+  | { kind: "removeNetwork"; network: string }
   /** A Doctor fix: any change, reviewed like the others. */
   | { kind: "fix"; change: Change; label: string };
 
@@ -36,6 +38,8 @@ const titles: Record<SheetMode["kind"], string> = {
   remove: "Remove Route",
   restore: "Restore Routes",
   removeTunnel: "Delete Tunnel",
+  addNetwork: "Share a Private Network",
+  removeNetwork: "Stop Sharing Network",
   fix: "Fix Issue",
 };
 
@@ -45,6 +49,8 @@ const applyLabels: Record<SheetMode["kind"], string> = {
   remove: "Remove",
   restore: "Restore",
   removeTunnel: "Delete Tunnel",
+  addNetwork: "Share",
+  removeNetwork: "Stop Sharing",
   fix: "Apply",
 };
 
@@ -58,9 +64,15 @@ interface Form {
   path: string;
   /** Who can sign in, as typed; `null`: no login. */
   allowed: string | null;
+  /** A private network, as typed. */
+  network: string;
 }
 
-const emptyForm: Form = { hostname: "", origin: "", path: "", allowed: null };
+const emptyForm: Form = { hostname: "", origin: "", path: "", allowed: null, network: "" };
+
+/** Modes that start with a form (the others go straight to review). */
+const hasForm = (kind: SheetMode["kind"]) =>
+  kind === "add" || kind === "edit" || kind === "addNetwork";
 
 /** The change a sheet applies, from what's in its form. */
 function changeFor(mode: SheetMode, form: Form) {
@@ -90,6 +102,10 @@ function changeFor(mode: SheetMode, form: Form) {
       return { type: "restoreConfig" } satisfies Change;
     case "removeTunnel":
       return { type: "removeTunnel" } satisfies Change;
+    case "addNetwork":
+      return { type: "addNetwork", network: form.network } satisfies Change;
+    case "removeNetwork":
+      return { type: "removeNetwork", network: mode.network } satisfies Change;
     case "fix":
       return mode.change;
   }
@@ -126,6 +142,10 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
             },
           }
         : null;
+    case "addNetwork":
+      return { type: "removeNetwork", network: change.network };
+    case "removeNetwork":
+      return mode.kind === "removeNetwork" ? { type: "addNetwork", network: change.network } : null;
     default:
       return null;
   }
@@ -137,6 +157,8 @@ const doneMessages: Partial<Record<SheetMode["kind"], string>> = {
   remove: "Route removed",
   restore: "Routes restored",
   removeTunnel: "Tunnel deleted",
+  addNetwork: "Network shared",
+  removeNetwork: "Network no longer shared",
   fix: "Fixed",
 };
 
@@ -159,6 +181,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const [origin, setOrigin] = useState("");
   const [path, setPath] = useState("");
   const [allowed, setAllowed] = useState<string | null>(null);
+  const [network, setNetwork] = useState("");
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -189,13 +212,14 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     setOrigin(route ? shortOrigin(route.origin) : "");
     setPath(route?.path ?? "");
     setAllowed(route?.access ? formatAllowed(route.access) : null);
+    setNetwork("");
     setPlan(null);
     setOutcome(null);
     setNotice(null);
     preview.reset();
     apply.reset();
     verify.reset();
-    if (mode.kind === "add" || mode.kind === "edit") {
+    if (hasForm(mode.kind)) {
       setStage("form");
     } else {
       setStage("review");
@@ -205,7 +229,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
 
   const submitForm = (event: FormEvent) => {
     event.preventDefault();
-    if (mode) review(changeFor(mode, { hostname, origin, path, allowed }));
+    if (mode) review(changeFor(mode, { hostname, origin, path, allowed, network }));
   };
 
   const runApply = () => {
@@ -260,7 +284,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   };
   const generalError: IpcError | null =
     preview.error &&
-    !["hostname", "origin", "path", "access"].includes(toIpcError(preview.error).field ?? "")
+    !["hostname", "origin", "path", "access", "network"].includes(
+      toIpcError(preview.error).field ?? "",
+    )
       ? toIpcError(preview.error)
       : apply.error && toIpcError(apply.error).code !== "conflict"
         ? toIpcError(apply.error)
@@ -270,6 +296,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const destructive =
     kind === "remove" ||
     kind === "removeTunnel" ||
+    kind === "removeNetwork" ||
     (mode?.kind === "fix" &&
       (mode.change.type === "deleteRecord" ||
         mode.change.type === "removeTunnel" ||
@@ -289,7 +316,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               variant="primary"
               type="submit"
               form="route-form"
-              disabled={preview.isPending || origin.trim() === ""}
+              disabled={
+                preview.isPending || (kind === "addNetwork" ? network : origin).trim() === ""
+              }
             >
               {preview.isPending ? "Checking…" : "Review"}
             </Button>
@@ -298,7 +327,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
       case "review":
         return (
           <>
-            {kind === "add" || kind === "edit" ? (
+            {hasForm(kind) ? (
               <Button className="mr-auto" onClick={() => setStage("form")}>
                 Back
               </Button>
@@ -362,7 +391,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         title={mode?.kind === "fix" ? mode.label : titles[kind]}
         description={
           stage === "form"
-            ? "Send a hostname on your domain to a service on this Mac."
+            ? kind === "addNetwork"
+              ? "Let devices running Cloudflare WARP reach addresses on this Mac's network."
+              : "Send a hostname on your domain to a service on this Mac."
             : stage === "review"
               ? "Review what will change in Cloudflare. Nothing changes until you apply."
               : undefined
@@ -371,7 +402,33 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         onEscapeKeyDown={(event) => stage === "applying" && event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
       >
-        {stage === "form" ? (
+        {stage === "form" && kind === "addNetwork" ? (
+          <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
+            <Field
+              label="Network"
+              error={fieldError("network")}
+              help="An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac."
+            >
+              {(control) => (
+                <Input
+                  {...control}
+                  autoFocus
+                  placeholder="192.168.1.0/24"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="font-mono text-mono"
+                  value={network}
+                  onChange={(event) => setNetwork(event.target.value)}
+                />
+              )}
+            </Field>
+            {generalError ? (
+              <p role="alert" className="text-callout text-error">
+                {generalError.message}
+              </p>
+            ) : null}
+          </form>
+        ) : stage === "form" ? (
           <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
             <Field label="Service" error={fieldError("origin")} help="A port or an address.">
               {(control) => (
@@ -477,7 +534,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   checked={confirmed}
                   onCheckedChange={(value) => setConfirmed(value === true)}
                 />
-                Replace the existing records
+                {plan.warnings.some((w) => w.type === "publicNetwork")
+                  ? "Send these public addresses through this Mac"
+                  : "Replace the existing records"}
               </label>
             ) : null}
             {generalError ? (

@@ -27,7 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { useIssues } from "@/features/doctor/queries";
-import type { RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
+import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { describeAllowed } from "./access";
@@ -57,6 +57,42 @@ function relativeTime(at: number | null) {
   if (minutes < 1) return "Just now";
   if (minutes < 60) return `${minutes} min ago`;
   return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+const clientApps: Record<ClientAccess["protocol"], string> = {
+  ssh: "SSH",
+  rdp: "Remote Desktop app",
+  smb: "file browser (smb://)",
+  tcp: "app",
+};
+
+/** How visitors reach an SSH, RDP, SMB or TCP route: through cloudflared on their side. */
+function ConnectSection({ client }: { client: ClientAccess }) {
+  return (
+    <InspectorSection title="Connect">
+      <p className="text-callout text-secondary">
+        {client.protocol === "ssh"
+          ? "Visitors connect with cloudflared installed on their computer:"
+          : "Visitors run this on their computer (with cloudflared installed), then keep it open:"}
+      </p>
+      <CopyField label="Command" value={client.command} />
+      {client.localAddress ? (
+        <p className="text-callout text-secondary">
+          Then point the {clientApps[client.protocol]} at{" "}
+          <span className="selectable font-mono text-mono text-primary">{client.localAddress}</span>
+          .
+        </p>
+      ) : null}
+      {client.sshConfig ? (
+        <>
+          <p className="text-callout text-secondary">
+            Or add this to ~/.ssh/config, and plain ssh works:
+          </p>
+          <CopyField label="SSH config" value={client.sshConfig} multiline />
+        </>
+      ) : null}
+    </InspectorSection>
+  );
 }
 
 function TestResult({ result }: { result: Verification }) {
@@ -109,15 +145,19 @@ function RouteInspector({
       }
       actions={
         <>
-          <Button onClick={() => void openUrl(url)}>
-            Open <ExternalLink />
-          </Button>
-          <Button
-            disabled={test.isPending}
-            onClick={() => test.mutate({ hostname: route.hostname, wait: false })}
-          >
-            {test.isPending ? "Testing…" : "Test"}
-          </Button>
+          {route.client ? null : (
+            <>
+              <Button onClick={() => void openUrl(url)}>
+                Open <ExternalLink />
+              </Button>
+              <Button
+                disabled={test.isPending}
+                onClick={() => test.mutate({ hostname: route.hostname, wait: false })}
+              >
+                {test.isPending ? "Testing…" : "Test"}
+              </Button>
+            </>
+          )}
           <IconButton icon={Pencil} label="Edit route" variant="secondary" onClick={onEdit} />
           <IconButton icon={Trash2} label="Remove route" variant="secondary" onClick={onRemove} />
         </>
@@ -129,9 +169,13 @@ function RouteInspector({
           {toIpcError(test.error).message}
         </p>
       ) : null}
-      <InspectorSection title="Address">
-        <CopyField label="URL" value={url} />
-      </InspectorSection>
+      {route.client ? (
+        <ConnectSection client={route.client} />
+      ) : (
+        <InspectorSection title="Address">
+          <CopyField label="URL" value={url} />
+        </InspectorSection>
+      )}
       <InspectorSection title="Details">
         <KeyValueGrid
           items={[

@@ -13,7 +13,7 @@ use super::{
     types::{Intent, RouteSpec, ZoneRef},
 };
 use crate::{
-    domain::{Hostname, RouteOrigin},
+    domain::{Hostname, PrivateNetwork, RouteOrigin},
     store::Store,
 };
 
@@ -82,6 +82,12 @@ fn remove(hostname: &str) -> Intent {
     Intent::RemoveRoute {
         hostname: Hostname::parse(hostname).unwrap(),
         path: None,
+    }
+}
+
+fn share(network: &str) -> Intent {
+    Intent::AddNetwork {
+        network: PrivateNetwork::parse(network).unwrap(),
     }
 }
 
@@ -342,6 +348,8 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
     run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
     run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
     let two_routes = cloud.snapshot();
+    run(&engine, &cloud, &conns, &share("192.168.1.0/24")).await;
+    let routes_and_network = cloud.snapshot();
 
     let (engine, cloud) = (self::engine(), FakeCloud::new(zero_trust()));
     run(
@@ -419,6 +427,19 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
         (
             "remove tunnel with a login",
             protected_routes,
+            Intent::RemoveTunnel,
+        ),
+        (
+            "first private network",
+            CloudState {
+                default_vnet: Some("v-default".into()),
+                ..zones()
+            },
+            share("10.0.0.0/24"),
+        ),
+        (
+            "remove tunnel with a private network",
+            routes_and_network,
             Intent::RemoveTunnel,
         ),
     ]
@@ -1263,4 +1284,96 @@ async fn exports_the_routes_and_records_as_they_are() {
     );
     let terraform = crate::export::render(&input, crate::export::ExportFormat::Terraform);
     assert_eq!(terraform.contents.matches("import {").count(), 4);
+}
+
+#[tokio::test]
+async fn shares_a_private_network_and_stops_sharing_it() {
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(CloudState {
+            default_vnet: Some("v-default".into()),
+            ..zones()
+        }),
+        FakeConnectors::default(),
+    );
+    let outcome = run(&engine, &cloud, &conns, &share("192.168.1.7/24")).await;
+    let Outcome::Applied {
+        tunnel_id: Some(tunnel),
+        verify,
+        connector_error: None,
+    } = outcome
+    else {
+        panic!("{outcome:?}")
+    };
+    assert!(verify.is_empty(), "there's no hostname to check");
+    assert!(
+        conns.calls().iter().any(|c| c.starts_with("start")),
+        "the connector carries the traffic"
+    );
+    let state = cloud.snapshot();
+    let route = state.network_routes.values().next().unwrap();
+    assert_eq!(
+        (
+            route.network.as_str(),
+            route.tunnel_id.as_str(),
+            route.comment.as_str(),
+            route.virtual_network_id.as_deref()
+        ),
+        (
+            "192.168.1.0/24",
+            tunnel.as_str(),
+            "Added by Teitunnel",
+            Some("v-default")
+        )
+    );
+
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    let networks = overview.networks.unwrap();
+    assert_eq!(networks.len(), 1);
+    assert_eq!(networks[0].network, "192.168.1.0/24");
+    assert!(networks[0].private && networks[0].owned);
+
+    assert!(
+        engine
+            .preview(&cloud, CTX, &share("192.168.1.0/24"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let stop = Intent::RemoveNetwork {
+        network: PrivateNetwork::parse("192.168.1.0/24").unwrap(),
+    };
+    run(&engine, &cloud, &conns, &stop).await;
+    assert!(cloud.snapshot().network_routes.is_empty());
+    assert_eq!(cloud.snapshot().tunnels.len(), 1, "the tunnel stays");
+
+    let log = engine.local().activity("acc", 10).await.unwrap();
+    assert_eq!(
+        log[0].summary,
+        "Stop sharing private network 192.168.1.0/24"
+    );
+    assert_eq!(
+        log[0].record.as_ref().unwrap().kind,
+        ActivityKind::RemoveNetwork
+    );
+    assert_eq!(log[1].summary, "Share private network 192.168.1.0/24");
+}
+
+#[tokio::test]
+async fn a_token_that_cant_read_networks_still_manages_routes() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    cloud.state.lock().unwrap().networks_forbidden = true;
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.routes.len(), 1);
+    assert_eq!(overview.networks, None);
+    let err = engine
+        .preview(&cloud, CTX, &share("10.0.0.0/24"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, EngineError::Observe(_)), "{err:?}");
+    run(&engine, &cloud, &conns, &Intent::RemoveTunnel).await;
+    assert!(cloud.snapshot().tunnels.is_empty());
 }

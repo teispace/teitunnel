@@ -66,6 +66,18 @@ enum Command {
     /// Add, or remove, a route.
     #[command(subcommand)]
     Route(RouteCommand),
+    /// List the private networks this Mac shares with WARP clients.
+    Networks {
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Share, or stop sharing, a private network with WARP clients.
+    #[command(subcommand)]
+    Network(NetworkCommand),
     /// Share a local service at a temporary public URL until you press Ctrl-C.
     Share {
         /// What to share: a port (`3000`), `host:port`, or a URL.
@@ -136,6 +148,24 @@ enum RouteCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum NetworkCommand {
+    /// Let WARP clients reach a range through this Mac, e.g. `192.168.1.0/24`.
+    Add {
+        /// An IP address or CIDR range.
+        network: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// Stop routing a range through this Mac.
+    Remove {
+        /// The range.
+        network: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+}
+
 #[derive(Debug, clap::Args)]
 struct ApplyArgs {
     /// Account name or id.
@@ -144,7 +174,8 @@ struct ApplyArgs {
     /// Apply without asking.
     #[arg(long, short)]
     yes: bool,
-    /// Also allow replacing or deleting DNS records Teitunnel didn't create.
+    /// Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel
+    /// didn't create, or routing a public range.
     #[arg(long)]
     replace: bool,
 }
@@ -225,6 +256,13 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             path,
             apply,
         }) => change_routes(&app, Change::RemoveRoute { hostname, path }, &apply).await,
+        Command::Networks { account, json } => networks(&app, account.as_deref(), json).await,
+        Command::Network(NetworkCommand::Add { network, apply }) => {
+            change_routes(&app, Change::AddNetwork { network }, &apply).await
+        }
+        Command::Network(NetworkCommand::Remove { network, apply }) => {
+            change_routes(&app, Change::RemoveNetwork { network }, &apply).await
+        }
         Command::Export { format, account } => export(&app, format, account.as_deref()).await,
     }
 }
@@ -272,6 +310,7 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
                     "path": route.path,
                     "origin": route.origin,
                     "access": route.access,
+                    "client": route.client,
                     "status": status,
                 })
             })
@@ -298,6 +337,48 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
             route.hostname,
             route.origin
         )?;
+        if let Some(client) = &route.client {
+            out!("    connect: {}", client.command)?;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let connectors = app.connectors(&account).await;
+    let overview = app
+        .engine
+        .overview(&api, &connectors, app.context(&account))
+        .await
+        .map_err(|e| e.to_string())?;
+    let networks = overview.networks.ok_or_else(|| {
+        "This account's credential can't read private networks. Give the API token the Cloudflare Tunnel permission.".to_owned()
+    })?;
+    if json {
+        out!(
+            "{}",
+            serde_json::to_string(&networks).map_err(|e| e.to_string())?
+        )?;
+    } else if networks.is_empty() {
+        out!(
+            "This Mac doesn't share any private network in {}.",
+            account.name
+        )?;
+    } else {
+        for network in &networks {
+            let note = if network.private {
+                ""
+            } else {
+                "\tpublic range"
+            };
+            out!("{}{note}", network.network)?;
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -347,6 +428,16 @@ fn warning_text(warning: &Warning) -> String {
         Warning::RemoteOrigin { origin } => {
             format!("{origin} isn't on this Mac. It must be reachable from here.")
         }
+        Warning::PublicNetwork { network } => format!(
+            "{network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet."
+        ),
+        Warning::OverlapsNetwork {
+            network,
+            other,
+            tunnel,
+        } => format!(
+            "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
+        ),
     }
 }
 
@@ -400,9 +491,7 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
     }
     print_plan(&plan, &account.id)?;
     if plan.requires_confirmation && !apply.replace {
-        return Err(
-            "This changes DNS records Teitunnel didn't create. Pass --replace to allow it.".into(),
-        );
+        return Err("This needs a confirmation (see above). Pass --replace to allow it.".into());
     }
     if !apply.yes && !confirm("Apply?")? {
         out!("Nothing changed.")?;
@@ -573,6 +662,23 @@ mod tests {
             })
         );
         assert_eq!(access_rule(&[]), None);
+    }
+
+    #[test]
+    fn parses_a_network_add() {
+        let cli = Cli::try_parse_from([
+            "teitunnel-cli",
+            "network",
+            "add",
+            "192.168.1.0/24",
+            "--replace",
+        ])
+        .unwrap_or_else(|e| unreachable!("{e}"));
+        let Command::Network(NetworkCommand::Add { network, apply }) = cli.command else {
+            unreachable!()
+        };
+        assert_eq!(network, "192.168.1.0/24");
+        assert!(apply.replace && !apply.yes);
     }
 
     #[test]

@@ -43,6 +43,7 @@ export default defineConfig({
             "guides/import",
             "guides/export",
             "guides/require-login",
+            "guides/private-networks",
             "guides/observability",
             "guides/menu-bar",
           ],

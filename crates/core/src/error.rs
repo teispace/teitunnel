@@ -76,12 +76,16 @@ impl Error {
                 }
                 E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
                 E::Plan(
-                    P::NoSuchRoute(_) | P::NoTunnel | P::NoSuchRecord(_) | P::NoSuchLogin(_),
+                    P::NoSuchRoute(_)
+                    | P::NoTunnel
+                    | P::NoSuchRecord(_)
+                    | P::NoSuchLogin(_)
+                    | P::NoSuchNetwork(_),
                 ) => ErrorKind::NotFound,
                 E::Stale(_)
                 | E::NeedsConfirmation
                 | E::NothingToRestore
-                | E::Plan(P::AccessAppExists(_)) => ErrorKind::Conflict,
+                | E::Plan(P::AccessAppExists(_) | P::NetworkRouted { .. }) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
@@ -101,6 +105,7 @@ impl Error {
             Self::Engine(E::Input(input)) => Some(input.field),
             Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_))) => Some("hostname"),
             Self::Engine(E::Plan(P::AccessDomain(_))) => Some("path"),
+            Self::Engine(E::Plan(P::NetworkRouted { .. })) => Some("network"),
             Self::Accounts(_) => Some("credential"),
             _ => None,
         }

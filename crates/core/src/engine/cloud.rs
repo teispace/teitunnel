@@ -133,6 +133,41 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Every private network route in the account.
+    fn network_routes(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::NetworkRoute>>> + Send;
+    /// The default virtual network's id.
+    fn default_virtual_network(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// Routes a range to a tunnel (in the default virtual network when `None`).
+    fn create_network_route(
+        &self,
+        account: &str,
+        network: &str,
+        tunnel: &str,
+        comment: &str,
+        virtual_network: Option<&str>,
+    ) -> impl Future<Output = cf_api::Result<cf_api::NetworkRoute>> + Send;
+    /// Deletes a route.
+    fn delete_network_route(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Account-wide WARP client settings (Gateway proxy).
+    fn device_settings(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::DeviceSettings>> + Send;
+    /// The default device profile's Split Tunnels.
+    fn default_device_profile(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::DefaultDeviceProfile>> + Send;
     /// Adds One-time PIN as a login method; returns its id.
     fn create_one_time_pin(
         &self,
@@ -300,6 +335,44 @@ impl CloudApi for Client {
 
     async fn delete_access_app(&self, account: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_access_app(self, account, id).await
+    }
+
+    async fn network_routes(&self, account: &str) -> cf_api::Result<Vec<cf_api::NetworkRoute>> {
+        Client::network_routes(self, account).await
+    }
+
+    async fn default_virtual_network(&self, account: &str) -> cf_api::Result<Option<String>> {
+        Ok(Client::virtual_networks(self, account)
+            .await?
+            .into_iter()
+            .find(|v| v.is_default_network)
+            .map(|v| v.id))
+    }
+
+    async fn create_network_route(
+        &self,
+        account: &str,
+        network: &str,
+        tunnel: &str,
+        comment: &str,
+        virtual_network: Option<&str>,
+    ) -> cf_api::Result<cf_api::NetworkRoute> {
+        Client::create_network_route(self, account, network, tunnel, comment, virtual_network).await
+    }
+
+    async fn delete_network_route(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_network_route(self, account, id).await
+    }
+
+    async fn device_settings(&self, account: &str) -> cf_api::Result<cf_api::DeviceSettings> {
+        Client::device_settings(self, account).await
+    }
+
+    async fn default_device_profile(
+        &self,
+        account: &str,
+    ) -> cf_api::Result<cf_api::DefaultDeviceProfile> {
+        Client::default_device_profile(self, account).await
     }
 
     async fn create_one_time_pin(&self, account: &str) -> cf_api::Result<String> {

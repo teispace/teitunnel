@@ -2,7 +2,8 @@
 //!
 //! It keeps one account with two zones in memory and implements the endpoints Teitunnel
 //! uses: token verify, accounts, zones, tunnels, remote configuration, tunnel token, DNS
-//! records and Access (a Zero Trust organization, login methods, applications), with
+//! records, Access (a Zero Trust organization, login methods, applications) and private
+//! networks (routes, virtual networks, WARP device settings), with
 //! Cloudflare's response envelope. Requests whose `Host` isn't the server itself are
 //! answered as the edge would: a redirect to the login page for a hostname with an
 //! Access application, otherwise `200` from a working route, so the verifier can run
@@ -36,6 +37,8 @@ struct State {
     access_apps: Vec<Value>,
     /// Login methods (identity providers).
     login_methods: Vec<Value>,
+    /// Private network routes.
+    network_routes: Vec<Value>,
 }
 
 impl State {
@@ -278,6 +281,52 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 err(404, 12130, "Application not found")
             }
         }
+        ("GET", ["accounts", _, "teamnet", "virtual_networks"]) => ok(json!([
+            { "id": "vnet-default", "name": "default", "is_default_network": true }
+        ])),
+        ("GET", ["accounts", _, "teamnet", "routes"]) => ok(Value::Array(s.network_routes.clone())),
+        ("POST", ["accounts", _, "teamnet", "routes"]) => {
+            let network = req.body["network"].clone();
+            let vnet = req
+                .body
+                .get("virtual_network_id")
+                .cloned()
+                .unwrap_or(json!("vnet-default"));
+            if s.network_routes
+                .iter()
+                .any(|r| r["network"] == network && r["virtual_network_id"] == vnet)
+            {
+                return err(409, 1014, "route already exists");
+            }
+            let tunnel = req.body["tunnel_id"].clone();
+            let tunnel_name = tunnel
+                .as_str()
+                .and_then(|id| s.tunnels.get(id))
+                .map(|(name, ..)| name.clone());
+            let route = json!({
+                "id": s.id("net"), "network": network, "tunnel_id": tunnel,
+                "tunnel_name": tunnel_name, "virtual_network_id": vnet,
+                "comment": req.body["comment"].clone(),
+            });
+            s.network_routes.push(route.clone());
+            ok(route)
+        }
+        ("DELETE", ["accounts", _, "teamnet", "routes", id]) => {
+            let before = s.network_routes.len();
+            s.network_routes.retain(|r| r["id"] != *id);
+            if s.network_routes.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 1015, "Route not found")
+            }
+        }
+        ("GET", ["accounts", _, "devices", "settings"]) => ok(json!({
+            "gateway_proxy_enabled": true, "gateway_udp_proxy_enabled": false
+        })),
+        ("GET", ["accounts", _, "devices", "policy"]) => ok(json!({
+            "exclude": [{ "address": "10.0.0.0/8" }, { "address": "192.168.0.0/16" }],
+            "include": null
+        })),
         // Capability probes on other resources: authorized, no such object.
         ("PATCH", _) => err(404, 1003, "Not found"),
         _ => err(404, 7003, "No route for that URI"),

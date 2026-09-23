@@ -5,11 +5,14 @@ use serde_json::Map;
 
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp, app_definition},
+    networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute},
     planner::{PlanError, plan, tunnel_record},
     simulate::apply,
-    types::{Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, ZoneRef},
+    types::{
+        Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef,
+    },
 };
-use crate::domain::{Hostname, PathRule, RouteOrigin};
+use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
 
 const TUNNEL: &str = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
 
@@ -91,6 +94,7 @@ fn fresh() -> Snapshot {
         tunnel_names: Vec::new(),
         records: Vec::new(),
         access: None,
+        networks: None,
     }
 }
 
@@ -409,6 +413,16 @@ mod property {
                 path: None
             }),
             Just(Intent::RemoveTunnel),
+            nets().prop_map(|n| Intent::AddNetwork { network: net(n) }),
+            nets().prop_map(|n| Intent::RemoveNetwork { network: net(n) }),
+        ]
+    }
+
+    fn nets() -> impl Strategy<Value = &'static str> + Clone {
+        prop_oneof![
+            Just("192.168.1.0/24"),
+            Just("192.168.0.0/16"),
+            Just("fd00::/64")
         ]
     }
 
@@ -719,6 +733,8 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::CreateAccessApp { .. } => "app+",
             Step::UpdateAccessApp { .. } => "app~",
             Step::DeleteAccessApp { .. } => "app-",
+            Step::CreateNetworkRoute { .. } => "net+",
+            Step::DeleteNetworkRoute { .. } => "net-",
             Step::Verify { .. } => "verify",
         })
         .collect()
@@ -911,5 +927,160 @@ fn only_a_login_without_a_route_is_removed_on_its_own() {
         plan(&remove_login("legacy.xyz.com"), &snapshot),
         Err(PlanError::NoSuchLogin("legacy.xyz.com".into())),
         "someone else's application is never removed"
+    );
+}
+
+fn net(n: &str) -> PrivateNetwork {
+    PrivateNetwork::parse(n).unwrap()
+}
+
+fn net_route(id: &str, network: &str, tunnel: &str, vnet: &str) -> ObservedNetworkRoute {
+    ObservedNetworkRoute {
+        id: id.into(),
+        network: network.into(),
+        tunnel_id: tunnel.into(),
+        tunnel_name: Some(
+            if tunnel == TUNNEL {
+                "Krishna's MacBook Pro"
+            } else {
+                "NAS"
+            }
+            .into(),
+        ),
+        virtual_network_id: Some(vnet.into()),
+        comment: NETWORK_COMMENT.into(),
+    }
+}
+
+fn with_networks(mut s: Snapshot, routes: Vec<ObservedNetworkRoute>) -> Snapshot {
+    s.networks = Some(NetworkState {
+        default_vnet: Some("v-default".into()),
+        routes,
+    });
+    s
+}
+
+#[test]
+fn sharing_a_network_creates_the_tunnel_if_needed() {
+    let add = |n: &str| Intent::AddNetwork { network: net(n) };
+    let fresh = with_networks(fresh(), Vec::new());
+    assert_eq!(
+        kinds(&plan(&add("192.168.1.0/24"), &fresh).unwrap()),
+        ["tunnel", "net+"]
+    );
+    let p = plan(
+        &add("192.168.1.0/24"),
+        &with_networks(with_app(), Vec::new()),
+    )
+    .unwrap();
+    assert_eq!(kinds(&p), ["net+"]);
+    assert!(p.warnings.is_empty() && !p.requires_confirmation);
+    assert_eq!(
+        p.steps[0].describe(&p.tunnel_name),
+        "Route private network 192.168.1.0/24 to tunnel “Krishna's MacBook Pro”"
+    );
+}
+
+#[test]
+fn a_network_routed_elsewhere_is_refused_and_overlaps_are_flagged() {
+    let add = |n: &str| Intent::AddNetwork { network: net(n) };
+    let snapshot = with_networks(
+        with_app(),
+        vec![
+            net_route("n1", "10.0.0.0/16", "other", "v-default"),
+            net_route("n2", "10.1.0.0/24", TUNNEL, "v-default"),
+            // Another virtual network: separate address space.
+            net_route("n3", "172.16.0.0/24", "other", "v-lab"),
+        ],
+    );
+    assert_eq!(
+        plan(&add("10.0.0.0/16"), &snapshot),
+        Err(PlanError::NetworkRouted {
+            network: "10.0.0.0/16".into(),
+            tunnel: "NAS".into(),
+        })
+    );
+    assert!(
+        plan(&add("10.1.0.7/24"), &snapshot).unwrap().is_empty(),
+        "already shared: nothing to do"
+    );
+    let p = plan(&add("10.0.5.0/24"), &snapshot).unwrap();
+    assert_eq!(kinds(&p), ["net+"]);
+    assert_eq!(
+        p.warnings,
+        [Warning::OverlapsNetwork {
+            network: "10.0.5.0/24".into(),
+            other: "10.0.0.0/16".into(),
+            tunnel: "NAS".into(),
+        }]
+    );
+    assert_eq!(
+        kinds(&plan(&add("172.16.0.0/24"), &snapshot).unwrap()),
+        ["net+"]
+    );
+}
+
+#[test]
+fn a_public_range_needs_confirmation() {
+    let p = plan(
+        &Intent::AddNetwork {
+            network: net("8.8.8.0/24"),
+        },
+        &with_networks(with_app(), Vec::new()),
+    )
+    .unwrap();
+    assert!(p.requires_confirmation);
+    assert_eq!(
+        p.warnings,
+        [Warning::PublicNetwork {
+            network: "8.8.8.0/24".into()
+        }]
+    );
+}
+
+#[test]
+fn only_this_macs_routes_are_removed() {
+    let snapshot = with_networks(
+        with_app(),
+        vec![
+            net_route("n1", "10.0.0.0/16", "other", "v-default"),
+            net_route("n2", "10.1.0.0/24", TUNNEL, "v-default"),
+            net_route("n3", "10.2.0.0/24", TUNNEL, "v-lab"),
+        ],
+    );
+    let remove = |n: &str| Intent::RemoveNetwork { network: net(n) };
+    assert_eq!(
+        kinds(&plan(&remove("10.1.0.0/24"), &snapshot).unwrap()),
+        ["net-"]
+    );
+    assert_eq!(
+        plan(&remove("10.0.0.0/16"), &snapshot),
+        Err(PlanError::NoSuchNetwork("10.0.0.0/16".into())),
+        "another tunnel's route is never removed"
+    );
+    assert_eq!(
+        plan(&remove("10.1.0.0/24"), &with_networks(fresh(), Vec::new())),
+        Err(PlanError::NoTunnel)
+    );
+    // Removing the tunnel removes every route to it, in any virtual network, before
+    // the connector stops.
+    assert_eq!(
+        kinds(&plan(&Intent::RemoveTunnel, &snapshot).unwrap()),
+        ["config", "dns-", "net-", "net-", "stop", "tunnel-"]
+    );
+}
+
+#[test]
+fn only_web_routes_are_checked_through_the_edge() {
+    let add = |origin: &str| Intent::AddRoute {
+        route: route("r", "ssh.xyz.com", origin),
+    };
+    assert_eq!(
+        kinds(&plan(&add("ssh://localhost:22"), &with_app()).unwrap()),
+        ["config", "dns+"]
+    );
+    assert_eq!(
+        kinds(&plan(&add("3000"), &with_app()).unwrap()),
+        ["config", "dns+", "verify"]
     );
 }

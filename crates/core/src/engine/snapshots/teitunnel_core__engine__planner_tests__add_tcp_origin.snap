@@ -25,8 +25,6 @@ steps:
       kind: existing
       id: 6ff42ae2-765d-4adf-8112-31c55c1551ef
     routeId: a3
-  - type: verify
-    hostname: db.xyz.com
 warnings: []
 requiresConfirmation: false
 fingerprint: "<fingerprint>"

@@ -5754,6 +5754,7 @@ dependencies = [
  "getrandom 0.4.3",
  "idna",
  "insta",
+ "ipnet",
  "keyring",
  "listeners",
  "nix",

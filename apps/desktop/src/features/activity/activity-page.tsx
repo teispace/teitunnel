@@ -4,6 +4,7 @@ import {
   Globe,
   LockKeyhole,
   type LucideIcon,
+  Network,
   RefreshCw,
   Route as RouteIcon,
 } from "lucide-react";
@@ -278,6 +279,7 @@ function RecordDetails({
 const areas: Record<Delta["area"], { icon: LucideIcon; label: string }> = {
   route: { icon: RouteIcon, label: "Route" },
   dns: { icon: Globe, label: "DNS record" },
+  network: { icon: Network, label: "Private network" },
   access: { icon: LockKeyhole, label: "Login" },
 };
 

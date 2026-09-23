@@ -4,10 +4,12 @@ use std::collections::HashSet;
 
 use futures_util::{StreamExt, TryStreamExt, stream};
 
+use super::types::Intent;
 use super::{
     access::{AccessNeed, AccessRule, AccessState, ObservedAccessApp, definition_of, domain_host},
     cloud::CloudApi,
     local::Local,
+    networks::{NetworkState, ObservedNetworkRoute},
     types::{ObservedRecord, ObservedTunnel, Snapshot},
 };
 use crate::{domain::Hostname, store::StoreError};
@@ -34,8 +36,49 @@ pub enum ObserveError {
     AccessPermission,
 }
 
+/// Whether a change reads something optional.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Want {
+    /// Not needed.
+    #[default]
+    No,
+    /// Needed: failing to read it fails the observation.
+    Yes,
+    /// Useful but incidental: a credential that can't read it doesn't block the change.
+    IfAllowed,
+}
+
+/// What an observation reads beyond zones, the tunnel and DNS.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ObserveNeed {
+    /// Access (logins).
+    pub access: AccessNeed,
+    /// Private network routes.
+    pub networks: Want,
+}
+
+impl ObserveNeed {
+    /// Nothing optional.
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// What planning `intent` needs.
+    pub fn of(intent: &Intent) -> Self {
+        Self {
+            access: AccessNeed::of(intent),
+            networks: match intent {
+                Intent::AddNetwork { .. } | Intent::RemoveNetwork { .. } => Want::Yes,
+                // Removing the tunnel removes its routes, when they can be read.
+                Intent::RemoveTunnel => Want::IfAllowed,
+                _ => Want::No,
+            },
+        }
+    }
+}
+
 /// Reads the zones, this Mac's tunnel and the DNS records for `hostnames` (every
-/// routed hostname when `None`), plus what `access` asks for.
+/// routed hostname when `None`), plus what `need` asks for.
 ///
 /// # Errors
 /// API or database errors. A tunnel deleted elsewhere isn't an error: it's observed as
@@ -46,7 +89,7 @@ pub async fn observe<C: CloudApi>(
     account: &str,
     machine_name: &str,
     hostnames: Option<&[&Hostname]>,
-    access: &AccessNeed,
+    need: &ObserveNeed,
 ) -> Result<Snapshot, ObserveError> {
     let machine = local.machine_tunnel(account).await?;
     let (zones, tunnel, owned) = tokio::join!(
@@ -100,7 +143,10 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
-    let access = observe_access(api, local, account, access, &names).await?;
+    let (access, networks) = tokio::try_join!(
+        observe_access(api, local, account, &need.access, &names),
+        observe_networks(api, account, need.networks),
+    )?;
 
     Ok(Snapshot {
         account_id: account.to_owned(),
@@ -110,7 +156,47 @@ pub async fn observe<C: CloudApi>(
         tunnel_names,
         records,
         access,
+        networks,
     })
+}
+
+/// Reads the account's private network routes and its default virtual network.
+async fn observe_networks<C: CloudApi>(
+    api: &C,
+    account: &str,
+    want: Want,
+) -> Result<Option<NetworkState>, ObserveError> {
+    if want == Want::No {
+        return Ok(None);
+    }
+    let read = tokio::try_join!(
+        api.network_routes(account),
+        api.default_virtual_network(account)
+    );
+    let (routes, default_vnet) = match read {
+        Ok(read) => read,
+        Err(err) if want == Want::IfAllowed && err.is_auth() => {
+            tracing::warn!("couldn't read private network routes: {err}");
+            return Ok(None);
+        }
+        Err(err) => return Err(err.into()),
+    };
+    let mut routes: Vec<ObservedNetworkRoute> = routes
+        .into_iter()
+        .map(|r| ObservedNetworkRoute {
+            id: r.id,
+            network: r.network,
+            tunnel_id: r.tunnel_id,
+            tunnel_name: r.tunnel_name,
+            virtual_network_id: r.virtual_network_id,
+            comment: r.comment,
+        })
+        .collect();
+    routes.sort_by(|a, b| (&a.network, &a.id).cmp(&(&b.network, &b.id)));
+    Ok(Some(NetworkState {
+        default_vnet,
+        routes,
+    }))
 }
 
 /// Reads Access as far as `need` asks: the setup, the applications for the requested

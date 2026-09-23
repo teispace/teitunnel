@@ -11,9 +11,9 @@ use cf_api::{DnsRecord, IngressRule, NewAccessApp, NewDnsRecord, TunnelConfig};
 use serde::Serialize;
 use tokio::time::Instant;
 
-use super::access::AccessNeed;
 use super::activity::ActivityRecord;
 use super::drift::{Drift, diff};
+use super::observe::ObserveNeed;
 use super::tunnels::TunnelSummary;
 use super::views::{Change, InputError, RoutesOverview, overview, to_intent};
 
@@ -26,11 +26,13 @@ static EMPTY: Snapshot = Snapshot {
     tunnel_names: Vec::new(),
     records: Vec::new(),
     access: None,
+    networks: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
     cloud::{CloudApi, Connectors},
     local::Local,
+    networks::NETWORK_COMMENT,
     observe::{ObserveError, observe},
     planner::{PlanError, plan},
     types::{Intent, Plan, Snapshot, Step, TunnelRef, ownership_comment, tunnel_target},
@@ -203,6 +205,11 @@ enum Undo {
         previous: NewAccessApp,
     },
     RecreateAccessApp(NewAccessApp),
+    DeleteNetworkRoute {
+        id: String,
+        network: String,
+    },
+    RecreateNetworkRoute(super::networks::ObservedNetworkRoute),
 }
 
 impl Undo {
@@ -235,6 +242,15 @@ impl Undo {
             }
             Self::RecreateAccessApp(previous) => {
                 format!("The login for {} was removed", previous.domain)
+            }
+            Self::DeleteNetworkRoute { network, .. } => {
+                format!("Private network {network} was routed to the tunnel and still is")
+            }
+            Self::RecreateNetworkRoute(route) => {
+                format!(
+                    "The route for private network {} was removed",
+                    route.network
+                )
             }
         }
     }
@@ -298,12 +314,13 @@ impl Engine {
                     .join(",")
             },
         );
-        let access = AccessNeed::of(intent);
+        let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{scope}\n{}{}{}",
-            u8::from(access.setup),
-            u8::from(access.owned),
-            access.domains.join(",")
+            "{account}\n{scope}\n{}{}{}\n{:?}",
+            u8::from(need.access.setup),
+            u8::from(need.access.owned),
+            need.access.domains.join(","),
+            need.networks
         )
     }
 
@@ -339,7 +356,7 @@ impl Engine {
             ctx.account,
             ctx.machine_name,
             hostnames.as_deref(),
-            &AccessNeed::of(intent),
+            &ObserveNeed::of(intent),
         )
         .await?;
         self.cache
@@ -559,7 +576,7 @@ impl Engine {
             ctx.account,
             ctx.machine_name,
             Some(&[hostname]),
-            &AccessNeed::none(),
+            &ObserveNeed::none(),
         )
         .await?;
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
@@ -628,7 +645,10 @@ impl Engine {
             done: Vec::new(),
             covered: Vec::new(),
         };
-        let serve = matches!(intent, Intent::AddRoute { .. } | Intent::UpdateRoute { .. });
+        let serve = matches!(
+            intent,
+            Intent::AddRoute { .. } | Intent::UpdateRoute { .. } | Intent::AddNetwork { .. }
+        );
         // Keep each step's last state for the activity log.
         let mut states: Vec<Option<StepState>> = vec![None; plan.steps.len()];
         let mut record_progress = |p: Progress| {
@@ -922,6 +942,24 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 warn_local(self.local.disown_access_app(id).await);
                 Ok(Some(Undo::RecreateAccessApp(previous.clone())))
             }
+            Step::CreateNetworkRoute { network, tunnel } => {
+                let target = self.resolve(tunnel)?;
+                let network = network.to_string();
+                let route = api
+                    .create_network_route(account, &network, &target, NETWORK_COMMENT, None)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(Some(Undo::DeleteNetworkRoute {
+                    id: route.id,
+                    network,
+                }))
+            }
+            Step::DeleteNetworkRoute { route } => {
+                api.delete_network_route(account, &route.id)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(Some(Undo::RecreateNetworkRoute(route.clone())))
+            }
             Step::Verify { .. } => Ok(None),
         }
     }
@@ -1051,6 +1089,20 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                         .own_access_app(account, &created.id, &previous.domain)
                         .await,
                 );
+            }
+            Undo::DeleteNetworkRoute { id, .. } => {
+                api.delete_network_route(account, id).await.map_err(err)?;
+            }
+            Undo::RecreateNetworkRoute(route) => {
+                api.create_network_route(
+                    account,
+                    &route.network,
+                    &route.tunnel_id,
+                    &route.comment,
+                    route.virtual_network_id.as_deref(),
+                )
+                .await
+                .map_err(err)?;
             }
         }
         Ok(())

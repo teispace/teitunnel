@@ -12,6 +12,8 @@ const kindLabels: Record<ActivityKind, string> = {
   restoreConfig: "Restores",
   removeTunnel: "Tunnel Removals",
   removeLogin: "Login Removals",
+  addNetwork: "Networks Shared",
+  removeNetwork: "Networks Unshared",
 };
 
 export const showOptions: readonly { value: Show; label: string }[] = [

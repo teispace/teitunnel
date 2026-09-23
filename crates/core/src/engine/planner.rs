@@ -5,6 +5,8 @@
 //!   404 window) → DNS → verify
 //! - remove: config → DNS (only records Teitunnel owns) → login → tunnel
 //! - rename: config (swap the rule) → new DNS → delete the old owned record
+//! - private network: create tunnel → route the range; removing the tunnel removes the
+//!   ranges routed to it first
 //!
 //! A login (Access) goes up before the route goes live and comes down after it's gone,
 //! so a protected route is never reachable without one.
@@ -14,6 +16,7 @@ use cf_api::IngressRule;
 use super::{
     access::{AccessDomainError, AccessRule, access_domain, app_definition},
     ingress::sort_ingress,
+    networks::{NetworkState, ObservedNetworkRoute},
     types::{
         Intent, ObservedRecord, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning, tunnel_target,
     },
@@ -54,6 +57,17 @@ pub enum PlanError {
     /// The route's path can't be protected.
     #[error(transparent)]
     AccessDomain(#[from] AccessDomainError),
+    /// The range is already routed to another tunnel.
+    #[error("{network} is already shared through tunnel “{tunnel}”. Remove that route first.")]
+    NetworkRouted {
+        /// The range.
+        network: String,
+        /// The other tunnel.
+        tunnel: String,
+    },
+    /// This Mac's tunnel doesn't route the range.
+    #[error("This Mac doesn't share {0}.")]
+    NoSuchNetwork(String),
 }
 
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
@@ -270,10 +284,14 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn verify(&mut self, hostname: &Hostname) {
-        self.steps.push(Step::Verify {
-            hostname: hostname.to_string(),
-        });
+    /// Checks the route end to end, when a browser could open it (an SSH or TCP route
+    /// only answers `cloudflared access`).
+    fn verify_route(&mut self, route: &RouteSpec) {
+        if route.origin.is_web() {
+            self.steps.push(Step::Verify {
+                hostname: route.hostname.to_string(),
+            });
+        }
     }
 
     fn remote_origin_warning(&mut self, route: &RouteSpec) {
@@ -341,7 +359,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                         b.protect(&route_domain(route)?, rule)?;
                     }
                     b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
-                    b.verify(&route.hostname);
+                    b.verify_route(route);
                     return Ok(b.finish());
                 }
                 return Err(PlanError::RouteExists(route.hostname.to_string()));
@@ -355,7 +373,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             desired.push(route.to_rule());
             b.put_config(&tunnel, desired);
             b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
-            b.verify(&route.hostname);
+            b.verify_route(route);
         }
         Intent::UpdateRoute {
             hostname,
@@ -413,7 +431,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             if let Some(old) = old_domain.filter(|old| new_domain.as_ref() != Some(old)) {
                 b.unprotect(&old);
             }
-            b.verify(&route.hostname);
+            b.verify_route(route);
         }
         Intent::RemoveRoute { hostname, path } => {
             let tunnel_id = snapshot
@@ -472,7 +490,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
             }
             for route in added {
-                b.verify(&route.hostname);
+                b.verify_route(route);
             }
         }
         Intent::DeleteRecord {
@@ -517,6 +535,71 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 return Err(PlanError::NoSuchLogin(domain.clone()));
             }
         }
+        Intent::AddNetwork { network } => {
+            let routes: Vec<&ObservedNetworkRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(NetworkState::in_default_vnet)
+                .collect();
+            let ours = |r: &ObservedNetworkRoute| {
+                snapshot
+                    .tunnel
+                    .as_ref()
+                    .is_some_and(|t| t.id == r.tunnel_id)
+            };
+            if let Some(existing) = routes.iter().find(|r| r.range() == Some(*network)) {
+                if ours(existing) {
+                    // Already shared (idempotent re-apply).
+                    return Ok(b.finish());
+                }
+                return Err(PlanError::NetworkRouted {
+                    network: network.to_string(),
+                    tunnel: existing
+                        .tunnel_name
+                        .clone()
+                        .unwrap_or_else(|| existing.tunnel_id.clone()),
+                });
+            }
+            if !network.is_private() {
+                b.requires_confirmation = true;
+                b.warnings.push(Warning::PublicNetwork {
+                    network: network.to_string(),
+                });
+            }
+            for other in routes.iter().filter(|r| !ours(r)) {
+                if other.range().is_some_and(|o| o.overlaps(network)) {
+                    b.warnings.push(Warning::OverlapsNetwork {
+                        network: network.to_string(),
+                        other: other.network.clone(),
+                        tunnel: other
+                            .tunnel_name
+                            .clone()
+                            .unwrap_or_else(|| other.tunnel_id.clone()),
+                    });
+                }
+            }
+            let tunnel = b.ensure_tunnel();
+            b.steps.push(Step::CreateNetworkRoute {
+                network: *network,
+                tunnel,
+            });
+        }
+        Intent::RemoveNetwork { network } => {
+            let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
+            let routes: Vec<ObservedNetworkRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(NetworkState::in_default_vnet)
+                .filter(|r| r.tunnel_id == tunnel.id && r.range() == Some(*network))
+                .cloned()
+                .collect();
+            if routes.is_empty() {
+                return Err(PlanError::NoSuchNetwork(network.to_string()));
+            }
+            for route in routes {
+                b.steps.push(Step::DeleteNetworkRoute { route });
+            }
+        }
         Intent::RestoreConfig { ingress } => {
             let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
             let desired = ingress
@@ -548,6 +631,16 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 .collect();
             for domain in owned {
                 b.unprotect(&domain);
+            }
+            // Private network routes would point at a tunnel that no longer exists.
+            let networks: Vec<ObservedNetworkRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(|n| n.of_tunnel(&tunnel.id))
+                .cloned()
+                .collect();
+            for route in networks {
+                b.steps.push(Step::DeleteNetworkRoute { route });
             }
             b.steps.push(Step::StopConnector {
                 tunnel_id: tunnel.id.clone(),

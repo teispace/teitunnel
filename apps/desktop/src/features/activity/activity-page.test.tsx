@@ -82,12 +82,14 @@ beforeEach(() => {
               zone: "yx.com",
               dns: { state: "ok" },
               access: null,
+              client: null,
             },
           ],
           zones: [
             { id: "z1", name: "xyz.com" },
             { id: "z2", name: "yx.com" },
           ],
+          networks: null,
         } satisfies RoutesOverview;
       case "routes_verify":
         verified.push(String(payload["hostname"]));

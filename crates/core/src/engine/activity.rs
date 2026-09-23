@@ -34,6 +34,10 @@ pub enum ActivityKind {
     RestoreConfig,
     /// A login whose route was gone was removed (Doctor cleanup).
     RemoveLogin,
+    /// A private network was shared.
+    AddNetwork,
+    /// A private network stopped being shared.
+    RemoveNetwork,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -47,6 +51,8 @@ impl From<&Intent> for ActivityKind {
             Intent::DeleteRecord { .. } => Self::DeleteRecord,
             Intent::RestoreConfig { .. } => Self::RestoreConfig,
             Intent::RemoveLogin { .. } => Self::RemoveLogin,
+            Intent::AddNetwork { .. } => Self::AddNetwork,
+            Intent::RemoveNetwork { .. } => Self::RemoveNetwork,
         }
     }
 }
@@ -60,6 +66,8 @@ pub enum DeltaArea {
     Route,
     /// A DNS record.
     Dns,
+    /// A private network route.
+    Network,
     /// A route's login (Cloudflare Access).
     Access,
 }
@@ -240,6 +248,23 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 hostname: previous.domain.clone(),
                 path: None,
                 before: Some(login_summary(previous)),
+                after: None,
+            }),
+            Step::CreateNetworkRoute { network, .. } => out.push(Delta {
+                area: DeltaArea::Network,
+                hostname: network.to_string(),
+                path: None,
+                before: None,
+                after: Some(format!("routed to tunnel “{}”", plan.tunnel_name)),
+            }),
+            Step::DeleteNetworkRoute { route } => out.push(Delta {
+                area: DeltaArea::Network,
+                hostname: route.network.clone(),
+                path: None,
+                before: Some(format!(
+                    "routed to tunnel “{}”",
+                    route.tunnel_name.as_deref().unwrap_or(&plan.tunnel_name)
+                )),
                 after: None,
             }),
             Step::AddLoginMethod

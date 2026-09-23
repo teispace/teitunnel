@@ -41,6 +41,16 @@ pub(crate) struct CloudState {
     pub(crate) access_apps: BTreeMap<String, NewAccessApp>,
     /// The token can't read Access (reads fail with 403).
     pub(crate) access_forbidden: bool,
+    /// Private network routes by id.
+    pub(crate) network_routes: BTreeMap<String, cf_api::NetworkRoute>,
+    /// The default virtual network's id.
+    pub(crate) default_vnet: Option<String>,
+    /// The token can't read private networks (reads fail with 403).
+    pub(crate) networks_forbidden: bool,
+    /// WARP client settings (`None`: can't be read).
+    pub(crate) device_settings: Option<cf_api::DeviceSettings>,
+    /// The default device profile (`None`: can't be read).
+    pub(crate) device_profile: Option<cf_api::DefaultDeviceProfile>,
 }
 
 /// State with ids and versions stripped, for "is it back to how it was?" checks.
@@ -49,6 +59,7 @@ pub(crate) type Normalized = (
     Vec<(String, String, String, String, bool, u32, Option<String>)>,
     Vec<serde_json::Value>,
     usize,
+    Vec<(String, String, String, Option<String>)>,
 );
 
 impl CloudState {
@@ -87,7 +98,20 @@ impl CloudState {
             .filter_map(|a| serde_json::to_value(a).ok())
             .collect();
         apps.sort_by_key(ToString::to_string);
-        (tunnels, records, apps, self.login_methods.len())
+        let mut networks: Vec<_> = self
+            .network_routes
+            .values()
+            .map(|r| {
+                (
+                    r.network.clone(),
+                    r.tunnel_id.clone(),
+                    r.comment.clone(),
+                    r.virtual_network_id.clone(),
+                )
+            })
+            .collect();
+        networks.sort();
+        (tunnels, records, apps, self.login_methods.len(), networks)
     }
 
     pub(crate) fn record_count(&self) -> usize {
@@ -441,6 +465,93 @@ impl CloudApi for FakeCloud {
             .remove(id)
             .map(|_| ())
             .ok_or_else(not_found)
+    }
+
+    async fn network_routes(&self, _account: &str) -> cf_api::Result<Vec<cf_api::NetworkRoute>> {
+        let state = self.state.lock().unwrap();
+        if state.networks_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state.network_routes.values().cloned().collect())
+    }
+
+    async fn default_virtual_network(&self, _account: &str) -> cf_api::Result<Option<String>> {
+        let state = self.state.lock().unwrap();
+        if state.networks_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state.default_vnet.clone())
+    }
+
+    async fn create_network_route(
+        &self,
+        _account: &str,
+        network: &str,
+        tunnel: &str,
+        comment: &str,
+        virtual_network: Option<&str>,
+    ) -> cf_api::Result<cf_api::NetworkRoute> {
+        self.mutate()?;
+        let id = self.next_id("net");
+        let mut state = self.state.lock().unwrap();
+        let vnet = virtual_network
+            .map(str::to_owned)
+            .or_else(|| state.default_vnet.clone());
+        // Cloudflare refuses a range that's already routed in the same virtual network.
+        if state
+            .network_routes
+            .values()
+            .any(|r| r.network == network && r.virtual_network_id == vnet)
+        {
+            return Err(cf_api::Error::Api {
+                status: 409,
+                errors: vec![ApiMessage {
+                    code: 1014,
+                    message: "route already exists".into(),
+                }],
+            });
+        }
+        let route = cf_api::NetworkRoute {
+            id: id.clone(),
+            network: network.to_owned(),
+            tunnel_id: tunnel.to_owned(),
+            tunnel_name: None,
+            virtual_network_id: vnet,
+            comment: comment.to_owned(),
+        };
+        state.network_routes.insert(id, route.clone());
+        Ok(route)
+    }
+
+    async fn delete_network_route(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state
+            .lock()
+            .unwrap()
+            .network_routes
+            .remove(id)
+            .map(|_| ())
+            .ok_or_else(not_found)
+    }
+
+    async fn device_settings(&self, _account: &str) -> cf_api::Result<cf_api::DeviceSettings> {
+        self.state
+            .lock()
+            .unwrap()
+            .device_settings
+            .ok_or_else(forbidden)
+    }
+
+    async fn default_device_profile(
+        &self,
+        _account: &str,
+    ) -> cf_api::Result<cf_api::DefaultDeviceProfile> {
+        self.state
+            .lock()
+            .unwrap()
+            .device_profile
+            .clone()
+            .ok_or_else(forbidden)
     }
 
     async fn create_one_time_pin(&self, _account: &str) -> cf_api::Result<String> {

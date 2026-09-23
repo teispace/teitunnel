@@ -172,6 +172,8 @@ Planner rules:
 - **Ingress ordering:** rules are sorted by specificity (exact host before wildcard, longer path before shorter). The catch-all `http_status:404` is always last. Manual order is allowed in Advanced mode.
 - **DNS conflicts:** an existing A/AAAA/CNAME on the hostname that we don't own produces `requires_confirmation` with the existing record shown. It is never overwritten silently.
 - **Idempotent:** planning the same intent against an already-converged state yields an empty plan ("Nothing to change").
+- **Private networks (D-060):** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed). Removing the tunnel deletes the ranges routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
+- **Verify** is planned only for routes a browser can open; SSH/RDP/SMB/TCP routes show `cloudflared access` commands instead.
 - Every step has a human description and a "Copy as command" rendering (`cloudflared …` or `curl` for the API).
 
 ### 4.4 Executor

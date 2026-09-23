@@ -11,6 +11,7 @@ use std::{
 
 use cf_api::DnsRecord;
 use futures_util::{StreamExt, stream};
+use ipnet::IpNet;
 use serde::Serialize;
 use tokio::net::TcpStream;
 
@@ -18,8 +19,9 @@ use crate::{
     accounts::{Domain, DomainStatus},
     domain::{Hostname, PathRule, RouteOrigin},
     engine::{
-        AccessNeed, Change, CloudApi, Connectors, Context, Drift, Engine, EngineError,
-        ObserveError, RouteInput, Snapshot, TunnelSummary, access_domain, observe, tunnel_target,
+        Change, CloudApi, Connectors, Context, Drift, Engine, EngineError, ObserveError,
+        ObserveNeed, RouteInput, Snapshot, TunnelSummary, Want, access_domain, observe,
+        tunnel_target,
     },
     runtime::ConnectorState,
 };
@@ -142,6 +144,18 @@ pub struct AccountFacts {
     pub logs: Vec<String>,
     /// Logins Teitunnel added that still exist but whose route is gone (Access domains).
     pub orphan_logins: Vec<String>,
+    /// How WARP clients are set up; read only when this Mac shares private networks.
+    pub warp: WarpFacts,
+}
+
+/// The account's WARP client settings that decide whether clients reach a private
+/// network. Each is `None` when it couldn't be read (the token needs Zero Trust read).
+#[derive(Debug, Clone, Default)]
+pub struct WarpFacts {
+    /// Gateway proxy settings.
+    pub settings: Option<cf_api::DeviceSettings>,
+    /// The default device profile's Split Tunnels.
+    pub profile: Option<cf_api::DefaultDeviceProfile>,
 }
 
 /// Everything the checks look at.
@@ -191,7 +205,10 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         ctx.account,
         ctx.machine_name,
         None,
-        &AccessNeed::none(),
+        &ObserveNeed {
+            networks: Want::IfAllowed,
+            ..ObserveNeed::none()
+        },
     )
     .await?;
     let tunnels = engine.tunnels(api, connectors, ctx.account).await?;
@@ -236,6 +253,18 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         .map(|t| connectors.recent_logs(&t.id, 500))
         .unwrap_or_default();
     let orphan_logins = orphan_logins(engine, api, ctx.account, &snapshot).await;
+    let warp = if shared_networks(&snapshot).is_empty() {
+        WarpFacts::default()
+    } else {
+        let (settings, profile) = tokio::join!(
+            api.device_settings(ctx.account),
+            api.default_device_profile(ctx.account)
+        );
+        WarpFacts {
+            settings: settings.ok(),
+            profile: profile.ok(),
+        }
+    };
     Ok(AccountFacts {
         account_id: ctx.account.to_owned(),
         snapshot,
@@ -249,7 +278,62 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         listening,
         logs,
         orphan_logins,
+        warp,
     })
+}
+
+/// The ranges routed to this Mac's tunnel in the default virtual network.
+fn shared_networks(snapshot: &Snapshot) -> Vec<IpNet> {
+    let (Some(tunnel), Some(networks)) = (&snapshot.tunnel, &snapshot.networks) else {
+        return Vec::new();
+    };
+    let mut ranges: Vec<IpNet> = networks
+        .in_default_vnet()
+        .filter(|r| r.tunnel_id == tunnel.id)
+        .filter_map(crate::engine::ObservedNetworkRoute::range)
+        .map(|r| r.net())
+        .collect();
+    ranges.sort_unstable();
+    ranges.dedup();
+    ranges
+}
+
+/// A Split Tunnels address entry: a CIDR range or a bare address.
+fn split_entry(entry: &cf_api::SplitTunnelEntry) -> Option<IpNet> {
+    let address = entry.address.as_deref()?.trim();
+    address
+        .parse::<IpNet>()
+        .ok()
+        .or_else(|| address.parse::<std::net::IpAddr>().ok().map(IpNet::from))
+}
+
+/// Why WARP clients won't send `range` to the tunnel, per the default profile's Split
+/// Tunnels: `Some((check, entries))`, or `None` when they will (or it's unknown).
+fn split_tunnel_problem(
+    profile: &cf_api::DefaultDeviceProfile,
+    range: &IpNet,
+) -> Option<(&'static str, Vec<String>)> {
+    if let Some(include) = &profile.include {
+        let covered = include
+            .iter()
+            .filter_map(split_entry)
+            .any(|entry| entry.contains(range));
+        return (!covered).then(|| ("network.not_included", Vec::new()));
+    }
+    let excluded: Vec<String> = profile
+        .exclude
+        .iter()
+        .flatten()
+        .filter_map(|e| split_entry(e).map(|net| (net, e)))
+        .filter(|(net, _)| net.contains(range) || range.contains(net))
+        .map(
+            |(net, e)| match e.description.as_deref().filter(|d| !d.is_empty()) {
+                Some(description) => format!("Excluded: {net} ({description})"),
+                None => format!("Excluded: {net}"),
+            },
+        )
+        .collect();
+    (!excluded.is_empty()).then_some(("network.excluded", excluded))
 }
 
 /// Logins Teitunnel added for routes that no longer exist, confirmed to still be in
@@ -785,7 +869,7 @@ fn diagnose_account(
     }
 
     if let Some(tunnel) = tunnel {
-        let has_routes = !routes.is_empty();
+        let has_routes = !routes.is_empty() || !shared_networks(&facts.snapshot).is_empty();
         match &facts.connector {
             _ if !has_routes => {}
             None | Some(ConnectorState::Stopped) => found.add(
@@ -971,6 +1055,60 @@ fn diagnose_account(
         }
     }
 
+    let shared = shared_networks(&facts.snapshot);
+    if !shared.is_empty() {
+        if facts
+            .warp
+            .settings
+            .is_some_and(|s| s.gateway_proxy_enabled == Some(false))
+        {
+            found.add(
+                "network.proxy_off",
+                Severity::Warning,
+                "Private networks",
+                "WARP clients can't reach private networks".into(),
+                "Gateway's proxy is off, so WARP clients don't send traffic for private networks through Cloudflare. In the Cloudflare Zero Trust dashboard, turn on the Gateway proxy for TCP (and UDP, for services that use it) in the network settings.",
+                vec![format!(
+                    "Shared: {}",
+                    shared
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )],
+                Vec::new(),
+            );
+        }
+        for range in &shared {
+            let Some((check, evidence)) = facts
+                .warp
+                .profile
+                .as_ref()
+                .and_then(|p| split_tunnel_problem(p, range))
+            else {
+                continue;
+            };
+            let detail = if check == "network.excluded" {
+                format!(
+                    "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {range} to their own network instead of this Mac. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {range})."
+                )
+            } else {
+                format!(
+                    "The default device profile's Split Tunnels only send the listed addresses through WARP, and {range} isn't one of them. In the Cloudflare Zero Trust dashboard, add {range} to Split Tunnels."
+                )
+            };
+            found.add(
+                check,
+                Severity::Warning,
+                &range.to_string(),
+                format!("WARP clients don't send {range} to this Mac"),
+                &detail,
+                evidence,
+                Vec::new(),
+            );
+        }
+    }
+
     for domain in &facts.orphan_logins {
         found.add(
             "access.orphan",
@@ -1050,6 +1188,7 @@ mod tests {
                     owned: true,
                 }],
                 access: None,
+                networks: None,
             },
             tunnels: Vec::new(),
             drift: None,
@@ -1064,6 +1203,7 @@ mod tests {
             listening: HashMap::from([(3000, true)]),
             logs: Vec::new(),
             orphan_logins: Vec::new(),
+            warp: WarpFacts::default(),
         }
     }
 
@@ -1352,5 +1492,102 @@ mod tests {
             .iter()
             .any(|i| i.check == "tunnel.other_connectors")
         );
+    }
+
+    fn sharing(networks: &[&str]) -> AccountFacts {
+        let mut facts = healthy();
+        facts.snapshot.networks = Some(crate::engine::NetworkState {
+            default_vnet: Some("v".into()),
+            routes: networks
+                .iter()
+                .enumerate()
+                .map(|(i, n)| crate::engine::ObservedNetworkRoute {
+                    id: format!("n{i}"),
+                    network: (*n).into(),
+                    tunnel_id: T.into(),
+                    tunnel_name: None,
+                    virtual_network_id: Some("v".into()),
+                    comment: String::new(),
+                })
+                .collect(),
+        });
+        facts
+    }
+
+    fn entry(address: &str, description: Option<&str>) -> cf_api::SplitTunnelEntry {
+        cf_api::SplitTunnelEntry {
+            address: Some(address.into()),
+            host: None,
+            description: description.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn warp_settings_that_keep_clients_from_a_shared_network() {
+        let mut facts = sharing(&["192.168.1.0/24", "fd00::/64"]);
+        facts.warp = WarpFacts {
+            settings: Some(cf_api::DeviceSettings {
+                gateway_proxy_enabled: Some(false),
+                gateway_udp_proxy_enabled: None,
+            }),
+            // Cloudflare's default: private space is excluded.
+            profile: Some(cf_api::DefaultDeviceProfile {
+                exclude: Some(vec![
+                    entry("192.168.0.0/16", Some("RFC 1918")),
+                    entry("10.0.0.0/8", None),
+                ]),
+                include: None,
+            }),
+        };
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts.clone()],
+            foreign: Vec::new(),
+        });
+        let found: Vec<(&str, &str)> = issues
+            .iter()
+            .map(|i| (i.check.as_str(), i.subject.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("network.excluded", "192.168.1.0/24"),
+                ("network.proxy_off", "Private networks"),
+            ]
+        );
+        assert_eq!(issues[0].evidence, ["Excluded: 192.168.0.0/16 (RFC 1918)"]);
+
+        // Include mode: only listed ranges go through WARP.
+        facts.warp = WarpFacts {
+            settings: None,
+            profile: Some(cf_api::DefaultDeviceProfile {
+                exclude: None,
+                include: Some(vec![entry("192.168.0.0/16", None)]),
+            }),
+        };
+        assert_eq!(checks(facts.clone()), ["network.not_included"]);
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts.clone()],
+            foreign: Vec::new(),
+        });
+        assert_eq!(issues[0].subject, "fd00::/64");
+
+        // Unknown settings or nothing shared: nothing to say.
+        facts.warp = WarpFacts::default();
+        assert!(checks(facts).is_empty());
+        let mut idle = healthy();
+        idle.warp.settings = Some(cf_api::DeviceSettings {
+            gateway_proxy_enabled: Some(false),
+            gateway_udp_proxy_enabled: None,
+        });
+        assert!(checks(idle).is_empty());
+
+        // A tunnel that only carries a network is in use, and needs its connector.
+        let mut network_only = sharing(&["192.168.1.0/24"]);
+        network_only.snapshot.tunnel.as_mut().unwrap().ingress = Vec::new();
+        network_only.tunnel_cnames.clear();
+        network_only.connector = None;
+        assert_eq!(checks(network_only), ["tunnel.no_connections"]);
     }
 }

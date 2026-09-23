@@ -122,3 +122,10 @@ Source: `proxy/logger.go` and `proxy/proxy.go` in cloudflare/cloudflared (master
 
 ## Windows binary signature (verified 2026-09-23)
 `cloudflared-windows-amd64.exe` from the latest GitHub release carries an Authenticode signature (PE security directory present, 11.9 KB): signer **"Cloudflare, Inc."**, issued by *DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1* (root *DigiCert Trusted Root G4*), with a DigiCert timestamp. Checked by reading the certificate table directly, not with Windows tools.
+
+## Private networks (checked 2026-09-23)
+- Routes: `GET/POST /accounts/{id}/teamnet/routes` (`network`, `tunnel_id`, `comment`, optional `virtual_network_id`; list filter `is_deleted=false`), `DELETE …/teamnet/routes/{route_id}`. The same range can't be routed twice in one virtual network. Source: Cloudflare API reference, Zero Trust › Networks › Routes.
+- Virtual networks: `GET /accounts/{id}/teamnet/virtual_networks` (`is_default_network`). Routes created without `virtual_network_id` go to the default one.
+- Since cloudflared 2023.9.0 a tunnel needs no `warp-routing` setting; a route is enough (cloudflared release notes).
+- WARP clients: `GET /accounts/{id}/devices/settings` (`gateway_proxy_enabled`, `gateway_udp_proxy_enabled`) and `GET /accounts/{id}/devices/policy` (default profile, `exclude` or `include` Split Tunnels lists of `{address|host, description}`). The default exclude list contains RFC 1918 space, so private ranges must be removed from it before clients reach them (Cloudflare One docs, "Connect private networks").
+- `cloudflared access tcp` has the aliases `ssh`, `rdp` and `smb`. SSH uses `ProxyCommand cloudflared access ssh --hostname %h`; RDP `--url rdp://localhost:3389`; SMB `--url localhost:8445` (445 is taken locally); TCP `--url localhost:<port>` (Cloudflare One docs, "Connect with cloudflared access").

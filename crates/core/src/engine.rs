@@ -12,6 +12,7 @@ mod drift;
 mod executor;
 mod ingress;
 mod local;
+mod networks;
 mod observe;
 mod planner;
 mod tunnels;
@@ -38,7 +39,8 @@ pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
 pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
-pub use observe::{ObserveError, observe};
+pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
+pub use observe::{ObserveError, ObserveNeed, Want, observe};
 pub use planner::{PlanError, plan};
 pub use tunnels::{ConnectionView, ConnectorView, TunnelSummary};
 pub use types::{
@@ -47,6 +49,6 @@ pub use types::{
 };
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{
-    Change, DnsState, InputError, PlanView, RouteInput, RouteView, RoutesOverview, StepKind,
-    StepView, TunnelView, route_id,
+    Change, DnsState, InputError, NetworkView, PlanView, RouteInput, RouteView, RoutesOverview,
+    StepKind, StepView, TunnelView, route_id,
 };

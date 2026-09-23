@@ -58,6 +58,7 @@ beforeEach(() => {
       zone: "xyz.com",
       dns: { state: "ok" },
       access: null,
+      client: null,
     },
   ];
   calls = [];
@@ -74,6 +75,7 @@ beforeEach(() => {
           tunnel: { id: "t1", name: "Mac", connector: { state: "healthy", connections: 4 } },
           routes,
           zones,
+          networks: [],
         } satisfies RoutesOverview;
       case "routes_preview":
         return plan(payload["change"] as Change);
@@ -90,6 +92,7 @@ beforeEach(() => {
               zone: "yx.com",
               dns: { state: "ok" },
               access: change.route.access ?? null,
+              client: null,
             },
           ];
           return {
@@ -170,6 +173,32 @@ async function openAddSheet() {
 }
 
 describe("RoutesPage", () => {
+  it("shows how to connect to an SSH route instead of a URL", async () => {
+    routes = [
+      {
+        hostname: "ssh.xyz.com",
+        path: null,
+        origin: "ssh://localhost:22",
+        local: true,
+        zone: "xyz.com",
+        dns: { state: "ok" },
+        access: null,
+        client: {
+          protocol: "ssh",
+          command: 'ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.xyz.com',
+          localAddress: null,
+          sshConfig: "Host ssh.xyz.com\n  ProxyCommand cloudflared access ssh --hostname %h",
+        },
+      },
+    ];
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Connect" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy Command" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy SSH config" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Open/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Test" })).toBeNull();
+  });
+
   it("lists routes grouped by domain with their status", async () => {
     renderPage();
     const row = await screen.findByRole("option", { name: /app\.xyz\.com/ });
