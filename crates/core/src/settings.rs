@@ -35,6 +35,11 @@ pub struct Settings {
     pub notify_connectors: bool,
     /// Notify when a Quick Share goes live or fails.
     pub notify_quick_shares: bool,
+    /// Notify when the Doctor finds a new error.
+    pub notify_doctor: bool,
+    /// Doctor issues the user chose to ignore (stable issue ids). Changed with
+    /// [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
+    pub ignored_issues: Vec<String>,
 }
 
 impl Default for Settings {
@@ -44,6 +49,8 @@ impl Default for Settings {
             show_in_menu_bar: true,
             notify_connectors: true,
             notify_quick_shares: true,
+            notify_doctor: true,
+            ignored_issues: Vec::new(),
         }
     }
 }
@@ -65,12 +72,17 @@ pub struct SettingsPatch {
     /// Quick Share notifications on or off.
     #[serde(default)]
     pub notify_quick_shares: Option<bool>,
+    /// Doctor notifications on or off.
+    #[serde(default)]
+    pub notify_doctor: Option<bool>,
 }
 
 const THEME: &str = "theme";
 const SHOW_IN_MENU_BAR: &str = "showInMenuBar";
 const NOTIFY_CONNECTORS: &str = "notifyConnectors";
 const NOTIFY_QUICK_SHARES: &str = "notifyQuickShares";
+const NOTIFY_DOCTOR: &str = "notifyDoctor";
+const IGNORED_ISSUES: &str = "ignoredIssues";
 
 /// Loads all settings.
 ///
@@ -88,6 +100,8 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                     .unwrap_or(defaults.notify_connectors),
                 notify_quick_shares: read(conn, NOTIFY_QUICK_SHARES)?
                     .unwrap_or(defaults.notify_quick_shares),
+                notify_doctor: read(conn, NOTIFY_DOCTOR)?.unwrap_or(defaults.notify_doctor),
+                ignored_issues: read(conn, IGNORED_ISSUES)?.unwrap_or(defaults.ignored_issues),
             })
         })
         .await
@@ -113,6 +127,39 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             if let Some(on) = patch.notify_quick_shares {
                 write(&tx, NOTIFY_QUICK_SHARES, &on)?;
             }
+            if let Some(on) = patch.notify_doctor {
+                write(&tx, NOTIFY_DOCTOR, &on)?;
+            }
+            tx.commit()?;
+            Ok(())
+        })
+        .await?;
+    load(store).await
+}
+
+/// Ignores (or stops ignoring) Doctor issues, atomically, and returns the settings.
+///
+/// # Errors
+/// Fails if the database can't be written.
+pub async fn set_ignored(
+    store: &Store,
+    ids: Vec<String>,
+    ignored: bool,
+) -> Result<Settings, StoreError> {
+    store
+        .call(move |conn| {
+            let tx = conn.transaction()?;
+            let mut current: Vec<String> = read(&tx, IGNORED_ISSUES)?.unwrap_or_default();
+            if ignored {
+                for id in ids {
+                    if !current.contains(&id) {
+                        current.push(id);
+                    }
+                }
+            } else {
+                current.retain(|id| !ids.contains(id));
+            }
+            write(&tx, IGNORED_ISSUES, &current)?;
             tx.commit()?;
             Ok(())
         })
@@ -156,6 +203,17 @@ fn write<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn ignores_and_restores_issues() {
+        let store = Store::open_in_memory().unwrap();
+        let ids = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        set_ignored(&store, ids(&["a", "b"]), true).await.unwrap();
+        let after = set_ignored(&store, ids(&["b", "c"]), true).await.unwrap();
+        assert_eq!(after.ignored_issues, ["a", "b", "c"]);
+        let after = set_ignored(&store, ids(&["a", "c"]), false).await.unwrap();
+        assert_eq!(after.ignored_issues, ["b"]);
+    }
 
     #[tokio::test]
     async fn defaults_when_empty() {

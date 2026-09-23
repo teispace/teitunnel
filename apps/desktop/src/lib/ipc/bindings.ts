@@ -168,6 +168,11 @@ export const commands = {
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
+	 *  Ignores (or stops ignoring) Doctor issues by id. Ignored issues are hidden and never
+	 *  notify. Every window is told the settings changed.
+	 */
+	doctorSetIgnored: (ids: string[], ignored: boolean) => __TAURI_INVOKE<Settings>("doctor_set_ignored", { ids, ignored }),
+	/**
 	 *  Applies every fix that needs no review (owned DNS repairs and orphan cleanup), each
 	 *  through a fresh plan; the rest are left for the user.
 	 */
@@ -951,6 +956,13 @@ export type Settings = {
 	notifyConnectors: boolean,
 	/**  Notify when a Quick Share goes live or fails. */
 	notifyQuickShares: boolean,
+	/**  Notify when the Doctor finds a new error. */
+	notifyDoctor: boolean,
+	/**
+	 *  Doctor issues the user chose to ignore (stable issue ids). Changed with
+	 *  [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
+	 */
+	ignoredIssues: string[],
 };
 
 /**  A partial update: only the fields that are set change. */
@@ -963,6 +975,8 @@ export type SettingsPatch = {
 	notifyConnectors?: boolean | null,
 	/**  Quick Share notifications on or off. */
 	notifyQuickShares?: boolean | null,
+	/**  Doctor notifications on or off. */
+	notifyDoctor?: boolean | null,
 };
 
 /**  How bad an issue is. */

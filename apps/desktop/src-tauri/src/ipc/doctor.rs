@@ -9,15 +9,40 @@ use crate::{error::AppError, state::AppState};
 /// Checks cloudflared and every connected account; issues sorted by severity.
 #[tauri::command]
 #[specta::specta]
-pub async fn doctor_run(state: State<'_, AppState>) -> Result<Vec<Issue>, AppError> {
-    Ok(doctor::run(
+pub async fn doctor_run(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<Issue>, AppError> {
+    let issues = doctor::run(
         &state.accounts,
         &state.engine,
         &state.machine,
         &state.binary,
         &state.machine_name,
     )
-    .await)
+    .await;
+    crate::bootstrap::doctor_ran(&app, &state, &issues).await;
+    Ok(issues)
+}
+
+/// Ignores (or stops ignoring) Doctor issues by id. Ignored issues are hidden and never
+/// notify. Every window is told the settings changed.
+#[tauri::command]
+#[specta::specta]
+pub async fn doctor_set_ignored(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    ignored: bool,
+) -> Result<teitunnel_core::settings::Settings, AppError> {
+    use tauri_specta::Event;
+    let updated = teitunnel_core::settings::set_ignored(&state.store, ids, ignored).await?;
+    crate::ipc::events::EntityChanged {
+        kind: crate::ipc::events::EntityKind::Settings,
+        id: None,
+    }
+    .emit(&app)?;
+    Ok(updated)
 }
 
 /// Applies every fix that needs no review (owned DNS repairs and orphan cleanup), each

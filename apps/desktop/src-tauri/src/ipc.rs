@@ -80,6 +80,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             routes::tunnels_always_on,
             routes::tunnels_set_always_on,
             doctor::doctor_run,
+            doctor::doctor_set_ignored,
             doctor::doctor_fix_safe,
             doctor::diagnostics_preview,
             doctor::diagnostics_export

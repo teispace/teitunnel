@@ -15,6 +15,8 @@ beforeEach(() => {
     showInMenuBar: true,
     notifyConnectors: true,
     notifyQuickShares: true,
+    notifyDoctor: true,
+    ignoredIssues: [],
   };
   calls.length = 0;
   mockIPC((cmd, args) => {
@@ -27,6 +29,8 @@ beforeEach(() => {
         showInMenuBar: patch.showInMenuBar ?? stored.showInMenuBar,
         notifyConnectors: patch.notifyConnectors ?? stored.notifyConnectors,
         notifyQuickShares: patch.notifyQuickShares ?? stored.notifyQuickShares,
+        notifyDoctor: patch.notifyDoctor ?? stored.notifyDoctor,
+        ignoredIssues: stored.ignoredIssues,
       };
       return stored;
     }

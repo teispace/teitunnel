@@ -10,6 +10,7 @@ pub mod binary;
 pub mod diagnostics;
 pub mod discovery;
 pub mod doctor;
+pub mod doctor_monitor;
 pub mod domain;
 pub mod engine;
 mod error;

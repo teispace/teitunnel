@@ -89,6 +89,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
     watch_tray_routes(app.clone());
     watch_connector_health(app.clone());
+    watch_doctor(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
 
     Ok(AppState {
@@ -102,6 +103,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         supervisor,
         quick_shares,
         oauth_cancel: std::sync::Mutex::default(),
+        doctor: teitunnel_core::doctor_monitor::DoctorMonitor::default(),
         paused: std::sync::Mutex::default(),
         quit_confirmed: false.into(),
         shutting_down: false.into(),
@@ -288,6 +290,48 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                     None => {}
                 }
             }
+        }
+    });
+}
+
+/// Records a Doctor run and notifies about new errors (if the user wants that).
+pub(crate) async fn doctor_ran<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    issues: &[teitunnel_core::doctor::Issue],
+) {
+    let settings = settings::load(&state.store).await.unwrap_or_default();
+    let ignored = settings.ignored_issues.into_iter().collect();
+    let notice = state
+        .doctor
+        .record(issues, &ignored, std::time::Instant::now());
+    if let (Some(notice), true) = (notice, settings.notify_doctor) {
+        notify(app, &notice.title, &notice.body);
+    }
+}
+
+/// Runs the Doctor in the background when nothing else has for a while (the window
+/// runs it while open), so problems are noticed with the window closed.
+fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            if !state.doctor.due(std::time::Instant::now()) {
+                continue;
+            }
+            let issues = teitunnel_core::doctor::run(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.binary,
+                &state.machine_name,
+            )
+            .await;
+            doctor_ran(&app, &state, &issues).await;
         }
     });
 }

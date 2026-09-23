@@ -119,6 +119,16 @@ function GeneralPane() {
             onCheckedChange={(notifyConnectors) => update.mutate({ notifyConnectors })}
           />
         </GroupedRow>
+        <GroupedRow
+          label="Problems"
+          description="When the Doctor finds something new that stops a route working."
+        >
+          <Switch
+            aria-label="Doctor notifications"
+            checked={settings.notifyDoctor}
+            onCheckedChange={(notifyDoctor) => update.mutate({ notifyDoctor })}
+          />
+        </GroupedRow>
         <GroupedRow label="Quick Shares" description="When a share goes live or stops working.">
           <Switch
             aria-label="Quick Share notifications"

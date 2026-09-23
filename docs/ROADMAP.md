@@ -52,7 +52,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 
 ### M5: Observability & Always-on (v0.5.0)
 - [ ] M5-01 Metrics pipeline · [ ] M5-02 Charts · [ ] M5-03 Log viewer · [x] M5-04 Activity view
-- [ ] M5-05 launchd always-on · [ ] M5-06 Lifecycle & menu bar · [ ] M5-07 Notifications policy
+- [ ] M5-05 launchd always-on · [ ] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
 
 ### M6: Distribution (v1.0.0)
 - [ ] M6-01 Signing/notarization · [ ] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Homebrew

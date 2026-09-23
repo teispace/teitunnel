@@ -42,4 +42,4 @@
 - [x] Quit confirmation when Session connectors are running ("Switch them to Always-on?" as a shortcut). *(⌘Q or the menu bar Quit asks: Keep Routes Running (switches to Always-on, then quits) / Quit Anyway / Cancel. Only when routes run through the app and Always-on is available.)*
 
 ### M5-07 · Notifications policy
-- [ ] Settings: notify on connector down / recovered / crash loop / Doctor error / Quick Share events. Coalesced (no storms), and suppressed while the window is focused. *(Connector down (after 20 s) / back / crash loop and Quick Share events notify, coalesced per outage and suppressed while focused; `core::health`. Settings ▸ General ▸ Notifications toggles connector and Quick Share notices. Doctor-error notices remain.)*
+- [x] Settings: notify on connector down / recovered / crash loop / Doctor error / Quick Share events. Coalesced (no storms), and suppressed while the window is focused. *(Connector notices: `core::health` (20 s grace). Doctor errors: `core::doctor_monitor`, background runs every 5 min when the window isn't running them, ignores in settings (D-048).)*

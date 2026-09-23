@@ -1,7 +1,6 @@
 import { CircleCheck, RefreshCw, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useUiStore } from "@/app/ui-store";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
 import { Inspector, InspectorSection } from "@/components/patterns/inspector";
@@ -18,7 +17,7 @@ import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/fe
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { DiagnosticsDialog } from "./diagnostics-dialog";
-import { hasSafeCandidates, useFixSafe, useIssues } from "./queries";
+import { hasSafeCandidates, useFixSafe, useIssues, useSetIgnored } from "./queries";
 
 const severities: Record<Severity, { dot: Status; group: string; label: string }> = {
   error: { dot: "error", group: "Problems", label: "Problem" },
@@ -111,7 +110,7 @@ function IssueInspector({
   issue: Issue;
   onReview: (mode: SheetMode, accountId: string) => void;
 }) {
-  const setIgnored = useUiStore((state) => state.setIgnored);
+  const setIgnored = useSetIgnored();
   const severity = severities[issue.severity];
   return (
     <Inspector
@@ -139,7 +138,11 @@ function IssueInspector({
               <FixButton key={fix.type} fix={fix} primary={index === 0} />
             ),
           )}
-          <Button variant="plain" onClick={() => setIgnored(issue.id, true)}>
+          <Button
+            variant="plain"
+            disabled={setIgnored.isPending}
+            onClick={() => setIgnored.mutate({ ids: [issue.id], ignored: true })}
+          >
             Ignore
           </Button>
         </>
@@ -164,9 +167,8 @@ function IssueInspector({
 /** Problems Teitunnel found, worst first, each with a fix or clear guidance. */
 export function DoctorPage() {
   const doctor = useIssues();
-  const { issues, ignoredCount } = doctor;
-  const ignored = useUiStore((state) => state.ignoredIssues);
-  const setIgnored = useUiStore((state) => state.setIgnored);
+  const { issues, ignoredCount, ignoredIds } = doctor;
+  const setIgnored = useSetIgnored();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ mode: SheetMode; accountId: string } | null>(null);
   const selected = issues.find((i) => i.id === selectedId) ?? issues[0] ?? null;
@@ -236,11 +238,7 @@ export function DoctorPage() {
           }
           action={
             ignoredCount > 0 ? (
-              <Button
-                onClick={() => {
-                  for (const id of ignored) setIgnored(id, false);
-                }}
-              >
+              <Button onClick={() => setIgnored.mutate({ ids: ignoredIds, ignored: false })}>
                 Show Ignored Issues
               </Button>
             ) : undefined

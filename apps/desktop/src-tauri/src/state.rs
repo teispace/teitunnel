@@ -30,6 +30,8 @@ pub struct AppState {
     pub edge: teitunnel_core::engine::Edge,
     /// Cancels the OAuth sign-in in progress, if any.
     pub oauth_cancel: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    /// Doctor runs, for background scheduling and new-problem notifications.
+    pub doctor: teitunnel_core::doctor_monitor::DoctorMonitor,
     /// Tunnels whose connector the user stopped (not reported as down).
     pub paused: std::sync::Mutex<std::collections::HashSet<String>>,
     /// The user confirmed quitting while routes were running.

@@ -27,6 +27,8 @@ let settings: Settings = {
   showInMenuBar: true,
   notifyConnectors: true,
   notifyQuickShares: true,
+  notifyDoctor: true,
+  ignoredIssues: [],
 };
 
 let shares: QuickShare[] = [
@@ -367,6 +369,8 @@ export function installMockIpc(): void {
             showInMenuBar: patch.showInMenuBar ?? settings.showInMenuBar,
             notifyConnectors: patch.notifyConnectors ?? settings.notifyConnectors,
             notifyQuickShares: patch.notifyQuickShares ?? settings.notifyQuickShares,
+            notifyDoctor: patch.notifyDoctor ?? settings.notifyDoctor,
+            ignoredIssues: settings.ignoredIssues,
           };
           return settings;
         }
