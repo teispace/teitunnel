@@ -21,6 +21,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M5 notifications + settings, quit confirmation, open at login, log viewer, Activity filters, tray health line and alert icon; E2E build separated from the debug app.
 - 2026-09-23: M5 Always-on connectors (launchd).
 - 2026-09-23: M4 import, foreign connectors, diagnostics, log checks; Overview/Activity/Tunnels logs.
 - 2026-09-23: M4 Doctor (checks, view, fix safe) and Docker/framework discovery.
@@ -55,4 +56,5 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Stay on Tauri 2.11.x. **Do not** use `NSGlassEffectView` (D-021). Verify material work in a **packaged** build.
 - Commits: Conventional Commits, **no AI attribution**. Gate every commit on `pnpm verify` (exit code, not eyeballing output).
 - Push in batches: every push cancels the running CI (concurrency group), and Windows is only checked in CI.
+- E2E builds go to `target/e2e` (never over `target/debug/Teitunnel`, which the maintainer runs by hand). Standalone debug app: `pnpm --filter @teitunnel/desktop tauri build --debug --no-bundle`.
 - `target/debug/incremental` grows to tens of GB and filled the disk once (2026-09-23); `rm -rf target/debug/incremental` is safe when space runs low.
