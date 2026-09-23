@@ -1,0 +1,108 @@
+---
+title: Share a Vite, Next.js, Django or Rails dev server
+description: Fix "Blocked request. This host is not allowed", "Invalid Host header", broken hot reload and CSRF errors when sharing a dev server through Cloudflare Tunnel.
+---
+
+Dev servers protect you from DNS-rebinding attacks by refusing requests for hostnames they
+don't know. Through a tunnel, requests arrive for `app.example.com` or
+`something.trycloudflare.com`, not `localhost`, so the first visit often fails. There are two
+fixes; pick one.
+
+## Option 1: send `localhost` as the Host header
+
+The quickest fix, with no change to your project. Edit the route (or create it), open
+**Advanced ▸ Origin settings** and set **Host header** to `localhost`. From the terminal:
+
+```sh
+teitunnel-cli route add app.example.com 5173 --host-header localhost
+```
+
+Your dev server then sees every request as a request for `localhost`. This works for most
+setups; the catch is that anything the app builds from the Host header (absolute links,
+redirects, OAuth callbacks) says `localhost` too. If that matters, use option 2.
+
+## Option 2: allow the hostname in your project
+
+<Tabs items={["Vite", "Next.js", "Django", "Rails", "webpack", "Laravel"]}>
+  <Tab value="Vite">
+    Vite 6.0.9 and later (and 5.4.12, 4.5.6) answer *Blocked request. This host
+    ("app.example.com") is not allowed.* Allow your hostname in `vite.config.ts`:
+
+    ```ts
+    export default defineConfig({
+      server: {
+        allowedHosts: ["app.example.com"], // or [".trycloudflare.com"] for Quick Shares
+        hmr: { clientPort: 443 },           // hot reload through the tunnel
+      },
+    });
+    ```
+
+    A leading dot allows every subdomain. `hmr.clientPort: 443` makes the browser open the
+    hot-reload WebSocket on the tunnel's HTTPS port instead of `5173`, so edits show up live
+    for everyone viewing it. The same `server` options work for SvelteKit, Astro, Nuxt, Remix
+    and other Vite-based frameworks.
+  </Tab>
+  <Tab value="Next.js">
+    `next dev` serves pages to any host, but newer versions warn about, and will block,
+    cross-origin requests to dev-only resources such as hot reload. Allow your hostname in
+    `next.config.js`:
+
+    ```js
+    module.exports = {
+      allowedDevOrigins: ["app.example.com", "*.trycloudflare.com"],
+    };
+    ```
+  </Tab>
+  <Tab value="Django">
+    Django answers *Invalid HTTP_HOST header* (400) and, for forms, *CSRF verification failed*
+    (403). In `settings.py`:
+
+    ```py
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "app.example.com"]
+    CSRF_TRUSTED_ORIGINS = ["https://app.example.com"]
+    ```
+
+    `CSRF_TRUSTED_ORIGINS` needs the scheme (`https://`) since Django 4.0.
+  </Tab>
+  <Tab value="Rails">
+    Rails shows *Blocked hosts: app.example.com*. In `config/environments/development.rb`:
+
+    ```rb
+    config.hosts << "app.example.com"
+    config.hosts << ".trycloudflare.com" # every Quick Share address
+    ```
+  </Tab>
+  <Tab value="webpack">
+    webpack-dev-server (and Create React App, Vue CLI, Angular) answers *Invalid Host
+    header*. In `webpack.config.js`:
+
+    ```js
+    module.exports = {
+      devServer: {
+        allowedHosts: ["app.example.com"], // or "all"
+        client: { webSocketURL: "auto://0.0.0.0:0/ws" },
+      },
+    };
+    ```
+  </Tab>
+  <Tab value="Laravel">
+    `php artisan serve` accepts any host. If assets or links point at `http://localhost`,
+    set `APP_URL=https://app.example.com` in `.env`, and trust the tunnel as a proxy so
+    Laravel knows the page is HTTPS (`$middleware->trustProxies(at: '*')` in
+    `bootstrap/app.php` on Laravel 11). With Vite, also follow the Vite tab.
+  </Tab>
+</Tabs>
+
+## HTTPS dev servers
+
+If your dev server itself uses HTTPS with a self-signed certificate (`https://localhost:8443`),
+cloudflared refuses it by default. Turn on **Origin settings ▸ No TLS verify** for the route,
+or `--no-tls-verify` on the command line. Visitors still get Cloudflare's valid certificate.
+
+## Mixed content and redirects
+
+Visitors reach your app over HTTPS, but your app receives plain HTTP from cloudflared. If it
+builds `http://` links or redirects HTTP to HTTPS forever, tell it to trust the proxy headers
+(`X-Forwarded-Proto: https`): `app.set("trust proxy", true)` in Express,
+`SECURE_PROXY_SSL_HEADER` in Django, `config.assume_ssl = true` in Rails 7.1+. See
+[too many redirects](/docs/reference/troubleshooting#too-many-redirects).

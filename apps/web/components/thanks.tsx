@@ -25,7 +25,8 @@ function steps(download: Download): ReactNode[] {
         </>,
         <>Drag Teitunnel into the Applications folder.</>,
         <>
-          Open Teitunnel from Applications. It's notarized by Apple, so it opens without warnings.
+          Open Teitunnel from Applications. macOS asks once whether to open an app from the
+          internet: choose <strong>Open</strong>. It's signed and notarized, so that's all.
         </>,
       ];
     case "setup":
@@ -67,7 +68,8 @@ function steps(download: Download): ReactNode[] {
           Make it executable and run it:<Code>{`chmod +x ${file}\n./${file}`}</Code>
         </>,
         <>
-          It needs WebKitGTK 4.1 and, on older systems, FUSE 2 (<code>libfuse2</code>).
+          It needs WebKitGTK 4.1 and FUSE 2 (<code>libfuse2</code>, or <code>libfuse2t64</code> on
+          Ubuntu 24.04).
         </>,
       ];
     case "cli":

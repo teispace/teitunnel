@@ -1,51 +1,20 @@
-import { ArrowUpRight, Download as DownloadIcon, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DownloadButton } from "@/components/download-button";
-import { thanksHref } from "@/lib/pick";
-import { type Download, formatDate, formatSize, latestRelease, type Os } from "@/lib/release";
+import { FileRow } from "@/components/downloads";
+import { type Download, formatDate, latestRelease, type Os } from "@/lib/release";
+import { ogImage, pageMetadata } from "@/lib/seo";
 import { site } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Download",
+export const metadata: Metadata = pageMetadata({
+  title: "Download Teitunnel for macOS, Windows and Linux",
   description:
-    "Download Teitunnel for macOS, Windows and Linux, or the command line tool for servers.",
-};
-
-const archNames = { universal: "Apple silicon and Intel", x64: "x64", arm64: "Arm64" } as const;
-const kindNames = {
-  dmg: "Disk image (.dmg)",
-  setup: "Installer (.exe)",
-  deb: "Ubuntu, Debian (.deb)",
-  rpm: "Fedora, openSUSE (.rpm)",
-  appimage: "Any distribution (AppImage)",
-  cli: "Command line",
-} as const;
-
-function FileRow({ download }: { download: Download }) {
-  return (
-    <li className="min-w-0">
-      <Link
-        href={thanksHref(download)}
-        className="group flex items-center justify-between gap-4 rounded-lg border border-fd-border px-4 py-3 transition-colors hover:bg-fd-accent"
-      >
-        <span className="min-w-0">
-          <span className="block text-sm font-medium">
-            {kindNames[download.kind]} · {archNames[download.arch]}
-          </span>
-          <span className="block truncate font-mono text-xs text-fd-muted-foreground">
-            {download.name} · {formatSize(download.size)}
-          </span>
-        </span>
-        <DownloadIcon
-          className="size-4 shrink-0 text-fd-muted-foreground group-hover:text-fd-foreground"
-          aria-hidden
-        />
-      </Link>
-    </li>
-  );
-}
+    "Download Teitunnel, the free Cloudflare Tunnel app, for macOS (Apple silicon and Intel), Windows (x64 and Arm) and Linux (.deb, .rpm, AppImage), or teitunnel-cli for servers.",
+  path: "/download/",
+  image: ogImage(["download"]),
+});
 
 function Platform({
   id,

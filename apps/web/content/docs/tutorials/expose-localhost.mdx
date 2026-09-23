@@ -1,0 +1,91 @@
+---
+title: Expose localhost to the internet
+description: Share a website or API running on localhost at a public HTTPS URL with Cloudflare Tunnel, free and without port forwarding, from the app or the command line. An ngrok alternative on your own domain.
+---
+
+You have something running at `http://localhost:3000` and want someone else to open it: a
+client reviewing a site, a teammate testing an API, your own phone. Cloudflare Tunnel does
+this without touching your router. **cloudflared** on your computer makes an outbound
+connection to Cloudflare, and Cloudflare sends visitors down it. Your IP address stays
+private, and HTTPS comes with it.
+
+There are two ways, depending on how long the link should last.
+
+| | Quick Share | Route on your domain |
+|---|---|---|
+| Address | `random-words.trycloudflare.com` | `app.example.com` |
+| Cloudflare account | not needed | free account + a domain |
+| Same URL every time | no | yes |
+| Logins, keep running as a service | no | yes |
+| Best for | a quick look, a demo | anything longer, webhooks, sharing with a team |
+
+## In the app: 30 seconds
+
+<Steps>
+  <Step>
+    ### Start your app
+
+    Make sure it answers at `http://localhost:3000` (or whichever port) on your machine.
+  </Step>
+  <Step>
+    ### Share it
+
+    In Teitunnel choose **Quick Share**, pick your app from the list of running services (or
+    type `3000`), and choose **Share**.
+  </Step>
+  <Step>
+    ### Send the link
+
+    Copy the `https://….trycloudflare.com` URL, or show the QR code to open it on a phone.
+    **Stop Sharing** when you're done.
+  </Step>
+</Steps>
+
+<Screenshot name="quick-share" alt="A Quick Share of localhost with its public URL" />
+
+For a stable address, connect Cloudflare and choose **Address ▸ On example.com** before
+sharing; see [Quick Share on your own domain](/docs/getting-started/quick-share#on-your-own-domain).
+
+## From the terminal
+
+```sh
+teitunnel-cli share 3000
+```
+
+The URL is printed first (with a QR code), and the share lasts until you press Ctrl-C.
+Common variations:
+
+```sh
+teitunnel-cli share 8080 --for 1h                 # stop by itself after an hour
+teitunnel-cli share 3000 --on demo.example.com    # your own domain, same URL every time
+teitunnel-cli share https://localhost:8443        # an HTTPS dev server
+```
+
+## Make it permanent
+
+When the link should outlive a demo, make it a **route**: a hostname on your domain that
+stays until you remove it, can [require a login](/docs/guides/require-login) and can
+[keep running](/docs/concepts/run-modes) when Teitunnel is closed. See
+[put a service on your domain](/docs/getting-started/first-route).
+
+## If it doesn't load
+
+- **"Blocked request" or "Invalid Host header":** your dev server rejects unknown hostnames.
+  See [dev servers](/docs/tutorials/dev-servers).
+- **502 Bad Gateway:** Cloudflare reached your computer but nothing answered on that port.
+  Check the port, and whether your app listens on `127.0.0.1` or `::1`; see
+  [troubleshooting](/docs/reference/troubleshooting#502-bad-gateway).
+- **It's slow:** Quick Tunnels are best-effort. A route on your own domain uses your
+  account's tunnel and is faster and more reliable.
+
+## Coming from ngrok?
+
+The idea is the same: a local agent, a public URL, no open ports. The differences:
+
+- It runs on **Cloudflare's network with your own Cloudflare account**: your domains, your
+  DNS, Cloudflare's certificates, and logins through Cloudflare Access. There's no separate
+  subscription for custom domains.
+- Random URLs come from Cloudflare's free Quick Tunnels (`trycloudflare.com`) and need no
+  sign-up at all.
+- Teitunnel adds a desktop app, service discovery, a reviewed plan for every change to your
+  account, and a Doctor that explains problems.

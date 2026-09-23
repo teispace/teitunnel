@@ -1,40 +1,76 @@
 ---
 title: Introduction
-description: Teitunnel makes Cloudflare Tunnel easy on macOS, Windows, Linux and servers.
+description: Teitunnel is a free, open-source app for Cloudflare Tunnel on macOS, Windows, Linux and servers. Share localhost, publish apps on your own domain, and keep them running.
 ---
 
 Teitunnel puts anything running on your computer on the internet through
-[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/),
-without opening a port. Share a local port at a temporary URL in one click, or publish it on
-your own domain with DNS, logins and health checks handled for you. Every change to your
-Cloudflare account is shown before it's made, and undone if a step fails.
+[Cloudflare Tunnel](/docs/concepts/cloudflare-tunnel), without opening a port on your router.
+Share a local port at a temporary URL in one click, or publish it on your own domain with
+DNS, logins and health checks handled for you. Every change to your Cloudflare account is
+shown before it's made, and undone if a step fails.
+
+<Screenshot name="overview" alt="Teitunnel's Overview: traffic on this machine, routes with their status, and Quick Shares" />
+
+## Start here
 
 <Cards>
-  <Card title="Install" href="/docs/getting-started/install">
-    The app for macOS, Windows and Linux, the CLI, and the Docker image.
+  <Card title="1. Install" href="/docs/getting-started/install">
+    Download the app for macOS, Windows or Linux. Two minutes.
   </Card>
-  <Card title="Quick Share" href="/docs/getting-started/quick-share">
-    A public URL for a local port in one click. No account needed.
+  <Card title="2. Share a port" href="/docs/getting-started/quick-share">
+    A public URL for `localhost:3000` in seconds. No account needed.
   </Card>
-  <Card title="Your first route" href="/docs/getting-started/first-route">
-    Serve `app.example.com` from `localhost:3000` on your own domain.
+  <Card title="3. Use your domain" href="/docs/getting-started/first-route">
+    Serve `app.example.com` from your computer, for as long as you like.
   </Card>
-  <Card title="Servers and containers" href="/docs/guides/servers">
-    Run routes on a VPS, a cloud VM or in Docker, with a web dashboard and an API.
+  <Card title="On a server" href="/docs/guides/servers">
+    The CLI on a VPS, a cloud VM or in Docker, with a web dashboard and an API.
   </Card>
 </Cards>
 
 ## What you can do
 
 - **Share** a local service at a `trycloudflare.com` address, or at a subdomain of your own
-  domain for as long as you need it.
+  domain for as long as you need it. See [Expose localhost](/docs/tutorials/expose-localhost).
 - **Publish** routes on your domains: hostnames, paths, TCP, SSH and RDP, with DNS records
   created and cleaned up for you.
-- **Protect** a route with a login (Cloudflare Access) in one step.
+- **Protect** a route with a login ([Cloudflare Access](/docs/guides/require-login)) in one
+  step.
 - **Reach private networks** from devices running Cloudflare WARP.
 - **Run several tunnels**, keep them running as a service, and **load balance** a route
   across machines.
-- **Diagnose** problems with the Doctor, watch traffic and logs, and see what every change
-  did in Activity.
-- **Automate** with the CLI, the server API, or export to `config.yml`, Docker Compose and
-  Terraform.
+- **Diagnose** problems with the [Doctor](/docs/reference/doctor), watch traffic and logs,
+  and see what every change did in Activity.
+- **Automate** with the [CLI](/docs/reference/cli), the [server API](/docs/reference/api),
+  or export to `config.yml`, Docker Compose and Terraform.
+
+## Popular guides
+
+<Cards>
+  <Card title="Share a Vite, Next.js or Django dev server" href="/docs/tutorials/dev-servers">
+    Fix "Blocked request. This host is not allowed", hot reload and CSRF behind a tunnel.
+  </Card>
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks">
+    Stripe, GitHub and Slack webhooks to your laptop, at an address that doesn't change.
+  </Card>
+  <Card title="Home Assistant remote access" href="/docs/tutorials/home-assistant">
+    Reach Home Assistant from anywhere without port forwarding.
+  </Card>
+  <Card title="Fix Cloudflare errors" href="/docs/reference/troubleshooting">
+    Error 1033, 502 Bad Gateway, 530, SSL errors on deep subdomains, and more.
+  </Card>
+</Cards>
+
+## How it fits together
+
+Teitunnel is a front end to Cloudflare's own pieces. It runs **cloudflared**, Cloudflare's
+connector, which keeps an outbound connection to Cloudflare. It uses the **Cloudflare API**
+with a token you create, to make tunnels, DNS records and logins. Nothing goes through a
+Teispace server; there isn't one. If you ever stop using Teitunnel, your tunnels and records
+stay in your Cloudflare account, and you can [export](/docs/guides/export) them to run with
+plain `cloudflared`, Docker Compose or Terraform.
+
+<Callout title="Not affiliated with Cloudflare">
+Teitunnel is an independent open-source project by Teispace. It uses Cloudflare's public API
+and its open-source connector.
+</Callout>

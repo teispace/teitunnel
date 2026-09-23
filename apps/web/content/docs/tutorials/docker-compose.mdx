@@ -1,0 +1,96 @@
+---
+title: Cloudflare Tunnel for Docker Compose
+description: Add Teitunnel to a Docker Compose stack and route hostnames to the containers next to it through Cloudflare Tunnel, with the API token kept in a Docker secret.
+---
+
+Add one service to your Compose file and every container in the stack can have its own
+hostname, with DNS records made for you, without publishing a single port on the host.
+
+## The Compose file
+
+```yaml title="compose.yaml"
+services:
+  web:
+    image: nginx:alpine          # your app; no `ports:` needed
+
+  api:
+    image: ghcr.io/you/api:latest
+
+  teitunnel:
+    image: ghcr.io/teispace/teitunnel:latest
+    environment:
+      CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
+    secrets: [cloudflare_api_token]
+    volumes: [teitunnel:/data]   # the tunnel and its routes
+    restart: unless-stopped
+
+secrets:
+  cloudflare_api_token:
+    file: ./cloudflare_api_token
+
+volumes:
+  teitunnel:
+```
+
+Put your Cloudflare API token in `./cloudflare_api_token` (and in `.gitignore`). Create it in
+the Cloudflare dashboard with **Account · Cloudflare Tunnel · Edit**, **Zone · DNS · Edit**
+and **Zone · Zone · Read**; see [accounts and permissions](/docs/guides/accounts#what-the-token-needs).
+
+<Callout>
+The image is published to `ghcr.io` from a release after the first beta. Until then, build it
+from the repository: `docker build -f docker/Dockerfile -t ghcr.io/teispace/teitunnel .`
+</Callout>
+
+## Add routes
+
+Start the stack, then add a route per service, pointing at the **service name** and its
+container port:
+
+```sh
+docker compose up -d
+docker compose run --rm teitunnel route add app.example.com http://web:80 --yes
+docker compose run --rm teitunnel route add api.example.com http://api:8000 --yes
+docker compose restart teitunnel
+```
+
+The routes live in the `teitunnel` volume, so they survive restarts and upgrades. The
+container runs `teitunnel-cli up` by default and its health check fails unless every route is
+live, so `docker compose ps` tells you when something's wrong.
+
+## Things that trip people up
+
+- **`localhost` is the container itself.** Route to `http://web:80`, never
+  `http://localhost:80`. To reach a service on the Docker host, use
+  `http://host.docker.internal:3000` (add `extra_hosts: ["host.docker.internal:host-gateway"]`
+  on Linux).
+- **Use the container port**, not a published host port: `http://api:8000`, even if `ports:`
+  maps it to `18000` on the host.
+- **Different Compose projects:** the Teitunnel container must share a network with the
+  service. Attach it to the other project's network with `networks:`.
+
+## A web dashboard
+
+Run `serve` instead of `up` to add a small dashboard for routes and tunnels, and publish the
+dashboard through Teitunnel itself with a login:
+
+```yaml
+  teitunnel:
+    # …as above
+    command: ["serve", "--listen", "0.0.0.0:8765", "--allow-remote"]
+```
+
+Set the dashboard password once (it's kept, hashed, in the `teitunnel` volume), then route a
+hostname with a login to it:
+
+```sh
+docker compose run --rm teitunnel serve --set-password
+docker compose up -d
+docker compose run --rm teitunnel route add admin.example.com http://teitunnel:8765 --allow you@example.com --yes
+```
+
+See [web dashboard and API](/docs/guides/servers#web-dashboard-and-api).
+
+## Already have a cloudflared container?
+
+Teitunnel can [export](/docs/guides/export) a machine's routes as a Compose service running
+plain `cloudflared`, if you'd rather not run Teitunnel in the stack.

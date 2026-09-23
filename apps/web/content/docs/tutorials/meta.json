@@ -1,0 +1,12 @@
+{
+  "title": "Use cases",
+  "pages": [
+    "expose-localhost",
+    "dev-servers",
+    "webhooks",
+    "home-assistant",
+    "self-host",
+    "ssh",
+    "docker-compose"
+  ]
+}

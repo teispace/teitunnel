@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { ProsePage } from "@/components/prose-page";
+import { ogImage, pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy",
   description: "What Teitunnel sends where: nothing about you, and no telemetry.",
-};
+  path: "/privacy/",
+  image: ogImage(["privacy"]),
+});
 
 export default function Privacy() {
   return (

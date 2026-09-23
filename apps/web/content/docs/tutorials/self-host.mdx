@@ -1,0 +1,59 @@
+---
+title: Self-host from home without port forwarding
+description: Publish a website, NAS, dashboard or self-hosted app from a home server with Cloudflare Tunnel, even behind CGNAT, with your home IP hidden and no open ports.
+---
+
+A home server usually needs port forwarding, a static IP or dynamic DNS, and it exposes your
+home IP address. Cloudflare Tunnel needs none of that: the server makes an outbound
+connection to Cloudflare and visitors arrive through it. It works behind CGNAT, on mobile
+broadband and on networks where you can't change the router.
+
+## The setup
+
+1. **A machine that stays on**, running what you want to publish: a Linux box, a NAS that
+   runs Docker, a Raspberry Pi, a Mac mini.
+2. **Teitunnel on it**: the [desktop app](/docs/getting-started/install), or the
+   [CLI](/docs/guides/servers) on a headless server, or the
+   [Docker image](/docs/tutorials/docker-compose) next to your other containers.
+3. **A domain on Cloudflare** ([before you start](/docs/getting-started/first-route#before-you-start)).
+
+## Publish each app
+
+One route per app, each on its own hostname:
+
+```sh
+teitunnel-cli route add blog.example.com 8080
+teitunnel-cli route add photos.example.com http://192.168.1.10:2342
+teitunnel-cli route add status.example.com 3001
+sudo -E teitunnel-cli always-on on   # start at boot, restart if it stops
+```
+
+Routes can point at the machine itself (`8080`) or at any other device on your network
+(`http://192.168.1.10:2342`). One tunnel carries them all.
+
+## Protect what isn't public
+
+Anything you publish is reachable by anyone who finds the hostname. For admin panels,
+dashboards and private apps, [require a login](/docs/guides/require-login): Cloudflare asks
+for a one-time code sent to an email address you allowed before the request reaches your
+server.
+
+```sh
+teitunnel-cli route add admin.example.com 9000 --allow you@example.com
+```
+
+For whole networks (a NAS's SMB shares, a printer, SSH to every machine), share a
+[private network](/docs/guides/private-networks) with WARP clients instead of publishing
+each service.
+
+## Good to know
+
+- **Streaming lots of video?** Cloudflare's terms limit serving mostly video or large files
+  through its CDN on some plans. Check Cloudflare's current service terms for media servers
+  such as Jellyfin or Plex, or use a [private network](/docs/guides/private-networks) for them.
+- **Uploads are limited** to 100 MB per request on Cloudflare's Free and Pro plans. Apps like
+  Nextcloud upload large files in chunks, which works.
+- **Requests time out after 100 seconds** if your server doesn't answer (error 524).
+- **Several machines?** Put the same route on each and turn on
+  [load balancing](/docs/guides/load-balancing) for failover.
+- **Your home IP stays private:** DNS points at Cloudflare, not at your house.

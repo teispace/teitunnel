@@ -1,53 +1,124 @@
 ---
 title: Put a service on your domain
-description: Connect Cloudflare and route a hostname on your domain to a service on your computer.
+description: Connect your Cloudflare account and route a hostname such as app.example.com to a service on your computer with Cloudflare Tunnel, with the DNS record made for you.
 ---
 
-A **route** sends a hostname on one of your Cloudflare domains, such as
-`app.example.com`, to a service on your computer, such as `localhost:3000`.
+A **route** sends a hostname on one of your Cloudflare domains, such as `app.example.com`, to
+a service on your computer, such as `localhost:3000`. Unlike a Quick Share it has a stable
+address, and it can [keep running](/docs/concepts/run-modes) after you quit the app.
 
-## Connect your Cloudflare account
+## Before you start
 
-Open **Settings ▸ Accounts ▸ Connect an Account**. You can connect with:
+- **A Cloudflare account.** The free plan is enough.
+  [Sign up](https://dash.cloudflare.com/sign-up) if you don't have one.
+- **A domain on Cloudflare.** In the Cloudflare dashboard choose **Add a domain**, then change
+  the nameservers at your registrar to the two Cloudflare gives you. Routes on a domain start
+  working once Cloudflare says it's **Active**, usually within an hour. Teitunnel shows domains
+  still waiting under **Domains**.
+- **Teitunnel** [installed](/docs/getting-started/install), and the service running on your
+  machine: open `http://localhost:3000` in your browser to check.
 
-- **An API token.** Teitunnel opens Cloudflare's "Create API token" page pre-filled with
-  the permissions it needs: *Cloudflare Tunnel · Edit*, *DNS · Edit*, *Zone · Read*,
-  *Account Settings · Read*, and for logins *Access: Apps and Policies · Edit* and
-  *Access: Organizations, Identity Providers, and Groups · Edit*. Create it, then paste it into Teitunnel. If *Cloudflare
-  Tunnel* isn't pre-selected, add it by hand.
-- **Your cloudflared login.** If you've run `cloudflared tunnel login` before, Teitunnel
-  can use that certificate.
+<Steps>
+  <Step>
+    ### Connect your Cloudflare account
 
-The token is stored in your system's keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Teitunnel then checks what it may do on each
-domain and shows it under **Domains**.
+    Open **Settings ▸ Accounts ▸ Connect an Account** and choose **Open Cloudflare**. Your
+    browser opens Cloudflare's *Create API token* page with everything Teitunnel needs already
+    selected. Scroll down, choose **Continue to summary**, then **Create Token**, and copy the
+    token.
 
-## Add a route
+    Paste it into Teitunnel under **Paste it here**. The token is checked with Cloudflare, then
+    stored in your system's keychain (Keychain on macOS, Credential Manager on Windows, the
+    Secret Service on Linux), and only ever sent to Cloudflare.
 
-1. Open **Routes** (⌘2) and choose **New Route** (⌘N).
-2. Pick the service: a detected dev server or container, or a port or address.
-3. Type the subdomain and pick the domain. Optionally restrict the route to a path.
-4. **Review** shows exactly what will change: the tunnel for this machine (created the first
-   time), its routes, and the DNS record. If a record Teitunnel didn't create already
-   uses the hostname, you're asked before it's replaced.
-5. **Apply**. Each step is checked off as it runs; if one fails, the earlier ones are
-   undone. Teitunnel then checks the hostname end to end through Cloudflare and tells
-   you whether it works.
+    <Screenshot name="accounts" alt="Settings, Accounts: a connected Cloudflare account" width={1240} height={1000} narrow caption="A connected account. Permissions shows what the token can do." />
+  </Step>
+  <Step>
+    ### Start a new route
+
+    Open **Routes** (⌘2 / Ctrl+2) and choose **New Route** (⌘N / Ctrl+N). Under **Service**, pick
+    a detected dev server or container, or type a port (`3000`) or an address
+    (`http://localhost:8080`, `https://localhost:8443`, `ssh://localhost:22`).
+
+    <Screenshot name="new-route" alt="New Route: the service menu lists dev servers running on this machine" />
+  </Step>
+  <Step>
+    ### Choose the hostname
+
+    Type the subdomain (`app`) and pick the domain (`example.com`). Leave the subdomain empty
+    to use the domain itself. Optionally, under **Advanced**, restrict the route to a path
+    (such as `^/api/`), [require a login](/docs/guides/require-login), or change
+    [origin settings](#origin-settings).
+  </Step>
+  <Step>
+    ### Review
+
+    Choose **Review**. Teitunnel shows exactly what will change: the tunnel for this machine
+    (created the first time), its routes, and the DNS record. If a record Teitunnel didn't
+    create already uses the hostname, it says so and asks before replacing it.
+
+    <Screenshot name="review" alt="Reviewing a new route: the tunnel, the route and the DNS record, with a warning about an existing record" />
+  </Step>
+  <Step>
+    ### Apply
+
+    Choose **Apply**. Each step is checked off as it runs; if one fails, the earlier ones are
+    undone. Teitunnel then requests `https://app.example.com` through Cloudflare and tells you
+    whether it works. The route shows as **Live** in Routes.
+  </Step>
+</Steps>
+
+## What was created
+
+In your Cloudflare account you'll now find:
+
+- a tunnel named after this machine (**Zero Trust ▸ Networks ▸ Tunnels**), created with your
+  first route and shared by every later one,
+- a published application route on it: `app.example.com` → `http://localhost:3000`,
+- a proxied `CNAME` record `app.example.com` → `<tunnel-id>.cfargotunnel.com` (**DNS ▸
+  Records**), with the comment `teitunnel:route=…` so Teitunnel knows it made it.
+
+See [routes and tunnels](/docs/concepts/routes-and-tunnels) for how these fit together.
+
+## From the terminal
+
+```sh
+teitunnel-cli route add app.example.com 3000
+teitunnel-cli routes
+```
+
+The CLI shows the same plan and asks before applying. See the [command line](/docs/reference/cli).
 
 ## Origin settings
 
 **Advanced ▸ Origin settings** covers everything cloudflared can do when it talks to your
 service. Leave a field empty for cloudflared's default.
 
-- **HTTPS services:** accept a self-signed certificate, the name on the certificate, a
-  certificate authority file of your own, or HTTP/2.
+- **HTTPS services:** accept a self-signed certificate (*No TLS verify*), the name on the
+  certificate, a certificate authority file of your own, or HTTP/2.
 - **Requests:** a different `Host` header (for dev servers that only answer to their own
-  name, like some Vite and webpack setups), no chunked encoding (some WSGI servers), or a
-  SOCKS5 proxy for TCP routes.
+  name, like some Vite and webpack setups; see [dev servers](/docs/tutorials/dev-servers)), no
+  chunked encoding (some WSGI servers), or a SOCKS5 proxy for TCP routes.
 - **Connection:** timeouts and idle connections, in seconds, and no IPv4/IPv6 fallback.
 
 Settings made in the Cloudflare dashboard are kept when you edit a route here, and ones
 Teitunnel doesn't show are never removed. Importing a `config.yml` carries its settings
 over, including the ones at the top of the file that apply to every route.
 
-The route runs through this machine's connector while Teitunnel is open. To keep it
-running after you quit, see [run modes](/docs/concepts/run-modes).
+## Keep it running
+
+The route runs through this machine's connector while Teitunnel is open, including when its
+window is closed and it's only in the menu bar or tray. To keep it running after you quit and
+across restarts, turn on **Tunnels ▸ Keep running when Teitunnel quits**. See
+[run modes](/docs/concepts/run-modes).
+
+## Next
+
+<Cards>
+  <Card title="Require a login" href="/docs/guides/require-login">
+    Only let the people you choose reach the route.
+  </Card>
+  <Card title="Troubleshooting" href="/docs/reference/troubleshooting">
+    If the route doesn't work: 502, 1033, SSL errors and more.
+  </Card>
+</Cards>

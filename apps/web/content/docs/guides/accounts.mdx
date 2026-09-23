@@ -20,6 +20,8 @@ One token can reach several Cloudflare accounts; each one it reaches is connecte
 several accounts are connected, the Routes, Domains and Tunnels views have an account menu,
 and the command line takes `--account`.
 
+<Screenshot name="domains" alt="Domains: each domain in the connected accounts with what Teitunnel may do on it" />
+
 ## What the token needs
 
 | Permission | For |
@@ -57,5 +59,6 @@ adding a domain to Cloudflare links to its *Add a site* page.
 
 ## Disconnecting
 
-**Disconnect** stops this machine's connectors for the account and deletes its credentials
-from the keychain. Nothing changes in Cloudflare: its tunnels, routes and DNS records stay.
+**Disconnect** deletes the account's credentials from your keychain. Nothing changes in
+Cloudflare: its tunnels, routes and DNS records stay, and running routes keep working until
+you stop them.
