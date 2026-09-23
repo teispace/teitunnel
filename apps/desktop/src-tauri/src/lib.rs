@@ -22,6 +22,7 @@ pub use ipc::export_bindings;
 /// # Errors
 /// Returns an error when Tauri fails to initialise (e.g. the webview is unavailable).
 pub fn run() -> Result<(), tauri::Error> {
+    ipc::mark_launch();
     // An E2E build is a test harness, not the app: say so plainly instead of panicking
     // when it's opened by hand.
     #[cfg(feature = "e2e")]
@@ -72,7 +73,11 @@ pub fn run() -> Result<(), tauri::Error> {
         .menu(shell::menu::build)
         .on_menu_event(|app, event| shell::menu::on_event(app, &event))
         .setup(move |app| {
-            let log_dir = app.path().app_log_dir()?;
+            // An isolated run (`TEITUNNEL_DATA_DIR`: E2E, measurements) logs there too.
+            let log_dir = match std::env::var_os("TEITUNNEL_DATA_DIR") {
+                Some(dir) => std::path::PathBuf::from(dir).join("logs"),
+                None => app.path().app_log_dir()?,
+            };
             app.manage(logging::init(&log_dir)?);
             specta.mount_events(app);
             #[cfg(feature = "e2e")]

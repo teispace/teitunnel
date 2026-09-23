@@ -32,10 +32,25 @@ pub fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
     })
 }
 
-/// Called by a webview once its first frame is painted; shows its window.
+static LAUNCHED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+static FIRST_FRAME: std::sync::Once = std::sync::Once::new();
+
+/// Remembers when the app started, for the startup time logged at the first frame.
+pub(crate) fn mark_launch() {
+    LAUNCHED.get_or_init(std::time::Instant::now);
+}
+
+/// Called by a webview once its first frame is painted; shows its window. The first
+/// call logs how long startup took (a diagnostic, and what `pnpm perf:app` reads).
 #[tauri::command]
 #[specta::specta]
 pub fn app_ready(window: tauri::WebviewWindow) {
+    FIRST_FRAME.call_once(|| {
+        if let Some(launched) = LAUNCHED.get() {
+            let ms = u64::try_from(launched.elapsed().as_millis()).unwrap_or(u64::MAX);
+            tracing::info!(startup_ms = ms, "first frame ready");
+        }
+    });
     shell::windows::show_when_ready(&window);
 }
 

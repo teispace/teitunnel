@@ -8,6 +8,7 @@
 
 mod accounts;
 pub(crate) mod app;
+pub(crate) use app::mark_launch;
 mod doctor;
 mod events;
 mod quick_share;
