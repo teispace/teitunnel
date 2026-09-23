@@ -3,6 +3,8 @@ import {
   CircleCheck,
   Copy,
   Globe,
+  KeyRound,
+  LockKeyhole,
   type LucideIcon,
   Minus,
   Power,
@@ -24,6 +26,8 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   deleteRecord: Globe,
   stopConnector: Power,
   deleteTunnel: Waypoints,
+  loginMethod: KeyRound,
+  accessApp: LockKeyhole,
   verify: CircleCheck,
 };
 

@@ -14,7 +14,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
 | [M7](plans/M7-windows.md) | v1.1 | Windows | 🚧 Core done; needs Windows hardware |
 | [M8](plans/M8-linux.md) | v1.2 | Linux | 🚧 Core done; needs a Linux desktop |
-| [M9](plans/M9-advanced.md) | v1.x | Export, CLI, Access protection, replicas, private networks | 🚧 Export and CLI done |
+| [M9](plans/M9-advanced.md) | v1.x | Export, CLI, Access protection, replicas, private networks | 🚧 Export, CLI and Access done |
 
 ## Milestone checklist (epic level)
 

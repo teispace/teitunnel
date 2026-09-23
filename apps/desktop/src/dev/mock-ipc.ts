@@ -150,6 +150,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       zone: "teispace.com",
       dns: { state: "ok" },
+      access: null,
     },
     {
       hostname: "docs.teispace.com",
@@ -158,6 +159,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       zone: "teispace.com",
       dns: { state: "missing" },
+      access: null,
     },
     {
       hostname: "xyz.dev",
@@ -166,6 +168,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       zone: "xyz.dev",
       dns: { state: "ok" },
+      access: { emails: ["me@xyz.dev"], emailDomains: ["teispace.com"] },
     },
     {
       hostname: "api.xyz.dev",
@@ -174,6 +177,7 @@ const routesOverview: RoutesOverview = {
       local: true,
       zone: "xyz.dev",
       dns: { state: "ok" },
+      access: null,
     },
   ],
   zones: [
@@ -181,6 +185,35 @@ const routesOverview: RoutesOverview = {
     { id: "9a7806061c88ada191ed06f989cc3dac", name: "xyz.dev" },
     { id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", name: "yx.app" },
   ],
+};
+
+const protectedPlan: PlanView = {
+  steps: [
+    {
+      kind: "loginMethod",
+      description: "Add One-time PIN as a way to sign in (a code sent by email)",
+      command: null,
+    },
+    {
+      kind: "accessApp",
+      description: "Require a login for shop.yx.app: me@xyz.dev, anyone at @teispace.com",
+      command: null,
+    },
+    {
+      kind: "putConfig",
+      description: "Update tunnel “MacBook-Pro” to serve 5 routes",
+      command: null,
+    },
+    {
+      kind: "createRecord",
+      description: "Point shop.yx.app at tunnel “MacBook-Pro”",
+      command: null,
+    },
+    { kind: "verify", description: "Check https://shop.yx.app works", command: null },
+  ],
+  warnings: [],
+  requiresConfirmation: false,
+  fingerprint: "mock",
 };
 
 const addPlan: PlanView = {
@@ -410,8 +443,10 @@ export function installMockIpc(): void {
           return domains;
         case "routes_overview":
           return routesOverview;
-        case "routes_preview":
-          return addPlan;
+        case "routes_preview": {
+          const change = payload["change"] as { route?: { access?: unknown } } | undefined;
+          return change?.route?.access ? protectedPlan : addPlan;
+        }
         case "routes_apply":
           return new Promise<Outcome>((resolve) =>
             setTimeout(
@@ -431,9 +466,10 @@ export function installMockIpc(): void {
               () =>
                 resolve({
                   hostname: String(payload["hostname"]),
-                  status: 200,
+                  status: payload["hostname"] === "xyz.dev" ? 302 : 200,
                   failure: null,
                   message: null,
+                  protected: payload["hostname"] === "xyz.dev",
                 }),
               900,
             ),

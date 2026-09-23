@@ -370,6 +370,71 @@ impl Local {
     }
 }
 
+impl Local {
+    /// Access applications Teitunnel created in `account`: `(app id, domain)`.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn owned_access_apps(
+        &self,
+        account: &str,
+    ) -> Result<Vec<(String, String)>, StoreError> {
+        let account = account.to_owned();
+        self.store
+            .call(move |conn| {
+                let mut stmt = conn.prepare_cached(
+                    "SELECT app_id, domain FROM access_ownership WHERE account_id = ?1 ORDER BY domain",
+                )?;
+                let rows = stmt
+                    .query_map(params![account], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rows)
+            })
+            .await
+    }
+
+    /// Records that Teitunnel created an Access application.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn own_access_app(
+        &self,
+        account: &str,
+        app_id: &str,
+        domain: &str,
+    ) -> Result<(), StoreError> {
+        let (account, app_id, domain) = (account.to_owned(), app_id.to_owned(), domain.to_owned());
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "INSERT INTO access_ownership (app_id, account_id, domain, created_at)
+                     VALUES (?1, ?2, ?3, ?4)
+                     ON CONFLICT (app_id) DO UPDATE SET domain = excluded.domain",
+                    params![app_id, account, domain, now_ms()],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Forgets an Access application (deleted).
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn disown_access_app(&self, app_id: &str) -> Result<(), StoreError> {
+        let app_id = app_id.to_owned();
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "DELETE FROM access_ownership WHERE app_id = ?1",
+                    params![app_id],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+}
+
 /// Rollups for the same minute (a connector restarted mid-minute) add up.
 const UPSERT_ROLLUP: &str = "INSERT INTO metrics_rollup (tunnel_id, minute, requests, errors,
         status_2xx, status_3xx, status_4xx, status_5xx, concurrent_max, connections_min,
@@ -502,6 +567,26 @@ impl Local {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn remembers_access_apps_it_created() {
+        let local = Local::new(Store::open_in_memory().unwrap());
+        local
+            .own_access_app("a", "app1", "app.xyz.com")
+            .await
+            .unwrap();
+        local
+            .own_access_app("a", "app1", "web.xyz.com")
+            .await
+            .unwrap();
+        local.own_access_app("b", "app2", "yx.com").await.unwrap();
+        assert_eq!(
+            local.owned_access_apps("a").await.unwrap(),
+            [("app1".to_owned(), "web.xyz.com".to_owned())]
+        );
+        local.disown_access_app("app1").await.unwrap();
+        assert!(local.owned_access_apps("a").await.unwrap().is_empty());
+    }
 
     #[tokio::test]
     async fn rollups_merge_expire_and_forget() {

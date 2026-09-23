@@ -132,6 +132,9 @@ pub struct Verification {
     pub failure: Option<Failure>,
     /// The failure, in a sentence for the UI.
     pub message: Option<String>,
+    /// Cloudflare asked for a login (Access) instead of passing the request on, so the
+    /// check reached the edge but not the origin behind the login.
+    pub protected: bool,
 }
 
 impl Verification {
@@ -141,6 +144,7 @@ impl Verification {
             status,
             message: failure.as_ref().map(Failure::message),
             failure,
+            protected: false,
         }
     }
 
@@ -174,6 +178,18 @@ pub fn classify(status: u16, body: &str) -> Option<Failure> {
         (504, _) => Some(Failure::OriginTimeout),
         _ => None,
     }
+}
+
+/// Whether a redirect goes to Cloudflare Access's login page.
+pub(crate) fn is_access_login(location: &str) -> bool {
+    let host = location
+        .split_once("://")
+        .map_or("", |(_, rest)| rest)
+        .split(['/', '?', ':'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    host.ends_with(".cloudflareaccess.com") || location.contains("/cdn-cgi/access/login")
 }
 
 /// Checks the DNS record in `snapshot` for `hostname`.
@@ -294,6 +310,18 @@ pub(crate) async fn probe(
         }
     };
     let status = response.status().as_u16();
+    let protected = response.status().is_redirection()
+        && response
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|l| l.to_str().ok())
+            .is_some_and(is_access_login);
+    if protected {
+        return Verification {
+            protected,
+            ..result(Some(status), None)
+        };
+    }
     // Error pages are small; don't download a large origin response to classify it.
     let body = if status >= 500 || status == 404 {
         response.text().await.unwrap_or_default()
@@ -343,6 +371,20 @@ mod tests {
     }
 
     #[test]
+    fn recognizes_the_access_login() {
+        assert!(is_access_login(
+            "https://myteam.cloudflareaccess.com/cdn-cgi/access/login/app.xyz.com?kid=1"
+        ));
+        assert!(is_access_login(
+            "https://app.xyz.com/cdn-cgi/access/login/app.xyz.com"
+        ));
+        assert!(!is_access_login("https://app.xyz.com/login"));
+        assert!(!is_access_login(
+            "https://evil.com/?next=x.cloudflareaccess.com"
+        ));
+    }
+
+    #[test]
     fn failures_know_their_stage() {
         assert_eq!(Failure::NoRecord.stage(), Stage::Dns);
         assert_eq!(Failure::CertificateNotCovered.stage(), Stage::Edge);
@@ -370,6 +412,22 @@ mod tests {
         let ok = probe(Edge::Test(*server.address()), &host, None).await;
         assert!(ok.ok(), "{ok:?}");
         assert_eq!(ok.status, Some(200));
+        assert!(!ok.protected);
+
+        let server = {
+            use wiremock::{Mock, MockServer, ResponseTemplate, matchers::any};
+            let server = MockServer::start().await;
+            Mock::given(any())
+                .respond_with(ResponseTemplate::new(302).insert_header(
+                    "location",
+                    "https://team.cloudflareaccess.com/cdn-cgi/access/login/app",
+                ))
+                .mount(&server)
+                .await;
+            server
+        };
+        let login = probe(Edge::Test(*server.address()), &host, None).await;
+        assert!(login.ok() && login.protected, "{login:?}");
 
         let server = serve(530, "error code: 1033").await;
         let down = probe(Edge::Test(*server.address()), &host, None).await;

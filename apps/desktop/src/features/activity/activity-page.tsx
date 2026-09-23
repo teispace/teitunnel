@@ -1,4 +1,12 @@
-import { Activity, Copy, Globe, RefreshCw, Route as RouteIcon } from "lucide-react";
+import {
+  Activity,
+  Copy,
+  Globe,
+  LockKeyhole,
+  type LucideIcon,
+  RefreshCw,
+  Route as RouteIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useUiStore } from "@/app/ui-store";
@@ -267,13 +275,18 @@ function RecordDetails({
   );
 }
 
-/** Before/after, one block per route or record, like a diff. */
+const areas: Record<Delta["area"], { icon: LucideIcon; label: string }> = {
+  route: { icon: RouteIcon, label: "Route" },
+  dns: { icon: Globe, label: "DNS record" },
+  access: { icon: LockKeyhole, label: "Login" },
+};
+
+/** Before/after, one block per route, record or login, like a diff. */
 function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: boolean }) {
   return (
     <ul className="flex flex-col gap-2">
       {changes.map((change) => {
-        const Icon = change.area === "route" ? RouteIcon : Globe;
-        const area = change.area === "route" ? "Route" : "DNS record";
+        const { icon: Icon, label: area } = areas[change.area];
         return (
           <li
             key={`${change.area}:${change.hostname}:${change.path ?? ""}`}

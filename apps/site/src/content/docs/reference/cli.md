@@ -10,6 +10,7 @@ through the same preview as the app: you see the plan before anything changes.
 teitunnel-cli routes                         # this Mac's routes and their status
 teitunnel-cli route add app.example.com 3000 # route a hostname to localhost:3000
 teitunnel-cli route add api.example.com 8000 --path '^/v1/'
+teitunnel-cli route add admin.example.com 3000 --allow me@example.com --allow @example.com
 teitunnel-cli route remove app.example.com
 teitunnel-cli export terraform > teitunnel.tf
 teitunnel-cli accounts
@@ -19,6 +20,7 @@ teitunnel-cli accounts
 |---|---|
 | `-a, --account <name or id>` | Which account, when several are connected. |
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
+| `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/guides/require-login/)). |
 | `--replace` | Also allow replacing or deleting DNS records Teitunnel didn't create. |
 | `--json` | Machine-readable output for `accounts` and `routes`. |
 

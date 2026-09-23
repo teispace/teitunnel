@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use futures_util::{StreamExt, TryStreamExt, stream};
 
 use super::{
+    access::{AccessNeed, AccessRule, AccessState, ObservedAccessApp, definition_of, domain_host},
     cloud::CloudApi,
     local::Local,
     types::{ObservedRecord, ObservedTunnel, Snapshot},
@@ -29,7 +30,7 @@ pub enum ObserveError {
 }
 
 /// Reads the zones, this Mac's tunnel and the DNS records for `hostnames` (every
-/// routed hostname when `None`).
+/// routed hostname when `None`), plus what `access` asks for.
 ///
 /// # Errors
 /// API or database errors. A tunnel deleted elsewhere isn't an error: it's observed as
@@ -40,6 +41,7 @@ pub async fn observe<C: CloudApi>(
     account: &str,
     machine_name: &str,
     hostnames: Option<&[&Hostname]>,
+    access: &AccessNeed,
 ) -> Result<Snapshot, ObserveError> {
     let machine = local.machine_tunnel(account).await?;
     let (zones, tunnel, owned) = tokio::join!(
@@ -68,10 +70,10 @@ pub async fn observe<C: CloudApi>(
     names.dedup();
 
     let lookups: Vec<(String, String)> = names
-        .into_iter()
+        .iter()
         .filter_map(|name| {
-            let zone = Hostname::parse(&name).ok()?.zone_in(&zones)?.id.clone();
-            Some((zone, name))
+            let zone = Hostname::parse(name).ok()?.zone_in(&zones)?.id.clone();
+            Some((zone, name.clone()))
         })
         .collect();
     let mut records: Vec<ObservedRecord> = stream::iter(lookups)
@@ -93,6 +95,7 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
+    let access = observe_access(api, local, account, access, &names).await?;
 
     Ok(Snapshot {
         account_id: account.to_owned(),
@@ -101,7 +104,79 @@ pub async fn observe<C: CloudApi>(
         tunnel,
         tunnel_names,
         records,
+        access,
     })
+}
+
+/// Reads Access as far as `need` asks: the setup, the applications for the requested
+/// domains, and the ones Teitunnel created for hostnames in `names`.
+async fn observe_access<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    need: &AccessNeed,
+    names: &[String],
+) -> Result<Option<AccessState>, ObserveError> {
+    if need.is_empty() {
+        return Ok(None);
+    }
+    let owned = local.owned_access_apps(account).await?;
+    let mut domains = need.domains.clone();
+    if need.owned {
+        domains.extend(
+            owned
+                .iter()
+                .filter(|(_, domain)| {
+                    let host = domain_host(domain);
+                    names.iter().any(|n| n.eq_ignore_ascii_case(host))
+                })
+                .map(|(_, domain)| domain.clone()),
+        );
+    }
+    domains.sort_unstable();
+    domains.dedup();
+    if domains.is_empty() && !need.setup {
+        return Ok(None);
+    }
+    let owned_ids: HashSet<&str> = owned.iter().map(|(id, _)| id.as_str()).collect();
+    let setup = async {
+        if need.setup {
+            api.access_setup(account).await.map(Some)
+        } else {
+            Ok(None)
+        }
+    };
+    let apps = stream::iter(domains)
+        .map(|domain| async move { api.access_apps_for(account, &domain).await })
+        .buffered(CONCURRENCY)
+        .try_concat();
+    let (setup, apps) = match tokio::try_join!(setup, apps) {
+        Ok(read) => read,
+        // Reading Teitunnel's own logins is incidental to changes that don't ask for
+        // one: a token that lost its Access permission shouldn't block them.
+        Err(err) if err.is_auth() && !need.setup && need.domains.is_empty() => {
+            tracing::warn!("couldn't read Access applications: {err}");
+            return Ok(None);
+        }
+        Err(err) => return Err(err.into()),
+    };
+    let mut apps: Vec<ObservedAccessApp> = apps
+        .into_iter()
+        .map(|app| ObservedAccessApp {
+            owned: owned_ids.contains(app.id.as_str()),
+            rule: AccessRule::from_app(&app),
+            definition: definition_of(&app),
+            domain: app.domain,
+            id: app.id,
+        })
+        .collect();
+    apps.sort_by(|a, b| (&a.domain, &a.id).cmp(&(&b.domain, &b.id)));
+    apps.dedup_by(|a, b| a.id == b.id);
+    Ok(Some(AccessState {
+        organization: setup.map(|(org, _)| org),
+        login_methods: setup.map(|(_, n)| n),
+        apps,
+    }))
 }
 
 fn is_owned(record: &cf_api::DnsRecord, index: &HashSet<String>) -> bool {

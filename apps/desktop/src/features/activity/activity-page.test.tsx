@@ -81,6 +81,7 @@ beforeEach(() => {
               local: true,
               zone: "yx.com",
               dns: { state: "ok" },
+              access: null,
             },
           ],
           zones: [

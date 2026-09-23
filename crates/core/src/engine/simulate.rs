@@ -1,9 +1,12 @@
 //! A model of applying a plan to a snapshot: what Cloudflare would look like afterwards.
 //! Used by the planner's idempotency property test.
 
-use super::types::{
-    ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, ownership_comment,
-    tunnel_target,
+use super::{
+    access::{AccessRule, AccessState, ObservedAccessApp},
+    types::{
+        ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, ownership_comment,
+        tunnel_target,
+    },
 };
 
 pub(crate) const CREATED_TUNNEL_ID: &str = "new-tunnel";
@@ -12,6 +15,14 @@ fn resolve(tunnel: &TunnelRef) -> String {
     match tunnel {
         TunnelRef::Existing(id) => id.clone(),
         TunnelRef::Created => CREATED_TUNNEL_ID.to_owned(),
+    }
+}
+
+fn empty_access() -> AccessState {
+    AccessState {
+        organization: Some(true),
+        login_methods: Some(0),
+        apps: Vec::new(),
     }
 }
 
@@ -72,6 +83,39 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
             }
             Step::DeleteRecord { record, .. } => next.records.retain(|r| r.record.id != record.id),
             Step::DeleteTunnel { .. } => next.tunnel = None,
+            Step::AddLoginMethod => {
+                let access = next.access.get_or_insert_with(empty_access);
+                access.login_methods = Some(access.login_methods.unwrap_or(0) + 1);
+            }
+            Step::CreateAccessApp { app } => {
+                record_ids += 1;
+                next.access
+                    .get_or_insert_with(empty_access)
+                    .apps
+                    .push(ObservedAccessApp {
+                        id: format!("sim-app-{record_ids}"),
+                        domain: app.domain.clone(),
+                        owned: true,
+                        rule: AccessRule::from_new(app),
+                        definition: app.clone(),
+                    });
+            }
+            Step::UpdateAccessApp { id, app, .. } => {
+                if let Some(existing) = next
+                    .access
+                    .as_mut()
+                    .and_then(|a| a.apps.iter_mut().find(|a| a.id == *id))
+                {
+                    existing.domain.clone_from(&app.domain);
+                    existing.rule = AccessRule::from_new(app);
+                    existing.definition = app.clone();
+                }
+            }
+            Step::DeleteAccessApp { id, .. } => {
+                if let Some(access) = next.access.as_mut() {
+                    access.apps.retain(|a| a.id != *id);
+                }
+            }
             Step::StopConnector { .. } | Step::Verify { .. } => {}
         }
     }

@@ -215,6 +215,14 @@ export const events = {
 };
 
 /* Types */
+/**  Who may reach a protected route: any of these emails, or anyone at these domains. */
+export type AccessRule = {
+	/**  Email addresses, e.g. `me@xyz.com`. */
+	emails: string[],
+	/**  Email domains, e.g. `xyz.com`. */
+	emailDomains: string[],
+};
+
 /**  A connected Cloudflare account. */
 export type Account = {
 	/**  Cloudflare account id. */
@@ -444,7 +452,9 @@ export type DeltaArea =
 /**  The tunnel's routes (ingress). */
 "route" | 
 /**  A DNS record. */
-"dns";
+"dns" | 
+/**  A route's login (Cloudflare Access). */
+"access";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -903,6 +913,11 @@ export type RouteInput = {
 	path: string | null,
 	/**  Origin, e.g. `3000` or `http://localhost:3000`. */
 	origin: string,
+	/**
+	 *  Require a login for these people. On an edit, `None` removes the login
+	 *  Teitunnel added; on an add, it leaves any existing login alone.
+	 */
+	access?: AccessRule | null,
 };
 
 /**  One route of this Mac's tunnel. */
@@ -919,6 +934,8 @@ export type RouteView = {
 	zone: string | null,
 	/**  Its DNS record. */
 	dns: DnsState,
+	/**  Who may reach it, when Teitunnel added a login. */
+	access: AccessRule | null,
 };
 
 /**  Everything the Routes view shows for an account. */
@@ -1069,6 +1086,10 @@ export type StepKind =
 "stopConnector" | 
 /**  Delete the tunnel. */
 "deleteTunnel" | 
+/**  Add a login method. */
+"loginMethod" | 
+/**  Create, change or remove a route's login. */
+"accessApp" | 
 /**  Check the route works. */
 "verify";
 
@@ -1202,6 +1223,11 @@ export type Verification = {
 	failure: Failure | null,
 	/**  The failure, in a sentence for the UI. */
 	message: string | null,
+	/**
+	 *  Cloudflare asked for a login (Access) instead of passing the request on, so the
+	 *  check reached the edge but not the origin behind the login.
+	 */
+	protected: boolean,
 };
 
 /**  Something the user should know before applying. */

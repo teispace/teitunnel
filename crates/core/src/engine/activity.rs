@@ -57,6 +57,8 @@ pub enum DeltaArea {
     Route,
     /// A DNS record.
     Dns,
+    /// A route's login (Cloudflare Access).
+    Access,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -160,6 +162,14 @@ fn routes(ingress: &[IngressRule]) -> BTreeMap<RouteKey, &IngressRule> {
         .collect()
 }
 
+/// Who a login lets in, as a line for the before/after list.
+fn login_summary(app: &cf_api::NewAccessApp) -> String {
+    super::access::AccessRule::from_new(app).map_or_else(
+        || "a login with custom rules".to_owned(),
+        |rule| format!("login required: {}", rule.summary()),
+    )
+}
+
 /// What `plan` changes, from its steps' before and after values.
 pub fn deltas(plan: &Plan) -> Vec<Delta> {
     let tunnel_target = format!("proxied CNAME to tunnel “{}”", plan.tunnel_name);
@@ -208,7 +218,29 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 before: Some(format!("{} {}", record.kind, record.content)),
                 after: None,
             }),
-            Step::CreateTunnel { .. }
+            Step::CreateAccessApp { app } => out.push(Delta {
+                area: DeltaArea::Access,
+                hostname: app.domain.clone(),
+                path: None,
+                before: None,
+                after: Some(login_summary(app)),
+            }),
+            Step::UpdateAccessApp { app, previous, .. } => out.push(Delta {
+                area: DeltaArea::Access,
+                hostname: app.domain.clone(),
+                path: None,
+                before: Some(login_summary(previous)),
+                after: Some(login_summary(app)),
+            }),
+            Step::DeleteAccessApp { previous, .. } => out.push(Delta {
+                area: DeltaArea::Access,
+                hostname: previous.domain.clone(),
+                path: None,
+                before: Some(login_summary(previous)),
+                after: None,
+            }),
+            Step::AddLoginMethod
+            | Step::CreateTunnel { .. }
             | Step::StopConnector { .. }
             | Step::DeleteTunnel { .. }
             | Step::Verify { .. } => {}

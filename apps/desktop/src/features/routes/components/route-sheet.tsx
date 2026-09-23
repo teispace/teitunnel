@@ -1,4 +1,4 @@
-import { CircleCheck, ExternalLink, TriangleAlert } from "lucide-react";
+import { CircleCheck, ExternalLink, LockKeyhole, TriangleAlert } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -9,10 +9,12 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { TextArea } from "@/components/ui/text-area";
 import { ServicePicker } from "@/features/quick-share";
 import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
+import { formatAllowed, parseAllowed } from "../access";
 import { applyDirectly, useApply, usePreview, useVerify } from "../queries";
 import { HostnameInput, joinHostname } from "./hostname-input";
 import { PlanSteps } from "./plan-steps";
@@ -50,9 +52,24 @@ function shortOrigin(origin: string) {
   return origin.replace(/^http:\/\/localhost:/, "");
 }
 
+interface Form {
+  hostname: string;
+  origin: string;
+  path: string;
+  /** Who can sign in, as typed; `null`: no login. */
+  allowed: string | null;
+}
+
+const emptyForm: Form = { hostname: "", origin: "", path: "", allowed: null };
+
 /** The change a sheet applies, from what's in its form. */
-function changeFor(mode: SheetMode, form: { hostname: string; origin: string; path: string }) {
-  const route = { hostname: form.hostname, origin: form.origin, path: form.path.trim() || null };
+function changeFor(mode: SheetMode, form: Form) {
+  const route = {
+    hostname: form.hostname,
+    origin: form.origin,
+    path: form.path.trim() || null,
+    access: form.allowed === null ? null : parseAllowed(form.allowed),
+  };
   switch (mode.kind) {
     case "add":
       return { type: "addRoute", route } satisfies Change;
@@ -93,6 +110,7 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
               hostname: mode.route.hostname,
               path: mode.route.path,
               origin: mode.route.origin,
+              access: mode.route.access,
             },
           }
         : null;
@@ -104,6 +122,7 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
               hostname: mode.route.hostname,
               path: mode.route.path,
               origin: mode.route.origin,
+              access: mode.route.access,
             },
           }
         : null;
@@ -139,6 +158,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const [hostname, setHostname] = useState("");
   const [origin, setOrigin] = useState("");
   const [path, setPath] = useState("");
+  const [allowed, setAllowed] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -168,6 +188,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     setHostname(route?.hostname ?? joinHostname("", zones[0]?.name ?? ""));
     setOrigin(route ? shortOrigin(route.origin) : "");
     setPath(route?.path ?? "");
+    setAllowed(route?.access ? formatAllowed(route.access) : null);
     setPlan(null);
     setOutcome(null);
     setNotice(null);
@@ -178,13 +199,13 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
       setStage("form");
     } else {
       setStage("review");
-      review(changeFor(mode, { hostname: "", origin: "", path: "" }));
+      review(changeFor(mode, emptyForm));
     }
   }, [mode]);
 
   const submitForm = (event: FormEvent) => {
     event.preventDefault();
-    if (mode) review(changeFor(mode, { hostname, origin, path }));
+    if (mode) review(changeFor(mode, { hostname, origin, path, allowed }));
   };
 
   const runApply = () => {
@@ -238,7 +259,8 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     return error?.field === field ? error.message : null;
   };
   const generalError: IpcError | null =
-    preview.error && !["hostname", "origin", "path"].includes(toIpcError(preview.error).field ?? "")
+    preview.error &&
+    !["hostname", "origin", "path", "access"].includes(toIpcError(preview.error).field ?? "")
       ? toIpcError(preview.error)
       : apply.error && toIpcError(apply.error).code !== "conflict"
         ? toIpcError(apply.error)
@@ -373,24 +395,52 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 />
               )}
             </Field>
-            <Disclosure title="Advanced" defaultOpen={path !== ""}>
-              <Field
-                label="Path"
-                error={fieldError("path")}
-                help="Only requests whose path matches this pattern, e.g. ^/api/. Leave empty for all."
-              >
-                {(control) => (
-                  <Input
-                    {...control}
-                    placeholder="^/api/"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="font-mono text-mono"
-                    value={path}
-                    onChange={(event) => setPath(event.target.value)}
+            <Disclosure title="Advanced" defaultOpen={path !== "" || allowed !== null}>
+              <div className="flex flex-col gap-4">
+                <Field
+                  label="Path"
+                  error={fieldError("path")}
+                  help="Only requests whose path matches this pattern, e.g. ^/api/. Leave empty for all."
+                >
+                  {(control) => (
+                    <Input
+                      {...control}
+                      placeholder="^/api/"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="font-mono text-mono"
+                      value={path}
+                      onChange={(event) => setPath(event.target.value)}
+                    />
+                  )}
+                </Field>
+                <label htmlFor="route-login" className="flex items-center gap-2 text-body">
+                  <Checkbox
+                    id="route-login"
+                    checked={allowed !== null}
+                    onCheckedChange={(value) => setAllowed(value === true ? (allowed ?? "") : null)}
                   />
-                )}
-              </Field>
+                  Require a login
+                </label>
+                {allowed !== null ? (
+                  <Field
+                    label="Who can sign in"
+                    error={fieldError("access")}
+                    help="Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free)."
+                  >
+                    {(control) => (
+                      <TextArea
+                        {...control}
+                        rows={2}
+                        placeholder="me@example.com, @example.com"
+                        autoComplete="off"
+                        value={allowed}
+                        onChange={(event) => setAllowed(event.target.value)}
+                      />
+                    )}
+                  </Field>
+                ) : null}
+              </div>
             </Disclosure>
             {generalError ? (
               <p role="alert" className="text-callout text-error">
@@ -478,6 +528,20 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 <TriangleAlert aria-hidden className="size-7 text-warning" strokeWidth={1.5} />
                 <p className="max-w-sm text-body">{verify.data.message}</p>
                 <CopyField label="URL" value={url} className="w-full max-w-sm" />
+              </>
+            ) : verify.data.protected ? (
+              <>
+                <LockKeyhole aria-hidden className="size-7 text-healthy" strokeWidth={1.5} />
+                <p className="text-headline">Protected by a login</p>
+                <p className="max-w-sm text-body text-secondary">
+                  Cloudflare asks visitors to sign in before they reach your app.
+                </p>
+                <div className="flex w-full max-w-sm items-center gap-2">
+                  <CopyField label="URL" value={url} className="min-w-0 flex-1" />
+                  <Button onClick={() => void openUrl(url)}>
+                    Open <ExternalLink />
+                  </Button>
+                </div>
               </>
             ) : (
               <>

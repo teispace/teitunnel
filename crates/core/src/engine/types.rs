@@ -1,4 +1,4 @@
-use cf_api::{DnsRecord, IngressRule};
+use cf_api::{DnsRecord, IngressRule, NewAccessApp};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -29,6 +29,9 @@ pub struct RouteSpec {
     pub origin: RouteOrigin,
     /// Extra `originRequest` settings (kept as-is).
     pub options: Map<String, Value>,
+    /// Require a login (Cloudflare Access) for these people.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access: Option<super::access::AccessRule>,
 }
 
 impl RouteSpec {
@@ -99,6 +102,9 @@ pub struct Snapshot {
     pub tunnel_names: Vec<String>,
     /// DNS records for the hostnames involved.
     pub records: Vec<ObservedRecord>,
+    /// Access for the domains involved; read only when a change involves a login.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access: Option<super::access::AccessState>,
 }
 
 impl Snapshot {
@@ -324,6 +330,29 @@ pub enum Step {
         /// Tunnel id.
         tunnel_id: String,
     },
+    /// Add One-time PIN as a login method (the account has none).
+    AddLoginMethod,
+    /// Create the Access application that requires a login for a route.
+    CreateAccessApp {
+        /// Its definition.
+        app: NewAccessApp,
+    },
+    /// Change who can reach a protected route (or its domain, after a rename).
+    UpdateAccessApp {
+        /// Application id.
+        id: String,
+        /// The new definition.
+        app: NewAccessApp,
+        /// What it was, for rollback.
+        previous: NewAccessApp,
+    },
+    /// Remove the login from a route.
+    DeleteAccessApp {
+        /// Application id.
+        id: String,
+        /// What it was, for rollback.
+        previous: NewAccessApp,
+    },
     /// Probe the hostname end to end.
     Verify {
         /// Hostname.
@@ -358,6 +387,20 @@ impl Step {
             ),
             Self::StopConnector { .. } => "Stop this Mac's connector".to_owned(),
             Self::DeleteTunnel { .. } => format!("Delete tunnel “{tunnel_name}”"),
+            Self::AddLoginMethod => "Add One-time PIN as a login method".to_owned(),
+            Self::CreateAccessApp { app } => format!(
+                "Require a login for {} ({})",
+                app.domain,
+                super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.summary())
+            ),
+            Self::UpdateAccessApp { app, .. } => format!(
+                "Let only {} into {}",
+                super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.summary()),
+                app.domain
+            ),
+            Self::DeleteAccessApp { previous, .. } => {
+                format!("Remove the login from {}", previous.domain)
+            }
             Self::Verify { hostname } => format!("Check https://{hostname} works"),
         }
     }
@@ -386,6 +429,21 @@ impl Step {
                 ))
             }
             Self::DeleteTunnel { .. } => Some(format!("cloudflared tunnel delete '{tunnel_name}'")),
+            Self::CreateAccessApp { app } => {
+                let body = serde_json::to_string(app).unwrap_or_default();
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/access/apps --data '{body}'"
+                ))
+            }
+            Self::UpdateAccessApp { id, app, .. } => {
+                let body = serde_json::to_string(app).unwrap_or_default();
+                Some(format!(
+                    "curl -X PUT {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/access/apps/{id} --data '{body}'"
+                ))
+            }
+            Self::DeleteAccessApp { id, .. } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/access/apps/{id}"
+            )),
             Self::Verify { hostname } => Some(format!("curl -I https://{hostname}")),
             _ => None,
         }

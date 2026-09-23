@@ -13,7 +13,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 ## Next up
 1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
 2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
-3. M9 advanced features (`docs/plans/M9-advanced.md`): Export and CLI done; next Protect with Access (M9-03).
+3. M9 advanced features (`docs/plans/M9-advanced.md`): Export, CLI and Access done; next M9-03 follow-ups (Doctor check for orphaned Access apps), then M9-04 replicas.
 4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
 5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
 6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.
@@ -24,6 +24,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M9-03 Require a login (Cloudflare Access): engine steps with rollback, ownership index, Access read only when needed, verify recognizes the login redirect, route sheet + list + inspector, CLI `--allow`, docs guide (D-057). Fixed: views using charts crashed on WebKitGTK under `LANG=C` (uPlot passed the invalid `navigator.language` to `Intl`); the app now repairs the language at startup (Linux E2E failure).
 - 2026-09-23: M9-02 `teitunnel-cli` (routes, route add/remove with plan + confirmation, export, --json) (D-056).
 - 2026-09-23: M9-01 Export (config.yml, Docker Compose, Terraform v5 with import blocks) (D-055). M7/M8 groundwork: services per platform, no console windows, Secret Service error, E2E jobs for Linux/Windows (D-054). Fixed: bare IPv6 origins.
 - 2026-09-23: M6 non-release work: accessibility (WCAG AA under Increase Contrast, axe audit clean), Help menu + About credits, performance baseline (14.7 MB, ~0.6 s start), docs site (apps/site), CONTRIBUTING deep-dive; dev mocks and screenshots use neutral names.

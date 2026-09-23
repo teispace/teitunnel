@@ -8,7 +8,9 @@ use cf_api::{ApiToken, Client};
 use teitunnel_core::{
     Secret,
     domain::Hostname,
-    engine::{Approval, Change, Connectors, Context, Edge, Engine, Local, Outcome, RouteInput},
+    engine::{
+        AccessRule, Approval, Change, Connectors, Context, Edge, Engine, Local, Outcome, RouteInput,
+    },
     runtime::ConnectorState,
     store::Store,
 };
@@ -82,6 +84,7 @@ fn add(hostname: &str, origin: &str) -> Change {
             hostname: hostname.into(),
             path: None,
             origin: origin.into(),
+            access: None,
         },
     }
 }
@@ -146,4 +149,51 @@ async fn two_domains_verified_then_nothing_left() {
             .unwrap();
         assert!(left.is_empty(), "records left in {zone}: {left:?}");
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_protected_route_asks_for_a_login_until_its_removed() {
+    let (_fake, addr) = spawn_fake().await;
+    let api = Client::with_base(&format!("http://{addr}"), ApiToken::new("e2e")).unwrap();
+    let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+    let conns = Recorder::default();
+    let host = Hostname::parse("app.xyz.com").unwrap();
+
+    let mut change = add("app.xyz.com", "3000");
+    if let Change::AddRoute { route } = &mut change {
+        route.access = Some(AccessRule {
+            emails: vec!["me@xyz.com".into()],
+            email_domains: Vec::new(),
+        });
+    }
+    let outcome = apply(&engine, &api, &conns, change).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(
+        api.identity_providers("e2e-account").await.unwrap()[0].kind,
+        "onetimepin"
+    );
+    let apps = api
+        .access_apps_for("e2e-account", "app.xyz.com")
+        .await
+        .unwrap();
+    assert_eq!(apps.len(), 1);
+    let checked = engine
+        .verify(&api, CTX, &host, Edge::Test(addr), Duration::ZERO)
+        .await
+        .unwrap();
+    assert!(checked.ok() && checked.protected, "{checked:?}");
+
+    let remove = Change::RemoveRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+    };
+    let outcome = apply(&engine, &api, &conns, remove).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        api.access_apps_for("e2e-account", "app.xyz.com")
+            .await
+            .unwrap()
+            .is_empty(),
+        "the login went with the route"
+    );
 }

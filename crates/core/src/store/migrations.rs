@@ -85,6 +85,16 @@ const MIGRATIONS: &[M<'static>] = &[
     ),
     // 6: structured activity (kind, hostnames, step states, before/after), as JSON
     M::up("ALTER TABLE activity ADD COLUMN record TEXT;"),
+    // 7: Access applications Teitunnel created (it changes only these)
+    M::up(
+        "CREATE TABLE access_ownership (
+            app_id     TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            domain     TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX access_ownership_account ON access_ownership (account_id);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

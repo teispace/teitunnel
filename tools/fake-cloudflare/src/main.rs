@@ -1,10 +1,12 @@
 //! A stand-in for the Cloudflare API (and edge) for end-to-end tests of the routes flow.
 //!
 //! It keeps one account with two zones in memory and implements the endpoints Teitunnel
-//! uses: token verify, accounts, zones, tunnels, remote configuration, tunnel token and
-//! DNS records, with Cloudflare's response envelope. Requests whose `Host` isn't the
-//! server itself are answered as the edge would for a working route (`200`), so the
-//! verifier can run against it too.
+//! uses: token verify, accounts, zones, tunnels, remote configuration, tunnel token, DNS
+//! records and Access (a Zero Trust organization, login methods, applications), with
+//! Cloudflare's response envelope. Requests whose `Host` isn't the server itself are
+//! answered as the edge would: a redirect to the login page for a hostname with an
+//! Access application, otherwise `200` from a working route, so the verifier can run
+//! against it too.
 //!
 //! Usage: `fake-cloudflare [port]` (0 or absent: any free port). Prints
 //! `listening on 127.0.0.1:<port>` once ready. Any token is accepted except `bad`.
@@ -30,6 +32,10 @@ struct State {
     tunnels: BTreeMap<String, (String, u64, Value)>,
     /// Zone id → records.
     records: BTreeMap<String, Vec<Value>>,
+    /// Access applications.
+    access_apps: Vec<Value>,
+    /// Login methods (identity providers).
+    login_methods: Vec<Value>,
 }
 
 impl State {
@@ -217,6 +223,61 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 err(404, 81044, "Record does not exist.")
             }
         }
+        ("GET", ["accounts", _, "access", "organizations"]) => ok(json!({
+            "name": "E2E", "auth_domain": "e2e.cloudflareaccess.com"
+        })),
+        ("GET", ["accounts", _, "access", "identity_providers"]) => {
+            ok(Value::Array(s.login_methods.clone()))
+        }
+        ("POST", ["accounts", _, "access", "identity_providers"]) => {
+            let mut method = req.body.clone();
+            method["id"] = json!(s.id("idp"));
+            s.login_methods.push(method.clone());
+            ok(method)
+        }
+        ("DELETE", ["accounts", _, "access", "identity_providers", id]) => {
+            let before = s.login_methods.len();
+            s.login_methods.retain(|m| m["id"] != *id);
+            if s.login_methods.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 12130, "Identity provider not found")
+            }
+        }
+        ("GET", ["accounts", _, "access", "apps"]) => {
+            let matching = s
+                .access_apps
+                .iter()
+                .filter(|a| req.query.get("domain").is_none_or(|d| a["domain"] == *d))
+                .cloned()
+                .collect();
+            ok(Value::Array(matching))
+        }
+        ("POST", ["accounts", _, "access", "apps"]) => {
+            let mut app = req.body.clone();
+            app["id"] = json!(s.id("app"));
+            s.access_apps.push(app.clone());
+            ok(app)
+        }
+        ("PUT", ["accounts", _, "access", "apps", id]) => {
+            match s.access_apps.iter_mut().find(|a| a["id"] == *id) {
+                Some(app) => {
+                    *app = req.body.clone();
+                    app["id"] = json!(id);
+                    ok(app.clone())
+                }
+                None => err(404, 12130, "Application not found"),
+            }
+        }
+        ("DELETE", ["accounts", _, "access", "apps", id]) => {
+            let before = s.access_apps.len();
+            s.access_apps.retain(|a| a["id"] != *id);
+            if s.access_apps.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 12130, "Application not found")
+            }
+        }
         // Capability probes on other resources: authorized, no such object.
         ("PATCH", _) => err(404, 1003, "Not found"),
         _ => err(404, 7003, "No route for that URI"),
@@ -311,20 +372,45 @@ async fn read_request(socket: &mut TcpStream) -> Option<Request> {
     })
 }
 
+/// Whether an Access application covers the request.
+fn protected(state: &Mutex<State>, req: &Request) -> bool {
+    let host = req.host.split(':').next().unwrap_or_default();
+    let target = format!("{host}{}", req.path);
+    state
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .access_apps
+        .iter()
+        .filter_map(|a| a["domain"].as_str())
+        .any(|domain| {
+            target == domain
+                || target
+                    .strip_prefix(domain)
+                    .is_some_and(|rest| rest.starts_with(['/', '?']))
+        })
+}
+
 async fn serve(mut socket: TcpStream, state: Arc<Mutex<State>>, own_host: String) {
     let Some(req) = read_request(&mut socket).await else {
         return;
     };
+    let mut headers = String::new();
     let (status, body, content_type) = if req.host == own_host || req.host.starts_with("127.0.0.1")
     {
         let (status, body) = handle(&state, &req);
         (status, body.to_string(), "application/json")
+    } else if protected(&state, &req) {
+        // The edge, in front of a login.
+        let host = req.host.split(':').next().unwrap_or_default();
+        headers =
+            format!("Location: https://e2e.cloudflareaccess.com/cdn-cgi/access/login/{host}\r\n");
+        (302, String::new(), "text/html")
     } else {
         // The edge, serving a route: pretend the origin answered.
         (200, format!("hello from {}\n", req.host), "text/plain")
     };
     let response = format!(
-        "HTTP/1.1 {status} X\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status} X\r\nContent-Type: {content_type}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     let _ = socket.write_all(response.as_bytes()).await;

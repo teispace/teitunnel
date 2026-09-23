@@ -4,6 +4,7 @@ use cf_api::{DnsRecord, IngressRule};
 use serde_json::Map;
 
 use super::{
+    access::{AccessRule, AccessState, ObservedAccessApp, app_definition},
     planner::{PlanError, plan, tunnel_record},
     simulate::apply,
     types::{Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, ZoneRef},
@@ -23,6 +24,7 @@ fn route(id: &str, hostname: &str, origin: &str) -> RouteSpec {
         path: None,
         origin: RouteOrigin::parse(origin).unwrap(),
         options: Map::new(),
+        access: None,
     }
 }
 
@@ -88,6 +90,7 @@ fn fresh() -> Snapshot {
         tunnel: None,
         tunnel_names: Vec::new(),
         records: Vec::new(),
+        access: None,
     }
 }
 
@@ -377,14 +380,29 @@ mod property {
             Just("*.yx.com")
         ];
         let ports = prop_oneof![Just("3000"), Just("5000"), Just("8080")];
+        let logins = prop_oneof![
+            Just(None),
+            Just(Some(people(&["me@xyz.com"], &[]))),
+            Just(Some(people(&[], &["team.io"]))),
+        ];
         prop_oneof![
-            (names.clone(), ports.clone()).prop_map(|(h, p)| Intent::AddRoute {
-                route: route("rid", h, p)
+            (names.clone(), ports.clone(), logins.clone()).prop_map(|(h, p, access)| {
+                Intent::AddRoute {
+                    route: RouteSpec {
+                        access,
+                        ..route("rid", h, p)
+                    },
+                }
             }),
-            (names.clone(), names.clone(), ports).prop_map(|(from, to, p)| Intent::UpdateRoute {
-                hostname: host(from),
-                path: None,
-                route: route("rid", to, p)
+            (names.clone(), names.clone(), ports, logins).prop_map(|(from, to, p, access)| {
+                Intent::UpdateRoute {
+                    hostname: host(from),
+                    path: None,
+                    route: RouteSpec {
+                        access,
+                        ..route("rid", to, p)
+                    },
+                }
             }),
             names.prop_map(|h| Intent::RemoveRoute {
                 hostname: host(h),
@@ -650,4 +668,217 @@ fn scenarios() {
         let p = plan(&intent, &snapshot).unwrap_or_else(|e| panic!("{name}: {e}"));
         insta::assert_yaml_snapshot!(name, snap(&p));
     }
+}
+
+fn people(emails: &[&str], domains: &[&str]) -> AccessRule {
+    AccessRule {
+        emails: emails.iter().map(|s| (*s).to_owned()).collect(),
+        email_domains: domains.iter().map(|s| (*s).to_owned()).collect(),
+    }
+}
+
+fn protected(r: RouteSpec, rule: &AccessRule) -> RouteSpec {
+    RouteSpec {
+        access: Some(rule.clone()),
+        ..r
+    }
+}
+
+fn access_app(id: &str, domain: &str, rule: &AccessRule, owned: bool) -> ObservedAccessApp {
+    let definition = app_definition(domain, rule);
+    ObservedAccessApp {
+        id: id.into(),
+        domain: domain.into(),
+        owned,
+        rule: Some(rule.clone()),
+        definition,
+    }
+}
+
+fn with_access(mut s: Snapshot, login_methods: usize, apps: Vec<ObservedAccessApp>) -> Snapshot {
+    s.access = Some(AccessState {
+        organization: Some(true),
+        login_methods: Some(login_methods),
+        apps,
+    });
+    s
+}
+
+fn kinds(plan: &Plan) -> Vec<&'static str> {
+    plan.steps
+        .iter()
+        .map(|step| match step {
+            Step::CreateTunnel { .. } => "tunnel",
+            Step::PutConfig { .. } => "config",
+            Step::CreateRecord { .. } => "dns+",
+            Step::UpdateRecord { .. } => "dns~",
+            Step::DeleteRecord { .. } => "dns-",
+            Step::StopConnector { .. } => "stop",
+            Step::DeleteTunnel { .. } => "tunnel-",
+            Step::AddLoginMethod => "login",
+            Step::CreateAccessApp { .. } => "app+",
+            Step::UpdateAccessApp { .. } => "app~",
+            Step::DeleteAccessApp { .. } => "app-",
+            Step::Verify { .. } => "verify",
+        })
+        .collect()
+}
+
+#[test]
+fn a_login_goes_up_before_the_route_goes_live() {
+    let me = people(&["me@xyz.com"], &[]);
+    let add = Intent::AddRoute {
+        route: protected(route("r1", "new.xyz.com", "4000"), &me),
+    };
+    let p = plan(&add, &with_access(with_app(), 1, Vec::new())).unwrap();
+    assert_eq!(kinds(&p), ["app+", "config", "dns+", "verify"]);
+    let Step::CreateAccessApp { app } = &p.steps[0] else {
+        unreachable!()
+    };
+    assert_eq!(app.domain, "new.xyz.com");
+    assert_eq!(AccessRule::from_new(app), Some(me.clone()));
+
+    // An account with no login method gets One-time PIN first.
+    let p = plan(&add, &with_access(fresh(), 0, Vec::new())).unwrap();
+    assert_eq!(
+        kinds(&p),
+        ["tunnel", "login", "app+", "config", "dns+", "verify"]
+    );
+
+    // A path route is protected at that path.
+    let admin = Intent::AddRoute {
+        route: protected(
+            with_path(route("r2", "app.xyz.com", "4000"), "^/admin"),
+            &me,
+        ),
+    };
+    let p = plan(&admin, &with_access(with_app(), 1, Vec::new())).unwrap();
+    assert!(
+        matches!(&p.steps[0], Step::CreateAccessApp { app } if app.domain == "app.xyz.com/admin")
+    );
+}
+
+#[test]
+fn a_login_needs_zero_trust_and_a_plain_path() {
+    let me = people(&["me@xyz.com"], &[]);
+    let mut no_org = with_access(with_app(), 0, Vec::new());
+    no_org.access.as_mut().unwrap().organization = Some(false);
+    let add = Intent::AddRoute {
+        route: protected(route("r1", "new.xyz.com", "4000"), &me),
+    };
+    assert_eq!(plan(&add, &no_org), Err(PlanError::ZeroTrustNotSetUp));
+
+    let pattern = Intent::AddRoute {
+        route: protected(
+            with_path(route("r2", "new.xyz.com", "4000"), "^/(a|b)"),
+            &me,
+        ),
+    };
+    assert!(matches!(
+        plan(&pattern, &with_access(with_app(), 1, Vec::new())),
+        Err(PlanError::AccessDomain(_))
+    ));
+}
+
+#[test]
+fn someone_elses_application_is_never_changed() {
+    let me = people(&["me@xyz.com"], &[]);
+    let theirs = people(&[], &["corp.com"]);
+    let snapshot = with_access(
+        with_app(),
+        1,
+        vec![access_app("x1", "app.xyz.com", &theirs, false)],
+    );
+    let edit = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "app.xyz.com", "3000"), &me),
+    );
+    assert_eq!(
+        plan(&edit, &snapshot),
+        Err(PlanError::AccessAppExists("app.xyz.com".into()))
+    );
+    // Asking for exactly what it already allows is fine, and removing the route
+    // leaves it alone.
+    let same = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "app.xyz.com", "3000"), &theirs),
+    );
+    assert!(plan(&same, &snapshot).unwrap().is_empty());
+    let p = plan(&remove("app.xyz.com", None), &snapshot).unwrap();
+    assert!(!kinds(&p).contains(&"app-"));
+}
+
+#[test]
+fn editing_changes_or_removes_the_login() {
+    let me = people(&["me@xyz.com"], &[]);
+    let team = people(&[], &["team.io"]);
+    let snapshot = with_access(
+        with_app(),
+        1,
+        vec![access_app("a1", "app.xyz.com", &me, true)],
+    );
+    let same = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "app.xyz.com", "3000"), &me),
+    );
+    assert!(plan(&same, &snapshot).unwrap().is_empty());
+
+    let other = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "app.xyz.com", "3000"), &team),
+    );
+    let p = plan(&other, &snapshot).unwrap();
+    assert_eq!(kinds(&p), ["app~", "verify"]);
+    let Step::UpdateAccessApp { id, app, previous } = &p.steps[0] else {
+        unreachable!()
+    };
+    assert_eq!(id, "a1");
+    assert_eq!(AccessRule::from_new(app), Some(team));
+    assert_eq!(AccessRule::from_new(previous), Some(me.clone()));
+
+    // No login any more: the application comes down after the route changed.
+    let open = update("app.xyz.com", None, route("r", "app.xyz.com", "4000"));
+    assert_eq!(
+        kinds(&plan(&open, &snapshot).unwrap()),
+        ["config", "app-", "verify"]
+    );
+
+    // A rename moves the login: the new one is up before the new name goes live, the
+    // old one comes down after the old name is gone.
+    let rename = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "web.xyz.com", "3000"), &me),
+    );
+    assert_eq!(
+        kinds(&plan(&rename, &snapshot).unwrap()),
+        ["app+", "config", "dns+", "dns-", "app-", "verify"]
+    );
+}
+
+#[test]
+fn removing_takes_the_login_down_last() {
+    let me = people(&["me@xyz.com"], &[]);
+    let snapshot = with_access(
+        with_app(),
+        1,
+        vec![access_app("a1", "app.xyz.com", &me, true)],
+    );
+    assert_eq!(
+        kinds(&plan(&remove("app.xyz.com", None), &snapshot).unwrap()),
+        ["config", "dns-", "app-"]
+    );
+    assert_eq!(
+        kinds(&plan(&Intent::RemoveTunnel, &snapshot).unwrap()),
+        ["config", "dns-", "app-", "stop", "tunnel-"]
+    );
+    // Re-adding the route protected reuses Teitunnel's application.
+    let again = Intent::AddRoute {
+        route: protected(route("r", "app.xyz.com", "3000"), &me),
+    };
+    assert!(plan(&again, &snapshot).unwrap().is_empty());
 }

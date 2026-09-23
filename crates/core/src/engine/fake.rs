@@ -8,7 +8,10 @@ use std::{
     },
 };
 
-use cf_api::{ApiMessage, DnsRecord, NewDnsRecord, Tunnel, TunnelConfig, VersionedConfig};
+use cf_api::{
+    AccessApp, ApiMessage, DnsRecord, NewAccessApp, NewDnsRecord, Tunnel, TunnelConfig,
+    VersionedConfig,
+};
 
 use super::{
     cloud::{CloudApi, Connectors},
@@ -30,12 +33,22 @@ pub(crate) struct CloudState {
     pub(crate) zones: Vec<ZoneRef>,
     pub(crate) tunnels: BTreeMap<String, FakeTunnel>,
     pub(crate) records: BTreeMap<String, Vec<DnsRecord>>,
+    /// Zero Trust is set up.
+    pub(crate) access_org: bool,
+    /// Login method ids.
+    pub(crate) login_methods: Vec<String>,
+    /// Access applications by id.
+    pub(crate) access_apps: BTreeMap<String, NewAccessApp>,
+    /// The token can't read Access (reads fail with 403).
+    pub(crate) access_forbidden: bool,
 }
 
 /// State with ids and versions stripped, for "is it back to how it was?" checks.
 pub(crate) type Normalized = (
     Vec<(String, Option<serde_json::Value>)>,
     Vec<(String, String, String, String, bool, u32, Option<String>)>,
+    Vec<serde_json::Value>,
+    usize,
 );
 
 impl CloudState {
@@ -68,7 +81,13 @@ impl CloudState {
             })
             .collect();
         records.sort();
-        (tunnels, records)
+        let mut apps: Vec<serde_json::Value> = self
+            .access_apps
+            .values()
+            .filter_map(|a| serde_json::to_value(a).ok())
+            .collect();
+        apps.sort_by_key(ToString::to_string);
+        (tunnels, records, apps, self.login_methods.len())
     }
 
     pub(crate) fn record_count(&self) -> usize {
@@ -93,6 +112,16 @@ fn injected() -> cf_api::Error {
         errors: vec![ApiMessage {
             code: 1000,
             message: "injected failure".into(),
+        }],
+    }
+}
+
+fn forbidden() -> cf_api::Error {
+    cf_api::Error::Api {
+        status: 403,
+        errors: vec![ApiMessage {
+            code: 10000,
+            message: "Authentication error".into(),
         }],
     }
 }
@@ -343,6 +372,113 @@ impl CloudApi for FakeCloud {
                 Ok(())
             }
         })
+    }
+
+    async fn access_setup(&self, _account: &str) -> cf_api::Result<(bool, usize)> {
+        let state = self.state.lock().unwrap();
+        if state.access_forbidden {
+            return Err(forbidden());
+        }
+        Ok((state.access_org, state.login_methods.len()))
+    }
+
+    async fn access_apps_for(
+        &self,
+        _account: &str,
+        domain: &str,
+    ) -> cf_api::Result<Vec<AccessApp>> {
+        let state = self.state.lock().unwrap();
+        if state.access_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state
+            .access_apps
+            .iter()
+            .filter(|(_, app)| app.domain.eq_ignore_ascii_case(domain))
+            .map(|(id, app)| fake_app(id, app))
+            .collect())
+    }
+
+    async fn create_access_app(
+        &self,
+        _account: &str,
+        app: &NewAccessApp,
+    ) -> cf_api::Result<AccessApp> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        if !state.access_org {
+            return Err(cf_api::Error::Api {
+                status: 400,
+                errors: vec![ApiMessage {
+                    code: 12130,
+                    message: "access.api.error.not_enabled".into(),
+                }],
+            });
+        }
+        let id = self.next_id("app");
+        state.access_apps.insert(id.clone(), app.clone());
+        Ok(fake_app(&id, app))
+    }
+
+    async fn update_access_app(
+        &self,
+        _account: &str,
+        id: &str,
+        app: &NewAccessApp,
+    ) -> cf_api::Result<AccessApp> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        let slot = state.access_apps.get_mut(id).ok_or_else(not_found)?;
+        *slot = app.clone();
+        Ok(fake_app(id, app))
+    }
+
+    async fn delete_access_app(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        state
+            .access_apps
+            .remove(id)
+            .map(|_| ())
+            .ok_or_else(not_found)
+    }
+
+    async fn create_one_time_pin(&self, _account: &str) -> cf_api::Result<String> {
+        self.mutate()?;
+        let id = self.next_id("idp");
+        self.state.lock().unwrap().login_methods.push(id.clone());
+        Ok(id)
+    }
+
+    async fn delete_login_method(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        let before = state.login_methods.len();
+        state.login_methods.retain(|m| m != id);
+        if state.login_methods.len() == before {
+            Err(not_found())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn fake_app(id: &str, app: &NewAccessApp) -> AccessApp {
+    AccessApp {
+        id: id.to_owned(),
+        name: app.name.clone(),
+        domain: app.domain.clone(),
+        kind: app.kind.clone(),
+        session_duration: Some(app.session_duration.clone()),
+        policies: app
+            .policies
+            .iter()
+            .enumerate()
+            .map(|(i, p)| cf_api::AccessPolicy {
+                id: Some(format!("{id}-policy-{i}")),
+                ..p.clone()
+            })
+            .collect(),
     }
 }
 

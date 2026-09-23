@@ -15,7 +15,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
     domain::Hostname,
-    engine::{Approval, Change, Edge, Outcome, Plan, RouteInput, StepState, Warning},
+    engine::{AccessRule, Approval, Change, Edge, Outcome, Plan, RouteInput, StepState, Warning},
     export::{ExportFormat, render},
 };
 
@@ -78,6 +78,10 @@ enum RouteCommand {
         /// Only requests whose path matches this regex, e.g. `^/api`.
         #[arg(long)]
         path: Option<String>,
+        /// Require a login: an email address, or `@domain` for anyone at that domain.
+        /// Repeat for more people. Needs Cloudflare Zero Trust (free).
+        #[arg(long, value_name = "EMAIL|@DOMAIN")]
+        allow: Vec<String>,
         #[command(flatten)]
         apply: ApplyArgs,
     },
@@ -151,6 +155,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             hostname,
             origin,
             path,
+            allow,
             apply,
         }) => {
             let change = Change::AddRoute {
@@ -158,6 +163,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     hostname,
                     path,
                     origin,
+                    access: access_rule(&allow),
                 },
             };
             change_routes(&app, change, &apply).await
@@ -213,6 +219,7 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
                     "hostname": route.hostname,
                     "path": route.path,
                     "origin": route.origin,
+                    "access": route.access,
                     "status": status,
                 })
             })
@@ -229,9 +236,33 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
             .as_deref()
             .map(|p| format!(" {p}"))
             .unwrap_or_default();
-        out!("{}{path}\t{}\t{status}", route.hostname, route.origin)?;
+        let login = route
+            .access
+            .as_ref()
+            .map(|rule| format!("\tlogin: {}", rule.summary()))
+            .unwrap_or_default();
+        out!(
+            "{}{path}\t{}\t{status}{login}",
+            route.hostname,
+            route.origin
+        )?;
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `--allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or `xyz.com`)
+/// everyone at a domain. The engine validates them.
+fn access_rule(allow: &[String]) -> Option<AccessRule> {
+    if allow.is_empty() {
+        return None;
+    }
+    let (emails, domains): (Vec<&String>, Vec<&String>) = allow
+        .iter()
+        .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
+    Some(AccessRule {
+        emails: emails.into_iter().cloned().collect(),
+        email_domains: domains.into_iter().cloned().collect(),
+    })
 }
 
 fn warning_text(warning: &Warning) -> String {
@@ -463,6 +494,10 @@ mod tests {
             "3000",
             "--path",
             "^/api",
+            "--allow",
+            "me@xyz.com",
+            "--allow",
+            "@team.io",
             "--yes",
         ])
         .unwrap_or_else(|e| unreachable!("{e}"));
@@ -470,6 +505,7 @@ mod tests {
             hostname,
             origin,
             path,
+            allow,
             apply,
         }) = cli.command
         else {
@@ -480,6 +516,14 @@ mod tests {
             ("app.example.com", "3000", Some("^/api"))
         );
         assert!(apply.yes && !apply.replace);
+        assert_eq!(
+            access_rule(&allow),
+            Some(AccessRule {
+                emails: vec!["me@xyz.com".into()],
+                email_domains: vec!["@team.io".into()],
+            })
+        );
+        assert_eq!(access_rule(&[]), None);
     }
 
     #[test]

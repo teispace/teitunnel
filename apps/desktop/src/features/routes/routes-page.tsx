@@ -2,6 +2,7 @@ import {
   ExternalLink,
   FileInput,
   FileOutput,
+  LockKeyhole,
   Pencil,
   Plus,
   RefreshCw,
@@ -29,6 +30,7 @@ import { useIssues } from "@/features/doctor/queries";
 import type { RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
+import { describeAllowed } from "./access";
 import { DriftBanner } from "./components/drift-banner";
 import { ExportSheet } from "./components/export-sheet";
 import { ImportSheet } from "./components/import-sheet";
@@ -64,7 +66,9 @@ function TestResult({ result }: { result: Verification }) {
     </p>
   ) : (
     <p role="status" className="text-callout text-healthy">
-      Works{result.status ? ` · HTTP ${result.status}` : ""}
+      {result.protected
+        ? "Works · asks for a login"
+        : `Works${result.status ? ` · HTTP ${result.status}` : ""}`}
     </p>
   );
 }
@@ -134,6 +138,10 @@ function RouteInspector({
             { label: "Service", value: displayOrigin(route.origin), mono: true },
             ...(route.path ? [{ label: "Path", value: route.path, mono: true }] : []),
             { label: "Domain", value: route.zone ?? "—" },
+            {
+              label: "Login",
+              value: route.access ? describeAllowed(route.access) : "None: anyone with the URL",
+            },
             {
               label: "DNS",
               value:
@@ -307,6 +315,16 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
                   title={route.path ? `${route.hostname} ${route.path}` : route.hostname}
                   subtitle={`→ ${displayOrigin(route.origin)}`}
                   leading={<StatusDot status={status.dot} label={status.label} />}
+                  trailing={
+                    route.access ? (
+                      <LockKeyhole
+                        role="img"
+                        aria-label="Requires a login"
+                        className="size-3.5"
+                        strokeWidth={1.75}
+                      />
+                    ) : null
+                  }
                 />
               );
             }}

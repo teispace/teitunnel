@@ -71,11 +71,17 @@ impl Error {
                 ErrorKind::Unavailable
             }
             Self::Engine(e) => match e {
-                E::Plan(P::NoZone(_) | P::RouteExists(_)) | E::Input(_) => ErrorKind::InvalidInput,
+                E::Plan(P::NoZone(_) | P::RouteExists(_) | P::AccessDomain(_)) | E::Input(_) => {
+                    ErrorKind::InvalidInput
+                }
+                E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
                 E::Plan(P::NoSuchRoute(_) | P::NoTunnel | P::NoSuchRecord(_)) => {
                     ErrorKind::NotFound
                 }
-                E::Stale(_) | E::NeedsConfirmation | E::NothingToRestore => ErrorKind::Conflict,
+                E::Stale(_)
+                | E::NeedsConfirmation
+                | E::NothingToRestore
+                | E::Plan(P::AccessAppExists(_)) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
@@ -93,6 +99,7 @@ impl Error {
         match self {
             Self::Engine(E::Input(input)) => Some(input.field),
             Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_))) => Some("hostname"),
+            Self::Engine(E::Plan(P::AccessDomain(_))) => Some("path"),
             Self::Accounts(_) => Some("credential"),
             _ => None,
         }

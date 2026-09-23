@@ -18,8 +18,8 @@ use crate::{
     accounts::{Domain, DomainStatus},
     domain::RouteOrigin,
     engine::{
-        Change, CloudApi, Connectors, Context, Drift, Engine, EngineError, ObserveError,
-        RouteInput, Snapshot, TunnelSummary, observe, tunnel_target,
+        AccessNeed, Change, CloudApi, Connectors, Context, Drift, Engine, EngineError,
+        ObserveError, RouteInput, Snapshot, TunnelSummary, observe, tunnel_target,
     },
     runtime::ConnectorState,
 };
@@ -183,7 +183,15 @@ pub async fn gather<C: CloudApi, K: Connectors>(
     domains: Vec<Domain>,
     can_manage_routes: Option<bool>,
 ) -> Result<AccountFacts, EngineError> {
-    let snapshot = observe(api, engine.local(), ctx.account, ctx.machine_name, None).await?;
+    let snapshot = observe(
+        api,
+        engine.local(),
+        ctx.account,
+        ctx.machine_name,
+        None,
+        &AccessNeed::none(),
+    )
+    .await?;
     let tunnels = engine.tunnels(api, connectors, ctx.account).await?;
     let drift = engine.drift(api, ctx.account).await?;
     let owned = engine
@@ -654,6 +662,7 @@ fn diagnose_account(
                     hostname: hostname.to_owned(),
                     path: rule.path.clone(),
                     origin: rule.service.clone(),
+                    access: None,
                 },
             },
         };
@@ -944,6 +953,7 @@ mod tests {
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),
                     owned: true,
                 }],
+                access: None,
             },
             tunnels: Vec::new(),
             drift: None,

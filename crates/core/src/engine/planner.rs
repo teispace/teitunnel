@@ -3,12 +3,16 @@
 //! Order of operations (ARCHITECTURE §4.3):
 //! - add: create tunnel → config (the tunnel learns the hostname first, so there's no
 //!   404 window) → DNS → verify
-//! - remove: config → DNS (only records Teitunnel owns) → tunnel
+//! - remove: config → DNS (only records Teitunnel owns) → login → tunnel
 //! - rename: config (swap the rule) → new DNS → delete the old owned record
+//!
+//! A login (Access) goes up before the route goes live and comes down after it's gone,
+//! so a protected route is never reachable without one.
 
 use cf_api::IngressRule;
 
 use super::{
+    access::{AccessDomainError, AccessRule, access_domain, app_definition},
     ingress::sort_ingress,
     types::{
         Intent, ObservedRecord, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning, tunnel_target,
@@ -34,6 +38,19 @@ pub enum PlanError {
     /// The record is gone (or never existed).
     #[error("The DNS record for {0} no longer exists.")]
     NoSuchRecord(String),
+    /// Requiring a login needs Cloudflare Zero Trust.
+    #[error(
+        "Requiring a login needs Cloudflare Zero Trust, which isn't set up for this account. Open Zero Trust in the Cloudflare dashboard once to choose a team name (the free plan is enough), then try again."
+    )]
+    ZeroTrustNotSetUp,
+    /// Someone else's Access application already covers the domain.
+    #[error(
+        "{0} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard."
+    )]
+    AccessAppExists(String),
+    /// The route's path can't be protected.
+    #[error(transparent)]
+    AccessDomain(#[from] AccessDomainError),
 }
 
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
@@ -198,6 +215,58 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// Requires a login for `domain`: creates Teitunnel's application, or updates it if
+    /// it lets in different people. Someone else's application is never changed.
+    fn protect(&mut self, domain: &str, rule: &AccessRule) -> Result<(), PlanError> {
+        let access = self.snapshot.access.as_ref();
+        match access.and_then(|a| a.app(domain)) {
+            Some(app) if !app.owned => {
+                if app.rule.as_ref() != Some(rule) {
+                    return Err(PlanError::AccessAppExists(domain.to_owned()));
+                }
+            }
+            Some(app) => {
+                let wanted = app_definition(domain, rule);
+                if app.rule.as_ref() != Some(rule) || app.definition.name != wanted.name {
+                    self.steps.push(Step::UpdateAccessApp {
+                        id: app.id.clone(),
+                        app: wanted,
+                        previous: app.definition.clone(),
+                    });
+                }
+            }
+            None => {
+                if access.and_then(|a| a.organization) == Some(false) {
+                    return Err(PlanError::ZeroTrustNotSetUp);
+                }
+                let no_login = access.and_then(|a| a.login_methods) == Some(0);
+                if no_login && !self.steps.contains(&Step::AddLoginMethod) {
+                    self.steps.push(Step::AddLoginMethod);
+                }
+                self.steps.push(Step::CreateAccessApp {
+                    app: app_definition(domain, rule),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes the login from `domain`, if Teitunnel put it there.
+    fn unprotect(&mut self, domain: &str) {
+        if let Some(app) = self
+            .snapshot
+            .access
+            .as_ref()
+            .and_then(|a| a.app(domain))
+            .filter(|a| a.owned)
+        {
+            self.steps.push(Step::DeleteAccessApp {
+                id: app.id.clone(),
+                previous: app.definition.clone(),
+            });
+        }
+    }
+
     fn verify(&mut self, hostname: &Hostname) {
         self.steps.push(Step::Verify {
             hostname: hostname.to_string(),
@@ -241,6 +310,10 @@ impl<'a> Builder<'a> {
     }
 }
 
+fn route_domain(route: &RouteSpec) -> Result<String, PlanError> {
+    Ok(access_domain(&route.hostname, route.path.as_ref())?)
+}
+
 /// Plans `intent` against `snapshot`.
 ///
 /// # Errors
@@ -258,8 +331,12 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 if existing.service == route.origin.as_str()
                     && existing.origin_request == route.options
                 {
-                    // Already configured; only DNS may be missing (idempotent re-apply).
+                    // Already configured; only DNS or the login may be missing
+                    // (idempotent re-apply).
                     let tunnel = b.ensure_tunnel();
+                    if let Some(rule) = &route.access {
+                        b.protect(&route_domain(route)?, rule)?;
+                    }
                     b.ensure_dns(&route.hostname, &tunnel, &route.id)?;
                     b.verify(&route.hostname);
                     return Ok(b.finish());
@@ -268,6 +345,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             }
             b.remote_origin_warning(route);
             let tunnel = b.ensure_tunnel();
+            if let Some(rule) = &route.access {
+                b.protect(&route_domain(route)?, rule)?;
+            }
             let mut desired = rules.clone();
             desired.push(route.to_rule());
             b.put_config(&tunnel, desired);
@@ -297,6 +377,15 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 return Err(PlanError::RouteExists(route.hostname.to_string()));
             }
             b.remote_origin_warning(route);
+            let old_domain = access_domain(hostname, path.as_ref()).ok();
+            let new_domain = match &route.access {
+                Some(rule) => {
+                    let domain = route_domain(route)?;
+                    b.protect(&domain, rule)?;
+                    Some(domain)
+                }
+                None => None,
+            };
             let tunnel = TunnelRef::Existing(tunnel_id.clone());
             let desired: Vec<IngressRule> = rules
                 .iter()
@@ -317,6 +406,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 })
             {
                 b.release_dns(hostname.as_str(), &tunnel_id);
+            }
+            if let Some(old) = old_domain.filter(|old| new_domain.as_ref() != Some(old)) {
+                b.unprotect(&old);
             }
             b.verify(&route.hostname);
         }
@@ -343,6 +435,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             b.put_config(&TunnelRef::Existing(tunnel_id.clone()), desired);
             if !hostname_still_used {
                 b.release_dns(hostname.as_str(), &tunnel_id);
+            }
+            if let Ok(domain) = access_domain(hostname, path.as_ref()) {
+                b.unprotect(&domain);
             }
         }
         Intent::ImportRoutes { routes } => {
@@ -420,6 +515,17 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             }
             for hostname in hostnames {
                 b.release_dns(hostname, &tunnel.id);
+            }
+            // Logins come down once no route reaches them, but before the tunnel is
+            // deleted: that step can't be undone, so it stays last.
+            let owned: Vec<String> = snapshot
+                .access
+                .iter()
+                .flat_map(|a| a.apps.iter().filter(|app| app.owned))
+                .map(|app| app.domain.clone())
+                .collect();
+            for domain in owned {
+                b.unprotect(&domain);
             }
             b.steps.push(Step::StopConnector {
                 tunnel_id: tunnel.id.clone(),

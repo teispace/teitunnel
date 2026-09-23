@@ -4,7 +4,10 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::types::{Intent, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef, tunnel_target};
+use super::{
+    access::{AccessRule, access_domain},
+    types::{Intent, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef, tunnel_target},
+};
 use crate::{
     domain::{Hostname, PathRule, RouteOrigin},
     runtime::ConnectorState,
@@ -21,6 +24,10 @@ pub struct RouteInput {
     pub path: Option<String>,
     /// Origin, e.g. `3000` or `http://localhost:3000`.
     pub origin: String,
+    /// Require a login for these people. On an edit, `None` removes the login
+    /// Teitunnel added; on an add, it leaves any existing login alone.
+    #[serde(default)]
+    pub access: Option<AccessRule>,
 }
 
 /// A change the user asks for (or a Doctor fix proposes).
@@ -77,7 +84,7 @@ pub enum Change {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{message}")]
 pub struct InputError {
-    /// `hostname`, `path` or `origin`.
+    /// `hostname`, `path`, `origin` or `access`.
     pub field: &'static str,
     /// What's wrong.
     pub message: String,
@@ -128,12 +135,21 @@ impl RouteInput {
         let hostname = parse_hostname(&self.hostname)?;
         let path = parse_path(self.path.as_deref())?;
         let origin = RouteOrigin::parse(&self.origin).map_err(|e| invalid("origin", &e))?;
+        let access = self
+            .access
+            .as_ref()
+            .map(|rule| {
+                access_domain(&hostname, path.as_ref()).map_err(|e| invalid("path", &e))?;
+                rule.normalized().map_err(|e| invalid("access", &e))
+            })
+            .transpose()?;
         Ok(RouteSpec {
             id: route_id(&hostname, path.as_ref()),
             hostname,
             path,
             origin,
             options: serde_json::Map::new(),
+            access,
         })
     }
 }
@@ -214,6 +230,10 @@ pub enum StepKind {
     StopConnector,
     /// Delete the tunnel.
     DeleteTunnel,
+    /// Add a login method.
+    LoginMethod,
+    /// Create, change or remove a route's login.
+    AccessApp,
     /// Check the route works.
     Verify,
 }
@@ -258,6 +278,10 @@ impl Step {
                 Self::DeleteRecord { .. } => StepKind::DeleteRecord,
                 Self::StopConnector { .. } => StepKind::StopConnector,
                 Self::DeleteTunnel { .. } => StepKind::DeleteTunnel,
+                Self::AddLoginMethod => StepKind::LoginMethod,
+                Self::CreateAccessApp { .. }
+                | Self::UpdateAccessApp { .. }
+                | Self::DeleteAccessApp { .. } => StepKind::AccessApp,
                 Self::Verify { .. } => StepKind::Verify,
             },
             description: self.describe(tunnel_name),
@@ -315,6 +339,8 @@ pub struct RouteView {
     pub zone: Option<String>,
     /// Its DNS record.
     pub dns: DnsState,
+    /// Who may reach it, when Teitunnel added a login.
+    pub access: Option<AccessRule>,
 }
 
 /// This Mac's tunnel.
@@ -380,6 +406,7 @@ pub(crate) fn overview(
         .filter_map(|rule| {
             let hostname = rule.hostname.clone()?;
             let parsed = Hostname::parse(&hostname).ok();
+            let path = rule.path.as_deref().and_then(|p| PathRule::parse(p).ok());
             let zone = parsed
                 .as_ref()
                 .and_then(|h| h.zone_in(&snapshot.zones))
@@ -402,7 +429,13 @@ pub(crate) fn overview(
             } else {
                 DnsState::Missing
             };
+            let access = snapshot.access.as_ref().and_then(|a| {
+                let domain = access_domain(parsed.as_ref()?, path.as_ref()).ok()?;
+                let app = a.app(&domain).filter(|app| app.owned)?;
+                app.rule.clone()
+            });
             Some(RouteView {
+                access,
                 local: RouteOrigin::parse(&rule.service).is_ok_and(|o| o.is_local()),
                 origin: rule.service.clone(),
                 path: rule.path.clone(),
@@ -433,6 +466,7 @@ mod tests {
             hostname: hostname.into(),
             path: path.map(str::to_owned),
             origin: origin.into(),
+            access: None,
         }
     }
 
@@ -474,6 +508,7 @@ mod tests {
     #[test]
     fn route_statuses_combine_dns_and_connector() {
         let route = |host: &str, dns: DnsState| RouteView {
+            access: None,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),

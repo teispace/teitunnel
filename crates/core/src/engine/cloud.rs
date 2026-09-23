@@ -2,7 +2,9 @@
 
 use std::future::Future;
 
-use cf_api::{Client, DnsRecord, NewDnsRecord, Tunnel, TunnelConfig, VersionedConfig};
+use cf_api::{
+    AccessApp, Client, DnsRecord, NewAccessApp, NewDnsRecord, Tunnel, TunnelConfig, VersionedConfig,
+};
 
 use super::types::ZoneRef;
 use crate::{Secret, runtime::ConnectorState};
@@ -98,6 +100,48 @@ pub trait CloudApi: Send + Sync {
     fn delete_record(
         &self,
         zone: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Whether Zero Trust is set up (an Access organization exists), and how many login
+    /// methods the account has.
+    fn access_setup(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<(bool, usize)>> + Send;
+    /// Access applications for exactly this domain.
+    fn access_apps_for(
+        &self,
+        account: &str,
+        domain: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<AccessApp>>> + Send;
+    /// Creates an Access application.
+    fn create_access_app(
+        &self,
+        account: &str,
+        app: &NewAccessApp,
+    ) -> impl Future<Output = cf_api::Result<AccessApp>> + Send;
+    /// Replaces an Access application.
+    fn update_access_app(
+        &self,
+        account: &str,
+        id: &str,
+        app: &NewAccessApp,
+    ) -> impl Future<Output = cf_api::Result<AccessApp>> + Send;
+    /// Deletes an Access application.
+    fn delete_access_app(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Adds One-time PIN as a login method; returns its id.
+    fn create_one_time_pin(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<String>> + Send;
+    /// Removes a login method.
+    fn delete_login_method(
+        &self,
+        account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
@@ -219,5 +263,45 @@ impl CloudApi for Client {
 
     async fn delete_record(&self, zone: &str, id: &str) -> cf_api::Result<()> {
         self.delete_dns_record(zone, id).await
+    }
+
+    async fn access_setup(&self, account: &str) -> cf_api::Result<(bool, usize)> {
+        if Client::access_organization(self, account).await?.is_none() {
+            return Ok((false, 0));
+        }
+        Ok((true, Client::identity_providers(self, account).await?.len()))
+    }
+
+    async fn access_apps_for(&self, account: &str, domain: &str) -> cf_api::Result<Vec<AccessApp>> {
+        Client::access_apps_for(self, account, domain).await
+    }
+
+    async fn create_access_app(
+        &self,
+        account: &str,
+        app: &NewAccessApp,
+    ) -> cf_api::Result<AccessApp> {
+        Client::create_access_app(self, account, app).await
+    }
+
+    async fn update_access_app(
+        &self,
+        account: &str,
+        id: &str,
+        app: &NewAccessApp,
+    ) -> cf_api::Result<AccessApp> {
+        Client::update_access_app(self, account, id, app).await
+    }
+
+    async fn delete_access_app(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_access_app(self, account, id).await
+    }
+
+    async fn create_one_time_pin(&self, account: &str) -> cf_api::Result<String> {
+        Ok(Client::create_one_time_pin(self, account).await?.id)
+    }
+
+    async fn delete_login_method(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        self.delete_identity_provider(account, id).await
     }
 }

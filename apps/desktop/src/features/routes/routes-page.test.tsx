@@ -57,6 +57,7 @@ beforeEach(() => {
       local: true,
       zone: "xyz.com",
       dns: { state: "ok" },
+      access: null,
     },
   ];
   calls = [];
@@ -88,6 +89,7 @@ beforeEach(() => {
               local: true,
               zone: "yx.com",
               dns: { state: "ok" },
+              access: change.route.access ?? null,
             },
           ];
           return {
@@ -101,8 +103,16 @@ beforeEach(() => {
           routes = routes.filter((r) => r.hostname !== change.hostname);
         return { type: "applied", tunnelId: "t1", verify: [], connectorError: null };
       }
-      case "routes_verify":
-        return { hostname: payload["hostname"], status: 200, failure: null, message: null };
+      case "routes_verify": {
+        const guarded = routes.some((r) => r.hostname === payload["hostname"] && r.access);
+        return {
+          hostname: payload["hostname"],
+          status: guarded ? 302 : 200,
+          failure: null,
+          message: null,
+          protected: guarded,
+        };
+      }
       case "routes_drift":
         return drift
           ? {
@@ -187,7 +197,7 @@ describe("RoutesPage", () => {
     const preview = calls.find((c) => c.cmd === "routes_preview");
     expect(preview?.args["change"]).toEqual({
       type: "addRoute",
-      route: { hostname: "api.xyz.com", origin: "5000", path: null },
+      route: { hostname: "api.xyz.com", origin: "5000", path: null, access: null },
     });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Route" }));
@@ -197,6 +207,49 @@ describe("RoutesPage", () => {
     expect(calls.some((c) => c.cmd === "routes_verify" && c.args["wait"] === true)).toBe(true);
     // The list behind the sheet refreshed with the new route.
     await screen.findByRole("option", { name: /api\.xyz\.com/, hidden: true });
+  });
+
+  it("puts a login in front of a new route", async () => {
+    const dialog = await openAddSheet();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5000" },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Subdomain" }), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Require a login" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Who can sign in" }), {
+      target: { value: "me@xyz.com, @team.io" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
+    const preview = calls.find((c) => c.cmd === "routes_preview");
+    expect(preview?.args["change"]).toMatchObject({
+      route: { access: { emails: ["me@xyz.com"], emailDomains: ["team.io"] } },
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add Route" }));
+    expect(await within(dialog).findByText("Protected by a login")).toBeTruthy();
+    const row = await screen.findByRole("option", { name: /admin\.xyz\.com/, hidden: true });
+    expect(within(row).getByRole("img", { name: "Requires a login", hidden: true })).toBeTruthy();
+  });
+
+  it("keeps a route's login when editing it, and can remove it", async () => {
+    routes = [
+      { ...(routes[0] as RouteView), access: { emails: ["me@xyz.com"], emailDomains: [] } },
+    ];
+    renderPage();
+    expect(await screen.findByText("me@xyz.com")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit route" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit Route" });
+    const allowed = within(dialog).getByRole("textbox", { name: "Who can sign in" });
+    expect((allowed as HTMLTextAreaElement).value).toBe("me@xyz.com");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Require a login" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
+    const preview = calls.find((c) => c.cmd === "routes_preview");
+    expect(preview?.args["change"]).toMatchObject({ type: "updateRoute", route: { access: null } });
   });
 
   it("requires confirmation before replacing someone else's record", async () => {

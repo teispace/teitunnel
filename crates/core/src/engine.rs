@@ -5,6 +5,7 @@
 //! executor applies a reviewed plan with a staleness guard, logs every step and
 //! compensates completed steps on failure.
 
+mod access;
 mod activity;
 mod cloud;
 mod drift;
@@ -27,6 +28,10 @@ mod planner_tests;
 #[cfg(test)]
 mod simulate;
 
+pub use access::{
+    AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, ObservedAccessApp,
+    access_domain, app_definition,
+};
 pub use activity::{ActivityKind, ActivityRecord, Delta, DeltaArea, RecordedStep, deltas};
 pub use cloud::{CloudApi, Connectors};
 pub use drift::{Drift, RuleChange, diff};

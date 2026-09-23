@@ -5,6 +5,7 @@ use cf_api::DnsRecord;
 use serde_json::{Map, json};
 
 use super::{
+    access::AccessRule,
     activity::ActivityKind,
     executor::{Approval, Context, Engine, EngineError, Outcome, StepState},
     fake::{CloudState, FakeCloud, FakeConnectors},
@@ -49,7 +50,31 @@ fn add(id: &str, hostname: &str, origin: &str) -> Intent {
             path: None,
             origin: RouteOrigin::parse(origin).unwrap(),
             options: Map::new(),
+            access: None,
         },
+    }
+}
+
+fn me() -> AccessRule {
+    AccessRule {
+        emails: vec!["me@xyz.com".into()],
+        email_domains: Vec::new(),
+    }
+}
+
+/// `intent`'s route, requiring a login.
+fn protected(mut intent: Intent) -> Intent {
+    if let Intent::AddRoute { route } | Intent::UpdateRoute { route, .. } = &mut intent {
+        route.access = Some(me());
+    }
+    intent
+}
+
+/// An account with Zero Trust set up but no login method yet.
+fn zero_trust() -> CloudState {
+    CloudState {
+        access_org: true,
+        ..zones()
     }
 }
 
@@ -318,6 +343,17 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
     run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
     let two_routes = cloud.snapshot();
 
+    let (engine, cloud) = (self::engine(), FakeCloud::new(zero_trust()));
+    run(
+        &engine,
+        &cloud,
+        &conns,
+        &protected(add("r1", "app.xyz.com", "3000")),
+    )
+    .await;
+    run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
+    let protected_routes = cloud.snapshot();
+
     let mut with_foreign = zones();
     with_foreign.records.insert(
         "z-xyz".into(),
@@ -348,11 +384,43 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
                     path: None,
                     origin: RouteOrigin::parse("3000").unwrap(),
                     options: Map::new(),
+                    access: None,
                 },
             },
         ),
         ("remove route", two_routes.clone(), remove("yx.com")),
         ("remove tunnel", two_routes, Intent::RemoveTunnel),
+        (
+            "first protected route",
+            zero_trust(),
+            protected(add("r1", "app.xyz.com", "3000")),
+        ),
+        (
+            "rename protected",
+            protected_routes.clone(),
+            protected(Intent::UpdateRoute {
+                hostname: Hostname::parse("app.xyz.com").unwrap(),
+                path: None,
+                route: RouteSpec {
+                    id: "r3".into(),
+                    hostname: Hostname::parse("web.xyz.com").unwrap(),
+                    path: None,
+                    origin: RouteOrigin::parse("3000").unwrap(),
+                    options: Map::new(),
+                    access: None,
+                },
+            }),
+        ),
+        (
+            "remove protected route",
+            protected_routes.clone(),
+            remove("app.xyz.com"),
+        ),
+        (
+            "remove tunnel with a login",
+            protected_routes,
+            Intent::RemoveTunnel,
+        ),
     ]
 }
 
@@ -378,6 +446,119 @@ async fn adopt(engine: &Engine, state: &CloudState) {
                 .unwrap();
         }
     }
+    for (id, app) in &state.access_apps {
+        if app.name.starts_with("Teitunnel · ") {
+            engine
+                .local()
+                .own_access_app("acc", id, &app.domain)
+                .await
+                .unwrap();
+        }
+    }
+}
+
+#[tokio::test]
+async fn protects_a_route_with_a_login_and_takes_it_down_with_the_route() {
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(zero_trust()),
+        FakeConnectors::default(),
+    );
+    let intent = protected(add("r1", "app.xyz.com", "3000"));
+    let outcome = run(&engine, &cloud, &conns, &intent).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    assert_eq!(state.login_methods.len(), 1, "One-time PIN added");
+    let (app_id, app) = state.access_apps.iter().next().expect("an application");
+    assert_eq!(app.domain, "app.xyz.com");
+    assert_eq!(AccessRule::from_new(app), Some(me()));
+    assert_eq!(
+        engine.local().owned_access_apps("acc").await.unwrap(),
+        [(app_id.clone(), "app.xyz.com".to_owned())]
+    );
+    let log = engine.local().activity("acc", 1).await.unwrap();
+    let steps = &log[0].record.as_ref().unwrap().steps;
+    assert!(
+        steps
+            .iter()
+            .any(|s| s.step.kind == super::views::StepKind::AccessApp)
+    );
+
+    // The overview shows who may sign in.
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.routes[0].access, Some(me()));
+
+    // Applying again changes nothing; editing without a login removes it.
+    let again = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    assert!(again.steps.is_empty(), "{again:?}");
+    let open = Intent::UpdateRoute {
+        hostname: Hostname::parse("app.xyz.com").unwrap(),
+        path: None,
+        route: match add("r1", "app.xyz.com", "3000") {
+            Intent::AddRoute { route } => route,
+            _ => unreachable!(),
+        },
+    };
+    engine.invalidate("acc");
+    run(&engine, &cloud, &conns, &open).await;
+    assert!(cloud.snapshot().access_apps.is_empty());
+    assert!(
+        engine
+            .local()
+            .owned_access_apps("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        cloud.snapshot().login_methods.len(),
+        1,
+        "a login method isn't removed once it worked"
+    );
+}
+
+#[tokio::test]
+async fn a_token_that_cant_read_access_still_manages_plain_routes() {
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(zero_trust()),
+        FakeConnectors::default(),
+    );
+    run(
+        &engine,
+        &cloud,
+        &conns,
+        &protected(add("r1", "app.xyz.com", "3000")),
+    )
+    .await;
+    cloud.state.lock().unwrap().access_forbidden = true;
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.routes[0].access, None);
+    run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
+    // Asking for a login needs the permission, and says so.
+    let err = engine
+        .preview(&cloud, CTX, &protected(add("r3", "web.xyz.com", "3000")))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, EngineError::Observe(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_login_without_zero_trust_is_refused_before_anything_changes() {
+    let (engine, cloud) = (engine(), FakeCloud::new(zones()));
+    let err = engine
+        .preview(&cloud, CTX, &protected(add("r1", "app.xyz.com", "3000")))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EngineError::Plan(super::planner::PlanError::ZeroTrustNotSetUp)
+        ),
+        "{err:?}"
+    );
+    assert_eq!(cloud.mutations(), 0);
 }
 
 #[tokio::test]
@@ -693,6 +874,7 @@ async fn changes_from_the_ui_become_intents() {
         hostname: host.into(),
         path: None,
         origin: origin.into(),
+        access: None,
     };
     let add = engine
         .intent_for(
@@ -919,6 +1101,7 @@ async fn imports_routes_from_an_old_tunnel() {
         hostname: host.into(),
         path: path.map(str::to_owned),
         origin: origin.into(),
+        access: None,
     };
     let change = Change::ImportRoutes {
         routes: vec![

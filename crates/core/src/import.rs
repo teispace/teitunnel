@@ -49,6 +49,7 @@ impl FoundRoute {
             hostname: self.hostname.clone(),
             path: self.path.clone(),
             origin: self.service.clone(),
+            access: None,
         }
     }
 }

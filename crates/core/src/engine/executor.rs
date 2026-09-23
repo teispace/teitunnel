@@ -7,10 +7,11 @@ use std::{
     time::Duration,
 };
 
-use cf_api::{DnsRecord, IngressRule, NewDnsRecord, TunnelConfig};
+use cf_api::{DnsRecord, IngressRule, NewAccessApp, NewDnsRecord, TunnelConfig};
 use serde::Serialize;
 use tokio::time::Instant;
 
+use super::access::AccessNeed;
 use super::activity::ActivityRecord;
 use super::drift::{Drift, diff};
 use super::tunnels::TunnelSummary;
@@ -24,6 +25,7 @@ static EMPTY: Snapshot = Snapshot {
     tunnel: None,
     tunnel_names: Vec::new(),
     records: Vec::new(),
+    access: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -191,6 +193,16 @@ enum Undo {
         was_owned: bool,
     },
     StartConnector(String),
+    DeleteLoginMethod(String),
+    DeleteAccessApp {
+        id: String,
+        domain: String,
+    },
+    RestoreAccessApp {
+        id: String,
+        previous: NewAccessApp,
+    },
+    RecreateAccessApp(NewAccessApp),
 }
 
 impl Undo {
@@ -212,6 +224,18 @@ impl Undo {
                 record.name, record.kind, record.content
             ),
             Self::StartConnector(_) => "This Mac's connector is stopped".to_owned(),
+            Self::DeleteLoginMethod(_) => {
+                "One-time PIN was added as a login method and is still there".to_owned()
+            }
+            Self::DeleteAccessApp { domain, .. } => {
+                format!("The login for {domain} was added and is still there")
+            }
+            Self::RestoreAccessApp { previous, .. } => {
+                format!("Who can open {} wasn't restored", previous.domain)
+            }
+            Self::RecreateAccessApp(previous) => {
+                format!("The login for {} was removed", previous.domain)
+            }
         }
     }
 }
@@ -274,7 +298,13 @@ impl Engine {
                     .join(",")
             },
         );
-        format!("{account}\n{scope}")
+        let access = AccessNeed::of(intent);
+        format!(
+            "{account}\n{scope}\n{}{}{}",
+            u8::from(access.setup),
+            u8::from(access.owned),
+            access.domains.join(",")
+        )
     }
 
     /// Drops cached observations for `account` (after writes, or on "Refresh").
@@ -309,6 +339,7 @@ impl Engine {
             ctx.account,
             ctx.machine_name,
             hostnames.as_deref(),
+            &AccessNeed::of(intent),
         )
         .await?;
         self.cache
@@ -528,6 +559,7 @@ impl Engine {
             ctx.account,
             ctx.machine_name,
             Some(&[hostname]),
+            &AccessNeed::none(),
         )
         .await?;
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
@@ -851,6 +883,45 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 self.connectors.deleted(tunnel_id).await;
                 Ok(None)
             }
+            Step::AddLoginMethod => {
+                let id = api
+                    .create_one_time_pin(account)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(Some(Undo::DeleteLoginMethod(id)))
+            }
+            Step::CreateAccessApp { app } => {
+                let created = api
+                    .create_access_app(account, app)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                warn_local(
+                    self.local
+                        .own_access_app(account, &created.id, &app.domain)
+                        .await,
+                );
+                Ok(Some(Undo::DeleteAccessApp {
+                    id: created.id,
+                    domain: app.domain.clone(),
+                }))
+            }
+            Step::UpdateAccessApp { id, app, previous } => {
+                api.update_access_app(account, id, app)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                warn_local(self.local.own_access_app(account, id, &app.domain).await);
+                Ok(Some(Undo::RestoreAccessApp {
+                    id: id.clone(),
+                    previous: previous.clone(),
+                }))
+            }
+            Step::DeleteAccessApp { id, previous } => {
+                api.delete_access_app(account, id)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                warn_local(self.local.disown_access_app(id).await);
+                Ok(Some(Undo::RecreateAccessApp(previous.clone())))
+            }
             Step::Verify { .. } => Ok(None),
         }
     }
@@ -953,6 +1024,34 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 }
             }
             Undo::StartConnector(id) => self.ensure_connector(id).await?,
+            Undo::DeleteLoginMethod(id) => {
+                api.delete_login_method(account, id).await.map_err(err)?;
+            }
+            Undo::DeleteAccessApp { id, .. } => {
+                api.delete_access_app(account, id).await.map_err(err)?;
+                warn_local(self.local.disown_access_app(id).await);
+            }
+            Undo::RestoreAccessApp { id, previous } => {
+                api.update_access_app(account, id, previous)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .own_access_app(account, id, &previous.domain)
+                        .await,
+                );
+            }
+            Undo::RecreateAccessApp(previous) => {
+                let created = api
+                    .create_access_app(account, previous)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .own_access_app(account, &created.id, &previous.domain)
+                        .await,
+                );
+            }
         }
         Ok(())
     }
