@@ -57,7 +57,7 @@
 ### M2-08 · UI: connect & accounts
 - [x] Onboarding step 2: the Overview offers "Use my own domain…" next to Quick Share; the connect sheet leads with **Sign in with Cloudflare** (when the client exists), then API token and cloudflared login.
 - [x] Waiting-for-browser state (animated status, Cancel, "Copy link" if the browser didn't open).
-- [ ] Sidebar account switcher (popover with accounts, add, manage). *(Deferred: the Domains toolbar has an account switcher; the sidebar one comes with Routes in M3.)*
+- [x] ~~Sidebar account switcher~~ Not built (D-079): every account-scoped view (Routes, Tunnels, Domains, Activity) has the toolbar account picker, all sharing one active account; adding and managing accounts is Settings ▸ Accounts and the connect sheet.
 - [x] Settings → Accounts: list, credential type, capabilities (a checklist with reasons), Re-check, Sign out.
 
 ### M2-09 · Domains view
