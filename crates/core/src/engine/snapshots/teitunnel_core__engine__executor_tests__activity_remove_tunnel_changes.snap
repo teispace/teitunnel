@@ -1,0 +1,24 @@
+---
+source: crates/core/src/engine/executor_tests.rs
+expression: removal.changes
+---
+- area: route
+  hostname: xyz.com
+  path: ~
+  before: "http://localhost:3000"
+  after: ~
+- area: route
+  hostname: yx.com
+  path: ~
+  before: "http://localhost:5000"
+  after: ~
+- area: dns
+  hostname: xyz.com
+  path: ~
+  before: CNAME tunnel-0.cfargotunnel.com
+  after: ~
+- area: dns
+  hostname: yx.com
+  path: ~
+  before: CNAME tunnel-0.cfargotunnel.com
+  after: ~

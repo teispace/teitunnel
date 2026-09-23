@@ -1,0 +1,24 @@
+---
+source: crates/core/src/engine/activity.rs
+expression: deltas(&plan)
+---
+- area: route
+  hostname: b.xyz.com
+  path: ~
+  before: "http://localhost:4000"
+  after: "http://localhost:4000 · httpHostHeader, noTLSVerify"
+- area: route
+  hostname: c.xyz.com
+  path: ^/api
+  before: "http://localhost:5000"
+  after: ~
+- area: route
+  hostname: d.xyz.com
+  path: ~
+  before: ~
+  after: "http://localhost:6000"
+- area: dns
+  hostname: d.xyz.com
+  path: ~
+  before: A 203.0.113.7
+  after: proxied CNAME to tunnel “Mac”

@@ -5,6 +5,7 @@
 //! executor applies a reviewed plan with a staleness guard, logs every step and
 //! compensates completed steps on failure.
 
+mod activity;
 mod cloud;
 mod drift;
 mod executor;
@@ -26,6 +27,7 @@ mod planner_tests;
 #[cfg(test)]
 mod simulate;
 
+pub use activity::{ActivityKind, ActivityRecord, Delta, DeltaArea, RecordedStep, deltas};
 pub use cloud::{CloudApi, Connectors};
 pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};

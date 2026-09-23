@@ -25,8 +25,7 @@
 - [ ] Per-route view (filters log events mentioning its hostname) and per-connector view.
 
 ### M5-04 · Activity view
-- [ ] Timeline of applied plans and steps (who/what/when), with the before/after diff, "Copy as command", and re-run verify. Filters by domain/tunnel/type.
-  *(Started early in M4: timeline by day with outcome and step details per account. Diff, copy-as-command, re-verify and filters remain.)*
+- [x] Timeline of applied plans and steps (what/when, per account), with the before/after diff, "Copy as command" (per step and all at once), and re-run verify. Filters by kind/problems and domain. *(Structured `ActivityRecord` per entry, D-047. No tunnel filter: one machine tunnel per account.)*
 
 ### M5-05 · Always-on (macOS launchd)
 - [x] `ServiceManager` launchd adapter: generate the plist (label `com.teispace.teitunnel.connector.<tunnel-id>`, managed binary path, args from the `RunCmd` builder with `--token-file`, `--log-directory <app_data>/logs/connectors/<id>`, `KeepAlive`, `RunAtLoad`, `ProcessType=Background`, `ThrottleInterval`), then install via `launchctl bootstrap gui/<uid>`, and remove via `bootout`. Status via `launchctl print` parsing plus the metrics endpoint. *(StandardOut/ErrorPath to `<app_data>/logs/connectors/<id>.log` instead of `--log-directory`, so the JSON log is one file the app tails, D-045.)*

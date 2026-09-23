@@ -207,8 +207,44 @@ export type ActivityEntry = {
 	summary: string,
 	/**  `applied`, `rolledBack` or `partiallyApplied`. */
 	outcome: string,
-	/**  Step descriptions and any error, as shown in the inspector. */
+	/**
+	 *  Step descriptions and any error, as plain lines (search, and entries from
+	 *  before the structured record).
+	 */
 	detail: string[],
+	/**  Kind, hostnames, step states and before/after (absent in older entries). */
+	record: ActivityRecord | null,
+};
+
+/**  What kind of change an entry records (for filtering). */
+export type ActivityKind = 
+/**  A route was added. */
+"addRoute" | 
+/**  A route was changed or renamed. */
+"updateRoute" | 
+/**  A route was removed. */
+"removeRoute" | 
+/**  Every route was removed and the tunnel deleted. */
+"removeTunnel" | 
+/**  Routes were imported from a cloudflared setup. */
+"importRoutes" | 
+/**  A DNS record was deleted (Doctor cleanup). */
+"deleteRecord" | 
+/**  Routes were restored after an outside edit. */
+"restoreConfig";
+
+/**  The structured part of an activity entry. */
+export type ActivityRecord = {
+	/**  What kind of change. */
+	kind: ActivityKind,
+	/**  Every hostname involved, sorted. */
+	hostnames: string[],
+	/**  The tunnel's name. */
+	tunnel: string,
+	/**  The steps that change something, in order. */
+	steps: RecordedStep[],
+	/**  What changed, routes first. */
+	changes: Delta[],
 };
 
 /**  Whether this Mac's connector can run as a service, and whether it does. */
@@ -358,6 +394,27 @@ export type CredentialKind =
 "oauth" | 
 /**  Imported from `cloudflared tunnel login` (cert.pem); one zone only. */
 "certPem";
+
+/**  One thing that changed: absent `before` means added, absent `after` removed. */
+export type Delta = {
+	/**  Route or DNS record. */
+	area: DeltaArea,
+	/**  Public hostname. */
+	hostname: string,
+	/**  Path rule, for routes that have one. */
+	path: string | null,
+	/**  What it was. */
+	before: string | null,
+	/**  What it became. */
+	after: string | null,
+};
+
+/**  Where a change happened. */
+export type DeltaArea = 
+/**  The tunnel's routes (ingress). */
+"route" | 
+/**  A DNS record. */
+"dns";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -779,6 +836,14 @@ export type QuickShare = {
 	startedAt: number,
 	/**  When it stops by itself, milliseconds since the Unix epoch. */
 	stopAt: number | null,
+};
+
+/**  A step of the applied plan and how it ended. */
+export type RecordedStep = {
+	/**  The step as previewed (with its command). */
+	step: StepView,
+	/**  Its final state. */
+	state: StepState,
 };
 
 /**  A route as typed in the add/edit sheet. */

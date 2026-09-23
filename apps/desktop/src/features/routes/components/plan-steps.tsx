@@ -80,15 +80,17 @@ function warningText(warning: Warning): string {
 interface PlanStepsProps {
   steps: readonly StepView[];
   warnings?: readonly Warning[];
-  /** While applying: the state of each step, by index. */
+  /** While applying (or afterwards): the state of each step, by index. */
   states?: Record<number, StepState>;
+  /** Offer "Copy as command" per step (default: only before applying). */
+  copyable?: boolean;
 }
 
 /**
  * A plan as an ordered checklist. Before applying, each step shows what it does (and a
  * copy-as-command button); while applying, the leading icon becomes its live state.
  */
-export function PlanSteps({ steps, warnings = [], states }: PlanStepsProps) {
+export function PlanSteps({ steps, warnings = [], states, copyable = !states }: PlanStepsProps) {
   return (
     <div className="flex flex-col gap-3">
       {warnings.length > 0 ? (
@@ -138,7 +140,7 @@ export function PlanSteps({ steps, warnings = [], states }: PlanStepsProps) {
                 ) : null}
               </span>
               {state ? <span className="sr-only">{stateLabels[state.state]}</span> : null}
-              {!states && step.command ? <CopyCommand command={step.command} /> : null}
+              {copyable && step.command ? <CopyCommand command={step.command} /> : null}
             </li>
           );
         })}

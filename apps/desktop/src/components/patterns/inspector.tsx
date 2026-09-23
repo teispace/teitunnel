@@ -12,7 +12,7 @@ export function Inspector({ title, subtitle, actions, children }: InspectorProps
   return (
     <aside aria-label="Inspector" className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="px-4 pt-3 pb-4">
-        <h2 className="selectable truncate text-title2">{title}</h2>
+        <h2 className="selectable line-clamp-2 break-words text-title2">{title}</h2>
         {subtitle ? <div className="mt-0.5 text-callout text-secondary">{subtitle}</div> : null}
         {actions ? <div className="mt-3 flex flex-wrap gap-2">{actions}</div> : null}
       </div>

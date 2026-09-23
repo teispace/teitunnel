@@ -196,7 +196,7 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
 }
 
 /// What a step does, for its icon.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub enum StepKind {
@@ -219,7 +219,7 @@ pub enum StepKind {
 }
 
 /// One step of a plan, as shown in the preview.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct StepView {
@@ -246,29 +246,35 @@ pub struct PlanView {
     pub fingerprint: String,
 }
 
+impl Step {
+    /// This step as shown in the preview (and recorded in the activity log).
+    pub fn view(&self, account_id: &str, tunnel_name: &str) -> StepView {
+        StepView {
+            kind: match self {
+                Self::CreateTunnel { .. } => StepKind::CreateTunnel,
+                Self::PutConfig { .. } => StepKind::PutConfig,
+                Self::CreateRecord { .. } => StepKind::CreateRecord,
+                Self::UpdateRecord { .. } => StepKind::UpdateRecord,
+                Self::DeleteRecord { .. } => StepKind::DeleteRecord,
+                Self::StopConnector { .. } => StepKind::StopConnector,
+                Self::DeleteTunnel { .. } => StepKind::DeleteTunnel,
+                Self::Verify { .. } => StepKind::Verify,
+            },
+            description: self.describe(tunnel_name),
+            command: self.command(account_id, tunnel_name),
+        }
+    }
+}
+
 impl Plan {
     /// The preview of this plan.
     pub fn view(&self, account_id: &str) -> PlanView {
-        let steps = self
-            .steps
-            .iter()
-            .map(|step| StepView {
-                kind: match step {
-                    Step::CreateTunnel { .. } => StepKind::CreateTunnel,
-                    Step::PutConfig { .. } => StepKind::PutConfig,
-                    Step::CreateRecord { .. } => StepKind::CreateRecord,
-                    Step::UpdateRecord { .. } => StepKind::UpdateRecord,
-                    Step::DeleteRecord { .. } => StepKind::DeleteRecord,
-                    Step::StopConnector { .. } => StepKind::StopConnector,
-                    Step::DeleteTunnel { .. } => StepKind::DeleteTunnel,
-                    Step::Verify { .. } => StepKind::Verify,
-                },
-                description: step.describe(&self.tunnel_name),
-                command: step.command(account_id, &self.tunnel_name),
-            })
-            .collect();
         PlanView {
-            steps,
+            steps: self
+                .steps
+                .iter()
+                .map(|step| step.view(account_id, &self.tunnel_name))
+                .collect(),
             warnings: self.warnings.clone(),
             requires_confirmation: self.requires_confirmation,
             fingerprint: self.fingerprint.clone(),

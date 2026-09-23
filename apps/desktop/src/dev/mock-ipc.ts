@@ -213,18 +213,132 @@ const addPlan: PlanView = {
 
 const activity: ActivityEntry[] = [
   {
-    id: 2,
+    id: 3,
     at: now - 4 * 60_000,
-    summary: "Add api.xyz.dev (path ^/v1/) → http://localhost:8000",
+    summary: "Rename app.teispace.com to web.teispace.com → http://localhost:5173",
     outcome: "applied",
     detail: [],
+    record: {
+      kind: "updateRoute",
+      hostnames: ["app.teispace.com", "web.teispace.com"],
+      tunnel: "Krishnas-MacBook-Pro",
+      steps: [
+        {
+          step: {
+            kind: "putConfig",
+            description: "Update tunnel “Krishnas-MacBook-Pro” to serve 4 routes",
+            command:
+              'curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/6ff42ae2/configurations',
+          },
+          state: { state: "done" },
+        },
+        {
+          step: {
+            kind: "updateRecord",
+            description:
+              "Point web.teispace.com at tunnel “Krishnas-MacBook-Pro” (was A 192.0.2.10)",
+            command: null,
+          },
+          state: { state: "done" },
+        },
+        {
+          step: {
+            kind: "deleteRecord",
+            description: "Delete DNS record app.teispace.com (CNAME 6ff42ae2.cfargotunnel.com)",
+            command:
+              'curl -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/dns_records/r4',
+          },
+          state: { state: "done" },
+        },
+      ],
+      changes: [
+        {
+          area: "route",
+          hostname: "app.teispace.com",
+          path: null,
+          before: "http://localhost:5173",
+          after: null,
+        },
+        {
+          area: "route",
+          hostname: "web.teispace.com",
+          path: null,
+          before: null,
+          after: "http://localhost:5173 · noTLSVerify",
+        },
+        {
+          area: "dns",
+          hostname: "app.teispace.com",
+          path: null,
+          before: "CNAME 6ff42ae2.cfargotunnel.com",
+          after: null,
+        },
+        {
+          area: "dns",
+          hostname: "web.teispace.com",
+          path: null,
+          before: "A 192.0.2.10",
+          after: "proxied CNAME to tunnel “Krishnas-MacBook-Pro”",
+        },
+      ],
+    },
+  },
+  {
+    id: 2,
+    at: now - 40 * 60_000,
+    summary: "Add api.xyz.dev (path ^/v1/) → http://localhost:8000",
+    outcome: "rolledBack",
+    detail: ["Failed: Cloudflare API error: record already exists (code 81053)"],
+    record: {
+      kind: "addRoute",
+      hostnames: ["api.xyz.dev"],
+      tunnel: "Krishnas-MacBook-Pro",
+      steps: [
+        {
+          step: {
+            kind: "putConfig",
+            description: "Update tunnel “Krishnas-MacBook-Pro” to serve 5 routes",
+            command: null,
+          },
+          state: { state: "undone" },
+        },
+        {
+          step: {
+            kind: "createRecord",
+            description: "Add DNS record api.xyz.dev → tunnel “Krishnas-MacBook-Pro”",
+            command: "cloudflared tunnel route dns 'Krishnas-MacBook-Pro' api.xyz.dev",
+          },
+          state: {
+            state: "failed",
+            message: "Cloudflare API error: record already exists (code 81053)",
+          },
+        },
+      ],
+      changes: [
+        {
+          area: "route",
+          hostname: "api.xyz.dev",
+          path: "^/v1/",
+          before: null,
+          after: "http://localhost:8000",
+        },
+        {
+          area: "dns",
+          hostname: "api.xyz.dev",
+          path: null,
+          before: null,
+          after: "proxied CNAME to tunnel “Krishnas-MacBook-Pro”",
+        },
+      ],
+    },
   },
   {
     id: 1,
     at: now - 3 * 3_600_000,
     summary: "Add app.teispace.com → http://localhost:5173",
     outcome: "applied",
-    detail: [],
+    detail: ["Add DNS record app.teispace.com → tunnel “Krishnas-MacBook-Pro”"],
+    record: null,
   },
 ];
 

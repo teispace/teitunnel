@@ -11,6 +11,7 @@ use cf_api::{DnsRecord, IngressRule, NewDnsRecord, TunnelConfig};
 use serde::Serialize;
 use tokio::time::Instant;
 
+use super::activity::ActivityRecord;
 use super::drift::{Drift, diff};
 use super::tunnels::TunnelSummary;
 use super::views::{Change, InputError, RoutesOverview, overview, to_intent};
@@ -83,7 +84,7 @@ pub struct Approval<'a> {
 }
 
 /// The state of one step while applying.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum StepState {
@@ -545,10 +546,20 @@ impl Engine {
             account: ctx.account,
             created: None,
             done: Vec::new(),
+            covered: Vec::new(),
         };
         let serve = matches!(intent, Intent::AddRoute { .. } | Intent::UpdateRoute { .. });
-        let outcome = run.execute(&plan, serve, &mut progress).await;
+        // Keep each step's last state for the activity log.
+        let mut states: Vec<Option<StepState>> = vec![None; plan.steps.len()];
+        let mut record_progress = |p: Progress| {
+            if let Some(slot) = usize::try_from(p.step).ok().and_then(|i| states.get_mut(i)) {
+                *slot = Some(p.state.clone());
+            }
+            progress(p);
+        };
+        let outcome = run.execute(&plan, serve, &mut record_progress).await;
         self.invalidate(ctx.account);
+        let record = ActivityRecord::new(intent, &plan, ctx.account, &states);
 
         let mut detail: Vec<String> = plan
             .steps
@@ -572,7 +583,13 @@ impl Engine {
         }
         if let Err(err) = self
             .local
-            .log(ctx.account, &intent.summary(), outcome.label(), &detail)
+            .log(
+                ctx.account,
+                &intent.summary(),
+                outcome.label(),
+                &detail,
+                Some(&record),
+            )
             .await
         {
             tracing::warn!(%err, "couldn't write the activity log");
@@ -589,6 +606,9 @@ struct Run<'a, C, K> {
     account: &'a str,
     created: Option<String>,
     done: Vec<(u32, Undo)>,
+    /// Completed steps with no undo of their own: another step's undo reverses them
+    /// (e.g. a new tunnel's config goes with the tunnel).
+    covered: Vec<u32>,
 }
 
 fn warn_local<T>(result: Result<T, crate::store::StoreError>) {
@@ -642,7 +662,10 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             });
             match self.step(step).await {
                 Ok(undo) => {
-                    self.done.extend(undo.map(|u| (index, u)));
+                    match undo {
+                        Some(undo) => self.done.push((index, undo)),
+                        None => self.covered.push(index),
+                    }
                     progress(Progress {
                         step: index,
                         state: StepState::Done,
@@ -915,6 +938,14 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             }
         }
         leftovers.reverse();
+        if leftovers.is_empty() {
+            for step in std::mem::take(&mut self.covered) {
+                progress(Progress {
+                    step,
+                    state: StepState::Undone,
+                });
+            }
+        }
         if leftovers.is_empty() {
             Outcome::RolledBack {
                 failed_step: failed,

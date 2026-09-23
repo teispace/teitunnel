@@ -11,6 +11,7 @@ use cf_api::IngressRule;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
+use super::activity::ActivityRecord;
 use crate::{
     store::{Store, StoreError},
     traffic::{MinuteRollup, RETENTION},
@@ -46,8 +47,11 @@ pub struct ActivityEntry {
     pub summary: String,
     /// `applied`, `rolledBack` or `partiallyApplied`.
     pub outcome: String,
-    /// Step descriptions and any error, as shown in the inspector.
+    /// Step descriptions and any error, as plain lines (search, and entries from
+    /// before the structured record).
     pub detail: Vec<String>,
+    /// Kind, hostnames, step states and before/after (absent in older entries).
+    pub record: Option<ActivityRecord>,
 }
 
 fn now_ms() -> i64 {
@@ -301,16 +305,18 @@ impl Local {
         summary: &str,
         outcome: &str,
         detail: &[String],
+        record: Option<&ActivityRecord>,
     ) -> Result<(), StoreError> {
         let (account, summary, outcome) =
             (account.to_owned(), summary.to_owned(), outcome.to_owned());
         let detail = serde_json::to_string(detail)?;
+        let record = record.map(serde_json::to_string).transpose()?;
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "INSERT INTO activity (account_id, at, summary, outcome, detail)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
-                    params![account, now_ms(), summary, outcome, detail],
+                    "INSERT INTO activity (account_id, at, summary, outcome, detail, record)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![account, now_ms(), summary, outcome, detail, record],
                 )?;
                 Ok(())
             })
@@ -330,7 +336,7 @@ impl Local {
         self.store
             .call(move |conn| {
                 let mut stmt = conn.prepare(
-                    "SELECT id, at, summary, outcome, detail FROM activity
+                    "SELECT id, at, summary, outcome, detail, record FROM activity
                      WHERE account_id = ?1 ORDER BY at DESC, id DESC LIMIT ?2",
                 )?;
                 let rows = stmt
@@ -341,17 +347,21 @@ impl Local {
                             row.get::<_, String>(2)?,
                             row.get::<_, String>(3)?,
                             row.get::<_, String>(4)?,
+                            row.get::<_, Option<String>>(5)?,
                         ))
                     })?
                     .collect::<Result<Vec<_>, _>>()?;
                 rows.into_iter()
-                    .map(|(id, at, summary, outcome, detail)| {
+                    .map(|(id, at, summary, outcome, detail, record)| {
                         Ok(ActivityEntry {
                             id,
                             at,
                             summary,
                             outcome,
                             detail: serde_json::from_str(&detail)?,
+                            // A record this version can't read (written by a newer one)
+                            // falls back to the plain lines rather than failing the list.
+                            record: record.and_then(|r| serde_json::from_str(&r).ok()),
                         })
                     })
                     .collect()
@@ -579,10 +589,13 @@ mod tests {
         assert!(local.owned_records("a").await.unwrap().is_empty());
 
         local
-            .log("a", "first", "applied", &["x".into()])
+            .log("a", "first", "applied", &["x".into()], None)
             .await
             .unwrap();
-        local.log("a", "second", "rolledBack", &[]).await.unwrap();
+        local
+            .log("a", "second", "rolledBack", &[], None)
+            .await
+            .unwrap();
         let log = local.activity("a", 10).await.unwrap();
         assert_eq!(
             log.iter().map(|e| e.summary.as_str()).collect::<Vec<_>>(),

@@ -5,6 +5,7 @@ use cf_api::DnsRecord;
 use serde_json::{Map, json};
 
 use super::{
+    activity::ActivityKind,
     executor::{Approval, Context, Engine, EngineError, Outcome, StepState},
     fake::{CloudState, FakeCloud, FakeConnectors},
     local::Local,
@@ -179,6 +180,22 @@ async fn two_domains_from_zero_then_nothing_left() {
     );
     assert_eq!(log[2].summary, "Add xyz.com → http://localhost:3000");
     assert!(log.iter().all(|e| e.outcome == "applied"));
+
+    // The structured record: kind, hostnames, step states and what changed.
+    let first = log[2].record.as_ref().expect("recorded");
+    assert_eq!(first.kind, ActivityKind::AddRoute);
+    assert_eq!(first.hostnames, ["xyz.com"]);
+    assert!(first.steps.iter().all(|s| s.state == StepState::Done));
+    assert!(
+        first
+            .steps
+            .iter()
+            .all(|s| s.step.kind != crate::engine::views::StepKind::Verify)
+    );
+    let removal = log[0].record.as_ref().expect("recorded");
+    assert_eq!(removal.kind, ActivityKind::RemoveTunnel);
+    assert_eq!(removal.hostnames, ["xyz.com", "yx.com"]);
+    insta::assert_yaml_snapshot!("activity_remove_tunnel_changes", removal.changes);
 }
 
 #[tokio::test]
@@ -429,6 +446,18 @@ async fn a_failure_at_any_step_rolls_everything_back() {
             );
             let log = e.local().activity("acc", 1).await.unwrap();
             assert_eq!(log[0].outcome, "rolledBack");
+            // Exactly one step failed; the ones before it were undone.
+            let steps = &log[0].record.as_ref().expect("recorded").steps;
+            let failed = steps
+                .iter()
+                .position(|s| matches!(s.state, StepState::Failed { .. }))
+                .expect("a failed step");
+            assert!(
+                steps[..failed]
+                    .iter()
+                    .all(|s| matches!(s.state, StepState::Undone | StepState::Skipped)),
+                "{name}, failing mutation {n}: {steps:?}"
+            );
         }
     }
 }
@@ -465,6 +494,20 @@ async fn failed_undo_reports_what_was_left() {
     assert_eq!(failed_step, 2);
     assert_eq!(leftovers.len(), 1, "{leftovers:?}");
     assert!(leftovers[0].starts_with("Tunnel "), "{leftovers:?}");
+    let log = engine.local().activity("acc", 1).await.unwrap();
+    let states: Vec<_> = log[0]
+        .record
+        .as_ref()
+        .expect("recorded")
+        .steps
+        .iter()
+        .map(|s| s.state.clone())
+        .collect();
+    assert!(
+        matches!(states[0], StepState::UndoFailed { .. }),
+        "{states:?}"
+    );
+    assert!(matches!(states[2], StepState::Failed { .. }), "{states:?}");
 
     // The tunnel is still remembered, so the next attempt reuses it.
     cloud.reset_failures();

@@ -725,7 +725,7 @@ mod tests {
             .unwrap();
         let local = crate::engine::Local::new(accounts.store.clone());
         local.set_machine_tunnel("a1", "t1", "Mac").await.unwrap();
-        local.log("a1", "Add", "applied", &[]).await.unwrap();
+        local.log("a1", "Add", "applied", &[], None).await.unwrap();
 
         accounts.remove("a1").await.unwrap();
         assert_eq!(secrets.keys(), ["cf:a2:apiToken"]);

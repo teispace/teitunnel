@@ -83,6 +83,8 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT, WITHOUT ROWID;
         CREATE INDEX metrics_rollup_minute ON metrics_rollup (minute);",
     ),
+    // 6: structured activity (kind, hostnames, step states, before/after), as JSON
+    M::up("ALTER TABLE activity ADD COLUMN record TEXT;"),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
