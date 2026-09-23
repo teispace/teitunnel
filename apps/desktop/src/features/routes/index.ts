@@ -3,6 +3,7 @@ export { RouteSheet, type SheetMode } from "./components/route-sheet";
 export {
   useActivity,
   useKeepTheirs,
+  useLiveTraffic,
   useRoutesOverview,
   useTunnelAction,
   useVerify,

@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. M5 rest: Overview traffic summary, systemd/Task Scheduler adapter stubs.
+1. M5 rest: log subscription with server-side filtering + per-route logs (M5-03), edge colo names (M5-01), close-window setting (M5-06), systemd/Task Scheduler adapter stubs (M5-05).
 2. Nightly real-account job (needs the maintainer's test token).
 3. M6 distribution (signing/notarization need the maintainer's Developer ID).
 4. **Maintainer:** review/merge PRs #1–#6 in order; v0.1 signing decision + tag; OAuth client; test token.
@@ -21,6 +21,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M5-02 complete: Overview traffic card.
 - 2026-09-23: M5-05 cloudflared updates move running connectors onto the new binary without a gap (D-049).
 - 2026-09-23: M5-06 menu bar Start/Stop Routes on This Mac (shared with the Tunnels view; a deliberate stop isn't flagged as a problem).
 - 2026-09-23: M5-07 Doctor notifications: shared `DoctorMonitor`, background runs when the window isn't running them, ignores moved to settings (D-048).

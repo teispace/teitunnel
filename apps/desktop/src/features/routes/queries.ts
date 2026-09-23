@@ -177,19 +177,20 @@ export function useTunnelLogs(tunnelId: string, enabled: boolean) {
  * backend sampling at 1 s, D-046). Each poll fetches only samples newer than the last
  * one held, and appends them.
  */
-export function useLiveTraffic(tunnelId: string) {
+export function useLiveTraffic(tunnelId: string | null, intervalMs = 1_000) {
   const client = useQueryClient();
   const queryKey = ["routes", "traffic", tunnelId];
   return useQuery({
     queryKey,
+    enabled: tunnelId !== null,
     queryFn: async (): Promise<Traffic | null> => {
       const held = client.getQueryData<Traffic | null>(queryKey);
       const since = held?.series.at.at(-1) ?? null;
-      const next = await call(commands.tunnelsTraffic(tunnelId, since));
+      const next = await call(commands.tunnelsTraffic(tunnelId ?? "", since));
       if (!next) return null;
       return held ? { ...next, series: appendSeries(held.series, next.series) } : next;
     },
-    refetchInterval: 1_000,
+    refetchInterval: intervalMs,
     staleTime: 0,
     // Drop the hour of samples soon after the view closes.
     gcTime: 30_000,

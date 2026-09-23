@@ -51,7 +51,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M4-05 Doctor framework · [x] M4-06 Checks · [x] M4-07 Doctor UI · [x] M4-08 Cleanup center (in the Doctor) · [x] M4-09 Diagnostics export
 
 ### M5: Observability & Always-on (v0.5.0)
-- [ ] M5-01 Metrics pipeline · [ ] M5-02 Charts · [ ] M5-03 Log viewer · [x] M5-04 Activity view
+- [ ] M5-01 Metrics pipeline · [x] M5-02 Charts · [ ] M5-03 Log viewer · [x] M5-04 Activity view
 - [ ] M5-05 launchd always-on · [ ] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
 
 ### M6: Distribution (v1.0.0)

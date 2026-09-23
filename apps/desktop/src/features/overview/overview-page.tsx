@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, LayoutGrid, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/patterns/empty-state";
+import { Sparkline } from "@/components/patterns/sparkline";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
@@ -9,10 +10,12 @@ import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { useIssues } from "@/features/doctor/queries";
 import { useQuickShares } from "@/features/quick-share";
+import { useLiveTraffic } from "@/features/routes";
 import { useRoutesOverview } from "@/features/routes/queries";
 import { routeStatus } from "@/features/routes/status";
 import { formatDuration, stripScheme } from "@/lib/format";
 import type { QuickShare } from "@/lib/ipc/bindings";
+import { formatRate, perSecond, recentRate } from "@/lib/traffic";
 import { useNow } from "@/lib/use-now";
 
 const dots: Record<QuickShare["status"]["status"], Status> = {
@@ -105,6 +108,7 @@ export function OverviewPage() {
             <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
           </Link>
         ) : null}
+        {tunnel && routes.length > 0 ? <TrafficCard tunnelId={tunnel.id} /> : null}
         {routes.length > 0 ? (
           <Section title="Routes">
             {routes.map((route) => {
@@ -161,5 +165,35 @@ export function OverviewPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+/** This Mac's traffic in the last hour, at a glance; opens the Tunnels view. */
+function TrafficCard({ tunnelId }: { tunnelId: string }) {
+  // Every 10 s is enough for a glance, and keeps the connector on its idle sampling rate.
+  const traffic = useLiveTraffic(tunnelId, 10_000).data;
+  if (!traffic || traffic.series.at.length < 2) return null;
+  const now = recentRate(traffic.series, 60);
+  const rates = perSecond(traffic.series.requests, traffic.series.span).map((v) => v ?? 0);
+  return (
+    <Link
+      to="/tunnels"
+      className="flex items-center gap-4 rounded-card bg-surface-inset px-3 py-2.5 outline-offset-0"
+    >
+      <div className="flex w-36 shrink-0 flex-col">
+        <span className="text-callout text-secondary">Traffic on this Mac</span>
+        <span className="tabular text-title3">
+          {now === null ? "–" : formatRate(now)}
+          <span className="text-callout text-secondary"> requests/s</span>
+        </span>
+        <span className="tabular text-callout text-secondary">
+          {traffic.totalRequests.toLocaleString()} since start
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <Sparkline values={rates} label="Requests per second over the last hour" height={40} />
+      </div>
+      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-tertiary" strokeWidth={2} />
+    </Link>
   );
 }

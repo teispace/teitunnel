@@ -17,7 +17,7 @@
 
 ### M5-02 · Charts
 - [x] `TimeSeriesChart` pattern on uPlot, styled from tokens (theme-aware, repainted on appearance change), with hover crosshair and readout, tabular digits, gaps where data is missing, and no animation except appending data. *(The SVG `Sparkline` stays for tiny inline charts.)*
-- [ ] Route/tunnel inspector "Traffic" section, plus an Overview with health summary and top routes by traffic. *(Tunnel inspector done: Hour/Day/Week, requests and failures per second, round trip, response classes. Per-route traffic needs per-hostname metrics cloudflared doesn't expose; Overview top routes remain.)*
+- [x] Route/tunnel inspector "Traffic" section, plus an Overview traffic summary. *(Tunnel inspector: Hour/Day/Week, requests and failures per second, round trip, response classes. Overview: this Mac's rate, total and last-hour sparkline, polled every 10 s. Per-route traffic and "top routes" need per-hostname metrics cloudflared doesn't expose.)*
 
 ### M5-03 · Log viewer
 - [ ] `logs_subscribe(connector, filter) -> Channel<LogBatch>` (server-side filter by level/text to save IPC), plus `logs_history(connector, before, limit)`.
