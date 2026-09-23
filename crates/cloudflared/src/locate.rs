@@ -160,7 +160,7 @@ impl Locator {
 pub async fn read_version(path: &Path) -> Result<Option<Version>> {
     let output = tokio::time::timeout(
         VERSION_TIMEOUT,
-        Command::new(path)
+        crate::process::no_console(&mut Command::new(path))
             .arg("--version")
             .stdin(Stdio::null())
             .kill_on_drop(true)

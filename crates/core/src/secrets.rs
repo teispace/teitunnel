@@ -17,9 +17,23 @@ pub const SERVICE: &str = "com.teispace.teitunnel";
 /// Errors from the secret store.
 #[derive(Debug, thiserror::Error)]
 pub enum SecretError {
-    /// The keychain refused or failed (locked, denied, unavailable).
+    /// The keychain refused or failed (locked, denied).
     #[error("the keychain couldn't be used: {0}")]
     Keychain(String),
+    /// There's no credential store at all: on Linux, no Secret Service is running.
+    #[error(
+        "no secure credential store is available. On Linux, install and unlock a Secret Service provider such as GNOME Keyring or KWallet, then try again"
+    )]
+    Unavailable,
+}
+
+impl From<keyring::Error> for SecretError {
+    fn from(err: keyring::Error) -> Self {
+        match err {
+            keyring::Error::NoDefaultStore => Self::Unavailable,
+            other => Self::Keychain(other.to_string()),
+        }
+    }
 }
 
 /// Where secrets are kept. Calls may block (the OS can show a prompt), so async code
@@ -65,29 +79,27 @@ pub struct KeychainStore;
 
 impl KeychainStore {
     fn entry(key: &str) -> Result<keyring::Entry, SecretError> {
-        keyring::Entry::new(SERVICE, key).map_err(|err| SecretError::Keychain(err.to_string()))
+        Ok(keyring::Entry::new(SERVICE, key)?)
     }
 }
 
 impl SecretStore for KeychainStore {
     fn set(&self, key: &str, value: &Secret<String>) -> Result<(), SecretError> {
-        Self::entry(key)?
-            .set_password(value.expose())
-            .map_err(|err| SecretError::Keychain(err.to_string()))
+        Ok(Self::entry(key)?.set_password(value.expose())?)
     }
 
     fn get(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
         match Self::entry(key)?.get_password() {
             Ok(value) => Ok(Some(Secret::new(value))),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(err) => Err(SecretError::Keychain(err.to_string())),
+            Err(err) => Err(err.into()),
         }
     }
 
     fn delete(&self, key: &str) -> Result<(), SecretError> {
         match Self::entry(key)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(err) => Err(SecretError::Keychain(err.to_string())),
+            Err(err) => Err(err.into()),
         }
     }
 }
@@ -141,6 +153,17 @@ mod tests {
         store.delete("cf:a:token").unwrap();
         store.delete("cf:a:token").unwrap();
         assert!(store.get("cf:a:token").unwrap().is_none());
+    }
+
+    #[test]
+    fn a_missing_store_says_what_to_do() {
+        let err = SecretError::from(keyring::Error::NoDefaultStore);
+        assert!(matches!(err, SecretError::Unavailable));
+        assert!(err.to_string().contains("Secret Service"));
+        assert!(matches!(
+            SecretError::from(keyring::Error::NoStorageAccess("locked".into())),
+            SecretError::Keychain(_)
+        ));
     }
 
     /// Real keychain round trip; ignored by default (may prompt, needs a login keychain).

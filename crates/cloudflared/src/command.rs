@@ -119,6 +119,7 @@ impl CommandSpec {
         }
         #[cfg(unix)]
         command.process_group(0);
+        crate::process::no_console(&mut command);
         command
     }
 

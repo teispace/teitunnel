@@ -1,6 +1,7 @@
 import { Network, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { detectPlatform } from "@/app/platform";
 import { useUiStore } from "@/app/ui-store";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
@@ -256,7 +257,9 @@ function AlwaysOnRow({ accountId }: { accountId: string }) {
           <p className="text-callout text-secondary">
             {change.isPending
               ? "Switching without dropping connections…"
-              : "Routes stay up after you quit the app and start again when you log in."}
+              : detectPlatform() === "linux"
+                ? "Routes stay up after you quit the app and start again when you log in. To keep them up after you log out, run loginctl enable-linger."
+                : "Routes stay up after you quit the app and start again when you log in."}
           </p>
         </div>
         <Switch

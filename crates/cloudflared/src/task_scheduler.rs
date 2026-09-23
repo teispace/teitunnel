@@ -116,7 +116,7 @@ fn quote(arg: &OsStr) -> String {
 
 fn schtasks(args: &[&str]) -> Command {
     let mut command = Command::new("schtasks");
-    command
+    crate::process::no_console(&mut command)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

@@ -127,7 +127,19 @@ struct WithServices {
 
 /// Connectors that can run as (child-process) services, on their own port range.
 fn setup_with_services(dir: &Path, ports: std::ops::Range<u16>) -> WithServices {
-    use teitunnel_core::{machine::ServicePaths, service::ProcessServices};
+    setup_with(
+        dir,
+        ports,
+        teitunnel_core::service::ProcessServices::default(),
+    )
+}
+
+fn setup_with(
+    dir: &Path,
+    ports: std::ops::Range<u16>,
+    manager: teitunnel_core::service::ProcessServices,
+) -> WithServices {
+    use teitunnel_core::machine::ServicePaths;
     let wrapper = dir.join("cloudflared");
     std::fs::write(
         &wrapper,
@@ -141,7 +153,7 @@ fn setup_with_services(dir: &Path, ports: std::ops::Range<u16>) -> WithServices 
         tokio::runtime::Handle::current(),
     );
     let local = Local::new(Store::open_in_memory().unwrap());
-    let services = Arc::new(ProcessServices::default());
+    let services = Arc::new(manager);
     let tokens = dir.join("tokens");
     let machine = MachineTunnels::new(
         supervisor.clone(),
@@ -214,6 +226,16 @@ async fn switches_to_always_on_and_back_without_a_gap() {
         machine.state("t2"),
         Some(ConnectorState::Healthy { .. })
     ));
+    // The service's output lands in its log file, which the app reads.
+    let mut logged = false;
+    for _ in 0..30 {
+        if !machine.logs("t2", 50).is_empty() {
+            logged = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(logged, "the Always-on connector's log is readable");
     // A second scrape makes the first interval; reading with `since` returns only newer.
     machine.sample_once().await;
     let traffic = machine.traffic("t2", None).expect("sampled");
@@ -329,4 +351,43 @@ async fn moves_connectors_onto_a_new_binary_without_a_gap() {
         "the remembered port is the new service's"
     );
     machine.stop("t3").await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_manager_that_cant_capture_output_gets_a_self_logging_connector() {
+    let dir = tempfile::tempdir().unwrap();
+    let WithServices {
+        machine,
+        supervisor,
+        local,
+        services,
+        ..
+    } = setup_with(
+        dir.path(),
+        23030..23040,
+        teitunnel_core::service::ProcessServices::self_logging(),
+    );
+    let api = unused_api();
+    local.set_machine_tunnel("acc", "t4", "Mac").await.unwrap();
+    machine
+        .start("acc", "t4", Secret::new("run-token".into()))
+        .await
+        .unwrap();
+    healthy(&supervisor, "t4").await;
+    machine.set_always_on(&api, "acc", true).await.unwrap();
+
+    let spec = services.installed.lock().unwrap()[0].clone();
+    let args: Vec<String> = spec
+        .args
+        .iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let dir_arg = args
+        .iter()
+        .position(|a| a == "--log-directory")
+        .map(|i| args[i + 1].clone())
+        .expect("the connector writes its own log");
+    assert!(dir_arg.ends_with("t4"), "{dir_arg}");
+    assert!(spec.log_file.ends_with("t4/cloudflared.log"));
+    machine.stop("t4").await.unwrap();
 }

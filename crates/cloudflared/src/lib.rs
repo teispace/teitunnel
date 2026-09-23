@@ -13,6 +13,7 @@ pub mod launchd;
 pub mod locate;
 pub mod log_parse;
 pub mod metrics;
+pub mod process;
 pub mod service;
 pub mod systemd;
 pub mod task_scheduler;

@@ -25,6 +25,12 @@ pub trait ServiceManager: std::fmt::Debug + Send + Sync {
     fn uninstall<'a>(&'a self, label: &'a str) -> BoxFuture<'a, Result<(), String>>;
     /// Whether an agent is loaded, and its pid.
     fn state<'a>(&'a self, label: &'a str) -> BoxFuture<'a, AgentState>;
+    /// Whether the manager saves the connector's output to `ServiceSpec::log_file`
+    /// (launchd, systemd). If not (Task Scheduler), the connector writes its own
+    /// rotating log with `--log-directory`.
+    fn captures_output(&self) -> bool {
+        true
+    }
 }
 
 /// The current user's id, from the owner of the home directory.
@@ -151,8 +157,10 @@ pub struct Systemd {
 }
 
 impl Systemd {
-    /// systemd for the current user, or `None` without a home directory.
+    /// systemd for the current user, or `None` without a home directory or a user
+    /// session (`XDG_RUNTIME_DIR`, which `systemctl --user` needs).
     pub fn for_current_user() -> Option<Self> {
+        std::env::var_os("XDG_RUNTIME_DIR")?;
         let home = PathBuf::from(std::env::var_os("HOME")?);
         Some(Self {
             units_dir: cloudflared::systemd::units_dir(&home),
@@ -282,6 +290,10 @@ impl ServiceManager for TaskScheduler {
             }
         })
     }
+
+    fn captures_output(&self) -> bool {
+        false
+    }
 }
 
 /// Writes a run token for a service (directory 0700, file 0600; SECURITY_MODEL).
@@ -318,18 +330,49 @@ pub struct ProcessServices {
     children: std::sync::Mutex<std::collections::HashMap<String, tokio::process::Child>>,
     /// Every install/uninstall, in order (`install <label>`, `uninstall <label>`).
     pub calls: std::sync::Mutex<Vec<String>>,
+    /// Every service installed, in order.
+    pub installed: std::sync::Mutex<Vec<ServiceSpec>>,
+    /// Behave like Task Scheduler: don't capture output (the connector logs itself).
+    self_logging: bool,
+}
+
+impl ProcessServices {
+    /// A manager that leaves logging to the connector, like Task Scheduler.
+    pub fn self_logging() -> Self {
+        Self {
+            self_logging: true,
+            ..Self::default()
+        }
+    }
 }
 
 impl ServiceManager for ProcessServices {
     fn install<'a>(&'a self, agent: &'a ServiceSpec) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
+            let output = || -> Result<(std::process::Stdio, std::process::Stdio), String> {
+                if self.self_logging {
+                    return Ok((std::process::Stdio::null(), std::process::Stdio::null()));
+                }
+                // Like launchd: output appends to the log file.
+                if let Some(dir) = agent.log_file.parent() {
+                    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+                }
+                let log = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&agent.log_file)
+                    .map_err(|e| e.to_string())?;
+                let err = log.try_clone().map_err(|e| e.to_string())?;
+                Ok((log.into(), err.into()))
+            };
+            let (stdout, stderr) = output()?;
             let mut command = tokio::process::Command::new(&agent.program);
-            command
+            cloudflared::process::no_console(&mut command)
                 .args(&agent.args)
                 .env_remove("TUNNEL_TOKEN")
                 .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
                 .kill_on_drop(true);
             let child = command.spawn().map_err(|e| e.to_string())?;
             let mut children = self
@@ -337,6 +380,10 @@ impl ServiceManager for ProcessServices {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             children.insert(agent.label.clone(), child);
+            self.installed
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(agent.clone());
             self.calls
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -380,6 +427,10 @@ impl ServiceManager for ProcessServices {
                 None => AgentState::default(),
             }
         })
+    }
+
+    fn captures_output(&self) -> bool {
+        !self.self_logging
     }
 }
 

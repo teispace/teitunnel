@@ -71,7 +71,7 @@ fn quote(word: &OsStr) -> String {
 
 fn systemctl(args: &[&str]) -> Command {
     let mut command = Command::new("systemctl");
-    command
+    crate::process::no_console(&mut command)
         .arg("--user")
         .args(args)
         .stdin(Stdio::null())

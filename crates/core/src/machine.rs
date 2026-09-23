@@ -243,8 +243,10 @@ impl MachineTunnels {
             Err(_) => None,
         };
         if service {
-            // launchd appends to the log forever; keep it bounded.
-            if let Some(file) = self.service_log(tunnel)
+            // launchd and systemd append to the log forever; keep it bounded. (A
+            // connector that writes its own log rotates it itself.)
+            if self.manager.as_ref().is_some_and(|m| m.captures_output())
+                && let Some(file) = self.service_log(tunnel)
                 && let Err(err) = crate::connector_logs::rotate_if_large(&file)
             {
                 tracing::warn!(%err, "couldn't rotate a connector log");
@@ -323,11 +325,23 @@ impl MachineTunnels {
         Ok(matching)
     }
 
-    /// An Always-on connector's log file.
-    fn service_log(&self, tunnel_id: &str) -> Option<PathBuf> {
+    /// An Always-on connector's log file (running or not).
+    fn service_log_file(&self, tunnel_id: &str) -> Option<PathBuf> {
         let paths = self.paths.as_ref()?;
+        let manager = self.manager.as_ref()?;
+        Some(if manager.captures_output() {
+            paths.logs.join(format!("{tunnel_id}.log"))
+        } else {
+            // The connector's own rotating log (`--log-directory`).
+            paths.logs.join(tunnel_id).join("cloudflared.log")
+        })
+    }
+
+    /// The log file of a running Always-on connector.
+    fn service_log(&self, tunnel_id: &str) -> Option<PathBuf> {
         self.is_always_on(tunnel_id)
-            .then(|| paths.logs.join(format!("{tunnel_id}.log")))
+            .then(|| self.service_log_file(tunnel_id))
+            .flatten()
     }
 
     /// The run token: from the keychain, else fetched (and stored).
@@ -428,20 +442,21 @@ impl MachineTunnels {
             .ports
             .allocate()
             .ok_or("No free port for the connector's metrics (20300–20399 are all busy)")?;
+        let log_file = self
+            .service_log_file(tunnel_id)
+            .ok_or("Always-on isn't available on this system.")?;
         let command = RunCmd {
             token: TokenSource::File(token_file),
             metrics_port: port,
             protocol: Protocol::Auto,
             log_level: LogLevel::Info,
-            log_dir: None,
+            // Where the service manager can't capture output, the connector logs itself.
+            log_dir: (!manager.captures_output())
+                .then(|| log_file.parent().map(PathBuf::from))
+                .flatten(),
         }
         .build(&binary.path);
-        let agent = ServiceSpec::new(
-            tunnel_id,
-            &command,
-            paths.logs.join(format!("{tunnel_id}.log")),
-        )
-        .map_err(|e| e.to_string())?;
+        let agent = ServiceSpec::new(tunnel_id, &command, log_file).map_err(|e| e.to_string())?;
         if let Err(err) = manager.install(&agent).await {
             self.ports.release(port);
             self.remove_token_file(tunnel_id);

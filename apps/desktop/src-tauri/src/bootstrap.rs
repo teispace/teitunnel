@@ -82,7 +82,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         secrets,
         local.clone(),
     );
-    let machine = match service_manager() {
+    let machine = match service_manager(&data_dir) {
         Some(manager) => machine.with_services(manager, paths),
         None => machine,
     };
@@ -110,17 +110,30 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     })
 }
 
-/// Where Always-on connectors run: launchd on macOS. E2E builds use child processes, so
-/// tests never install real launch agents.
-fn service_manager() -> Option<Arc<dyn teitunnel_core::service::ServiceManager>> {
+/// Where Always-on connectors run: launchd on macOS, systemd user units on Linux (when
+/// there's a user session), scheduled tasks on Windows. E2E builds use child processes,
+/// so tests never install real services.
+fn service_manager(
+    data_dir: &std::path::Path,
+) -> Option<Arc<dyn teitunnel_core::service::ServiceManager>> {
+    use teitunnel_core::service::{
+        Launchd, ProcessServices, ServiceManager, Systemd, TaskScheduler,
+    };
+    fn shared(manager: impl ServiceManager + 'static) -> Arc<dyn ServiceManager> {
+        Arc::new(manager)
+    }
     if cfg!(feature = "e2e") {
-        return Some(Arc::new(teitunnel_core::service::ProcessServices::default()));
+        return Some(shared(ProcessServices::default()));
     }
     if cfg!(target_os = "macos") {
-        return teitunnel_core::service::Launchd::for_current_user()
-            .map(|l| Arc::new(l) as Arc<dyn teitunnel_core::service::ServiceManager>);
+        Launchd::for_current_user().map(shared)
+    } else if cfg!(target_os = "linux") {
+        Systemd::for_current_user().map(shared)
+    } else if cfg!(windows) {
+        TaskScheduler::for_current_user(data_dir.join("tasks")).map(shared)
+    } else {
+        None
     }
-    None
 }
 
 /// The keychain, the Cloudflare API and the edge the verifier probes.

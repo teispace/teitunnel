@@ -12,8 +12,8 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 | [M4](plans/M4-discovery-doctor.md) | v0.4.0 | Discovery, import/adopt, Doctor, cleanup | ✅ Done (PR #5) |
 | [M5](plans/M5-observability-always-on.md) | v0.5.0 | Metrics, logs, activity, always-on (launchd), menu bar | ✅ Done (PR #6) |
 | [M6](plans/M6-distribution.md) | **v1.0.0** | Signing, notarization, updater, Homebrew, docs site | Planned |
-| [M7](plans/M7-M9-beyond-v1.md#m7-windows) | v1.1 | Windows | Later |
-| [M8](plans/M7-M9-beyond-v1.md#m8-linux) | v1.2 | Linux | Later |
+| [M7](plans/M7-windows.md) | v1.1 | Windows | 🚧 Core done; needs Windows hardware |
+| [M8](plans/M8-linux.md) | v1.2 | Linux | 🚧 Core done; needs a Linux desktop |
 | [M9](plans/M7-M9-beyond-v1.md#m9-advanced-features-v1x) | v1.x | Access protection, private networks, remote connectors, export, CLI | Later |
 
 ## Milestone checklist (epic level)

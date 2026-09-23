@@ -3,6 +3,8 @@
 These are outlines. Each will be expanded into a full plan file (same format as M0–M6) when it becomes the current milestone.
 
 ## M7: Windows
+Full plan: [M7-windows.md](M7-windows.md).
+
 - Mica backdrop (`windowEffects: ["mica"]`), Segoe UI Variable, Windows caption controls with snap layouts, tray, notifications.
 - Always-on via Task Scheduler (per-user, at logon) or a Windows service (needs elevation; evaluate), plus `CTRL_BREAK` shutdown semantics.
 - Tokens via Windows Credential Manager (keyring). The managed binary is `cloudflared-windows-amd64.exe` with Authenticode verification.
@@ -10,6 +12,8 @@ These are outlines. Each will be expanded into a full plan file (same format as 
 - Design pass: Windows 11 conventions (title bar, menus in-window, since there's no global menu bar).
 
 ## M8: Linux
+Full plan: [M8-linux.md](M8-linux.md).
+
 - Always-on via `systemd --user` units, native GTK decorations, solid surfaces, tray via libappindicator/StatusNotifierItem.
 - Secret Service (keyring) with a clear error when no secret service is available.
 - Packages: AppImage, deb, rpm, Flatpak (Flathub), AUR.
