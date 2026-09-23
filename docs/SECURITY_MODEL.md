@@ -52,7 +52,8 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 ### Supply chain
 - **cloudflared downloads:** HTTPS from GitHub Releases. SHA256 is checked against the checksums published in the release notes. On macOS, `codesign --verify --strict` is also run and the Developer ID Team ID is checked against Cloudflare's. The install is atomic, and the previous version is kept for rollback.
 - **App updates:** Tauri updater with signature verification (minisign key; the public key is built into the app, the private key lives only in CI secrets, with an offline backup held by the maintainer). The download is verified before it's kept, and installed only at restart or quit. A check fetches `latest.json` from the latest GitHub release and sends nothing about the user (D-075).
-- **Dependencies:** `cargo deny` (advisories, licenses, bans, sources) and `pnpm audit` in CI. Lockfiles are committed. Dependabot/Renovate is grouped weekly.
+- **Dependencies:** `cargo deny` (advisories, licenses, bans, sources) in CI. Lockfiles are committed. Dependabot opens grouped weekly updates (Cargo, npm, Actions) and security-fix PRs; alerts are fixed, or dismissed with the reason recorded here.
+- **Repository:** secret scanning with push protection is on, so a commit containing a credential is refused. Release signing keys live only in the protected `release` environment (D-074).
 - **Releases** are built only in GitHub Actions from tagged commits. macOS builds are signed with a Developer ID and notarized.
 
 ### Logs & diagnostics
@@ -65,4 +66,5 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 ## Known residual risks
 
 - A process running as the same OS user can read the always-on token file and the child process environment. This matches the OS threat model (same-user processes are trusted); the alternative would be a privileged helper, which adds more risk than it removes.
+- `glib` 0.18 (RUSTSEC-2024-0429, unsound `VariantStrIter`) comes only through Tauri's Linux GTK/tray stack, which pins gtk-rs 0.18. Teitunnel never uses `glib` directly, so the unsound iterator is unreachable; the Dependabot alert is dismissed as a tolerable risk (2026-09-23). Revisit when Tauri moves to gtk-rs 0.20 or later.
 - Quick Share URLs are public and unauthenticated by design. The UI says so and offers an auto-stop timer.
