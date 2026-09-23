@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { Spinner } from "@/components/ui/spinner";
+import { t } from "@/lib/i18n";
 import { commands } from "@/lib/ipc/bindings";
 import { call, toIpcError } from "@/lib/ipc/client";
 
@@ -33,43 +34,46 @@ export function DiagnosticsDialog() {
     mutationFn: () => call(commands.diagnosticsExport()),
     onSuccess: (path) => {
       setOpen(false);
-      toast.success("Diagnostics saved", { description: path });
+      toast.success(t("diagnostics.saved"), { description: path });
     },
     onError: (error) => toast.error(toIpcError(error).message),
   });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <IconButton icon={FileArchive} label="Export diagnostics" />
+        <IconButton icon={FileArchive} label={t("diagnostics.export")} />
       </DialogTrigger>
       <DialogContent
-        title="Export Diagnostics"
-        description="A file to attach to a bug report. Tokens, keys and passwords are removed; hostnames and account ids stay so the problem can be understood."
+        title={t("diagnostics.title")}
+        description={t("diagnostics.description")}
         footer={
           <>
             <DialogClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </DialogClose>
             <Button
               variant="primary"
               disabled={!preview.isSuccess || save.isPending}
               onClick={() => save.mutate()}
             >
-              {save.isPending ? "Saving…" : "Save to Downloads"}
+              {save.isPending ? t("diagnostics.saving") : t("export.save")}
             </Button>
           </>
         }
       >
         {preview.isPending ? (
           <div className="flex items-center gap-2 text-body text-secondary">
-            <Spinner className="size-3.5" /> Collecting…
+            <Spinner className="size-3.5" /> {t("diagnostics.collecting")}
           </div>
         ) : preview.error ? (
           <p role="alert" className="text-callout text-error">
             {toIpcError(preview.error).message}
           </p>
         ) : (
-          <ul aria-label="Files" className="flex flex-col rounded-card bg-surface-inset px-3 py-1">
+          <ul
+            aria-label={t("diagnostics.files")}
+            className="flex flex-col rounded-card bg-surface-inset px-3 py-1"
+          >
             {(preview.data ?? []).map((file) => (
               <li
                 key={file.name}

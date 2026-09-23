@@ -3,6 +3,7 @@ import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Disclosure } from "@/components/ui/disclosure";
+import { t } from "@/lib/i18n";
 import type { Account } from "@/lib/ipc/bindings";
 import { useAccounts, useRemoveAccount } from "../queries";
 import { CapabilityList } from "./capability-list";
@@ -11,11 +12,11 @@ import { ConnectSheet } from "./connect-sheet";
 export function credentialLabel(account: Account): string {
   switch (account.credential) {
     case "apiToken":
-      return "API token";
+      return t("accounts.credential.apiToken");
     case "oauth":
-      return "Signed in with Cloudflare";
+      return t("accounts.credential.oauth");
     case "certPem":
-      return "cloudflared login · one domain only";
+      return t("accounts.credential.certPem");
   }
 }
 
@@ -25,20 +26,20 @@ function RemoveButton({ account }: { account: Account }) {
     <Dialog>
       <DialogTrigger asChild>
         <Button size="sm" variant="destructive">
-          Disconnect
+          {t("accounts.disconnect")}
         </Button>
       </DialogTrigger>
       <DialogContent
-        title={`Disconnect ${account.name}?`}
-        description="Teitunnel deletes this account's credentials from your keychain. Nothing changes in Cloudflare; running routes keep working until you stop them."
+        title={t("accounts.disconnectTitle", { name: account.name })}
+        description={t("accounts.disconnectDetail")}
         footer={
           <>
             <DialogClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </DialogClose>
             <DialogClose asChild>
               <Button variant="primary" onClick={() => remove.mutate(account.id)}>
-                Disconnect
+                {t("accounts.disconnect")}
               </Button>
             </DialogClose>
           </>
@@ -53,15 +54,9 @@ export function AccountsPane() {
   const { data: accounts = [], isSuccess } = useAccounts();
   if (!isSuccess) return null;
   return (
-    <GroupedSection
-      title="Cloudflare accounts"
-      footer="Credentials are stored in your Mac's keychain and only sent to Cloudflare."
-    >
+    <GroupedSection title={t("accounts.title")} footer={t("accounts.footer")}>
       {accounts.length === 0 ? (
-        <GroupedRow
-          label="No accounts connected"
-          description="Connect one to use your own domains."
-        />
+        <GroupedRow label={t("accounts.none")} description={t("accounts.noneDetail")} />
       ) : null}
       {accounts.map((account) => (
         <div key={account.id} className="flex flex-col gap-1 py-2">

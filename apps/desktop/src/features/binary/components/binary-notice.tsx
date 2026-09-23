@@ -4,6 +4,7 @@ import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { t } from "@/lib/i18n";
 import type { BinaryInfo, InstallProgress } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
@@ -15,17 +16,20 @@ export function describeProgress(progress: InstallProgress | null): {
   label: string;
   value?: number;
 } {
-  if (!progress) return { label: "Contacting GitHub…" };
+  if (!progress) return { label: t("binary.progress.contacting") };
   switch (progress.step) {
     case "downloading":
       return {
-        label: `Downloading ${(progress.received / MB).toFixed(1)} of ${(progress.total / MB).toFixed(1)} MB`,
+        label: t("binary.progress.downloading", {
+          received: (progress.received / MB).toFixed(1),
+          total: (progress.total / MB).toFixed(1),
+        }),
         value: progress.total > 0 ? progress.received / progress.total : 0,
       };
     case "verifying":
-      return { label: "Checking the checksum and Cloudflare's signature…" };
+      return { label: t("binary.progress.verifying") };
     case "installing":
-      return { label: "Installing…" };
+      return { label: t("binary.progress.installing") };
   }
 }
 
@@ -45,8 +49,10 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
   const error = install.error ? toIpcError(install.error) : null;
   const outdated = binary !== null;
   const title = outdated
-    ? `cloudflared ${binary.version ?? ""} is too old`.replace("  ", " ")
-    : "cloudflared isn't installed";
+    ? binary.version
+      ? t("binary.tooOld", { version: binary.version })
+      : t("binary.tooOldUnknown")
+    : t("binary.missing");
 
   return (
     <section aria-label={title} className="flex gap-3 rounded-card bg-surface-inset p-4">
@@ -59,15 +65,13 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
         <div>
           <h2 className="text-headline">{title}</h2>
           <p className="mt-0.5 text-callout text-secondary">
-            {outdated
-              ? "Teitunnel needs cloudflared 2025.6.1 or later. Install a current copy for Teitunnel; your existing installation stays as it is."
-              : "Teitunnel uses cloudflared, Cloudflare's connector. It's downloaded from Cloudflare's GitHub releases and checked against the published checksum and Cloudflare's code signature before it's used."}
+            {outdated ? t("binary.tooOldDetail") : t("binary.missingDetail")}
           </p>
         </div>
         {install.isPending ? (
           <div className="flex flex-col gap-1.5" aria-live="polite">
             <ProgressBar
-              label="Installing cloudflared"
+              label={t("binary.installing")}
               {...(status.value === undefined ? {} : { value: status.value })}
             />
             <span className="text-callout text-secondary tabular">{status.label}</span>
@@ -75,7 +79,7 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
         ) : (
           <div className="flex items-center gap-2">
             <Button variant="primary" onClick={() => install.mutate()}>
-              Install cloudflared
+              {t("binary.install")}
             </Button>
             <Button
               variant="plain"
@@ -83,7 +87,7 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
                 void queryClient.invalidateQueries({ queryKey: queryKeys.binary.status() })
               }
             >
-              Check Again
+              {t("binary.checkAgain")}
             </Button>
           </div>
         )}
@@ -93,10 +97,12 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
           </p>
         ) : null}
         <Disclosure
-          title={<span className="text-callout font-normal text-secondary">Prefer Homebrew?</span>}
+          title={
+            <span className="text-callout font-normal text-secondary">{t("binary.homebrew")}</span>
+          }
         >
           <CopyField
-            label="command"
+            label={t("binary.command")}
             value={outdated ? "brew upgrade cloudflared" : "brew install cloudflared"}
             className="max-w-80"
           />

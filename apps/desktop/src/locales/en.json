@@ -93,7 +93,11 @@
   "time": {
     "justNow": "Just now",
     "minutesAgo_one": "{count} min ago",
-    "minutesAgo_other": "{count} min ago"
+    "minutesAgo_other": "{count} min ago",
+    "earlier": "Earlier",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "dayAt": "{day} at {time}"
   },
   "routes": {
     "client": {
@@ -356,5 +360,299 @@
   },
   "access": {
     "anyoneAt": "anyone at @{domain}"
+  },
+  "activity": {
+    "kind": {
+      "addRoute": "Routes Added",
+      "updateRoute": "Routes Changed",
+      "removeRoute": "Routes Removed",
+      "importRoutes": "Imports",
+      "deleteRecord": "DNS Cleanups",
+      "restoreConfig": "Restores",
+      "removeTunnel": "Tunnel Removals",
+      "removeLogin": "Login Removals",
+      "addNetwork": "Networks Shared",
+      "removeNetwork": "Networks Unshared"
+    },
+    "show": {
+      "all": "All Changes",
+      "problems": "Only Problems"
+    },
+    "outcome": {
+      "applied": "Applied",
+      "rolledBack": "Failed and undone",
+      "partiallyApplied": "Failed, partly undone"
+    },
+    "title": "Activity",
+    "refresh": "Refresh activity",
+    "loadFailed": "Couldn't load activity",
+    "empty": {
+      "title": "No activity yet",
+      "description": "Every change Teitunnel makes to Cloudflare is recorded here, step by step."
+    },
+    "filter": "Filter activity",
+    "filterPlaceholder": "Filter",
+    "showLabel": "Show",
+    "domain": "Domain",
+    "allDomains": "All Domains",
+    "list": "Activity",
+    "noMatches": {
+      "title": "No matches",
+      "description": "No changes match the filter."
+    },
+    "changes": "Changes",
+    "attempted": "Attempted Changes",
+    "nothingChanged": "Nothing was changed: every step was undone.",
+    "steps": "Steps",
+    "copiedCommands": "Copied the commands",
+    "copyCommands": "Copy All as Commands",
+    "checkAgain": "Check Again",
+    "area": {
+      "route": "Route",
+      "dns": "DNS record",
+      "network": "Private network",
+      "access": "Login"
+    },
+    "before": "Before: ",
+    "after": "After: ",
+    "check": {
+      "checking": "Checking…",
+      "works": "Works",
+      "worksStatus": "Works (HTTP {status})",
+      "notChecked": "Not checked",
+      "check": "Check"
+    },
+    "noDetails": "No details were recorded."
+  },
+  "settings": {
+    "theme": {
+      "system": "Automatic",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "tab": {
+      "general": "General",
+      "accounts": "Accounts",
+      "cloudflared": "cloudflared"
+    },
+    "startup": {
+      "title": "Startup",
+      "footer": "Teitunnel opens in the menu bar, without a window. Routes set to keep running don't need this.",
+      "openAtLogin": "Open at login"
+    },
+    "tabs": "Settings",
+    "appearance": "Appearance",
+    "notifications": {
+      "title": "Notifications",
+      "footer": "Only when no Teitunnel window is in front. macOS decides how they look in System Settings ▸ Notifications.",
+      "routes": "Routes down or back",
+      "routesDetail": "When this Mac's connector loses its connection for more than 20 seconds.",
+      "problems": "Problems",
+      "problemsDetail": "When the Doctor finds something new that stops a route working.",
+      "doctor": "Doctor notifications",
+      "shares": "Quick Shares",
+      "sharesDetail": "When a share goes live or stops working.",
+      "sharesLabel": "Quick Share notifications"
+    },
+    "menuBar": {
+      "title": "Menu bar",
+      "footer": "Closing the window keeps routes and Quick Shares running. Quit Teitunnel with ⌘Q to stop them.",
+      "show": "Show in menu bar",
+      "showDetail": "Status and quick actions without opening the window."
+    }
+  },
+  "domains": {
+    "status": {
+      "active": "Active",
+      "pending": "Waiting for nameservers",
+      "moved": "Nameservers moved away",
+      "other": "Setting up"
+    },
+    "finishSetup": "Finish setup",
+    "finishSetupDetail": "At your registrar, replace the nameservers with these. Changes can take up to a day to be picked up.",
+    "nameserver": "nameserver",
+    "details": "Details",
+    "detail": {
+      "status": "Status",
+      "plan": "Plan",
+      "zoneId": "Zone ID",
+      "currentNs": "Current NS"
+    },
+    "permissions": "Permissions",
+    "title": "Domains",
+    "refresh": "Refresh domains",
+    "connectAnother": "Connect another account",
+    "connectDescription": "Use your own domains, like app.example.com, for services on this Mac.",
+    "loadFailed": "Couldn't load domains",
+    "filter": "Filter domains",
+    "filterPlaceholder": "Filter",
+    "list": "Domains",
+    "noMatches": "No matches",
+    "none": "No domains",
+    "noMatchesDetail": "No domain contains “{query}”.",
+    "noneDetail": "Add a domain in your Cloudflare dashboard, then refresh.",
+    "noSelection": "No domain selected"
+  },
+  "doctor": {
+    "severity": {
+      "error": {
+        "group": "Problems",
+        "label": "Problem"
+      },
+      "warning": {
+        "group": "Warnings",
+        "label": "Warning"
+      },
+      "info": {
+        "group": "Suggestions",
+        "label": "Suggestion"
+      }
+    },
+    "fix": {
+      "change": "{label}…",
+      "installBinary": "Install cloudflared",
+      "startConnector": "Start Connector",
+      "keepTheirs": "Keep Changes",
+      "reconnect": "Connect Again…",
+      "cleanConnections": "Clean Up Connections"
+    },
+    "installing": "Installing…",
+    "ignore": "Ignore",
+    "details": "Details",
+    "fixed_one": "Fixed {count} issue.",
+    "fixed_other": "Fixed {count} issues.",
+    "needReview_one": "{count} needs your review.",
+    "needReview_other": "{count} need your review.",
+    "fixedSome": "Fixed {fixed}; {failed} couldn't be fixed.",
+    "title": "Doctor",
+    "fixing": "Fixing…",
+    "fixSafe": "Fix Safe Issues",
+    "checkAgain": "Check again",
+    "runFailed": "Couldn't run the checks",
+    "allGood": "Everything looks good",
+    "ignoredHidden_one": "No new problems. {count} ignored issue is hidden.",
+    "ignoredHidden_other": "No new problems. {count} ignored issues are hidden.",
+    "checksDescription": "Teitunnel checks cloudflared, your domains, DNS records and connectors every few minutes.",
+    "showIgnored": "Show Ignored Issues",
+    "issues": "Issues"
+  },
+  "diagnostics": {
+    "saved": "Diagnostics saved",
+    "export": "Export diagnostics",
+    "title": "Export Diagnostics",
+    "description": "A file to attach to a bug report. Tokens, keys and passwords are removed; hostnames and account ids stay so the problem can be understood.",
+    "saving": "Saving…",
+    "collecting": "Collecting…",
+    "files": "Files"
+  },
+  "overview": {
+    "title": "Overview",
+    "welcome": "Welcome to Teitunnel",
+    "welcomeDetail": "Share anything running on this Mac at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
+    "empty": {
+      "title": "Nothing running yet",
+      "description": "Share a local service to get a public URL. It shows up here with its live status.",
+      "share": "Share a Local Service",
+      "ownDomain": "Use My Own Domain…"
+    },
+    "attention_one": "{count} problem needs your attention",
+    "attention_other": "{count} problems need your attention",
+    "routes": "Routes",
+    "shares": "Quick Shares",
+    "gettingUrl": "Getting a URL…",
+    "traffic": "Traffic on this Mac",
+    "requestsPerSecond": "requests/s",
+    "sinceStart": "{count} since start",
+    "sparkline": "Requests per second over the last hour"
+  },
+  "accounts": {
+    "credential": {
+      "apiToken": "API token",
+      "oauth": "Signed in with Cloudflare",
+      "certPem": "cloudflared login · one domain only"
+    },
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect {name}?",
+    "disconnectDetail": "Teitunnel deletes this account's credentials from your keychain. Nothing changes in Cloudflare; running routes keep working until you stop them.",
+    "title": "Cloudflare accounts",
+    "footer": "Credentials are stored in your Mac's keychain and only sent to Cloudflare.",
+    "none": "No accounts connected",
+    "noneDetail": "Connect one to use your own domains."
+  },
+  "capabilities": {
+    "allowed": "Allowed",
+    "notAllowed": "Not allowed",
+    "unknown": "Unknown",
+    "checking": "Checking permissions…",
+    "failed": "Couldn't check permissions.",
+    "zones": "See your domains",
+    "zonesHint": "Add Zone · Read to the token.",
+    "tunnels": "Create and manage tunnels",
+    "tunnelsHint": "Add Cloudflare Tunnel · Edit to the token.",
+    "dns": "Edit DNS for {zone}",
+    "dnsHint": "Add DNS · Edit for this domain.",
+    "access": "Protect routes with Access (optional)"
+  },
+  "connect": {
+    "connectedOne": "Connected {name}",
+    "connectedMany": "Connected {count} accounts",
+    "title": "Connect Cloudflare",
+    "description": "Teitunnel uses an API token you create in your Cloudflare dashboard. It's kept in your Mac's keychain and only sent to Cloudflare.",
+    "useCert": "Use My cloudflared Login",
+    "checking": "Checking…",
+    "connect": "Connect",
+    "waiting": "Waiting for you to finish in your browser…",
+    "signInLink": "sign-in link",
+    "cancelSignIn": "Cancel Sign-In",
+    "signIn": "Sign in with Cloudflare",
+    "orToken": "Or connect with an API token:",
+    "step1": "Create a token",
+    "step1Detail": "The link opens Cloudflare with the right permissions selected. If “Cloudflare Tunnel · Edit” isn't in the list, add it, then choose Create Token.",
+    "openCloudflare": "Open Cloudflare",
+    "step2": "Paste it here",
+    "token": "API token",
+    "tokenPlaceholder": "Paste your token"
+  },
+  "binary": {
+    "progress": {
+      "contacting": "Contacting GitHub…",
+      "downloading": "Downloading {received} of {total} MB",
+      "verifying": "Checking the checksum and Cloudflare's signature…",
+      "installing": "Installing…"
+    },
+    "tooOld": "cloudflared {version} is too old",
+    "tooOldUnknown": "cloudflared is too old",
+    "missing": "cloudflared isn't installed",
+    "tooOldDetail": "Teitunnel needs cloudflared 2025.6.1 or later. Install a current copy for Teitunnel; your existing installation stays as it is.",
+    "missingDetail": "Teitunnel uses cloudflared, Cloudflare's connector. It's downloaded from Cloudflare's GitHub releases and checked against the published checksum and Cloudflare's code signature before it's used.",
+    "installing": "Installing cloudflared",
+    "install": "Install cloudflared",
+    "checkAgain": "Check Again",
+    "homebrew": "Prefer Homebrew?",
+    "command": "command",
+    "source": {
+      "managed": "Installed by Teitunnel",
+      "system": "Your installation (e.g. Homebrew)",
+      "override": "Set by TEITUNNEL_CLOUDFLARED"
+    },
+    "footer": "Teitunnel runs cloudflared, Cloudflare's connector, for every Quick Share and route.",
+    "version": "Version",
+    "unknown": "Unknown",
+    "supported": "Supported",
+    "sourceLabel": "Source",
+    "location": "Location",
+    "path": "path",
+    "reveal": "Show in Finder",
+    "updates": "Updates",
+    "available": "Version {version} is available",
+    "upToDate": "cloudflared is up to date",
+    "checkNewer": "Check for a newer version",
+    "sharesKeepVersion": "Running Quick Shares keep their current version until they restart.",
+    "updating": "Updating cloudflared",
+    "update": "Update",
+    "checkNow": "Check Now",
+    "byInstaller": "Updated by its installer",
+    "byInstallerDetail": "Teitunnel doesn't modify a cloudflared it didn't install. With Homebrew, run brew upgrade cloudflared.",
+    "useOurs": "Use Teitunnel's Copy"
   }
 }

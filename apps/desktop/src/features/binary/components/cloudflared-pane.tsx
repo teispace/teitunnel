@@ -5,14 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Spinner } from "@/components/ui/spinner";
+import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 import { useBinaryStatus, useCheckUpdate, useInstallBinary, useRevealBinary } from "../queries";
 import { BinaryNotice, describeProgress } from "./binary-notice";
 
-const sources: Record<string, string> = {
-  managed: "Installed by Teitunnel",
-  system: "Your installation (e.g. Homebrew)",
-  override: "Set by TEITUNNEL_CLOUDFLARED",
+const sources: Record<string, MessageKey> = {
+  managed: "binary.source.managed",
+  system: "binary.source.system",
+  override: "binary.source.override",
 };
 
 /** Settings → cloudflared: which binary runs, and keeping it current. */
@@ -30,54 +31,53 @@ export function CloudflaredPane() {
   const managed = binary.source === "managed";
   return (
     <div className="flex flex-col gap-5">
-      <GroupedSection
-        title="cloudflared"
-        footer="Teitunnel runs cloudflared, Cloudflare's connector, for every Quick Share and route."
-      >
-        <GroupedRow label="Version">
-          <span className="selectable font-mono text-mono">{binary.version ?? "Unknown"}</span>
-          <Badge tone="healthy">Supported</Badge>
+      <GroupedSection title="cloudflared" footer={t("binary.footer")}>
+        <GroupedRow label={t("binary.version")}>
+          <span className="selectable font-mono text-mono">
+            {binary.version ?? t("binary.unknown")}
+          </span>
+          <Badge tone="healthy">{t("binary.supported")}</Badge>
         </GroupedRow>
-        <GroupedRow label="Source">
+        <GroupedRow label={t("binary.sourceLabel")}>
           <span className="text-body text-secondary">
-            {sources[binary.source] ?? binary.source}
+            {binary.source in sources ? t(sources[binary.source] as MessageKey) : binary.source}
           </span>
         </GroupedRow>
-        <GroupedRow label="Location">
-          <CopyField label="path" value={binary.path} className="w-72" />
+        <GroupedRow label={t("binary.location")}>
+          <CopyField label={t("binary.path")} value={binary.path} className="w-72" />
           <Button size="sm" onClick={() => reveal.mutate()}>
-            Show in Finder
+            {t("binary.reveal")}
           </Button>
         </GroupedRow>
       </GroupedSection>
 
-      <GroupedSection title="Updates">
+      <GroupedSection title={t("binary.updates")}>
         {managed ? (
           <GroupedRow
             label={
               update.data?.available
-                ? `Version ${update.data.latest} is available`
+                ? t("binary.available", { version: update.data.latest })
                 : update.data
-                  ? "cloudflared is up to date"
-                  : "Check for a newer version"
+                  ? t("binary.upToDate")
+                  : t("binary.checkNewer")
             }
             description={
               install.isPending
                 ? progress.label
                 : update.error
                   ? toIpcError(update.error).message
-                  : "Running Quick Shares keep their current version until they restart."
+                  : t("binary.sharesKeepVersion")
             }
           >
             {install.isPending ? (
               <ProgressBar
-                label="Updating cloudflared"
+                label={t("binary.updating")}
                 className="w-32"
                 {...(progress.value === undefined ? {} : { value: progress.value })}
               />
             ) : update.data?.available ? (
               <Button variant="primary" size="sm" onClick={() => install.mutate()}>
-                Update
+                {t("binary.update")}
               </Button>
             ) : update.isFetching ? (
               <Spinner />
@@ -86,17 +86,14 @@ export function CloudflaredPane() {
                 size="sm"
                 onClick={() => (checkRequested ? void update.refetch() : setCheckRequested(true))}
               >
-                Check Now
+                {t("binary.checkNow")}
               </Button>
             )}
           </GroupedRow>
         ) : (
-          <GroupedRow
-            label="Updated by its installer"
-            description="Teitunnel doesn't modify a cloudflared it didn't install. With Homebrew, run brew upgrade cloudflared."
-          >
+          <GroupedRow label={t("binary.byInstaller")} description={t("binary.byInstallerDetail")}>
             <Button size="sm" onClick={() => install.mutate()} disabled={install.isPending}>
-              Use Teitunnel's Copy
+              {t("binary.useOurs")}
             </Button>
           </GroupedRow>
         )}

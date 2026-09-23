@@ -1,27 +1,29 @@
+import { type MessageKey, t } from "@/lib/i18n";
 import type { ActivityEntry, ActivityKind, StepView } from "@/lib/ipc/bindings";
 
 /** What the list shows: everything, only problems, or one kind of change. */
 export type Show = "all" | "problems" | ActivityKind;
 
-const kindLabels: Record<ActivityKind, string> = {
-  addRoute: "Routes Added",
-  updateRoute: "Routes Changed",
-  removeRoute: "Routes Removed",
-  importRoutes: "Imports",
-  deleteRecord: "DNS Cleanups",
-  restoreConfig: "Restores",
-  removeTunnel: "Tunnel Removals",
-  removeLogin: "Login Removals",
-  addNetwork: "Networks Shared",
-  removeNetwork: "Networks Unshared",
+const kindLabels: Record<ActivityKind, MessageKey> = {
+  addRoute: "activity.kind.addRoute",
+  updateRoute: "activity.kind.updateRoute",
+  removeRoute: "activity.kind.removeRoute",
+  importRoutes: "activity.kind.importRoutes",
+  deleteRecord: "activity.kind.deleteRecord",
+  restoreConfig: "activity.kind.restoreConfig",
+  removeTunnel: "activity.kind.removeTunnel",
+  removeLogin: "activity.kind.removeLogin",
+  addNetwork: "activity.kind.addNetwork",
+  removeNetwork: "activity.kind.removeNetwork",
 };
 
-export const showOptions: readonly { value: Show; label: string }[] = [
-  { value: "all", label: "All Changes" },
-  { value: "problems", label: "Only Problems" },
-  ...(Object.entries(kindLabels) as [ActivityKind, string][]).map(([value, label]) => ({
+/** The Show menu (built on use: labels need the language). */
+export const showOptions = (): { value: Show; label: string }[] => [
+  { value: "all", label: t("activity.show.all") },
+  { value: "problems", label: t("activity.show.problems") },
+  ...(Object.entries(kindLabels) as [ActivityKind, MessageKey][]).map(([value, label]) => ({
     value,
-    label,
+    label: t(label),
   })),
 ];
 

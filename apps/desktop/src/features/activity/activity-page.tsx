@@ -26,30 +26,34 @@ import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { useAccounts, useActiveAccount } from "@/features/accounts";
 import { PlanSteps, useActivity, useRoutesOverview, useVerify } from "@/features/routes";
 import { cn } from "@/lib/cn";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { ActivityEntry, ActivityRecord, Delta } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { commandScript, matches, type Show, showOptions } from "./model";
 
-const outcomes: Record<string, { dot: Status; label: string }> = {
-  applied: { dot: "healthy", label: "Applied" },
-  rolledBack: { dot: "warning", label: "Failed and undone" },
-  partiallyApplied: { dot: "error", label: "Failed, partly undone" },
+const outcomes: Record<string, { dot: Status; label: MessageKey }> = {
+  applied: { dot: "healthy", label: "activity.outcome.applied" },
+  rolledBack: { dot: "warning", label: "activity.outcome.rolledBack" },
+  partiallyApplied: { dot: "error", label: "activity.outcome.partiallyApplied" },
 };
 
 /** The Domain menu's "any" item (Radix Select items can't have an empty value). */
 const ANY_DOMAIN = "*";
 
 function outcomeOf(entry: ActivityEntry) {
-  return outcomes[entry.outcome] ?? { dot: "idle" as const, label: entry.outcome };
+  const outcome = outcomes[entry.outcome];
+  return outcome
+    ? { dot: outcome.dot, label: t(outcome.label) }
+    : { dot: "idle" as const, label: entry.outcome };
 }
 
 function day(at: number | null) {
-  if (at === null) return "Earlier";
+  if (at === null) return t("time.earlier");
   const date = new Date(at);
   const today = new Date();
   const yesterday = new Date(today.getTime() - 86_400_000);
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (date.toDateString() === today.toDateString()) return t("time.today");
+  if (date.toDateString() === yesterday.toDateString()) return t("time.yesterday");
   return date.toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
@@ -81,10 +85,10 @@ export function ActivityPage() {
   const selected = entries.find((e) => String(e.id) === selectedId) ?? entries[0] ?? null;
 
   const toolbar = (
-    <TitlebarToolbar title="Activity">
+    <TitlebarToolbar title={t("activity.title")}>
       {accounts.length > 1 && active ? (
         <Select
-          label="Account"
+          label={t("common.account")}
           options={accounts.map((a) => ({ value: a.id, label: a.name }))}
           value={active.id}
           onValueChange={setActive}
@@ -93,7 +97,7 @@ export function ActivityPage() {
       {active ? (
         <IconButton
           icon={RefreshCw}
-          label="Refresh activity"
+          label={t("activity.refresh")}
           onClick={() => void activity.refetch()}
           disabled={activity.isFetching}
         />
@@ -103,9 +107,9 @@ export function ActivityPage() {
 
   const body = activity.error ? (
     <ErrorState
-      title="Couldn't load activity"
+      title={t("activity.loadFailed")}
       message={toIpcError(activity.error).message}
-      action={<Button onClick={() => void activity.refetch()}>Try Again</Button>}
+      action={<Button onClick={() => void activity.refetch()}>{t("common.tryAgain")}</Button>}
     />
   ) : activity.isPending && active ? (
     <div className="flex flex-col gap-2 p-3">
@@ -114,8 +118,8 @@ export function ActivityPage() {
   ) : all.length === 0 || (isSuccess && !active) ? (
     <EmptyState
       icon={Activity}
-      title="No activity yet"
-      description="Every change Teitunnel makes to Cloudflare is recorded here, step by step."
+      title={t("activity.empty.title")}
+      description={t("activity.empty.description")}
     />
   ) : (
     <SplitView
@@ -125,25 +129,25 @@ export function ActivityPage() {
           <div className="flex flex-col gap-1.5 px-2.5 pt-1 pb-1.5">
             <Input
               type="search"
-              aria-label="Filter activity"
-              placeholder="Filter"
+              aria-label={t("activity.filter")}
+              placeholder={t("activity.filterPlaceholder")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="rounded-full"
             />
             <div className="flex gap-1.5">
               <Select
-                label="Show"
-                options={showOptions}
+                label={t("activity.showLabel")}
+                options={showOptions()}
                 value={show}
                 onValueChange={setShow}
                 className="min-w-0 flex-1"
               />
               {zones.length > 1 ? (
                 <Select
-                  label="Domain"
+                  label={t("activity.domain")}
                   options={[
-                    { value: ANY_DOMAIN, label: "All Domains" },
+                    { value: ANY_DOMAIN, label: t("activity.allDomains") },
                     ...zones.map((z) => ({ value: z.name, label: z.name })),
                   ]}
                   value={zone}
@@ -154,7 +158,7 @@ export function ActivityPage() {
             </div>
           </div>
           <ListPane
-            label="Activity"
+            label={t("activity.list")}
             items={entries}
             getId={(e) => String(e.id)}
             groupOf={(e) => day(e.at)}
@@ -167,7 +171,12 @@ export function ActivityPage() {
                 leading={<StatusDot status={outcomeOf(entry).dot} label={outcomeOf(entry).label} />}
               />
             )}
-            empty={<EmptyState title="No matches" description="No changes match the filter." />}
+            empty={
+              <EmptyState
+                title={t("activity.noMatches.title")}
+                description={t("activity.noMatches.description")}
+              />
+            }
           />
         </div>
       }
@@ -176,7 +185,7 @@ export function ActivityPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <Inspector
             title={selected.summary}
-            subtitle={`${day(selected.at)} at ${time(selected.at)} · ${outcomeOf(selected).label}`}
+            subtitle={`${t("time.dayAt", { day: day(selected.at), time: time(selected.at) })} · ${outcomeOf(selected).label}`}
           >
             {selected.record ? (
               <RecordDetails
@@ -227,16 +236,16 @@ function RecordDetails({
     <>
       {record.changes.length > 0 ? (
         // A failed change didn't happen (or only partly): don't present it as done.
-        <InspectorSection title={outcome === "applied" ? "Changes" : "Attempted Changes"}>
+        <InspectorSection
+          title={outcome === "applied" ? t("activity.changes") : t("activity.attempted")}
+        >
           {outcome === "rolledBack" ? (
-            <p className="text-callout text-secondary">
-              Nothing was changed: every step was undone.
-            </p>
+            <p className="text-callout text-secondary">{t("activity.nothingChanged")}</p>
           ) : null}
           <ChangeList changes={record.changes} muted={outcome !== "applied"} />
         </InspectorSection>
       ) : null}
-      <InspectorSection title="Steps">
+      <InspectorSection title={t("activity.steps")}>
         <PlanSteps steps={steps} states={states} copyable />
         {leftovers.length > 0 ? (
           <ul className="flex flex-col gap-1">
@@ -254,17 +263,17 @@ function RecordDetails({
               onClick={() =>
                 void navigator.clipboard
                   .writeText(script)
-                  .then(() => toast.success("Copied the commands"))
+                  .then(() => toast.success(t("activity.copiedCommands")))
               }
             >
               <Copy aria-hidden className="size-3" strokeWidth={1.75} />
-              Copy All as Commands
+              {t("activity.copyCommands")}
             </Button>
           </div>
         ) : null}
       </InspectorSection>
       {checkable.length > 0 ? (
-        <InspectorSection title="Check Again">
+        <InspectorSection title={t("activity.checkAgain")}>
           <ul className="flex flex-col rounded-card bg-surface-inset px-3 py-1">
             {checkable.map((hostname) => (
               <CheckRow key={hostname} accountId={accountId} hostname={hostname} />
@@ -276,11 +285,11 @@ function RecordDetails({
   );
 }
 
-const areas: Record<Delta["area"], { icon: LucideIcon; label: string }> = {
-  route: { icon: RouteIcon, label: "Route" },
-  dns: { icon: Globe, label: "DNS record" },
-  network: { icon: Network, label: "Private network" },
-  access: { icon: LockKeyhole, label: "Login" },
+const areas: Record<Delta["area"], { icon: LucideIcon; label: MessageKey }> = {
+  route: { icon: RouteIcon, label: "activity.area.route" },
+  dns: { icon: Globe, label: "activity.area.dns" },
+  network: { icon: Network, label: "activity.area.network" },
+  access: { icon: LockKeyhole, label: "activity.area.access" },
 };
 
 /** Before/after, one block per route, record or login, like a diff. */
@@ -295,7 +304,7 @@ function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: bool
             className="flex gap-2.5"
           >
             <Icon
-              aria-label={area}
+              aria-label={t(area)}
               className="mt-0.5 size-3.5 shrink-0 text-secondary"
               strokeWidth={1.75}
             />
@@ -312,7 +321,7 @@ function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: bool
                   )}
                 >
                   <span aria-hidden>− </span>
-                  <span className="sr-only">Before: </span>
+                  <span className="sr-only">{t("activity.before")}</span>
                   {change.before}
                 </span>
               ) : null}
@@ -324,7 +333,7 @@ function ChangeList({ changes, muted }: { changes: readonly Delta[]; muted: bool
                   )}
                 >
                   <span aria-hidden>+ </span>
-                  <span className="sr-only">After: </span>
+                  <span className="sr-only">{t("activity.after")}</span>
                   {change.after}
                 </span>
               ) : null}
@@ -348,15 +357,18 @@ function CheckRow({ accountId, hostname }: { accountId: string; hostname: string
         ? "error"
         : "healthy";
   const message = verify.isPending
-    ? "Checking…"
+    ? t("activity.check.checking")
     : verify.error
       ? toIpcError(verify.error).message
       : result
-        ? (result.message ?? `Works${result.status ? ` (HTTP ${result.status})` : ""}`)
+        ? (result.message ??
+          (result.status
+            ? t("activity.check.worksStatus", { status: String(result.status) })
+            : t("activity.check.works")))
         : null;
   return (
     <li className="flex min-h-9 items-center gap-2.5 border-inset border-b-hairline py-1.5 last:border-b-0">
-      <StatusDot status={status} label={message ?? "Not checked"} />
+      <StatusDot status={status} label={message ?? t("activity.check.notChecked")} />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="selectable truncate text-body">{hostname}</span>
         {message ? (
@@ -370,7 +382,7 @@ function CheckRow({ accountId, hostname }: { accountId: string; hostname: string
         disabled={verify.isPending}
         onClick={() => verify.mutate({ hostname, wait: false })}
       >
-        Check
+        {t("activity.check.check")}
       </Button>
     </li>
   );
@@ -379,9 +391,9 @@ function CheckRow({ accountId, hostname }: { accountId: string; hostname: string
 /** Entries from before the structured record: the step lines as they were logged. */
 function PlainSteps({ lines }: { lines: readonly string[] }) {
   return (
-    <InspectorSection title="Steps">
+    <InspectorSection title={t("activity.steps")}>
       {lines.length === 0 ? (
-        <p className="text-callout text-secondary">No details were recorded.</p>
+        <p className="text-callout text-secondary">{t("activity.noDetails")}</p>
       ) : (
         <ol className="flex flex-col gap-1.5">
           {lines.map((line, index) => (

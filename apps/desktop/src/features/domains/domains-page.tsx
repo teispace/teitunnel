@@ -23,44 +23,53 @@ import {
   useActiveAccount,
   useDomains,
 } from "@/features/accounts";
+import { t } from "@/lib/i18n";
 import type { Domain, DomainStatus } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 
-const statuses: Record<DomainStatus, { dot: Status; label: string }> = {
-  active: { dot: "healthy", label: "Active" },
-  pending: { dot: "warning", label: "Waiting for nameservers" },
-  moved: { dot: "error", label: "Nameservers moved away" },
-  other: { dot: "idle", label: "Setting up" },
+const dots: Record<DomainStatus, Status> = {
+  active: "healthy",
+  pending: "warning",
+  moved: "error",
+  other: "idle",
 };
 
+const statusOf = (status: DomainStatus) => ({
+  dot: dots[status],
+  label: t(`domains.status.${status}`),
+});
+
 function DomainInspector({ domain, accountId }: { domain: Domain; accountId: string }) {
-  const status = statuses[domain.status];
+  const status = statusOf(domain.status);
   return (
     <Inspector title={domain.name} subtitle={status.label}>
       {domain.status === "pending" ? (
-        <InspectorSection title="Finish setup">
-          <p className="text-callout text-secondary">
-            At your registrar, replace the nameservers with these. Changes can take up to a day to
-            be picked up.
-          </p>
+        <InspectorSection title={t("domains.finishSetup")}>
+          <p className="text-callout text-secondary">{t("domains.finishSetupDetail")}</p>
           {domain.nameServers.map((ns) => (
-            <CopyField key={ns} label="nameserver" value={ns} />
+            <CopyField key={ns} label={t("domains.nameserver")} value={ns} />
           ))}
         </InspectorSection>
       ) : null}
-      <InspectorSection title="Details">
+      <InspectorSection title={t("domains.details")}>
         <KeyValueGrid
           items={[
-            { label: "Status", value: status.label },
-            { label: "Plan", value: domain.plan ?? "—" },
-            { label: "Zone ID", value: domain.id, mono: true },
+            { label: t("domains.detail.status"), value: status.label },
+            { label: t("domains.detail.plan"), value: domain.plan ?? "—" },
+            { label: t("domains.detail.zoneId"), value: domain.id, mono: true },
             ...(domain.originalNameServers.length > 0 && domain.status !== "active"
-              ? [{ label: "Current NS", value: domain.originalNameServers.join(", "), mono: true }]
+              ? [
+                  {
+                    label: t("domains.detail.currentNs"),
+                    value: domain.originalNameServers.join(", "),
+                    mono: true,
+                  },
+                ]
               : []),
           ]}
         />
       </InspectorSection>
-      <InspectorSection title="Permissions">
+      <InspectorSection title={t("domains.permissions")}>
         <CapabilityList accountId={accountId} zoneId={domain.id} />
       </InspectorSection>
     </Inspector>
@@ -80,10 +89,10 @@ export function DomainsPage() {
   const selected = list.find((d) => d.id === selectedId) ?? list[0] ?? null;
 
   const toolbar = (
-    <TitlebarToolbar title="Domains">
+    <TitlebarToolbar title={t("domains.title")}>
       {accounts.length > 1 && active ? (
         <Select
-          label="Account"
+          label={t("common.account")}
           options={accounts.map((a) => ({ value: a.id, label: a.name }))}
           value={active.id}
           onValueChange={setActive}
@@ -92,13 +101,13 @@ export function DomainsPage() {
       {active ? (
         <IconButton
           icon={RefreshCw}
-          label="Refresh domains"
+          label={t("domains.refresh")}
           onClick={() => void domains.refetch()}
           disabled={domains.isFetching}
         />
       ) : null}
       {active ? (
-        <ConnectSheet trigger={<IconButton icon={Plus} label="Connect another account" />} />
+        <ConnectSheet trigger={<IconButton icon={Plus} label={t("domains.connectAnother")} />} />
       ) : null}
     </TitlebarToolbar>
   );
@@ -109,9 +118,13 @@ export function DomainsPage() {
         {toolbar}
         <EmptyState
           icon={Globe}
-          title="Connect Cloudflare"
-          description="Use your own domains, like app.example.com, for services on this Mac."
-          action={<ConnectSheet trigger={<Button variant="primary">Connect Cloudflare</Button>} />}
+          title={t("routes.connectCloudflare.title")}
+          description={t("domains.connectDescription")}
+          action={
+            <ConnectSheet
+              trigger={<Button variant="primary">{t("routes.connectCloudflare.title")}</Button>}
+            />
+          }
         />
       </>
     );
@@ -122,10 +135,10 @@ export function DomainsPage() {
       {toolbar}
       {domains.error ? (
         <ErrorState
-          title="Couldn't load domains"
+          title={t("domains.loadFailed")}
           message={toIpcError(domains.error).message}
           hint={toIpcError(domains.error).hint}
-          action={<Button onClick={() => void domains.refetch()}>Try Again</Button>}
+          action={<Button onClick={() => void domains.refetch()}>{t("common.tryAgain")}</Button>}
         />
       ) : (
         <SplitView
@@ -142,8 +155,8 @@ export function DomainsPage() {
                   <div className="px-2.5 pt-1 pb-1.5">
                     <Input
                       type="search"
-                      aria-label="Filter domains"
-                      placeholder="Filter"
+                      aria-label={t("domains.filter")}
+                      placeholder={t("domains.filterPlaceholder")}
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       className="rounded-full"
@@ -151,7 +164,7 @@ export function DomainsPage() {
                   </div>
                 ) : null}
                 <ListPane
-                  label="Domains"
+                  label={t("domains.list")}
                   items={list}
                   getId={(domain) => domain.id}
                   selectedId={selected?.id ?? null}
@@ -159,22 +172,20 @@ export function DomainsPage() {
                   renderRow={(domain) => (
                     <ListRow
                       title={domain.name}
-                      subtitle={statuses[domain.status].label}
+                      subtitle={statusOf(domain.status).label}
                       leading={
                         <StatusDot
-                          status={statuses[domain.status].dot}
-                          label={statuses[domain.status].label}
+                          status={statusOf(domain.status).dot}
+                          label={statusOf(domain.status).label}
                         />
                       }
                     />
                   )}
                   empty={
                     <EmptyState
-                      title={query ? "No matches" : "No domains"}
+                      title={query ? t("domains.noMatches") : t("domains.none")}
                       description={
-                        query
-                          ? `No domain contains “${query}”.`
-                          : "Add a domain in your Cloudflare dashboard, then refresh."
+                        query ? t("domains.noMatchesDetail", { query }) : t("domains.noneDetail")
                       }
                     />
                   }
@@ -189,7 +200,7 @@ export function DomainsPage() {
             </div>
           ) : (
             <EmptyState
-              title="No domain selected"
+              title={t("domains.noSelection")}
               description={active ? credentialLabel(active) : ""}
             />
           )}

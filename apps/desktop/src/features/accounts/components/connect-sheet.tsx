@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 import {
   openTokenPage,
@@ -47,7 +48,9 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
     setOpen(false);
     setToken("");
     toast.success(
-      names.length === 1 ? `Connected ${names[0]}` : `Connected ${names.length} accounts`,
+      names.length === 1
+        ? t("connect.connectedOne", { name: names[0] ?? "" })
+        : t("connect.connectedMany", { count: names.length }),
     );
   };
 
@@ -71,8 +74,8 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
     >
       <SheetTrigger asChild>{trigger}</SheetTrigger>
       <SheetContent
-        title="Connect Cloudflare"
-        description="Teitunnel uses an API token you create in your Cloudflare dashboard. It's kept in your Mac's keychain and only sent to Cloudflare."
+        title={t("connect.title")}
+        description={t("connect.description")}
         footer={
           <>
             {cert.data ? (
@@ -82,11 +85,11 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                 disabled={importCert.isPending}
                 onClick={() => importCert.mutate(undefined, { onSuccess: (a) => finish([a.name]) })}
               >
-                Use My cloudflared Login
+                {t("connect.useCert")}
               </Button>
             ) : null}
             <SheetClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </SheetClose>
             <Button
               variant="primary"
@@ -94,7 +97,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
               form="connect-token"
               disabled={token.trim() === "" || addToken.isPending}
             >
-              {addToken.isPending ? "Checking…" : "Connect"}
+              {addToken.isPending ? t("connect.checking") : t("connect.connect")}
             </Button>
           </>
         }
@@ -104,12 +107,14 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
             {signIn.isPending ? (
               <div className="flex flex-col gap-2" aria-live="polite">
                 <div className="flex items-center gap-2 text-body">
-                  <Spinner className="size-3.5" /> Waiting for you to finish in your browser…
+                  <Spinner className="size-3.5" /> {t("connect.waiting")}
                 </div>
-                {signIn.url ? <CopyField label="sign-in link" value={signIn.url} /> : null}
+                {signIn.url ? (
+                  <CopyField label={t("connect.signInLink")} value={signIn.url} />
+                ) : null}
                 <div>
                   <Button size="sm" onClick={signIn.cancel}>
-                    Cancel Sign-In
+                    {t("connect.cancelSignIn")}
                   </Button>
                 </div>
               </div>
@@ -122,7 +127,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                   signIn.mutate(undefined, { onSuccess: (a) => finish(a.map((x) => x.name)) })
                 }
               >
-                Sign in with Cloudflare
+                {t("connect.signIn")}
               </Button>
             )}
             {signIn.error && toIpcError(signIn.error).message !== "Sign-in cancelled." ? (
@@ -130,30 +135,27 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
                 {toIpcError(signIn.error).message}
               </p>
             ) : null}
-            <p className="text-callout text-secondary">Or connect with an API token:</p>
+            <p className="text-callout text-secondary">{t("connect.orToken")}</p>
           </div>
         ) : null}
         <form id="connect-token" onSubmit={submit}>
           <ol className="flex flex-col gap-5">
-            <Step n={1} title="Create a token">
-              <p className="text-callout text-secondary">
-                The link opens Cloudflare with the right permissions selected. If “Cloudflare Tunnel
-                · Edit” isn't in the list, add it, then choose Create Token.
-              </p>
+            <Step n={1} title={t("connect.step1")}>
+              <p className="text-callout text-secondary">{t("connect.step1Detail")}</p>
               <div>
                 <Button onClick={() => void openTokenPage()}>
-                  Open Cloudflare <ExternalLink />
+                  {t("connect.openCloudflare")} <ExternalLink />
                 </Button>
               </div>
             </Step>
-            <Step n={2} title="Paste it here">
-              <Field label="API token" error={message}>
+            <Step n={2} title={t("connect.step2")}>
+              <Field label={t("connect.token")} error={message}>
                 {(control) => (
                   <Input
                     {...control}
                     type="password"
                     autoComplete="off"
-                    placeholder="Paste your token"
+                    placeholder={t("connect.tokenPlaceholder")}
                     value={token}
                     onChange={(event) => {
                       setToken(event.target.value);

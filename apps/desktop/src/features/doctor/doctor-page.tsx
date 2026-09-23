@@ -14,31 +14,34 @@ import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
+import { t } from "@/lib/i18n";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { DiagnosticsDialog } from "./diagnostics-dialog";
 import { hasSafeCandidates, useFixSafe, useIssues, useSetIgnored } from "./queries";
 
-const severities: Record<Severity, { dot: Status; group: string; label: string }> = {
-  error: { dot: "error", group: "Problems", label: "Problem" },
-  warning: { dot: "warning", group: "Warnings", label: "Warning" },
-  info: { dot: "idle", group: "Suggestions", label: "Suggestion" },
-};
+const dots: Record<Severity, Status> = { error: "error", warning: "warning", info: "idle" };
+
+const severityOf = (severity: Severity) => ({
+  dot: dots[severity],
+  group: t(`doctor.severity.${severity}.group`),
+  label: t(`doctor.severity.${severity}.label`),
+});
 
 function fixLabel(fix: Fix): string {
   switch (fix.type) {
     case "change":
-      return `${fix.label}…`;
+      return t("doctor.fix.change", { label: fix.label });
     case "installBinary":
-      return "Install cloudflared";
+      return t("doctor.fix.installBinary");
     case "startConnector":
-      return "Start Connector";
+      return t("doctor.fix.startConnector");
     case "keepTheirs":
-      return "Keep Changes";
+      return t("doctor.fix.keepTheirs");
     case "reconnect":
-      return "Connect Again…";
+      return t("doctor.fix.reconnect");
     case "cleanConnections":
-      return "Clean Up Connections";
+      return t("doctor.fix.cleanConnections");
   }
 }
 
@@ -63,7 +66,7 @@ function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
           disabled={install.isPending}
           onClick={() => install.mutate(undefined, { onError: failed })}
         >
-          {install.isPending ? "Installing…" : fixLabel(fix)}
+          {install.isPending ? t("doctor.installing") : fixLabel(fix)}
         </Button>
       );
     case "startConnector":
@@ -111,7 +114,7 @@ function IssueInspector({
   onReview: (mode: SheetMode, accountId: string) => void;
 }) {
   const setIgnored = useSetIgnored();
-  const severity = severities[issue.severity];
+  const severity = severityOf(issue.severity);
   return (
     <Inspector
       title={issue.title}
@@ -143,14 +146,14 @@ function IssueInspector({
             disabled={setIgnored.isPending}
             onClick={() => setIgnored.mutate({ ids: [issue.id], ignored: true })}
           >
-            Ignore
+            {t("doctor.ignore")}
           </Button>
         </>
       }
     >
       <p className="selectable text-body">{issue.detail}</p>
       {issue.evidence.length > 0 ? (
-        <InspectorSection title="Details">
+        <InspectorSection title={t("doctor.details")}>
           <ul className="flex flex-col gap-1">
             {issue.evidence.map((line) => (
               <li key={line} className="selectable break-all font-mono text-mono text-secondary">
@@ -177,29 +180,33 @@ export function DoctorPage() {
   const runSafeFixes = () =>
     fixSafe.mutate(undefined, {
       onSuccess: (report) => {
-        const left = report.skipped > 0 ? ` ${report.skipped} need your review.` : "";
+        const left =
+          report.skipped > 0 ? ` ${t("doctor.needReview", { count: report.skipped })}` : "";
         if (report.failed.length > 0) {
-          toast.error(`Fixed ${report.fixed}; ${report.failed.length} couldn't be fixed.`, {
-            description: report.failed.join("\n"),
-          });
+          toast.error(
+            t("doctor.fixedSome", { fixed: report.fixed, failed: report.failed.length }),
+            {
+              description: report.failed.join("\n"),
+            },
+          );
         } else {
-          toast.success(`Fixed ${report.fixed} issue${report.fixed === 1 ? "" : "s"}.${left}`);
+          toast.success(`${t("doctor.fixed", { count: report.fixed })}${left}`);
         }
       },
       onError: (error) => toast.error(toIpcError(error).message),
     });
 
   const toolbar = (
-    <TitlebarToolbar title="Doctor">
+    <TitlebarToolbar title={t("doctor.title")}>
       {hasSafeCandidates(issues) ? (
         <Button size="sm" disabled={fixSafe.isPending} onClick={runSafeFixes}>
-          {fixSafe.isPending ? "Fixing…" : "Fix Safe Issues"}
+          {fixSafe.isPending ? t("doctor.fixing") : t("doctor.fixSafe")}
         </Button>
       ) : null}
       <DiagnosticsDialog />
       <IconButton
         icon={RefreshCw}
-        label="Check again"
+        label={t("doctor.checkAgain")}
         onClick={() => void doctor.refetch()}
         disabled={doctor.isFetching}
       />
@@ -211,10 +218,10 @@ export function DoctorPage() {
       const error = toIpcError(doctor.error);
       return (
         <ErrorState
-          title="Couldn't run the checks"
+          title={t("doctor.runFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void doctor.refetch()}>Try Again</Button>}
+          action={<Button onClick={() => void doctor.refetch()}>{t("common.tryAgain")}</Button>}
         />
       );
     }
@@ -230,16 +237,16 @@ export function DoctorPage() {
       return (
         <EmptyState
           icon={ignoredCount > 0 ? Stethoscope : CircleCheck}
-          title="Everything looks good"
+          title={t("doctor.allGood")}
           description={
             ignoredCount > 0
-              ? `No new problems. ${ignoredCount} ignored issue${ignoredCount === 1 ? " is" : "s are"} hidden.`
-              : "Teitunnel checks cloudflared, your domains, DNS records and connectors every few minutes."
+              ? t("doctor.ignoredHidden", { count: ignoredCount })
+              : t("doctor.checksDescription")
           }
           action={
             ignoredCount > 0 ? (
               <Button onClick={() => setIgnored.mutate({ ids: ignoredIds, ignored: false })}>
-                Show Ignored Issues
+                {t("doctor.showIgnored")}
               </Button>
             ) : undefined
           }
@@ -251,10 +258,10 @@ export function DoctorPage() {
         id="doctor"
         list={
           <ListPane
-            label="Issues"
+            label={t("doctor.issues")}
             items={issues}
             getId={(issue) => issue.id}
-            groupOf={(issue) => severities[issue.severity].group}
+            groupOf={(issue) => severityOf(issue.severity).group}
             selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
             renderRow={(issue) => (
@@ -263,8 +270,8 @@ export function DoctorPage() {
                 subtitle={issue.subject}
                 leading={
                   <StatusDot
-                    status={severities[issue.severity].dot}
-                    label={severities[issue.severity].label}
+                    status={severityOf(issue.severity).dot}
+                    label={severityOf(issue.severity).label}
                   />
                 }
               />

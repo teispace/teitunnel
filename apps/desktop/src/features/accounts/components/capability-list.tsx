@@ -1,6 +1,7 @@
 import { Check, Minus, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
 import type { Grant } from "@/lib/ipc/bindings";
 import { useCapabilities } from "../queries";
 
@@ -8,7 +9,13 @@ function GrantIcon({ grant }: { grant: Grant }) {
   const Icon = grant === "yes" ? Check : grant === "no" ? X : Minus;
   return (
     <Icon
-      aria-label={grant === "yes" ? "Allowed" : grant === "no" ? "Not allowed" : "Unknown"}
+      aria-label={
+        grant === "yes"
+          ? t("capabilities.allowed")
+          : grant === "no"
+            ? t("capabilities.notAllowed")
+            : t("capabilities.unknown")
+      }
       className={cn(
         "size-3.5 shrink-0",
         grant === "yes" ? "text-healthy" : grant === "no" ? "text-error" : "text-tertiary",
@@ -38,21 +45,25 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
   if (isPending) {
     return (
       <div className="flex items-center gap-2 py-1 text-callout text-secondary">
-        <Spinner className="size-3.5" /> Checking permissions…
+        <Spinner className="size-3.5" /> {t("capabilities.checking")}
       </div>
     );
   }
   if (error || !caps)
-    return <p className="text-callout text-secondary">Couldn't check permissions.</p>;
+    return <p className="text-callout text-secondary">{t("capabilities.failed")}</p>;
   return (
     <ul className="flex flex-col">
       {zoneId === undefined ? (
-        <Row grant={caps.zonesRead} label="See your domains" hint="Add Zone · Read to the token." />
+        <Row
+          grant={caps.zonesRead}
+          label={t("capabilities.zones")}
+          hint={t("capabilities.zonesHint")}
+        />
       ) : null}
       <Row
         grant={caps.tunnelsEdit}
-        label="Create and manage tunnels"
-        hint="Add Cloudflare Tunnel · Edit to the token."
+        label={t("capabilities.tunnels")}
+        hint={t("capabilities.tunnelsHint")}
       />
       {caps.zones
         .filter((zone) => zoneId === undefined || zone.zoneId === zoneId)
@@ -60,12 +71,12 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
           <Row
             key={zone.zoneId}
             grant={zone.dnsEdit}
-            label={`Edit DNS for ${zone.zoneName}`}
-            hint="Add DNS · Edit for this domain."
+            label={t("capabilities.dns", { zone: zone.zoneName })}
+            hint={t("capabilities.dnsHint")}
           />
         ))}
       {zoneId === undefined ? (
-        <Row grant={caps.accessEdit} label="Protect routes with Access (optional)" />
+        <Row grant={caps.accessEdit} label={t("capabilities.access")} />
       ) : null}
     </ul>
   );

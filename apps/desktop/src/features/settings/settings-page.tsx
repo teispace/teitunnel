@@ -6,33 +6,31 @@ import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
 import { CloudflaredPane } from "@/features/binary";
 import { cn } from "@/lib/cn";
+import { type MessageKey, t } from "@/lib/i18n";
 import { useOpenAtLogin, useSetOpenAtLogin, useSettings, useUpdateSettings } from "./queries";
 
-const themes = [
-  { value: "system", label: "Automatic" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-] as const;
+const themes = () =>
+  (["system", "light", "dark"] as const).map((value) => ({
+    value,
+    label: t(`settings.theme.${value}`),
+  }));
 
 type Tab = "general" | "accounts" | "cloudflared";
 
-const tabs: readonly { id: Tab; label: string; icon: LucideIcon }[] = [
-  { id: "general", label: "General", icon: Settings2 },
-  { id: "accounts", label: "Accounts", icon: CircleUser },
-  { id: "cloudflared", label: "cloudflared", icon: Cable },
+const tabs: readonly { id: Tab; label: MessageKey; icon: LucideIcon }[] = [
+  { id: "general", label: "settings.tab.general", icon: Settings2 },
+  { id: "accounts", label: "settings.tab.accounts", icon: CircleUser },
+  { id: "cloudflared", label: "settings.tab.cloudflared", icon: Cable },
 ];
 
 function OpenAtLogin() {
   const login = useOpenAtLogin();
   const change = useSetOpenAtLogin();
   return (
-    <GroupedSection
-      title="Startup"
-      footer="Teitunnel opens in the menu bar, without a window. Routes set to keep running don't need this."
-    >
-      <GroupedRow label="Open at login">
+    <GroupedSection title={t("settings.startup.title")} footer={t("settings.startup.footer")}>
+      <GroupedRow label={t("settings.startup.openAtLogin")}>
         <Switch
-          aria-label="Open at login"
+          aria-label={t("settings.startup.openAtLogin")}
           checked={change.isPending ? change.variables : login.data === true}
           disabled={!login.isSuccess || change.isPending}
           onCheckedChange={(enabled) => change.mutate(enabled)}
@@ -45,14 +43,18 @@ function OpenAtLogin() {
 /** The Settings window (⌘,): toolbar tabs over System Settings–style forms. */
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("general");
-  const current = tabs.find((t) => t.id === tab) ?? tabs[0];
+  const current = tabs.find((entry) => entry.id === tab) ?? tabs[0];
   return (
     <div className="flex h-full flex-col bg-surface-content">
       <header data-tauri-drag-region="deep" className="shrink-0 border-separator border-b-hairline">
         <h1 className="flex h-7 items-center justify-center text-headline [:root[data-window-active=false]_&]:text-secondary">
-          {current?.label}
+          {current ? t(current.label) : null}
         </h1>
-        <div role="tablist" aria-label="Settings" className="flex justify-center gap-1 pb-1.5">
+        <div
+          role="tablist"
+          aria-label={t("settings.tabs")}
+          className="flex justify-center gap-1 pb-1.5"
+        >
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -70,7 +72,7 @@ export function SettingsPage() {
                 className={cn("size-5", tab === id ? "text-accent" : "text-secondary")}
                 strokeWidth={1.6}
               />
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -95,10 +97,10 @@ function GeneralPane() {
   return (
     <>
       <GroupedSection>
-        <GroupedRow label="Appearance">
+        <GroupedRow label={t("settings.appearance")}>
           <SegmentedControl
-            label="Appearance"
-            segments={themes}
+            label={t("settings.appearance")}
+            segments={themes()}
             value={settings.theme}
             onValueChange={(theme) => update.mutate({ theme })}
           />
@@ -106,47 +108,47 @@ function GeneralPane() {
       </GroupedSection>
       <OpenAtLogin />
       <GroupedSection
-        title="Notifications"
-        footer="Only when no Teitunnel window is in front. macOS decides how they look in System Settings ▸ Notifications."
+        title={t("settings.notifications.title")}
+        footer={t("settings.notifications.footer")}
       >
         <GroupedRow
-          label="Routes down or back"
-          description="When this Mac's connector loses its connection for more than 20 seconds."
+          label={t("settings.notifications.routes")}
+          description={t("settings.notifications.routesDetail")}
         >
           <Switch
-            aria-label="Routes down or back"
+            aria-label={t("settings.notifications.routes")}
             checked={settings.notifyConnectors}
             onCheckedChange={(notifyConnectors) => update.mutate({ notifyConnectors })}
           />
         </GroupedRow>
         <GroupedRow
-          label="Problems"
-          description="When the Doctor finds something new that stops a route working."
+          label={t("settings.notifications.problems")}
+          description={t("settings.notifications.problemsDetail")}
         >
           <Switch
-            aria-label="Doctor notifications"
+            aria-label={t("settings.notifications.doctor")}
             checked={settings.notifyDoctor}
             onCheckedChange={(notifyDoctor) => update.mutate({ notifyDoctor })}
           />
         </GroupedRow>
-        <GroupedRow label="Quick Shares" description="When a share goes live or stops working.">
+        <GroupedRow
+          label={t("settings.notifications.shares")}
+          description={t("settings.notifications.sharesDetail")}
+        >
           <Switch
-            aria-label="Quick Share notifications"
+            aria-label={t("settings.notifications.sharesLabel")}
             checked={settings.notifyQuickShares}
             onCheckedChange={(notifyQuickShares) => update.mutate({ notifyQuickShares })}
           />
         </GroupedRow>
       </GroupedSection>
-      <GroupedSection
-        title="Menu bar"
-        footer="Closing the window keeps routes and Quick Shares running. Quit Teitunnel with ⌘Q to stop them."
-      >
+      <GroupedSection title={t("settings.menuBar.title")} footer={t("settings.menuBar.footer")}>
         <GroupedRow
-          label="Show in menu bar"
-          description="Status and quick actions without opening the window."
+          label={t("settings.menuBar.show")}
+          description={t("settings.menuBar.showDetail")}
         >
           <Switch
-            aria-label="Show in menu bar"
+            aria-label={t("settings.menuBar.show")}
             checked={settings.showInMenuBar}
             onCheckedChange={(showInMenuBar) => update.mutate({ showInMenuBar })}
           />

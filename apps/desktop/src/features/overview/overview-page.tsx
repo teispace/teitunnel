@@ -14,6 +14,7 @@ import { useLiveTraffic } from "@/features/routes";
 import { useRoutesOverview } from "@/features/routes/queries";
 import { routeStatus } from "@/features/routes/status";
 import { formatDuration, stripScheme } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
 import { formatRate, perSecond, recentRate } from "@/lib/traffic";
 import { useNow } from "@/lib/use-now";
@@ -52,14 +53,11 @@ export function OverviewPage() {
   if (shares.length === 0 && binary.isSuccess && !binaryReady(binary.data)) {
     return (
       <>
-        <TitlebarToolbar title="Overview" />
+        <TitlebarToolbar title={t("overview.title")} />
         <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col justify-center gap-5 px-5 pb-(--toolbar-height)">
           <div>
-            <h2 className="text-large-title">Welcome to Teitunnel</h2>
-            <p className="mt-2 text-body text-secondary">
-              Share anything running on this Mac at a public URL, and connect your own domains
-              through Cloudflare. First, Teitunnel needs Cloudflare's connector.
-            </p>
+            <h2 className="text-large-title">{t("overview.welcome")}</h2>
+            <p className="mt-2 text-body text-secondary">{t("overview.welcomeDetail")}</p>
           </div>
           <BinaryNotice binary={binary.data ?? null} />
         </div>
@@ -70,20 +68,22 @@ export function OverviewPage() {
   if (shares.length === 0 && routes.length === 0) {
     return (
       <>
-        <TitlebarToolbar title="Overview" />
+        <TitlebarToolbar title={t("overview.title")} />
         <EmptyState
           icon={LayoutGrid}
-          title="Nothing running yet"
-          description="Share a local service to get a public URL. It shows up here with its live status."
+          title={t("overview.empty.title")}
+          description={t("overview.empty.description")}
           action={
             <div className="flex flex-col items-center gap-2">
               <Button variant="primary" asChild>
                 <Link to="/quick-share" search={{ compose: true }}>
-                  Share a Local Service
+                  {t("overview.empty.share")}
                 </Link>
               </Button>
               {accounts.isSuccess && accounts.data.length === 0 ? (
-                <ConnectSheet trigger={<Button variant="plain">Use My Own Domain…</Button>} />
+                <ConnectSheet
+                  trigger={<Button variant="plain">{t("overview.empty.ownDomain")}</Button>}
+                />
               ) : null}
             </div>
           }
@@ -94,7 +94,7 @@ export function OverviewPage() {
 
   return (
     <>
-      <TitlebarToolbar title="Overview" />
+      <TitlebarToolbar title={t("overview.title")} />
       <div className="mx-auto flex w-full max-w-[680px] flex-col gap-6 overflow-y-auto px-5 pt-2 pb-8">
         {problems > 0 ? (
           <Link
@@ -103,14 +103,14 @@ export function OverviewPage() {
           >
             <TriangleAlert aria-hidden className="size-4 text-error" strokeWidth={1.75} />
             <span className="min-w-0 flex-1 text-body">
-              {problems === 1 ? "1 problem needs" : `${problems} problems need`} your attention
+              {t("overview.attention", { count: problems })}
             </span>
             <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
           </Link>
         ) : null}
         {tunnel && routes.length > 0 ? <TrafficCard tunnelId={tunnel.id} /> : null}
         {routes.length > 0 ? (
-          <Section title="Routes">
+          <Section title={t("overview.routes")}>
             {routes.map((route) => {
               const status = routeStatus(route, tunnel, issues);
               return (
@@ -138,7 +138,7 @@ export function OverviewPage() {
           </Section>
         ) : null}
         {shares.length > 0 ? (
-          <Section title="Quick Shares">
+          <Section title={t("overview.shares")}>
             {shares.map((share) => (
               <li key={share.id}>
                 <Link
@@ -148,7 +148,7 @@ export function OverviewPage() {
                   <StatusDot status={dots[share.status.status]} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-body">
-                      {share.url ? stripScheme(share.url) : "Getting a URL…"}
+                      {share.url ? stripScheme(share.url) : t("overview.gettingUrl")}
                     </div>
                     <div className="truncate font-mono text-[11px] leading-4 text-secondary">
                       {stripScheme(share.origin)}
@@ -181,17 +181,17 @@ function TrafficCard({ tunnelId }: { tunnelId: string }) {
       className="flex items-center gap-4 rounded-card bg-surface-inset px-3 py-2.5 outline-offset-0"
     >
       <div className="flex w-36 shrink-0 flex-col">
-        <span className="text-callout text-secondary">Traffic on this Mac</span>
+        <span className="text-callout text-secondary">{t("overview.traffic")}</span>
         <span className="tabular text-title3">
           {now === null ? "–" : formatRate(now)}
-          <span className="text-callout text-secondary"> requests/s</span>
+          <span className="text-callout text-secondary"> {t("overview.requestsPerSecond")}</span>
         </span>
         <span className="tabular text-callout text-secondary">
-          {traffic.totalRequests.toLocaleString()} since start
+          {t("overview.sinceStart", { count: traffic.totalRequests })}
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <Sparkline values={rates} label="Requests per second over the last hour" height={40} />
+        <Sparkline values={rates} label={t("overview.sparkline")} height={40} />
       </div>
       <ChevronRight aria-hidden className="size-3.5 shrink-0 text-tertiary" strokeWidth={2} />
     </Link>
