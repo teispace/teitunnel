@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DoctorDemo, QuickShareDemo } from "@/components/demos";
 import { DownloadButton } from "@/components/download-button";
 import { JsonLd } from "@/components/json-ld";
 import { ButtonLink, delay, Section, Shot } from "@/components/landing";
@@ -43,30 +44,6 @@ export const metadata: Metadata = pageMetadata({
   path: "/",
   image: ogImage(["home"]),
 });
-
-// What service discovery recognizes (crates/core/src/discovery/classify.rs).
-const detected = [
-  "Vite",
-  "Next.js",
-  "Astro",
-  "Nuxt",
-  "Remix",
-  "React Router",
-  "Django",
-  "Flask",
-  "FastAPI",
-  "Rails",
-  "Laravel",
-  "Hugo",
-  "Jekyll",
-  "Node.js",
-  "Bun",
-  "Deno",
-  "Go",
-  "Java",
-  "Docker containers",
-  "Postgres",
-];
 
 const capabilities = [
   {
@@ -310,26 +287,88 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Detected services */}
-      <section aria-label="Works with" className="mx-auto w-full max-w-6xl px-6 pt-16">
-        <p className="mb-5 text-center text-sm text-fd-muted-foreground">
-          Finds what's running on your machine and shares it
-        </p>
-        <div className="tt-marquee-wrap relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
-          <ul className="tt-marquee flex w-max gap-3">
-            {[...detected, ...detected].map((name, index) => (
+      {/* How it works */}
+      <Section id="how-it-works" eyebrow="How it works" title="Three steps, a few minutes.">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2">
+          <ol className="flex flex-col gap-4">
+            {[
+              {
+                title: "Install",
+                body: "Download the app for macOS, Windows or Linux. It fetches and verifies cloudflared for you.",
+              },
+              {
+                title: "Share or connect",
+                body: "Share a port right away with no account, or connect Cloudflare with a token made from a pre-filled template.",
+              },
+              {
+                title: "Review and apply",
+                body: "Add a route, read exactly what will change, and apply. Teitunnel checks the URL works when it's done.",
+              },
+            ].map((step, index) => (
               <li
-                // biome-ignore lint/suspicious/noArrayIndexKey: the list repeats for the loop
-                key={index}
-                aria-hidden={index >= detected.length}
-                className="rounded-full border border-fd-border px-4 py-1.5 font-mono text-sm whitespace-nowrap text-fd-muted-foreground"
+                key={step.title}
+                data-reveal
+                style={delay(index * 100)}
+                className="flex gap-5 rounded-2xl border border-fd-border p-6"
               >
-                {name}
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-fd-border font-mono text-sm">
+                  {index + 1}
+                </span>
+                <div>
+                  <h3 className="text-lg font-medium">{step.title}</h3>
+                  <p className="mt-1 text-fd-muted-foreground">{step.body}</p>
+                </div>
               </li>
             ))}
-          </ul>
+          </ol>
+          <div data-reveal style={delay(150)}>
+            <PlanDemo />
+          </div>
         </div>
-      </section>
+      </Section>
+
+      {/* Platforms */}
+      <Section
+        id="platforms"
+        eyebrow="Runs where you work"
+        title="On your computer, on your servers."
+      >
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div
+            data-reveal
+            className="flex min-w-0 flex-col rounded-2xl border border-fd-border p-6 md:p-8"
+          >
+            <h3 className="text-lg font-medium">Desktop</h3>
+            <p className="mt-2 text-fd-muted-foreground">
+              A native app for macOS, Windows and Linux, with a menu bar or tray, notifications, and
+              your platform's look. It updates itself and verifies every update.
+            </p>
+            <ul className="mt-6 grid gap-2 text-sm text-fd-muted-foreground">
+              <li>macOS 14 or later · Apple silicon and Intel · signed and notarized</li>
+              <li>Windows 10 and 11 · x64 and Arm</li>
+              <li>Linux · .deb, .rpm and AppImage · x64 and Arm64</li>
+            </ul>
+            <div className="mt-8">
+              <ButtonLink href="/download/" primary>
+                <Download className="size-4" /> All downloads
+              </ButtonLink>
+            </div>
+          </div>
+          <div data-reveal style={delay(120)} className="flex min-w-0 flex-col gap-4">
+            <Terminal title="web-01 — ssh" lines={cli} />
+            <p className="text-sm text-fd-muted-foreground">
+              The same engine as a CLI for VPSs, cloud VMs, Docker and Kubernetes, with a web
+              dashboard and an API.{" "}
+              <Link
+                href="/docs/guides/servers/"
+                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
+              >
+                Servers and containers
+              </Link>
+            </p>
+          </div>
+        </div>
+      </Section>
 
       {/* Stories */}
       <Section
@@ -342,7 +381,7 @@ export default async function Home() {
           </>
         }
       >
-        <div className="grid items-center gap-10 md:grid-cols-5">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-5">
           <div data-reveal className="space-y-4 text-fd-muted-foreground md:col-span-2">
             <p>
               Pick a running service (dev servers and Docker containers are found for you) and get a
@@ -359,8 +398,11 @@ export default async function Home() {
               How Quick Share works <ArrowRight className="size-4" aria-hidden />
             </Link>
           </div>
-          <div data-reveal style={delay(120)} className="md:col-span-3">
+          <div data-reveal style={delay(120)} className="relative md:col-span-3">
             <Shot name="quick-share" alt="Quick Share with a live share and its URL" />
+            <div className="-mt-10 flex justify-center px-4 md:absolute md:-bottom-10 md:-left-10 md:mt-0 md:px-0">
+              <QuickShareDemo />
+            </div>
           </div>
         </div>
       </Section>
@@ -374,7 +416,7 @@ export default async function Home() {
           </>
         }
       >
-        <div className="grid items-center gap-10 md:grid-cols-5">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-5">
           <div data-reveal style={delay(120)} className="md:order-last md:col-span-3">
             <Shot
               name="review"
@@ -406,7 +448,7 @@ export default async function Home() {
       </Section>
 
       <Section eyebrow="Doctor" title={<>Problems explained, with the fix one click away.</>}>
-        <div className="grid items-center gap-10 md:grid-cols-5">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-5">
           <div data-reveal className="space-y-4 text-fd-muted-foreground md:col-span-2">
             <p>
               The Doctor checks your routes, DNS, connectors, logins and WARP settings, says what's
@@ -423,8 +465,11 @@ export default async function Home() {
               Cloudflare errors, explained <ArrowRight className="size-4" aria-hidden />
             </Link>
           </div>
-          <div data-reveal style={delay(120)} className="md:col-span-3">
+          <div data-reveal style={delay(120)} className="relative md:col-span-3">
             <Shot name="doctor" alt="The Doctor listing a problem with its explanation and fix" />
+            <div className="-mt-10 flex justify-center px-4 md:absolute md:-right-8 md:-bottom-10 md:mt-0 md:px-0">
+              <DoctorDemo />
+            </div>
           </div>
         </div>
       </Section>
@@ -486,89 +531,6 @@ export default async function Home() {
               </span>
             </Link>
           ))}
-        </div>
-      </Section>
-
-      {/* How it works */}
-      <Section id="how-it-works" eyebrow="How it works" title="Three steps, a few minutes.">
-        <div className="grid items-center gap-10 md:grid-cols-2">
-          <ol className="flex flex-col gap-4">
-            {[
-              {
-                title: "Install",
-                body: "Download the app for macOS, Windows or Linux. It fetches and verifies cloudflared for you.",
-              },
-              {
-                title: "Share or connect",
-                body: "Share a port right away with no account, or connect Cloudflare with a token made from a pre-filled template.",
-              },
-              {
-                title: "Review and apply",
-                body: "Add a route, read exactly what will change, and apply. Teitunnel checks the URL works when it's done.",
-              },
-            ].map((step, index) => (
-              <li
-                key={step.title}
-                data-reveal
-                style={delay(index * 100)}
-                className="flex gap-5 rounded-2xl border border-fd-border p-6"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-fd-border font-mono text-sm">
-                  {index + 1}
-                </span>
-                <div>
-                  <h3 className="text-lg font-medium">{step.title}</h3>
-                  <p className="mt-1 text-fd-muted-foreground">{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <div data-reveal style={delay(150)}>
-            <PlanDemo />
-          </div>
-        </div>
-      </Section>
-
-      {/* Platforms */}
-      <Section
-        id="platforms"
-        eyebrow="Runs where you work"
-        title="On your computer, on your servers."
-      >
-        <div className="grid gap-6 md:grid-cols-2">
-          <div
-            data-reveal
-            className="flex min-w-0 flex-col rounded-2xl border border-fd-border p-6 md:p-8"
-          >
-            <h3 className="text-lg font-medium">Desktop</h3>
-            <p className="mt-2 text-fd-muted-foreground">
-              A native app for macOS, Windows and Linux, with a menu bar or tray, notifications, and
-              your platform's look. It updates itself and verifies every update.
-            </p>
-            <ul className="mt-6 grid gap-2 text-sm text-fd-muted-foreground">
-              <li>macOS 14 or later · Apple silicon and Intel · signed and notarized</li>
-              <li>Windows 10 and 11 · x64 and Arm</li>
-              <li>Linux · .deb, .rpm and AppImage · x64 and Arm64</li>
-            </ul>
-            <div className="mt-8">
-              <ButtonLink href="/download/" primary>
-                <Download className="size-4" /> All downloads
-              </ButtonLink>
-            </div>
-          </div>
-          <div data-reveal style={delay(120)} className="flex min-w-0 flex-col gap-4">
-            <Terminal title="web-01 — ssh" lines={cli} />
-            <p className="text-sm text-fd-muted-foreground">
-              The same engine as a CLI for VPSs, cloud VMs, Docker and Kubernetes, with a web
-              dashboard and an API.{" "}
-              <Link
-                href="/docs/guides/servers/"
-                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-              >
-                Servers and containers
-              </Link>
-            </p>
-          </div>
         </div>
       </Section>
 
