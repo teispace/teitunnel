@@ -59,7 +59,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] M5-05 launchd always-on · [x] M5-06 Lifecycle & menu bar · [x] M5-07 Notifications policy
 
 ### M6: Distribution (v1.0.0)
-- [ ] M6-01 Signing/notarization · [x] M6-02 Updater · [ ] M6-03 Release automation · [ ] M6-04 Channels (after v0.1.0) · [ ] M6-07 Download experience (D-074)
+- [ ] M6-01 Signing/notarization · [x] M6-02 Updater · [x] M6-03 Release automation · [ ] M6-04 Channels (after v0.1.0) · [x] M6-07 Download experience (D-074, D-076)
 - [ ] M6-05 Polish pass · [ ] M6-06 Docs & community
 
 ### M10: Parity and beyond

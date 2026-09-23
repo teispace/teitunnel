@@ -35,6 +35,8 @@ apps/desktop/e2e/artifacts/
 
 # Tauri
 apps/desktop/src-tauri/gen/schemas/
+# The CLI bundled with packaged builds (scripts/release/sidecar.mjs).
+apps/desktop/src-tauri/binaries/
 
 # Playwright
 .playwright/

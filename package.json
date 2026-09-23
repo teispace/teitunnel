@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @teitunnel/desktop tauri dev",
-    "build": "pnpm --filter @teitunnel/desktop tauri build",
+    "build": "node scripts/release/sidecar.mjs && pnpm --filter @teitunnel/desktop tauri build --config src-tauri/tauri.cli.conf.json",
     "tauri": "pnpm --filter @teitunnel/desktop tauri",
     "check": "biome ci . && node scripts/release/check-versions.mjs && pnpm --filter @teitunnel/desktop typecheck && pnpm --filter @teitunnel/web typecheck && cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings",
     "test": "pnpm --filter @teitunnel/desktop test && pnpm --filter @teitunnel/web test && cargo nextest run --workspace --locked",

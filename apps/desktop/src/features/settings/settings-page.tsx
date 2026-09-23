@@ -1,6 +1,8 @@
 import { Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
 import { useState } from "react";
+import { CopyField } from "@/components/patterns/copy-field";
 import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
@@ -8,7 +10,15 @@ import { CloudflaredPane } from "@/features/binary";
 import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
-import { useOpenAtLogin, useSetOpenAtLogin, useSettings, useUpdateSettings } from "./queries";
+import { toIpcError } from "@/lib/ipc/client";
+import {
+  useCliStatus,
+  useOpenAtLogin,
+  useSetCliInstalled,
+  useSetOpenAtLogin,
+  useSettings,
+  useUpdateSettings,
+} from "./queries";
 
 const themes = () =>
   (["system", "light", "dark"] as const).map((value) => ({
@@ -37,6 +47,50 @@ function OpenAtLogin() {
           onCheckedChange={(enabled) => change.mutate(enabled)}
         />
       </GroupedRow>
+    </GroupedSection>
+  );
+}
+
+/** Settings ▸ General ▸ Command line: `teitunnel-cli` on the PATH (D-077). */
+function CommandLine() {
+  const { data: state } = useCliStatus();
+  const change = useSetCliInstalled();
+  if (!state || state.state === "unavailable") return null;
+  const description = (() => {
+    switch (state.state) {
+      case "packaged":
+        return t("settings.cli.packaged", { path: state.path });
+      case "installed":
+        return t("settings.cli.installed", { path: state.path });
+      case "taken":
+        return t("settings.cli.taken", { path: state.path });
+      case "notInstalled":
+        return state.command ? t("settings.cli.manual") : t("settings.cli.notInstalled");
+    }
+  })();
+  return (
+    <GroupedSection title={t("settings.cli.title")} footer={t("settings.cli.footer")}>
+      <GroupedRow label="teitunnel-cli" description={description}>
+        {state.state === "installed" ? (
+          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(false)}>
+            {t("settings.cli.uninstall")}
+          </Button>
+        ) : state.state === "notInstalled" && !state.command ? (
+          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(true)}>
+            {t("settings.cli.install")}
+          </Button>
+        ) : null}
+      </GroupedRow>
+      {state.state === "notInstalled" && state.command ? (
+        <div className="pb-2">
+          <CopyField label={t("settings.cli.command")} value={state.command} />
+        </div>
+      ) : null}
+      {change.error ? (
+        <p role="alert" className="pb-2 text-callout text-error">
+          {toIpcError(change.error).message}
+        </p>
+      ) : null}
     </GroupedSection>
   );
 }
@@ -109,6 +163,7 @@ function GeneralPane() {
       </GroupedSection>
       <UpdateSection />
       <OpenAtLogin />
+      <CommandLine />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}

@@ -12,6 +12,12 @@ export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	/**  Where updates stand. */
 	updatesStatus: () => __TAURI_INVOKE<UpdateStatus>("updates_status"),
+	/**  Whether the command line tool is on the PATH, and how to put it there. */
+	cliStatus: () => __TAURI_INVOKE<CliState>("cli_status"),
+	/**  Puts the command line tool on the PATH. */
+	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
+	/**  Removes the command line tool Teitunnel installed. */
+	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
 	/**  Checks for an update now (and downloads it), even with automatic checks off. */
 	updatesCheck: () => __TAURI_INVOKE<UpdateStatus>("updates_check"),
 	/**  Quits, installs the downloaded update and starts the new version. */
@@ -504,6 +510,22 @@ export type CliShare = {
 	/**  When it stops by itself (milliseconds since the epoch). */
 	stopAt: number | null,
 };
+
+/**  Where the CLI stands. */
+export type CliState = 
+/**  This build doesn't include it (development builds). */
+{ state: "unavailable" } | 
+/**  The package manager already put it on the PATH. */
+{ state: "packaged"; path: string } | 
+/**  Teitunnel installed it here. */
+{ state: "installed"; path: string } | 
+/**
+ *  Not installed. `path`: where installing puts it; `command`: what to run instead
+ *  when Teitunnel can't write there itself.
+ */
+{ state: "notInstalled"; path: string | null; command: string | null } | 
+/**  Something else is at that path; Teitunnel leaves it alone. */
+{ state: "taken"; path: string };
 
 /**  What a visitor runs to reach a non-HTTP route. */
 export type ClientAccess = {

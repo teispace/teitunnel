@@ -3,11 +3,12 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
-import type { Settings, SettingsPatch, UpdateStatus } from "@/lib/ipc/bindings";
+import type { CliState, Settings, SettingsPatch, UpdateStatus } from "@/lib/ipc/bindings";
 import { SettingsPage } from "./settings-page";
 
 let stored: Settings;
 let update: UpdateStatus;
+let cli: CliState;
 const calls: string[] = [];
 
 beforeEach(() => {
@@ -28,6 +29,7 @@ beforeEach(() => {
     state: { state: "idle" },
     installOnQuit: true,
   };
+  cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
   calls.length = 0;
   mockIPC((cmd, args) => {
     calls.push(cmd);
@@ -46,6 +48,15 @@ beforeEach(() => {
       return stored;
     }
     if (cmd === "updates_status") return update;
+    if (cmd === "cli_status") return cli;
+    if (cmd === "cli_install") {
+      cli = { state: "installed", path: "/opt/homebrew/bin/teitunnel-cli" };
+      return cli;
+    }
+    if (cmd === "cli_uninstall") {
+      cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
+      return cli;
+    }
     if (cmd === "updates_check") {
       update = {
         ...update,
@@ -108,5 +119,34 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("button", { name: "Check Now" })).toBeNull();
     const toggle = screen.getByRole("switch", { name: "Check for updates automatically" });
     expect(toggle.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("installs the command line tool and removes it again", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Install" }));
+    expect(await screen.findByText("Installed at /opt/homebrew/bin/teitunnel-cli.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Uninstall" }));
+    await waitFor(() => expect(calls).toContain("cli_uninstall"));
+    expect(await screen.findByRole("button", { name: "Install" })).toBeTruthy();
+  });
+
+  it("shows the command to run when it can't write the folder itself", async () => {
+    cli = {
+      state: "notInstalled",
+      path: "/usr/local/bin/teitunnel-cli",
+      command:
+        "sudo ln -s '/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli' '/usr/local/bin/teitunnel-cli'",
+    };
+    renderPage();
+    expect(await screen.findByText(/can't write to that folder/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Install" })).toBeNull();
+    expect(screen.getByText(/sudo ln -s/)).toBeTruthy();
+  });
+
+  it("hides the section in builds without the tool", async () => {
+    cli = { state: "unavailable" };
+    renderPage();
+    await screen.findByText("Teitunnel 0.1.0");
+    expect(screen.queryByText("Command line")).toBeNull();
   });
 });

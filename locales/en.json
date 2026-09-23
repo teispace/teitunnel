@@ -589,6 +589,20 @@
       "footer@linux": "Closing the window keeps routes and Quick Shares running. Quit Teitunnel with Ctrl+Q to stop them.",
       "show@windows": "Show in the notification area",
       "show@linux": "Show in the system tray"
+    },
+    "cli": {
+      "title": "Command line",
+      "install": "Install",
+      "uninstall": "Uninstall",
+      "command": "Command",
+      "notInstalled": "Manage routes from a terminal, a script or over SSH.",
+      "installed": "Installed at {path}.",
+      "packaged": "Installed with the app at {path}.",
+      "taken": "Another teitunnel-cli is at {path}. Teitunnel leaves it alone.",
+      "manual": "Teitunnel can't write to that folder by itself. Run this in Terminal:",
+      "manual@windows": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
+      "manual@linux": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
+      "footer": "Puts teitunnel-cli on your PATH. It updates with the app."
     }
   },
   "updates": {
@@ -684,7 +698,11 @@
     "ignoredHidden_other": "No new problems. {count} ignored issues are hidden.",
     "checksDescription": "Teitunnel checks cloudflared, your domains, DNS records and connectors every few minutes.",
     "showIgnored": "Show Ignored Issues",
-    "issues": "Issues"
+    "issues": "Issues",
+    "inline": {
+      "fix": "Fix…",
+      "show": "Details…"
+    }
   },
   "diagnostics": {
     "saved": "Diagnostics saved",
@@ -1555,6 +1573,9 @@
       "unknownInstall": "This copy wasn't installed from a Teitunnel download, so it can't update itself. Download the latest version from teitunnel.teispace.com.",
       "checkFailed": "Couldn't check for updates: {detail}",
       "downloadFailed": "Couldn't download the update: {detail}"
+    },
+    "cliInstall": {
+      "failed": "Couldn't install the command line tool: {detail}"
     }
   },
   "permissionFix": {

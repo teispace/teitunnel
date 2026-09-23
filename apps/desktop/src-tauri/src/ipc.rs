@@ -8,6 +8,7 @@
 
 mod accounts;
 pub(crate) mod app;
+pub(crate) mod cli;
 pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
@@ -34,6 +35,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             app::app_info,
             updates::updates_status,
+            cli::cli_status,
+            cli::cli_install,
+            cli::cli_uninstall,
             updates::updates_check,
             updates::updates_restart,
             app::app_save_log,

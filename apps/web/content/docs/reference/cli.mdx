@@ -6,6 +6,21 @@ description: Manage routes from the terminal with teitunnel-cli.
 `teitunnel-cli` works with the accounts you connected in the app. Every change goes
 through the same preview as the app: you see the plan before anything changes.
 
+## Install it
+
+The app includes it. Turn it on in **Settings ▸ General ▸ Command line ▸ Install**:
+
+- **macOS:** a link in Homebrew's `bin` (or `/usr/local/bin`). If Teitunnel can't write
+  there, Settings shows the one `sudo ln -s …` command to run instead.
+- **Windows:** a copy in your user's `WindowsApps` folder, which is already on your PATH.
+- **Linux:** the `.deb` and `.rpm` put it in `/usr/bin`; with the AppImage, it goes to
+  `~/.local/bin`.
+
+It updates with the app. For servers without the app, download it on its own from the
+[download page](/download/#cli).
+
+## Commands
+
 ```sh
 teitunnel-cli routes                         # this machine's routes and their status
 teitunnel-cli route add app.example.com 3000 # route a hostname to localhost:3000

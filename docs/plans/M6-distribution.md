@@ -25,10 +25,10 @@ Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M
 ### M6-03 · Release automation
 - [x] `release.yml`: matrix (macOS universal; Windows x64 + arm64 NSIS; Linux x64 + arm64 `.deb`/`.rpm`/AppImage on Ubuntu 22.04), CLI archives, SHA256SUMS, build provenance, `latest.json`; draft release, published by a final job only when every asset is uploaded; `workflow_dispatch` dry run that builds without publishing; actions pinned by commit.
 - [x] release-please (conventional commits → changelog → version bump PR → tag → the builds above in the same workflow). One version for app, CLI and image; pre-1.0 breaking changes bump the minor.
-- [ ] Versioning: SemVer. v0.1.0 is the public beta.
+- [x] Versioning: SemVer. v0.1.0 is the public beta.
 
 ### M6-04 · Channels (after v0.1.0)
-- [ ] Website only at first (D-074). Later: Homebrew tap (`teispace/homebrew-tap`), winget, ghcr.io multi-arch image, apt/dnf repository, "Install command line tool" in the app.
+- [ ] Website only at first (D-074). Later: Homebrew tap (`teispace/homebrew-tap`), winget, ghcr.io multi-arch image, apt/dnf repository. ("Install command line tool" in the app: done, D-077.)
 
 ### M6-07 · Download experience (website)
 - [x] Hero button by detected OS (macOS universal; Windows x64/arm64 via User-Agent Client Hints; Linux menu of `.deb`/`.rpm`/AppImage per arch); fallback lists everything without JavaScript.

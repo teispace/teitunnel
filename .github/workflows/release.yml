@@ -168,21 +168,13 @@ jobs:
             echo "APPLE_API_KEY=$APPLE_API_KEY"
           } >> "$GITHUB_ENV"
 
-      - name: Build the app
-        run: pnpm --filter @teitunnel/desktop tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
-
+      # The CLI ships inside the app too, for "Install Command Line Tool" (D-077).
       - name: Build the CLI
-        run: |
-          if [ "${{ matrix.target }}" = universal-apple-darwin ]; then
-            for t in aarch64-apple-darwin x86_64-apple-darwin; do
-              cargo build --release --locked -p teitunnel-cli --target "$t"
-            done
-            mkdir -p target/universal-apple-darwin/release
-            lipo -create -output target/universal-apple-darwin/release/teitunnel-cli \
-              target/aarch64-apple-darwin/release/teitunnel-cli target/x86_64-apple-darwin/release/teitunnel-cli
-          else
-            cargo build --release --locked -p teitunnel-cli --target ${{ matrix.target }}
-          fi
+        run: node scripts/release/sidecar.mjs ${{ matrix.target }}
+      - name: Build the app
+        run: >-
+          pnpm --filter @teitunnel/desktop tauri build --target ${{ matrix.target }}
+          --bundles ${{ matrix.bundles }} --config src-tauri/tauri.cli.conf.json
 
       - name: Collect (macOS)
         if: runner.os == 'macOS'

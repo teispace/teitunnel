@@ -35,3 +35,20 @@ export function useSetOpenAtLogin() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: loginKey }),
   });
 }
+
+const cliKey = ["settings", "cli"] as const;
+
+/** Whether `teitunnel-cli` is on the PATH (D-077). */
+export function useCliStatus() {
+  return useQuery({ queryKey: cliKey, queryFn: () => call(commands.cliStatus()) });
+}
+
+/** Installs or removes the command line tool. */
+export function useSetCliInstalled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (install: boolean) =>
+      call(install ? commands.cliInstall() : commands.cliUninstall()),
+    onSuccess: (state) => queryClient.setQueryData(cliKey, state),
+  });
+}

@@ -52,7 +52,7 @@ impl std::fmt::Display for AppError {
 }
 
 impl AppError {
-    fn new(code: ErrorCode, message: Text) -> Self {
+    pub(crate) fn new(code: ErrorCode, message: Text) -> Self {
         Self {
             code,
             message,

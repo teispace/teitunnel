@@ -97,6 +97,7 @@ pub fn run() -> Result<(), tauri::Error> {
             app.manage(bootstrap::init(app.handle())?);
             app.manage(shell::updates::Updates::new());
             shell::updates::spawn_schedule(app.handle());
+            tauri::async_runtime::spawn_blocking(ipc::cli::refresh_installed);
             shell::windows::show_main_after_timeout(app.handle());
             tracing::info!(version = %app.package_info().version, "teitunnel started");
             Ok(())

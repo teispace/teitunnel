@@ -479,6 +479,10 @@ export function installMockIpc(): void {
           return updateStatus();
         case "updates_restart":
           return null;
+        case "cli_status":
+          return { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
+        case "cli_install":
+          return { state: "installed", path: "/opt/homebrew/bin/teitunnel-cli" };
         case "settings_set": {
           const patch = payload["patch"] as SettingsPatch;
           settings = {
