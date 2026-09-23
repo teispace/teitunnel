@@ -145,6 +145,13 @@ impl PidRegistry {
             }
             let registry = Self::new(entry.path());
             reaped.extend(registry.reap_orphans().await);
+            // The owner is gone, so anything left is its: a write it was killed in the
+            // middle of (`*.partial`) would otherwise keep the directory forever.
+            if let Ok(rest) = fs::read_dir(entry.path()) {
+                for file in rest.flatten() {
+                    let _ = fs::remove_file(file.path());
+                }
+            }
             let _ = fs::remove_dir(entry.path());
         }
         reaped
@@ -242,6 +249,19 @@ mod tests {
         assert!(!left.contains(&"1-1".to_owned()), "{left:?}");
         assert!(left.contains(&"not-an-owner".to_owned()));
         assert_eq!(left.len(), 2, "the live owner's registry stays: {left:?}");
+    }
+
+    #[tokio::test]
+    async fn removes_writes_an_abandoned_owner_left_half_done() {
+        let root = tempfile::tempdir().unwrap();
+        // An owner killed while writing its share record: only the partial file is there.
+        let gone = root.path().join("1-1");
+        fs::create_dir_all(&gone).unwrap();
+        fs::write(gone.join("share.json.partial"), b"{").unwrap();
+        fs::write(gone.join("qs.json.partial"), b"{").unwrap();
+
+        assert!(PidRegistry::reap_abandoned(root.path()).await.is_empty());
+        assert!(!gone.exists(), "the abandoned registry is removed");
     }
 
     #[test]
