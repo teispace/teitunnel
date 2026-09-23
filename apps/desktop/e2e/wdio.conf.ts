@@ -48,10 +48,15 @@ export const config: WebdriverIO.Config = {
   // The service ends the app abruptly, so no exit hook runs: stop any connector the
   // test left behind (only the fake binary can be running in E2E builds).
   afterSession: () => {
+    // Stop connectors the app left running (the fake cloudflared).
     try {
-      execFileSync("pkill", ["-f", fake]);
+      if (process.platform === "win32") {
+        execFileSync("taskkill", ["/F", "/T", "/IM", "fake-cloudflared.exe"]);
+      } else {
+        execFileSync("pkill", ["-f", fake]);
+      }
     } catch {
-      // nothing to stop
+      // Nothing was running.
     }
     rmSync(dataDir, { recursive: true, force: true });
   },

@@ -15,7 +15,10 @@ export const commands = {
 	 *  anything secret-looking redacted, and shows it in Finder. Returns its path.
 	 */
 	appSaveLog: (lines: string[]) => __TAURI_INVOKE<string>("app_save_log", { lines }),
-	/**  Called by a webview once its first frame is painted; shows its window. */
+	/**
+	 *  Called by a webview once its first frame is painted; shows its window. The first
+	 *  call logs how long startup took (a diagnostic, and what `pnpm perf:app` reads).
+	 */
 	appReady: () => __TAURI_INVOKE<void>("app_ready"),
 	/**  The system accent colour as `#rrggbb`, or `null` to keep the stylesheet default. */
 	appAccentColor: () => __TAURI_INVOKE<string | null>("app_accent_color"),

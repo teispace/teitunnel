@@ -114,3 +114,6 @@ Source: `proxy/logger.go` and `proxy/proxy.go` in cloudflare/cloudflared (master
 - Every HTTP request's logger carries `originService` (the rule's service string), `ingressRule` (index of the matched rule), `connIndex`, and `cfRay` when present; `lbProbe` for load-balancer probes. TCP streams carry `destAddr` and `flowID`.
 - Failed requests are logged at **error** level with those fields (`logRequestError`); successful requests (`logHTTPRequest`, with `host` and `path`) and origin responses only at **debug**.
 - So at the default `info` level a route's log shows its failures; a per-route view matches `ingressRule` + `originService` against the applied ingress (the index alone can point at another route in lines logged before a config change).
+
+## Windows binary signature (verified 2026-09-23)
+`cloudflared-windows-amd64.exe` from the latest GitHub release carries an Authenticode signature (PE security directory present, 11.9 KB): signer **"Cloudflare, Inc."**, issued by *DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1* (root *DigiCert Trusted Root G4*), with a DigiCert timestamp. Checked by reading the certificate table directly, not with Windows tools.

@@ -5,6 +5,7 @@
 **Verification:** CI builds and runs every Rust test on `windows-latest`. Anything that needs a Windows desktop (look, feel, installer, real Task Scheduler) is marked *(needs a Windows machine)*.
 
 ### M7-01 · Processes and services
+- [ ] The E2E suite (Quick Share; account → verified route → remove) runs on Windows in CI (`e2e-windows` job; cross-platform `e2e:build` script). *(Added 2026-09-23; confirm it's green.)*
 - [x] Helper programs start without a console window (`CREATE_NO_WINDOW`, `cloudflared::process::no_console`), for connectors, version checks and `schtasks`.
 - [x] Always-on via Task Scheduler: per-user task at logon, restart on failure, no time limit, UTF-16 task XML, `CommandLineToArgvW` quoting (`cloudflared::task_scheduler`, `core::service::TaskScheduler`, D-051). Selected at runtime on Windows (D-054).
 - [x] Logs for services the manager can't capture: the connector writes its own rotating log (`--log-directory`, 1 MB × 5, verified in cloudflared's `logger/`), which the app tails (D-054).
@@ -14,7 +15,7 @@
 
 ### M7-02 · Binary
 - [x] Managed binary `cloudflared-windows-amd64.exe` (asset table), SHA-256 verified against the release checksums.
-- [ ] Authenticode verification (`WinVerifyTrust`) with Cloudflare as the signer, like `codesign` on macOS. *(testable in CI against a signed system binary; the signer check needs research)*
+- [ ] Authenticode verification with Cloudflare as the signer, like `codesign` on macOS. *(The binary is signed by "Cloudflare, Inc." via DigiCert's G4 code-signing CA (research/cloudflare.md). Checking it needs `WinVerifyTrust` + the signer's certificate (Win32 FFI, so `unsafe`), which the workspace forbids; PowerShell's `Get-AuthenticodeSignature` would break the no-shell rule. **Maintainer decision:** allow a tiny isolated crate with audited `unsafe` for this, or rely on the release checksums alone on Windows. The SHA-256 check already applies.)*
 
 ### M7-03 · Credentials
 - [x] Windows Credential Manager via `keyring` (`windows-native-keyring-store`, selected by default).

@@ -55,6 +55,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 | Apple Developer ID (signing + notarization) | M6-01 (v0.1 can ship unsigned as a "developer preview") | Decide before M1-13 |
 
 ## Open questions
+- Windows Authenticode check of cloudflared: allow a small isolated crate with audited `unsafe` (WinVerifyTrust), or rely on the release checksums on Windows? (M7-02)
 - v0.1 signing: unsigned developer preview (ready: DMG + Gatekeeper instructions in the release notes) vs waiting for a Developer ID?
 
 ## Notes for the next session

@@ -5,6 +5,7 @@
 **Verification:** CI builds and runs every Rust test on `ubuntu-latest`. Anything that needs a Linux desktop session is marked *(needs a Linux desktop)*.
 
 ### M8-01 · Services
+- [ ] The E2E suite (Quick Share; account → verified route → remove) runs on Linux in CI (`e2e-linux` job; cross-platform `e2e:build` script). *(Added 2026-09-23; confirm it's green.)*
 - [x] Always-on via `systemd --user`: a unit per tunnel (`Restart=always`, `append:` logs, quoted `ExecStart`), enabled with `enable --now` (`cloudflared::systemd`, `core::service::Systemd`, D-051). Selected at runtime when there's a user session (`XDG_RUNTIME_DIR`) (D-054).
 - [x] Explain lingering: user units stop at logout unless `loginctl enable-linger`; the Always-on row says so on Linux rather than enabling it.
 - [ ] Try it on real desktops: GNOME and KDE, install, switch modes, log out/in, reboot. *(needs a Linux desktop)*
