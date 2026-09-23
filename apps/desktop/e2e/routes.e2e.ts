@@ -45,7 +45,10 @@ describe("Routes", () => {
     await row.waitForExist({ reverse: true, timeout: 15_000 });
 
     await $("nav").$("a=Tunnels").click();
-    await $("button=Delete…").click();
+    // The tunnel list loads after navigating; wait for it rather than racing it.
+    const deleteTunnel = await $("button=Delete…");
+    await deleteTunnel.waitForClickable({ timeout: 15_000 });
+    await deleteTunnel.click();
     const del = await $("[role=dialog][aria-labelledby]");
     await del.$("span*=Delete tunnel").waitForExist({ timeout: 15_000 });
     await del.$("button=Delete Tunnel").click();

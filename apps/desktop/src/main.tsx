@@ -14,8 +14,8 @@ async function mount() {
     const { installMockIpc } = await import("@/dev/mock-ipc");
     installMockIpc();
   }
-  // E2E builds only: the WebdriverIO bridge (tree-shaken unless VITE_E2E=1).
-  if (import.meta.env.VITE_E2E === "1") {
+  // E2E builds only (`vite build --mode e2e`): the WebdriverIO bridge, tree-shaken otherwise.
+  if (import.meta.env.MODE === "e2e") {
     await import("@wdio/tauri-plugin");
   }
   const root = document.getElementById("root");
