@@ -140,6 +140,12 @@ export function ServicePicker({
           sideOffset={4}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
+          // The field is outside the (portaled) list, so pressing it would count as an
+          // outside interaction and close the list it just opened. The field closes it
+          // itself: on blur, Escape or a pick.
+          onInteractOutside={(event) => {
+            if (inputRef.current?.contains(event.target as Node)) event.preventDefault();
+          }}
           className="z-50 w-(--radix-popover-trigger-width) min-w-72 rounded-[10px] p-1 material-panel shadow-raised data-[state=open]:animate-fade-in"
         >
           <div className="px-2 pt-1 pb-1.5 text-footnote font-semibold text-tertiary">

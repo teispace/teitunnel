@@ -50,13 +50,16 @@ export function useQrCode(url: string, enabled: boolean) {
 }
 
 /** Listening services; refreshed every 5 s only while a picker is open. */
-export function useLocalServices(enabled: boolean) {
+/**
+ * Services listening on this Mac. Scanned once when a picker mounts, so the list is
+ * ready the moment it opens, then every 5 s only while it's open (`watching`).
+ */
+export function useLocalServices(watching: boolean) {
   return useQuery({
     queryKey: queryKeys.services.all(),
     queryFn: () => call(commands.servicesList()),
-    enabled,
-    refetchInterval: enabled ? 5000 : false,
-    staleTime: 0,
+    refetchInterval: watching ? 5000 : false,
+    staleTime: 5000,
   });
 }
 
