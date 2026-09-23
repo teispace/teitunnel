@@ -199,6 +199,37 @@ fn is_paused(state: &AppState, tunnel_id: &str) -> bool {
         .contains(tunnel_id)
 }
 
+/// After a cloudflared update: restarts this Mac's connectors on the new binary, one
+/// account at a time, each checked healthy before the next (`restart_on_current_binary`).
+pub(crate) fn move_connectors_to_current_binary<R: Runtime>(app: &AppHandle<R>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        for account in state.accounts.list().await.unwrap_or_default() {
+            let Ok(api) = state.accounts.client(&account.id).await else {
+                continue;
+            };
+            match state
+                .machine
+                .restart_on_current_binary(&api, &account.id)
+                .await
+            {
+                Ok(true) => {
+                    tracing::info!(account = %account.id, "connector moved to the new cloudflared");
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    tracing::warn!(account = %account.id, %err, "couldn't move the connector to the new cloudflared");
+                    notify(&app, "Routes still use the previous cloudflared", &err);
+                }
+            }
+        }
+        refresh_tray_routes(&app);
+    });
+}
+
 /// The menu bar's Start/Stop Routes: stops every connector on this Mac if any runs,
 /// otherwise starts them all (the same actions as the Tunnels view).
 pub(crate) fn toggle_machine_routes<R: Runtime>(app: &AppHandle<R>) {

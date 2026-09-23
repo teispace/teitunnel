@@ -117,54 +117,76 @@ async fn nothing_to_resume_without_a_tunnel() {
     assert!(!machine.resume(&unused, "acc").await.unwrap());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn switches_to_always_on_and_back_without_a_gap() {
-    use teitunnel_core::{
-        machine::ServicePaths, runtime::PortAllocator as Ports, service::ProcessServices,
-    };
-    let dir = tempfile::tempdir().unwrap();
-    let wrapper = dir.path().join("cloudflared");
+struct WithServices {
+    machine: MachineTunnels,
+    supervisor: Supervisor,
+    local: Local,
+    services: Arc<teitunnel_core::service::ProcessServices>,
+    tokens: std::path::PathBuf,
+}
+
+/// Connectors that can run as (child-process) services, on their own port range.
+fn setup_with_services(dir: &Path, ports: std::ops::Range<u16>) -> WithServices {
+    use teitunnel_core::{machine::ServicePaths, service::ProcessServices};
+    let wrapper = dir.join("cloudflared");
     std::fs::write(
         &wrapper,
         format!("#!/bin/sh\nFAKE_CFD_SCENARIO=healthy exec {FAKE} \"$@\"\n"),
     )
     .unwrap();
     std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let binary = BinaryManager::new(Locator::new(
-        dir.path().join("managed"),
-        Some(wrapper),
-        vec![],
-    ));
+    let binary = BinaryManager::new(Locator::new(dir.join("managed"), Some(wrapper), vec![]));
     let supervisor = Supervisor::new(
-        PidRegistry::new(dir.path().join("run")),
+        PidRegistry::new(dir.join("run")),
         tokio::runtime::Handle::current(),
     );
-    let secrets = MemoryStore::default();
     let local = Local::new(Store::open_in_memory().unwrap());
     let services = Arc::new(ProcessServices::default());
-    let tokens = dir.path().join("tokens");
+    let tokens = dir.join("tokens");
     let machine = MachineTunnels::new(
         supervisor.clone(),
         binary,
-        Ports::new(23010..23020),
-        Arc::new(secrets.clone()),
+        PortAllocator::new(ports),
+        Arc::new(MemoryStore::default()),
         local.clone(),
     )
     .with_services(
         services.clone(),
         ServicePaths {
             tokens: tokens.clone(),
-            logs: dir.path().join("logs"),
+            logs: dir.join("logs"),
         },
     );
+    WithServices {
+        machine,
+        supervisor,
+        local,
+        services,
+        tokens,
+    }
+}
+
+fn unused_api() -> cf_api::Client {
+    cf_api::Client::with_base("http://127.0.0.1:9", cf_api::ApiToken::new("x")).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn switches_to_always_on_and_back_without_a_gap() {
+    let dir = tempfile::tempdir().unwrap();
+    let WithServices {
+        machine,
+        supervisor,
+        local,
+        services,
+        tokens,
+    } = setup_with_services(dir.path(), 23010..23020);
     local.set_machine_tunnel("acc", "t2", "Mac").await.unwrap();
     machine
         .start("acc", "t2", Secret::new("run-token".into()))
         .await
         .unwrap();
     healthy(&supervisor, "t2").await;
-    let unused =
-        cf_api::Client::with_base("http://127.0.0.1:9", cf_api::ApiToken::new("x")).unwrap();
+    let unused = unused_api();
 
     // Session → Always-on: the service connects, then the app's connector stops.
     machine.set_always_on(&unused, "acc", true).await.unwrap();
@@ -232,4 +254,79 @@ async fn switches_to_always_on_and_back_without_a_gap() {
     );
     machine.stop("t2").await.unwrap();
     assert!(machine.traffic("t2", None).is_none());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn moves_connectors_onto_a_new_binary_without_a_gap() {
+    let dir = tempfile::tempdir().unwrap();
+    let WithServices {
+        machine,
+        supervisor,
+        local,
+        services,
+        ..
+    } = setup_with_services(dir.path(), 23020..23030);
+    let api = unused_api();
+    assert!(
+        !machine
+            .restart_on_current_binary(&api, "acc")
+            .await
+            .unwrap()
+    );
+
+    local.set_machine_tunnel("acc", "t3", "Mac").await.unwrap();
+    machine
+        .start("acc", "t3", Secret::new("run-token".into()))
+        .await
+        .unwrap();
+    healthy(&supervisor, "t3").await;
+    // Session: restarted in place, connected again.
+    assert!(
+        machine
+            .restart_on_current_binary(&api, "acc")
+            .await
+            .unwrap()
+    );
+    healthy(&supervisor, "t3").await;
+
+    // Always-on: a temporary app connector bridges while the service is reinstalled.
+    machine.set_always_on(&api, "acc", true).await.unwrap();
+    services.calls.lock().unwrap().clear();
+    assert!(
+        machine
+            .restart_on_current_binary(&api, "acc")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        *services.calls.lock().unwrap(),
+        ["install com.teispace.teitunnel.connector.t3"],
+        "reinstalled once, never uninstalled"
+    );
+    assert!(machine.is_always_on("t3"));
+    assert!(
+        supervisor.state(&connector_id("t3")).is_none(),
+        "the bridge is gone"
+    );
+    machine.sample_once().await;
+    assert!(matches!(
+        machine.state("t3"),
+        Some(ConnectorState::Healthy { .. })
+    ));
+    let port = local
+        .machine_tunnel("acc")
+        .await
+        .unwrap()
+        .unwrap()
+        .metrics_port
+        .unwrap();
+    assert!(
+        cloudflared::Endpoints::new(port)
+            .unwrap()
+            .ready()
+            .await
+            .is_ok_and(|r| r.ready_connections > 0),
+        "the remembered port is the new service's"
+    );
+    machine.stop("t3").await.unwrap();
 }

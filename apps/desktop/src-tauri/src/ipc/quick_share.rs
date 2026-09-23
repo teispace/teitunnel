@@ -132,10 +132,12 @@ pub enum InstallProgress {
 #[tauri::command]
 #[specta::specta]
 pub async fn binary_install(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     on_progress: Channel<InstallProgress>,
 ) -> Result<BinaryInfo, AppError> {
     let clamp = |n: u64| u32::try_from(n).unwrap_or(u32::MAX);
+    let before = state.binary.current().await.ok();
     let status = state
         .binary
         .install_latest(|progress| {
@@ -151,6 +153,11 @@ pub async fn binary_install(
         })
         .await
         .map_err(teitunnel_core::Error::from)?;
+    // Running connectors keep the old binary until restarted; move them over gaplessly.
+    let changed = before.is_none_or(|b| b.version != status.version || b.path != status.path);
+    if changed {
+        crate::bootstrap::move_connectors_to_current_binary(&app);
+    }
     Ok(binary_info(&status))
 }
 

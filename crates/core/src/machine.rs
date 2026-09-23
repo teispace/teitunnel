@@ -473,28 +473,17 @@ impl MachineTunnels {
                 return Err("The always-on connector didn't connect within 30 seconds. This Mac keeps using the app's connector.".into());
             }
             // Now stop the app's connector.
-            let _ = self.supervisor.stop(&connector_id(id)).await;
-            let old = self.held().remove(id);
-            if let Some(old) = old {
-                self.ports.release(old);
-            }
+            self.stop_session(id).await;
         } else {
             let service_port = self.services().get(id).map(|s| s.port);
             // Start the app's connector next to the service (on its own port).
             self.services().remove(id);
-            if let Err(err) = self.start(account, id, token).await {
+            if let Err(err) = self.start_session(account, id, &token).await {
                 self.restore_service(id, service_port);
                 return Err(err);
             }
-            let healthy = self
-                .supervisor
-                .wait_for(&connector_id(id), SWITCH_TIMEOUT, |s| {
-                    matches!(s, ConnectorState::Healthy { .. })
-                })
-                .await
-                .is_some();
-            if !healthy {
-                let _ = self.stop(id).await;
+            if !self.wait_session_healthy(id).await {
+                self.stop_session(id).await;
                 self.restore_service(id, service_port);
                 return Err("The app's connector didn't connect within 30 seconds. The always-on connector keeps running.".into());
             }
@@ -510,6 +499,124 @@ impl MachineTunnels {
             .set_always_on(account, always_on)
             .await
             .map_err(|e| e.to_string())
+    }
+
+    /// Moves `account`'s connector onto the current cloudflared binary (after an update),
+    /// without a gap for an Always-on connector: a temporary app connector serves while
+    /// the service is reinstalled, and goes once the service is ready again. A Session
+    /// connector restarts in place (a blip shorter than the 20 s before "down" notifies).
+    /// Returns whether a connector was restarted.
+    ///
+    /// # Errors
+    /// A message for the UI. Whatever was serving before keeps serving.
+    pub async fn restart_on_current_binary<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+    ) -> Result<bool, String> {
+        let Some(tunnel) = self
+            .local
+            .machine_tunnel(account)
+            .await
+            .map_err(|e| e.to_string())?
+        else {
+            return Ok(false);
+        };
+        let id = tunnel.tunnel_id.as_str();
+        let service_port = self.services().get(id).map(|s| s.port);
+        let running = service_port.is_some() || self.held().contains_key(id);
+        if !running {
+            return Ok(false);
+        }
+        let token = self.token(api, account, id).await?;
+        let Some(old_port) = service_port else {
+            self.stop_session(id).await;
+            self.start_session(account, id, &token).await?;
+            return if self.wait_session_healthy(id).await {
+                Ok(true)
+            } else {
+                Err("The connector didn't reconnect within 30 seconds after the update.".into())
+            };
+        };
+
+        // Bridge: the app's connector carries traffic while the service restarts.
+        self.start_session(account, id, &token).await?;
+        if !self.wait_session_healthy(id).await {
+            self.stop_session(id).await;
+            return Err("Couldn't restart the always-on connector on the new cloudflared: a temporary connector didn't connect. It keeps running the previous version.".into());
+        }
+        let port = match self.install_service(account, id, &token).await {
+            Ok(port) => port,
+            Err(err) => {
+                // The service is gone; the bridge keeps the routes up until relaunch
+                // reinstalls it (`resume`).
+                self.ports.release(old_port);
+                return Err(format!(
+                    "Couldn't reinstall the always-on connector: {err}. The app's connector serves the routes for now."
+                ));
+            }
+        };
+        self.ports.release(old_port);
+        if !wait_ready(port, SWITCH_TIMEOUT).await {
+            return Err("The always-on connector didn't reconnect within 30 seconds after the update. The app's connector serves the routes for now.".into());
+        }
+        self.stop_session(id).await;
+        Ok(true)
+    }
+
+    /// Starts the app's own connector for a tunnel (never a service).
+    async fn start_session(
+        &self,
+        account: &str,
+        tunnel_id: &str,
+        token: &Secret<String>,
+    ) -> Result<(), String> {
+        let binary = self.binary.current().await.map_err(|e| e.to_string())?;
+        // A crash-looped connector is still registered; clear it before starting again.
+        let id = connector_id(tunnel_id);
+        if self.supervisor.state(&id).is_some() {
+            self.stop_session(tunnel_id).await;
+        }
+        let port = self.port_for(account).await?;
+        let command = RunCmd {
+            token: TokenSource::Env(TunnelToken::new(token.expose().clone())),
+            metrics_port: port,
+            protocol: Protocol::Auto,
+            log_level: LogLevel::Info,
+            log_dir: None,
+        }
+        .build(&binary.path);
+        match self.supervisor.start(ConnectorSpec::new(id, command, port)) {
+            Ok(()) => {
+                self.held().insert(tunnel_id.to_owned(), port);
+                Ok(())
+            }
+            Err(err) => {
+                self.ports.release(port);
+                Err(err.to_string())
+            }
+        }
+    }
+
+    /// Stops the app's own connector for a tunnel, if it runs, and releases its port.
+    async fn stop_session(&self, tunnel_id: &str) {
+        // Not running is fine: the goal is that it's stopped.
+        let _ = self.supervisor.stop(&connector_id(tunnel_id)).await;
+        let port = self.held().remove(tunnel_id);
+        if let Some(port) = port {
+            self.ports.release(port);
+        }
+        self.traffic_stopped(tunnel_id).await;
+    }
+
+    /// Waits up to 30 s for the app's connector to reach the edge.
+    async fn wait_session_healthy(&self, tunnel_id: &str) -> bool {
+        self.supervisor
+            .wait_for(&connector_id(tunnel_id), SWITCH_TIMEOUT, |s| {
+                matches!(s, ConnectorState::Healthy { .. })
+            })
+            .await
+            .is_some()
     }
 
     fn restore_service(&self, tunnel_id: &str, port: Option<u16>) {
@@ -592,45 +699,14 @@ impl Connectors for MachineTunnels {
             self.install_service(account, tunnel_id, &token).await?;
             return Ok(());
         }
-        let binary = self.binary.current().await.map_err(|e| e.to_string())?;
-
-        // A crash-looped connector is still registered; clear it before starting again.
-        let id = connector_id(tunnel_id);
-        if self.supervisor.state(&id).is_some() {
-            self.stop(tunnel_id).await?;
-        }
-        let port = self.port_for(account).await?;
-        let command = RunCmd {
-            token: TokenSource::Env(TunnelToken::new(token.expose().clone())),
-            metrics_port: port,
-            protocol: Protocol::Auto,
-            log_level: LogLevel::Info,
-            log_dir: None,
-        }
-        .build(&binary.path);
-        match self.supervisor.start(ConnectorSpec::new(id, command, port)) {
-            Ok(()) => {
-                self.held().insert(tunnel_id.to_owned(), port);
-                Ok(())
-            }
-            Err(err) => {
-                self.ports.release(port);
-                Err(err.to_string())
-            }
-        }
+        self.start_session(account, tunnel_id, &token).await
     }
 
     async fn stop(&self, tunnel_id: &str) -> Result<(), String> {
         if self.is_always_on(tunnel_id) {
             return self.uninstall_service(tunnel_id).await;
         }
-        // Not running is fine: the goal is that it's stopped.
-        let _ = self.supervisor.stop(&connector_id(tunnel_id)).await;
-        let port = self.held().remove(tunnel_id);
-        if let Some(port) = port {
-            self.ports.release(port);
-        }
-        self.traffic_stopped(tunnel_id).await;
+        self.stop_session(tunnel_id).await;
         Ok(())
     }
 
