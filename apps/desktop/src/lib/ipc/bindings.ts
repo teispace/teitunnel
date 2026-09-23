@@ -870,6 +870,10 @@ export type Settings = {
 	theme: Theme,
 	/**  Show the Teitunnel icon in the menu bar. */
 	showInMenuBar: boolean,
+	/**  Notify when this Mac's connector goes down, comes back or crash-loops. */
+	notifyConnectors: boolean,
+	/**  Notify when a Quick Share goes live or fails. */
+	notifyQuickShares: boolean,
 };
 
 /**  A partial update: only the fields that are set change. */
@@ -878,6 +882,10 @@ export type SettingsPatch = {
 	theme?: Theme | null,
 	/**  New menu bar visibility. */
 	showInMenuBar?: boolean | null,
+	/**  Connector notifications on or off. */
+	notifyConnectors?: boolean | null,
+	/**  Quick Share notifications on or off. */
+	notifyQuickShares?: boolean | null,
 };
 
 /**  How bad an issue is. */
