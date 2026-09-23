@@ -918,6 +918,7 @@ async fn changes_from_the_ui_become_intents() {
         path: None,
         origin: origin.into(),
         access: None,
+        options: None,
     };
     let add = engine
         .intent_for(
@@ -984,6 +985,103 @@ async fn changes_from_the_ui_become_intents() {
         .await
         .unwrap_err();
     assert!(matches!(nothing, EngineError::NothingToRestore));
+}
+
+#[tokio::test]
+async fn sets_and_edits_origin_settings_keeping_the_rest() {
+    use super::views::{Change, RouteInput};
+    use crate::domain::OriginOptions;
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let input = |origin: &str, options: Option<OriginOptions>| RouteInput {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        origin: origin.into(),
+        access: None,
+        options: options.map(Box::new),
+    };
+    let rule = |cloud: &FakeCloud| {
+        let state = cloud.snapshot();
+        let tunnel = state.tunnels.values().next().unwrap();
+        tunnel.config.clone().unwrap().ingress[0]
+            .origin_request
+            .clone()
+    };
+    let apply = async |change: Change| {
+        engine.invalidate("acc");
+        let intent = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+        run(&engine, &cloud, &conns, &intent).await;
+    };
+
+    apply(Change::AddRoute {
+        route: input(
+            "https://localhost:8443",
+            Some(OriginOptions {
+                no_tls_verify: true,
+                http_host_header: Some(" app.local ".into()),
+                ..OriginOptions::default()
+            }),
+        ),
+    })
+    .await;
+    assert_eq!(
+        serde_json::Value::Object(rule(&cloud)),
+        json!({"noTLSVerify": true, "httpHostHeader": "app.local"})
+    );
+
+    // A setting Teitunnel doesn't manage, made in the dashboard.
+    {
+        let mut state = cloud.state.lock().unwrap();
+        let t = state.tunnels.values_mut().next().unwrap();
+        t.config.as_mut().unwrap().ingress[0]
+            .origin_request
+            .insert("access".into(), json!({"required": true}));
+    }
+    let edit = |route| Change::UpdateRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        route,
+    };
+    // An edit without settings keeps them all.
+    apply(edit(input("https://localhost:9443", None))).await;
+    assert_eq!(rule(&cloud)["noTLSVerify"], true);
+    // An edit with settings changes the known ones only.
+    apply(edit(input(
+        "https://localhost:9443",
+        Some(OriginOptions {
+            connect_timeout: Some(5),
+            ..OriginOptions::default()
+        }),
+    )))
+    .await;
+    assert_eq!(
+        serde_json::Value::Object(rule(&cloud)),
+        json!({"connectTimeout": 5, "access": {"required": true}})
+    );
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.routes[0].options.connect_timeout, Some(5));
+
+    let bad = engine
+        .intent_for(
+            &cloud,
+            CTX,
+            &Change::AddRoute {
+                route: RouteInput {
+                    hostname: "b.xyz.com".into(),
+                    options: Some(Box::new(OriginOptions {
+                        connect_timeout: Some(0),
+                        ..OriginOptions::default()
+                    })),
+                    ..input("3000", None)
+                },
+            },
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(bad, EngineError::Input(ref e) if e.field == "options"),
+        "{bad:?}"
+    );
 }
 
 #[tokio::test]
@@ -1210,6 +1308,7 @@ async fn imports_routes_from_an_old_tunnel() {
         path: path.map(str::to_owned),
         origin: origin.into(),
         access: None,
+        options: None,
     };
     let change = Change::ImportRoutes {
         routes: vec![

@@ -102,6 +102,7 @@ fn add(hostname: &str, origin: &str) -> Change {
             path: None,
             origin: origin.into(),
             access: None,
+            options: None,
         },
     }
 }

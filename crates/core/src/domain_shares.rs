@@ -108,6 +108,7 @@ where
             path: None,
             origin: share.origin.clone(),
             access: request.access,
+            options: None,
         },
     };
     let intent = engine.intent_for(api, ctx, &change).await?;

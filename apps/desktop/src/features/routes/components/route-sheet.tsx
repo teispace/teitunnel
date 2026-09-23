@@ -21,12 +21,21 @@ import {
 import { ServicePicker } from "@/features/quick-share";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
-import type { Change, Outcome, PlanView, RouteView, TunnelView, ZoneRef } from "@/lib/ipc/bindings";
+import type {
+  Change,
+  OriginOptions,
+  Outcome,
+  PlanView,
+  RouteView,
+  TunnelView,
+  ZoneRef,
+} from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { formatAllowed, parseAllowed } from "../access";
 import { applyDirectly, useApply, usePreview, useVerify } from "../queries";
 import { HostnameInput, joinHostname } from "./hostname-input";
+import { hasOriginSettings, OriginSettings, originSettingsToSend } from "./origin-settings";
 import { PlanSteps } from "./plan-steps";
 
 export type SheetMode =
@@ -113,6 +122,8 @@ interface Form {
   network: string;
   /** A new tunnel's name, as typed. */
   tunnelName: string;
+  /** Origin settings (`originRequest`). */
+  options: OriginOptions;
 }
 
 const emptyForm: Form = {
@@ -122,6 +133,7 @@ const emptyForm: Form = {
   allowed: null,
   network: "",
   tunnelName: "",
+  options: {},
 };
 
 /** Modes that start with a form (the others go straight to review). */
@@ -155,13 +167,17 @@ function changeFor(mode: SheetMode, form: Form) {
   };
   switch (mode.kind) {
     case "add":
-      return { type: "addRoute", route } satisfies Change;
+      return {
+        type: "addRoute",
+        route: { ...route, options: originSettingsToSend(form.options) },
+      } satisfies Change;
     case "edit":
+      // The form shows every setting, so an edit sends them all (clearing one works).
       return {
         type: "updateRoute",
         hostname: mode.route.hostname,
         path: mode.route.path,
-        route,
+        route: { ...route, options: form.options },
       } satisfies Change;
     case "remove":
       return {
@@ -204,6 +220,7 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
               path: mode.route.path,
               origin: mode.route.origin,
               access: mode.route.access,
+              options: mode.route.options,
             },
           }
         : null;
@@ -216,6 +233,7 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
               path: mode.route.path,
               origin: mode.route.origin,
               access: mode.route.access,
+              options: originSettingsToSend(mode.route.options),
             },
           }
         : null;
@@ -269,6 +287,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
   const [allowed, setAllowed] = useState<string | null>(null);
   const [network, setNetwork] = useState("");
   const [tunnelName, setTunnelName] = useState("");
+  const [options, setOptions] = useState<OriginOptions>({});
   /** The tunnel the change is on (`null`: the default one). */
   const [tunnelId, setTunnelId] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanView | null>(null);
@@ -305,6 +324,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
     setOrigin(route ? shortOrigin(route.origin) : "");
     setPath(route?.path ?? "");
     setAllowed(route?.access ? formatAllowed(route.access) : null);
+    setOptions(route?.options ?? {});
     setNetwork("");
     setTunnelName("");
     const tunnel = tunnelOf(mode);
@@ -325,7 +345,8 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
 
   const submitForm = (event: FormEvent) => {
     event.preventDefault();
-    if (mode) review(changeFor(mode, { hostname, origin, path, allowed, network, tunnelName }));
+    if (mode)
+      review(changeFor(mode, { hostname, origin, path, allowed, network, tunnelName, options }));
   };
 
   const runApply = () => {
@@ -417,7 +438,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
     review(
       stage === "review" && change
         ? change
-        : changeFor(mode, { hostname, origin, path, allowed, network, tunnelName }),
+        : changeFor(mode, { hostname, origin, path, allowed, network, tunnelName, options }),
     );
   };
   const fixCard = refusedNeeds ? (
@@ -658,7 +679,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
             ) : null}
             <Disclosure
               title={t("routeSheet.advanced")}
-              defaultOpen={path !== "" || allowed !== null}
+              defaultOpen={path !== "" || allowed !== null || hasOriginSettings(options)}
             >
               <div className="flex flex-col gap-4">
                 <Field
@@ -704,6 +725,16 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                     )}
                   </Field>
                 ) : null}
+                <Disclosure
+                  title={t("routeSheet.origin.title")}
+                  defaultOpen={hasOriginSettings(options) || fieldError("options") !== null}
+                >
+                  <OriginSettings
+                    value={options}
+                    onChange={setOptions}
+                    error={fieldError("options") ?? undefined}
+                  />
+                </Disclosure>
               </div>
             </Disclosure>
             {fixCard}

@@ -33,5 +33,21 @@ domain and shows it under **Domains**.
    undone. Teitunnel then checks the hostname end to end through Cloudflare and tells
    you whether it works.
 
+## Origin settings
+
+**Advanced ▸ Origin settings** covers everything cloudflared can do when it talks to your
+service. Leave a field empty for cloudflared's default.
+
+- **HTTPS services:** accept a self-signed certificate, the name on the certificate, a
+  certificate authority file of your own, or HTTP/2.
+- **Requests:** a different `Host` header (for dev servers that only answer to their own
+  name, like some Vite and webpack setups), no chunked encoding (some WSGI servers), or a
+  SOCKS5 proxy for TCP routes.
+- **Connection:** timeouts and idle connections, in seconds, and no IPv4/IPv6 fallback.
+
+Settings made in the Cloudflare dashboard are kept when you edit a route here, and ones
+Teitunnel doesn't show are never removed. Importing a `config.yml` carries its settings
+over, including the ones at the top of the file that apply to every route.
+
 The route runs through this machine's connector while Teitunnel is open. To keep it
 running after you quit, see [run modes](/docs/concepts/run-modes).

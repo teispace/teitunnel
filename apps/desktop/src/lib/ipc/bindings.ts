@@ -137,17 +137,17 @@ export const commands = {
 	/**  Cancels a sign-in that's waiting for the browser. */
 	accountsOauthCancel: () => __TAURI_INVOKE<void>("accounts_oauth_cancel"),
 	/**  This Mac's tunnel and routes in an account. */
-	routesOverview: (accountId: string) => __TAURI_INVOKE<RoutesOverview>("routes_overview", { accountId }),
+	routesOverview: (accountId: string) => __TAURI_INVOKE<RoutesOverview_Serialize>("routes_overview", { accountId }),
 	/**
 	 *  Plans a change for review, on one of this Mac's tunnels (`tunnel_id`, or the
 	 *  default one). Nothing is changed.
 	 */
-	routesPreview: (accountId: string, tunnelId: string | null, change: Change) => __TAURI_INVOKE<PlanView>("routes_preview", { accountId, tunnelId, change }),
+	routesPreview: (accountId: string, tunnelId: string | null, change: Change_Deserialize) => __TAURI_INVOKE<PlanView>("routes_preview", { accountId, tunnelId, change }),
 	/**
 	 *  Applies a reviewed change. Step progress streams on `on_progress`. Fails with
 	 *  `conflict` if anything changed since the preview (preview again).
 	 */
-	routesApply: (accountId: string, tunnelId: string | null, change: Change, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("routes_apply", { accountId, tunnelId, change, fingerprint, confirmed, onProgress }),
+	routesApply: (accountId: string, tunnelId: string | null, change: Change_Deserialize, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("routes_apply", { accountId, tunnelId, change, fingerprint, confirmed, onProgress }),
 	/**
 	 *  Checks a route end to end. With `wait`, transient failures (connector connecting,
 	 *  propagation) are retried for up to 30 s, as right after applying.
@@ -182,7 +182,7 @@ export const commands = {
 	 *  cloudflared configurations found on this Mac (`~/.cloudflared/config.yml`, …). Only
 	 *  reads; credentials' secrets are never read.
 	 */
-	importScan: () => __TAURI_INVOKE<LocalSetup[]>("import_scan"),
+	importScan: () => __TAURI_INVOKE<LocalSetup_Serialize[]>("import_scan"),
 	/**  cloudflared processes on this Mac that Teitunnel didn't start. */
 	foreignList: () => __TAURI_INVOKE<ForeignConnector[]>("foreign_list"),
 	/**  Stops a cloudflared process Teitunnel didn't start (after re-checking it's one). */
@@ -251,7 +251,7 @@ export const commands = {
 	 */
 	tunnelsAdopt: (accountId: string, tunnelId: string) => __TAURI_INVOKE<null>("tunnels_adopt", { accountId, tunnelId }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
-	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
+	doctorRun: () => __TAURI_INVOKE<Issue_Serialize[]>("doctor_run"),
 	/**
 	 *  Ignores (or stops ignoring) Doctor issues by id. Ignored issues are hidden and never
 	 *  notify. Every window is told the settings changed.
@@ -437,65 +437,129 @@ export type Capabilities = {
 };
 
 /**  A change the user asks for (or a Doctor fix proposes). */
-export type Change = 
+export type Change = Change_Serialize | Change_Deserialize;
+
+/**  A change the user asks for (or a Doctor fix proposes). */
+export type Change_Deserialize = 
 /**  Add a route. */
-{ type: "addRoute"; 
+({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput } | 
+route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
-{ type: "updateRoute"; 
+({ type: "updateRoute"; 
 /**  Current hostname. */
 hostname: string; 
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput } | 
+route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
 /**  Remove a route. */
-{ type: "removeRoute"; 
+({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-{ type: "removeTunnel" } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
-{ type: "balanceRoute"; 
+({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
-{ type: "unbalanceRoute"; 
+({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
-{ type: "createTunnel"; 
+({ type: "createTunnel"; 
 /**  Its name. */
-name: string } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-{ type: "restoreConfig" } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
-{ type: "removeLogin"; 
+({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
-{ type: "importRoutes"; 
+({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput[] } | 
+routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
-{ type: "addNetwork"; 
+({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
-{ type: "removeNetwork"; 
+({ type: "removeNetwork"; 
 /**  The range. */
-network: string } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
-{ type: "deleteRecord"; 
+({ type: "deleteRecord"; 
 /**  Zone id. */
 zoneId: string; 
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string };
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
+
+/**  A change the user asks for (or a Doctor fix proposes). */
+export type Change_Serialize = 
+/**  Add a route. */
+({ type: "addRoute"; 
+/**  The route. */
+route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
+/**  Edit or rename a route. */
+({ type: "updateRoute"; 
+/**  Current hostname. */
+hostname: string; 
+/**  Current path. */
+path: string | null; 
+/**  The new definition. */
+route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
+/**  Remove a route. */
+({ type: "removeRoute"; 
+/**  Hostname. */
+hostname: string; 
+/**  Path. */
+path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Remove every route and delete this Mac's tunnel. */
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Load balance a route across the tunnels that route its hostname. */
+({ type: "balanceRoute"; 
+/**  Hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Stop load balancing a route. */
+({ type: "unbalanceRoute"; 
+/**  Hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Create another tunnel for this Mac. */
+({ type: "createTunnel"; 
+/**  Its name. */
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Undo an outside edit of this Mac's routes. */
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Remove a login Teitunnel added whose route is gone. */
+({ type: "removeLogin"; 
+/**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Add several routes at once (import from an existing cloudflared setup). */
+({ type: "importRoutes"; 
+/**  The routes. */
+routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
+/**  Let WARP clients reach a private range through this Mac's tunnel. */
+({ type: "addNetwork"; 
+/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Stop sharing a private range. */
+({ type: "removeNetwork"; 
+/**  The range. */
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Delete one DNS record (an orphan found by the Doctor). */
+({ type: "deleteRecord"; 
+/**  Zone id. */
+zoneId: string; 
+/**  The record's name. */
+hostname: string; 
+/**  Record id. */
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
 
 /**  A terminal's live Quick Share. */
 export type CliShare = {
@@ -823,31 +887,7 @@ export type FileSummary = {
 };
 
 /**  A way to fix an issue. */
-export type Fix = 
-/**  A change in Cloudflare, previewed as a plan before it's applied. */
-{ type: "change"; 
-/**  Button title, e.g. "Fix the DNS Record". */
-label: Text; 
-/**  The change. */
-change: Change } | 
-/**  Install (or update) the managed cloudflared. */
-{ type: "installBinary" } | 
-/**  Start this Mac's connector. */
-{ type: "startConnector"; 
-/**  Account. */
-accountId: string } | 
-/**  Accept an outside edit of this Mac's routes. */
-{ type: "keepTheirs"; 
-/**  Account. */
-accountId: string } | 
-/**  Create a token with the right permissions. */
-{ type: "reconnect" } | 
-/**  Remove a tunnel's stale connections. */
-{ type: "cleanConnections"; 
-/**  Account. */
-accountId: string; 
-/**  Tunnel. */
-tunnelId: string };
+export type Fix = Fix_Serialize | Fix_Deserialize;
 
 /**  What "Fix all safe issues" did. */
 export type FixReport = {
@@ -858,6 +898,60 @@ export type FixReport = {
 	/**  Fixes that failed (and were rolled back), with why. */
 	failed: string[],
 };
+
+/**  A way to fix an issue. */
+export type Fix_Deserialize = 
+/**  A change in Cloudflare, previewed as a plan before it's applied. */
+({ type: "change"; 
+/**  Button title, e.g. "Fix the DNS Record". */
+label: Text; 
+/**  The change. */
+change: Change_Deserialize }) & { accountId?: never; tunnelId?: never } | 
+/**  Install (or update) the managed cloudflared. */
+({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+/**  Start this Mac's connector. */
+({ type: "startConnector"; 
+/**  Account. */
+accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+/**  Accept an outside edit of this Mac's routes. */
+({ type: "keepTheirs"; 
+/**  Account. */
+accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+/**  Create a token with the right permissions. */
+({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+/**  Remove a tunnel's stale connections. */
+({ type: "cleanConnections"; 
+/**  Account. */
+accountId: string; 
+/**  Tunnel. */
+tunnelId: string }) & { change?: never; label?: never };
+
+/**  A way to fix an issue. */
+export type Fix_Serialize = 
+/**  A change in Cloudflare, previewed as a plan before it's applied. */
+({ type: "change"; 
+/**  Button title, e.g. "Fix the DNS Record". */
+label: Text; 
+/**  The change. */
+change: Change_Serialize }) & { accountId?: never; tunnelId?: never } | 
+/**  Install (or update) the managed cloudflared. */
+({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+/**  Start this Mac's connector. */
+({ type: "startConnector"; 
+/**  Account. */
+accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+/**  Accept an outside edit of this Mac's routes. */
+({ type: "keepTheirs"; 
+/**  Account. */
+accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+/**  Create a token with the right permissions. */
+({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+/**  Remove a tunnel's stale connections. */
+({ type: "cleanConnections"; 
+/**  Account. */
+accountId: string; 
+/**  Tunnel. */
+tunnelId: string }) & { change?: never; label?: never };
 
 /**  A cloudflared process Teitunnel doesn't manage. */
 export type ForeignConnector = {
@@ -891,13 +985,32 @@ config: string | null } |
 { type: "other" };
 
 /**  One route found in a config file. */
-export type FoundRoute = {
+export type FoundRoute = FoundRoute_Serialize | FoundRoute_Deserialize;
+
+/**  One route found in a config file. */
+export type FoundRoute_Deserialize = {
 	/**  Hostname. */
 	hostname: string,
 	/**  Path regex. */
 	path: string | null,
 	/**  Service, e.g. `http://localhost:3000`. */
 	service: string,
+	/**  Its origin settings (the file's own `originRequest` merged with the rule's). */
+	options: OriginOptions_Deserialize,
+	/**  Why it can't be imported, if it can't. */
+	unsupported: Text | null,
+};
+
+/**  One route found in a config file. */
+export type FoundRoute_Serialize = {
+	/**  Hostname. */
+	hostname: string,
+	/**  Path regex. */
+	path: string | null,
+	/**  Service, e.g. `http://localhost:3000`. */
+	service: string,
+	/**  Its origin settings (the file's own `originRequest` merged with the rule's). */
+	options: OriginOptions_Serialize,
 	/**  Why it can't be imported, if it can't. */
 	unsupported: Text | null,
 };
@@ -943,7 +1056,10 @@ total: number } |
 { step: "installing" };
 
 /**  A detected problem. */
-export type Issue = {
+export type Issue = Issue_Serialize | Issue_Deserialize;
+
+/**  A detected problem. */
+export type Issue_Deserialize = {
 	/**  Stable id (check, account, subject), so "Ignore" survives restarts. */
 	id: string,
 	/**  Which check found it, e.g. `dns.missing`. */
@@ -963,7 +1079,33 @@ export type Issue = {
 	/**  Supporting facts (records, states). */
 	evidence: Text[],
 	/**  Fixes, the recommended one first. */
-	fixes: Fix[],
+	fixes: Fix_Deserialize[],
+	/**  The tunnel of this Mac's it's about, when not the default one (a fix applies there). */
+	tunnelId: string | null,
+};
+
+/**  A detected problem. */
+export type Issue_Serialize = {
+	/**  Stable id (check, account, subject), so "Ignore" survives restarts. */
+	id: string,
+	/**  Which check found it, e.g. `dns.missing`. */
+	check: string,
+	/**  How bad it is. */
+	severity: Severity,
+	/**  The account it's in, if any. */
+	accountId: string | null,
+	/**  What it's about, e.g. a hostname or a tunnel name (stable: part of `id`). */
+	subject: string,
+	/**  `subject` as shown to the user. */
+	label: Text,
+	/**  One line. */
+	title: Text,
+	/**  What it means and what to do. */
+	detail: Text,
+	/**  Supporting facts (records, states). */
+	evidence: Text[],
+	/**  Fixes, the recommended one first. */
+	fixes: Fix_Serialize[],
 	/**  The tunnel of this Mac's it's about, when not the default one (a fix applies there). */
 	tunnelId: string | null,
 };
@@ -987,7 +1129,10 @@ export type LocalService = {
 };
 
 /**  A cloudflared configuration found on disk. */
-export type LocalSetup = {
+export type LocalSetup = LocalSetup_Serialize | LocalSetup_Deserialize;
+
+/**  A cloudflared configuration found on disk. */
+export type LocalSetup_Deserialize = {
 	/**  The config file. */
 	configPath: string,
 	/**  `tunnel:` (a UUID or a name). */
@@ -997,10 +1142,31 @@ export type LocalSetup = {
 	/**  The tunnel id from the credentials file. */
 	tunnelId: string | null,
 	/**  Routes (hostname rules) in order. */
-	routes: FoundRoute[],
+	routes: FoundRoute_Deserialize[],
 	/**
-	 *  Settings that apply to every route (`originRequest`), which Teitunnel can't
-	 *  carry over per route yet.
+	 *  The file has settings for every route (`originRequest`) that Teitunnel can't
+	 *  carry over (the ones it can are merged into each route).
+	 */
+	hasGlobalOptions: boolean,
+	/**  Problems reading the file. */
+	problem: Text | null,
+};
+
+/**  A cloudflared configuration found on disk. */
+export type LocalSetup_Serialize = {
+	/**  The config file. */
+	configPath: string,
+	/**  `tunnel:` (a UUID or a name). */
+	tunnel: string | null,
+	/**  The Cloudflare account the credentials belong to. */
+	accountId: string | null,
+	/**  The tunnel id from the credentials file. */
+	tunnelId: string | null,
+	/**  Routes (hostname rules) in order. */
+	routes: FoundRoute_Serialize[],
+	/**
+	 *  The file has settings for every route (`originRequest`) that Teitunnel can't
+	 *  carry over (the ones it can are merged into each route).
 	 */
 	hasGlobalOptions: boolean,
 	/**  Problems reading the file. */
@@ -1069,6 +1235,73 @@ export type NetworkView = {
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
 	owned: boolean,
+};
+
+/**  Origin settings of a route. `None`/`false` means cloudflared's default. */
+export type OriginOptions = OriginOptions_Serialize | OriginOptions_Deserialize;
+
+/**  Origin settings of a route. `None`/`false` means cloudflared's default. */
+export type OriginOptions_Deserialize = {
+	/**  Host header sent to the origin (e.g. a dev server that checks it). */
+	httpHostHeader?: string | null,
+	/**  Hostname expected on the origin's TLS certificate. */
+	originServerName?: string | null,
+	/**  Use the request's hostname as the TLS server name. */
+	matchSNItoHost?: boolean,
+	/**  Accept any certificate from the origin (self-signed ones). */
+	noTLSVerify?: boolean,
+	/**  Certificate authority file for the origin's certificate (absolute path). */
+	caPool?: string | null,
+	/**  Speak HTTP/2 to the origin (HTTPS origins). */
+	http2Origin?: boolean,
+	/**  Don't use chunked transfer encoding (some WSGI servers need this). */
+	disableChunkedEncoding?: boolean,
+	/**  Seconds to wait for a TCP connection (default 30). */
+	connectTimeout?: number | null,
+	/**  Seconds to wait for the TLS handshake (default 10). */
+	tlsTimeout?: number | null,
+	/**  Seconds between TCP keepalive packets (default 30). */
+	tcpKeepAlive?: number | null,
+	/**  Seconds before an idle keepalive connection closes (default 90). */
+	keepAliveTimeout?: number | null,
+	/**  Idle keepalive connections kept open (default 100). */
+	keepAliveConnections?: number | null,
+	/**  Don't fall back between IPv4 and IPv6. */
+	noHappyEyeballs?: boolean,
+	/**  Proxy type for TCP origins: `socks` for a SOCKS5 proxy. */
+	proxyType?: string | null,
+};
+
+/**  Origin settings of a route. `None`/`false` means cloudflared's default. */
+export type OriginOptions_Serialize = {
+	/**  Host header sent to the origin (e.g. a dev server that checks it). */
+	httpHostHeader?: string | null,
+	/**  Hostname expected on the origin's TLS certificate. */
+	originServerName?: string | null,
+	/**  Use the request's hostname as the TLS server name. */
+	matchSNItoHost?: boolean,
+	/**  Accept any certificate from the origin (self-signed ones). */
+	noTLSVerify?: boolean,
+	/**  Certificate authority file for the origin's certificate (absolute path). */
+	caPool?: string | null,
+	/**  Speak HTTP/2 to the origin (HTTPS origins). */
+	http2Origin?: boolean,
+	/**  Don't use chunked transfer encoding (some WSGI servers need this). */
+	disableChunkedEncoding?: boolean,
+	/**  Seconds to wait for a TCP connection (default 30). */
+	connectTimeout?: number | null,
+	/**  Seconds to wait for the TLS handshake (default 10). */
+	tlsTimeout?: number | null,
+	/**  Seconds between TCP keepalive packets (default 30). */
+	tcpKeepAlive?: number | null,
+	/**  Seconds before an idle keepalive connection closes (default 90). */
+	keepAliveTimeout?: number | null,
+	/**  Idle keepalive connections kept open (default 100). */
+	keepAliveConnections?: number | null,
+	/**  Don't fall back between IPv4 and IPv6. */
+	noHappyEyeballs?: boolean,
+	/**  Proxy type for TCP origins: `socks` for a SOCKS5 proxy. */
+	proxyType?: string | null,
 };
 
 /**
@@ -1174,7 +1407,10 @@ export type RemoteLogsView = {
 };
 
 /**  A route as typed in the add/edit sheet. */
-export type RouteInput = {
+export type RouteInput = RouteInput_Serialize | RouteInput_Deserialize;
+
+/**  A route as typed in the add/edit sheet. */
+export type RouteInput_Deserialize = {
 	/**  Public hostname, e.g. `app.example.com`. */
 	hostname: string,
 	/**  Optional path regex, e.g. `^/api`. */
@@ -1186,10 +1422,32 @@ export type RouteInput = {
 	 *  Teitunnel added; on an add, it leaves any existing login alone.
 	 */
 	access?: AccessRule | null,
+	/**  Origin settings. On an edit, `None` keeps the route's current ones. */
+	options?: OriginOptions_Deserialize | null,
+};
+
+/**  A route as typed in the add/edit sheet. */
+export type RouteInput_Serialize = {
+	/**  Public hostname, e.g. `app.example.com`. */
+	hostname: string,
+	/**  Optional path regex, e.g. `^/api`. */
+	path: string | null,
+	/**  Origin, e.g. `3000` or `http://localhost:3000`. */
+	origin: string,
+	/**
+	 *  Require a login for these people. On an edit, `None` removes the login
+	 *  Teitunnel added; on an add, it leaves any existing login alone.
+	 */
+	access: AccessRule | null,
+	/**  Origin settings. On an edit, `None` keeps the route's current ones. */
+	options: OriginOptions_Serialize | null,
 };
 
 /**  One route of this Mac's tunnel. */
-export type RouteView = {
+export type RouteView = RouteView_Serialize | RouteView_Deserialize;
+
+/**  One route of this Mac's tunnel. */
+export type RouteView_Deserialize = {
 	/**  Public hostname. */
 	hostname: string,
 	/**  Path regex. */
@@ -1212,16 +1470,66 @@ export type RouteView = {
 	temporary: boolean,
 	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
 	balanced: boolean,
+	/**  Its origin settings. */
+	options: OriginOptions_Deserialize,
+};
+
+/**  One route of this Mac's tunnel. */
+export type RouteView_Serialize = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Path regex. */
+	path: string | null,
+	/**  Where traffic goes. */
+	origin: string,
+	/**  Whether the origin is on this Mac. */
+	local: boolean,
+	/**  The zone (domain) it belongs to. */
+	zone: string | null,
+	/**  Its DNS record. */
+	dns: DnsState,
+	/**  Who may reach it, when Teitunnel added a login. */
+	access: AccessRule | null,
+	/**  What visitors run to reach it, for SSH, RDP, SMB and TCP routes. */
+	client: ClientAccess | null,
+	/**  The tunnel of this Mac's that carries it. */
+	tunnelId: string | null,
+	/**  A share on your domain: removed when the share stops. */
+	temporary: boolean,
+	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
+	balanced: boolean,
+	/**  Its origin settings. */
+	options: OriginOptions_Serialize,
 };
 
 /**  Everything the Routes view shows for an account. */
-export type RoutesOverview = {
+export type RoutesOverview = RoutesOverview_Serialize | RoutesOverview_Deserialize;
+
+/**  Everything the Routes view shows for an account. */
+export type RoutesOverview_Deserialize = {
 	/**  This Mac's default tunnel, if it has one. */
 	tunnel: TunnelView | null,
 	/**  Every tunnel of this Mac's in the account, the default first, then by name. */
 	tunnels: TunnelView[],
 	/**  Routes, sorted by domain then hostname. */
-	routes: RouteView[],
+	routes: RouteView_Deserialize[],
+	/**  Domains routes can use. */
+	zones: ZoneRef[],
+	/**
+	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
+	 *  credential can't read them.
+	 */
+	networks: NetworkView[] | null,
+};
+
+/**  Everything the Routes view shows for an account. */
+export type RoutesOverview_Serialize = {
+	/**  This Mac's default tunnel, if it has one. */
+	tunnel: TunnelView | null,
+	/**  Every tunnel of this Mac's in the account, the default first, then by name. */
+	tunnels: TunnelView[],
+	/**  Routes, sorted by domain then hostname. */
+	routes: RouteView_Serialize[],
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
 	/**

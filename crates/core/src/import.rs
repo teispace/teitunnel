@@ -9,7 +9,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::text::{Text, msg};
-use crate::{domain::RouteOrigin, engine::RouteInput};
+use crate::{
+    domain::{OriginOptions, RouteOrigin},
+    engine::RouteInput,
+};
 
 /// Where cloudflared looks for its configuration.
 fn directories() -> Vec<PathBuf> {
@@ -39,6 +42,8 @@ pub struct FoundRoute {
     pub path: Option<String>,
     /// Service, e.g. `http://localhost:3000`.
     pub service: String,
+    /// Its origin settings (the file's own `originRequest` merged with the rule's).
+    pub options: OriginOptions,
     /// Why it can't be imported, if it can't.
     pub unsupported: Option<Text>,
 }
@@ -51,6 +56,7 @@ impl FoundRoute {
             path: self.path.clone(),
             origin: self.service.clone(),
             access: None,
+            options: Some(Box::new(self.options.clone())),
         }
     }
 }
@@ -70,8 +76,8 @@ pub struct LocalSetup {
     pub tunnel_id: Option<String>,
     /// Routes (hostname rules) in order.
     pub routes: Vec<FoundRoute>,
-    /// Settings that apply to every route (`originRequest`), which Teitunnel can't
-    /// carry over per route yet.
+    /// The file has settings for every route (`originRequest`) that Teitunnel can't
+    /// carry over (the ones it can are merged into each route).
     pub has_global_options: bool,
     /// Problems reading the file.
     pub problem: Option<Text>,
@@ -112,14 +118,18 @@ fn expand(path: &str, base: &Path) -> PathBuf {
     }
 }
 
-fn route(rule: &IngressRule) -> Option<FoundRoute> {
+fn route(rule: &IngressRule, global: &serde_json::Map<String, Value>) -> Option<FoundRoute> {
     let hostname = rule.hostname.clone()?;
+    // As cloudflared does: the file's settings apply to every rule, which can override them.
+    let mut settings = global.clone();
+    settings.extend(rule.origin_request.clone());
+    let unknown = OriginOptions::unknown_keys(&settings);
     let unsupported = if hostname.contains('*') && !hostname.starts_with("*.") {
         Some(msg::import::wildcard())
     } else if RouteOrigin::parse(&rule.service).is_err() {
         Some(msg::import::service(&rule.service))
-    } else if !rule.origin_request.is_empty() {
-        Some(msg::import::origin_request())
+    } else if !unknown.is_empty() {
+        Some(msg::import::origin_request(unknown.join(", ")))
     } else {
         None
     };
@@ -127,6 +137,7 @@ fn route(rule: &IngressRule) -> Option<FoundRoute> {
         hostname,
         path: rule.path.clone(),
         service: rule.service.clone(),
+        options: OriginOptions::from_map(&settings),
         unsupported,
     })
 }
@@ -160,8 +171,12 @@ pub fn read_setup(path: &Path) -> LocalSetup {
         Value::String(s) => s,
         other => other.to_string(),
     });
-    setup.has_global_options = !config.origin_request.is_empty();
-    setup.routes = config.ingress.iter().filter_map(route).collect();
+    setup.has_global_options = !OriginOptions::unknown_keys(&config.origin_request).is_empty();
+    setup.routes = config
+        .ingress
+        .iter()
+        .filter_map(|rule| route(rule, &config.origin_request))
+        .collect();
     let base = path.parent().unwrap_or(Path::new("/"));
     let credentials = config
         .credentials_file
@@ -214,6 +229,10 @@ ingress:
     service: https://localhost:8443
     originRequest:
       noTLSVerify: true
+  - hostname: bastion.xyz.com
+    service: bastion
+    originRequest:
+      bastionMode: true
   - hostname: hi.xyz.com
     service: hello_world
   - service: http_status:404
@@ -246,6 +265,7 @@ ingress:
                 "api.xyz.com",
                 "ssh.xyz.com",
                 "tls.xyz.com",
+                "bastion.xyz.com",
                 "hi.xyz.com"
             ]
         );
@@ -255,9 +275,21 @@ ingress:
             setup.routes[2].unsupported, None,
             "ssh origins can be routed"
         );
-        assert!(setup.routes[3].unsupported.is_some(), "per-route settings");
         assert_eq!(
-            setup.routes[4].unsupported, None,
+            setup.routes[3].unsupported, None,
+            "settings it knows carry over"
+        );
+        assert!(setup.routes[3].options.no_tls_verify);
+        assert!(
+            setup.routes[3].to_input().options.unwrap().no_tls_verify,
+            "and are part of what's added"
+        );
+        assert!(
+            setup.routes[4].unsupported.is_some(),
+            "settings it doesn't know stop the import of that route"
+        );
+        assert_eq!(
+            setup.routes[5].unsupported, None,
             "cloudflared's built-in hello_world"
         );
         let json = serde_json::to_string(&setups).unwrap();
@@ -265,6 +297,25 @@ ingress:
             !json.contains("c2VjcmV0"),
             "the secret never leaves the file"
         );
+    }
+
+    #[test]
+    fn applies_the_files_settings_to_every_route() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("config.yml"),
+            "tunnel: t\noriginRequest:\n  connectTimeout: 30s\n  noTLSVerify: true\ningress:\n  - hostname: a.xyz.com\n    service: https://localhost:1\n  - hostname: b.xyz.com\n    service: https://localhost:2\n    originRequest:\n      noTLSVerify: false\n  - service: http_status:404\n",
+        )
+        .unwrap();
+        let setup = &scan_in(&[dir.path().to_path_buf()])[0];
+        assert!(!setup.has_global_options, "everything in it carries over");
+        assert_eq!(setup.routes[0].options.connect_timeout, Some(30));
+        assert!(setup.routes[0].options.no_tls_verify);
+        assert!(
+            !setup.routes[1].options.no_tls_verify,
+            "a rule overrides the file"
+        );
+        assert_eq!(setup.routes[1].options.connect_timeout, Some(30));
     }
 
     #[test]

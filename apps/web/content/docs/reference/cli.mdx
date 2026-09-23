@@ -77,6 +77,31 @@ account, only cloudflared (the app's copy, or one on your system).
 
 `doctor` runs the app's checks and hides the issues you ignored there.
 
+## Origin settings
+
+`route add` takes the same origin settings as the app (leave them out for cloudflared's
+defaults):
+
+```sh
+teitunnel-cli route add secure.example.com https://localhost:8443 --no-tls-verify
+teitunnel-cli route add app.example.com 5173 --host-header localhost
+teitunnel-cli route add slow.example.com 8000 --connect-timeout 60 --keep-alive-timeout 300
+```
+
+| Flag | Setting |
+|---|---|
+| `--host-header HOST` | `httpHostHeader` |
+| `--no-tls-verify` | `noTLSVerify` |
+| `--origin-server-name NAME` | `originServerName` |
+| `--match-sni-to-host` | `matchSNItoHost` |
+| `--ca-pool PATH` | `caPool` |
+| `--http2-origin` | `http2Origin` |
+| `--disable-chunked-encoding` | `disableChunkedEncoding` |
+| `--connect-timeout`, `--tls-timeout`, `--tcp-keep-alive`, `--keep-alive-timeout` SECONDS | the timeouts |
+| `--keep-alive-connections COUNT` | `keepAliveConnections` |
+| `--no-happy-eyeballs` | `noHappyEyeballs` |
+| `--proxy-type socks` | `proxyType` |
+
 ## Shell completions
 
 ```sh

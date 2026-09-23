@@ -10,7 +10,7 @@ use super::{
     types::{Intent, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef, tunnel_target},
 };
 use crate::{
-    domain::{ClientAccess, Hostname, PathRule, PrivateNetwork, RouteOrigin},
+    domain::{ClientAccess, Hostname, OriginOptions, PathRule, PrivateNetwork, RouteOrigin},
     runtime::ConnectorState,
     text::{Text, UserText, english_display},
 };
@@ -30,6 +30,9 @@ pub struct RouteInput {
     /// Teitunnel added; on an add, it leaves any existing login alone.
     #[serde(default)]
     pub access: Option<AccessRule>,
+    /// Origin settings. On an edit, `None` keeps the route's current ones.
+    #[serde(default)]
+    pub options: Option<Box<OriginOptions>>,
 }
 
 /// A change the user asks for (or a Doctor fix proposes).
@@ -166,7 +169,17 @@ pub fn route_id(hostname: &Hostname, path: Option<&PathRule>) -> String {
 }
 
 impl RouteInput {
-    /// Validates the input into a route (no extra origin options).
+    fn validated_options(&self) -> Result<OriginOptions, InputError> {
+        self.options
+            .as_ref()
+            .map_or(Ok(OriginOptions::default()), |o| o.validated())
+            .map_err(|e| InputError {
+                field: "options",
+                message: e.text(),
+            })
+    }
+
+    /// Validates the input into a route.
     ///
     /// # Errors
     /// The first invalid field.
@@ -182,12 +195,14 @@ impl RouteInput {
                 rule.normalized().map_err(|e| invalid("access", &e))
             })
             .transpose()?;
+        let mut options = serde_json::Map::new();
+        self.validated_options()?.apply(&mut options);
         Ok(RouteSpec {
             id: route_id(&hostname, path.as_ref()),
             hostname,
             path,
             origin,
-            options: serde_json::Map::new(),
+            options,
             access,
         })
     }
@@ -211,11 +226,16 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             let hostname = parse_hostname(hostname)?;
             let path = parse_path(path.as_deref())?;
             let mut spec = route.to_spec()?;
+            // Settings made elsewhere (the dashboard, a config file) stay; the known ones
+            // change only when the edit carries them.
             if let Some(existing) = snapshot.routes().into_iter().find(|r| {
                 r.hostname.as_deref() == Some(hostname.as_str())
                     && r.path.as_deref() == path.as_ref().map(PathRule::as_str)
             }) {
                 spec.options.clone_from(&existing.origin_request);
+                if route.options.is_some() {
+                    route.validated_options()?.apply(&mut spec.options);
+                }
             }
             Intent::UpdateRoute {
                 hostname,
@@ -418,6 +438,8 @@ pub struct RouteView {
     pub temporary: bool,
     /// Load balanced across tunnels (Cloudflare Load Balancing).
     pub balanced: bool,
+    /// Its origin settings.
+    pub options: OriginOptions,
 }
 
 /// This Mac's tunnel.
@@ -600,6 +622,7 @@ pub(crate) fn overview(
                 tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
                 temporary: false,
                 balanced: false,
+                options: OriginOptions::from_map(&rule.origin_request),
             })
         })
         .collect();
@@ -650,6 +673,7 @@ mod tests {
             path: path.map(str::to_owned),
             origin: origin.into(),
             access: None,
+            options: None,
         }
     }
 
@@ -691,6 +715,7 @@ mod tests {
     #[test]
     fn route_statuses_combine_dns_and_connector() {
         let route = |host: &str, dns: DnsState| RouteView {
+            options: OriginOptions::default(),
             access: None,
             client: None,
             tunnel_id: None,

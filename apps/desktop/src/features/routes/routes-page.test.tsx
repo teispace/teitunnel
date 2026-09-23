@@ -101,6 +101,7 @@ beforeEach(() => {
       tunnelId: "t1",
       temporary: false,
       balanced: false,
+      options: {},
       zone: "xyz.com",
       dns: { state: "ok" },
       access: null,
@@ -181,6 +182,7 @@ beforeEach(() => {
               tunnelId: "t1",
               temporary: false,
               balanced: false,
+              options: {},
               zone: "yx.com",
               dns: { state: "ok" },
               access: change.route.access ?? null,
@@ -192,6 +194,7 @@ beforeEach(() => {
             tunnelId: "t1",
             temporary: false,
             balanced: false,
+            options: {},
             verify: [change.route.hostname],
             connectorError: null,
           };
@@ -216,6 +219,7 @@ beforeEach(() => {
               tunnelId: "t1",
               temporary: false,
               balanced: false,
+              options: {},
               appliedVersion: 1,
               currentVersion: 2,
               changes: [
@@ -281,6 +285,7 @@ describe("RoutesPage", () => {
         tunnelId: "t1",
         temporary: false,
         balanced: false,
+        options: {},
         zone: "xyz.com",
         dns: { state: "ok" },
         access: null,
@@ -327,7 +332,7 @@ describe("RoutesPage", () => {
     const preview = calls.find((c) => c.cmd === "routes_preview");
     expect(preview?.args["change"]).toEqual({
       type: "addRoute",
-      route: { hostname: "api.xyz.com", origin: "5000", path: null, access: null },
+      route: { hostname: "api.xyz.com", origin: "5000", path: null, access: null, options: null },
     });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Route" }));
@@ -613,5 +618,54 @@ describe("RoutesPage", () => {
     ).toBeTruthy();
     expect(screen.getAllByText("Nothing is listening on port 3000").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Details…" })).toBeTruthy();
+  });
+
+  it("sets origin settings for an HTTPS service", async () => {
+    const dialog = await openAddSheet();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "https://localhost:8443" },
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Subdomain" }), {
+      target: { value: "secure" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Origin settings" }));
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: "Accept self-signed certificates" }),
+    );
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Host header" }), {
+      target: { value: "secure.local" },
+    });
+    fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Connect timeout" }), {
+      target: { value: "15" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "routes_preview")?.args["change"]).toMatchObject({
+        type: "addRoute",
+        route: {
+          origin: "https://localhost:8443",
+          options: { noTLSVerify: true, httpHostHeader: "secure.local", connectTimeout: 15 },
+        },
+      }),
+    );
+  });
+
+  it("edits a route's origin settings, starting from the current ones", async () => {
+    routes = [{ ...(routes[0] as RouteView), options: { noTLSVerify: true, connectTimeout: 20 } }];
+    renderPage();
+    await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    fireEvent.click(screen.getByRole("button", { name: "Edit route" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit Route" });
+    const box = within(dialog).getByRole("checkbox", { name: "Accept self-signed certificates" });
+    expect(box.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(box);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "routes_preview")?.args["change"]).toMatchObject({
+        type: "updateRoute",
+        route: { options: { noTLSVerify: false, connectTimeout: 20 } },
+      }),
+    );
   });
 });

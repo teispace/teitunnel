@@ -119,6 +119,31 @@
       "help": "Which of this Mac's tunnels serves the route.",
       "help@windows": "Which of this PC's tunnels serves the route.",
       "help@linux": "Which of this computer's tunnels serves the route."
+    },
+    "origin": {
+      "title": "Origin settings",
+      "https": "HTTPS services",
+      "noTlsVerify": "Accept self-signed certificates",
+      "serverName": "Certificate name",
+      "serverNameHelp": "The name on the service's certificate, when it isn't the hostname it's reached at.",
+      "matchSni": "Use the visitor's hostname as the certificate name",
+      "caPool": "Certificate authority file",
+      "caPoolHelp": "For certificates from your own authority: the full path to its certificate.",
+      "http2": "Connect with HTTP/2",
+      "requests": "Requests",
+      "hostHeader": "Host header",
+      "hostHeaderHelp": "Sent instead of the public hostname, for services that only answer to their own name.",
+      "noChunked": "Don't use chunked encoding (some WSGI servers need this)",
+      "proxy": "Proxy",
+      "proxyNone": "None",
+      "proxySocks": "SOCKS5 (TCP routes)",
+      "connection": "Connection (seconds)",
+      "connectTimeout": "Connect timeout",
+      "tlsTimeout": "TLS handshake timeout",
+      "keepAliveTimeout": "Idle connection timeout",
+      "tcpKeepAlive": "TCP keepalive",
+      "keepAliveConnections": "Idle connections kept",
+      "noHappyEyeballs": "Don't fall back between IPv4 and IPv6"
     }
   },
   "time": {
@@ -1440,7 +1465,7 @@
     "import": {
       "wildcard": "Wildcards are only supported as the first label",
       "service": "“{service}” isn't a service Teitunnel routes to",
-      "originRequest": "It has per-route settings (originRequest) Teitunnel doesn't edit yet",
+      "originRequest": "It has settings Teitunnel can't carry over yet: {keys}",
       "unreadable": "Couldn't read it: {detail}",
       "invalidYaml": "It isn't valid YAML: {detail}"
     },
@@ -1576,6 +1601,13 @@
     },
     "cliInstall": {
       "failed": "Couldn't install the command line tool: {detail}"
+    },
+    "originOptions": {
+      "host": "Enter a host name, optionally with a port, like api.local or localhost:8080",
+      "path": "Enter the full path to the certificate file",
+      "seconds": "Enter a number of seconds from 1 to {max}",
+      "connections": "Enter a number from 1 to {max}",
+      "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
     }
   },
   "permissionFix": {

@@ -19,7 +19,7 @@
 
 ### M3-02 · Domain types & validation
 - [x] `Hostname` (IDNA/punycode, wildcard rules, max lengths), zone matching (the longest zone suffix wins), `PathRegex` (validated with the regex crate; Go RE2-compatible subset warning), `Origin` parsing from user input (`3000`, `:3000`, `localhost:3000`, `http://…`, `https://…`, `tcp://…`, `ssh://…`, `unix:/path`).
-- [ ] `OriginOptions`: all `originRequest` fields cloudflared supports, with defaults omitted when serialising.
+- [x] `OriginOptions`: all `originRequest` fields cloudflared supports, with defaults omitted when serialising. *(D-078: every API field but `access`; app, CLI and import.)*
 - [ ] Property tests for the parsers. `*_validate` commands return field-level errors.
 
 ### M3-03 · Observer

@@ -27,7 +27,7 @@ use std::{
 
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
-    domain::Hostname,
+    domain::{Hostname, OriginOptions},
     engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, StepState, Warning},
     export::{ExportFormat, render},
 };
@@ -245,6 +245,76 @@ enum TunnelCommand {
     },
 }
 
+/// Origin settings (`originRequest`) for a route; cloudflared's defaults when left out.
+#[derive(Debug, Default, clap::Args)]
+#[command(next_help_heading = "Origin settings")]
+struct OriginArgs {
+    /// Host header sent to the service, e.g. for a dev server that checks it.
+    #[arg(long, value_name = "HOST")]
+    host_header: Option<String>,
+    /// Accept any certificate from an HTTPS service (self-signed ones).
+    #[arg(long)]
+    no_tls_verify: bool,
+    /// Hostname expected on the service's TLS certificate.
+    #[arg(long, value_name = "NAME")]
+    origin_server_name: Option<String>,
+    /// Use the request's hostname as the TLS server name.
+    #[arg(long)]
+    match_sni_to_host: bool,
+    /// Certificate authority file for the service's certificate.
+    #[arg(long, value_name = "PATH")]
+    ca_pool: Option<String>,
+    /// Speak HTTP/2 to an HTTPS service.
+    #[arg(long)]
+    http2_origin: bool,
+    /// Don't use chunked transfer encoding (some WSGI servers need this).
+    #[arg(long)]
+    disable_chunked_encoding: bool,
+    /// Seconds to wait for a connection to the service.
+    #[arg(long, value_name = "SECONDS")]
+    connect_timeout: Option<u32>,
+    /// Seconds to wait for the TLS handshake.
+    #[arg(long, value_name = "SECONDS")]
+    tls_timeout: Option<u32>,
+    /// Seconds between TCP keepalive packets.
+    #[arg(long, value_name = "SECONDS")]
+    tcp_keep_alive: Option<u32>,
+    /// Seconds before an idle keepalive connection closes.
+    #[arg(long, value_name = "SECONDS")]
+    keep_alive_timeout: Option<u32>,
+    /// Idle keepalive connections kept open.
+    #[arg(long, value_name = "COUNT")]
+    keep_alive_connections: Option<u32>,
+    /// Don't fall back between IPv4 and IPv6.
+    #[arg(long)]
+    no_happy_eyeballs: bool,
+    /// `socks` to use the service as a SOCKS5 proxy (TCP routes).
+    #[arg(long, value_name = "TYPE")]
+    proxy_type: Option<String>,
+}
+
+impl OriginArgs {
+    fn options(self) -> Option<Box<OriginOptions>> {
+        let options = OriginOptions {
+            http_host_header: self.host_header,
+            origin_server_name: self.origin_server_name,
+            match_sni_to_host: self.match_sni_to_host,
+            no_tls_verify: self.no_tls_verify,
+            ca_pool: self.ca_pool,
+            http2_origin: self.http2_origin,
+            disable_chunked_encoding: self.disable_chunked_encoding,
+            connect_timeout: self.connect_timeout,
+            tls_timeout: self.tls_timeout,
+            tcp_keep_alive: self.tcp_keep_alive,
+            keep_alive_timeout: self.keep_alive_timeout,
+            keep_alive_connections: self.keep_alive_connections,
+            no_happy_eyeballs: self.no_happy_eyeballs,
+            proxy_type: self.proxy_type,
+        };
+        (!options.is_default()).then(|| Box::new(options))
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum RouteCommand {
     /// Route a hostname to a service on this machine, e.g. `app.example.com 3000`.
@@ -260,6 +330,8 @@ enum RouteCommand {
         /// Repeat for more people. Needs Cloudflare Zero Trust (free).
         #[arg(long, value_name = "EMAIL|@DOMAIN")]
         allow: Vec<String>,
+        #[command(flatten)]
+        origin_options: OriginArgs,
         #[command(flatten)]
         apply: ApplyArgs,
     },
@@ -453,6 +525,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             path,
             allow,
+            origin_options,
             apply,
         }) => {
             let change = Change::AddRoute {
@@ -461,6 +534,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     path,
                     origin,
                     access: access_rule(&allow),
+                    options: origin_options.options(),
                 },
             };
             change_routes(&app, change, &apply).await
@@ -1279,6 +1353,11 @@ mod tests {
             "me@xyz.com",
             "--allow",
             "@team.io",
+            "--no-tls-verify",
+            "--host-header",
+            "app.local",
+            "--connect-timeout",
+            "15",
             "--yes",
         ])
         .unwrap_or_else(|e| unreachable!("{e}"));
@@ -1287,6 +1366,7 @@ mod tests {
             origin,
             path,
             allow,
+            origin_options,
             apply,
         }) = cli.command
         else {
@@ -1305,6 +1385,15 @@ mod tests {
             })
         );
         assert_eq!(access_rule(&[]), None);
+        let options = origin_options.options().unwrap();
+        assert!(options.no_tls_verify);
+        assert_eq!(options.http_host_header.as_deref(), Some("app.local"));
+        assert_eq!(options.connect_timeout, Some(15));
+        assert_eq!(
+            OriginArgs::default().options(),
+            None,
+            "defaults send nothing"
+        );
     }
 
     #[test]

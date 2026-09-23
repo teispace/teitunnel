@@ -880,6 +880,9 @@ fn diagnose_account(
                     path: rule.path.clone(),
                     origin: rule.service.clone(),
                     access: None,
+                    options: Some(Box::new(crate::domain::OriginOptions::from_map(
+                        &rule.origin_request,
+                    ))),
                 },
             },
         };
