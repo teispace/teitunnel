@@ -4,6 +4,7 @@
 //! (accounts, zones, DNS records, tunnels and their configurations). It knows nothing
 //! about Teitunnel's product model; that lives in `teitunnel-core`.
 
+mod access;
 mod client;
 mod dns;
 mod envelope;
@@ -13,6 +14,10 @@ mod resources;
 mod token;
 mod tunnels;
 
+pub use access::{
+    AccessApp, AccessOrganization, AccessPolicy, IdentityProvider, NewAccessApp, email_domain_rule,
+    email_rule, rule_email, rule_email_domain,
+};
 pub use client::{API_BASE, Client};
 pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
