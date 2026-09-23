@@ -223,11 +223,10 @@ impl ServiceManager for ProcessServices {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn token_files_are_private() {
         use std::os::unix::fs::PermissionsExt;
