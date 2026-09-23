@@ -31,6 +31,10 @@ pub struct Settings {
     pub theme: Theme,
     /// Show the Teitunnel icon in the menu bar.
     pub show_in_menu_bar: bool,
+    /// Notify when this Mac's connector goes down, comes back or crash-loops.
+    pub notify_connectors: bool,
+    /// Notify when a Quick Share goes live or fails.
+    pub notify_quick_shares: bool,
 }
 
 impl Default for Settings {
@@ -38,6 +42,8 @@ impl Default for Settings {
         Self {
             theme: Theme::System,
             show_in_menu_bar: true,
+            notify_connectors: true,
+            notify_quick_shares: true,
         }
     }
 }
@@ -53,10 +59,18 @@ pub struct SettingsPatch {
     /// New menu bar visibility.
     #[serde(default)]
     pub show_in_menu_bar: Option<bool>,
+    /// Connector notifications on or off.
+    #[serde(default)]
+    pub notify_connectors: Option<bool>,
+    /// Quick Share notifications on or off.
+    #[serde(default)]
+    pub notify_quick_shares: Option<bool>,
 }
 
 const THEME: &str = "theme";
 const SHOW_IN_MENU_BAR: &str = "showInMenuBar";
+const NOTIFY_CONNECTORS: &str = "notifyConnectors";
+const NOTIFY_QUICK_SHARES: &str = "notifyQuickShares";
 
 /// Loads all settings.
 ///
@@ -70,6 +84,10 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                 theme: read(conn, THEME)?.unwrap_or(defaults.theme),
                 show_in_menu_bar: read(conn, SHOW_IN_MENU_BAR)?
                     .unwrap_or(defaults.show_in_menu_bar),
+                notify_connectors: read(conn, NOTIFY_CONNECTORS)?
+                    .unwrap_or(defaults.notify_connectors),
+                notify_quick_shares: read(conn, NOTIFY_QUICK_SHARES)?
+                    .unwrap_or(defaults.notify_quick_shares),
             })
         })
         .await
@@ -88,6 +106,12 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             }
             if let Some(show) = patch.show_in_menu_bar {
                 write(&tx, SHOW_IN_MENU_BAR, &show)?;
+            }
+            if let Some(on) = patch.notify_connectors {
+                write(&tx, NOTIFY_CONNECTORS, &on)?;
+            }
+            if let Some(on) = patch.notify_quick_shares {
+                write(&tx, NOTIFY_QUICK_SHARES, &on)?;
             }
             tx.commit()?;
             Ok(())
@@ -155,7 +179,7 @@ mod tests {
             after,
             Settings {
                 theme: Theme::Dark,
-                show_in_menu_bar: true
+                ..Settings::default()
             }
         );
 
@@ -172,9 +196,22 @@ mod tests {
             after,
             Settings {
                 theme: Theme::Dark,
-                show_in_menu_bar: false
+                show_in_menu_bar: false,
+                ..Settings::default()
             }
         );
+
+        let after = update(
+            &store,
+            SettingsPatch {
+                notify_connectors: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!after.notify_connectors);
+        assert!(after.notify_quick_shares);
     }
 
     #[tokio::test]

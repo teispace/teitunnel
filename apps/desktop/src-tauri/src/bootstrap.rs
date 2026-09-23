@@ -246,6 +246,9 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let Some(state) = app.try_state::<AppState>() else {
                 continue;
             };
+            let enabled = settings::load(&state.store)
+                .await
+                .map_or(true, |s| s.notify_connectors);
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
@@ -264,7 +267,11 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                     watch.forget(&id);
                     continue;
                 }
-                match watch.observe(&id, state.machine.state(&id).as_ref(), now) {
+                let notice = watch.observe(&id, state.machine.state(&id).as_ref(), now);
+                if !enabled {
+                    continue;
+                }
+                match notice {
                     Some(Notice::Down) => notify(
                         &app,
                         "Routes on this Mac are down",
@@ -298,7 +305,15 @@ fn forward_quick_share_changes<R: Runtime>(app: AppHandle<R>, quick_shares: &Qui
                     let shares = quick_shares.list();
                     shell::tray::refresh(&app, &shares);
                     let current = shares.iter().find(|share| share.id == id);
-                    notify_transition(&app, last.get(&id), current);
+                    let enabled = match app.try_state::<AppState>() {
+                        Some(state) => settings::load(&state.store)
+                            .await
+                            .map_or(true, |s| s.notify_quick_shares),
+                        None => true,
+                    };
+                    if enabled {
+                        notify_transition(&app, last.get(&id), current);
+                    }
                     match current {
                         Some(share) => last.insert(id.clone(), share.status.clone()),
                         None => last.remove(&id),

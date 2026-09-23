@@ -106,8 +106,30 @@ function GeneralPane() {
       </GroupedSection>
       <OpenAtLogin />
       <GroupedSection
+        title="Notifications"
+        footer="Only when no Teitunnel window is in front. macOS decides how they look in System Settings ▸ Notifications."
+      >
+        <GroupedRow
+          label="Routes down or back"
+          description="When this Mac's connector loses its connection for more than 20 seconds."
+        >
+          <Switch
+            aria-label="Routes down or back"
+            checked={settings.notifyConnectors}
+            onCheckedChange={(notifyConnectors) => update.mutate({ notifyConnectors })}
+          />
+        </GroupedRow>
+        <GroupedRow label="Quick Shares" description="When a share goes live or stops working.">
+          <Switch
+            aria-label="Quick Share notifications"
+            checked={settings.notifyQuickShares}
+            onCheckedChange={(notifyQuickShares) => update.mutate({ notifyQuickShares })}
+          />
+        </GroupedRow>
+      </GroupedSection>
+      <GroupedSection
         title="Menu bar"
-        footer="Closing the window keeps Quick Shares running. Quit Teitunnel with ⌘Q to stop them."
+        footer="Closing the window keeps routes and Quick Shares running. Quit Teitunnel with ⌘Q to stop them."
       >
         <GroupedRow
           label="Show in menu bar"

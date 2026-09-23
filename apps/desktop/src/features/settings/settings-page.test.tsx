@@ -10,7 +10,12 @@ let stored: Settings;
 const calls: string[] = [];
 
 beforeEach(() => {
-  stored = { theme: "system", showInMenuBar: true };
+  stored = {
+    theme: "system",
+    showInMenuBar: true,
+    notifyConnectors: true,
+    notifyQuickShares: true,
+  };
   calls.length = 0;
   mockIPC((cmd, args) => {
     calls.push(cmd);
@@ -20,6 +25,8 @@ beforeEach(() => {
       stored = {
         theme: patch.theme ?? stored.theme,
         showInMenuBar: patch.showInMenuBar ?? stored.showInMenuBar,
+        notifyConnectors: patch.notifyConnectors ?? stored.notifyConnectors,
+        notifyQuickShares: patch.notifyQuickShares ?? stored.notifyQuickShares,
       };
       return stored;
     }

@@ -22,7 +22,12 @@ import type {
  */
 const now = Date.now();
 
-let settings: Settings = { theme: "system", showInMenuBar: true };
+let settings: Settings = {
+  theme: "system",
+  showInMenuBar: true,
+  notifyConnectors: true,
+  notifyQuickShares: true,
+};
 
 let shares: QuickShare[] = [
   {
@@ -246,6 +251,8 @@ export function installMockIpc(): void {
           settings = {
             theme: patch.theme ?? settings.theme,
             showInMenuBar: patch.showInMenuBar ?? settings.showInMenuBar,
+            notifyConnectors: patch.notifyConnectors ?? settings.notifyConnectors,
+            notifyQuickShares: patch.notifyQuickShares ?? settings.notifyQuickShares,
           };
           return settings;
         }
