@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIssues } from "@/features/doctor/queries";
+import { t } from "@/lib/i18n";
 import { useRoutesOverview } from "../queries";
 
 interface NetworksSectionProps {
@@ -27,22 +28,16 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
   const general = problems.filter((p) => !networks?.some((n) => n.network === p.subject));
 
   return (
-    <InspectorSection title="Private Networks">
+    <InspectorSection title={t("networks.title")}>
       {networks === null ? (
-        <p className="text-callout text-secondary">
-          This account's API token can't read private networks. Give it the Cloudflare Tunnel
-          permission to share them.
-        </p>
+        <p className="text-callout text-secondary">{t("networks.noPermission")}</p>
       ) : (
         <>
           {networks.length === 0 ? (
-            <p className="text-callout text-secondary">
-              Let devices running Cloudflare WARP reach addresses on this Mac's network, like a NAS
-              or a printer.
-            </p>
+            <p className="text-callout text-secondary">{t("networks.empty")}</p>
           ) : (
             <ul
-              aria-label="Private networks"
+              aria-label={t("networks.list")}
               className="flex flex-col rounded-card bg-surface-inset px-3 py-1"
             >
               {networks.map((network) => {
@@ -57,7 +52,7 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
                         <span className="selectable truncate font-mono text-mono">
                           {network.network}
                         </span>
-                        {network.private ? null : <Badge>Public</Badge>}
+                        {network.private ? null : <Badge>{t("networks.public")}</Badge>}
                       </div>
                       {problem ? (
                         <p className="flex items-center gap-1 text-callout text-warning">
@@ -65,12 +60,12 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
                           {problem.title}
                         </p>
                       ) : network.owned ? null : (
-                        <p className="text-callout text-secondary">Added outside Teitunnel</p>
+                        <p className="text-callout text-secondary">{t("networks.foreign")}</p>
                       )}
                     </div>
                     <IconButton
                       icon={Trash2}
-                      label={`Stop sharing ${network.network}`}
+                      label={t("networks.stop", { network: network.network })}
                       variant="secondary"
                       onClick={() => onRemove(network.network)}
                     />
@@ -88,7 +83,7 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
             </p>
           ))}
           <div>
-            <Button onClick={onAdd}>Share Network…</Button>
+            <Button onClick={onAdd}>{t("networks.add")}</Button>
           </div>
         </>
       )}

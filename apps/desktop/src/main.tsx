@@ -4,6 +4,7 @@ import { App } from "@/app/app";
 import { installErrorReporting } from "@/app/error-reporting";
 import { repairNavigatorLanguage } from "@/app/locale";
 import { isTauri } from "@/app/platform";
+import { pickLanguage, setLanguage } from "@/lib/i18n";
 import "@/styles/globals.css";
 
 installErrorReporting();
@@ -11,6 +12,7 @@ installErrorReporting();
 repairNavigatorLanguage();
 
 async function mount() {
+  await setLanguage(pickLanguage(navigator.languages));
   // In a plain browser during development (screenshots, design review), serve fixture
   // data instead of the Rust backend. Tree-shaken from release builds.
   if (import.meta.env.DEV && !isTauri()) {

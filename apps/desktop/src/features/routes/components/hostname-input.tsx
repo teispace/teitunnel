@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { t } from "@/lib/i18n";
 import type { ZoneRef } from "@/lib/ipc/bindings";
 
 /** Splits `app.example.com` into the part before the longest matching zone and the zone. */
@@ -45,7 +46,7 @@ export function HostnameInput({
     <div className="flex min-w-0 items-center gap-1.5">
       <Input
         {...(id ? { id } : {})}
-        aria-label="Subdomain"
+        aria-label={t("hostname.subdomain")}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
         autoFocus={autoFocus}
@@ -60,7 +61,7 @@ export function HostnameInput({
         .
       </span>
       <Select
-        label="Domain"
+        label={t("hostname.domain")}
         options={zones.map((z) => ({ value: z.name, label: z.name }))}
         value={zone}
         onValueChange={(next) => onChange(joinHostname(sub, next))}

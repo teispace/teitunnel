@@ -14,7 +14,8 @@
     "e2e": "wdio run e2e/wdio.conf.ts",
     "perf": "node scripts/perf.ts",
     "a11y": "node scripts/a11y.ts",
-    "perf:app": "node scripts/measure-app.ts"
+    "perf:app": "node scripts/measure-app.ts",
+    "i18n:missing": "node scripts/i18n-missing.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "5.103.2",

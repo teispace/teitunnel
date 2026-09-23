@@ -2,6 +2,7 @@ import { LogViewer } from "@/components/patterns/log-viewer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { t } from "@/lib/i18n";
 import type { ConnectorView } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { type RemoteConnector, useRemoteLogs, useSaveLog } from "../queries";
@@ -27,27 +28,30 @@ export function RemoteLogsSheet({ target, onClose }: RemoteLogsSheetProps) {
       ? state.message
       : state?.state === "streaming"
         ? null
-        : "Connecting to the connector…");
+        : t("remoteLogs.connecting"));
 
   return (
     <Sheet open={target !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         width="lg"
-        title="Connector Logs"
+        title={t("remoteLogs.title")}
         description={
           target
-            ? `${target.connector.originIp} · cloudflared ${target.connector.version}. Relayed live by Cloudflare while this is open.`
+            ? t("remoteLogs.description", {
+                address: target.connector.originIp,
+                version: target.connector.version,
+              })
             : undefined
         }
         footer={
           <>
             {state?.state === "ended" || error ? (
               <Button className="mr-auto" onClick={() => void logs.retry()}>
-                Try Again
+                {t("common.tryAgain")}
               </Button>
             ) : null}
             <SheetClose asChild>
-              <Button variant="primary">Done</Button>
+              <Button variant="primary">{t("common.done")}</Button>
             </SheetClose>
           </>
         }
@@ -69,7 +73,7 @@ export function RemoteLogsSheet({ target, onClose }: RemoteLogsSheetProps) {
           <LogViewer
             lines={logs.data?.lines ?? []}
             height={360}
-            empty="Nothing logged yet. Connection changes and errors appear here as they happen."
+            empty={t("remoteLogs.empty")}
             onSave={save}
           />
         </div>

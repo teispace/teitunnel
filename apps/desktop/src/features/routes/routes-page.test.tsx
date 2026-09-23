@@ -290,7 +290,9 @@ describe("RoutesPage", () => {
       target: { value: "old" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
-    expect(await within(dialog).findByText(/already has an A record/)).toBeTruthy();
+    expect(
+      await within(dialog).findByText(/already has a DNS record \(A 192\.0\.2\.1\)/),
+    ).toBeTruthy();
     const apply = within(dialog).getByRole("button", { name: "Add Route" });
     expect(apply.hasAttribute("disabled")).toBe(true);
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Replace the existing records" }));

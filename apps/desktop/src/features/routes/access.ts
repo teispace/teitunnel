@@ -1,3 +1,4 @@
+import { currentLanguage, t } from "@/lib/i18n";
 import type { AccessRule } from "@/lib/ipc/bindings";
 
 /**
@@ -23,7 +24,9 @@ export function formatAllowed(rule: AccessRule | null): string {
 
 /** A rule in a sentence fragment, e.g. `me@xyz.com and anyone at @team.io`. */
 export function describeAllowed(rule: AccessRule): string {
-  const parts = [...rule.emails, ...rule.emailDomains.map((d) => `anyone at @${d}`)];
-  if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+  const parts = [
+    ...rule.emails,
+    ...rule.emailDomains.map((domain) => t("access.anyoneAt", { domain })),
+  ];
+  return new Intl.ListFormat(currentLanguage(), { type: "conjunction" }).format(parts);
 }

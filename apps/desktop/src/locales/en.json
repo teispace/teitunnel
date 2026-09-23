@@ -1,0 +1,360 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "done": "Done",
+    "close": "Close",
+    "tryAgain": "Try Again",
+    "refresh": "Refresh",
+    "open": "Open",
+    "url": "URL",
+    "undo": "Undo",
+    "account": "Account"
+  },
+  "routeSheet": {
+    "undoFailed": "Couldn't undo",
+    "checking": "Checking…",
+    "review": "Review",
+    "applying": "Applying…",
+    "back": "Back",
+    "reviewAgain": "Review Again",
+    "testAgain": "Test Again",
+    "description": {
+      "network": "Let devices running Cloudflare WARP reach addresses on this Mac's network.",
+      "route": "Send a hostname on your domain to a service on this Mac.",
+      "review": "Review what will change in Cloudflare. Nothing changes until you apply."
+    },
+    "network": {
+      "label": "Network",
+      "help": "An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac."
+    },
+    "service": {
+      "label": "Service",
+      "help": "A port or an address."
+    },
+    "hostname": {
+      "label": "Public hostname"
+    },
+    "advanced": "Advanced",
+    "path": {
+      "label": "Path",
+      "help": "Only requests whose path matches this pattern, e.g. ^/api/. Leave empty for all."
+    },
+    "login": {
+      "toggle": "Require a login",
+      "label": "Who can sign in",
+      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free)."
+    },
+    "nothingToChange": "Nothing to change: it's already set up.",
+    "reading": "Reading your Cloudflare account…",
+    "confirm": {
+      "publicNetwork": "Send these public addresses through this Mac",
+      "records": "Replace the existing records"
+    },
+    "rolledBack": "Everything done before the failure was undone. Nothing was left behind.",
+    "leftovers": "Some changes couldn't be undone:",
+    "verify": {
+      "checking": "Checking",
+      "pending": "Checking {url} works… The connector can take a few seconds to connect.",
+      "protected": "Protected by a login",
+      "protectedDetail": "Cloudflare asks visitors to sign in before they reach your app.",
+      "works": "It works"
+    },
+    "title": {
+      "add": "New Route",
+      "edit": "Edit Route",
+      "remove": "Remove Route",
+      "restore": "Restore Routes",
+      "removeTunnel": "Delete Tunnel",
+      "addNetwork": "Share a Private Network",
+      "removeNetwork": "Stop Sharing Network",
+      "fix": "Fix Issue"
+    },
+    "apply": {
+      "add": "Add Route",
+      "edit": "Save",
+      "remove": "Remove",
+      "restore": "Restore",
+      "removeTunnel": "Delete Tunnel",
+      "addNetwork": "Share",
+      "removeNetwork": "Stop Sharing",
+      "fix": "Apply"
+    },
+    "done": {
+      "add": "Route added",
+      "edit": "Route updated",
+      "remove": "Route removed",
+      "restore": "Routes restored",
+      "removeTunnel": "Tunnel deleted",
+      "addNetwork": "Network shared",
+      "removeNetwork": "Network no longer shared",
+      "fix": "Fixed"
+    }
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo_one": "{count} min ago",
+    "minutesAgo_other": "{count} min ago"
+  },
+  "routes": {
+    "client": {
+      "app": {
+        "ssh": "SSH client",
+        "rdp": "Remote Desktop app",
+        "smb": "file browser (smb://)",
+        "tcp": "app"
+      }
+    },
+    "connect": {
+      "title": "Connect",
+      "ssh": "Visitors connect with cloudflared installed on their computer:",
+      "other": "Visitors run this on their computer (with cloudflared installed), then keep it open:",
+      "command": "Command",
+      "then": "Then point the {app} at {address}.",
+      "sshConfigHint": "Or add this to ~/.ssh/config, and plain ssh works:",
+      "sshConfig": "SSH config"
+    },
+    "test": {
+      "protected": "Works · asks for a login",
+      "works": "Works",
+      "worksStatus": "Works · HTTP {status}",
+      "testing": "Testing…",
+      "test": "Test"
+    },
+    "edit": "Edit route",
+    "remove": "Remove route",
+    "inspector": {
+      "address": "Address",
+      "details": "Details",
+      "activity": "Activity",
+      "logs": "Logs"
+    },
+    "detail": {
+      "service": "Service",
+      "path": "Path",
+      "domain": "Domain",
+      "login": "Login",
+      "noLogin": "None: anyone with the URL",
+      "dns": "DNS",
+      "dnsOk": "Points to this Mac's tunnel",
+      "dnsMissing": "No record",
+      "dnsElsewhere": "Points to {content}",
+      "connector": "Connector",
+      "note": "Note",
+      "remote": "The service isn't on this Mac"
+    },
+    "activity": {
+      "undone": " · undone after an error"
+    },
+    "title": "Routes",
+    "refresh": "Refresh routes",
+    "import": "Import from cloudflared",
+    "export": "Export",
+    "new": "New route",
+    "connectCloudflare": {
+      "title": "Connect Cloudflare",
+      "description": "Routes send a hostname on your domain, like app.example.com, to a service on this Mac."
+    },
+    "loadFailed": "Couldn't load routes",
+    "empty": {
+      "title": "No routes yet",
+      "noDomains": "Add a domain to your Cloudflare account first. Routes use hostnames on your domains.",
+      "description": "A route sends a hostname like app.example.com to a service on this Mac, such as localhost:3000.",
+      "add": "Add Route"
+    },
+    "list": "Routes",
+    "otherZone": "Other",
+    "requiresLogin": "Requires a login",
+    "importLabel": "Import Routes",
+    "logs": {
+      "empty": "No failed requests. Successful ones aren't logged."
+    }
+  },
+  "tunnels": {
+    "foreign": {
+      "quick": "Quick Tunnel · {origin}",
+      "named": "Tunnel {name}",
+      "namedUnknown": "Named tunnel",
+      "running": "Running",
+      "connections_one": "{count} connection",
+      "connections_other": "{count} connections",
+      "notConnected": "Not connected",
+      "stop": "Stop…",
+      "stopTitle": "Stop this cloudflared?",
+      "stopService": "It runs as a background service, which may start it again. Whatever it serves stops answering.",
+      "stopProcess": "Whatever it serves stops answering. Teitunnel didn't start it, so check nothing else relies on it.",
+      "stopConfirm": "Stop",
+      "onlyShown": "Teitunnel didn't start this cloudflared, so it only shows it.",
+      "process": "Process",
+      "startedBy": "Started by",
+      "byService": "A background service",
+      "byTerminal": "A terminal or app",
+      "metrics": "Metrics",
+      "command": "Command",
+      "notManaged": "Not managed · pid {pid}"
+    },
+    "status": {
+      "healthy": "Connected",
+      "degraded": "Degraded",
+      "down": "Down",
+      "inactive": "No connectors"
+    },
+    "thisMac": "This Mac",
+    "routes_one": "{count} route",
+    "routes_other": "{count} routes",
+    "unknownAddress": "Unknown address",
+    "logs": "Logs",
+    "stopHere": "Stop on This Mac",
+    "startHere": "Start on This Mac",
+    "clean": "Clean Up Connections",
+    "delete": "Delete…",
+    "details": "Details",
+    "detail": {
+      "routes": "Routes",
+      "local": "Configured locally",
+      "created": "Created",
+      "id": "Tunnel ID"
+    },
+    "connectors": "Connectors",
+    "noConnector": "No connector is connected.",
+    "notOurs": "Teitunnel didn't create this tunnel, so it doesn't change its routes. Manage them where it was set up.",
+    "running": {
+      "title": "Running",
+      "keep": "Keep running when Teitunnel quits",
+      "switching": "Switching without dropping connections…",
+      "linux": "Routes stay up after you quit the app and start again when you log in. To keep them up after you log out, run loginctl enable-linger.",
+      "detail": "Routes stay up after you quit the app and start again when you log in."
+    },
+    "logsEmpty": "The connector hasn't logged anything yet.",
+    "title": "Tunnels",
+    "refresh": "Refresh tunnels",
+    "connectDescription": "Tunnels connect this Mac to Cloudflare so your routes can reach it.",
+    "loadFailed": "Couldn't load tunnels",
+    "empty": {
+      "title": "No tunnels",
+      "description": "Teitunnel creates a tunnel for this Mac when you add your first route or share a private network.",
+      "share": "Share a Private Network…"
+    },
+    "list": "Tunnels",
+    "group": {
+      "cloud": "In Cloudflare",
+      "local": "Also on this Mac"
+    }
+  },
+  "plan": {
+    "state": {
+      "running": "In progress",
+      "done": "Done",
+      "skipped": "Next",
+      "failed": "Failed",
+      "undoing": "Undoing",
+      "undone": "Undone",
+      "undoFailed": "Couldn't undo"
+    },
+    "warning": {
+      "replacesForeignRecord": "{hostname} already has a DNS record ({kind} {content}) that Teitunnel didn't create. It will be replaced.",
+      "deletesForeignRecord": "The {kind} record for {hostname} ({content}) wasn't created by Teitunnel. It will be deleted.",
+      "keepsForeignRecord": "The DNS record for {hostname} wasn't created by Teitunnel, so it's left in place.",
+      "tunnelEmpty": "No routes will be left. The tunnel stays, so adding a route later is quick.",
+      "remoteOrigin": "{origin} isn't on this Mac. It must be reachable from here.",
+      "publicNetwork": "{network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.",
+      "overlapsNetwork": "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
+    },
+    "steps": "Steps",
+    "copyCommand": "Copy as command"
+  },
+  "networks": {
+    "title": "Private Networks",
+    "noPermission": "This account's API token can't read private networks. Give it the Cloudflare Tunnel permission to share them.",
+    "empty": "Let devices running Cloudflare WARP reach addresses on this Mac's network, like a NAS or a printer.",
+    "list": "Private networks",
+    "public": "Public",
+    "foreign": "Added outside Teitunnel",
+    "stop": "Stop sharing {network}",
+    "add": "Share Network…"
+  },
+  "export": {
+    "title": "Export",
+    "copied": "Copied",
+    "copy": "Copy",
+    "save": "Save to Downloads",
+    "saved": "Saved to Downloads",
+    "format": "Format",
+    "empty": "This Mac has no routes in this account yet, so there's nothing to export.",
+    "contents": "{file} contents",
+    "hint": {
+      "configYaml": "The routes as a cloudflared configuration file, to run them as a locally-managed tunnel or keep as a record.",
+      "dockerCompose": "A service that runs this tunnel in Docker. The run token isn't included; the file says how to get it.",
+      "terraform": "Terraform for the Cloudflare provider, with import blocks that adopt the existing tunnel and records instead of recreating them."
+    }
+  },
+  "import": {
+    "title": "Import from cloudflared",
+    "description": "These routes are in cloudflared config files on this Mac. Imported routes move to this Mac's tunnel; the files are left as they are.",
+    "notInAccount": "Not in this account's domains",
+    "alreadyRouted": "Already routed",
+    "noRoutes": "No hostname routes."
+  },
+  "remoteLogs": {
+    "connecting": "Connecting to the connector…",
+    "title": "Connector Logs",
+    "description": "{address} · cloudflared {version}. Relayed live by Cloudflare while this is open.",
+    "empty": "Nothing logged yet. Connection changes and errors appear here as they happen."
+  },
+  "drift": {
+    "added": "{hostname} was added → {service}",
+    "removed": "{hostname} was removed",
+    "settings": "{hostname}: its settings changed",
+    "moved": "{hostname} now goes to {service}",
+    "title": "Routes were changed outside Teitunnel",
+    "more_one": "and {count} more",
+    "more_other": "and {count} more",
+    "keep": "Keep Changes",
+    "restore": "Restore Mine…"
+  },
+  "hostname": {
+    "subdomain": "Subdomain",
+    "domain": "Domain"
+  },
+  "traffic": {
+    "range": {
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week"
+    },
+    "noun": {
+      "hour": "the last hour",
+      "day": "the last 24 hours",
+      "week": "the last 7 days"
+    },
+    "requests": "Requests",
+    "failed": "Failed",
+    "roundTrip": "Round trip",
+    "title": "Traffic",
+    "timeRange": "Time range",
+    "rateChart": "Requests per second over {period}",
+    "rttChart": "Round trip to Cloudflare over {period}",
+    "emptyHour": "Traffic appears here a few seconds after the connector starts.",
+    "emptyHistory": "History appears here after the connector has run for a minute.",
+    "now": "Now",
+    "nowValue": "{rate} requests/s",
+    "responses": "Responses",
+    "sinceStart": "Since start",
+    "sinceStartValue": "{requests} requests, {failed} failed",
+    "connections": "Connections",
+    "edge": "Edge"
+  },
+  "status": {
+    "connected": "Connected",
+    "connecting": "Connecting",
+    "connectionLost": "Connection lost",
+    "restarting": "Restarting",
+    "keepsStopping": "Keeps stopping",
+    "stopped": "Connector stopped",
+    "noDns": "No DNS record",
+    "dnsElsewhere": "DNS points elsewhere",
+    "live": "Live"
+  },
+  "access": {
+    "anyoneAt": "anyone at @{domain}"
+  }
+}

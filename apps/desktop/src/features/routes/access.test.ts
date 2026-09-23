@@ -19,7 +19,7 @@ describe("who can sign in", () => {
   it("describes a rule in words", () => {
     expect(describeAllowed({ emails: ["me@xyz.com"], emailDomains: [] })).toBe("me@xyz.com");
     expect(describeAllowed({ emails: ["a@x.com", "b@x.com"], emailDomains: ["team.io"] })).toBe(
-      "a@x.com, b@x.com and anyone at @team.io",
+      "a@x.com, b@x.com, and anyone at @team.io",
     );
   });
 });

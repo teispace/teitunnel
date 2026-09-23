@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { useIssues } from "@/features/doctor/queries";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
@@ -54,41 +55,45 @@ function displayOrigin(origin: string) {
 function relativeTime(at: number | null) {
   if (at === null) return "";
   const minutes = Math.round((Date.now() - at) / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1) return t("time.justNow");
+  if (minutes < 60) return t("time.minutesAgo", { count: minutes });
   return new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-const clientApps: Record<ClientAccess["protocol"], string> = {
-  ssh: "SSH",
-  rdp: "Remote Desktop app",
-  smb: "file browser (smb://)",
-  tcp: "app",
+const clientApps: Record<ClientAccess["protocol"], MessageKey> = {
+  ssh: "routes.client.app.ssh",
+  rdp: "routes.client.app.rdp",
+  smb: "routes.client.app.smb",
+  tcp: "routes.client.app.tcp",
 };
+
+/** "Then point the app at `localhost:5432`.", with the address in monospace. */
+function ThenConnect({ app, address }: { app: string; address: string }) {
+  const [before, after] = t("routes.connect.then", { app, address: "\u0000" }).split("\u0000");
+  return (
+    <p className="text-callout text-secondary">
+      {before}
+      <span className="selectable font-mono text-mono text-primary">{address}</span>
+      {after}
+    </p>
+  );
+}
 
 /** How visitors reach an SSH, RDP, SMB or TCP route: through cloudflared on their side. */
 function ConnectSection({ client }: { client: ClientAccess }) {
   return (
-    <InspectorSection title="Connect">
+    <InspectorSection title={t("routes.connect.title")}>
       <p className="text-callout text-secondary">
-        {client.protocol === "ssh"
-          ? "Visitors connect with cloudflared installed on their computer:"
-          : "Visitors run this on their computer (with cloudflared installed), then keep it open:"}
+        {client.protocol === "ssh" ? t("routes.connect.ssh") : t("routes.connect.other")}
       </p>
-      <CopyField label="Command" value={client.command} />
+      <CopyField label={t("routes.connect.command")} value={client.command} />
       {client.localAddress ? (
-        <p className="text-callout text-secondary">
-          Then point the {clientApps[client.protocol]} at{" "}
-          <span className="selectable font-mono text-mono text-primary">{client.localAddress}</span>
-          .
-        </p>
+        <ThenConnect app={t(clientApps[client.protocol])} address={client.localAddress} />
       ) : null}
       {client.sshConfig ? (
         <>
-          <p className="text-callout text-secondary">
-            Or add this to ~/.ssh/config, and plain ssh works:
-          </p>
-          <CopyField label="SSH config" value={client.sshConfig} multiline />
+          <p className="text-callout text-secondary">{t("routes.connect.sshConfigHint")}</p>
+          <CopyField label={t("routes.connect.sshConfig")} value={client.sshConfig} multiline />
         </>
       ) : null}
     </InspectorSection>
@@ -103,8 +108,10 @@ function TestResult({ result }: { result: Verification }) {
   ) : (
     <p role="status" className="text-callout text-healthy">
       {result.protected
-        ? "Works · asks for a login"
-        : `Works${result.status ? ` · HTTP ${result.status}` : ""}`}
+        ? t("routes.test.protected")
+        : result.status
+          ? t("routes.test.worksStatus", { status: String(result.status) })
+          : t("routes.test.works")}
     </p>
   );
 }
@@ -154,12 +161,17 @@ function RouteInspector({
                 disabled={test.isPending}
                 onClick={() => test.mutate({ hostname: route.hostname, wait: false })}
               >
-                {test.isPending ? "Testing…" : "Test"}
+                {test.isPending ? t("routes.test.testing") : t("routes.test.test")}
               </Button>
             </>
           )}
-          <IconButton icon={Pencil} label="Edit route" variant="secondary" onClick={onEdit} />
-          <IconButton icon={Trash2} label="Remove route" variant="secondary" onClick={onRemove} />
+          <IconButton icon={Pencil} label={t("routes.edit")} variant="secondary" onClick={onEdit} />
+          <IconButton
+            icon={Trash2}
+            label={t("routes.remove")}
+            variant="secondary"
+            onClick={onRemove}
+          />
         </>
       }
     >
@@ -172,31 +184,38 @@ function RouteInspector({
       {route.client ? (
         <ConnectSection client={route.client} />
       ) : (
-        <InspectorSection title="Address">
-          <CopyField label="URL" value={url} />
+        <InspectorSection title={t("routes.inspector.address")}>
+          <CopyField label={t("common.url")} value={url} />
         </InspectorSection>
       )}
-      <InspectorSection title="Details">
+      <InspectorSection title={t("routes.inspector.details")}>
         <KeyValueGrid
           items={[
-            { label: "Service", value: displayOrigin(route.origin), mono: true },
-            ...(route.path ? [{ label: "Path", value: route.path, mono: true }] : []),
-            { label: "Domain", value: route.zone ?? "—" },
+            { label: t("routes.detail.service"), value: displayOrigin(route.origin), mono: true },
+            ...(route.path
+              ? [{ label: t("routes.detail.path"), value: route.path, mono: true }]
+              : []),
+            { label: t("routes.detail.domain"), value: route.zone ?? "—" },
             {
-              label: "Login",
-              value: route.access ? describeAllowed(route.access) : "None: anyone with the URL",
+              label: t("routes.detail.login"),
+              value: route.access ? describeAllowed(route.access) : t("routes.detail.noLogin"),
             },
             {
-              label: "DNS",
+              label: t("routes.detail.dns"),
               value:
                 route.dns.state === "ok"
-                  ? "Points to this Mac's tunnel"
+                  ? t("routes.detail.dnsOk")
                   : route.dns.state === "missing"
-                    ? "No record"
-                    : `Points to ${route.dns.content}`,
+                    ? t("routes.detail.dnsMissing")
+                    : t("routes.detail.dnsElsewhere", { content: route.dns.content }),
             },
-            { label: "Connector", value: connectorStatus(tunnel?.connector ?? null).label },
-            ...(route.local ? [] : [{ label: "Note", value: "The service isn't on this Mac" }]),
+            {
+              label: t("routes.detail.connector"),
+              value: connectorStatus(tunnel?.connector ?? null).label,
+            },
+            ...(route.local
+              ? []
+              : [{ label: t("routes.detail.note"), value: t("routes.detail.remote") }]),
           ]}
         />
       </InspectorSection>
@@ -204,7 +223,7 @@ function RouteInspector({
         <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
       ) : null}
       {history.length > 0 ? (
-        <InspectorSection title="Activity">
+        <InspectorSection title={t("routes.inspector.activity")}>
           <ul className="flex flex-col gap-1.5">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="flex flex-col text-callout">
@@ -213,7 +232,7 @@ function RouteInspector({
                 </span>
                 <span className="text-secondary">
                   {relativeTime(entry.at)}
-                  {entry.outcome === "applied" ? "" : " · undone after an error"}
+                  {entry.outcome === "applied" ? "" : t("routes.activity.undone")}
                 </span>
               </li>
             ))}
@@ -249,10 +268,10 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   }, [adding, overview.isSuccess]);
 
   const toolbar = (
-    <TitlebarToolbar title="Routes">
+    <TitlebarToolbar title={t("routes.title")}>
       {accounts.length > 1 && active ? (
         <Select
-          label="Account"
+          label={t("common.account")}
           options={accounts.map((a) => ({ value: a.id, label: a.name }))}
           value={active.id}
           onValueChange={setActive}
@@ -261,7 +280,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
       {active ? (
         <IconButton
           icon={RefreshCw}
-          label="Refresh routes"
+          label={t("routes.refresh")}
           onClick={() => void overview.refetch()}
           disabled={overview.isFetching}
         />
@@ -269,17 +288,21 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
       {active && overview.isSuccess && importable ? (
         <IconButton
           icon={FileInput}
-          label="Import from cloudflared"
+          label={t("routes.import")}
           onClick={() => setImporting(true)}
         />
       ) : null}
       {active && overview.data?.tunnel ? (
-        <IconButton icon={FileOutput} label="Export" onClick={() => setExporting(true)} />
+        <IconButton
+          icon={FileOutput}
+          label={t("routes.export")}
+          onClick={() => setExporting(true)}
+        />
       ) : null}
       {active && overview.isSuccess ? (
         <IconButton
           icon={Plus}
-          label="New route"
+          label={t("routes.new")}
           disabled={zones.length === 0}
           onClick={() => setSheet({ kind: "add" })}
         />
@@ -293,9 +316,13 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         {toolbar}
         <EmptyState
           icon={Waypoints}
-          title="Connect Cloudflare"
-          description="Routes send a hostname on your domain, like app.example.com, to a service on this Mac."
-          action={<ConnectSheet trigger={<Button variant="primary">Connect Cloudflare</Button>} />}
+          title={t("routes.connectCloudflare.title")}
+          description={t("routes.connectCloudflare.description")}
+          action={
+            <ConnectSheet
+              trigger={<Button variant="primary">{t("routes.connectCloudflare.title")}</Button>}
+            />
+          }
         />
       </>
     );
@@ -306,10 +333,10 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
       const error = toIpcError(overview.error);
       return (
         <ErrorState
-          title="Couldn't load routes"
+          title={t("routes.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void overview.refetch()}>Try Again</Button>}
+          action={<Button onClick={() => void overview.refetch()}>{t("common.tryAgain")}</Button>}
         />
       );
     }
@@ -325,16 +352,14 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
       return (
         <EmptyState
           icon={Waypoints}
-          title="No routes yet"
+          title={t("routes.empty.title")}
           description={
-            zones.length === 0
-              ? "Add a domain to your Cloudflare account first. Routes use hostnames on your domains."
-              : "A route sends a hostname like app.example.com to a service on this Mac, such as localhost:3000."
+            zones.length === 0 ? t("routes.empty.noDomains") : t("routes.empty.description")
           }
           action={
             zones.length > 0 ? (
               <Button variant="primary" onClick={() => setSheet({ kind: "add" })}>
-                Add Route
+                {t("routes.empty.add")}
               </Button>
             ) : undefined
           }
@@ -346,10 +371,10 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         id="routes"
         list={
           <ListPane
-            label="Routes"
+            label={t("routes.list")}
             items={routes}
             getId={routeKey}
-            groupOf={(route) => route.zone ?? "Other"}
+            groupOf={(route) => route.zone ?? t("routes.otherZone")}
             selectedId={selected ? routeKey(selected) : null}
             onSelect={setSelectedKey}
             renderRow={(route) => {
@@ -363,7 +388,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
                     route.access ? (
                       <LockKeyhole
                         role="img"
-                        aria-label="Requires a login"
+                        aria-label={t("routes.requiresLogin")}
                         className="size-3.5"
                         strokeWidth={1.75}
                       />
@@ -420,7 +445,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           setImporting(false);
           setSheet({
             kind: "fix",
-            label: "Import Routes",
+            label: t("routes.importLabel"),
             change: {
               type: "importRoutes",
               routes: chosen.map((r) => ({
@@ -448,13 +473,8 @@ function RouteLogs({
   const lines = useRouteLogs(accountId, hostname, path).data ?? [];
   const save = useSaveLog();
   return (
-    <InspectorSection title="Logs">
-      <LogViewer
-        lines={lines}
-        height={160}
-        onSave={save}
-        empty="No failed requests. Successful ones aren't logged."
-      />
+    <InspectorSection title={t("routes.inspector.logs")}>
+      <LogViewer lines={lines} height={160} onSave={save} empty={t("routes.logs.empty")} />
     </InspectorSection>
   );
 }

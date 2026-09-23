@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
 
 const kindIcons: Record<StepKind, LucideIcon> = {
@@ -58,32 +59,32 @@ function StateIcon({ state }: { state: StepState | undefined }) {
   }
 }
 
-const stateLabels: Record<StepState["state"], string> = {
-  running: "In progress",
-  done: "Done",
-  skipped: "Next",
-  failed: "Failed",
-  undoing: "Undoing",
-  undone: "Undone",
-  undoFailed: "Couldn't undo",
+const stateLabels: Record<StepState["state"], MessageKey> = {
+  running: "plan.state.running",
+  done: "plan.state.done",
+  skipped: "plan.state.skipped",
+  failed: "plan.state.failed",
+  undoing: "plan.state.undoing",
+  undone: "plan.state.undone",
+  undoFailed: "plan.state.undoFailed",
 };
 
 function warningText(warning: Warning): string {
   switch (warning.type) {
     case "replacesForeignRecord":
-      return `${warning.hostname} already has ${/^[AEIOU]/.test(warning.kind) ? "an" : "a"} ${warning.kind} record (${warning.content}) that Teitunnel didn't create. It will be replaced.`;
+      return t("plan.warning.replacesForeignRecord", warning);
     case "deletesForeignRecord":
-      return `The ${warning.kind} record for ${warning.hostname} (${warning.content}) wasn't created by Teitunnel. It will be deleted.`;
+      return t("plan.warning.deletesForeignRecord", warning);
     case "keepsForeignRecord":
-      return `The DNS record for ${warning.hostname} wasn't created by Teitunnel, so it's left in place.`;
+      return t("plan.warning.keepsForeignRecord", warning);
     case "tunnelEmpty":
-      return "No routes will be left. The tunnel stays, so adding a route later is quick.";
+      return t("plan.warning.tunnelEmpty");
     case "remoteOrigin":
-      return `${warning.origin} isn't on this Mac. It must be reachable from here.`;
+      return t("plan.warning.remoteOrigin", warning);
     case "publicNetwork":
-      return `${warning.network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.`;
+      return t("plan.warning.publicNetwork", warning);
     case "overlapsNetwork":
-      return `${warning.network} overlaps ${warning.other}, which goes through tunnel “${warning.tunnel}”. For addresses in both, the narrower range wins.`;
+      return t("plan.warning.overlapsNetwork", warning);
   }
 }
 
@@ -120,7 +121,10 @@ export function PlanSteps({ steps, warnings = [], states, copyable = !states }: 
           ))}
         </ul>
       ) : null}
-      <ol aria-label="Steps" className="flex flex-col rounded-card bg-surface-inset px-3 py-1">
+      <ol
+        aria-label={t("plan.steps")}
+        className="flex flex-col rounded-card bg-surface-inset px-3 py-1"
+      >
         {steps.map((step, index) => {
           const Icon = kindIcons[step.kind];
           const state = states?.[index];
@@ -149,7 +153,7 @@ export function PlanSteps({ steps, warnings = [], states, copyable = !states }: 
                   <span className="mt-0.5 block text-callout text-error">{state.message}</span>
                 ) : null}
               </span>
-              {state ? <span className="sr-only">{stateLabels[state.state]}</span> : null}
+              {state ? <span className="sr-only">{t(stateLabels[state.state])}</span> : null}
               {copyable && step.command ? <CopyCommand command={step.command} /> : null}
             </li>
           );
@@ -163,8 +167,8 @@ function CopyCommand({ command }: { command: string }) {
   return (
     <button
       type="button"
-      title="Copy as command"
-      aria-label="Copy as command"
+      title={t("plan.copyCommand")}
+      aria-label={t("plan.copyCommand")}
       onClick={() => void navigator.clipboard.writeText(command)}
       className="flex size-5 shrink-0 items-center justify-center rounded-full text-tertiary outline-offset-0 active:bg-surface-control active:text-primary"
     >

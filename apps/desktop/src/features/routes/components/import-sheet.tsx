@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { t } from "@/lib/i18n";
 import type { FoundRoute, LocalSetup, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 
 const key = (route: FoundRoute) => `${route.hostname}${route.path ?? ""}`;
@@ -14,9 +15,9 @@ function inZones(hostname: string, zones: readonly ZoneRef[]) {
 /** Why a found route can't be imported into this account, if it can't. */
 function blocker(route: FoundRoute, zones: readonly ZoneRef[], existing: readonly RouteView[]) {
   if (route.unsupported) return route.unsupported;
-  if (!inZones(route.hostname, zones)) return "Not in this account's domains";
+  if (!inZones(route.hostname, zones)) return t("import.notInAccount");
   if (existing.some((r) => r.hostname === route.hostname && r.path === route.path)) {
-    return "Already routed";
+    return t("import.alreadyRouted");
   }
   return null;
 }
@@ -63,20 +64,20 @@ export function ImportSheet({
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent
-        title="Import from cloudflared"
-        description="These routes are in cloudflared config files on this Mac. Imported routes move to this Mac's tunnel; the files are left as they are."
+        title={t("import.title")}
+        description={t("import.description")}
         width="lg"
         footer={
           <>
             <SheetClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </SheetClose>
             <Button
               variant="primary"
               disabled={selected.length === 0}
               onClick={() => onReview(selected)}
             >
-              Review
+              {t("routeSheet.review")}
             </Button>
           </>
         }
@@ -90,7 +91,7 @@ export function ImportSheet({
               {setup.problem ? (
                 <p className="text-callout text-error">{setup.problem}</p>
               ) : setup.routes.length === 0 ? (
-                <p className="text-callout text-secondary">No hostname routes.</p>
+                <p className="text-callout text-secondary">{t("import.noRoutes")}</p>
               ) : (
                 <ul className="flex flex-col rounded-card bg-surface-inset px-3 py-1">
                   {setup.routes.map((route) => {

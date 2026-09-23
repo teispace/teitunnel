@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Switch } from "@/components/ui/switch";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { ConnectorView, ForeignConnector, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { NetworksSection } from "./components/networks-section";
@@ -46,19 +47,23 @@ const entryId = (e: Entry) => (e.kind === "tunnel" ? e.tunnel.id : `pid-${e.proc
 function foreignTitle(process: ForeignConnector) {
   switch (process.mode.type) {
     case "quickTunnel":
-      return `Quick Tunnel · ${process.mode.origin.replace(/^https?:\/\//, "")}`;
+      return t("tunnels.foreign.quick", {
+        origin: process.mode.origin.replace(/^https?:\/\//, ""),
+      });
     case "named":
-      return process.mode.tunnel ? `Tunnel ${process.mode.tunnel}` : "Named tunnel";
+      return process.mode.tunnel
+        ? t("tunnels.foreign.named", { name: process.mode.tunnel })
+        : t("tunnels.foreign.namedUnknown");
     default:
       return "cloudflared";
   }
 }
 
 function foreignStatus(process: ForeignConnector): { dot: Status; label: string } {
-  if (process.connections === null) return { dot: "idle", label: "Running" };
+  if (process.connections === null) return { dot: "idle", label: t("tunnels.foreign.running") };
   return process.connections > 0
-    ? { dot: "healthy", label: `${process.connections} connections` }
-    : { dot: "warning", label: "Not connected" };
+    ? { dot: "healthy", label: t("tunnels.foreign.connections", { count: process.connections }) }
+    : { dot: "warning", label: t("tunnels.foreign.notConnected") };
 }
 
 function ForeignInspector({ process }: { process: ForeignConnector }) {
@@ -75,19 +80,17 @@ function ForeignInspector({ process }: { process: ForeignConnector }) {
       actions={
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="destructive">Stop…</Button>
+            <Button variant="destructive">{t("tunnels.foreign.stop")}</Button>
           </DialogTrigger>
           <DialogContent
-            title="Stop this cloudflared?"
+            title={t("tunnels.foreign.stopTitle")}
             description={
-              process.service
-                ? "It runs as a background service, which may start it again. Whatever it serves stops answering."
-                : "Whatever it serves stops answering. Teitunnel didn't start it, so check nothing else relies on it."
+              process.service ? t("tunnels.foreign.stopService") : t("tunnels.foreign.stopProcess")
             }
             footer={
               <>
                 <DialogClose asChild>
-                  <Button>Cancel</Button>
+                  <Button>{t("common.cancel")}</Button>
                 </DialogClose>
                 <DialogClose asChild>
                   <Button
@@ -98,7 +101,7 @@ function ForeignInspector({ process }: { process: ForeignConnector }) {
                       })
                     }
                   >
-                    Stop
+                    {t("tunnels.foreign.stopConfirm")}
                   </Button>
                 </DialogClose>
               </>
@@ -107,37 +110,42 @@ function ForeignInspector({ process }: { process: ForeignConnector }) {
         </Dialog>
       }
     >
-      <p className="text-callout text-secondary">
-        Teitunnel didn't start this cloudflared, so it only shows it.
-      </p>
-      <InspectorSection title="Details">
+      <p className="text-callout text-secondary">{t("tunnels.foreign.onlyShown")}</p>
+      <InspectorSection title={t("tunnels.details")}>
         <KeyValueGrid
           items={[
-            { label: "Process", value: String(process.pid), mono: true },
+            { label: t("tunnels.foreign.process"), value: String(process.pid), mono: true },
             {
-              label: "Started by",
-              value: process.service ? "A background service" : "A terminal or app",
+              label: t("tunnels.foreign.startedBy"),
+              value: process.service
+                ? t("tunnels.foreign.byService")
+                : t("tunnels.foreign.byTerminal"),
             },
-            ...(process.metrics ? [{ label: "Metrics", value: process.metrics, mono: true }] : []),
+            ...(process.metrics
+              ? [{ label: t("tunnels.foreign.metrics"), value: process.metrics, mono: true }]
+              : []),
           ]}
         />
       </InspectorSection>
-      <InspectorSection title="Command">
+      <InspectorSection title={t("tunnels.foreign.command")}>
         <p className="selectable break-all font-mono text-mono text-secondary">{process.command}</p>
       </InspectorSection>
     </Inspector>
   );
 }
 
-const cloudStatus: Record<string, { dot: Status; label: string }> = {
-  healthy: { dot: "healthy", label: "Connected" },
-  degraded: { dot: "warning", label: "Degraded" },
-  down: { dot: "error", label: "Down" },
-  inactive: { dot: "idle", label: "No connectors" },
+const cloudStatus: Record<string, { dot: Status; label: MessageKey }> = {
+  healthy: { dot: "healthy", label: "tunnels.status.healthy" },
+  degraded: { dot: "warning", label: "tunnels.status.degraded" },
+  down: { dot: "error", label: "tunnels.status.down" },
+  inactive: { dot: "idle", label: "tunnels.status.inactive" },
 };
 
 function statusOf(tunnel: TunnelSummary) {
-  return cloudStatus[tunnel.status] ?? { dot: "idle" as const, label: tunnel.status };
+  const status = cloudStatus[tunnel.status];
+  return status
+    ? { dot: status.dot, label: t(status.label) }
+    : { dot: "idle" as const, label: tunnel.status };
 }
 
 function formatDate(value: string) {
@@ -148,8 +156,8 @@ function formatDate(value: string) {
 }
 
 function subtitle(tunnel: TunnelSummary) {
-  const parts = [tunnel.thisMac ? "This Mac" : statusOf(tunnel).label];
-  if (tunnel.routes !== null) parts.push(`${tunnel.routes} route${tunnel.routes === 1 ? "" : "s"}`);
+  const parts = [tunnel.thisMac ? t("tunnels.thisMac") : statusOf(tunnel).label];
+  if (tunnel.routes !== null) parts.push(t("tunnels.routes", { count: tunnel.routes }));
   return parts.join(" · ");
 }
 
@@ -166,14 +174,16 @@ function ConnectorRow({
     <li className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-body">
-          <span className="selectable truncate">{connector.originIp || "Unknown address"}</span>
-          {connector.thisMac ? <Badge>This Mac</Badge> : null}
+          <span className="selectable truncate">
+            {connector.originIp || t("tunnels.unknownAddress")}
+          </span>
+          {connector.thisMac ? <Badge>{t("tunnels.thisMac")}</Badge> : null}
         </div>
         <div className="truncate text-callout text-secondary">
           cloudflared {connector.version} · {colos}
         </div>
       </div>
-      {onLogs ? <Button onClick={onLogs}>Logs</Button> : null}
+      {onLogs ? <Button onClick={onLogs}>{t("tunnels.logs")}</Button> : null}
     </li>
   );
 }
@@ -205,44 +215,44 @@ function TunnelInspector({
         <span className="flex items-center gap-1.5">
           <StatusDot status={statusOf(tunnel).dot} label={statusOf(tunnel).label} />
           {statusOf(tunnel).label}
-          {tunnel.thisMac ? <Badge>This Mac</Badge> : null}
+          {tunnel.thisMac ? <Badge>{t("tunnels.thisMac")}</Badge> : null}
         </span>
       }
       actions={
         <>
           {tunnel.thisMac ? (
             <Button disabled={action.isPending} onClick={() => run(running ? "stop" : "start")}>
-              {running ? "Stop on This Mac" : "Start on This Mac"}
+              {running ? t("tunnels.stopHere") : t("tunnels.startHere")}
             </Button>
           ) : null}
           {tunnel.connectors.length > 0 ? (
             <Button disabled={action.isPending} onClick={() => run("clean")}>
-              Clean Up Connections
+              {t("tunnels.clean")}
             </Button>
           ) : null}
           {tunnel.thisMac ? (
             <Button variant="destructive" onClick={onDelete}>
-              Delete…
+              {t("tunnels.delete")}
             </Button>
           ) : null}
         </>
       }
     >
-      <InspectorSection title="Details">
+      <InspectorSection title={t("tunnels.details")}>
         <KeyValueGrid
           items={[
             {
-              label: "Routes",
-              value: tunnel.routes === null ? "Configured locally" : String(tunnel.routes),
+              label: t("tunnels.detail.routes"),
+              value: tunnel.routes === null ? t("tunnels.detail.local") : String(tunnel.routes),
             },
-            { label: "Created", value: formatDate(tunnel.createdAt) },
-            { label: "Tunnel ID", value: tunnel.id, mono: true },
+            { label: t("tunnels.detail.created"), value: formatDate(tunnel.createdAt) },
+            { label: t("tunnels.detail.id"), value: tunnel.id, mono: true },
           ]}
         />
       </InspectorSection>
-      <InspectorSection title="Connectors">
+      <InspectorSection title={t("tunnels.connectors")}>
         {tunnel.connectors.length === 0 ? (
-          <p className="text-callout text-secondary">No connector is connected.</p>
+          <p className="text-callout text-secondary">{t("tunnels.noConnector")}</p>
         ) : (
           <ul className="flex flex-col gap-2.5">
             {tunnel.connectors.map((connector) => (
@@ -267,10 +277,7 @@ function TunnelInspector({
       {tunnel.thisMac ? <TunnelTraffic tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
-        <p className="text-callout text-secondary">
-          Teitunnel didn't create this tunnel, so it doesn't change its routes. Manage them where it
-          was set up.
-        </p>
+        <p className="text-callout text-secondary">{t("tunnels.notOurs")}</p>
       ) : null}
     </Inspector>
   );
@@ -283,18 +290,18 @@ function AlwaysOnRow({ accountId }: { accountId: string }) {
   if (!mode.data?.supported) return null;
   const enabled = change.isPending ? change.variables : mode.data.enabled;
   return (
-    <InspectorSection title="Running">
+    <InspectorSection title={t("tunnels.running.title")}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <label htmlFor="always-on" className="text-body">
-            Keep running when Teitunnel quits
+            {t("tunnels.running.keep")}
           </label>
           <p className="text-callout text-secondary">
             {change.isPending
-              ? "Switching without dropping connections…"
+              ? t("tunnels.running.switching")
               : detectPlatform() === "linux"
-                ? "Routes stay up after you quit the app and start again when you log in. To keep them up after you log out, run loginctl enable-linger."
-                : "Routes stay up after you quit the app and start again when you log in."}
+                ? t("tunnels.running.linux")
+                : t("tunnels.running.detail")}
           </p>
         </div>
         <Switch
@@ -314,8 +321,8 @@ function TunnelLogs({ tunnelId }: { tunnelId: string }) {
   const lines = useTunnelLogs(tunnelId, true).data ?? [];
   const save = useSaveLog();
   return (
-    <InspectorSection title="Logs">
-      <LogViewer lines={lines} empty="The connector hasn't logged anything yet." onSave={save} />
+    <InspectorSection title={t("tunnels.logs")}>
+      <LogViewer lines={lines} empty={t("tunnels.logsEmpty")} onSave={save} />
     </InspectorSection>
   );
 }
@@ -337,10 +344,10 @@ export function TunnelsPage() {
   const selected = list.find((e) => entryId(e) === selectedId) ?? list[0] ?? null;
 
   const toolbar = (
-    <TitlebarToolbar title="Tunnels">
+    <TitlebarToolbar title={t("tunnels.title")}>
       {accounts.length > 1 && active ? (
         <Select
-          label="Account"
+          label={t("common.account")}
           options={accounts.map((a) => ({ value: a.id, label: a.name }))}
           value={active.id}
           onValueChange={setActive}
@@ -349,7 +356,7 @@ export function TunnelsPage() {
       {active ? (
         <IconButton
           icon={RefreshCw}
-          label="Refresh tunnels"
+          label={t("tunnels.refresh")}
           onClick={() => void tunnels.refetch()}
           disabled={tunnels.isFetching}
         />
@@ -363,9 +370,13 @@ export function TunnelsPage() {
         {toolbar}
         <EmptyState
           icon={Network}
-          title="Connect Cloudflare"
-          description="Tunnels connect this Mac to Cloudflare so your routes can reach it."
-          action={<ConnectSheet trigger={<Button variant="primary">Connect Cloudflare</Button>} />}
+          title={t("routes.connectCloudflare.title")}
+          description={t("tunnels.connectDescription")}
+          action={
+            <ConnectSheet
+              trigger={<Button variant="primary">{t("routes.connectCloudflare.title")}</Button>}
+            />
+          }
         />
       </>
     );
@@ -373,10 +384,10 @@ export function TunnelsPage() {
 
   const body = tunnels.error ? (
     <ErrorState
-      title="Couldn't load tunnels"
+      title={t("tunnels.loadFailed")}
       message={toIpcError(tunnels.error).message}
       hint={toIpcError(tunnels.error).hint}
-      action={<Button onClick={() => void tunnels.refetch()}>Try Again</Button>}
+      action={<Button onClick={() => void tunnels.refetch()}>{t("common.tryAgain")}</Button>}
     />
   ) : tunnels.isPending ? (
     <div className="flex flex-col gap-2 p-3">
@@ -385,11 +396,13 @@ export function TunnelsPage() {
   ) : list.length === 0 ? (
     <EmptyState
       icon={Network}
-      title="No tunnels"
-      description="Teitunnel creates a tunnel for this Mac when you add your first route or share a private network."
+      title={t("tunnels.empty.title")}
+      description={t("tunnels.empty.description")}
       action={
         active ? (
-          <Button onClick={() => setSheet({ kind: "addNetwork" })}>Share a Private Network…</Button>
+          <Button onClick={() => setSheet({ kind: "addNetwork" })}>
+            {t("tunnels.empty.share")}
+          </Button>
         ) : undefined
       }
     />
@@ -398,10 +411,12 @@ export function TunnelsPage() {
       id="tunnels"
       list={
         <ListPane
-          label="Tunnels"
+          label={t("tunnels.list")}
           items={list}
           getId={entryId}
-          groupOf={(e) => (e.kind === "tunnel" ? "In Cloudflare" : "Also on this Mac")}
+          groupOf={(e) =>
+            e.kind === "tunnel" ? t("tunnels.group.cloud") : t("tunnels.group.local")
+          }
           selectedId={selected ? entryId(selected) : null}
           onSelect={setSelectedId}
           renderRow={(entry) =>
@@ -419,7 +434,7 @@ export function TunnelsPage() {
             ) : (
               <ListRow
                 title={foreignTitle(entry.process)}
-                subtitle={`Not managed · pid ${entry.process.pid}`}
+                subtitle={t("tunnels.foreign.notManaged", { pid: String(entry.process.pid) })}
                 leading={
                   <StatusDot
                     status={foreignStatus(entry.process).dot}

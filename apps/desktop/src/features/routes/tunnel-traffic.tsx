@@ -3,6 +3,7 @@ import { InspectorSection } from "@/components/patterns/inspector";
 import { KeyValueGrid } from "@/components/patterns/key-value-grid";
 import { type ChartSeries, TimeSeriesChart } from "@/components/patterns/time-series-chart";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { HistoryRange, TrafficSeries } from "@/lib/ipc/bindings";
 import {
   classShares,
@@ -16,11 +17,11 @@ import { useLiveTraffic, useTrafficHistory } from "./queries";
 
 type Range = "hour" | HistoryRange;
 
-const RANGES = [
-  { value: "hour", label: "Hour" },
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-] as const;
+const rangeOptions = () =>
+  (["hour", "day", "week"] as const).map((value) => ({
+    value,
+    label: t(`traffic.range.${value}`),
+  }));
 
 interface RangeSpec {
   seconds: number;
@@ -28,7 +29,7 @@ interface RangeSpec {
   maxGap: number;
   tick: Intl.DateTimeFormat;
   time: Intl.DateTimeFormat;
-  noun: string;
+  noun: MessageKey;
 }
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
@@ -38,14 +39,14 @@ const SPECS: Record<Range, RangeSpec> = {
     maxGap: 25,
     tick: clock,
     time: new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }),
-    noun: "the last hour",
+    noun: "traffic.noun.hour",
   },
   day: {
     seconds: 86_400,
     maxGap: 450,
     tick: clock,
     time: clock,
-    noun: "the last 24 hours",
+    noun: "traffic.noun.day",
   },
   week: {
     seconds: 604_800,
@@ -56,23 +57,37 @@ const SPECS: Record<Range, RangeSpec> = {
       hour: "numeric",
       minute: "2-digit",
     }),
-    noun: "the last 7 days",
+    noun: "traffic.noun.week",
   },
 };
 
 const perSecondLabel = (v: number | null) => (v === null ? "–" : `${formatRate(v)}/s`);
-const RATE_SERIES: ChartSeries[] = [
-  { label: "Requests", tone: "accent", fill: true, format: perSecondLabel },
-  // Only drawn where requests failed: a red line along zero would read as trouble.
-  { label: "Failed", tone: "error", sparse: true, format: (v) => perSecondLabel(v ?? 0) },
-];
-const RTT_SERIES: ChartSeries[] = [
-  {
-    label: "Round trip",
-    tone: "secondary",
-    format: (v) => (v === null ? "–" : `${Math.round(v)} ms`),
-  },
-];
+// Built once, after the language is set (charts compare series by identity).
+let rateSeries: ChartSeries[] | undefined;
+let rttSeries: ChartSeries[] | undefined;
+const rateSeriesOf = (): ChartSeries[] => {
+  rateSeries ??= [
+    { label: t("traffic.requests"), tone: "accent", fill: true, format: perSecondLabel },
+    // Only drawn where requests failed: a red line along zero would read as trouble.
+    {
+      label: t("traffic.failed"),
+      tone: "error",
+      sparse: true,
+      format: (v) => perSecondLabel(v ?? 0),
+    },
+  ];
+  return rateSeries;
+};
+const rttSeriesOf = (): ChartSeries[] => {
+  rttSeries ??= [
+    {
+      label: t("traffic.roundTrip"),
+      tone: "secondary",
+      format: (v) => (v === null ? "–" : `${Math.round(v)} ms`),
+    },
+  ];
+  return rttSeries;
+};
 
 function useCharts(series: TrafficSeries | undefined, spec: RangeSpec) {
   return useMemo(() => {
@@ -111,20 +126,20 @@ export function TunnelTraffic({ tunnelId }: { tunnelId: string }) {
   const formatTime = (s: number) => spec.time.format(s * 1000);
 
   return (
-    <InspectorSection title="Traffic">
+    <InspectorSection title={t("traffic.title")}>
       <SegmentedControl
-        label="Time range"
+        label={t("traffic.timeRange")}
         size="sm"
-        segments={RANGES}
+        segments={rangeOptions()}
         value={range}
         onValueChange={setRange}
       />
       {charts && series && series.at.length > 0 ? (
         <>
           <TimeSeriesChart
-            label={`Requests per second over ${spec.noun}`}
+            label={t("traffic.rateChart", { period: t(spec.noun) })}
             data={charts.rates}
-            series={RATE_SERIES}
+            series={rateSeriesOf()}
             xRange={xRange}
             formatTick={formatTick}
             formatTime={formatTime}
@@ -132,9 +147,9 @@ export function TunnelTraffic({ tunnelId }: { tunnelId: string }) {
           />
           {charts.rtt ? (
             <TimeSeriesChart
-              label={`Round trip to Cloudflare over ${spec.noun}`}
+              label={t("traffic.rttChart", { period: t(spec.noun) })}
               data={charts.rtt}
-              series={RTT_SERIES}
+              series={rttSeriesOf()}
               xRange={xRange}
               formatTick={formatTick}
               formatTime={formatTime}
@@ -146,32 +161,33 @@ export function TunnelTraffic({ tunnelId }: { tunnelId: string }) {
         </>
       ) : (
         <p className="text-callout text-secondary">
-          {range === "hour"
-            ? "Traffic appears here a few seconds after the connector starts."
-            : "History appears here after the connector has run for a minute."}
+          {range === "hour" ? t("traffic.emptyHour") : t("traffic.emptyHistory")}
         </p>
       )}
       <KeyValueGrid
         items={[
           {
-            label: "Now",
-            value: now === null ? "–" : `${formatRate(now)} requests/s`,
+            label: t("traffic.now"),
+            value: now === null ? "–" : t("traffic.nowValue", { rate: formatRate(now) }),
           },
           ...(shares.length > 0
             ? [
                 {
-                  label: "Responses",
+                  label: t("traffic.responses"),
                   value: shares.map((c) => `${c.label} ${formatShare(c.share)}`).join(" · "),
                 },
               ]
             : []),
           {
-            label: "Since start",
-            value: `${traffic.totalRequests.toLocaleString()} requests, ${traffic.totalErrors.toLocaleString()} failed`,
+            label: t("traffic.sinceStart"),
+            value: t("traffic.sinceStartValue", {
+              requests: traffic.totalRequests,
+              failed: traffic.totalErrors,
+            }),
           },
-          { label: "Connections", value: String(traffic.connections) },
+          { label: t("traffic.connections"), value: String(traffic.connections) },
           ...(traffic.locations.length > 0
-            ? [{ label: "Edge", value: traffic.locations.join(", ").toUpperCase() }]
+            ? [{ label: t("traffic.edge"), value: traffic.locations.join(", ").toUpperCase() }]
             : []),
         ]}
       />

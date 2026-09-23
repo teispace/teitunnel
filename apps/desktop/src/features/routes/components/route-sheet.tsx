@@ -11,6 +11,7 @@ import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { TextArea } from "@/components/ui/text-area";
 import { ServicePicker } from "@/features/quick-share";
+import { type MessageKey, t } from "@/lib/i18n";
 import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
@@ -32,26 +33,26 @@ export type SheetMode =
 
 type Stage = "form" | "review" | "applying" | "done";
 
-const titles: Record<SheetMode["kind"], string> = {
-  add: "New Route",
-  edit: "Edit Route",
-  remove: "Remove Route",
-  restore: "Restore Routes",
-  removeTunnel: "Delete Tunnel",
-  addNetwork: "Share a Private Network",
-  removeNetwork: "Stop Sharing Network",
-  fix: "Fix Issue",
+const titles: Record<SheetMode["kind"], MessageKey> = {
+  add: "routeSheet.title.add",
+  edit: "routeSheet.title.edit",
+  remove: "routeSheet.title.remove",
+  restore: "routeSheet.title.restore",
+  removeTunnel: "routeSheet.title.removeTunnel",
+  addNetwork: "routeSheet.title.addNetwork",
+  removeNetwork: "routeSheet.title.removeNetwork",
+  fix: "routeSheet.title.fix",
 };
 
-const applyLabels: Record<SheetMode["kind"], string> = {
-  add: "Add Route",
-  edit: "Save",
-  remove: "Remove",
-  restore: "Restore",
-  removeTunnel: "Delete Tunnel",
-  addNetwork: "Share",
-  removeNetwork: "Stop Sharing",
-  fix: "Apply",
+const applyLabels: Record<SheetMode["kind"], MessageKey> = {
+  add: "routeSheet.apply.add",
+  edit: "routeSheet.apply.edit",
+  remove: "routeSheet.apply.remove",
+  restore: "routeSheet.apply.restore",
+  removeTunnel: "routeSheet.apply.removeTunnel",
+  addNetwork: "routeSheet.apply.addNetwork",
+  removeNetwork: "routeSheet.apply.removeNetwork",
+  fix: "routeSheet.apply.fix",
 };
 
 function shortOrigin(origin: string) {
@@ -151,15 +152,15 @@ function inverseOf(mode: SheetMode, change: Change): Change | null {
   }
 }
 
-const doneMessages: Partial<Record<SheetMode["kind"], string>> = {
-  add: "Route added",
-  edit: "Route updated",
-  remove: "Route removed",
-  restore: "Routes restored",
-  removeTunnel: "Tunnel deleted",
-  addNetwork: "Network shared",
-  removeNetwork: "Network no longer shared",
-  fix: "Fixed",
+const doneMessages: Record<SheetMode["kind"], MessageKey> = {
+  add: "routeSheet.done.add",
+  edit: "routeSheet.done.edit",
+  remove: "routeSheet.done.remove",
+  restore: "routeSheet.done.restore",
+  removeTunnel: "routeSheet.done.removeTunnel",
+  addNetwork: "routeSheet.done.addNetwork",
+  removeNetwork: "routeSheet.done.removeNetwork",
+  fix: "routeSheet.done.fix",
 };
 
 interface RouteSheetProps {
@@ -243,15 +244,15 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
           if (result.type !== "applied") return;
           const target = result.verify[0];
           const undo = inverseOf(mode, change);
-          toast.success(doneMessages[mode.kind] ?? "Done", {
+          toast.success(t(doneMessages[mode.kind]), {
             duration: 10_000,
             ...(undo
               ? {
                   action: {
-                    label: "Undo",
+                    label: t("common.undo"),
                     onClick: () =>
                       void applyDirectly(accountId, undo).catch((error: unknown) =>
-                        toast.error("Couldn't undo", {
+                        toast.error(t("routeSheet.undoFailed"), {
                           description: toIpcError(error).message,
                         }),
                       ),
@@ -310,7 +311,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         return (
           <>
             <SheetClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </SheetClose>
             <Button
               variant="primary"
@@ -320,7 +321,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 preview.isPending || (kind === "addNetwork" ? network : origin).trim() === ""
               }
             >
-              {preview.isPending ? "Checking…" : "Review"}
+              {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
             </Button>
           </>
         );
@@ -329,11 +330,11 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
           <>
             {hasForm(kind) ? (
               <Button className="mr-auto" onClick={() => setStage("form")}>
-                Back
+                {t("routeSheet.back")}
               </Button>
             ) : null}
             <SheetClose asChild>
-              <Button>Cancel</Button>
+              <Button>{t("common.cancel")}</Button>
             </SheetClose>
             <Button
               variant={destructive ? "destructive" : "primary"}
@@ -345,7 +346,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               }
               onClick={runApply}
             >
-              {applyLabels[kind]}
+              {t(applyLabels[kind])}
             </Button>
           </>
         );
@@ -353,14 +354,14 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         return failed ? (
           <>
             <Button className="mr-auto" onClick={() => change && review(change)}>
-              Review Again
+              {t("routeSheet.reviewAgain")}
             </Button>
             <SheetClose asChild>
-              <Button variant="primary">Close</Button>
+              <Button variant="primary">{t("common.close")}</Button>
             </SheetClose>
           </>
         ) : (
-          <Button disabled>Applying…</Button>
+          <Button disabled>{t("routeSheet.applying")}</Button>
         );
       case "done":
         return (
@@ -374,11 +375,11 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   verify.mutate({ hostname: verify.variables.hostname, wait: false })
                 }
               >
-                Test Again
+                {t("routeSheet.testAgain")}
               </Button>
             )}
             <SheetClose asChild>
-              <Button variant="primary">Done</Button>
+              <Button variant="primary">{t("common.done")}</Button>
             </SheetClose>
           </>
         );
@@ -388,14 +389,14 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   return (
     <Sheet open={open} onOpenChange={(next) => !next && stage !== "applying" && onClose()}>
       <SheetContent
-        title={mode?.kind === "fix" ? mode.label : titles[kind]}
+        title={mode?.kind === "fix" ? mode.label : t(titles[kind])}
         description={
           stage === "form"
             ? kind === "addNetwork"
-              ? "Let devices running Cloudflare WARP reach addresses on this Mac's network."
-              : "Send a hostname on your domain to a service on this Mac."
+              ? t("routeSheet.description.network")
+              : t("routeSheet.description.route")
             : stage === "review"
-              ? "Review what will change in Cloudflare. Nothing changes until you apply."
+              ? t("routeSheet.description.review")
               : undefined
         }
         footer={footer}
@@ -405,9 +406,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         {stage === "form" && kind === "addNetwork" ? (
           <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
             <Field
-              label="Network"
+              label={t("routeSheet.network.label")}
               error={fieldError("network")}
-              help="An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac."
+              help={t("routeSheet.network.help")}
             >
               {(control) => (
                 <Input
@@ -430,7 +431,11 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
           </form>
         ) : stage === "form" ? (
           <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
-            <Field label="Service" error={fieldError("origin")} help="A port or an address.">
+            <Field
+              label={t("routeSheet.service.label")}
+              error={fieldError("origin")}
+              help={t("routeSheet.service.help")}
+            >
               {(control) => (
                 <ServicePicker
                   autoFocus={kind === "add"}
@@ -441,7 +446,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 />
               )}
             </Field>
-            <Field label="Public hostname" error={fieldError("hostname")}>
+            <Field label={t("routeSheet.hostname.label")} error={fieldError("hostname")}>
               {(control) => (
                 <HostnameInput
                   id={control.id}
@@ -454,12 +459,15 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                 />
               )}
             </Field>
-            <Disclosure title="Advanced" defaultOpen={path !== "" || allowed !== null}>
+            <Disclosure
+              title={t("routeSheet.advanced")}
+              defaultOpen={path !== "" || allowed !== null}
+            >
               <div className="flex flex-col gap-4">
                 <Field
-                  label="Path"
+                  label={t("routeSheet.path.label")}
                   error={fieldError("path")}
-                  help="Only requests whose path matches this pattern, e.g. ^/api/. Leave empty for all."
+                  help={t("routeSheet.path.help")}
                 >
                   {(control) => (
                     <Input
@@ -479,13 +487,13 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                     checked={allowed !== null}
                     onCheckedChange={(value) => setAllowed(value === true ? (allowed ?? "") : null)}
                   />
-                  Require a login
+                  {t("routeSheet.login.toggle")}
                 </label>
                 {allowed !== null ? (
                   <Field
-                    label="Who can sign in"
+                    label={t("routeSheet.login.label")}
                     error={fieldError("access")}
-                    help="Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free)."
+                    help={t("routeSheet.login.help")}
                   >
                     {(control) => (
                       <TextArea
@@ -518,13 +526,13 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
             ) : null}
             {plan && !preview.isPending ? (
               plan.steps.length === 0 ? (
-                <p className="text-body text-secondary">Nothing to change: it's already set up.</p>
+                <p className="text-body text-secondary">{t("routeSheet.nothingToChange")}</p>
               ) : (
                 <PlanSteps steps={plan.steps} warnings={plan.warnings} />
               )
             ) : generalError ? null : (
               <div className="flex items-center gap-2 text-body text-secondary">
-                <Spinner className="size-3.5" /> Reading your Cloudflare account…
+                <Spinner className="size-3.5" /> {t("routeSheet.reading")}
               </div>
             )}
             {plan?.requiresConfirmation && !preview.isPending ? (
@@ -535,8 +543,8 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   onCheckedChange={(value) => setConfirmed(value === true)}
                 />
                 {plan.warnings.some((w) => w.type === "publicNetwork")
-                  ? "Send these public addresses through this Mac"
-                  : "Replace the existing records"}
+                  ? t("routeSheet.confirm.publicNetwork")
+                  : t("routeSheet.confirm.records")}
               </label>
             ) : null}
             {generalError ? (
@@ -557,12 +565,10 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               <div role="alert" className="flex flex-col gap-1 text-callout">
                 <p className="text-error">{failed.error}</p>
                 {failed.type === "rolledBack" ? (
-                  <p className="text-secondary">
-                    Everything done before the failure was undone. Nothing was left behind.
-                  </p>
+                  <p className="text-secondary">{t("routeSheet.rolledBack")}</p>
                 ) : (
                   <>
-                    <p className="text-secondary">Some changes couldn't be undone:</p>
+                    <p className="text-secondary">{t("routeSheet.leftovers")}</p>
                     <ul className="list-disc pl-5 text-secondary">
                       {failed.leftovers.map((l) => (
                         <li key={l}>{l}</li>
@@ -579,39 +585,39 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
           <div className="flex flex-col items-center gap-3 py-4 text-center" aria-live="polite">
             {verify.isPending || !verify.data ? (
               <>
-                <Spinner className="size-6" label="Checking" />
+                <Spinner className="size-6" label={t("routeSheet.verify.checking")} />
                 <p className="text-body text-secondary">
-                  Checking {url} works… The connector can take a few seconds to connect.
+                  {t("routeSheet.verify.pending", { url })}
                 </p>
               </>
             ) : verify.data.failure ? (
               <>
                 <TriangleAlert aria-hidden className="size-7 text-warning" strokeWidth={1.5} />
                 <p className="max-w-sm text-body">{verify.data.message}</p>
-                <CopyField label="URL" value={url} className="w-full max-w-sm" />
+                <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
               </>
             ) : verify.data.protected ? (
               <>
                 <LockKeyhole aria-hidden className="size-7 text-healthy" strokeWidth={1.5} />
-                <p className="text-headline">Protected by a login</p>
+                <p className="text-headline">{t("routeSheet.verify.protected")}</p>
                 <p className="max-w-sm text-body text-secondary">
-                  Cloudflare asks visitors to sign in before they reach your app.
+                  {t("routeSheet.verify.protectedDetail")}
                 </p>
                 <div className="flex w-full max-w-sm items-center gap-2">
-                  <CopyField label="URL" value={url} className="min-w-0 flex-1" />
+                  <CopyField label={t("common.url")} value={url} className="min-w-0 flex-1" />
                   <Button onClick={() => void openUrl(url)}>
-                    Open <ExternalLink />
+                    {t("common.open")} <ExternalLink />
                   </Button>
                 </div>
               </>
             ) : (
               <>
                 <CircleCheck aria-hidden className="size-7 text-healthy" strokeWidth={1.5} />
-                <p className="text-headline">It works</p>
+                <p className="text-headline">{t("routeSheet.verify.works")}</p>
                 <div className="flex w-full max-w-sm items-center gap-2">
-                  <CopyField label="URL" value={url} className="min-w-0 flex-1" />
+                  <CopyField label={t("common.url")} value={url} className="min-w-0 flex-1" />
                   <Button onClick={() => void openUrl(url)}>
-                    Open <ExternalLink />
+                    {t("common.open")} <ExternalLink />
                   </Button>
                 </div>
               </>
