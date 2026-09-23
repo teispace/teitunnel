@@ -1,0 +1,52 @@
+name: Docs
+
+# Builds the docs site (apps/site) on every change to it. Deploying to GitHub Pages is
+# opt-in: enable Pages (Settings > Pages > Source: GitHub Actions) and set the
+# repository variable DEPLOY_DOCS to "true" (D-053).
+on:
+  pull_request:
+    paths: ["apps/site/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+  push:
+    branches: [main]
+    paths: ["apps/site/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @teitunnel/site build
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
+        with:
+          path: apps/site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

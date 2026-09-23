@@ -1,0 +1,69 @@
+---
+title: Doctor checks
+description: Every problem the Doctor looks for, what it means and how to fix it.
+---
+
+The **Doctor** (⌘7) checks cloudflared, your accounts, domains, DNS records and
+connectors, every few minutes and whenever you ask. Each problem comes with a fix or
+clear guidance. Fixes that change Cloudflare are previewed like any other change;
+**Fix Safe Issues** applies the ones that only touch what Teitunnel created. **Ignore**
+hides a problem (and its notifications) until you bring it back.
+
+Each problem's check id (in code type) appears in diagnostics exports and bug reports.
+
+## cloudflared
+
+| Problem | What to do |
+|---|---|
+| **cloudflared isn't installed** `binary.missing` | Install the verified managed copy. Routes and Quick Shares need it. |
+| **cloudflared is too old** `binary.unsupported` | Install the managed copy to update. Some features need a newer version. |
+
+## Accounts and domains
+
+| Problem | What to do |
+|---|---|
+| **Couldn't check an account** `account.unreachable` | Usually a network problem. If the token was revoked or expired, reconnect the account. |
+| **This account's token can't manage routes** `auth.missing_scope` | Create a token with *Cloudflare Tunnel · Edit* and *DNS · Edit* and connect it again. |
+| **A domain is waiting for its nameservers** `zone.pending` | Routes on it won't work until your registrar uses Cloudflare's nameservers. |
+
+## Routes and DNS
+
+| Problem | What to do |
+|---|---|
+| **A hostname has no DNS record** `dns.missing` | The tunnel serves it but nothing points at the tunnel. **Fix** adds the record. |
+| **A hostname isn't proxied** `dns.not_proxied` | Tunnel hostnames only work with the orange cloud on. **Fix** turns it on. |
+| **A hostname points at another tunnel** `dns.wrong_target` | Requests don't reach this Mac. **Fix** points it at this Mac's tunnel. |
+| **Another record answers for a hostname** `dns.conflict` | Another record takes the traffic. **Fix** replaces it, after you confirm. |
+| **A record points at this Mac's tunnel but has no route** `dns.orphan_owned` / `dns.orphan_foreign` | Visitors get a 404. Delete the record, or add a route for it. |
+| **A record points at a tunnel that no longer exists** `dns.orphan_owned` / `dns.orphan_foreign` | Visitors see a Cloudflare error. Delete the record, or route it to a tunnel. |
+| **Nothing is listening on a route's port** `origin.not_listening` | Start the app the route sends traffic to. |
+| **An HTTPS origin's certificate isn't trusted** `origin.tls` | Use `http://` for a local origin, or a certificate this Mac trusts. |
+| **This Mac's routes were changed outside Teitunnel** `config.drift` | Keep the changes, or restore what Teitunnel set up. |
+
+`_owned` means Teitunnel created the record, so **Fix Safe Issues** may delete it;
+`_foreign` records are only deleted after you confirm.
+
+## Connectors
+
+| Problem | What to do |
+|---|---|
+| **This Mac's connector isn't running** `tunnel.no_connections` | Its routes don't answer until it runs. Start it. |
+| **This Mac's connector keeps stopping** `tunnel.crash_loop` | Its log says why. Starting it again retries. |
+| **This Mac's connector lost its connection** `tunnel.degraded` | It reconnects on its own; check the network if it persists. |
+| **Cloudflare still lists connections for this Mac's tunnel** `tunnel.stale_connections` | Left over from a connector that went away, or another machine runs the tunnel with its token. Clean them up if nothing else should. |
+| **Another cloudflared on this Mac runs this Mac's tunnel** `tunnel.duplicate_local` | Stop the other one from **Tunnels**. |
+| **cloudflared is running outside Teitunnel** `tunnel.foreign_running` | For your information: another cloudflared process on this Mac. |
+| **This Mac's tunnel has no routes** `tunnel.unused_owned` | Kept so adding a route is quick. Delete it if you don't need it. |
+
+## Network and system
+
+| Problem | What to do |
+|---|---|
+| **This network seems to block QUIC (UDP)** `net.udp_blocked` | cloudflared falls back to HTTP/2. If connections keep dropping, allow UDP port 7844. |
+| **This Mac's clock may be wrong** `net.clock_skew` | Turn on *Set time and date automatically* in System Settings. |
+
+## Diagnostics
+
+**Help ▸ Export Diagnostics…** saves a file to attach to a bug report: app logs, the
+Doctor report and versions. Tokens, keys and passwords are removed; hostnames and
+account ids stay so the problem can be understood. You see what's in it before it's saved.

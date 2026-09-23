@@ -1,0 +1,47 @@
+---
+title: Teitunnel
+description: Cloudflare Tunnel, native on your Mac. Share a local service in one click, or put it on your own domain.
+template: splash
+hero:
+  tagline: Cloudflare Tunnel, native on your Mac. Share anything running on this Mac at a public URL, or serve it on your own domain, without the command line.
+  actions:
+    - text: Get started
+      link: /teitunnel/getting-started/install/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/teispace/teitunnel
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <Card title="Quick Share" icon="rocket">
+    Pick a port, get a `trycloudflare.com` URL. No account needed. Stop it whenever you
+    like, or set it to stop on its own.
+  </Card>
+  <Card title="Your own domains" icon="seti:config">
+    Route `app.example.com` to `localhost:3000`. Teitunnel creates the tunnel and the
+    DNS record, shows you every change before it makes it, and checks the result.
+  </Card>
+  <Card title="Safe by design" icon="approve-check">
+    Tokens live in the macOS keychain. Every Cloudflare change is previewed, logged and
+    undone if a step fails. DNS records Teitunnel didn't create are never deleted
+    without asking.
+  </Card>
+  <Card title="Always on" icon="setting">
+    Keep routes running after you quit and across restarts. Traffic, logs and the
+    Doctor tell you what's happening and how to fix it.
+  </Card>
+</CardGrid>
+
+## A look inside
+
+<img class="screenshot" src="/teitunnel/screenshots/overview-dark.webp" alt="Overview: this Mac's traffic, routes with their status, and running Quick Shares" width="1440" height="977" loading="lazy" />
+
+<CardGrid>
+  <img class="screenshot" src="/teitunnel/screenshots/routes-light.webp" alt="Routes grouped by domain, with a route's details" width="1440" height="926" loading="lazy" />
+  <img class="screenshot" src="/teitunnel/screenshots/traffic-dark.webp" alt="Traffic charts for this Mac's tunnel" width="1440" height="1157" loading="lazy" />
+  <img class="screenshot" src="/teitunnel/screenshots/activity-dark.webp" alt="Activity: what a change did, before and after, with its steps" width="1440" height="1157" loading="lazy" />
+</CardGrid>

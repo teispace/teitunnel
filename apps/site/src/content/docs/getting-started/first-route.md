@@ -1,0 +1,36 @@
+---
+title: Put a service on your domain
+description: Connect Cloudflare and route a hostname on your domain to a service on your Mac.
+---
+
+A **route** sends a hostname on one of your Cloudflare domains, such as
+`app.example.com`, to a service on your Mac, such as `localhost:3000`.
+
+## Connect your Cloudflare account
+
+Open **Settings ▸ Accounts ▸ Connect an Account**. You can connect with:
+
+- **An API token.** Teitunnel opens Cloudflare's "Create API token" page pre-filled with
+  the permissions it needs: *Cloudflare Tunnel · Edit*, *DNS · Edit*, *Zone · Read* and
+  *Account Settings · Read*. Create it, then paste it into Teitunnel. If *Cloudflare
+  Tunnel* isn't pre-selected, add it by hand.
+- **Your cloudflared login.** If you've run `cloudflared tunnel login` before, Teitunnel
+  can use that certificate.
+
+The token is stored in the macOS keychain. Teitunnel then checks what it may do on each
+domain and shows it under **Domains**.
+
+## Add a route
+
+1. Open **Routes** (⌘2) and choose **New Route** (⌘N).
+2. Pick the service: a detected dev server or container, or a port or address.
+3. Type the subdomain and pick the domain. Optionally restrict the route to a path.
+4. **Review** shows exactly what will change: the tunnel for this Mac (created the first
+   time), its routes, and the DNS record. If a record Teitunnel didn't create already
+   uses the hostname, you're asked before it's replaced.
+5. **Apply**. Each step is checked off as it runs; if one fails, the earlier ones are
+   undone. Teitunnel then checks the hostname end to end through Cloudflare and tells
+   you whether it works.
+
+The route runs through this Mac's connector while Teitunnel is open. To keep it
+running after you quit, see [run modes](/teitunnel/concepts/run-modes/).

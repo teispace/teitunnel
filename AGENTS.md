@@ -45,4 +45,5 @@ Keep this section in sync with `package.json`.
 - `pnpm --filter @teitunnel/desktop shoot <dir> [routes…]`: WebKit screenshots in light and dark (D-030)
 - `pnpm --filter @teitunnel/desktop perf [seconds]`: frame timing of the log viewer and charts under load, in WebKit (D-051)
 - `pnpm --filter @teitunnel/desktop a11y [routes…]`: axe-core accessibility audit of every screen, light/dark × default/increased contrast (D-052)
+- `pnpm --filter @teitunnel/desktop perf:app [app] [runs]`: bundle size, cold start and idle memory of a packaged build (docs/research/performance.md)
 - Before every commit: `pnpm verify` (check + test + cargo-deny) must exit 0.

@@ -6,6 +6,7 @@
 // Env: SHOOT_SCROLL=<selector> scrolls it into view; SHOOT_ACTIONS=<sel;sel> clicks them;
 // SHOOT_KEYS=<key;key> presses keys (Playwright names, e.g. Meta+k); SHOOT_SIZE=620x500.
 // SHOOT_CONTRAST=more emulates Increase Contrast; SHOOT_REDUCED_MOTION=1 Reduce Motion.
+// SHOOT_FILL=<selector=>value;…> types into fields before the actions run.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { webkit } from "@playwright/test";
@@ -16,6 +17,10 @@ const targets = routes.length > 0 ? routes : ["/dev/gallery"];
 const actions = (process.env["SHOOT_ACTIONS"] ?? "").split(";").filter(Boolean);
 const scrollTo = process.env["SHOOT_SCROLL"];
 const keys = (process.env["SHOOT_KEYS"] ?? "").split(";").filter(Boolean);
+const fills = (process.env["SHOOT_FILL"] ?? "")
+  .split(";")
+  .filter(Boolean)
+  .map((pair) => pair.split("=>") as [string, string]);
 const [width = 1120, height = 720] = (process.env["SHOOT_SIZE"] ?? "")
   .split("x")
   .map(Number)
@@ -48,6 +53,7 @@ try {
         document.documentElement.dataset["windowActive"] = "true";
       });
       if (scrollTo) await page.locator(scrollTo).first().scrollIntoViewIfNeeded();
+      for (const [selector, value] of fills) await page.fill(selector, value ?? "");
       for (const selector of actions) await page.click(selector);
       for (const key of keys) await page.keyboard.press(key);
       await page.waitForTimeout(700);

@@ -11,17 +11,20 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-1. M6-05 polish: design review of every screen (light/dark/increased contrast/reduce motion), About window + Help links, app icon, performance baseline (cold start, idle memory, bundle), accessibility audit.
-2. M6-06 docs: docs site (`apps/site`), CONTRIBUTING deep-dive. (Pages/labels/discussions are repo settings: maintainer.)
-3. M7 Windows, M8 Linux (`core::service::TaskScheduler` / `Systemd` ready, D-051), then M9.
-4. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
-5. **Maintainer:** review/merge PRs #1–#6 in order; OAuth client; test token.
+1. M7 Windows (plan in `docs/plans/M7-M9-beyond-v1.md`): wire `core::service::TaskScheduler` (D-051), Windows shell polish; CI already builds and tests Windows.
+2. M8 Linux: wire `core::service::Systemd`, Linux shell polish.
+3. M9 advanced features.
+4. M6 leftovers needing an unlocked screen or the maintainer: VoiceOver walk-through, native material checks in a packaged build, screen recording, app icon (designer), Pages/labels/Discussions (repo settings).
+5. **Deferred by the maintainer:** M6-01 signing/notarization, M6-02 updater, M6-03 release automation, M6-04 Homebrew/channels.
+6. **Maintainer:** review/merge PRs #1–#7 in order; OAuth client; test token; enable Pages + `DEPLOY_DOCS=true` for the docs site.
 
 ## In progress
+- **M6 (non-release)** on `milestone/m6-polish-docs`, draft PR #7: polish (Title Case, contrast tokens, Reduce Motion, Help menu), a11y audit (D-052), performance baseline, docs site (D-053), CONTRIBUTING.
 - **M5** complete on `milestone/m5-observability-always-on`, PR #6 (ready for review). Done: Always-on via launchd (gapless switch, token file, log tailing, real-launchd nightly test, D-045). Earlier (on M4): Activity timeline, connector logs, traffic sparkline, routes in the menu bar.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: M6 non-release work: accessibility (WCAG AA under Increase Contrast, axe audit clean), Help menu + About credits, performance baseline (14.7 MB, ~0.6 s start), docs site (apps/site), CONTRIBUTING deep-dive; dev mocks and screenshots use neutral names.
 - 2026-09-23: M5 complete. Service adapters for systemd/Task Scheduler behind a neutral `ServiceSpec`; exit criteria measured with `pnpm --filter @teitunnel/desktop perf` (60 fps under load, D-051).
 - 2026-09-23: M5-03 complete: virtualized log viewer, Save to Downloads (redacted).
 - 2026-09-23: M5-03 per-route logs (backend filter by rule + service), bounded and tail-read Always-on log files (D-050).

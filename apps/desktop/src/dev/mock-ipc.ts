@@ -90,7 +90,7 @@ const services: LocalService[] = [
 ];
 
 const accounts: Account[] = [
-  { id: "acc-personal", name: "Krishna's account", credential: "apiToken", limitedZone: null },
+  { id: "acc-personal", name: "Personal", credential: "apiToken", limitedZone: null },
 ];
 
 const domains: Domain[] = [
@@ -139,7 +139,7 @@ const tunnelId = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
 const routesOverview: RoutesOverview = {
   tunnel: {
     id: tunnelId,
-    name: "Krishnas-MacBook-Pro",
+    name: "MacBook-Pro",
     connector: { state: "healthy", connections: 4 },
   },
   routes: [
@@ -187,12 +187,12 @@ const addPlan: PlanView = {
   steps: [
     {
       kind: "putConfig",
-      description: "Update tunnel “Krishnas-MacBook-Pro” to serve 5 routes",
+      description: "Update tunnel “MacBook-Pro” to serve 5 routes",
       command: `curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/${tunnelId}/configurations`,
     },
     {
       kind: "updateRecord",
-      description: "Point shop.yx.app at tunnel “Krishnas-MacBook-Pro” (was A 192.0.2.10)",
+      description: "Point shop.yx.app at tunnel “MacBook-Pro” (was A 192.0.2.10)",
       command: null,
     },
     {
@@ -223,12 +223,12 @@ const activity: ActivityEntry[] = [
     record: {
       kind: "updateRoute",
       hostnames: ["app.teispace.com", "web.teispace.com"],
-      tunnel: "Krishnas-MacBook-Pro",
+      tunnel: "MacBook-Pro",
       steps: [
         {
           step: {
             kind: "putConfig",
-            description: "Update tunnel “Krishnas-MacBook-Pro” to serve 4 routes",
+            description: "Update tunnel “MacBook-Pro” to serve 4 routes",
             command:
               'curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/6ff42ae2/configurations',
           },
@@ -237,8 +237,7 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "updateRecord",
-            description:
-              "Point web.teispace.com at tunnel “Krishnas-MacBook-Pro” (was A 192.0.2.10)",
+            description: "Point web.teispace.com at tunnel “MacBook-Pro” (was A 192.0.2.10)",
             command: null,
           },
           state: { state: "done" },
@@ -280,7 +279,7 @@ const activity: ActivityEntry[] = [
           hostname: "web.teispace.com",
           path: null,
           before: "A 192.0.2.10",
-          after: "proxied CNAME to tunnel “Krishnas-MacBook-Pro”",
+          after: "proxied CNAME to tunnel “MacBook-Pro”",
         },
       ],
     },
@@ -294,12 +293,12 @@ const activity: ActivityEntry[] = [
     record: {
       kind: "addRoute",
       hostnames: ["api.xyz.dev"],
-      tunnel: "Krishnas-MacBook-Pro",
+      tunnel: "MacBook-Pro",
       steps: [
         {
           step: {
             kind: "putConfig",
-            description: "Update tunnel “Krishnas-MacBook-Pro” to serve 5 routes",
+            description: "Update tunnel “MacBook-Pro” to serve 5 routes",
             command: null,
           },
           state: { state: "undone" },
@@ -307,8 +306,8 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "createRecord",
-            description: "Add DNS record api.xyz.dev → tunnel “Krishnas-MacBook-Pro”",
-            command: "cloudflared tunnel route dns 'Krishnas-MacBook-Pro' api.xyz.dev",
+            description: "Add DNS record api.xyz.dev → tunnel “MacBook-Pro”",
+            command: "cloudflared tunnel route dns 'MacBook-Pro' api.xyz.dev",
           },
           state: {
             state: "failed",
@@ -329,7 +328,7 @@ const activity: ActivityEntry[] = [
           hostname: "api.xyz.dev",
           path: null,
           before: null,
-          after: "proxied CNAME to tunnel “Krishnas-MacBook-Pro”",
+          after: "proxied CNAME to tunnel “MacBook-Pro”",
         },
       ],
     },
@@ -339,7 +338,7 @@ const activity: ActivityEntry[] = [
     at: now - 3 * 3_600_000,
     summary: "Add app.teispace.com → http://localhost:5173",
     outcome: "applied",
-    detail: ["Add DNS record app.teispace.com → tunnel “Krishnas-MacBook-Pro”"],
+    detail: ["Add DNS record app.teispace.com → tunnel “MacBook-Pro”"],
     record: null,
   },
 ];
@@ -459,7 +458,7 @@ export function installMockIpc(): void {
           return [
             {
               id: tunnelId,
-              name: "Krishnas-MacBook-Pro",
+              name: "MacBook-Pro",
               status: "healthy",
               createdAt: new Date(now - 9 * 86_400_000).toISOString(),
               routes: 4,

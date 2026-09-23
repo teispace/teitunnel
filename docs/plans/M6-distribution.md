@@ -30,10 +30,10 @@
 ### M6-05 · Polish pass
 - [ ] Full DESIGN review of every screen against macOS 27 System Settings (light/dark, active/inactive, transparency slider extremes, increased contrast, reduce motion). *(Web-level pass done 2026-09-23 with `shoot` (+`SHOOT_CONTRAST=more`, `SHOOT_REDUCED_MOTION=1`): Title Case buttons, untitled Appearance group, contrast tokens. Native material checks in a packaged build need an unlocked screen.)*
 - [ ] App icon (designed to the macOS icon grid, light/dark/tinted variants), About window, Help menu links. *(About (with cloudflared credit) and Help done: Teitunnel and Cloudflare Tunnel docs, Check for Problems, Export Diagnostics…, Release Notes, Report an Issue…. The icon needs a designer's asset.)*
-- [ ] Performance measurement (cold start, idle memory, bundle) recorded in the release notes. Regressions block the release.
+- [x] Performance measurement (cold start, idle memory, bundle) recorded in the release notes. Regressions block the release. *(Baseline in `docs/research/performance.md`: 14.7 MB bundle, ~0.6 s cold start, ~190 MB idle with WebKit; `pnpm --filter @teitunnel/desktop perf:app` re-measures. Copy into release notes when releasing.)*
 - [ ] Accessibility pass with VoiceOver. *(Automated part done: axe-core audit of every screen in light/dark × default/increased contrast, no violations (`pnpm --filter @teitunnel/desktop a11y`, D-052); Reduce Motion now reaches `motion` animations. Manual VoiceOver walk-through needs an unlocked screen.)*
 
 ### M6-06 · Docs & community
-- [ ] Docs site (`apps/site`, Astro Starlight or similar, deployed via GitHub Pages) with Getting started, Concepts (routes, tunnels, run modes), Troubleshooting (mirrors the Doctor catalogue), Security, FAQ.
-- [ ] Landing page with real screenshots and a short screen recording.
-- [ ] CONTRIBUTING deep-dive (architecture tour, how to add a Doctor check, how to add an origin option), `good first issue` labels, discussions enabled.
+- [x] Docs site (`apps/site`, Astro Starlight, GitHub Pages) with Getting started, Concepts (routes, tunnels, run modes, changes, DNS ownership), Guides (import, observability, menu bar), Troubleshooting (the Doctor catalogue), Security, FAQ. *(D-053. Deploys once the maintainer enables Pages and sets `DEPLOY_DOCS=true`.)*
+- [ ] Landing page with real screenshots and a short screen recording. *(Screenshots done on the docs home; a screen recording needs an unlocked screen.)*
+- [ ] CONTRIBUTING deep-dive (architecture tour, how to add a Doctor check, how to add an origin option), `good first issue` labels, discussions enabled. *(CONTRIBUTING done, including adding an IPC command; labels and Discussions are repo settings for the maintainer.)*
