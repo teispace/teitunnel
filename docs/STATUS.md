@@ -26,6 +26,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - **M4** PR #5, **M3** PR #4 ready for review. **M2** PR #3, **M1** PR #2, **M0** PR #1.
 
 ## Recently completed
+- 2026-09-23: Everything on `main` (D-080): milestone branches fast-forwarded and deleted, PRs #1–#7 merged, `legacy/prototype` branch removed (tag kept). Full release dry run green on all five platforms. Security: postcss upgraded (4 Dependabot alerts), glib alert dismissed with reasoning (SECURITY_MODEL), Dependabot security updates, secret scanning and push protection turned on.
 - 2026-09-23: M4-09 follow-up: diagnostics export can include `cloudflared tunnel diag` for this machine's connector (opt-in, time-limited, marked as not redacted). Property tests for every input parser (M3-02). No sidebar account switcher (D-079).
 - 2026-09-23: M3-02 origin settings (D-078): every `originRequest` field typed and validated, in the route sheet (Advanced ▸ Origin settings), the CLI (`route add --no-tls-verify …`) and import (file-wide settings merged, Go durations); unknown settings always kept.
 - 2026-09-23: M4-07 follow-up: Doctor issues inline on route and tunnel rows and inspectors, with Fix…/Details… opening the Doctor on that issue.
