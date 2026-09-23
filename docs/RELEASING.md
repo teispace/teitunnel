@@ -32,7 +32,7 @@ after it's out).
 |---|---|
 | `release` environment (deploys from `main` and `v*` tags only) | Done 2026-09-23 |
 | Updater key secrets (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) | Done 2026-09-23; key, password and public key backed up by the maintainer. |
-| GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true` | Done 2026-09-23. Turn on **Enforce HTTPS** once the certificate is issued (after the first deploy from `main`). |
+| GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true`, Enforce HTTPS | Done 2026-09-23 (the certificate came after removing and re-adding the custom domain; GitHub renews it). |
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Files in `~/.tauri/teitunnel-apple/` on the maintainer's Mac. Secrets stored by the maintainer. |
