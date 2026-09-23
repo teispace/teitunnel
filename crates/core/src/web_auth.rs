@@ -3,10 +3,7 @@
 //! stored as SHA-256 since they're high-entropy). Only hashes are stored; a key is shown
 //! once, when it's made.
 
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-};
+use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
@@ -74,11 +71,11 @@ pub async fn set_password(store: &Store, password: &str) -> Result<(), WebAuthEr
     if password.chars().count() < 12 {
         return Err(WebAuthError::WeakPassword);
     }
-    let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| WebAuthError::Hash(e.to_string()))?;
-    let salt = SaltString::encode_b64(&bytes).map_err(|e| WebAuthError::Hash(e.to_string()))?;
+    let mut salt = [0u8; 16];
+    getrandom::fill(&mut salt).map_err(|e| WebAuthError::Hash(e.to_string()))?;
+    // A PHC string (`$argon2id$v=19$m=…$salt$hash`), the same format as before.
     let hash = Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password_with_salt(password.as_bytes(), &salt)
         .map_err(|e| WebAuthError::Hash(e.to_string()))?
         .to_string();
     store
@@ -128,11 +125,9 @@ pub async fn verify_password(store: &Store, password: &str) -> Result<bool, WebA
     let password = password.to_owned();
     // argon2 is deliberately slow: keep it off the async threads.
     Ok(tokio::task::spawn_blocking(move || {
-        PasswordHash::new(&hash).is_ok_and(|parsed| {
-            Argon2::default()
-                .verify_password(password.as_bytes(), &parsed)
-                .is_ok()
-        })
+        Argon2::default()
+            .verify_password(password.as_bytes(), hash.as_str())
+            .is_ok()
     })
     .await
     .unwrap_or(false))
@@ -225,6 +220,36 @@ pub async fn revoke_api_key(store: &Store, id: i64) -> Result<bool, WebAuthError
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn accepts_passwords_hashed_before_an_upgrade() {
+        // A standard argon2id PHC string made by another implementation (argon2-cffi,
+        // the parameters Teitunnel uses): what a dashboard saved with an older argon2
+        // crate looks like. It must keep working after the dependency changes.
+        let store = Store::open_in_memory().unwrap();
+        let old = "$argon2id$v=19$m=19456,t=2,p=1$lkQBW0HPMohimeWFom+5yw$IrOECBs+fozQyBUdO0Z4My1hKPX9qX6gRNcYhqR1S/g";
+        store
+            .call(move |conn| {
+                conn.execute(
+                    "INSERT INTO web_credentials (kind, name, hash, created_at)
+                     VALUES ('password', 'password', ?1, 0)",
+                    params![old],
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        assert!(
+            verify_password(&store, "correct horse battery staple")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !verify_password(&store, "correct horse battery")
+                .await
+                .unwrap()
+        );
+    }
 
     #[tokio::test]
     async fn passwords_are_hashed_and_checked() {
