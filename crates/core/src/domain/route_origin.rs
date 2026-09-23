@@ -67,6 +67,8 @@ impl RouteOrigin {
             return Err(RouteOriginError::Scheme);
         }
         let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        // An IPv6 host must be bracketed (`[::1]:3000`); it's validated below.
+        let mut ipv6 = false;
         let (host, port) = if authority.chars().all(|c| c.is_ascii_digit()) {
             ("localhost", Some(authority))
         } else if let Some(port) = authority.strip_prefix(':') {
@@ -76,6 +78,7 @@ impl RouteOrigin {
             if host.parse::<std::net::Ipv6Addr>().is_err() {
                 return Err(RouteOriginError::Address);
             }
+            ipv6 = true;
             (host, after.strip_prefix(':'))
         } else {
             match authority.rsplit_once(':') {
@@ -83,11 +86,11 @@ impl RouteOrigin {
                 None => (authority, None),
             }
         };
-        let host = host.trim_start_matches('[');
-        let host_ok = !host.is_empty()
-            && host
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"-.:".contains(&b));
+        let host_ok = ipv6
+            || (!host.is_empty()
+                && host
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-.".contains(&b)));
         let port = match port {
             Some(p) => Some(
                 p.parse::<u16>()
@@ -100,7 +103,7 @@ impl RouteOrigin {
         if !host_ok || (port.is_none() && !matches!(scheme.as_str(), "http" | "https")) {
             return Err(RouteOriginError::Address);
         }
-        let host = if host.contains(':') {
+        let host = if ipv6 {
             format!("[{host}]")
         } else {
             host.to_ascii_lowercase()
@@ -207,6 +210,15 @@ mod tests {
             RouteOrigin::parse("bad host:80"),
             Err(RouteOriginError::Address)
         );
+        // IPv6 hosts must be bracketed; a bare one is ambiguous with the port
+        // (found by the round-trip property test).
+        for input in ["-::1", "::1:3000", "http://fe80::1:80", "[nope]:80"] {
+            assert_eq!(
+                RouteOrigin::parse(input),
+                Err(RouteOriginError::Address),
+                "{input}"
+            );
+        }
     }
 
     #[test]
