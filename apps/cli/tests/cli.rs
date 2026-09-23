@@ -112,18 +112,27 @@ mod share {
         }
     }
 
-    /// The pid of the cloudflared the share runs, from the CLI's registry.
+    /// The pid of the cloudflared the share runs, from the CLI's registry (recorded
+    /// right after it starts, which on a busy machine can trail the URL).
     fn connector_pid(data: &Path) -> u32 {
-        std::fs::read_dir(data.join("run-cli"))
-            .unwrap()
-            .flatten()
-            .flat_map(|owner| std::fs::read_dir(owner.path()).unwrap().flatten())
-            .find_map(|record| {
-                let json: serde_json::Value =
-                    serde_json::from_slice(&std::fs::read(record.path()).ok()?).ok()?;
-                u32::try_from(json["pid"].as_u64()?).ok()
-            })
-            .expect("a connector is recorded")
+        let find = || {
+            std::fs::read_dir(data.join("run-cli"))
+                .ok()?
+                .flatten()
+                .flat_map(|owner| {
+                    std::fs::read_dir(owner.path())
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                })
+                .find_map(|record| {
+                    let json: serde_json::Value =
+                        serde_json::from_slice(&std::fs::read(record.path()).ok()?).ok()?;
+                    u32::try_from(json["pid"].as_u64()?).ok()
+                })
+        };
+        wait_until("a connector to be recorded", || find().is_some());
+        find().expect("a connector is recorded")
     }
 
     /// Starts a share and waits for its URL, the one line on stdout.

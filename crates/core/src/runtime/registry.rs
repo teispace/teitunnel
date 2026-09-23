@@ -63,10 +63,14 @@ impl PidRegistry {
             start_time,
             connector: id.0.clone(),
         };
+        // Written to a temporary name and renamed into place, so another process
+        // reaping records never reads (and discards) a half-written one.
         let write = || -> std::io::Result<()> {
             fs::create_dir_all(&self.dir)?;
-            fs::write(self.path(id), serde_json::to_vec(&record)?)?;
-            Ok(())
+            let path = self.path(id);
+            let partial = path.with_extension("json.partial");
+            fs::write(&partial, serde_json::to_vec(&record)?)?;
+            fs::rename(&partial, &path)
         };
         if let Err(err) = write() {
             tracing::warn!(connector = %id, error = %err, "failed to write pidfile");
@@ -87,6 +91,11 @@ impl PidRegistry {
         let mut reaped = Vec::new();
         for entry in entries.flatten() {
             let path = entry.path();
+            // Another process may be writing one right now; it's renamed into place when
+            // complete.
+            if path.extension().is_some_and(|e| e == "partial") {
+                continue;
+            }
             if let Some(record) = read_record(&path)
                 && start_time(record.pid) == Some(record.start_time)
             {
