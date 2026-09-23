@@ -107,19 +107,22 @@ export const commands = {
 	accountsOauthCancel: () => __TAURI_INVOKE<void>("accounts_oauth_cancel"),
 	/**  This Mac's tunnel and routes in an account. */
 	routesOverview: (accountId: string) => __TAURI_INVOKE<RoutesOverview>("routes_overview", { accountId }),
-	/**  Plans a change for review. Nothing is changed. */
-	routesPreview: (accountId: string, change: Change) => __TAURI_INVOKE<PlanView>("routes_preview", { accountId, change }),
+	/**
+	 *  Plans a change for review, on one of this Mac's tunnels (`tunnel_id`, or the
+	 *  default one). Nothing is changed.
+	 */
+	routesPreview: (accountId: string, tunnelId: string | null, change: Change) => __TAURI_INVOKE<PlanView>("routes_preview", { accountId, tunnelId, change }),
 	/**
 	 *  Applies a reviewed change. Step progress streams on `on_progress`. Fails with
 	 *  `conflict` if anything changed since the preview (preview again).
 	 */
-	routesApply: (accountId: string, change: Change, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("routes_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	routesApply: (accountId: string, tunnelId: string | null, change: Change, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("routes_apply", { accountId, tunnelId, change, fingerprint, confirmed, onProgress }),
 	/**
 	 *  Checks a route end to end. With `wait`, transient failures (connector connecting,
 	 *  propagation) are retried for up to 30 s, as right after applying.
 	 */
 	routesVerify: (accountId: string, hostname: string, wait: boolean) => __TAURI_INVOKE<Verification>("routes_verify", { accountId, hostname, wait }),
-	/**  An outside edit of this Mac's routes, if there is one. */
+	/**  An outside edit of this Mac's routes (on any of its tunnels), if there is one. */
 	routesDrift: (accountId: string) => __TAURI_INVOKE<{
 	/**  Tunnel id. */
 	tunnelId: string,
@@ -166,17 +169,18 @@ export const commands = {
 	 */
 	routesLogs: (accountId: string, hostname: string, path: string | null, limit: number) => __TAURI_INVOKE<LogLine[]>("routes_logs", { accountId, hostname, path, limit }),
 	/**
-	 *  This Mac's tunnel and routes as `config.yml`, Docker Compose or Terraform. `None` if
-	 *  this Mac has no tunnel in the account. Never contains a secret.
+	 *  One of this Mac's tunnels (`tunnel_id`, or the default one) and its routes as
+	 *  `config.yml`, Docker Compose or Terraform. `None` if this Mac has no such tunnel in
+	 *  the account. Never contains a secret.
 	 */
-	routesExport: (accountId: string, format: ExportFormat) => __TAURI_INVOKE<{
+	routesExport: (accountId: string, tunnelId: string | null, format: ExportFormat) => __TAURI_INVOKE<{
 	/**  Suggested file name, e.g. `config.yml`. */
 	fileName: string,
 	/**  The file. */
 	contents: string,
-} | null>("routes_export", { accountId, format }),
+} | null>("routes_export", { accountId, tunnelId, format }),
 	/**  Saves an export to Downloads and shows it in Finder. Returns its path. */
-	routesExportSave: (accountId: string, format: ExportFormat) => __TAURI_INVOKE<string>("routes_export_save", { accountId, format }),
+	routesExportSave: (accountId: string, tunnelId: string | null, format: ExportFormat) => __TAURI_INVOKE<string>("routes_export_save", { accountId, tunnelId, format }),
 	/**
 	 *  This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
 	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
@@ -197,13 +201,17 @@ export const commands = {
 } | null>("tunnels_traffic", { tunnelId, since }),
 	/**  A tunnel's traffic over the last day or week, from per-minute history. */
 	tunnelsTrafficHistory: (tunnelId: string, range: HistoryRange) => __TAURI_INVOKE<TrafficSeries>("tunnels_traffic_history", { tunnelId, range }),
-	/**  Whether this Mac's connector for the account keeps running when Teitunnel quits. */
-	tunnelsAlwaysOn: (accountId: string) => __TAURI_INVOKE<AlwaysOn>("tunnels_always_on", { accountId }),
 	/**
-	 *  Switches this Mac's connector between running with the app and running as a
-	 *  service (keeps running after quit and at login), without a gap.
+	 *  Whether one of this Mac's connectors (`tunnel_id`, or the default tunnel's) keeps
+	 *  running when Teitunnel quits.
 	 */
-	tunnelsSetAlwaysOn: (accountId: string, enabled: boolean) => __TAURI_INVOKE<null>("tunnels_set_always_on", { accountId, enabled }),
+	tunnelsAlwaysOn: (accountId: string, tunnelId: string | null) => __TAURI_INVOKE<AlwaysOn>("tunnels_always_on", { accountId, tunnelId }),
+	/**
+	 *  Switches one of this Mac's connectors (`tunnel_id`, or the default tunnel's) between
+	 *  running with the app and running as a service (keeps running after quit and at
+	 *  login), without a gap.
+	 */
+	tunnelsSetAlwaysOn: (accountId: string, tunnelId: string | null, enabled: boolean) => __TAURI_INVOKE<null>("tunnels_set_always_on", { accountId, tunnelId, enabled }),
 	/**  Checks cloudflared and every connected account; issues sorted by severity. */
 	doctorRun: () => __TAURI_INVOKE<Issue[]>("doctor_run"),
 	/**
@@ -289,7 +297,9 @@ export type ActivityKind =
 /**  A private network was shared. */
 "addNetwork" | 
 /**  A private network stopped being shared. */
-"removeNetwork";
+"removeNetwork" | 
+/**  Another tunnel was created for this Mac. */
+"createTunnel";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -406,6 +416,10 @@ hostname: string;
 path: string | null } | 
 /**  Remove every route and delete this Mac's tunnel. */
 { type: "removeTunnel" } | 
+/**  Create another tunnel for this Mac. */
+{ type: "createTunnel"; 
+/**  Its name. */
+name: string } | 
 /**  Undo an outside edit of this Mac's routes. */
 { type: "restoreConfig" } | 
 /**  Remove a login Teitunnel added whose route is gone. */
@@ -831,6 +845,8 @@ export type Issue = {
 	evidence: Text[],
 	/**  Fixes, the recommended one first. */
 	fixes: Fix[],
+	/**  The tunnel of this Mac's it's about, when not the default one (a fix applies there). */
+	tunnelId: string | null,
 };
 
 /**  A TCP port something on this machine is listening on. */
@@ -1071,12 +1087,16 @@ export type RouteView = {
 	access: AccessRule | null,
 	/**  What visitors run to reach it, for SSH, RDP, SMB and TCP routes. */
 	client: ClientAccess | null,
+	/**  The tunnel of this Mac's that carries it. */
+	tunnelId: string | null,
 };
 
 /**  Everything the Routes view shows for an account. */
 export type RoutesOverview = {
-	/**  This Mac's tunnel, if it has one. */
+	/**  This Mac's default tunnel, if it has one. */
 	tunnel: TunnelView | null,
+	/**  Every tunnel of this Mac's in the account, the default first, then by name. */
+	tunnels: TunnelView[],
 	/**  Routes, sorted by domain then hostname. */
 	routes: RouteView[],
 	/**  Domains routes can use. */
@@ -1351,8 +1371,10 @@ export type TunnelSummary = {
 	routes: number | null,
 	/**  Machines running it. */
 	connectors: ConnectorView[],
-	/**  This Mac's tunnel (created and run by Teitunnel here). */
+	/**  One of this Mac's tunnels (created and run by Teitunnel here). */
 	thisMac: boolean,
+	/**  This Mac's default tunnel (where new routes go unless another is chosen). */
+	isDefault: boolean,
 	/**  Connector state on this Mac, for this Mac's tunnel. */
 	connector: ConnectorState | null,
 };
@@ -1365,6 +1387,8 @@ export type TunnelView = {
 	name: string,
 	/**  Connector state on this Mac (`None`: not running). */
 	connector: ConnectorState | null,
+	/**  The machine tunnel: where routes go unless another is chosen. */
+	isDefault: boolean,
 };
 
 /**  Whether a newer cloudflared is available. */

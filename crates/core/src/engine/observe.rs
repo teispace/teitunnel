@@ -10,7 +10,7 @@ use super::{
     cloud::CloudApi,
     local::Local,
     networks::{NetworkState, ObservedNetworkRoute},
-    types::{ObservedRecord, ObservedTunnel, Snapshot},
+    types::{ObservedRecord, ObservedTunnel, RouteElsewhere, Snapshot},
 };
 use crate::{domain::Hostname, store::StoreError};
 
@@ -33,6 +33,8 @@ pub enum ObserveError {
     Store(#[from] StoreError),
     /// Requiring a login needs Access permissions the credential doesn't have.
     AccessPermission,
+    /// The chosen tunnel isn't one of this Mac's (any more).
+    UnknownTunnel,
 }
 
 impl UserText for ObserveError {
@@ -41,6 +43,7 @@ impl UserText for ObserveError {
             Self::Api(err) => err.text(),
             Self::Store(err) => err.text(),
             Self::AccessPermission => msg::error::observe::access_permission(),
+            Self::UnknownTunnel => msg::error::observe::unknown_tunnel(),
         }
     }
 }
@@ -66,6 +69,9 @@ pub struct ObserveNeed {
     pub access: AccessNeed,
     /// Private network routes.
     pub networks: Want,
+    /// The names of the account's tunnels, even when the target tunnel exists (to name
+    /// a new one).
+    pub tunnel_names: bool,
 }
 
 impl ObserveNeed {
@@ -84,32 +90,40 @@ impl ObserveNeed {
                 Intent::RemoveTunnel => Want::IfAllowed,
                 _ => Want::No,
             },
+            tunnel_names: matches!(intent, Intent::CreateTunnel { .. }),
         }
     }
 }
 
-/// Reads the zones, this Mac's tunnel and the DNS records for `hostnames` (every
-/// routed hostname when `None`), plus what `need` asks for.
+/// Reads the zones, one of this Mac's tunnels (`target`, or the default one) and the
+/// DNS records for `hostnames` (every routed hostname when `None`), plus what `need`
+/// asks for. The routes of this Mac's other tunnels come from the local store.
 ///
 /// # Errors
-/// API or database errors. A tunnel deleted elsewhere isn't an error: it's observed as
-/// missing, so the planner creates a new one.
+/// API or database errors, or [`ObserveError::UnknownTunnel`] for a `target` that isn't
+/// this Mac's. A tunnel deleted elsewhere isn't an error: it's observed as missing, so
+/// the planner creates a new one.
 pub async fn observe<C: CloudApi>(
     api: &C,
     local: &Local,
     account: &str,
+    target: Option<&str>,
     machine_name: &str,
     hostnames: Option<&[&Hostname]>,
     need: &ObserveNeed,
 ) -> Result<Snapshot, ObserveError> {
-    let machine = local.machine_tunnel(account).await?;
+    let machine = local.tunnel(account, target).await?;
+    if target.is_some() && machine.is_none() {
+        return Err(ObserveError::UnknownTunnel);
+    }
+    let elsewhere = routes_elsewhere(local, account, machine.as_ref()).await?;
     let (zones, tunnel, owned) = tokio::join!(
         api.zones(account),
         observe_tunnel(api, account, machine.as_ref().map(|m| m.tunnel_id.as_str())),
         local.owned_records(account),
     );
     let (mut zones, tunnel, owned) = (zones?, tunnel?, owned?);
-    let tunnel_names = if tunnel.is_some() {
+    let tunnel_names = if tunnel.is_some() && !need.tunnel_names {
         Vec::new()
     } else {
         let mut names = api.tunnel_names(account).await?;
@@ -165,10 +179,35 @@ pub async fn observe<C: CloudApi>(
         zones,
         tunnel,
         tunnel_names,
+        elsewhere,
         records,
         access,
         networks,
     })
+}
+
+/// The routes Teitunnel last wrote to this Mac's other tunnels in `account`.
+async fn routes_elsewhere(
+    local: &Local,
+    account: &str,
+    target: Option<&super::local::LocalTunnel>,
+) -> Result<Vec<RouteElsewhere>, ObserveError> {
+    let mut found = Vec::new();
+    for tunnel in local.tunnels(account).await? {
+        if target.is_some_and(|t| t.tunnel_id == tunnel.tunnel_id) {
+            continue;
+        }
+        let ingress = local.applied_ingress(&tunnel.tunnel_id).await?;
+        found.extend(ingress.unwrap_or_default().into_iter().filter_map(|rule| {
+            Some(RouteElsewhere {
+                tunnel: tunnel.name.clone(),
+                hostname: rule.hostname?,
+                path: rule.path,
+            })
+        }));
+    }
+    found.sort_by(|a, b| (&a.hostname, &a.path).cmp(&(&b.hostname, &b.path)));
+    Ok(found)
 }
 
 /// Reads the account's private network routes and its default virtual network.

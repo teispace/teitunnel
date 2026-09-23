@@ -156,7 +156,7 @@ function RouteInspector({
           {route.client ? null : (
             <>
               <Button onClick={() => void openUrl(url)}>
-                Open <ExternalLink />
+                {t("common.open")} <ExternalLink />
               </Button>
               <Button
                 disabled={test.isPending}
@@ -260,6 +260,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const importable = (setups.data ?? []).some((s) => s.routes.some((r) => !r.unsupported));
   const routes = overview.data?.routes ?? [];
   const tunnel = overview.data?.tunnel ?? null;
+  const tunnels = overview.data?.tunnels ?? [];
+  /** The tunnel carrying a route (its connector decides whether it's live). */
+  const carrier = (route: RouteView) => tunnels.find((t) => t.id === route.tunnelId) ?? tunnel;
   const zones = overview.data?.zones ?? [];
   const selected = routes.find((r) => routeKey(r) === selectedKey) ?? routes[0] ?? null;
 
@@ -379,11 +382,19 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
             selectedId={selected ? routeKey(selected) : null}
             onSelect={setSelectedKey}
             renderRow={(route) => {
-              const status = routeStatus(route, tunnel, issues);
+              const via = carrier(route);
+              const status = routeStatus(route, via, issues);
               return (
                 <ListRow
                   title={route.path ? `${route.hostname} ${route.path}` : route.hostname}
-                  subtitle={`→ ${displayOrigin(route.origin)}`}
+                  subtitle={
+                    tunnels.length > 1 && via
+                      ? t("routes.viaTunnel", {
+                          origin: displayOrigin(route.origin),
+                          tunnel: via.name,
+                        })
+                      : `→ ${displayOrigin(route.origin)}`
+                  }
                   leading={<StatusDot status={status.dot} label={status.label} />}
                   trailing={
                     route.access ? (
@@ -405,7 +416,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           <div className="flex min-h-0 flex-1 flex-col">
             <RouteInspector
               route={selected}
-              tunnel={tunnel}
+              tunnel={carrier(selected)}
               accountId={active.id}
               onEdit={() => setSheet({ kind: "edit", route: selected })}
               onRemove={() => setSheet({ kind: "remove", route: selected })}
@@ -421,7 +432,10 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
       {toolbar}
       <div className="flex min-h-0 flex-1 flex-col">
         {active ? (
-          <DriftBanner accountId={active.id} onRestore={() => setSheet({ kind: "restore" })} />
+          <DriftBanner
+            accountId={active.id}
+            onRestore={(tunnelId) => setSheet({ kind: "restore", tunnelId })}
+          />
         ) : null}
         {body}
       </div>
@@ -429,6 +443,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         <RouteSheet
           accountId={active.id}
           zones={zones}
+          tunnels={tunnels}
           mode={sheet}
           onClose={() => setSheet(null)}
         />

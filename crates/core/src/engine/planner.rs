@@ -56,6 +56,17 @@ pub enum PlanError {
     },
     /// This Mac's tunnel doesn't route the range.
     NoSuchNetwork(String),
+    /// The hostname is routed on another of this Mac's tunnels.
+    RoutedElsewhere {
+        /// Hostname.
+        hostname: String,
+        /// The other tunnel's name.
+        tunnel: String,
+    },
+    /// A tunnel name must be 1–64 characters without control characters.
+    InvalidTunnelName,
+    /// Another tunnel in the account has the name.
+    TunnelNameTaken(String),
 }
 
 impl UserText for PlanError {
@@ -74,6 +85,11 @@ impl UserText for PlanError {
                 network, tunnel, ..
             } => msg::error::plan::network_routed(network, tunnel),
             Self::NoSuchNetwork(network) => msg::error::plan::no_such_network(network),
+            Self::RoutedElsewhere { hostname, tunnel } => {
+                msg::error::plan::routed_elsewhere(hostname, tunnel)
+            }
+            Self::InvalidTunnelName => msg::error::plan::invalid_tunnel_name(),
+            Self::TunnelNameTaken(name) => msg::error::plan::tunnel_name_taken(name),
         }
     }
 }
@@ -124,6 +140,23 @@ impl<'a> Builder<'a> {
                 });
                 TunnelRef::Created
             }
+        }
+    }
+
+    /// Fails if another of this Mac's tunnels already routes `hostname` (and `path`).
+    fn not_elsewhere(&self, hostname: &Hostname, path: Option<&PathRule>) -> Result<(), PlanError> {
+        let path = path.map(PathRule::as_str);
+        match self
+            .snapshot
+            .elsewhere
+            .iter()
+            .find(|r| r.hostname == hostname.as_str() && r.path.as_deref() == path)
+        {
+            Some(other) => Err(PlanError::RoutedElsewhere {
+                hostname: hostname.to_string(),
+                tunnel: other.tunnel.clone(),
+            }),
+            None => Ok(()),
         }
     }
 
@@ -355,6 +388,7 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
     match intent {
         Intent::AddRoute { route } => {
             b.zone_id(&route.hostname)?;
+            b.not_elsewhere(&route.hostname, route.path.as_ref())?;
             if let Some(existing) = rules
                 .iter()
                 .find(|r| same_route(r, &route.hostname, route.path.as_ref()))
@@ -399,6 +433,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 return Err(PlanError::NoSuchRoute(hostname.to_string()));
             }
             b.zone_id(&route.hostname)?;
+            if *hostname != route.hostname || path != &route.path {
+                b.not_elsewhere(&route.hostname, route.path.as_ref())?;
+            }
             let renamed = *hostname != route.hostname;
             if renamed
                 && rules
@@ -471,11 +508,28 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.unprotect(&domain);
             }
         }
+        Intent::CreateTunnel { name } => {
+            let name = name.trim();
+            if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
+                return Err(PlanError::InvalidTunnelName);
+            }
+            if snapshot
+                .tunnel_names
+                .iter()
+                .any(|taken| taken.eq_ignore_ascii_case(name))
+            {
+                return Err(PlanError::TunnelNameTaken(name.to_owned()));
+            }
+            b.steps.push(Step::CreateTunnel {
+                name: name.to_owned(),
+            });
+        }
         Intent::ImportRoutes { routes } => {
             let mut desired = rules.clone();
             let mut added = Vec::new();
             for route in routes {
                 b.zone_id(&route.hostname)?;
+                b.not_elsewhere(&route.hostname, route.path.as_ref())?;
                 match desired
                     .iter()
                     .find(|r| same_route(r, &route.hostname, route.path.as_ref()))

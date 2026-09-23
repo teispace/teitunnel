@@ -21,10 +21,15 @@ use crate::{
 /// How long a check right after applying waits for the connector and propagation.
 const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
 
-fn context<'a>(state: &'a AppState, account_id: &'a str) -> Context<'a> {
+fn context<'a>(
+    state: &'a AppState,
+    account_id: &'a str,
+    tunnel_id: Option<&'a str>,
+) -> Context<'a> {
     Context {
         account: account_id,
         machine_name: &state.machine_name,
+        tunnel: tunnel_id,
     }
 }
 
@@ -47,20 +52,22 @@ pub async fn routes_overview(
     let api = state.accounts.client(&account_id).await?;
     Ok(state
         .engine
-        .overview(&api, &state.machine, context(&state, &account_id))
+        .overview(&api, &state.machine, context(&state, &account_id, None))
         .await?)
 }
 
-/// Plans a change for review. Nothing is changed.
+/// Plans a change for review, on one of this Mac's tunnels (`tunnel_id`, or the
+/// default one). Nothing is changed.
 #[tauri::command]
 #[specta::specta]
 pub async fn routes_preview(
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
     change: Change,
 ) -> Result<PlanView, AppError> {
     let api = state.accounts.client(&account_id).await?;
-    let ctx = context(&state, &account_id);
+    let ctx = context(&state, &account_id, tunnel_id.as_deref());
     let intent = state.engine.intent_for(&api, ctx, &change).await?;
     let plan = state.engine.preview(&api, ctx, &intent).await?;
     Ok(plan.view(&account_id))
@@ -70,17 +77,20 @@ pub async fn routes_preview(
 /// `conflict` if anything changed since the preview (preview again).
 #[tauri::command]
 #[specta::specta]
+// A command's arguments are its IPC parameters.
+#[allow(clippy::too_many_arguments)]
 pub async fn routes_apply(
     app: AppHandle,
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
     change: Change,
     fingerprint: String,
     confirmed: bool,
     on_progress: Channel<Progress>,
 ) -> Result<Outcome, AppError> {
     let api = state.accounts.client(&account_id).await?;
-    let ctx = context(&state, &account_id);
+    let ctx = context(&state, &account_id, tunnel_id.as_deref());
     let intent = state.engine.intent_for(&api, ctx, &change).await?;
     let approval = Approval {
         fingerprint: &fingerprint,
@@ -118,7 +128,7 @@ pub async fn routes_verify(
         .engine
         .verify(
             &api,
-            context(&state, &account_id),
+            context(&state, &account_id, None),
             &hostname,
             state.edge,
             patience,
@@ -126,7 +136,7 @@ pub async fn routes_verify(
         .await?)
 }
 
-/// An outside edit of this Mac's routes, if there is one.
+/// An outside edit of this Mac's routes (on any of its tunnels), if there is one.
 #[tauri::command]
 #[specta::specta]
 pub async fn routes_drift(
@@ -134,7 +144,7 @@ pub async fn routes_drift(
     account_id: String,
 ) -> Result<Option<Drift>, AppError> {
     let api = state.accounts.client(&account_id).await?;
-    Ok(state.engine.drift(&api, &account_id).await?)
+    Ok(state.engine.any_drift(&api, &account_id).await?)
 }
 
 /// Accepts an outside edit as the new baseline ("Keep theirs").
@@ -146,7 +156,7 @@ pub async fn routes_keep_theirs(
     account_id: String,
 ) -> Result<(), AppError> {
     let api = state.accounts.client(&account_id).await?;
-    if let Some(drift) = state.engine.drift(&api, &account_id).await? {
+    if let Some(drift) = state.engine.any_drift(&api, &account_id).await? {
         state.engine.keep_theirs(&account_id, &drift).await?;
     }
     changed(&app, &account_id);
@@ -200,7 +210,7 @@ pub async fn tunnels_stop(
     stop_machine(&app, &state, &account_id, &tunnel_id).await
 }
 
-/// Starts `account_id`'s connector on this Mac and clears its "stopped on purpose" mark
+/// Starts `account_id`'s connectors on this Mac and clears their "stopped on purpose" marks
 /// (shared by the Tunnels view and the menu bar).
 pub(crate) async fn start_machine<R: Runtime>(
     app: &AppHandle<R>,
@@ -208,12 +218,20 @@ pub(crate) async fn start_machine<R: Runtime>(
     account_id: &str,
 ) -> Result<(), AppError> {
     let api = state.accounts.client(account_id).await?;
-    if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(account_id).await {
-        state
+    let tunnels = state
+        .engine
+        .local()
+        .tunnels(account_id)
+        .await
+        .unwrap_or_default();
+    {
+        let mut paused = state
             .paused
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(&tunnel.tunnel_id);
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for tunnel in &tunnels {
+            paused.remove(&tunnel.tunnel_id);
+        }
     }
     state.machine.resume(&api, account_id).await?;
     changed(app, account_id);
@@ -351,13 +369,15 @@ pub fn tunnels_remote_logs_stop(
         .stop(&account_id, &tunnel_id, &connector_id);
 }
 
-/// This Mac's tunnel and routes as `config.yml`, Docker Compose or Terraform. `None` if
-/// this Mac has no tunnel in the account. Never contains a secret.
+/// One of this Mac's tunnels (`tunnel_id`, or the default one) and its routes as
+/// `config.yml`, Docker Compose or Terraform. `None` if this Mac has no such tunnel in
+/// the account. Never contains a secret.
 #[tauri::command]
 #[specta::specta]
 pub async fn routes_export(
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
     format: teitunnel_core::export::ExportFormat,
 ) -> Result<Option<teitunnel_core::export::ExportFile>, AppError> {
     let api = state.accounts.client(&account_id).await?;
@@ -370,7 +390,11 @@ pub async fn routes_export(
         .map(|v| v.to_string());
     let input = state
         .engine
-        .export_input(&api, context(&state, &account_id), version)
+        .export_input(
+            &api,
+            context(&state, &account_id, tunnel_id.as_deref()),
+            version,
+        )
         .await?;
     Ok(input.map(|input| teitunnel_core::export::render(&input, format)))
 }
@@ -382,9 +406,10 @@ pub async fn routes_export_save(
     app: AppHandle,
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
     format: teitunnel_core::export::ExportFormat,
 ) -> Result<String, AppError> {
-    let file = routes_export(state, account_id, format)
+    let file = routes_export(state, account_id, tunnel_id, format)
         .await?
         .ok_or_else(|| AppError::invalid("account", m::no_routes()))?;
     let contents = file.contents;
@@ -454,34 +479,42 @@ pub struct AlwaysOn {
     pub enabled: bool,
 }
 
-/// Whether this Mac's connector for the account keeps running when Teitunnel quits.
+/// Whether one of this Mac's connectors (`tunnel_id`, or the default tunnel's) keeps
+/// running when Teitunnel quits.
 #[tauri::command]
 #[specta::specta]
 pub async fn tunnels_always_on(
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
 ) -> Result<AlwaysOn, AppError> {
-    let tunnel = state.engine.local().machine_tunnel(&account_id).await?;
+    let tunnel = state
+        .engine
+        .local()
+        .tunnel(&account_id, tunnel_id.as_deref())
+        .await?;
     Ok(AlwaysOn {
         supported: state.machine.supports_always_on(),
         enabled: tunnel.is_some_and(|t| state.machine.is_always_on(&t.tunnel_id)),
     })
 }
 
-/// Switches this Mac's connector between running with the app and running as a
-/// service (keeps running after quit and at login), without a gap.
+/// Switches one of this Mac's connectors (`tunnel_id`, or the default tunnel's) between
+/// running with the app and running as a service (keeps running after quit and at
+/// login), without a gap.
 #[tauri::command]
 #[specta::specta]
 pub async fn tunnels_set_always_on(
     app: AppHandle,
     state: State<'_, AppState>,
     account_id: String,
+    tunnel_id: Option<String>,
     enabled: bool,
 ) -> Result<(), AppError> {
     let api = state.accounts.client(&account_id).await?;
     state
         .machine
-        .set_always_on(&api, &account_id, enabled)
+        .set_always_on(&api, &account_id, tunnel_id.as_deref(), enabled)
         .await?;
     changed(&app, &account_id);
     Ok(())

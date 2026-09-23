@@ -80,6 +80,7 @@ beforeEach(() => {
               path: null,
               origin: "http://localhost:8000",
               local: true,
+              tunnelId: "t1",
               zone: "yx.com",
               dns: { state: "ok" },
               access: null,
@@ -91,6 +92,7 @@ beforeEach(() => {
             { id: "z2", name: "yx.com" },
           ],
           networks: null,
+          tunnels: [],
         } satisfies RoutesOverview;
       case "routes_verify":
         verified.push(String(payload["hostname"]));

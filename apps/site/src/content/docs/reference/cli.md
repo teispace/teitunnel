@@ -16,6 +16,10 @@ teitunnel-cli network add 192.168.1.0/24     # let WARP users reach a range
 teitunnel-cli networks                       # the ranges this Mac shares
 teitunnel-cli network remove 192.168.1.0/24
 teitunnel-cli export terraform > teitunnel.tf
+teitunnel-cli tunnels                        # this machine's tunnels
+teitunnel-cli tunnel create staging          # another tunnel for this machine
+teitunnel-cli route add beta.example.com 4000 --tunnel staging
+teitunnel-cli tunnel delete staging
 teitunnel-cli accounts
 teitunnel-cli share 3000 --for 30m          # a temporary public URL, until Ctrl-C
 teitunnel-cli doctor                        # check for problems; exits 1 on an error
@@ -28,7 +32,8 @@ teitunnel-cli doctor --fix                  # apply the safe fixes
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/guides/require-login/)). |
 | `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/guides/private-networks/)). |
-| `--json` | Machine-readable output for `accounts`, `routes` and `doctor`. |
+| `--tunnel <name>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/guides/several-tunnels/)). Default: the tunnel carrying the route, or the default tunnel. |
+| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels` and `doctor`. |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |

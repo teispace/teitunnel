@@ -15,6 +15,7 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   removeLogin: "activity.kind.removeLogin",
   addNetwork: "activity.kind.addNetwork",
   removeNetwork: "activity.kind.removeNetwork",
+  createTunnel: "activity.kind.createTunnel",
 };
 
 /** The Show menu (built on use: labels need the language). */

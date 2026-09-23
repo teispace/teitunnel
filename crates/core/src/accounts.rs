@@ -397,7 +397,7 @@ impl Accounts {
             .call(move |conn| {
                 let tx = conn.transaction()?;
                 // What the routes engine remembered for the account goes too.
-                for table in ["tunnels_local", "dns_ownership", "activity"] {
+                for table in ["local_tunnels", "dns_ownership", "activity"] {
                     tx.execute(
                         &format!("DELETE FROM {table} WHERE account_id = ?1"),
                         params![id],

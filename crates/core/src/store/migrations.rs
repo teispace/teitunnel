@@ -95,6 +95,27 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT;
         CREATE INDEX access_ownership_account ON access_ownership (account_id);",
     ),
+    // 8: several tunnels per machine: one row per tunnel, the machine tunnel is the default
+    M::up(
+        "CREATE TABLE local_tunnels (
+            tunnel_id            TEXT PRIMARY KEY NOT NULL,
+            account_id           TEXT NOT NULL,
+            name                 TEXT NOT NULL,
+            is_default           INTEGER NOT NULL,
+            last_applied_version INTEGER,
+            last_applied_ingress TEXT,
+            metrics_port         INTEGER,
+            run_mode             TEXT NOT NULL DEFAULT 'session',
+            created_at           INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX local_tunnels_account ON local_tunnels (account_id);
+        CREATE UNIQUE INDEX local_tunnels_default ON local_tunnels (account_id) WHERE is_default = 1;
+        INSERT INTO local_tunnels (tunnel_id, account_id, name, is_default, last_applied_version,
+                                   last_applied_ingress, metrics_port, run_mode, created_at)
+            SELECT tunnel_id, account_id, name, 1, last_applied_version, last_applied_ingress,
+                   metrics_port, run_mode, created_at FROM tunnels_local;
+        DROP TABLE tunnels_local;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
@@ -108,6 +129,29 @@ mod tests {
     #[test]
     fn migrations_are_valid() {
         assert!(Migrations::from_slice(MIGRATIONS).validate().is_ok());
+    }
+
+    #[test]
+    fn moves_the_machine_tunnel_to_local_tunnels() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Migrations::from_slice(MIGRATIONS)
+            .to_version(&mut conn, 7)
+            .unwrap();
+        conn.execute(
+            "INSERT INTO tunnels_local (account_id, tunnel_id, name, metrics_port, run_mode, created_at)
+             VALUES ('a', 't1', 'Mac', 20300, 'alwaysOn', 1)",
+            [],
+        )
+        .unwrap();
+        apply(&mut conn).unwrap();
+        let row: (String, String, i64, i64, String) = conn
+            .query_row(
+                "SELECT tunnel_id, account_id, is_default, metrics_port, run_mode FROM local_tunnels",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap();
+        assert_eq!(row, ("t1".into(), "a".into(), 1, 20300, "alwaysOn".into()));
     }
 
     #[test]

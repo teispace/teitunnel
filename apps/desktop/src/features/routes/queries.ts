@@ -44,14 +44,21 @@ export function useActivity(accountId: string | null) {
   });
 }
 
+export interface PreviewVars {
+  change: Change;
+  /** One of this Mac's tunnels; `null`: the default one. */
+  tunnelId: string | null;
+}
+
+/** Plans a change on one of this Mac's tunnels. */
 export function usePreview(accountId: string) {
   return useMutation({
-    mutationFn: (change: Change) => call(commands.routesPreview(accountId, change)),
+    mutationFn: ({ change, tunnelId }: PreviewVars) =>
+      call(commands.routesPreview(accountId, tunnelId, change)),
   });
 }
 
-export interface ApplyVars {
-  change: Change;
+export interface ApplyVars extends PreviewVars {
   fingerprint: string;
   confirmed: boolean;
 }
@@ -61,12 +68,14 @@ export function useApply(accountId: string) {
   const queryClient = useQueryClient();
   const [steps, setSteps] = useState<Record<number, StepState>>({});
   const mutation = useMutation({
-    mutationFn: ({ change, fingerprint, confirmed }: ApplyVars) => {
+    mutationFn: ({ change, tunnelId, fingerprint, confirmed }: ApplyVars) => {
       setSteps({});
       const channel = new Channel<Progress>();
       channel.onmessage = (progress) =>
         setSteps((current) => ({ ...current, [progress.step]: progress.state }));
-      return call(commands.routesApply(accountId, change, fingerprint, confirmed, channel));
+      return call(
+        commands.routesApply(accountId, tunnelId, change, fingerprint, confirmed, channel),
+      );
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
   });
@@ -89,10 +98,21 @@ export function useKeepTheirs(accountId: string) {
 }
 
 /** Previews and applies a change in one go (Undo, where the user already decided). */
-export async function applyDirectly(accountId: string, change: Change) {
-  const plan = await call(commands.routesPreview(accountId, change));
+export async function applyDirectly(
+  accountId: string,
+  change: Change,
+  tunnelId: string | null = null,
+) {
+  const plan = await call(commands.routesPreview(accountId, tunnelId, change));
   return call(
-    commands.routesApply(accountId, change, plan.fingerprint, false, new Channel<Progress>()),
+    commands.routesApply(
+      accountId,
+      tunnelId,
+      change,
+      plan.fingerprint,
+      false,
+      new Channel<Progress>(),
+    ),
   );
 }
 
@@ -273,18 +293,19 @@ export function useTrafficHistory(tunnelId: string, range: HistoryRange | null) 
   });
 }
 
-/** Whether this Mac's connector runs as a service (keeps running after quit). */
-export function useAlwaysOn(accountId: string) {
+/** Whether one of this Mac's connectors runs as a service (keeps running after quit). */
+export function useAlwaysOn(accountId: string, tunnelId: string | null = null) {
   return useQuery({
-    queryKey: ["routes", "alwaysOn", accountId],
-    queryFn: () => call(commands.tunnelsAlwaysOn(accountId)),
+    queryKey: ["routes", "alwaysOn", accountId, tunnelId],
+    queryFn: () => call(commands.tunnelsAlwaysOn(accountId, tunnelId)),
   });
 }
 
-export function useSetAlwaysOn(accountId: string) {
+export function useSetAlwaysOn(accountId: string, tunnelId: string | null = null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (enabled: boolean) => call(commands.tunnelsSetAlwaysOn(accountId, enabled)),
+    mutationFn: (enabled: boolean) =>
+      call(commands.tunnelsSetAlwaysOn(accountId, tunnelId, enabled)),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
   });
 }

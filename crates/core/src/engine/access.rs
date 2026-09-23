@@ -300,7 +300,8 @@ impl AccessNeed {
             | Intent::DeleteRecord { .. }
             | Intent::RestoreConfig { .. }
             | Intent::AddNetwork { .. }
-            | Intent::RemoveNetwork { .. } => Self::default(),
+            | Intent::RemoveNetwork { .. }
+            | Intent::CreateTunnel { .. } => Self::default(),
         }
     }
 

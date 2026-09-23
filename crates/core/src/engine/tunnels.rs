@@ -87,8 +87,10 @@ pub struct TunnelSummary {
     pub routes: Option<u32>,
     /// Machines running it.
     pub connectors: Vec<ConnectorView>,
-    /// This Mac's tunnel (created and run by Teitunnel here).
+    /// One of this Mac's tunnels (created and run by Teitunnel here).
     pub this_mac: bool,
+    /// This Mac's default tunnel (where new routes go unless another is chosen).
+    pub is_default: bool,
     /// Connector state on this Mac, for this Mac's tunnel.
     pub connector: Option<ConnectorState>,
 }
@@ -99,14 +101,21 @@ pub(crate) async fn list<C: CloudApi, K: Connectors>(
     local: &Local,
     account: &str,
 ) -> Result<Vec<TunnelSummary>, ObserveError> {
-    let ours = local.machine_tunnel(account).await?.map(|t| t.tunnel_id);
+    let local_tunnels = local.tunnels(account).await?;
+    let default = local_tunnels
+        .iter()
+        .find(|t| t.is_default)
+        .map(|t| t.tunnel_id.clone());
+    let ours: std::collections::HashSet<String> =
+        local_tunnels.into_iter().map(|t| t.tunnel_id).collect();
     let mut tunnels = api.tunnels(account).await?;
-    tunnels.sort_by(|a, b| {
-        (ours.as_ref() != Some(&a.id), &a.name).cmp(&(ours.as_ref() != Some(&b.id), &b.name))
-    });
+    // This Mac's default tunnel first, then its others, then the rest; by name.
+    let rank = |id: &String| (default.as_ref() != Some(id), !ours.contains(id));
+    tunnels.sort_by(|a, b| (rank(&a.id), &a.name).cmp(&(rank(&b.id), &b.name)));
     let summaries = stream::iter(tunnels)
         .map(|tunnel| {
-            let ours = ours.clone();
+            let this_mac = ours.contains(&tunnel.id);
+            let is_default = default.as_deref() == Some(tunnel.id.as_str());
             async move {
                 let routes = if tunnel.remote_config {
                     api.tunnel_config(account, &tunnel.id).await.ok().map(|c| {
@@ -118,7 +127,6 @@ pub(crate) async fn list<C: CloudApi, K: Connectors>(
                 } else {
                     None
                 };
-                let this_mac = ours.as_deref() == Some(tunnel.id.as_str());
                 let local = if this_mac && !tunnel.connections.is_empty() {
                     connectors.connector_id(&tunnel.id).await
                 } else {
@@ -133,6 +141,7 @@ pub(crate) async fn list<C: CloudApi, K: Connectors>(
                     created_at: tunnel.created_at,
                     routes,
                     this_mac,
+                    is_default,
                 }
             }
         })

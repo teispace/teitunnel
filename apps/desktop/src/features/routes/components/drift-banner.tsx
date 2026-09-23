@@ -22,7 +22,8 @@ export function DriftBanner({
   onRestore,
 }: {
   accountId: string;
-  onRestore: () => void;
+  /** Put back Teitunnel's routes on the edited tunnel. */
+  onRestore: (tunnelId: string) => void;
 }) {
   const drift = useDrift(accountId);
   const keep = useKeepTheirs(accountId);
@@ -52,7 +53,7 @@ export function DriftBanner({
           <Button size="sm" disabled={keep.isPending} onClick={() => keep.mutate()}>
             {t("drift.keep")}
           </Button>
-          <Button size="sm" onClick={onRestore}>
+          <Button size="sm" onClick={() => drift.data && onRestore(drift.data.tunnelId)}>
             {t("drift.restore")}
           </Button>
         </div>

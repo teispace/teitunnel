@@ -71,9 +71,14 @@ impl Error {
                 ErrorKind::Unavailable
             }
             Self::Engine(e) => match e {
-                E::Plan(P::NoZone(_) | P::RouteExists(_) | P::AccessDomain(_)) | E::Input(_) => {
-                    ErrorKind::InvalidInput
-                }
+                E::Plan(
+                    P::NoZone(_)
+                    | P::RouteExists(_)
+                    | P::AccessDomain(_)
+                    | P::InvalidTunnelName
+                    | P::TunnelNameTaken(_),
+                )
+                | E::Input(_) => ErrorKind::InvalidInput,
                 E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
                 E::Plan(
                     P::NoSuchRoute(_)
@@ -81,11 +86,14 @@ impl Error {
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
                     | P::NoSuchNetwork(_),
-                ) => ErrorKind::NotFound,
+                )
+                | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
                 | E::NeedsConfirmation
                 | E::NothingToRestore
-                | E::Plan(P::AccessAppExists(_) | P::NetworkRouted { .. }) => ErrorKind::Conflict,
+                | E::Plan(
+                    P::AccessAppExists(_) | P::NetworkRouted { .. } | P::RoutedElsewhere { .. },
+                ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
@@ -103,7 +111,12 @@ impl Error {
         use crate::engine::{EngineError as E, PlanError as P};
         match self {
             Self::Engine(E::Input(input)) => Some(input.field),
-            Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_))) => Some("hostname"),
+            Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_) | P::RoutedElsewhere { .. })) => {
+                Some("hostname")
+            }
+            Self::Engine(E::Plan(P::InvalidTunnelName | P::TunnelNameTaken(_))) => {
+                Some("tunnelName")
+            }
             Self::Engine(E::Plan(P::AccessDomain(_))) => Some("path"),
             Self::Engine(E::Plan(P::NetworkRouted { .. })) => Some("network"),
             Self::Accounts(_) => Some("credential"),

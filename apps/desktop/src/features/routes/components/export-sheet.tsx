@@ -23,21 +23,23 @@ const HINTS: Record<ExportFormat, MessageKey> = {
 
 interface ExportSheetProps {
   accountId: string;
+  /** One of this Mac's tunnels; the default one when absent. */
+  tunnelId?: string | null;
   open: boolean;
   onClose: () => void;
 }
 
 /** Export this Mac's tunnel and routes as configuration for other tools. */
-export function ExportSheet({ accountId, open, onClose }: ExportSheetProps) {
+export function ExportSheet({ accountId, tunnelId = null, open, onClose }: ExportSheetProps) {
   const [format, setFormat] = useState<ExportFormat>("configYaml");
   const file = useQuery({
-    queryKey: ["routes", "export", accountId, format],
-    queryFn: () => call(commands.routesExport(accountId, format)),
+    queryKey: ["routes", "export", accountId, tunnelId, format],
+    queryFn: () => call(commands.routesExport(accountId, tunnelId, format)),
     enabled: open,
     staleTime: 0,
   });
   const save = useMutation({
-    mutationFn: () => call(commands.routesExportSave(accountId, format)),
+    mutationFn: () => call(commands.routesExportSave(accountId, tunnelId, format)),
     onSuccess: (path) => toast.success(t("export.saved"), { description: path }),
     onError: (error) => toast.error(toIpcError(error).message),
   });

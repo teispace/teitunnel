@@ -136,7 +136,12 @@ function IssueInspector({
                 onClick={() =>
                   issue.accountId &&
                   onReview(
-                    { kind: "fix", change: fix.change, label: translate(fix.label) },
+                    {
+                      kind: "fix",
+                      change: fix.change,
+                      label: translate(fix.label),
+                      tunnelId: issue.tunnelId,
+                    },
                     issue.accountId,
                   )
                 }

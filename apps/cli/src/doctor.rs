@@ -192,6 +192,7 @@ mod tests {
             } else {
                 Vec::new()
             },
+            tunnel_id: None,
         }
     }
 

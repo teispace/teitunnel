@@ -27,10 +27,25 @@ const mac: TunnelSummary = {
   routes: 0,
   connectors: [],
   thisMac: true,
+  isDefault: true,
   connector: { state: "healthy", connections: 4 },
 };
 
 function networkPlan(change: Change): PlanView {
+  if (change.type === "createTunnel") {
+    return {
+      steps: [
+        {
+          kind: "createTunnel",
+          description: rawText(`Create tunnel “${change.name}”`),
+          command: null,
+        },
+      ],
+      warnings: [],
+      requiresConfirmation: false,
+      fingerprint: "fp",
+    };
+  }
   const network = change.type === "addNetwork" ? change.network : "";
   return {
     steps: [
@@ -69,6 +84,7 @@ const server: TunnelSummary = {
     },
   ],
   thisMac: false,
+  isDefault: false,
   connector: null,
 };
 
@@ -97,7 +113,8 @@ beforeEach(() => {
         return [mac, server];
       case "routes_overview":
         return {
-          tunnel: { id: "t-mac", name: "Mac", connector: { state: "healthy", connections: 4 } },
+          tunnel: mine,
+          tunnels: [mine],
           routes: [],
           zones: [],
           networks,
@@ -147,7 +164,43 @@ function renderPage() {
   );
 }
 
+const mine = {
+  id: "t-mac",
+  name: "Mac",
+  connector: { state: "healthy", connections: 4 },
+  isDefault: true,
+} as const;
+
 describe("TunnelsPage", () => {
+  it("creates another tunnel for this Mac through a reviewed plan", async () => {
+    renderPage();
+    await screen.findByRole("option", { name: /Mac/ });
+    fireEvent.click(screen.getByRole("button", { name: "New tunnel" }));
+    const dialog = await screen.findByRole("dialog", { name: "New Tunnel" });
+    const review = within(dialog).getByRole("button", { name: "Review" });
+    expect(review.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), {
+      target: { value: "staging" },
+    });
+    fireEvent.click(review);
+    expect(await within(dialog).findByText("Create tunnel “staging”")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create Tunnel" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "routes_apply")?.args["change"]).toEqual({
+        type: "createTunnel",
+        name: "staging",
+      }),
+    );
+  });
+
+  it("deletes the selected tunnel of this Mac, not the default one", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Delete…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Tunnel" });
+    await within(dialog).findByRole("button", { name: "Delete Tunnel" });
+    expect(calls.find((c) => c.cmd === "routes_preview")?.args["tunnelId"]).toBe("t-mac");
+  });
+
   it("shares a private network and stops sharing it", async () => {
     renderPage();
     expect(await screen.findByText(/reach addresses on this Mac's network/)).toBeTruthy();

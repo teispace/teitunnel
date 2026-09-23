@@ -201,7 +201,10 @@ async fn switches_to_always_on_and_back_without_a_gap() {
     let unused = unused_api();
 
     // Session → Always-on: the service connects, then the app's connector stops.
-    machine.set_always_on(&unused, "acc", true).await.unwrap();
+    machine
+        .set_always_on(&unused, "acc", None, true)
+        .await
+        .unwrap();
     assert!(machine.is_always_on("t2"));
     assert!(
         supervisor.state(&connector_id("t2")).is_none(),
@@ -247,7 +250,10 @@ async fn switches_to_always_on_and_back_without_a_gap() {
     assert!(machine.traffic("t2", Some(last)).unwrap().series.is_empty());
 
     // Always-on → Session: the app's connector connects, then the service goes.
-    machine.set_always_on(&unused, "acc", false).await.unwrap();
+    machine
+        .set_always_on(&unused, "acc", None, false)
+        .await
+        .unwrap();
     assert!(!machine.is_always_on("t2"));
     healthy(&supervisor, "t2").await;
     assert!(
@@ -312,7 +318,10 @@ async fn moves_connectors_onto_a_new_binary_without_a_gap() {
     healthy(&supervisor, "t3").await;
 
     // Always-on: a temporary app connector bridges while the service is reinstalled.
-    machine.set_always_on(&api, "acc", true).await.unwrap();
+    machine
+        .set_always_on(&api, "acc", None, true)
+        .await
+        .unwrap();
     services.calls.lock().unwrap().clear();
     assert!(
         machine
@@ -374,7 +383,10 @@ async fn a_manager_that_cant_capture_output_gets_a_self_logging_connector() {
         .await
         .unwrap();
     healthy(&supervisor, "t4").await;
-    machine.set_always_on(&api, "acc", true).await.unwrap();
+    machine
+        .set_always_on(&api, "acc", None, true)
+        .await
+        .unwrap();
 
     let spec = services.installed.lock().unwrap()[0].clone();
     let args: Vec<String> = spec

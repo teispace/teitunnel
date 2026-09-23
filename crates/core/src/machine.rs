@@ -1,4 +1,5 @@
-//! This Mac's tunnels: one connector per account's machine tunnel, run either by the app
+//! This Mac's tunnels: one connector per tunnel of this Mac (the machine tunnel and any
+//! others), run either by the app
 //! (Session mode) or by the OS as a service (Always-on, survives quit and reboot).
 //!
 //! Session connectors get their run token through the `TUNNEL_TOKEN` environment
@@ -291,8 +292,9 @@ impl MachineTunnels {
             .unwrap_or_default()
     }
 
-    /// The newest `limit` log events about requests for one route of `account`'s tunnel
-    /// (matched by its rule in the ingress Teitunnel applied), oldest first.
+    /// The newest `limit` log events about requests for one route of `account` (matched
+    /// by its rule in the ingress Teitunnel applied to the tunnel carrying it), oldest
+    /// first.
     ///
     /// # Errors
     /// Database errors, as a message.
@@ -304,16 +306,21 @@ impl MachineTunnels {
         limit: usize,
     ) -> Result<Vec<Arc<cloudflared::LogEvent>>, Text> {
         let local = |e: crate::store::StoreError| e.text();
-        let Some(tunnel) = self.local.machine_tunnel(account).await.map_err(local)? else {
-            return Ok(Vec::new());
-        };
-        let ingress = self
-            .local
-            .applied_ingress(account)
-            .await
-            .map_err(local)?
-            .unwrap_or_default();
-        let Some(filter) = crate::connector_logs::RouteFilter::new(&ingress, hostname, path) else {
+        let mut found = None;
+        for tunnel in self.local.tunnels(account).await.map_err(local)? {
+            let ingress = self
+                .local
+                .applied_ingress(&tunnel.tunnel_id)
+                .await
+                .map_err(local)?
+                .unwrap_or_default();
+            if let Some(filter) = crate::connector_logs::RouteFilter::new(&ingress, hostname, path)
+            {
+                found = Some((tunnel, filter));
+                break;
+            }
+        }
+        let Some((tunnel, filter)) = found else {
             return Ok(Vec::new());
         };
         // Scan everything held: most lines aren't about this route.
@@ -373,20 +380,33 @@ impl MachineTunnels {
         Ok(token)
     }
 
-    /// Starts `account`'s machine tunnel if it has one and it isn't running (app launch):
-    /// a Session connector, or makes sure its service is installed.
+    /// Starts `account`'s tunnels on this Mac that aren't running (app launch): Session
+    /// connectors, or makes sure their services are installed. Returns whether it has
+    /// any. A tunnel that fails doesn't stop the others; the first error is returned.
     ///
     /// # Errors
     /// A message for the UI.
     pub async fn resume<C: CloudApi>(&self, api: &C, account: &str) -> Result<bool, Text> {
-        let Some(tunnel) = self
-            .local
-            .machine_tunnel(account)
-            .await
-            .map_err(|e| e.text())?
-        else {
-            return Ok(false);
-        };
+        let tunnels = self.local.tunnels(account).await.map_err(|e| e.text())?;
+        let mut first_error = None;
+        for tunnel in &tunnels {
+            if let Err(err) = self.resume_tunnel(api, account, tunnel).await {
+                tracing::warn!(tunnel = %tunnel.tunnel_id, "couldn't resume: {}", err.english());
+                first_error.get_or_insert(err);
+            }
+        }
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(!tunnels.is_empty()),
+        }
+    }
+
+    async fn resume_tunnel<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+        tunnel: &crate::engine::LocalTunnel,
+    ) -> Result<(), Text> {
         if tunnel.always_on && self.manager.is_some() {
             let port = tunnel.metrics_port.unwrap_or(0);
             let label = launchd::label(&tunnel.tunnel_id);
@@ -403,29 +423,22 @@ impl MachineTunnels {
                         state: ConnectorState::Connecting,
                     },
                 );
-                return Ok(true);
+                return Ok(());
             }
             // The service is gone (removed by hand, a new Mac…): install it again.
             let token = self.token(api, account, &tunnel.tunnel_id).await?;
-            self.install_service(account, &tunnel.tunnel_id, &token)
-                .await?;
-            return Ok(true);
+            self.install_service(&tunnel.tunnel_id, &token).await?;
+            return Ok(());
         }
         if self.is_running(&tunnel.tunnel_id) {
-            return Ok(true);
+            return Ok(());
         }
         let token = self.token(api, account, &tunnel.tunnel_id).await?;
-        self.start(account, &tunnel.tunnel_id, token).await?;
-        Ok(true)
+        self.start(account, &tunnel.tunnel_id, token).await
     }
 
     /// Writes the token file and installs the service on a fresh port. Returns the port.
-    async fn install_service(
-        &self,
-        account: &str,
-        tunnel_id: &str,
-        token: &Secret<String>,
-    ) -> Result<u16, Text> {
+    async fn install_service(&self, tunnel_id: &str, token: &Secret<String>) -> Result<u16, Text> {
         let (Some(manager), Some(paths)) = (&self.manager, &self.paths) else {
             return Err(msg::machine::always_on_unavailable());
         };
@@ -468,7 +481,7 @@ impl MachineTunnels {
                 state: ConnectorState::Connecting,
             },
         );
-        if let Err(err) = self.local.set_metrics_port(account, port).await {
+        if let Err(err) = self.local.set_metrics_port(tunnel_id, port).await {
             tracing::warn!(%err, "couldn't remember the metrics port");
         }
         Ok(port)
@@ -496,7 +509,8 @@ impl MachineTunnels {
         Ok(())
     }
 
-    /// Switches `account`'s connector between Session and Always-on without a gap: the
+    /// Switches one of `account`'s tunnels (`tunnel`, or the default one) between Session
+    /// and Always-on without a gap: the
     /// new one starts and connects before the old one stops. If the new one doesn't
     /// connect within 30 s, the old one keeps running and this returns an error.
     ///
@@ -506,11 +520,12 @@ impl MachineTunnels {
         &self,
         api: &C,
         account: &str,
+        tunnel: Option<&str>,
         always_on: bool,
     ) -> Result<(), Text> {
         let tunnel = self
             .local
-            .machine_tunnel(account)
+            .tunnel(account, tunnel)
             .await
             .map_err(|e| e.text())?
             .ok_or_else(msg::machine::no_tunnel)?;
@@ -518,18 +533,18 @@ impl MachineTunnels {
         if self.is_always_on(id) == always_on {
             return self
                 .local
-                .set_always_on(account, always_on)
+                .set_always_on(id, always_on)
                 .await
                 .map_err(|e| e.text());
         }
         let token = self.token(api, account, id).await?;
         if always_on {
-            let port = self.install_service(account, id, &token).await?;
+            let port = self.install_service(id, &token).await?;
             if !wait_ready(port, SWITCH_TIMEOUT).await {
                 let _ = self.uninstall_service(id).await;
                 let old = self.held().get(id).copied();
                 if let Some(old) = old {
-                    let _ = self.local.set_metrics_port(account, old).await;
+                    let _ = self.local.set_metrics_port(id, old).await;
                 }
                 return Err(msg::machine::always_on_timeout());
             }
@@ -560,33 +575,47 @@ impl MachineTunnels {
             }
         }
         self.local
-            .set_always_on(account, always_on)
+            .set_always_on(id, always_on)
             .await
             .map_err(|e| e.text())
     }
 
-    /// Moves `account`'s connector onto the current cloudflared binary (after an update),
+    /// Moves `account`'s connectors onto the current cloudflared binary (after an update),
     /// without a gap for an Always-on connector: a temporary app connector serves while
     /// the service is reinstalled, and goes once the service is ready again. A Session
     /// connector restarts in place (a blip shorter than the 20 s before "down" notifies).
     /// Returns whether a connector was restarted.
     ///
     /// # Errors
-    /// A message for the UI. Whatever was serving before keeps serving.
+    /// A message for the UI (the first failure; the other tunnels are still moved).
+    /// Whatever was serving before keeps serving.
     pub async fn restart_on_current_binary<C: CloudApi>(
         &self,
         api: &C,
         account: &str,
     ) -> Result<bool, Text> {
-        let Some(tunnel) = self
-            .local
-            .machine_tunnel(account)
-            .await
-            .map_err(|e| e.text())?
-        else {
-            return Ok(false);
-        };
-        let id = tunnel.tunnel_id.as_str();
+        let tunnels = self.local.tunnels(account).await.map_err(|e| e.text())?;
+        let (mut restarted, mut first_error) = (false, None);
+        for tunnel in &tunnels {
+            match self.restart_tunnel(api, account, &tunnel.tunnel_id).await {
+                Ok(done) => restarted |= done,
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
+        }
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(restarted),
+        }
+    }
+
+    async fn restart_tunnel<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+        id: &str,
+    ) -> Result<bool, Text> {
         let service_port = self.services().get(id).map(|s| s.port);
         let running = service_port.is_some() || self.held().contains_key(id);
         if !running {
@@ -609,7 +638,7 @@ impl MachineTunnels {
             self.stop_session(id).await;
             return Err(msg::machine::bridge_failed());
         }
-        let port = match self.install_service(account, id, &token).await {
+        let port = match self.install_service(id, &token).await {
             Ok(port) => port,
             Err(err) => {
                 // The service is gone; the bridge keeps the routes up until relaunch
@@ -639,7 +668,7 @@ impl MachineTunnels {
         if self.supervisor.state(&id).is_some() {
             self.stop_session(tunnel_id).await;
         }
-        let port = self.port_for(account).await?;
+        let port = self.port_for(account, tunnel_id).await?;
         let command = RunCmd {
             token: TokenSource::Env(TunnelToken::new(token.expose().clone())),
             metrics_port: port,
@@ -693,19 +722,19 @@ impl MachineTunnels {
         }
     }
 
-    /// Stops `account`'s connector and deletes its token (before signing out).
+    /// Stops `account`'s connectors and deletes their tokens (before signing out).
     pub async fn forget_account(&self, account: &str) {
-        if let Ok(Some(tunnel)) = self.local.machine_tunnel(account).await {
+        for tunnel in self.local.tunnels(account).await.unwrap_or_default() {
             let _ = self.stop(&tunnel.tunnel_id).await;
             self.deleted(&tunnel.tunnel_id).await;
         }
     }
 
     /// The remembered metrics port if it's still free, else a new one (remembered).
-    async fn port_for(&self, account: &str) -> Result<u16, Text> {
+    async fn port_for(&self, account: &str, tunnel_id: &str) -> Result<u16, Text> {
         let remembered = self
             .local
-            .machine_tunnel(account)
+            .tunnel(account, Some(tunnel_id))
             .await
             .map_err(|e| e.text())?
             .and_then(|t| t.metrics_port);
@@ -715,7 +744,7 @@ impl MachineTunnels {
             return Ok(port);
         }
         let port = self.ports.allocate().ok_or_else(msg::machine::no_port)?;
-        if let Err(err) = self.local.set_metrics_port(account, port).await {
+        if let Err(err) = self.local.set_metrics_port(tunnel_id, port).await {
             tracing::warn!(%err, "couldn't remember the metrics port");
         }
         Ok(port)
@@ -755,7 +784,7 @@ impl Connectors for MachineTunnels {
         // An Always-on connector that stopped is reinstalled, not doubled by a Session one.
         if self.is_always_on(tunnel_id) {
             let _ = self.uninstall_service(tunnel_id).await;
-            self.install_service(account, tunnel_id, &token).await?;
+            self.install_service(tunnel_id, &token).await?;
             return Ok(());
         }
         self.start_session(account, tunnel_id, &token).await

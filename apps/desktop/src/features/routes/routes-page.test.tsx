@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { rawText } from "@/lib/i18n";
-import type { Change, PlanView, RoutesOverview, RouteView } from "@/lib/ipc/bindings";
+import type { Change, PlanView, RoutesOverview, RouteView, TunnelView } from "@/lib/ipc/bindings";
 import { RoutesPage } from "./routes-page";
 
 const zones = [
@@ -16,6 +16,8 @@ const zones = [
 let routes: RouteView[];
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let drift: boolean;
+/** A second tunnel of this Mac's, when a test wants one. */
+let extra: TunnelView | null;
 let accessEdit: "yes" | "no";
 let accessDenied: boolean;
 let refusal: { key: string; args: Record<string, string>; field?: string } | null;
@@ -74,6 +76,13 @@ const plan = (change: Change): PlanView => {
   };
 };
 
+const mac = {
+  id: "t1",
+  name: "Mac",
+  connector: { state: "healthy", connections: 4 },
+  isDefault: true,
+} as const;
+
 beforeEach(() => {
   routes = [
     {
@@ -81,6 +90,7 @@ beforeEach(() => {
       path: null,
       origin: "http://localhost:3000",
       local: true,
+      tunnelId: "t1",
       zone: "xyz.com",
       dns: { state: "ok" },
       access: null,
@@ -89,6 +99,7 @@ beforeEach(() => {
   ];
   calls = [];
   drift = false;
+  extra = null;
   accessEdit = "yes";
   accessDenied = false;
   refusal = null;
@@ -101,7 +112,8 @@ beforeEach(() => {
         return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
       case "routes_overview":
         return {
-          tunnel: { id: "t1", name: "Mac", connector: { state: "healthy", connections: 4 } },
+          tunnel: mac,
+          tunnels: extra ? [mac, extra] : [mac],
           routes,
           zones,
           networks: [],
@@ -118,6 +130,7 @@ beforeEach(() => {
               path: null,
               origin: `http://localhost:${change.route.origin}`,
               local: true,
+              tunnelId: "t1",
               zone: "yx.com",
               dns: { state: "ok" },
               access: change.route.access ?? null,
@@ -211,6 +224,7 @@ describe("RoutesPage", () => {
         path: null,
         origin: "ssh://localhost:22",
         local: true,
+        tunnelId: "t1",
         zone: "xyz.com",
         dns: { state: "ok" },
         access: null,
@@ -267,6 +281,30 @@ describe("RoutesPage", () => {
     expect(calls.some((c) => c.cmd === "routes_verify" && c.args["wait"] === true)).toBe(true);
     // The list behind the sheet refreshed with the new route.
     await screen.findByRole("option", { name: /api\.xyz\.com/, hidden: true });
+  });
+
+  it("puts a new route on the tunnel chosen, and says which tunnel carries each", async () => {
+    extra = { id: "t2", name: "staging", connector: null, isDefault: false };
+    routes = [...routes, { ...(routes[0] as RouteView), hostname: "beta.xyz.com", tunnelId: "t2" }];
+    renderPage();
+    const beta = await screen.findByRole("option", { name: /beta\.xyz\.com/ });
+    expect(within(beta).getByText(/· staging/)).toBeTruthy();
+    // Its tunnel isn't running, so the route isn't live even though the other one is.
+    expect(within(beta).getByRole("img", { name: "Connector stopped" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "New route" }));
+    const dialog = await screen.findByRole("dialog", { name: "New Route" });
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5000" },
+    });
+    // The picker starts on the default tunnel.
+    const picker = within(dialog).getByRole("combobox", { name: "Tunnel" });
+    expect(picker.textContent).toContain("Mac");
+    fireEvent.click(picker);
+    fireEvent.click(await screen.findByRole("option", { name: "staging" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
+    await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
+    expect(calls.find((c) => c.cmd === "routes_preview")?.args["tunnelId"]).toBe("t2");
   });
 
   it("puts a login in front of a new route", async () => {

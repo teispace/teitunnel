@@ -25,7 +25,10 @@
       "network@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network.",
       "network@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network.",
       "route@windows": "Send a hostname on your domain to a service on this PC.",
-      "route@linux": "Send a hostname on your domain to a service on this computer."
+      "route@linux": "Send a hostname on your domain to a service on this computer.",
+      "createTunnel": "Another tunnel for this Mac, for example to keep staging routes apart from production. Each tunnel runs its own connector.",
+      "createTunnel@windows": "Another tunnel for this PC, for example to keep staging routes apart from production. Each tunnel runs its own connector.",
+      "createTunnel@linux": "Another tunnel for this computer, for example to keep staging routes apart from production. Each tunnel runs its own connector."
     },
     "network": {
       "label": "Network",
@@ -75,7 +78,8 @@
       "removeTunnel": "Delete Tunnel",
       "addNetwork": "Share a Private Network",
       "removeNetwork": "Stop Sharing Network",
-      "fix": "Fix Issue"
+      "fix": "Fix Issue",
+      "createTunnel": "New Tunnel"
     },
     "apply": {
       "add": "Add Route",
@@ -85,7 +89,8 @@
       "removeTunnel": "Delete Tunnel",
       "addNetwork": "Share",
       "removeNetwork": "Stop Sharing",
-      "fix": "Apply"
+      "fix": "Apply",
+      "createTunnel": "Create Tunnel"
     },
     "done": {
       "add": "Route added",
@@ -95,7 +100,19 @@
       "removeTunnel": "Tunnel deleted",
       "addNetwork": "Network shared",
       "removeNetwork": "Network no longer shared",
-      "fix": "Fixed"
+      "fix": "Fixed",
+      "createTunnel": "Tunnel created"
+    },
+    "tunnelName": {
+      "label": "Name",
+      "help": "Up to 64 characters. It's shown in the Cloudflare dashboard.",
+      "placeholder": "staging"
+    },
+    "tunnel": {
+      "label": "Tunnel",
+      "help": "Which of this Mac's tunnels serves the route.",
+      "help@windows": "Which of this PC's tunnels serves the route.",
+      "help@linux": "Which of this computer's tunnels serves the route."
     }
   },
   "time": {
@@ -187,7 +204,8 @@
     "importLabel": "Import Routes",
     "logs": {
       "empty": "No failed requests. Successful ones aren't logged."
-    }
+    },
+    "viaTunnel": "→ {origin} · {tunnel}"
   },
   "tunnels": {
     "foreign": {
@@ -270,7 +288,8 @@
     "startHere@windows": "Start on This PC",
     "startHere@linux": "Start on This computer",
     "connectDescription@windows": "Tunnels connect this PC to Cloudflare so your routes can reach it.",
-    "connectDescription@linux": "Tunnels connect this computer to Cloudflare so your routes can reach it."
+    "connectDescription@linux": "Tunnels connect this computer to Cloudflare so your routes can reach it.",
+    "new": "New tunnel"
   },
   "plan": {
     "state": {
@@ -417,7 +436,8 @@
       "removeTunnel": "Tunnel Removals",
       "removeLogin": "Login Removals",
       "addNetwork": "Networks Shared",
-      "removeNetwork": "Networks Unshared"
+      "removeNetwork": "Networks Unshared",
+      "createTunnel": "Tunnels Created"
     },
     "show": {
       "all": "All Changes",
@@ -900,7 +920,10 @@
         "noTunnel@windows": "This PC doesn't have a tunnel yet.",
         "noTunnel@linux": "This computer doesn't have a tunnel yet.",
         "noSuchNetwork@windows": "This PC doesn't share {network}.",
-        "noSuchNetwork@linux": "This computer doesn't share {network}."
+        "noSuchNetwork@linux": "This computer doesn't share {network}.",
+        "routedElsewhere": "{hostname} is already routed on tunnel “{tunnel}”. Remove it there first, or edit it there.",
+        "invalidTunnelName": "Enter a tunnel name of up to 64 characters.",
+        "tunnelNameTaken": "The account already has a tunnel named “{name}”. Choose another name."
       },
       "engine": {
         "stale": "Something changed in Cloudflare since you reviewed this change. Review it again.",
@@ -908,7 +931,10 @@
         "nothingToRestore": "Nothing to restore: the routes are as Teitunnel left them."
       },
       "observe": {
-        "accessPermission": "This account's token can't manage logins. In Cloudflare, add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to it; the token itself stays the same."
+        "accessPermission": "This account's token can't manage logins. In Cloudflare, add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to it; the token itself stays the same.",
+        "unknownTunnel": "This Mac doesn't have that tunnel any more.",
+        "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
+        "unknownTunnel@linux": "This computer doesn't have that tunnel any more."
       },
       "cloudflare": {
         "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
@@ -983,7 +1009,8 @@
         "removeTunnel@windows": "Remove every route and delete this PC's tunnel",
         "removeTunnel@linux": "Remove every route and delete this computer's tunnel",
         "restoreConfig@windows": "Restore this PC's routes after an outside edit",
-        "restoreConfig@linux": "Restore this computer's routes after an outside edit"
+        "restoreConfig@linux": "Restore this computer's routes after an outside edit",
+        "createTunnel": "Create tunnel “{name}”"
       },
       "step": {
         "createTunnel": "Create tunnel “{name}”",

@@ -24,6 +24,7 @@ static EMPTY: Snapshot = Snapshot {
     zones: Vec::new(),
     tunnel: None,
     tunnel_names: Vec::new(),
+    elsewhere: Vec::new(),
     records: Vec::new(),
     access: None,
     networks: None,
@@ -89,6 +90,8 @@ pub struct Context<'a> {
     pub account: &'a str,
     /// Name for a new machine tunnel.
     pub machine_name: &'a str,
+    /// Which of this Mac's tunnels the change is about (its id); `None`: the default one.
+    pub tunnel: Option<&'a str>,
 }
 
 /// What the user approved: the plan they reviewed (by fingerprint) and whether they
@@ -297,7 +300,7 @@ impl Engine {
         Arc::clone(locks.entry(account.to_owned()).or_default())
     }
 
-    fn cache_key(account: &str, intent: &Intent) -> String {
+    fn cache_key(account: &str, tunnel: Option<&str>, intent: &Intent) -> String {
         let scope = intent.hostnames().map_or_else(
             || "*".to_owned(),
             |names| {
@@ -310,11 +313,13 @@ impl Engine {
         );
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{scope}\n{}{}{}\n{:?}",
+            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}",
+            tunnel.unwrap_or_default(),
             u8::from(need.access.setup),
             u8::from(need.access.owned),
             need.access.domains.join(","),
-            need.networks
+            need.networks,
+            u8::from(need.tunnel_names),
         )
     }
 
@@ -334,7 +339,7 @@ impl Engine {
         intent: &Intent,
         cached: bool,
     ) -> Result<Snapshot, EngineError> {
-        let key = Self::cache_key(ctx.account, intent);
+        let key = Self::cache_key(ctx.account, ctx.tunnel, intent);
         if cached {
             let cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
             if let Some((at, snapshot)) = cache.get(&key)
@@ -348,6 +353,7 @@ impl Engine {
             api,
             &self.local,
             ctx.account,
+            ctx.tunnel,
             ctx.machine_name,
             hostnames.as_deref(),
             &ObserveNeed::of(intent),
@@ -373,7 +379,7 @@ impl Engine {
         match change {
             Change::RestoreConfig => {
                 let drift = self
-                    .drift(api, ctx.account)
+                    .drift(api, ctx.account, ctx.tunnel)
                     .await?
                     .ok_or(EngineError::NothingToRestore)?;
                 Ok(Intent::RestoreConfig {
@@ -392,8 +398,9 @@ impl Engine {
         }
     }
 
-    /// This Mac's tunnel and routes in an account, with DNS and connector state. May
-    /// reuse an observation up to 5 s old.
+    /// This Mac's tunnels and routes in an account, with DNS and connector state:
+    /// private networks are those of the default tunnel. May reuse observations up to
+    /// 5 s old.
     ///
     /// # Errors
     /// Observation errors.
@@ -403,8 +410,46 @@ impl Engine {
         connectors: &K,
         ctx: Context<'_>,
     ) -> Result<RoutesOverview, EngineError> {
-        let snapshot = self.snapshot(api, ctx, &Intent::RemoveTunnel, true).await?;
-        Ok(overview(&snapshot, |id| connectors.state(id)))
+        let state = |id: &str| connectors.state(id);
+        let base = Context {
+            tunnel: None,
+            ..ctx
+        };
+        let snapshot = self
+            .snapshot(api, base, &Intent::RemoveTunnel, true)
+            .await?;
+        let mut merged = overview(&snapshot, true, state);
+        let others = self
+            .local
+            .tunnels(ctx.account)
+            .await
+            .map_err(ObserveError::from)?;
+        for tunnel in others.iter().filter(|t| !t.is_default) {
+            let ctx = Context {
+                tunnel: Some(&tunnel.tunnel_id),
+                ..ctx
+            };
+            // Every routed hostname's DNS and login, like the default tunnel's.
+            let snapshot = self.snapshot(api, ctx, &Intent::RemoveTunnel, true).await?;
+            let mut part = overview(&snapshot, false, state);
+            // A tunnel deleted elsewhere still shows (by its local name) until removed.
+            if part.tunnels.is_empty() {
+                part.tunnels.push(super::views::TunnelView {
+                    id: tunnel.tunnel_id.clone(),
+                    name: tunnel.name.clone(),
+                    connector: None,
+                    is_default: false,
+                });
+            }
+            merged.tunnels.append(&mut part.tunnels);
+            merged.routes.append(&mut part.routes);
+        }
+        merged.tunnels[usize::from(merged.tunnel.is_some())..]
+            .sort_by_key(|t| t.name.to_lowercase());
+        merged
+            .routes
+            .sort_by(|a, b| (&a.zone, &a.hostname, &a.path).cmp(&(&b.zone, &b.hostname, &b.path)));
+        Ok(merged)
     }
 
     /// What an export of this Mac's tunnel is made from: its routes and the proxied
@@ -491,10 +536,11 @@ impl Engine {
         &self,
         api: &C,
         account: &str,
+        tunnel: Option<&str>,
     ) -> Result<Option<Drift>, EngineError> {
         let Some(tunnel) = self
             .local
-            .machine_tunnel(account)
+            .tunnel(account, tunnel)
             .await
             .map_err(ObserveError::from)?
         else {
@@ -513,7 +559,7 @@ impl Engine {
         }
         let ours = self
             .local
-            .applied_ingress(account)
+            .applied_ingress(&tunnel.tunnel_id)
             .await
             .map_err(ObserveError::from)?
             .unwrap_or_default();
@@ -521,7 +567,7 @@ impl Engine {
         let changes = diff(&ours, &theirs);
         if changes.is_empty() {
             self.local
-                .set_applied(account, current.version, &theirs)
+                .set_applied(&tunnel.tunnel_id, current.version, &theirs)
                 .await
                 .map_err(ObserveError::from)?;
             return Ok(None);
@@ -536,6 +582,28 @@ impl Engine {
         }))
     }
 
+    /// The first outside edit found on any of this Mac's tunnels in `account`.
+    ///
+    /// # Errors
+    /// API or database errors.
+    pub async fn any_drift<C: CloudApi>(
+        &self,
+        api: &C,
+        account: &str,
+    ) -> Result<Option<Drift>, EngineError> {
+        let tunnels = self
+            .local
+            .tunnels(account)
+            .await
+            .map_err(ObserveError::from)?;
+        for tunnel in tunnels {
+            if let Some(drift) = self.drift(api, account, Some(&tunnel.tunnel_id)).await? {
+                return Ok(Some(drift));
+            }
+        }
+        Ok(None)
+    }
+
     /// Adopts an outside edit as the new baseline ("Keep theirs").
     ///
     /// # Errors
@@ -544,7 +612,7 @@ impl Engine {
         let lock = self.lock_for(account);
         let _guard = lock.lock().await;
         self.local
-            .set_applied(account, drift.current_version, &drift.theirs)
+            .set_applied(&drift.tunnel_id, drift.current_version, &drift.theirs)
             .await
             .map_err(ObserveError::from)?;
         self.invalidate(account);
@@ -564,10 +632,19 @@ impl Engine {
         edge: Edge,
         patience: Duration,
     ) -> Result<Verification, EngineError> {
+        let carrying = match ctx.tunnel {
+            Some(id) => Some(id.to_owned()),
+            None => self
+                .local
+                .tunnel_routing(ctx.account, hostname.as_str())
+                .await
+                .map_err(ObserveError::from)?,
+        };
         let snapshot = observe(
             api,
             &self.local,
             ctx.account,
+            carrying.as_deref(),
             ctx.machine_name,
             Some(&[hostname]),
             &ObserveNeed::none(),
@@ -635,6 +712,11 @@ impl Engine {
             local: &self.local,
             snapshot: &snapshot,
             account: ctx.account,
+            slot: match (intent, ctx.tunnel) {
+                (Intent::CreateTunnel { .. }, _) => Slot::Additional,
+                (_, Some(id)) => Slot::Replaces(id),
+                (_, None) => Slot::Default,
+            },
             created: None,
             done: Vec::new(),
             covered: Vec::new(),
@@ -716,11 +798,24 @@ struct Run<'a, C, K> {
     local: &'a Local,
     snapshot: &'a Snapshot,
     account: &'a str,
+    /// How a tunnel this run creates is remembered.
+    slot: Slot<'a>,
     created: Option<String>,
     done: Vec<(u32, Undo)>,
     /// Completed steps with no undo of their own: another step's undo reverses them
     /// (e.g. a new tunnel's config goes with the tunnel).
     covered: Vec<u32>,
+}
+
+/// What a tunnel created while applying is to this Mac.
+#[derive(Debug, Clone, Copy)]
+enum Slot<'a> {
+    /// The default (machine) tunnel.
+    Default,
+    /// An additional tunnel (`Intent::CreateTunnel`).
+    Additional,
+    /// A replacement for this tunnel of this Mac's, which was deleted elsewhere.
+    Replaces(&'a str),
 }
 
 fn warn_local<T>(result: Result<T, crate::store::StoreError>) {
@@ -822,11 +917,15 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .create_tunnel(account, name)
                     .await
                     .map_err(|e| e.text())?;
-                warn_local(
-                    self.local
-                        .set_machine_tunnel(account, &tunnel.id, name)
-                        .await,
-                );
+                warn_local(match self.slot {
+                    Slot::Default => {
+                        self.local
+                            .set_machine_tunnel(account, &tunnel.id, name)
+                            .await
+                    }
+                    Slot::Additional => self.local.add_tunnel(account, &tunnel.id, name).await,
+                    Slot::Replaces(old) => self.local.replace_tunnel(old, &tunnel.id).await,
+                });
                 self.created = Some(tunnel.id.clone());
                 Ok(Some(Undo::DeleteTunnel(tunnel.id)))
             }
@@ -911,7 +1010,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 api.delete_tunnel(account, tunnel_id)
                     .await
                     .map_err(|e| e.text())?;
-                warn_local(self.local.forget_machine_tunnel(account).await);
+                warn_local(self.local.forget_tunnel(tunnel_id).await);
                 self.connectors.deleted(tunnel_id).await;
                 Ok(None)
             }
@@ -1019,7 +1118,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .map_err(|e| e.text())?;
         warn_local(
             self.local
-                .set_applied(self.account, written.version, ingress)
+                .set_applied(tunnel, written.version, ingress)
                 .await,
         );
         Ok(())
@@ -1031,7 +1130,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         match undo {
             Undo::DeleteTunnel(id) => {
                 api.delete_tunnel(account, id).await.map_err(err)?;
-                warn_local(self.local.forget_machine_tunnel(account).await);
+                warn_local(self.local.forget_tunnel(id).await);
                 self.connectors.deleted(id).await;
             }
             Undo::RestoreConfig { tunnel, previous } => {

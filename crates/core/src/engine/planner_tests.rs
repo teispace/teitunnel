@@ -92,6 +92,7 @@ fn fresh() -> Snapshot {
         ],
         tunnel: None,
         tunnel_names: Vec::new(),
+        elsewhere: Vec::new(),
         records: Vec::new(),
         access: None,
         networks: None,
@@ -541,6 +542,7 @@ fn scenarios() {
 
     let taken = Snapshot {
         tunnel_names: vec!["Krishna's MacBook Pro".into()],
+        elsewhere: Vec::new(),
         ..fresh()
     };
 

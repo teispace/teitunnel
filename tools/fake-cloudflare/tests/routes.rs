@@ -19,6 +19,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 const CTX: Context<'static> = Context {
     account: "e2e-account",
     machine_name: "E2E Mac",
+    tunnel: None,
 };
 
 /// Pretends to run connectors; records the token it was given.
@@ -71,14 +72,25 @@ async fn spawn_fake() -> (tokio::process::Child, SocketAddr) {
 }
 
 async fn apply(engine: &Engine, api: &Client, conns: &Recorder, change: Change) -> Outcome {
-    let intent = engine.intent_for(api, CTX, &change).await.unwrap();
-    let plan = engine.preview(api, CTX, &intent).await.unwrap();
+    apply_on(engine, api, conns, None, change).await
+}
+
+async fn apply_on(
+    engine: &Engine,
+    api: &Client,
+    conns: &Recorder,
+    tunnel: Option<&str>,
+    change: Change,
+) -> Outcome {
+    let ctx = Context { tunnel, ..CTX };
+    let intent = engine.intent_for(api, ctx, &change).await.unwrap();
+    let plan = engine.preview(api, ctx, &intent).await.unwrap();
     let approval = Approval {
         fingerprint: &plan.fingerprint,
         confirmed: false,
     };
     engine
-        .apply(api, conns, CTX, &intent, approval, |_| {})
+        .apply(api, conns, ctx, &intent, approval, |_| {})
         .await
         .unwrap()
 }
@@ -200,5 +212,72 @@ async fn a_protected_route_asks_for_a_login_until_its_removed() {
             .unwrap()
             .is_empty(),
         "the login went with the route"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_second_tunnel_carries_its_own_routes() {
+    let (_fake, addr) = spawn_fake().await;
+    let api = Client::with_base(&format!("http://{addr}"), ApiToken::new("e2e")).unwrap();
+    let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+    let conns = Recorder::default();
+
+    let outcome = apply(&engine, &api, &conns, add("xyz.com", "3000")).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let create = Change::CreateTunnel {
+        name: "staging".into(),
+    };
+    let outcome = apply(&engine, &api, &conns, create).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let staging = engine
+        .local()
+        .tunnels("e2e-account")
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| !t.is_default)
+        .unwrap();
+
+    let on = Some(staging.tunnel_id.as_str());
+    let outcome = apply_on(&engine, &api, &conns, on, add("app.yx.com", "5000")).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // Verify finds the tunnel carrying the hostname by itself.
+    let checked = engine
+        .verify(
+            &api,
+            CTX,
+            &Hostname::parse("app.yx.com").unwrap(),
+            Edge::Test(addr),
+            Duration::ZERO,
+        )
+        .await
+        .unwrap();
+    assert!(checked.ok(), "{checked:?}");
+
+    let names: Vec<String> = api
+        .tunnels("e2e-account")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|t| t.name)
+        .collect();
+    assert_eq!(names.len(), 2);
+    assert!(names.contains(&"staging".to_owned()));
+    let overview = engine.overview(&api, &conns, CTX).await.unwrap();
+    assert_eq!(overview.tunnels.len(), 2);
+    assert_eq!(overview.routes.len(), 2);
+
+    // Deleting the second tunnel leaves the first and its route.
+    let outcome = apply_on(&engine, &api, &conns, on, Change::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(api.tunnels("e2e-account").await.unwrap().len(), 1);
+    let overview = engine.overview(&api, &conns, CTX).await.unwrap();
+    assert_eq!(
+        overview
+            .routes
+            .iter()
+            .map(|r| r.hostname.as_str())
+            .collect::<Vec<_>>(),
+        ["xyz.com"]
     );
 }

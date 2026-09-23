@@ -40,6 +40,8 @@ pub enum ActivityKind {
     AddNetwork,
     /// A private network stopped being shared.
     RemoveNetwork,
+    /// Another tunnel was created for this Mac.
+    CreateTunnel,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -55,6 +57,7 @@ impl From<&Intent> for ActivityKind {
             Intent::RemoveLogin { .. } => Self::RemoveLogin,
             Intent::AddNetwork { .. } => Self::AddNetwork,
             Intent::RemoveNetwork { .. } => Self::RemoveNetwork,
+            Intent::CreateTunnel { .. } => Self::CreateTunnel,
         }
     }
 }

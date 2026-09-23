@@ -170,7 +170,13 @@ pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
         let mut routes = Vec::new();
         let (mut tunnels, mut running, mut paused) = (0, false, 0);
         for account in state.accounts.list().await.unwrap_or_default() {
-            if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await {
+            for tunnel in state
+                .engine
+                .local()
+                .tunnels(&account.id)
+                .await
+                .unwrap_or_default()
+            {
                 use teitunnel_core::{engine::Connectors, runtime::ConnectorState};
                 tunnels += 1;
                 running |= !matches!(
@@ -185,6 +191,7 @@ pub fn refresh_tray_routes<R: Runtime>(app: &AppHandle<R>) {
             let ctx = teitunnel_core::engine::Context {
                 account: &account.id,
                 machine_name: &state.machine_name,
+                tunnel: None,
             };
             if let Ok(overview) = state.engine.overview(&api, &state.machine, ctx).await {
                 routes.extend(
@@ -256,8 +263,14 @@ pub(crate) fn toggle_machine_routes<R: Runtime>(app: &AppHandle<R>) {
         };
         let mut tunnels = Vec::new();
         for account in state.accounts.list().await.unwrap_or_default() {
-            if let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await {
-                tunnels.push((account.id, tunnel.tunnel_id));
+            for tunnel in state
+                .engine
+                .local()
+                .tunnels(&account.id)
+                .await
+                .unwrap_or_default()
+            {
+                tunnels.push((account.id.clone(), tunnel.tunnel_id));
             }
         }
         let any_running = tunnels.iter().any(|(_, id)| {
@@ -367,11 +380,18 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+            let mut tunnels = Vec::new();
             for account in state.accounts.list().await.unwrap_or_default() {
-                let Ok(Some(tunnel)) = state.engine.local().machine_tunnel(&account.id).await
-                else {
-                    continue;
-                };
+                tunnels.extend(
+                    state
+                        .engine
+                        .local()
+                        .tunnels(&account.id)
+                        .await
+                        .unwrap_or_default(),
+                );
+            }
+            for tunnel in tunnels {
                 let id = tunnel.tunnel_id;
                 let paused = state
                     .paused

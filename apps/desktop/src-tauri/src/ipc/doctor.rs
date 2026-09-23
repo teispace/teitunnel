@@ -97,17 +97,24 @@ async fn bundle(
         format!("Accounts: {}", accounts.len()),
     ];
     for account in &accounts {
-        let tunnel = state
+        let tunnels = state
             .engine
             .local()
-            .machine_tunnel(&account.id)
+            .tunnels(&account.id)
             .await
-            .ok()
-            .flatten();
+            .unwrap_or_default();
         summary.push(format!(
-            "  {:?} account, machine tunnel: {}",
+            "  {:?} account, tunnels on this machine: {}",
             account.credential,
-            tunnel.map_or_else(|| "none".to_owned(), |t| t.tunnel_id)
+            if tunnels.is_empty() {
+                "none".to_owned()
+            } else {
+                tunnels
+                    .iter()
+                    .map(|t| t.tunnel_id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
         ));
     }
     let issues = doctor::run(

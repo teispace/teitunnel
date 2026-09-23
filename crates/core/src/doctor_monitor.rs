@@ -113,6 +113,7 @@ mod tests {
             detail: msg::raw(format!("Fix {id}.")),
             evidence: Vec::new(),
             fixes: Vec::new(),
+            tunnel_id: None,
         }
     }
 

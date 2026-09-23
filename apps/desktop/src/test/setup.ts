@@ -1,8 +1,11 @@
 // Vitest setup: DOM cleanup between tests, plus browser APIs jsdom lacks.
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 afterEach(cleanup);
+// `findBy…`/`waitFor` give up after 1 s by default, which a loaded CI runner can miss
+// while the page is still settling; the assertion is the same, only more patient.
+configure({ asyncUtilTimeout: 4000 });
 
 class ResizeObserverStub {
   observe() {}

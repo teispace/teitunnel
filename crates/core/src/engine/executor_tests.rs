@@ -20,6 +20,7 @@ use crate::{
 const CTX: Context<'static> = Context {
     account: "acc",
     machine_name: "Mac",
+    tunnel: None,
 };
 
 fn engine() -> Engine {
@@ -838,7 +839,7 @@ async fn detects_outside_edits_and_resolves_them() {
 
     let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
     run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
-    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+    assert_eq!(engine.drift(&cloud, "acc", None).await.unwrap(), None);
     let tunnel = cloud.snapshot().tunnels.keys().next().unwrap().clone();
 
     let edit = |service: &str| {
@@ -860,16 +861,24 @@ async fn detects_outside_edits_and_resolves_them() {
 
     // Keep theirs: the edit becomes the baseline.
     edit("http://localhost:9000");
-    let drift = engine.drift(&cloud, "acc").await.unwrap().expect("drift");
+    let drift = engine
+        .drift(&cloud, "acc", None)
+        .await
+        .unwrap()
+        .expect("drift");
     assert_eq!(drift.changes.len(), 1);
     assert_eq!(drift.changes[0].hostname, "dash.xyz.com");
     assert_eq!(drift.changes[0].before, None);
     engine.keep_theirs("acc", &drift).await.unwrap();
-    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+    assert_eq!(engine.drift(&cloud, "acc", None).await.unwrap(), None);
 
     // Restore mine: a plan puts Teitunnel's routes back.
     edit("http://localhost:9001");
-    let drift = engine.drift(&cloud, "acc").await.unwrap().expect("drift");
+    let drift = engine
+        .drift(&cloud, "acc", None)
+        .await
+        .unwrap()
+        .expect("drift");
     let restore = Intent::RestoreConfig {
         ingress: drift.ours.clone(),
     };
@@ -881,7 +890,7 @@ async fn detects_outside_edits_and_resolves_them() {
         .unwrap()
         .ingress;
     assert_eq!(ingress, drift.ours);
-    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+    assert_eq!(engine.drift(&cloud, "acc", None).await.unwrap(), None);
 
     // A change that touches no route (the catch-all) is adopted silently.
     {
@@ -896,7 +905,7 @@ async fn detects_outside_edits_and_resolves_them() {
             .service = "http_status:503".into();
         t.version += 1;
     }
-    assert_eq!(engine.drift(&cloud, "acc").await.unwrap(), None);
+    assert_eq!(engine.drift(&cloud, "acc", None).await.unwrap(), None);
 }
 
 #[tokio::test]
@@ -940,7 +949,7 @@ async fn changes_from_the_ui_become_intents() {
     };
     let intent = engine.intent_for(&cloud, CTX, &edit).await.unwrap();
     // The dashboard edit is drift; keep it, then apply the change.
-    let drift = engine.drift(&cloud, "acc").await.unwrap().unwrap();
+    let drift = engine.drift(&cloud, "acc", None).await.unwrap().unwrap();
     engine.keep_theirs("acc", &drift).await.unwrap();
     run(&engine, &cloud, &conns, &intent).await;
     let rule = &cloud.snapshot().tunnels[&tunnel]
@@ -1383,4 +1392,284 @@ async fn a_token_that_cant_read_networks_still_manages_routes() {
     assert!(matches!(err, EngineError::Observe(_)), "{err:?}");
     run(&engine, &cloud, &conns, &Intent::RemoveTunnel).await;
     assert!(cloud.snapshot().tunnels.is_empty());
+}
+
+/// Previews and applies `intent` on one of this Mac's tunnels (`None`: the default).
+async fn run_on(
+    engine: &Engine,
+    cloud: &FakeCloud,
+    conns: &FakeConnectors,
+    tunnel: Option<&str>,
+    intent: &Intent,
+) -> Result<Outcome, EngineError> {
+    let ctx = Context { tunnel, ..CTX };
+    let plan = engine.preview(cloud, ctx, intent).await?;
+    engine
+        .apply(
+            cloud,
+            conns,
+            ctx,
+            intent,
+            Approval {
+                fingerprint: &plan.fingerprint,
+                confirmed: true,
+            },
+            |_| {},
+        )
+        .await
+}
+
+#[tokio::test]
+async fn several_tunnels_on_one_machine() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let default = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
+
+    // A second tunnel: its own name, not the default, no connector until it has routes.
+    let create = Intent::CreateTunnel {
+        name: "staging".into(),
+    };
+    let outcome = run_on(&engine, &cloud, &conns, None, &create)
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let tunnels = engine.local().tunnels("acc").await.unwrap();
+    assert_eq!(tunnels.len(), 2);
+    let staging = tunnels.iter().find(|t| !t.is_default).unwrap().clone();
+    assert_eq!(staging.name, "staging");
+    assert_eq!(
+        engine.local().machine_tunnel("acc").await.unwrap().unwrap(),
+        default,
+        "the default tunnel is unchanged"
+    );
+
+    // The name is the account's, case-insensitively; blank names are refused.
+    let taken = Intent::CreateTunnel {
+        name: "STAGING".into(),
+    };
+    assert!(matches!(
+        run_on(&engine, &cloud, &conns, None, &taken).await,
+        Err(EngineError::Plan(
+            super::planner::PlanError::TunnelNameTaken(_)
+        ))
+    ));
+    let blank = Intent::CreateTunnel { name: "  ".into() };
+    assert!(matches!(
+        run_on(&engine, &cloud, &conns, None, &blank).await,
+        Err(EngineError::Plan(
+            super::planner::PlanError::InvalidTunnelName
+        ))
+    ));
+
+    // A route on the second tunnel lands there, and its DNS points there.
+    let on_staging = Some(staging.tunnel_id.as_str());
+    let outcome = run_on(
+        &engine,
+        &cloud,
+        &conns,
+        on_staging,
+        &add("r2", "beta.xyz.com", "4000"),
+    )
+    .await
+    .unwrap();
+    let Outcome::Applied {
+        tunnel_id: Some(id),
+        ..
+    } = outcome
+    else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(id, staging.tunnel_id);
+    let state = cloud.snapshot();
+    let rules = |id: &str| -> Vec<String> {
+        state.tunnels[id]
+            .config
+            .as_ref()
+            .unwrap()
+            .ingress
+            .iter()
+            .filter_map(|r| r.hostname.clone())
+            .collect()
+    };
+    assert_eq!(rules(&default.tunnel_id), ["app.xyz.com"]);
+    assert_eq!(rules(&staging.tunnel_id), ["beta.xyz.com"]);
+    let beta = &state.records["z-xyz"]
+        .iter()
+        .find(|r| r.name == "beta.xyz.com")
+        .unwrap()
+        .content;
+    assert_eq!(*beta, super::types::tunnel_target(&staging.tunnel_id));
+
+    // A hostname is routed once per machine: not again on the other tunnel.
+    let again = run_on(
+        &engine,
+        &cloud,
+        &conns,
+        None,
+        &add("r3", "beta.xyz.com", "5000"),
+    )
+    .await;
+    assert!(
+        matches!(
+            &again,
+            Err(EngineError::Plan(super::planner::PlanError::RoutedElsewhere { tunnel, .. }))
+                if tunnel == "staging"
+        ),
+        "{again:?}"
+    );
+
+    // The overview has both tunnels (default first) and knows which carries each route.
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(
+        overview
+            .tunnels
+            .iter()
+            .map(|t| (t.name.as_str(), t.is_default))
+            .collect::<Vec<_>>(),
+        [("Mac", true), ("staging", false)]
+    );
+    let carriers: Vec<(&str, Option<&str>)> = overview
+        .routes
+        .iter()
+        .map(|r| (r.hostname.as_str(), r.tunnel_id.as_deref()))
+        .collect();
+    assert_eq!(
+        carriers,
+        [
+            ("app.xyz.com", Some(default.tunnel_id.as_str())),
+            ("beta.xyz.com", on_staging)
+        ]
+    );
+    assert!(
+        overview
+            .routes
+            .iter()
+            .all(|r| r.dns == super::views::DnsState::Ok),
+        "{:?}",
+        overview.routes
+    );
+
+    // Removing the second tunnel leaves the default one and its route alone.
+    run_on(&engine, &cloud, &conns, on_staging, &Intent::RemoveTunnel)
+        .await
+        .unwrap();
+    let left = engine.local().tunnels("acc").await.unwrap();
+    assert_eq!(left, vec![default.clone()]);
+    let state = cloud.snapshot();
+    assert!(!state.tunnels.contains_key(&staging.tunnel_id));
+    assert!(
+        state.records["z-xyz"]
+            .iter()
+            .all(|r| r.name != "beta.xyz.com")
+    );
+    assert_eq!(rules_of(&state, &default.tunnel_id), ["app.xyz.com"]);
+
+    // A tunnel that isn't this machine's can't be targeted.
+    assert!(matches!(
+        run_on(
+            &engine,
+            &cloud,
+            &conns,
+            Some("nope"),
+            &add("r4", "x.xyz.com", "1")
+        )
+        .await,
+        Err(EngineError::Observe(
+            super::observe::ObserveError::UnknownTunnel
+        ))
+    ));
+}
+
+fn rules_of(state: &CloudState, id: &str) -> Vec<String> {
+    state.tunnels[id]
+        .config
+        .as_ref()
+        .unwrap()
+        .ingress
+        .iter()
+        .filter_map(|r| r.hostname.clone())
+        .collect()
+}
+
+#[tokio::test]
+async fn the_doctor_checks_and_fixes_each_tunnel_on_its_own() {
+    use crate::doctor::{BinaryFact, Facts, diagnose, fix_safe, gather};
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(zero_trust()),
+        FakeConnectors::default(),
+    );
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "3000")).await;
+    let create = Intent::CreateTunnel {
+        name: "staging".into(),
+    };
+    run_on(&engine, &cloud, &conns, None, &create)
+        .await
+        .unwrap();
+    let staging = engine
+        .local()
+        .tunnels("acc")
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| !t.is_default)
+        .unwrap();
+    let on = Some(staging.tunnel_id.as_str());
+    run_on(
+        &engine,
+        &cloud,
+        &conns,
+        on,
+        &protected(add("r2", "beta.xyz.com", "4000")),
+    )
+    .await
+    .unwrap();
+
+    // Checking the default tunnel: the second tunnel's login belongs to a route.
+    let facts = gather(&engine, &cloud, &conns, CTX, Vec::new(), Some(true))
+        .await
+        .unwrap();
+    assert!(facts.orphan_logins.is_empty(), "{:?}", facts.orphan_logins);
+
+    // The second tunnel's DNS record goes missing: its issue names that tunnel, and the
+    // safe fix puts the record back pointing there.
+    cloud
+        .state
+        .lock()
+        .unwrap()
+        .records
+        .get_mut("z-xyz")
+        .unwrap()
+        .retain(|r| r.name != "beta.xyz.com");
+    engine.invalidate("acc");
+    let ctx = Context { tunnel: on, ..CTX };
+    let facts = gather(&engine, &cloud, &conns, ctx, Vec::new(), Some(true))
+        .await
+        .unwrap();
+    let issues = diagnose(&Facts {
+        binary: BinaryFact::Ok,
+        accounts: vec![facts],
+        foreign: Vec::new(),
+    });
+    let missing = issues
+        .iter()
+        .find(|i| i.check == "dns.missing")
+        .expect("a missing record");
+    assert_eq!(missing.tunnel_id.as_deref(), on);
+    let report = fix_safe(&engine, &cloud, &conns, CTX, &issues).await;
+    assert_eq!(report.fixed, 1, "{report:?}");
+    let restored = cloud.snapshot().records["z-xyz"]
+        .iter()
+        .find(|r| r.name == "beta.xyz.com")
+        .map(|r| r.content.clone());
+    assert_eq!(
+        restored,
+        Some(super::types::tunnel_target(&staging.tunnel_id))
+    );
+    // And the default tunnel still carries only its own route.
+    let default = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
+    assert_eq!(
+        rules_of(&cloud.snapshot(), &default.tunnel_id),
+        ["app.xyz.com"]
+    );
 }

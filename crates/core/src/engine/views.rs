@@ -64,6 +64,11 @@ pub enum Change {
     },
     /// Remove every route and delete this Mac's tunnel.
     RemoveTunnel,
+    /// Create another tunnel for this Mac.
+    CreateTunnel {
+        /// Its name.
+        name: String,
+    },
     /// Undo an outside edit of this Mac's routes.
     RestoreConfig,
     /// Remove a login Teitunnel added whose route is gone.
@@ -213,6 +218,7 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             path: parse_path(path.as_deref())?,
         },
         Change::RemoveTunnel => Intent::RemoveTunnel,
+        Change::CreateTunnel { name } => Intent::CreateTunnel { name: name.clone() },
         Change::ImportRoutes { routes } => Intent::ImportRoutes {
             routes: routes
                 .iter()
@@ -381,6 +387,8 @@ pub struct RouteView {
     pub access: Option<AccessRule>,
     /// What visitors run to reach it, for SSH, RDP, SMB and TCP routes.
     pub client: Option<ClientAccess>,
+    /// The tunnel of this Mac's that carries it.
+    pub tunnel_id: Option<String>,
 }
 
 /// This Mac's tunnel.
@@ -394,6 +402,8 @@ pub struct TunnelView {
     pub name: String,
     /// Connector state on this Mac (`None`: not running).
     pub connector: Option<ConnectorState>,
+    /// The machine tunnel: where routes go unless another is chosen.
+    pub is_default: bool,
 }
 
 /// Everything the Routes view shows for an account.
@@ -401,8 +411,10 @@ pub struct TunnelView {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct RoutesOverview {
-    /// This Mac's tunnel, if it has one.
+    /// This Mac's default tunnel, if it has one.
     pub tunnel: Option<TunnelView>,
+    /// Every tunnel of this Mac's in the account, the default first, then by name.
+    pub tunnels: Vec<TunnelView>,
     /// Routes, sorted by domain then hostname.
     pub routes: Vec<RouteView>,
     /// Domains routes can use.
@@ -474,10 +486,16 @@ impl RouteHealth {
 impl RoutesOverview {
     /// Each route's hostname and health (menu bar, CLI).
     pub fn statuses(&self) -> Vec<(String, RouteHealth)> {
-        let connector = self.tunnel.as_ref().and_then(|t| t.connector.as_ref());
         self.routes
             .iter()
             .map(|route| {
+                // Each route is as healthy as the connector of the tunnel carrying it.
+                let connector = self
+                    .tunnels
+                    .iter()
+                    .chain(&self.tunnel)
+                    .find(|t| route.tunnel_id.as_deref().is_none_or(|id| id == t.id))
+                    .and_then(|t| t.connector.as_ref());
                 let health = match (&route.dns, connector) {
                     (DnsState::Missing, _) => RouteHealth::NoDns,
                     (DnsState::Elsewhere { .. }, _) => RouteHealth::DnsElsewhere,
@@ -499,6 +517,7 @@ impl RoutesOverview {
 /// Builds the overview from a snapshot of every routed hostname.
 pub(crate) fn overview(
     snapshot: &Snapshot,
+    is_default: bool,
     connector: impl Fn(&str) -> Option<ConnectorState>,
 ) -> RoutesOverview {
     let target = snapshot.tunnel.as_ref().map(|t| tunnel_target(&t.id));
@@ -549,16 +568,20 @@ pub(crate) fn overview(
                 zone,
                 dns,
                 hostname,
+                tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
             })
         })
         .collect();
     routes.sort_by(|a, b| (&a.zone, &a.hostname, &a.path).cmp(&(&b.zone, &b.hostname, &b.path)));
+    let tunnel = snapshot.tunnel.as_ref().map(|t| TunnelView {
+        id: t.id.clone(),
+        name: t.name.clone(),
+        connector: connector(&t.id),
+        is_default,
+    });
     RoutesOverview {
-        tunnel: snapshot.tunnel.as_ref().map(|t| TunnelView {
-            id: t.id.clone(),
-            name: t.name.clone(),
-            connector: connector(&t.id),
-        }),
+        tunnels: tunnel.iter().cloned().collect(),
+        tunnel: tunnel.filter(|t| t.is_default),
         routes,
         zones: snapshot.zones.clone(),
         networks: snapshot.networks.as_ref().map(|state| {
@@ -639,6 +662,7 @@ mod tests {
         let route = |host: &str, dns: DnsState| RouteView {
             access: None,
             client: None,
+            tunnel_id: None,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),
@@ -651,7 +675,9 @@ mod tests {
                 id: "t".into(),
                 name: "Mac".into(),
                 connector: Some(ConnectorState::Healthy { connections: 4 }),
+                is_default: true,
             }),
+            tunnels: Vec::new(),
             routes: vec![
                 route("a.xyz.com", DnsState::Ok),
                 route("b.xyz.com", DnsState::Missing),

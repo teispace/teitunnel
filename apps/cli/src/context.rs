@@ -91,14 +91,21 @@ impl App {
         Context {
             account: &account.id,
             machine_name: &self.machine_name,
+            tunnel: None,
         }
     }
 
-    /// Every account's connector on this Mac, probed.
+    /// Every account's connectors on this Mac, probed.
     pub(crate) async fn all_connectors(&self) -> ProbedConnectors {
         let mut connectors = ProbedConnectors::default();
         for account in self.accounts.list().await.unwrap_or_default() {
-            if let Ok(Some(tunnel)) = self.engine.local().machine_tunnel(&account.id).await {
+            for tunnel in self
+                .engine
+                .local()
+                .tunnels(&account.id)
+                .await
+                .unwrap_or_default()
+            {
                 connectors
                     .probe(&tunnel.tunnel_id, tunnel.metrics_port)
                     .await;
@@ -115,10 +122,16 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// This Mac's connector for `account`, probed.
+    /// This Mac's connectors for `account`, probed.
     pub(crate) async fn connectors(&self, account: &Account) -> ProbedConnectors {
         let mut connectors = ProbedConnectors::default();
-        if let Ok(Some(tunnel)) = self.engine.local().machine_tunnel(&account.id).await {
+        for tunnel in self
+            .engine
+            .local()
+            .tunnels(&account.id)
+            .await
+            .unwrap_or_default()
+        {
             connectors
                 .probe(&tunnel.tunnel_id, tunnel.metrics_port)
                 .await;

@@ -1,4 +1,4 @@
-import { Network, RefreshCw } from "lucide-react";
+import { Network, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { detectPlatform } from "@/app/platform";
@@ -266,14 +266,14 @@ function TunnelInspector({
           </ul>
         )}
       </InspectorSection>
-      {tunnel.thisMac ? (
+      {tunnel.isDefault ? (
         <NetworksSection
           accountId={accountId}
           onAdd={() => onSheet({ kind: "addNetwork" })}
           onRemove={(network) => onSheet({ kind: "removeNetwork", network })}
         />
       ) : null}
-      {tunnel.thisMac ? <AlwaysOnRow accountId={accountId} /> : null}
+      {tunnel.thisMac ? <AlwaysOnRow accountId={accountId} tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelTraffic tunnelId={tunnel.id} /> : null}
       {tunnel.thisMac ? <TunnelLogs tunnelId={tunnel.id} /> : null}
       {!tunnel.thisMac ? (
@@ -284,9 +284,9 @@ function TunnelInspector({
 }
 
 /** "Keep running when Teitunnel quits": moves the connector to a launchd agent. */
-function AlwaysOnRow({ accountId }: { accountId: string }) {
-  const mode = useAlwaysOn(accountId);
-  const change = useSetAlwaysOn(accountId);
+function AlwaysOnRow({ accountId, tunnelId }: { accountId: string; tunnelId: string }) {
+  const mode = useAlwaysOn(accountId, tunnelId);
+  const change = useSetAlwaysOn(accountId, tunnelId);
   if (!mode.data?.supported) return null;
   const enabled = change.isPending ? change.variables : mode.data.enabled;
   return (
@@ -351,6 +351,13 @@ export function TunnelsPage() {
           options={accounts.map((a) => ({ value: a.id, label: a.name }))}
           value={active.id}
           onValueChange={setActive}
+        />
+      ) : null}
+      {active ? (
+        <IconButton
+          icon={Plus}
+          label={t("tunnels.new")}
+          onClick={() => setSheet({ kind: "createTunnel" })}
         />
       ) : null}
       {active ? (
@@ -456,7 +463,7 @@ export function TunnelsPage() {
           <TunnelInspector
             tunnel={selected.tunnel}
             accountId={active.id}
-            onDelete={() => setSheet({ kind: "removeTunnel" })}
+            onDelete={() => setSheet({ kind: "removeTunnel", tunnelId: selected.tunnel.id })}
             onSheet={setSheet}
             onConnectorLogs={(connector) => setRemote({ tunnelId: selected.tunnel.id, connector })}
           />

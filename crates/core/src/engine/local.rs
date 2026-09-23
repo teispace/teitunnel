@@ -1,4 +1,4 @@
-//! What the engine remembers locally: this Mac's tunnel per account, which DNS records
+//! What the engine remembers locally: this Mac's tunnels per account, which DNS records
 //! Teitunnel created (the ownership index, a backup for the record comment), the
 //! activity log, and per-minute connector traffic.
 
@@ -17,13 +17,15 @@ use crate::{
     traffic::{MinuteRollup, RETENTION},
 };
 
-/// This Mac's tunnel in an account.
+/// One of this Mac's tunnels in an account.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalTunnel {
     /// Tunnel id.
     pub tunnel_id: String,
     /// Name it was created with.
     pub name: String,
+    /// The machine tunnel: where routes go unless another tunnel is chosen.
+    pub is_default: bool,
     /// The config version Teitunnel last wrote (drift detection).
     pub last_applied_version: Option<u64>,
     /// The connector's metrics port, kept stable across restarts.
@@ -54,6 +56,24 @@ pub struct ActivityEntry {
     pub record: Option<ActivityRecord>,
 }
 
+const TUNNEL_COLUMNS: &str =
+    "tunnel_id, name, is_default, last_applied_version, metrics_port, run_mode";
+
+fn tunnel_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LocalTunnel> {
+    Ok(LocalTunnel {
+        tunnel_id: row.get(0)?,
+        name: row.get(1)?,
+        is_default: row.get::<_, i64>(2)? == 1,
+        last_applied_version: row
+            .get::<_, Option<i64>>(3)?
+            .and_then(|v| u64::try_from(v).ok()),
+        metrics_port: row
+            .get::<_, Option<i64>>(4)?
+            .and_then(|v| u16::try_from(v).ok()),
+        always_on: row.get::<_, String>(5)? == "alwaysOn",
+    })
+}
+
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -72,39 +92,86 @@ impl Local {
         Self { store }
     }
 
-    /// This Mac's tunnel in `account`, if one was created.
+    /// This Mac's default tunnel in `account` (the machine tunnel), if one was created.
     ///
     /// # Errors
     /// Database errors.
     pub async fn machine_tunnel(&self, account: &str) -> Result<Option<LocalTunnel>, StoreError> {
-        let account = account.to_owned();
+        self.tunnel(account, None).await
+    }
+
+    /// A tunnel of this Mac in `account`: `id`, or the default one when `None`.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn tunnel(
+        &self,
+        account: &str,
+        id: Option<&str>,
+    ) -> Result<Option<LocalTunnel>, StoreError> {
+        let (account, id) = (account.to_owned(), id.map(str::to_owned));
         self.store
             .call(move |conn| {
-                Ok(conn
-                    .query_row(
-                        "SELECT tunnel_id, name, last_applied_version, metrics_port, run_mode FROM tunnels_local
-                         WHERE account_id = ?1",
-                        params![account],
-                        |row| {
-                            Ok(LocalTunnel {
-                                tunnel_id: row.get(0)?,
-                                name: row.get(1)?,
-                                last_applied_version: row
-                                    .get::<_, Option<i64>>(2)?
-                                    .and_then(|v| u64::try_from(v).ok()),
-                                metrics_port: row
-                                    .get::<_, Option<i64>>(3)?
-                                    .and_then(|v| u16::try_from(v).ok()),
-                                always_on: row.get::<_, String>(4)? == "alwaysOn",
-                            })
-                        },
-                    )
-                    .optional()?)
+                let sql = format!(
+                    "SELECT {TUNNEL_COLUMNS} FROM local_tunnels WHERE account_id = ?1 AND {}",
+                    if id.is_some() {
+                        "tunnel_id = ?2"
+                    } else {
+                        "is_default = 1"
+                    }
+                );
+                let mut stmt = conn.prepare(&sql)?;
+                let row = match &id {
+                    Some(id) => stmt.query_row(params![account, id], tunnel_row),
+                    None => stmt.query_row(params![account], tunnel_row),
+                };
+                Ok(row.optional()?)
             })
             .await
     }
 
-    /// Remembers the tunnel created for this Mac.
+    /// Every tunnel of this Mac in `account`, the default first, then by name.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn tunnels(&self, account: &str) -> Result<Vec<LocalTunnel>, StoreError> {
+        let account = account.to_owned();
+        self.store
+            .call(move |conn| {
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT {TUNNEL_COLUMNS} FROM local_tunnels WHERE account_id = ?1
+                     ORDER BY is_default DESC, name COLLATE NOCASE"
+                ))?;
+                let rows = stmt.query_map(params![account], tunnel_row)?;
+                Ok(rows.collect::<Result<Vec<_>, _>>()?)
+            })
+            .await
+    }
+
+    /// Which of this Mac's tunnels in `account` Teitunnel last configured to route
+    /// `hostname` (`None`: none of them does).
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn tunnel_routing(
+        &self,
+        account: &str,
+        hostname: &str,
+    ) -> Result<Option<String>, StoreError> {
+        for tunnel in self.tunnels(account).await? {
+            let ingress = self.applied_ingress(&tunnel.tunnel_id).await?;
+            if ingress
+                .unwrap_or_default()
+                .iter()
+                .any(|r| r.hostname.as_deref() == Some(hostname))
+            {
+                return Ok(Some(tunnel.tunnel_id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Remembers the default tunnel created for this Mac, replacing the previous one.
     ///
     /// # Errors
     /// Database errors.
@@ -118,77 +185,123 @@ impl Local {
             (account.to_owned(), tunnel_id.to_owned(), name.to_owned());
         self.store
             .call(move |conn| {
-                conn.execute(
-                    "INSERT INTO tunnels_local (account_id, tunnel_id, name, created_at)
-                     VALUES (?1, ?2, ?3, ?4)
-                     ON CONFLICT (account_id) DO UPDATE SET tunnel_id = ?2, name = ?3,
-                       last_applied_version = NULL, last_applied_ingress = NULL,
-                       created_at = ?4",
-                    params![account, tunnel_id, name, now_ms()],
+                let tx = conn.transaction()?;
+                tx.execute(
+                    "DELETE FROM local_tunnels WHERE account_id = ?1 AND is_default = 1",
+                    params![account],
                 )?;
+                tx.execute(
+                    "INSERT INTO local_tunnels (tunnel_id, account_id, name, is_default, created_at)
+                     VALUES (?1, ?2, ?3, 1, ?4)",
+                    params![tunnel_id, account, name, now_ms()],
+                )?;
+                tx.commit()?;
                 Ok(())
             })
             .await
     }
 
-    /// Forgets this Mac's tunnel in `account` (after it was deleted).
+    /// Remembers another tunnel created for this Mac (not the default).
     ///
     /// # Errors
     /// Database errors.
-    pub async fn forget_machine_tunnel(&self, account: &str) -> Result<(), StoreError> {
-        let account = account.to_owned();
+    pub async fn add_tunnel(
+        &self,
+        account: &str,
+        tunnel_id: &str,
+        name: &str,
+    ) -> Result<(), StoreError> {
+        let (account, tunnel_id, name) =
+            (account.to_owned(), tunnel_id.to_owned(), name.to_owned());
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "DELETE FROM tunnels_local WHERE account_id = ?1",
-                    params![account],
+                    "INSERT INTO local_tunnels (tunnel_id, account_id, name, is_default, created_at)
+                     VALUES (?1, ?2, ?3, 0, ?4)",
+                    params![tunnel_id, account, name, now_ms()],
                 )?;
                 Ok(())
             })
             .await
     }
 
-    /// Records the config version Teitunnel just wrote, and its ingress (to show what
-    /// changed if someone edits it elsewhere).
+    /// Points a tunnel's row at a new tunnel id (it was deleted elsewhere and recreated),
+    /// keeping its name, default flag and run mode.
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn replace_tunnel(&self, old_id: &str, new_id: &str) -> Result<(), StoreError> {
+        let (old_id, new_id) = (old_id.to_owned(), new_id.to_owned());
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "UPDATE local_tunnels SET tunnel_id = ?2, last_applied_version = NULL,
+                       last_applied_ingress = NULL, created_at = ?3 WHERE tunnel_id = ?1",
+                    params![old_id, new_id, now_ms()],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Forgets one of this Mac's tunnels (after it was deleted).
+    ///
+    /// # Errors
+    /// Database errors.
+    pub async fn forget_tunnel(&self, tunnel_id: &str) -> Result<(), StoreError> {
+        let tunnel_id = tunnel_id.to_owned();
+        self.store
+            .call(move |conn| {
+                conn.execute(
+                    "DELETE FROM local_tunnels WHERE tunnel_id = ?1",
+                    params![tunnel_id],
+                )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Records the config version Teitunnel just wrote to a tunnel, and its ingress (to
+    /// show what changed if someone edits it elsewhere).
     ///
     /// # Errors
     /// Database errors.
     pub async fn set_applied(
         &self,
-        account: &str,
+        tunnel_id: &str,
         version: u64,
         ingress: &[IngressRule],
     ) -> Result<(), StoreError> {
-        let account = account.to_owned();
+        let tunnel_id = tunnel_id.to_owned();
         let version = i64::try_from(version).unwrap_or(i64::MAX);
         let ingress = serde_json::to_string(ingress)?;
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "UPDATE tunnels_local SET last_applied_version = ?2, last_applied_ingress = ?3
-                     WHERE account_id = ?1",
-                    params![account, version, ingress],
+                    "UPDATE local_tunnels SET last_applied_version = ?2, last_applied_ingress = ?3
+                     WHERE tunnel_id = ?1",
+                    params![tunnel_id, version, ingress],
                 )?;
                 Ok(())
             })
             .await
     }
 
-    /// The ingress Teitunnel last wrote for `account`'s tunnel.
+    /// The ingress Teitunnel last wrote to a tunnel.
     ///
     /// # Errors
     /// Database errors.
     pub async fn applied_ingress(
         &self,
-        account: &str,
+        tunnel_id: &str,
     ) -> Result<Option<Vec<IngressRule>>, StoreError> {
-        let account = account.to_owned();
+        let tunnel_id = tunnel_id.to_owned();
         self.store
             .call(move |conn| {
                 let json: Option<String> = conn
                     .query_row(
-                        "SELECT last_applied_ingress FROM tunnels_local WHERE account_id = ?1",
-                        params![account],
+                        "SELECT last_applied_ingress FROM local_tunnels WHERE tunnel_id = ?1",
+                        params![tunnel_id],
                         |row| row.get(0),
                     )
                     .optional()?
@@ -198,35 +311,35 @@ impl Local {
             .await
     }
 
-    /// Remembers the connector's metrics port.
+    /// Remembers a tunnel's connector metrics port.
     ///
     /// # Errors
     /// Database errors.
-    pub async fn set_metrics_port(&self, account: &str, port: u16) -> Result<(), StoreError> {
-        let account = account.to_owned();
+    pub async fn set_metrics_port(&self, tunnel_id: &str, port: u16) -> Result<(), StoreError> {
+        let tunnel_id = tunnel_id.to_owned();
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "UPDATE tunnels_local SET metrics_port = ?2 WHERE account_id = ?1",
-                    params![account, port],
+                    "UPDATE local_tunnels SET metrics_port = ?2 WHERE tunnel_id = ?1",
+                    params![tunnel_id, port],
                 )?;
                 Ok(())
             })
             .await
     }
 
-    /// Records whether `account`'s connector runs as an OS service.
+    /// Records whether a tunnel's connector runs as an OS service.
     ///
     /// # Errors
     /// Database errors.
-    pub async fn set_always_on(&self, account: &str, always_on: bool) -> Result<(), StoreError> {
-        let account = account.to_owned();
+    pub async fn set_always_on(&self, tunnel_id: &str, always_on: bool) -> Result<(), StoreError> {
+        let tunnel_id = tunnel_id.to_owned();
         let mode = if always_on { "alwaysOn" } else { "session" };
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "UPDATE tunnels_local SET run_mode = ?2 WHERE account_id = ?1",
-                    params![account, mode],
+                    "UPDATE local_tunnels SET run_mode = ?2 WHERE tunnel_id = ?1",
+                    params![tunnel_id, mode],
                 )?;
                 Ok(())
             })
@@ -637,26 +750,51 @@ mod tests {
         let local = Local::new(Store::open_in_memory().unwrap());
         assert_eq!(local.machine_tunnel("a").await.unwrap(), None);
         local.set_machine_tunnel("a", "t1", "Mac").await.unwrap();
-        local.set_applied("a", 4, &[]).await.unwrap();
-        assert_eq!(local.applied_ingress("a").await.unwrap(), Some(Vec::new()));
-        local.set_metrics_port("a", 20300).await.unwrap();
+        local.set_applied("t1", 4, &[]).await.unwrap();
+        assert_eq!(local.applied_ingress("t1").await.unwrap(), Some(Vec::new()));
+        local.set_metrics_port("t1", 20300).await.unwrap();
         assert_eq!(
             local.machine_tunnel("a").await.unwrap(),
             Some(LocalTunnel {
                 tunnel_id: "t1".into(),
                 name: "Mac".into(),
+                is_default: true,
                 last_applied_version: Some(4),
                 metrics_port: Some(20300),
                 always_on: false,
             })
         );
-        // Re-creating resets the applied version.
+        // Re-creating replaces the default and resets the applied version.
         local.set_machine_tunnel("a", "t2", "Mac").await.unwrap();
         let tunnel = local.machine_tunnel("a").await.unwrap().unwrap();
         assert_eq!(
             (tunnel.tunnel_id.as_str(), tunnel.last_applied_version),
             ("t2", None)
         );
+
+        // More tunnels: listed after the default, found by id, not by other accounts.
+        local.add_tunnel("a", "t3", "staging").await.unwrap();
+        local.add_tunnel("b", "t4", "other").await.unwrap();
+        local.set_always_on("t3", true).await.unwrap();
+        let ids: Vec<String> = local
+            .tunnels("a")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.tunnel_id)
+            .collect();
+        assert_eq!(ids, ["t2", "t3"]);
+        let staging = local.tunnel("a", Some("t3")).await.unwrap().unwrap();
+        assert!(!staging.is_default && staging.always_on);
+        assert_eq!(local.tunnel("a", Some("t4")).await.unwrap(), None);
+        local.replace_tunnel("t3", "t5").await.unwrap();
+        let staging = local.tunnel("a", Some("t5")).await.unwrap().unwrap();
+        assert_eq!(
+            (staging.name.as_str(), staging.always_on),
+            ("staging", true)
+        );
+        local.forget_tunnel("t5").await.unwrap();
+        assert_eq!(local.tunnels("a").await.unwrap().len(), 1);
 
         local
             .own_record("a", "z", "r1", "app.xyz.com", "route")

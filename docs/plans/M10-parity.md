@@ -10,10 +10,11 @@
 - [x] Sweep every user-facing error (core catalog) into "fixable" (gets an action) or "informational" (clear wording); a test keeps the list complete (D-066).
 
 ### M10-02 · Several tunnels per machine
-- [ ] Tunnels on this machine: create named tunnels (e.g. production, staging) besides the default; each route chooses its tunnel (default: the machine tunnel).
-- [ ] Start/stop, Always-on and delete per tunnel (plan → apply; deleting removes its routes' DNS it owns).
+- [x] Tunnels on this machine: create named tunnels (e.g. production, staging) besides the default; each route chooses its tunnel (default: the machine tunnel).
+- [x] Start/stop, Always-on and delete per tunnel (plan → apply; deleting removes its routes' DNS it owns).
 - [ ] Adopt an existing tunnel of the account to run on this machine (fetch its token; refuse if it's remotely managed by another tool without consent).
-- [ ] CLI: `tunnel list|create|start|stop|delete|adopt`, `route add --tunnel`.
+- [x] CLI: `tunnels`, `tunnel create|delete`, `--tunnel` on changes and export (D-067). Start/stop from the CLI waits for M10-04 (the CLI doesn't run connectors yet).
+- [x] Doctor per tunnel, fixes on the issue's tunnel; routes list shows the carrying tunnel.
 
 ### M10-03 · Share on your own domain
 - [ ] Quick Share option "On my domain": a temporary route (hostname on a chosen zone) on the machine tunnel, removed when the share stops, expires or the app quits (and cleaned by the Doctor if left behind).

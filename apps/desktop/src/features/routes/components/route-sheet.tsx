@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { TextArea } from "@/components/ui/text-area";
@@ -20,7 +21,7 @@ import {
 import { ServicePicker } from "@/features/quick-share";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
-import type { Change, Outcome, PlanView, RouteView, ZoneRef } from "@/lib/ipc/bindings";
+import type { Change, Outcome, PlanView, RouteView, TunnelView, ZoneRef } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { formatAllowed, parseAllowed } from "../access";
@@ -32,12 +33,15 @@ export type SheetMode =
   | { kind: "add" }
   | { kind: "edit"; route: RouteView }
   | { kind: "remove"; route: RouteView }
-  | { kind: "restore" }
-  | { kind: "removeTunnel" }
+  /** Put back Teitunnel's routes on a tunnel edited elsewhere. */
+  | { kind: "restore"; tunnelId?: string | null }
+  /** Delete one of this Mac's tunnels (the default one when no id is given). */
+  | { kind: "removeTunnel"; tunnelId?: string | null }
+  | { kind: "createTunnel" }
   | { kind: "addNetwork" }
   | { kind: "removeNetwork"; network: string }
-  /** A Doctor fix: any change, reviewed like the others. */
-  | { kind: "fix"; change: Change; label: string };
+  /** A Doctor fix: any change, reviewed like the others, on the issue's tunnel. */
+  | { kind: "fix"; change: Change; label: string; tunnelId?: string | null };
 
 type Stage = "form" | "review" | "applying" | "done";
 
@@ -47,6 +51,7 @@ const titles: Record<SheetMode["kind"], MessageKey> = {
   remove: "routeSheet.title.remove",
   restore: "routeSheet.title.restore",
   removeTunnel: "routeSheet.title.removeTunnel",
+  createTunnel: "routeSheet.title.createTunnel",
   addNetwork: "routeSheet.title.addNetwork",
   removeNetwork: "routeSheet.title.removeNetwork",
   fix: "routeSheet.title.fix",
@@ -58,6 +63,7 @@ const applyLabels: Record<SheetMode["kind"], MessageKey> = {
   remove: "routeSheet.apply.remove",
   restore: "routeSheet.apply.restore",
   removeTunnel: "routeSheet.apply.removeTunnel",
+  createTunnel: "routeSheet.apply.createTunnel",
   addNetwork: "routeSheet.apply.addNetwork",
   removeNetwork: "routeSheet.apply.removeNetwork",
   fix: "routeSheet.apply.fix",
@@ -98,13 +104,37 @@ interface Form {
   allowed: string | null;
   /** A private network, as typed. */
   network: string;
+  /** A new tunnel's name, as typed. */
+  tunnelName: string;
 }
 
-const emptyForm: Form = { hostname: "", origin: "", path: "", allowed: null, network: "" };
+const emptyForm: Form = {
+  hostname: "",
+  origin: "",
+  path: "",
+  allowed: null,
+  network: "",
+  tunnelName: "",
+};
 
 /** Modes that start with a form (the others go straight to review). */
 const hasForm = (kind: SheetMode["kind"]) =>
-  kind === "add" || kind === "edit" || kind === "addNetwork";
+  kind === "add" || kind === "edit" || kind === "addNetwork" || kind === "createTunnel";
+
+/** The tunnel a mode changes: the route's, the one named, or `null` (the default). */
+function tunnelOf(mode: SheetMode): string | null {
+  switch (mode.kind) {
+    case "edit":
+    case "remove":
+      return mode.route.tunnelId;
+    case "restore":
+    case "removeTunnel":
+    case "fix":
+      return mode.tunnelId ?? null;
+    default:
+      return null;
+  }
+}
 
 /** The change a sheet applies, from what's in its form. */
 function changeFor(mode: SheetMode, form: Form) {
@@ -134,6 +164,8 @@ function changeFor(mode: SheetMode, form: Form) {
       return { type: "restoreConfig" } satisfies Change;
     case "removeTunnel":
       return { type: "removeTunnel" } satisfies Change;
+    case "createTunnel":
+      return { type: "createTunnel", name: form.tunnelName } satisfies Change;
     case "addNetwork":
       return { type: "addNetwork", network: form.network } satisfies Change;
     case "removeNetwork":
@@ -189,6 +221,7 @@ const doneMessages: Record<SheetMode["kind"], MessageKey> = {
   remove: "routeSheet.done.remove",
   restore: "routeSheet.done.restore",
   removeTunnel: "routeSheet.done.removeTunnel",
+  createTunnel: "routeSheet.done.createTunnel",
   addNetwork: "routeSheet.done.addNetwork",
   removeNetwork: "routeSheet.done.removeNetwork",
   fix: "routeSheet.done.fix",
@@ -197,6 +230,8 @@ const doneMessages: Record<SheetMode["kind"], MessageKey> = {
 interface RouteSheetProps {
   accountId: string;
   zones: readonly ZoneRef[];
+  /** This Mac's tunnels; with more than one, a new route can go on any of them. */
+  tunnels?: readonly TunnelView[];
   /** What the sheet does; `null` closes it. */
   mode: SheetMode | null;
   onClose: () => void;
@@ -206,7 +241,7 @@ interface RouteSheetProps {
  * Every routes change goes through this sheet: fill in (add/edit) → review the plan →
  * apply with live progress → check the URL works. Nothing changes before Apply.
  */
-export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps) {
+export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: RouteSheetProps) {
   const open = mode !== null;
   const [stage, setStage] = useState<Stage>("form");
   const [hostname, setHostname] = useState("");
@@ -214,6 +249,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const [path, setPath] = useState("");
   const [allowed, setAllowed] = useState<string | null>(null);
   const [network, setNetwork] = useState("");
+  const [tunnelName, setTunnelName] = useState("");
+  /** The tunnel the change is on (`null`: the default one). */
+  const [tunnelId, setTunnelId] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [change, setChange] = useState<Change | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -224,16 +262,19 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const verify = useVerify(accountId);
   const caps = useCapabilities(accountId).data;
 
-  const review = (next: Change, why: string | null = null) => {
+  const review = (next: Change, why: string | null = null, tunnel = tunnelId) => {
     setChange(next);
     setNotice(why);
     setConfirmed(false);
-    preview.mutate(next, {
-      onSuccess: (result) => {
-        setPlan(result);
-        setStage("review");
+    preview.mutate(
+      { change: next, tunnelId: tunnel },
+      {
+        onSuccess: (result) => {
+          setPlan(result);
+          setStage("review");
+        },
       },
-    });
+    );
   };
 
   // Reset whenever the sheet opens; changes without a form go straight to review.
@@ -246,6 +287,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     setPath(route?.path ?? "");
     setAllowed(route?.access ? formatAllowed(route.access) : null);
     setNetwork("");
+    setTunnelName("");
+    const tunnel = tunnelOf(mode);
+    setTunnelId(tunnel);
     setPlan(null);
     setOutcome(null);
     setNotice(null);
@@ -256,20 +300,20 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
       setStage("form");
     } else {
       setStage("review");
-      review(changeFor(mode, emptyForm));
+      review(changeFor(mode, emptyForm), null, tunnel);
     }
   }, [mode]);
 
   const submitForm = (event: FormEvent) => {
     event.preventDefault();
-    if (mode) review(changeFor(mode, { hostname, origin, path, allowed, network }));
+    if (mode) review(changeFor(mode, { hostname, origin, path, allowed, network, tunnelName }));
   };
 
   const runApply = () => {
     if (!mode || !plan || !change) return;
     setStage("applying");
     apply.mutate(
-      { change, fingerprint: plan.fingerprint, confirmed },
+      { change, tunnelId, fingerprint: plan.fingerprint, confirmed },
       {
         onSuccess: (result) => {
           setOutcome(result);
@@ -283,7 +327,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
                   action: {
                     label: t("common.undo"),
                     onClick: () =>
-                      void applyDirectly(accountId, undo).catch((error: unknown) =>
+                      void applyDirectly(accountId, undo, tunnelId).catch((error: unknown) =>
                         toast.error(t("routeSheet.undoFailed"), {
                           description: toIpcError(error).message,
                         }),
@@ -323,7 +367,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     mode?.kind === "edit" || mode?.kind === "remove" ? mode.route.zone : zoneOf(hostname, zones);
   const needs: PermissionNeed[] = [
     { kind: "tunnels" },
-    ...(routeZone && kind !== "addNetwork" && kind !== "removeNetwork"
+    ...(routeZone && kind !== "addNetwork" && kind !== "removeNetwork" && kind !== "createTunnel"
       ? [{ kind: "dns" as const, zone: routeZone }]
       : []),
     ...(allowed !== null && hasForm(kind) ? [{ kind: "access" as const }] : []),
@@ -348,7 +392,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
     review(
       stage === "review" && change
         ? change
-        : changeFor(mode, { hostname, origin, path, allowed, network }),
+        : changeFor(mode, { hostname, origin, path, allowed, network, tunnelName }),
     );
   };
   const fixCard = refusedNeeds ? (
@@ -361,7 +405,7 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
   const generalError: IpcError | null = fixCard
     ? null
     : preview.error &&
-        !["hostname", "origin", "path", "access", "network"].includes(
+        !["hostname", "origin", "path", "access", "network", "tunnelName"].includes(
           toIpcError(preview.error).field ?? "",
         )
       ? toIpcError(preview.error)
@@ -394,7 +438,12 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               form="route-form"
               disabled={
                 preview.isPending ||
-                (kind === "addNetwork" ? network : origin).trim() === "" ||
+                (kind === "addNetwork"
+                  ? network
+                  : kind === "createTunnel"
+                    ? tunnelName
+                    : origin
+                ).trim() === "" ||
                 gaps.length > 0
               }
             >
@@ -471,7 +520,9 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
           stage === "form"
             ? kind === "addNetwork"
               ? t("routeSheet.description.network")
-              : t("routeSheet.description.route")
+              : kind === "createTunnel"
+                ? t("routeSheet.description.createTunnel")
+                : t("routeSheet.description.route")
             : stage === "review"
               ? t("routeSheet.description.review")
               : undefined
@@ -480,7 +531,34 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
         onEscapeKeyDown={(event) => stage === "applying" && event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
       >
-        {stage === "form" && kind === "addNetwork" ? (
+        {stage === "form" && kind === "createTunnel" ? (
+          <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
+            <Field
+              label={t("routeSheet.tunnelName.label")}
+              error={fieldError("tunnelName")}
+              help={t("routeSheet.tunnelName.help")}
+            >
+              {(control) => (
+                <Input
+                  {...control}
+                  autoFocus
+                  placeholder={t("routeSheet.tunnelName.placeholder")}
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={64}
+                  value={tunnelName}
+                  onChange={(event) => setTunnelName(event.target.value)}
+                />
+              )}
+            </Field>
+            {fixCard}
+            {generalError ? (
+              <p role="alert" className="text-callout text-error">
+                {generalError.message}
+              </p>
+            ) : null}
+          </form>
+        ) : stage === "form" && kind === "addNetwork" ? (
           <form id="route-form" onSubmit={submitForm} className="flex flex-col gap-4">
             <Field
               label={t("routeSheet.network.label")}
@@ -538,6 +616,21 @@ export function RouteSheet({ accountId, zones, mode, onClose }: RouteSheetProps)
               )}
             </Field>
             {fieldError("hostname") ? <ErrorLink error={failure} accountId={accountId} /> : null}
+            {kind === "add" && tunnels.length > 1 ? (
+              <Field label={t("routeSheet.tunnel.label")} help={t("routeSheet.tunnel.help")}>
+                {(control) => (
+                  <Select
+                    id={control.id}
+                    label={t("routeSheet.tunnel.label")}
+                    options={tunnels.map((tunnel) => ({ value: tunnel.id, label: tunnel.name }))}
+                    value={tunnelId ?? tunnels.find((tunnel) => tunnel.isDefault)?.id ?? ""}
+                    onValueChange={(id) =>
+                      setTunnelId(tunnels.find((tunnel) => tunnel.id === id)?.isDefault ? null : id)
+                    }
+                  />
+                )}
+              </Field>
+            ) : null}
             <Disclosure
               title={t("routeSheet.advanced")}
               defaultOpen={path !== "" || allowed !== null}

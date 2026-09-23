@@ -104,6 +104,8 @@ pub struct Issue {
     pub evidence: Vec<Text>,
     /// Fixes, the recommended one first.
     pub fixes: Vec<Fix>,
+    /// The tunnel of this Mac's it's about, when not the default one (a fix applies there).
+    pub tunnel_id: Option<String>,
 }
 
 /// The cloudflared binary, as the Doctor sees it.
@@ -125,6 +127,8 @@ pub enum BinaryFact {
 pub struct AccountFacts {
     /// Account id.
     pub account_id: String,
+    /// Which of this Mac's tunnels these facts are about (`None`: the default one).
+    pub tunnel: Option<String>,
     /// This Mac's tunnel and every routed hostname's records.
     pub snapshot: Snapshot,
     /// All tunnels in the account.
@@ -206,6 +210,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         api,
         engine.local(),
         ctx.account,
+        ctx.tunnel,
         ctx.machine_name,
         None,
         &ObserveNeed {
@@ -215,7 +220,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
     )
     .await?;
     let tunnels = engine.tunnels(api, connectors, ctx.account).await?;
-    let drift = engine.drift(api, ctx.account).await?;
+    let drift = engine.drift(api, ctx.account, ctx.tunnel).await?;
     let owned = engine
         .local()
         .owned_records(ctx.account)
@@ -270,6 +275,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
     };
     Ok(AccountFacts {
         account_id: ctx.account.to_owned(),
+        tunnel: ctx.tunnel.map(str::to_owned),
         snapshot,
         tunnels,
         drift,
@@ -350,12 +356,20 @@ async fn orphan_logins<C: CloudApi>(
     let Ok(owned) = engine.local().owned_access_apps(account).await else {
         return Vec::new();
     };
+    // Routes on this Mac's other tunnels keep their logins too.
     let routed: HashSet<String> = snapshot
         .routes()
         .into_iter()
-        .filter_map(|rule| {
-            let host = Hostname::parse(rule.hostname.as_deref()?).ok()?;
-            let path = rule.path.as_deref().and_then(|p| PathRule::parse(p).ok());
+        .map(|rule| (rule.hostname.as_deref(), rule.path.as_deref()))
+        .chain(
+            snapshot
+                .elsewhere
+                .iter()
+                .map(|r| (Some(r.hostname.as_str()), r.path.as_deref())),
+        )
+        .filter_map(|(hostname, path)| {
+            let host = Hostname::parse(hostname?).ok()?;
+            let path = path.and_then(|p| PathRule::parse(p).ok());
             access_domain(&host, path.as_ref()).ok()
         })
         .map(|d| d.to_ascii_lowercase())
@@ -401,10 +415,16 @@ pub async fn run<K: Connectors>(
     };
     let mut unreachable = Vec::new();
     for account in accounts.list().await.unwrap_or_default() {
-        let ctx = Context {
-            account: &account.id,
-            machine_name,
-        };
+        // The default tunnel first, then this Mac's others: each is checked on its own.
+        let others: Vec<String> = engine
+            .local()
+            .tunnels(&account.id)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|t| !t.is_default)
+            .map(|t| t.tunnel_id)
+            .collect();
         let gathered = async {
             let api = accounts.client(&account.id).await.map_err(|e| e.text())?;
             let domains = accounts.domains(&account.id).await.map_err(|e| e.text())?;
@@ -413,13 +433,24 @@ pub async fn run<K: Connectors>(
                 .await
                 .ok()
                 .map(|c| c.can_manage_routes());
-            gather(engine, &api, machine, ctx, domains, can_manage)
-                .await
-                .map_err(|e| e.text())
+            let mut gathered = Vec::new();
+            for tunnel in std::iter::once(None).chain(others.iter().map(|id| Some(id.as_str()))) {
+                let ctx = Context {
+                    account: &account.id,
+                    machine_name,
+                    tunnel,
+                };
+                gathered.push(
+                    gather(engine, &api, machine, ctx, domains.clone(), can_manage)
+                        .await
+                        .map_err(|e| e.text())?,
+                );
+            }
+            Ok::<_, Text>(gathered)
         }
         .await;
         match gathered {
-            Ok(account_facts) => facts.accounts.push(account_facts),
+            Ok(account_facts) => facts.accounts.extend(account_facts),
             Err(message) => unreachable.push(Issue {
                 id: format!("account.unreachable:{}:{}", account.id, account.name),
                 check: "account.unreachable".into(),
@@ -431,10 +462,14 @@ pub async fn run<K: Connectors>(
                 detail: message,
                 evidence: Vec::new(),
                 fixes: vec![Fix::Reconnect],
+                tunnel_id: None,
             }),
         }
     }
     let mut issues = diagnose(&facts);
+    // Account-wide findings repeat for each tunnel checked; keep the first.
+    let mut seen = HashSet::new();
+    issues.retain(|issue| seen.insert(issue.id.clone()));
     issues.extend(unreachable);
     issues.sort_by(|a, b| {
         (a.severity, &a.subject, &a.check).cmp(&(b.severity, &b.subject, &b.check))
@@ -459,6 +494,7 @@ pub async fn fix_all_safe<K: Connectors>(
         let ctx = Context {
             account: &account.id,
             machine_name,
+            tunnel: None,
         };
         let part = fix_safe(engine, &api, machine, ctx, &issues).await;
         report.fixed += part.fixed;
@@ -518,6 +554,11 @@ pub async fn fix_safe<C: CloudApi, K: Connectors>(
             report.skipped += 1;
             continue;
         };
+        // The fix applies to the tunnel the issue is about.
+        let ctx = Context {
+            tunnel: issue.tunnel_id.as_deref().or(ctx.tunnel),
+            ..ctx
+        };
         let planned = async {
             let intent = engine.intent_for(api, ctx, change).await?;
             let plan = engine.preview(api, ctx, &intent).await?;
@@ -559,6 +600,7 @@ pub async fn fix_safe<C: CloudApi, K: Connectors>(
 
 struct Found<'a> {
     account: Option<&'a str>,
+    tunnel: Option<&'a str>,
     issues: Vec<Issue>,
 }
 
@@ -618,6 +660,7 @@ impl Found<'_> {
             detail,
             evidence,
             fixes,
+            tunnel_id: self.tunnel.map(str::to_owned),
         });
     }
 }
@@ -684,6 +727,7 @@ fn log_checks(found: &mut Found<'_>, tunnel: &str, logs: &[String]) {
 pub fn diagnose(facts: &Facts) -> Vec<Issue> {
     let mut found = Found {
         account: None,
+        tunnel: None,
         issues: Vec::new(),
     };
     match &facts.binary {
@@ -753,6 +797,7 @@ fn diagnose_account(
     let account = facts.account_id.as_str();
     let mut found = Found {
         account: Some(account),
+        tunnel: facts.tunnel.as_deref(),
         issues: Vec::new(),
     };
 
@@ -1203,6 +1248,7 @@ mod tests {
         let target = tunnel_target(T);
         AccountFacts {
             account_id: "acc".into(),
+            tunnel: None,
             snapshot: Snapshot {
                 account_id: "acc".into(),
                 machine_name: "Mac".into(),
@@ -1220,6 +1266,7 @@ mod tests {
                     ],
                 }),
                 tunnel_names: Vec::new(),
+                elsewhere: Vec::new(),
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),
@@ -1267,6 +1314,7 @@ mod tests {
             routes: Some(1),
             connectors: Vec::new(),
             this_mac: true,
+            is_default: true,
             connector: None,
         }];
         assert!(checks(facts).is_empty());
@@ -1443,6 +1491,7 @@ mod tests {
                 }],
             }],
             this_mac: true,
+            is_default: true,
             connector: None,
         }];
         let issues = diagnose(&Facts {
@@ -1490,6 +1539,7 @@ mod tests {
                 routes: Some(1),
                 connectors,
                 this_mac: true,
+                is_default: true,
                 connector: None,
             }];
             diagnose(&Facts {

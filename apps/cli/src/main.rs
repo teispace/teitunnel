@@ -78,6 +78,18 @@ enum Command {
     /// Share, or stop sharing, a private network with WARP clients.
     #[command(subcommand)]
     Network(NetworkCommand),
+    /// List this machine's tunnels (routes go on the default one unless `--tunnel` says).
+    Tunnels {
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Create, or delete, one of this machine's tunnels.
+    #[command(subcommand)]
+    Tunnel(TunnelCommand),
     /// Share a local service at a temporary public URL until you press Ctrl-C.
     Share {
         /// What to share: a port (`3000`), `host:port`, or a URL.
@@ -115,6 +127,28 @@ enum Command {
         /// Account name or id.
         #[arg(long, short)]
         account: Option<String>,
+        /// One of this machine's tunnels, by name (default: the default tunnel).
+        #[arg(long)]
+        tunnel: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TunnelCommand {
+    /// Create another tunnel for this machine, e.g. `staging`.
+    Create {
+        /// Its name (unique in the account).
+        name: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// Delete one of this machine's tunnels, with its routes and the DNS records
+    /// Teitunnel created for them.
+    Delete {
+        /// The tunnel's name.
+        name: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
     },
 }
 
@@ -178,6 +212,10 @@ struct ApplyArgs {
     /// didn't create, or routing a public range.
     #[arg(long)]
     replace: bool,
+    /// One of this machine's tunnels, by name. Default: the tunnel carrying the route,
+    /// or the default tunnel for a new one.
+    #[arg(long)]
+    tunnel: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -263,7 +301,105 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Network(NetworkCommand::Remove { network, apply }) => {
             change_routes(&app, Change::RemoveNetwork { network }, &apply).await
         }
-        Command::Export { format, account } => export(&app, format, account.as_deref()).await,
+        Command::Tunnels { account, json } => tunnels(&app, account.as_deref(), json).await,
+        Command::Tunnel(TunnelCommand::Create { name, apply }) => {
+            change_routes(&app, Change::CreateTunnel { name }, &apply).await
+        }
+        Command::Tunnel(TunnelCommand::Delete { name, mut apply }) => {
+            apply.tunnel = Some(name);
+            change_routes(&app, Change::RemoveTunnel, &apply).await
+        }
+        Command::Export {
+            format,
+            account,
+            tunnel,
+        } => export(&app, format, account.as_deref(), tunnel.as_deref()).await,
+    }
+}
+
+async fn tunnels(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    use teitunnel_core::engine::Connectors as _;
+    let account = app.account(account).await?;
+    let connectors = app.connectors(&account).await;
+    let tunnels = app
+        .engine
+        .local()
+        .tunnels(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let running = |id: &str| {
+        !matches!(
+            connectors.state(id),
+            None | Some(teitunnel_core::runtime::ConnectorState::Stopped)
+        )
+    };
+    if json {
+        let list: Vec<_> = tunnels
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.tunnel_id,
+                    "name": t.name,
+                    "default": t.is_default,
+                    "alwaysOn": t.always_on,
+                    "running": running(&t.tunnel_id),
+                })
+            })
+            .collect();
+        out!("{}", serde_json::Value::Array(list))?;
+    } else if tunnels.is_empty() {
+        out!(
+            "This machine has no tunnel in {} yet. Adding a route creates one.",
+            account.name
+        )?;
+    } else {
+        for t in &tunnels {
+            let mut notes = Vec::new();
+            if t.is_default {
+                notes.push("default");
+            }
+            notes.push(if running(&t.tunnel_id) {
+                "running"
+            } else {
+                "stopped"
+            });
+            if t.always_on {
+                notes.push("always on");
+            }
+            out!("{}\t{}\t{}", t.name, t.tunnel_id, notes.join(", "))?;
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// The tunnel a change is on: `--tunnel` (by name or id), else the one carrying the
+/// route being changed, else the default one (`None`).
+async fn tunnel_for(
+    app: &App,
+    account: &teitunnel_core::accounts::Account,
+    named: Option<&str>,
+    change: &Change,
+) -> Result<Option<String>, String> {
+    let local = app.engine.local();
+    if let Some(name) = named {
+        let tunnels = local
+            .tunnels(&account.id)
+            .await
+            .map_err(|e| e.to_string())?;
+        return tunnels
+            .into_iter()
+            .find(|t| t.name.eq_ignore_ascii_case(name) || t.tunnel_id == name)
+            .map(|t| Some(t.tunnel_id))
+            .ok_or_else(|| {
+                format!("This machine has no tunnel named “{name}”. See `teitunnel-cli tunnels`.")
+            });
+    }
+    match change {
+        Change::RemoveRoute { hostname, .. } | Change::UpdateRoute { hostname, .. } => local
+            .tunnel_routing(&account.id, hostname)
+            .await
+            .map_err(|e| e.to_string()),
+        _ => Ok(None),
     }
 }
 
@@ -311,6 +447,7 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
                     "origin": route.origin,
                     "access": route.access,
                     "client": route.client,
+                    "tunnelId": route.tunnel_id,
                     "status": status,
                 })
             })
@@ -321,6 +458,14 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
     if overview.routes.is_empty() {
         out!("No routes on this Mac in {}.", account.name)?;
     }
+    // With several tunnels, say which one carries each route.
+    let tunnel_name = |id: Option<&str>| {
+        (overview.tunnels.len() > 1)
+            .then(|| overview.tunnels.iter().find(|t| Some(t.id.as_str()) == id))
+            .flatten()
+            .map(|t| format!("\ttunnel: {}", t.name))
+            .unwrap_or_default()
+    };
     for (route, (_, status)) in overview.routes.iter().zip(&statuses) {
         let path = route
             .path
@@ -333,10 +478,11 @@ async fn routes(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode
             .map(|rule| format!("\tlogin: {}", rule.people()))
             .unwrap_or_default();
         out!(
-            "{}{path}\t{}\t{}{login}",
+            "{}{path}\t{}\t{}{login}{}",
             route.hostname,
             route.origin,
-            status.text().english()
+            status.text().english(),
+            tunnel_name(route.tunnel_id.as_deref())
         )?;
         if let Some(client) = &route.client {
             out!("    connect: {}", client.command)?;
@@ -475,7 +621,11 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
         .client(&account.id)
         .await
         .map_err(|e| e.to_string())?;
-    let ctx = app.context(&account);
+    let tunnel = tunnel_for(app, &account, apply.tunnel.as_deref(), &change).await?;
+    let ctx = teitunnel_core::engine::Context {
+        tunnel: tunnel.as_deref(),
+        ..app.context(&account)
+    };
     let intent = app
         .engine
         .intent_for(&api, ctx, &change)
@@ -594,16 +744,26 @@ async fn check(
     }
 }
 
-async fn export(app: &App, format: Format, account: Option<&str>) -> Result<ExitCode, String> {
+async fn export(
+    app: &App,
+    format: Format,
+    account: Option<&str>,
+    tunnel: Option<&str>,
+) -> Result<ExitCode, String> {
     let account = app.account(account).await?;
     let api = app
         .accounts
         .client(&account.id)
         .await
         .map_err(|e| e.to_string())?;
+    let tunnel = tunnel_for(app, &account, tunnel, &Change::RemoveTunnel).await?;
+    let ctx = teitunnel_core::engine::Context {
+        tunnel: tunnel.as_deref(),
+        ..app.context(&account)
+    };
     let input = app
         .engine
-        .export_input(&api, app.context(&account), None)
+        .export_input(&api, ctx, None)
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("This Mac has no routes in {} yet.", account.name))?;
@@ -621,6 +781,30 @@ mod tests {
     #[test]
     fn the_command_line_is_well_formed() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn parses_tunnel_commands() {
+        let cli =
+            Cli::try_parse_from(["teitunnel-cli", "tunnel", "create", "staging", "--yes"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Tunnel(TunnelCommand::Create { ref name, ref apply }) if name == "staging" && apply.yes
+        ));
+        let cli = Cli::try_parse_from([
+            "teitunnel-cli",
+            "route",
+            "add",
+            "beta.example.com",
+            "4000",
+            "--tunnel",
+            "staging",
+        ])
+        .unwrap();
+        let Command::Route(RouteCommand::Add { apply, .. }) = cli.command else {
+            panic!("not a route add");
+        };
+        assert_eq!(apply.tunnel.as_deref(), Some("staging"));
     }
 
     #[test]

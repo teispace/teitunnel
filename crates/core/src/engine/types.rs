@@ -76,6 +76,17 @@ pub struct ObservedTunnel {
     pub ingress: Vec<IngressRule>,
 }
 
+/// A route on another of this Mac's tunnels.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RouteElsewhere {
+    /// That tunnel's name.
+    pub tunnel: String,
+    /// Hostname.
+    pub hostname: String,
+    /// Path, if any.
+    pub path: Option<String>,
+}
+
 /// A DNS record in one of the zones, with whether Teitunnel owns it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ObservedRecord {
@@ -98,9 +109,11 @@ pub struct Snapshot {
     pub zones: Vec<ZoneRef>,
     /// This Mac's tunnel, if it exists.
     pub tunnel: Option<ObservedTunnel>,
-    /// Names of the account's tunnels, read only when this Mac has none (a new
-    /// tunnel gets a name no other tunnel has).
+    /// Names of the account's tunnels, read only when a tunnel will be created (it gets
+    /// a name no other tunnel has).
     pub tunnel_names: Vec<String>,
+    /// Routes on this Mac's other tunnels in the account (a hostname is routed once).
+    pub elsewhere: Vec<RouteElsewhere>,
     /// DNS records for the hostnames involved.
     pub records: Vec<ObservedRecord>,
     /// Access for the domains involved; read only when a change involves a login.
@@ -172,8 +185,13 @@ pub enum Intent {
         /// Path.
         path: Option<PathRule>,
     },
-    /// Remove every route and delete the machine tunnel.
+    /// Remove every route and delete the tunnel.
     RemoveTunnel,
+    /// Create another tunnel for this Mac (routes can then be put on it).
+    CreateTunnel {
+        /// Its name.
+        name: String,
+    },
     /// Add several routes at once (importing an existing cloudflared setup). Routes
     /// that already exist unchanged are skipped.
     ImportRoutes {
@@ -226,7 +244,8 @@ impl Intent {
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
             | Self::AddNetwork { .. }
-            | Self::RemoveNetwork { .. } => Some(Vec::new()),
+            | Self::RemoveNetwork { .. }
+            | Self::CreateTunnel { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
         }
     }
@@ -267,6 +286,7 @@ impl Intent {
             Self::AddNetwork { network } => m::add_network(network),
             Self::RemoveNetwork { network } => m::remove_network(network),
             Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),
+            Self::CreateTunnel { name } => m::create_tunnel(name),
         }
     }
 }
