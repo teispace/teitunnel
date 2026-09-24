@@ -51,6 +51,8 @@ const ACCOUNT_TABLES: &[&str] = &[
     "reservations_cache",
     "edge_rules",
     "service_tokens",
+    "paused_routes",
+    "route_schedules",
 ];
 
 /// How an account was connected.

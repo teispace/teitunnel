@@ -115,13 +115,13 @@ impl Folder {
             return None;
         }
         let mut segments = Vec::new();
-        for segment in decoded.split('/') {
-            match segment {
+        let parts: Vec<&str> = decoded.split('/').collect();
+        let last = parts.len().saturating_sub(1);
+        for (index, segment) in parts.iter().enumerate() {
+            match *segment {
                 "" | "." => {}
                 ".." => return None,
-                s if s.starts_with('.') && !self.config.hidden && s != ".well-known" => {
-                    return None;
-                }
+                s if !self.name_allowed(s, index < last) => return None,
                 // Windows drive letters and alternate data streams.
                 s if s.contains(':') => return None,
                 s => segments.push(s.to_owned()),
@@ -130,14 +130,25 @@ impl Folder {
         Some(segments)
     }
 
-    /// Canonicalizes `path` and checks it's inside the root.
+    /// Whether a file or folder name may be served (dotfiles only when `hidden`, and
+    /// never what the embedder's filter refuses).
+    fn name_allowed(&self, name: &str, is_dir: bool) -> bool {
+        (!name.starts_with('.') || self.config.hidden || name == ".well-known")
+            && self.config.allow.allows(name, is_dir)
+    }
+
+    /// Canonicalizes `path` and checks it's inside the root, and that what it resolves
+    /// to (a link can point at `.env`) is allowed too.
     async fn resolve(&self, path: &Path) -> Option<(PathBuf, std::fs::Metadata)> {
         let canonical = tokio::fs::canonicalize(path).await.ok()?;
-        if !canonical.starts_with(&self.root) {
-            return None;
-        }
+        let inside = canonical.strip_prefix(&self.root).ok()?;
         let meta = tokio::fs::metadata(&canonical).await.ok()?;
-        Some((canonical, meta))
+        let names: Vec<_> = inside.components().collect();
+        let allowed = names.iter().enumerate().all(|(index, part)| {
+            let name = part.as_os_str().to_string_lossy();
+            self.name_allowed(&name, index + 1 < names.len() || meta.is_dir())
+        });
+        allowed.then_some((canonical, meta))
     }
 
     async fn listing(&self, dir: &Path, url_path: &str, head: bool) -> Response<LensBody> {
@@ -145,11 +156,11 @@ impl Folder {
         if let Ok(mut reader) = tokio::fs::read_dir(dir).await {
             while let Ok(Some(entry)) = reader.next_entry().await {
                 let name = entry.file_name().to_string_lossy().into_owned();
-                if name.starts_with('.') && !self.config.hidden {
-                    continue;
-                }
                 let meta = entry.metadata().await.ok();
                 let is_dir = meta.as_ref().is_some_and(std::fs::Metadata::is_dir);
+                if !self.name_allowed(&name, is_dir) || name == ".well-known" && !is_dir {
+                    continue;
+                }
                 let size = meta.as_ref().map_or(0, std::fs::Metadata::len);
                 entries.push((is_dir, name, size));
                 if entries.len() >= MAX_LISTING {
@@ -536,6 +547,80 @@ mod tests {
         assert_eq!(folder.segments("/%00"), None);
         assert_eq!(folder.segments("/%ff"), None);
         assert_eq!(folder.segments("/C:/x"), None);
+    }
+
+    #[test]
+    fn the_embedders_filter_refuses_names_anywhere_in_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = FolderConfig::new(dir.path());
+        config.hidden = true;
+        config.allow = crate::NameFilter::new(|name, is_dir| {
+            !(name.starts_with(".env") || (is_dir && name == "node_modules"))
+        });
+        let folder = Folder::new(config).unwrap();
+        assert_eq!(folder.segments("/.env.local"), None);
+        assert_eq!(folder.segments("/app/.env"), None);
+        assert_eq!(folder.segments("/node_modules/x.js"), None);
+        // A file called node_modules isn't a folder.
+        assert!(folder.segments("/node_modules").is_some());
+        assert!(
+            folder.segments("/.htaccess").is_some(),
+            "hidden files allowed here"
+        );
+        assert!(folder.segments("/assets/app.js").is_some());
+    }
+
+    async fn get(folder: &Folder, path: &str) -> (StatusCode, String) {
+        let response = folder
+            .serve(&Method::GET, &path.parse().unwrap(), &HeaderMap::new())
+            .await;
+        let status = response.status();
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    #[tokio::test]
+    async fn listings_and_links_respect_the_filter() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("index.txt"), "hi").unwrap();
+        std::fs::write(dir.path().join("secret.pem"), "key").unwrap();
+        let mut config = FolderConfig::new(dir.path());
+        config.index = false;
+        config.listing = true;
+        config.allow = crate::NameFilter::new(|name, _| !name.ends_with(".pem"));
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(dir.path().join("secret.pem"), dir.path().join("key.txt"))
+            .unwrap();
+        let folder = Folder::new(config).unwrap();
+        let (status, html) = get(&folder, "/").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("index.txt"));
+        assert!(!html.contains("secret.pem"));
+        assert_eq!(get(&folder, "/secret.pem").await.0, StatusCode::NOT_FOUND);
+        assert_eq!(
+            get(&folder, "/index.txt").await,
+            (StatusCode::OK, "hi".into())
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            get(&folder, "/key.txt").await.0,
+            StatusCode::NOT_FOUND,
+            "a link to a refused file is refused too"
+        );
+    }
+
+    #[tokio::test]
+    async fn single_page_apps_fall_back_to_the_index() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("index.html"), "<p>app</p>").unwrap();
+        let mut config = FolderConfig::new(dir.path());
+        config.spa_fallback = true;
+        let folder = Folder::new(config).unwrap();
+        assert_eq!(
+            get(&folder, "/orders/42").await,
+            (StatusCode::OK, "<p>app</p>".into())
+        );
+        assert_eq!(get(&folder, "/missing.js").await.0, StatusCode::NOT_FOUND);
     }
 
     #[test]

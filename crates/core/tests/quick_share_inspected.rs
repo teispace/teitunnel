@@ -241,3 +241,69 @@ async fn idle_shares_stop() {
     assert!(inspector.taps().is_empty());
     inspector.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn folders_are_shared_through_the_inspector() {
+    let Some(fake) = fake() else {
+        eprintln!("skipped: build the workspace to get fake-cloudflared");
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let site = dir.path().join("site");
+    std::fs::create_dir_all(site.join(".git")).unwrap();
+    std::fs::write(site.join("index.html"), "<h1>home</h1>").unwrap();
+    std::fs::write(site.join(".env"), "SECRET=1").unwrap();
+    std::fs::write(site.join(".git/config"), "[core]").unwrap();
+    let supervisor = Supervisor::new(
+        PidRegistry::new(dir.path().join("run")),
+        tokio::runtime::Handle::current(),
+    );
+    let inspector = Inspector::new(None, None, "app");
+    let shares = QuickShares::new(
+        supervisor.clone(),
+        BinaryManager::new(Locator::new(dir.path().join("bin"), Some(fake), vec![])),
+        PortAllocator::new(QUICK_SHARE_PORTS).spread(std::process::id()),
+        Store::open_in_memory().unwrap(),
+        dir.path().join("quick-share.yml"),
+    )
+    .with_edge(Edge::Test(([127, 0, 0, 1], 9).into()))
+    .with_dns_propagation(Duration::ZERO)
+    .with_inspector(inspector.clone());
+    tokio::spawn(shares.clone().watch_runtime());
+
+    let folder =
+        teitunnel_core::folder_share::FolderShare::resolve(site.to_str().unwrap(), false, true)
+            .unwrap();
+    let share = shares.start_folder(folder.clone(), None).await.unwrap();
+    assert_eq!(share.folder.as_ref(), Some(&folder));
+    let share = live(&shares, &share.id).await;
+    let tap = inspector.taps().pop().unwrap();
+    assert_eq!(share.origin.as_str(), tap.address);
+    assert_eq!(
+        cloudflared_url(&supervisor, &share.id).as_deref(),
+        Some(tap.address.as_str())
+    );
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let get = |path: &str| {
+        let request = client
+            .get(format!("{}{path}", tap.address))
+            .header("accept", "text/html");
+        async move {
+            let response = request.send().await.unwrap();
+            (response.status().as_u16(), response.text().await.unwrap())
+        }
+    };
+    assert_eq!(get("/").await, (200, "<h1>home</h1>".into()));
+    assert_eq!(get("/orders/7").await.0, 200, "single-page app fallback");
+    assert_eq!(get("/.env").await.0, 404);
+    assert_eq!(get("/.git/config").await.0, 404);
+    // The client resolves the dots; whatever arrives never leaves the folder (here the
+    // single-page app's index answers).
+    let (_, body) = get("/%2e%2e/%2e%2e/etc/passwd").await;
+    assert!(!body.contains("root:"));
+    // The inspector can't be turned off for a folder.
+    assert!(shares.set_inspected(&share.id, false).await.is_err());
+    shares.stop(&share.id).await.unwrap();
+    assert!(inspector.taps().is_empty());
+    inspector.shutdown().await;
+}

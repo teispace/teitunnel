@@ -178,7 +178,10 @@ fn quick_info(share: &QuickShare, requests: Option<u64>) -> ShareInfo {
         id: share.id.clone(),
         kind: ShareKind::Quick,
         url: share.url.clone(),
-        origin: share.origin.to_string(),
+        origin: share
+            .folder
+            .as_ref()
+            .map_or_else(|| share.origin.to_string(), |f| f.path.clone()),
         status: status.into(),
         error,
         started_at: share.started_at,

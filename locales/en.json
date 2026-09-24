@@ -1276,7 +1276,8 @@
         "noFreePort": "Too many Quick Shares are running.",
         "notFound": "That Quick Share isn't running.",
         "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
-        "config": "Couldn't prepare cloudflared's settings: {detail}"
+        "config": "Couldn't prepare cloudflared's settings: {detail}",
+        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share."
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",
@@ -1310,6 +1311,26 @@
         "notInspected": "{hostname} isn't being inspected.",
         "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
         "invalid": "{detail}"
+      },
+      "schedule": {
+        "days": "\"{days}\" isn't a list of days. Use names like mon-fri, sat,sun, weekdays, weekends or daily.",
+        "time": "\"{time}\" isn't a time. Use 24-hour HH:MM, like 09:00 or 18:30.",
+        "timeZone": "\"{zone}\" isn't a time zone this computer knows. Use a name like Europe/Berlin or America/New_York.",
+        "spec": "\"{spec}\" isn't a schedule. Write the days and hours, like mon-fri 09:00-18:00."
+      },
+      "pause": {
+        "ownerGone": "The terminal that shared {hostname} has stopped, so there's nothing to pause.",
+        "notInspected": "{hostname} runs in a terminal without Teitunnel's inspector (--no-inspect), which is what shows the paused page. Stop it and share it again without --no-inspect.",
+        "noHost": "Pausing {hostname} needs Teitunnel running on this computer to show the paused page: open the app, or run teitunnel up or teitunnel serve."
+      },
+      "shareName": {
+        "placeholder": "{name} isn't a placeholder Teitunnel knows. Use one of project, branch or user in braces.",
+        "noValue": "{name} has no value here (the branch comes from the git repository the share starts in).",
+        "invalid": "{hostname} isn't a hostname Teitunnel can share at. Each part may use letters, digits and hyphens."
+      },
+      "folder": {
+        "notFolder": "{path} isn't a folder on this computer.",
+        "tooBroad": "{path} holds far more than a site. Share the folder with the files you want people to see, like dist or public."
       }
     },
     "raw": "{text}",

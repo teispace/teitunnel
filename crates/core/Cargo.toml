@@ -46,6 +46,7 @@ idna.workspace = true
 sha2.workspace = true
 listeners.workspace = true
 ipnet.workspace = true
+jiff.workspace = true
 intl_pluralrules.workspace = true
 unic-langid.workspace = true
 qrcode.workspace = true

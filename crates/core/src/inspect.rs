@@ -183,6 +183,8 @@ pub struct TapSpec {
     pub public_url: Option<String>,
     /// Bearer tokens required (`Authorization: Bearer …`).
     pub bearer: Vec<Secret<String>>,
+    /// Serve this folder instead of forwarding to `origin` (which then names it).
+    pub folder: Option<crate::folder_share::FolderShare>,
 }
 
 impl TapSpec {
@@ -196,6 +198,7 @@ impl TapSpec {
             tls: OriginTls::default(),
             public_url: None,
             bearer: Vec::new(),
+            folder: None,
         }
     }
 }
@@ -501,13 +504,19 @@ impl Inspector {
         if let Some(existing) = self.tap_for(&spec.scope) {
             self.stop(&existing).await;
         }
-        let url = OriginUrl::parse(spec.origin.trim().trim_end_matches('/'))
-            .map_err(|_| InspectError::NotWeb)?;
-        let mut origin = OriginConfig::new(url);
-        origin.verify_tls = spec.tls.verify;
-        origin.server_name.clone_from(&spec.tls.server_name);
-        origin.http2 = spec.tls.http2;
-        let mut config = TapConfig::new(Upstream::Origin(origin));
+        let upstream = match &spec.folder {
+            Some(folder) => Upstream::Folder(folder.config()),
+            None => {
+                let url = OriginUrl::parse(spec.origin.trim().trim_end_matches('/'))
+                    .map_err(|_| InspectError::NotWeb)?;
+                let mut origin = OriginConfig::new(url);
+                origin.verify_tls = spec.tls.verify;
+                origin.server_name.clone_from(&spec.tls.server_name);
+                origin.http2 = spec.tls.http2;
+                Upstream::Origin(origin)
+            }
+        };
+        let mut config = TapConfig::new(upstream);
         config.id = tap_id_for(&spec.scope);
         config.name.clone_from(&spec.name);
         config.host_header = spec
@@ -1277,7 +1286,7 @@ fn check_idle(inner: &Inner) {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod error_tests {

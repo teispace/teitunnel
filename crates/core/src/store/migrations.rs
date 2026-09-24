@@ -299,6 +299,30 @@ const MIGRATIONS: &[M<'static>] = &[
         CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
         CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
     ),
+    // 19: Sharing power-ups (M12-06): what a share on your domain serves when its route
+    // points at an inspector (a service or a folder), routes paused behind a "paused"
+    // page (who enforces it, and whether inspection started only for the pause), and
+    // schedules (on during set hours, paused otherwise).
+    M::up(
+        "ALTER TABLE domain_shares ADD COLUMN source TEXT;
+        ALTER TABLE domain_shares ADD COLUMN folder INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE paused_routes (
+            account_id  TEXT NOT NULL,
+            hostname    TEXT NOT NULL,
+            owner       TEXT NOT NULL,
+            via_inspect INTEGER NOT NULL,
+            by_schedule INTEGER NOT NULL,
+            paused_at   INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;
+        CREATE TABLE route_schedules (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            schedule   TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

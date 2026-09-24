@@ -438,6 +438,8 @@ pub async fn expose<C: CloudApi, K: Connectors>(
             expires_at: request.expires_at,
             owner: inspector.owner(),
             host_header: None,
+            source: Some(request.origin.to_owned()),
+            folder: false,
         },
     )
     .await;
