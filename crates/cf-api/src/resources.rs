@@ -105,6 +105,16 @@ impl Client {
         self.get("/user/tokens/verify").await
     }
 
+    /// Checks an account-owned token, which only verifies under its account (the user
+    /// endpoint answers "Invalid API Token" for it).
+    ///
+    /// # Errors
+    /// API or network errors (401/403 mean the token was rejected).
+    pub async fn verify_account_token(&self, account_id: &str) -> Result<TokenStatus> {
+        self.get(&format!("/accounts/{}/tokens/verify", encode(account_id)))
+            .await
+    }
+
     /// Accounts this credential can access.
     ///
     /// # Errors

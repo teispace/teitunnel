@@ -97,6 +97,14 @@ pub trait CloudApi: Send + Sync {
         id: &str,
         record: &NewDnsRecord,
     ) -> impl Future<Output = cf_api::Result<DnsRecord>> + Send;
+    /// Replaces a record with one of another type, in one batch (Cloudflare doesn't
+    /// change a record's type in place).
+    fn replace_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> impl Future<Output = cf_api::Result<DnsRecord>> + Send;
     /// Deletes a record.
     fn delete_record(
         &self,
@@ -364,6 +372,15 @@ impl CloudApi for Client {
         record: &NewDnsRecord,
     ) -> cf_api::Result<DnsRecord> {
         self.update_dns_record(zone, id, record).await
+    }
+
+    async fn replace_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> cf_api::Result<DnsRecord> {
+        self.replace_dns_record(zone, id, record).await
     }
 
     async fn delete_record(&self, zone: &str, id: &str) -> cf_api::Result<()> {

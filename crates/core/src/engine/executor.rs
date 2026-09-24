@@ -208,6 +208,9 @@ enum Undo {
     RestoreRecord {
         zone: String,
         previous: DnsRecord,
+        /// The record's id now: `previous.id` if it was changed in place, else the
+        /// replacement's (a type change deletes and creates).
+        current: String,
         was_owned: bool,
     },
     RecreateRecord {
@@ -1116,22 +1119,30 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 previous,
             } => {
                 let target = self.resolve(tunnel)?;
-                api.update_record(
-                    zone_id,
-                    record_id,
-                    &tunnel_cname(hostname, &target, route_id),
-                )
-                .await
-                .map_err(|e| e.text())?;
+                let cname = tunnel_cname(hostname, &target, route_id);
+                let was_owned = self.was_owned(record_id);
+                let current = if previous.kind == cname.kind {
+                    api.update_record(zone_id, record_id, &cname)
+                        .await
+                        .map_err(|e| e.text())?
+                } else {
+                    let replaced = api
+                        .replace_record(zone_id, record_id, &cname)
+                        .await
+                        .map_err(|e| e.text())?;
+                    warn_local(self.local.disown_record(record_id).await);
+                    replaced
+                };
                 warn_local(
                     self.local
-                        .own_record(account, zone_id, record_id, hostname, route_id)
+                        .own_record(account, zone_id, &current.id, hostname, route_id)
                         .await,
                 );
                 Ok(Some(Undo::RestoreRecord {
                     zone: zone_id.clone(),
                     previous: previous.clone(),
-                    was_owned: self.was_owned(record_id),
+                    current: current.id,
+                    was_owned,
                 }))
             }
             Step::DeleteRecord { zone_id, record } => {
@@ -1376,13 +1387,26 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Undo::RestoreRecord {
                 zone,
                 previous,
+                current,
                 was_owned,
             } => {
-                api.update_record(zone, &previous.id, &previous.to_new())
-                    .await
-                    .map_err(err)?;
-                if !was_owned {
-                    warn_local(self.local.disown_record(&previous.id).await);
+                let restored = if *current == previous.id {
+                    api.update_record(zone, &previous.id, &previous.to_new())
+                        .await
+                        .map_err(err)?
+                } else {
+                    api.replace_record(zone, current, &previous.to_new())
+                        .await
+                        .map_err(err)?
+                };
+                warn_local(self.local.disown_record(current).await);
+                if *was_owned {
+                    let route = route_id_from(previous.comment.as_deref());
+                    warn_local(
+                        self.local
+                            .own_record(account, zone, &restored.id, &previous.name, route)
+                            .await,
+                    );
                 }
             }
             Undo::RecreateRecord {

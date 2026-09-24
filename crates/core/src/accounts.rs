@@ -235,11 +235,16 @@ impl Accounts {
     /// if it reaches nothing.
     pub async fn add_token(&self, token: Secret<String>) -> Result<Vec<Account>, AccountError> {
         let client = self.client_with(&token)?;
-        match client.verify_token().await {
-            Ok(status) if status.is_active() => {}
-            Ok(_) => return Err(AccountError::InvalidToken),
-            Err(err) if err.is_auth() => return Err(AccountError::InvalidToken),
+        let status = match client.verify_token().await {
+            Ok(status) => status,
+            // An account-owned token: it verifies under the account it belongs to.
+            Err(err) if err.is_auth() => verify_account_owned(&client)
+                .await
+                .ok_or(AccountError::InvalidToken)?,
             Err(err) => return Err(err.into()),
+        };
+        if !status.is_active() {
+            return Err(AccountError::InvalidToken);
         }
         let reachable = reachable_accounts(&client).await?;
         self.save_all(reachable, CredentialKind::ApiToken, &token)
@@ -491,6 +496,17 @@ impl Accounts {
 
 /// Accounts a credential can reach. Zone-scoped tokens may not list accounts, so fall
 /// back to the owners of the zones they can see.
+/// The status of an account-owned token, from the first account it can see that
+/// verifies it; `None` if there's none (then it isn't a valid token of either kind).
+async fn verify_account_owned(client: &Client) -> Option<cf_api::TokenStatus> {
+    for (id, _) in reachable_accounts(client).await.ok()? {
+        if let Ok(status) = client.verify_account_token(&id).await {
+            return Some(status);
+        }
+    }
+    None
+}
+
 async fn reachable_accounts(client: &Client) -> Result<Vec<(String, String)>, AccountError> {
     let mut reachable: Vec<(String, String)> = match client.accounts().await {
         Ok(accounts) => accounts.into_iter().map(|a| (a.id, a.name)).collect(),
@@ -686,6 +702,38 @@ mod tests {
         );
         assert_eq!(secrets.keys(), ["cf:a1:apiToken", "cf:a2:apiToken"]);
         assert!(accounts.client("a1").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn account_owned_tokens_verify_under_their_account() {
+        let (server, accounts, secrets) = setup().await;
+        // The user endpoint doesn't know account-owned tokens (code 1000).
+        Mock::given(path("/user/tokens/verify"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "success": false, "errors": [{"code": 1000, "message": "Invalid API Token"}],
+                "messages": [], "result": null
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(
+                serde_json::json!([{"id": "a1", "name": "Personal"}]),
+            ))
+            .mount(&server)
+            .await;
+        Mock::given(path("/accounts/a1/tokens/verify"))
+            .respond_with(envelope(
+                serde_json::json!({"id": "t1", "status": "active"}),
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let added = accounts
+            .add_token(Secret::new("acct".into()))
+            .await
+            .unwrap();
+        assert_eq!(added[0].id, "a1");
+        assert_eq!(secrets.keys(), ["cf:a1:apiToken"]);
     }
 
     #[tokio::test]

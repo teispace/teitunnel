@@ -190,7 +190,7 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
         )
         .collect();
     NewAccessApp {
-        name: format!("Teitunnel · {domain}"),
+        name: format!("{}{domain}", cf_api::TEITUNNEL_PREFIX),
         domain: domain.to_owned(),
         kind: "self_hosted".into(),
         session_duration: "24h".into(),
@@ -201,6 +201,8 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
             decision: "allow".into(),
             include,
             precedence: Some(1),
+            reusable: false,
+            app_count: None,
         }],
     }
 }

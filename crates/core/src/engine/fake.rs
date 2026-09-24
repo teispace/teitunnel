@@ -393,6 +393,16 @@ impl CloudApi for FakeCloud {
                 .iter_mut()
                 .find(|r| r.id == id)
                 .ok_or_else(not_found)?;
+            if r.kind != record.kind {
+                // As Cloudflare since 2026-06-30: a type change is a delete and a create.
+                return Err(cf_api::Error::Api {
+                    status: 400,
+                    errors: vec![ApiMessage {
+                        code: 9000,
+                        message: "DNS record type cannot be changed.".into(),
+                    }],
+                });
+            }
             r.name.clone_from(&record.name);
             r.kind.clone_from(&record.kind);
             r.content.clone_from(&record.content);
@@ -400,6 +410,33 @@ impl CloudApi for FakeCloud {
             r.ttl = record.ttl;
             r.comment.clone_from(&record.comment);
             Ok(r.clone())
+        })
+    }
+
+    async fn replace_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> cf_api::Result<DnsRecord> {
+        self.mutate()?;
+        let new_id = self.next_id("rec");
+        self.with_zone(zone, |records| {
+            let at = records
+                .iter()
+                .position(|r| r.id == id)
+                .ok_or_else(not_found)?;
+            let created = DnsRecord {
+                id: new_id,
+                name: record.name.clone(),
+                kind: record.kind.clone(),
+                content: record.content.clone(),
+                proxied: record.proxied,
+                comment: record.comment.clone(),
+                ttl: record.ttl,
+            };
+            records[at] = created.clone();
+            Ok(created)
         })
     }
 

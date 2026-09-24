@@ -26,6 +26,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Nothing.
 
 ## Recently completed
+- 2026-09-24 (local, not pushed): current Cloudflare API throughout (D-095): DNS type changes through the batch endpoint, account-owned tokens, Access with reusable policies and `destinations`, E2E fake in the new shapes.
 - 2026-09-24 (local, not pushed): import finds setups on Windows, by any file name and from running cloudflareds; disconnecting ends the account's temporary shares and clears all its rows (D-093).
 - 2026-09-24 (local, not pushed): UX pass (D-092): actions stay busy until their result is on screen (pending buttons, `ConfirmDialog`, `refresh`), loading placeholders in every view and Settings pane, Overview error instead of a false "Nothing running yet", Settings row in the sidebar. Branch `fix/pending-states` (on `feat/cli-with-app`).
 - 2026-09-24 (local, not pushed; maintainer is reviewing): the command is `teitunnel` (D-091) and comes with the app (D-090: Windows installer puts it on the PATH and removes it on uninstall, one-time offer on macOS/AppImage). Docker Hub `teispace/teitunnel` set up (D-089). Sign in with Cloudflare: public OAuth client verified and tested (branch feat/oauth-client).

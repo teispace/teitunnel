@@ -18,8 +18,8 @@ mod token;
 mod tunnels;
 
 pub use access::{
-    AccessApp, AccessOrganization, AccessPolicy, IdentityProvider, NewAccessApp, email_domain_rule,
-    email_rule, rule_email, rule_email_domain,
+    AccessApp, AccessOrganization, AccessPolicy, IdentityProvider, NewAccessApp, TEITUNNEL_PREFIX,
+    email_domain_rule, email_rule, rule_email, rule_email_domain,
 };
 pub use client::{API_BASE, Client};
 pub use dns::{DnsRecord, NewDnsRecord};

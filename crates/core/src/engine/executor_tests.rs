@@ -325,8 +325,13 @@ async fn a_change_after_review_is_caught() {
         .await
         .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    let record = &cloud.snapshot().records["z-xyz"][0];
-    assert_eq!((record.id.as_str(), record.kind.as_str()), ("a1", "CNAME"));
+    let records = &cloud.snapshot().records["z-xyz"];
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].kind, "CNAME");
+    assert_ne!(
+        records[0].id, "a1",
+        "an A record becomes a CNAME by replacement, not in place"
+    );
 }
 
 #[tokio::test]
