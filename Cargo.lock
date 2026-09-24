@@ -6287,6 +6287,7 @@ name = "teitunnel-cli"
 version = "0.1.1"
 dependencies = [
  "axum",
+ "bytes",
  "clap",
  "clap_complete",
  "dirs 7.0.0",

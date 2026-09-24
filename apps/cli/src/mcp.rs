@@ -9,17 +9,29 @@
 use std::{process::ExitCode, sync::Arc};
 
 use clap::Subcommand;
+use teitunnel_core::inspect::Inspector;
 use teitunnel_core::{
     engine::Engine,
     remote_logs::RemoteLogs,
     runtime::{PortAllocator, QUICK_SHARE_PORTS},
 };
 use teitunnel_mcp::{
-    ConnectorSource, CoreBackend, CoreParts, McpServer, Mode, Settings, SharedBackend,
+    ConnectorSource, CoreBackend, CoreParts, ExposeTools, InspectorTraffic, McpServer, Mode,
+    Settings, SharedBackend,
     backend::BoxFuture,
     clients::{self, Client, Paths, ServerCommand},
 };
 use tokio_util::sync::CancellationToken;
+
+/// This process's inspector: its shares' captures go to the app's history (when it's
+/// set up) and to agents' traffic tools.
+pub(crate) fn inspector(app: &App) -> Inspector {
+    Inspector::new(
+        Some(app.store().clone()),
+        Some(app.secrets().clone()),
+        &teitunnel_core::runtime::this_process(),
+    )
+}
 
 use crate::{context::App, probe::ProbedConnectors, share::status};
 
@@ -218,6 +230,7 @@ pub(crate) fn backend<S: ConnectorSource>(
     source: S,
     machine: teitunnel_core::machine::MachineTunnels,
     supervisor: teitunnel_core::runtime::Supervisor,
+    inspector: &Inspector,
 ) -> SharedBackend {
     let quick_shares = teitunnel_core::quick_share::QuickShares::new(
         supervisor,
@@ -225,7 +238,9 @@ pub(crate) fn backend<S: ConnectorSource>(
         PortAllocator::new(QUICK_SHARE_PORTS).spread(std::process::id()),
         app.store().clone(),
         app.dir().join("quick-share.yml"),
-    );
+    )
+    .with_inspector(inspector.clone());
+    tokio::spawn(quick_shares.clone().watch_idle());
     CoreBackend::new(
         CoreParts {
             accounts: app.accounts.clone(),
@@ -261,8 +276,18 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         engine: Arc::clone(&app.engine),
         accounts: app.accounts.clone(),
     };
-    let backend = backend(&app, source, machine, supervisor.clone());
-    let server = McpServer::builder(Arc::clone(&backend), settings.clone()).build();
+    let inspector = inspector(&app);
+    let backend = backend(&app, source, machine, supervisor.clone(), &inspector);
+    let server = McpServer::builder(Arc::clone(&backend), settings.clone())
+        .traffic(Arc::new(InspectorTraffic::new(
+            inspector.clone(),
+            settings.allow_secrets,
+        )))
+        .provider(Arc::new(ExposeTools::new(
+            Arc::clone(&backend),
+            inspector.clone(),
+        )))
+        .build();
     status(&format!(
         "Teitunnel MCP server ({} mode) on stdio. Connect an AI client with `teitunnel mcp install <client>`.",
         settings.mode
@@ -285,6 +310,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
     };
     backend.stop_own_shares().await;
     supervisor.stop_all().await;
+    inspector.shutdown().await;
     result.map(|()| ExitCode::SUCCESS)
 }
 

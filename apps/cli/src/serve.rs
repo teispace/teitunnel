@@ -70,6 +70,8 @@ pub(crate) struct McpOptions {
 struct Server {
     app: App,
     machine: MachineTunnels,
+    /// This process's inspector (shares started over `/mcp`, and the history).
+    inspector: teitunnel_core::inspect::Inspector,
     analytics: teitunnel_core::analytics::Analytics,
     monitor: teitunnel_core::uptime::Monitor,
     secure_cookies: bool,
@@ -565,6 +567,102 @@ async fn uptime(
     }
 }
 
+/// Filters of `GET /api/traffic`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TrafficParams {
+    tap: Option<String>,
+    host: Option<String>,
+    method: Option<String>,
+    status: Option<String>,
+    path: Option<String>,
+    text: Option<String>,
+    limit: Option<u32>,
+    before: Option<String>,
+}
+
+impl TrafficParams {
+    fn query(self) -> Result<teitunnel_core::inspect::ExchangeQuery, ApiError> {
+        use teitunnel_core::inspect::lens::{ExchangeId, TapId};
+        let mut query = teitunnel_core::inspect::ExchangeQuery {
+            tap: self
+                .tap
+                .as_deref()
+                .map(TapId::new)
+                .transpose()
+                .map_err(bad)?,
+            methods: self.method.iter().map(|m| m.to_ascii_uppercase()).collect(),
+            path: self.path,
+            host: self.host,
+            text: self.text,
+            limit: Some(self.limit.unwrap_or(100).clamp(1, 1_000)),
+            before: self
+                .before
+                .as_deref()
+                .map(str::parse::<ExchangeId>)
+                .transpose()
+                .map_err(bad)?,
+            ..teitunnel_core::inspect::ExchangeQuery::default()
+        };
+        if let Some(status) = self.status {
+            let lower = status.trim().to_ascii_lowercase();
+            match lower.strip_suffix("xx") {
+                Some(class) => query
+                    .status_classes
+                    .push(class.parse().map_err(|_| bad("status: try 404 or 5xx"))?),
+                None => query
+                    .statuses
+                    .push(lower.parse().map_err(|_| bad("status: try 404 or 5xx"))?),
+            }
+        }
+        Ok(query)
+    }
+}
+
+/// Requests captured by the inspector, newest first (credentials masked).
+async fn traffic(
+    State(server): State<Shared>,
+    headers: HeaderMap,
+    Query(params): Query<TrafficParams>,
+) -> Result<Response, ApiError> {
+    server.authorize(&headers, false).await?;
+    let page = server.inspector.list(&params.query()?);
+    Ok(hardened(Json(page).into_response()))
+}
+
+/// One captured request in full (credentials masked; the API never reveals them).
+async fn traffic_exchange(
+    State(server): State<Shared>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Response, ApiError> {
+    server.authorize(&headers, false).await?;
+    let id = id
+        .parse::<teitunnel_core::inspect::lens::ExchangeId>()
+        .map_err(bad)?;
+    let detail = server
+        .inspector
+        .detail(id, false)
+        .await
+        .map_err(|e| ApiError(StatusCode::NOT_FOUND, e.to_string()))?;
+    Ok(hardened(Json(detail).into_response()))
+}
+
+/// The inspector's taps: running here, and known from the history.
+async fn traffic_taps(
+    State(server): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    server.authorize(&headers, false).await?;
+    Ok(hardened(
+        Json(serde_json::json!({
+            "running": server.inspector.taps(),
+            "known": server.inspector.known_taps(),
+        }))
+        .into_response(),
+    ))
+}
+
 /// The API described for automation (OpenAPI 3.1).
 async fn openapi() -> Response {
     hardened(Json(openapi_document()).into_response())
@@ -638,6 +736,35 @@ fn openapi_document() -> serde_json::Value {
                     "404": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
                 }
             }},
+            "/api/traffic": { "get": {
+                "summary": "Requests captured by Teitunnel's inspector (shares and inspected routes run by this server, and the recent history of this machine), newest first. Credentials are always masked.",
+                "parameters": [
+                    { "name": "tap", "in": "query", "schema": { "type": "string" }, "description": "Only this tap (see /api/traffic/taps)" },
+                    { "name": "host", "in": "query", "schema": { "type": "string" } },
+                    { "name": "method", "in": "query", "schema": { "type": "string" } },
+                    { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "An exact status (404) or a class (5xx)" },
+                    { "name": "path", "in": "query", "schema": { "type": "string" }, "description": "Text in the path" },
+                    { "name": "text", "in": "query", "schema": { "type": "string" }, "description": "Text anywhere (secrets can't be searched)" },
+                    { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } },
+                    { "name": "before", "in": "query", "schema": { "type": "string" }, "description": "The previous page's `next`" }
+                ],
+                "responses": {
+                    "200": json(serde_json::json!({ "type": "object", "description": "items (id, tap, method, host, path, status, durationMs, sizes, kind, state, webhook) and next" })),
+                    "400": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
+                }
+            }},
+            "/api/traffic/taps": { "get": {
+                "summary": "The inspector's taps: running here, and known from the history",
+                "responses": { "200": json(serde_json::json!({ "type": "object" })) }
+            }},
+            "/api/traffic/{id}": { "get": {
+                "summary": "One captured request and its response in full (headers, bodies, timings, webhook signature check), credentials masked",
+                "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+                "responses": {
+                    "200": json(serde_json::json!({ "type": "object" })),
+                    "404": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
+                }
+            }},
             "/api/apply": { "post": {
                 "summary": "Apply a reviewed plan",
                 "requestBody": json(serde_json::json!({
@@ -673,6 +800,9 @@ fn router(server: Shared) -> Router {
         .route("/api/apply", post(apply))
         .route("/api/analytics", get(analytics))
         .route("/api/uptime", get(uptime))
+        .route("/api/traffic", get(traffic))
+        .route("/api/traffic/taps", get(traffic_taps))
+        .route("/api/traffic/{id}", get(traffic_exchange))
         .route("/api/openapi.json", get(openapi))
         .with_state(server)
 }
@@ -717,15 +847,32 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     let analytics = teitunnel_core::analytics::Analytics::default();
     let monitor = crate::analytics::spawn_monitor(&app, analytics.clone());
     let stop_mcp = tokio_util::sync::CancellationToken::new();
+    let inspector = crate::mcp::inspector(&app);
+    if let Err(err) = inspector.load().await {
+        crate::share::status(&format!("(Couldn't read the inspector's history: {err})"));
+    }
     let mut mcp_backend = None;
     let mcp = match &options.mcp {
         Some(mcp) => {
             let settings = crate::mcp::settings(app.dir(), mcp.mode, false)?;
-            let backend =
-                crate::mcp::backend(&app, machine.clone(), machine.clone(), supervisor.clone());
+            let backend = crate::mcp::backend(
+                &app,
+                machine.clone(),
+                machine.clone(),
+                supervisor.clone(),
+                &inspector,
+            );
             mcp_backend = Some(Arc::clone(&backend));
-            let server = teitunnel_mcp::McpServer::builder(backend, settings.clone())
+            let server = teitunnel_mcp::McpServer::builder(Arc::clone(&backend), settings.clone())
                 .via("mcp over HTTP")
+                .traffic(Arc::new(teitunnel_mcp::InspectorTraffic::new(
+                    inspector.clone(),
+                    false,
+                )))
+                .provider(Arc::new(teitunnel_mcp::ExposeTools::new(
+                    backend,
+                    inspector.clone(),
+                )))
                 .build();
             let store = app.store().clone();
             let verify: teitunnel_mcp::http::KeyVerifier = Arc::new(move |key: String| {
@@ -751,6 +898,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     let server = Arc::new(Server {
         app,
         machine,
+        inspector: inspector.clone(),
         analytics,
         monitor: monitor.clone(),
         secure_cookies: options.secure_cookies,
@@ -778,6 +926,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         backend.stop_own_shares().await;
     }
     supervisor.stop_all().await;
+    inspector.shutdown().await;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -829,9 +978,36 @@ mod tests {
             "/api/apply",
             "/api/analytics",
             "/api/uptime",
+            "/api/traffic",
+            "/api/traffic/taps",
+            "/api/traffic/{id}",
         ] {
             assert!(doc["paths"][path].is_object(), "{path}");
         }
+    }
+
+    #[test]
+    fn traffic_filters_from_the_query_string() {
+        let query = TrafficParams {
+            method: Some("post".into()),
+            status: Some("5xx".into()),
+            limit: Some(5_000),
+            ..TrafficParams::default()
+        }
+        .query()
+        .ok()
+        .unwrap();
+        assert_eq!(query.methods, ["POST"]);
+        assert_eq!(query.status_classes, [5]);
+        assert_eq!(query.limit, Some(1_000));
+        assert!(
+            TrafficParams {
+                status: Some("x".into()),
+                ..TrafficParams::default()
+            }
+            .query()
+            .is_err()
+        );
     }
 
     #[test]

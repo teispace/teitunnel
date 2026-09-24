@@ -30,7 +30,8 @@ use std::{
 };
 
 pub use history::{
-    HISTORY_BYTES, HistoryQuery, MAX_PER_TAP, history, history_after, history_clear, history_get,
+    HISTORY_BYTES, HistoryQuery, MAX_PER_TAP, StoredTap, history, history_after, history_clear,
+    history_get, history_taps,
 };
 pub use lens;
 use lens::{
@@ -903,6 +904,19 @@ impl Inspector {
             secret_link_key,
             bearer_token,
         })
+    }
+
+    /// Requires `token` (`Authorization: Bearer …`) on a tap, replacing other tokens.
+    ///
+    /// # Errors
+    /// Unknown tap, or a token Lens refuses.
+    pub fn require_bearer(&self, tap: &TapId, token: &Secret<String>) -> Result<(), InspectError> {
+        let lens = self.running().ok_or(InspectError::UnknownTap)?;
+        let bearer = BearerToken::new(token.expose())?;
+        lens.update_tap(tap, move |config| config.gates.bearer = vec![bearer])
+            .map_err(|_| InspectError::UnknownTap)?;
+        self.emit(InspectEvent::Taps);
+        Ok(())
     }
 
     /// A page of captured exchanges, newest first (masked).

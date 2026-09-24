@@ -15,11 +15,14 @@ macro_rules! out {
 mod analytics;
 mod context;
 mod doctor;
+mod expose;
+mod inspect;
 mod mcp;
 mod probe;
 mod serve;
 mod share;
 mod snapshot;
+mod traffic;
 mod up;
 
 use std::{
@@ -198,6 +201,66 @@ enum Command {
         /// Pass the visitor's Host header through unchanged, even to a dev server.
         #[arg(long)]
         no_host_header: bool,
+        /// Don't send requests through Teitunnel's inspector (it records them for
+        /// `teitunnel traffic`, masking credentials).
+        #[arg(long)]
+        no_inspect: bool,
+        /// Don't print a line for each request.
+        #[arg(long, short)]
+        quiet: bool,
+        /// Stop after this long without a request, e.g. `30m`.
+        #[arg(long, value_name = "DURATION", value_parser = share::parse_duration, conflicts_with = "no_inspect")]
+        idle: Option<Duration>,
+        /// Say so when a request hits this path, e.g. `/webhooks/*` (repeatable).
+        #[arg(long, value_name = "PATH", conflicts_with = "no_inspect")]
+        watch: Vec<String>,
+        /// Share a local MCP server for remote AI clients: checks it answers MCP, keeps
+        /// streams alive and requires a bearer token (needs --on: Quick Tunnels don't
+        /// carry event streams). Prints configurations for Claude Code, Cursor and VS
+        /// Code.
+        #[arg(long, requires = "on", conflicts_with_all = ["no_inspect", "ai"])]
+        mcp: bool,
+        /// With --mcp: the server's endpoint path (default: /mcp, then /sse and /).
+        #[arg(long, value_name = "PATH", requires = "mcp")]
+        mcp_path: Option<String>,
+        /// Share a local AI server (Ollama, LM Studio, vLLM) behind a bearer token, for
+        /// OpenAI-compatible clients.
+        #[arg(long, conflicts_with = "no_inspect")]
+        ai: bool,
+        /// With --mcp or --ai on your domain: make a new token instead of the saved one.
+        #[arg(long)]
+        new_token: bool,
+    },
+    /// Inspect one of this machine's routes while this command runs: its requests go
+    /// through Teitunnel's inspector (shown here and in `teitunnel traffic`), and it's
+    /// pointed back at its own service when the command ends. The change is shown first.
+    Inspect {
+        /// The route's hostname.
+        hostname: String,
+        /// The route's path rule, if it has one.
+        #[arg(long)]
+        path: Option<String>,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Point a route left inspected back at its own service.
+        #[arg(long)]
+        off: bool,
+        /// Don't ask before changing the route.
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// Requests captured by the inspector: list, show, follow, replay, clear, export.
+    #[command(subcommand)]
+    Traffic(traffic::TrafficCommand),
+    /// Show the bearer token a shared service expects (`share --mcp` or `--ai` on your
+    /// domain), or make a new one.
+    Token {
+        /// The hostname.
+        hostname: String,
+        /// Make a new token (clients with the old one stop working).
+        #[arg(long)]
+        new: bool,
     },
     /// List shares on your domains (from the app or any terminal), or stop one.
     Shares {
@@ -514,13 +577,65 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             stop_after,
             no_qr,
+            on,
+            account,
+            ai: true,
+            new_token,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
+            ..
+        } => {
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            return expose::ai(
+                &origin,
+                on.as_deref(),
+                account.as_deref(),
+                new_token,
+                stop_after,
+                !no_qr,
+                options,
+            )
+            .await;
+        }
+        Command::Share {
+            origin,
+            stop_after,
+            no_qr,
             on: None,
             host_header,
             no_host_header,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            return share::run(&origin, stop_after, !no_qr, &host_header).await;
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            return share::run(&origin, stop_after, !no_qr, &host_header, &options).await;
+        }
+        Command::Traffic(command) => {
+            let dir = context::data_dir()?;
+            let path = dir.join("teitunnel.db");
+            if !path.exists() {
+                return Err("No captured requests: Teitunnel keeps them in the app's database, which doesn't exist on this machine yet.".into());
+            }
+            let store = teitunnel_core::store::Store::open(&path).map_err(|e| e.to_string())?;
+            return traffic::run(&traffic::History::new(store), command).await;
         }
         Command::Setup => return setup().await,
         Command::Mcp {
@@ -550,11 +665,54 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             stop_after,
             on: Some(hostname),
             account,
+            mcp: true,
+            mcp_path,
+            new_token,
+            quiet,
+            idle,
+            watch,
+            ..
+        } => {
+            let options = share::ShareOptions {
+                inspect: true,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            expose::mcp(
+                &app,
+                &origin,
+                mcp_path.as_deref(),
+                &hostname,
+                account.as_deref(),
+                new_token,
+                stop_after,
+                options,
+            )
+            .await
+        }
+        Command::Share {
+            origin,
+            stop_after,
+            on: Some(hostname),
+            account,
             allow,
             host_header,
             no_host_header,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
             ..
         } => {
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
             share::run_on_domain(
                 &app,
                 &hostname,
@@ -563,10 +721,31 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 access_rule(&allow),
                 stop_after,
                 &share::host_header_choice(host_header, no_host_header),
+                &options,
+                |_| Ok(()),
             )
             .await
         }
+        Command::Inspect {
+            hostname,
+            path,
+            account,
+            off,
+            yes,
+        } => {
+            inspect::run(
+                &app,
+                &hostname,
+                path.as_deref(),
+                account.as_deref(),
+                off,
+                yes,
+            )
+            .await
+        }
+        Command::Token { hostname, new } => expose::show_token(&app, &hostname, new).await,
         Command::Share { .. }
+        | Command::Traffic(_)
         | Command::Completions { .. }
         | Command::Setup
         | Command::Mcp { .. } => {

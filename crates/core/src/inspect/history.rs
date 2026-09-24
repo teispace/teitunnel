@@ -427,6 +427,59 @@ pub async fn history_after(
         .await
 }
 
+/// A tap recorded in the database (by this or another process).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredTap {
+    /// Id.
+    pub id: TapId,
+    /// What it inspected.
+    pub scope: super::TapScope,
+    /// Its name (the public URL or hostname).
+    pub name: String,
+    /// The local service it forwarded to.
+    pub origin: String,
+    /// When it stopped (milliseconds since the epoch), if it did.
+    pub stopped_at: Option<u64>,
+}
+
+/// Taps recorded in the database, newest first.
+///
+/// # Errors
+/// The database can't be read.
+pub async fn history_taps(store: &Store) -> Result<Vec<StoredTap>, StoreError> {
+    store
+        .call(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, scope, name, origin, stopped_at FROM lens_taps
+                 ORDER BY started_at DESC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                ))
+            })?;
+            let mut out = Vec::new();
+            for row in rows {
+                let (id, scope, name, origin, stopped_at) = row?;
+                if let (Ok(id), Ok(scope)) = (TapId::new(&id), serde_json::from_str(&scope)) {
+                    out.push(StoredTap {
+                        id,
+                        scope,
+                        name,
+                        origin,
+                        stopped_at: stopped_at.and_then(|t| u64::try_from(t).ok()),
+                    });
+                }
+            }
+            Ok(out)
+        })
+        .await
+}
+
 /// Forgets the history of one tap, or all of it.
 ///
 /// # Errors

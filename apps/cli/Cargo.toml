@@ -25,6 +25,7 @@ clap_complete = "4.6.11"
 dirs = "7"
 serde.workspace = true
 serde_json.workspace = true
+bytes.workspace = true
 tokio.workspace = true
 axum.workspace = true
 

@@ -127,7 +127,8 @@ fn shares_a_port_and_lets_the_app_stop_it() {
             .env_remove("TEITUNNEL_API_TOKEN"),
     );
     let tools = session.request("tools/list", json!({}));
-    assert_eq!(tools["tools"].as_array().unwrap().len(), 26);
+    // Teitunnel's 26 plus expose_mcp_server.
+    assert_eq!(tools["tools"].as_array().unwrap().len(), 27);
 
     // Without an account, what needs one says so.
     let routes = session.request(
