@@ -56,6 +56,8 @@ const TABLES: &[(&str, &[&str])] = &[
     ("edge_rules", &[]),
     ("service_tokens", &[]),
     ("local_domains", &[]),
+    ("cloud_databases", &[]),
+    ("front_workers", &[]),
 ];
 
 /// Settings that belong to this machine (a lease held by a running process).

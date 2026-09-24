@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { CommentsToggle } from "@/features/comments";
 import { useRoute, useSendHostOnRoute } from "@/features/dev-server";
 import { InspectDomainShareButton } from "@/features/inspector";
 import { ProtectionSheet, useProtection } from "@/features/protection";
@@ -165,6 +166,9 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           {next ? ` · ${next}` : ""}
         </p>
       ) : null}
+      <CommentsToggle
+        target={{ kind: "route", accountId: share.accountId, hostname: share.hostname }}
+      />
       <footer className="flex items-center gap-3 text-callout text-secondary">
         <span>{fromCli ? t("quickShare.domain.fromCli") : t("quickShare.domain.endsWithApp")}</span>
         {share.expiresAt ? (

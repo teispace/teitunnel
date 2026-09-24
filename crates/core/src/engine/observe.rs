@@ -40,6 +40,9 @@ pub enum ObserveError {
     EdgePermission,
     /// Service tokens need the Access: Service Tokens permission the credential lacks.
     ServiceTokenPermission,
+    /// Workers in front of a route or comments need Workers Routes and D1 permissions
+    /// the credential lacks.
+    WorkersPermission,
 }
 
 impl UserText for ObserveError {
@@ -51,6 +54,7 @@ impl UserText for ObserveError {
             Self::UnknownTunnel => msg::error::observe::unknown_tunnel(),
             Self::EdgePermission => msg::error::observe::edge_permission(),
             Self::ServiceTokenPermission => msg::error::observe::service_token_permission(),
+            Self::WorkersPermission => msg::error::observe::workers_permission(),
         }
     }
 }
@@ -87,6 +91,8 @@ pub struct ObserveNeed {
     pub edge: super::edge::EdgeNeed,
     /// The account's service tokens.
     pub service_tokens: bool,
+    /// Worker routes on a hostname and the account's D1 database.
+    pub front: super::front::FrontNeed,
 }
 
 impl ObserveNeed {
@@ -149,6 +155,34 @@ impl ObserveNeed {
                     | Intent::RevokeServiceToken { .. }
                     | Intent::RotateServiceToken { .. }
             ),
+            front: match intent {
+                Intent::SetOfflinePage { hostname, .. } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: true,
+                    database: false,
+                },
+                Intent::SetInbox {
+                    hostname, inbox, ..
+                } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: true,
+                    database: inbox.is_some(),
+                },
+                // Removing a route takes its offline page and inboxes with it (read only
+                // when the local index has some).
+                Intent::RemoveRoute { hostname, .. } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: false,
+                    database: false,
+                },
+                Intent::PublishSnapshot { settings, .. }
+                | Intent::UpdateSnapshot { settings, .. } => super::front::FrontNeed {
+                    hostname: None,
+                    required: false,
+                    database: settings.comments.is_some(),
+                },
+                _ => super::front::FrontNeed::default(),
+            },
         }
     }
 }
@@ -262,9 +296,10 @@ pub async fn observe<C: CloudApi>(
         },
     )?;
 
-    let (edge, service_tokens) = tokio::try_join!(
+    let (edge, service_tokens, (front, database)) = tokio::try_join!(
         observe_edge(api, local, account, &zones, &need.edge),
         observe_service_tokens(api, local, account, need.service_tokens),
+        observe_front(api, local, account, &zones, &need.front),
     )?;
 
     Ok(Snapshot {
@@ -284,7 +319,76 @@ pub async fn observe<C: CloudApi>(
         now: me.now,
         edge,
         service_tokens,
+        database,
+        front,
     })
+}
+
+/// Reads the Worker routes on `need.hostname` and, when asked, the account's database.
+async fn observe_front<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    zones: &[super::types::ZoneRef],
+    need: &super::front::FrontNeed,
+) -> Result<
+    (
+        Option<super::front::FrontState>,
+        Option<super::front::DatabaseState>,
+    ),
+    ObserveError,
+> {
+    let permission = |err: cf_api::Error| {
+        if err.is_auth() {
+            ObserveError::WorkersPermission
+        } else {
+            ObserveError::Api(err)
+        }
+    };
+    let rows: Vec<super::front::FrontRow> = match need.hostname.as_deref() {
+        Some(hostname) => local
+            .fronts(Some(account), Some(hostname))
+            .await?
+            .into_iter()
+            .map(|(_, row)| row)
+            .collect(),
+        None => Vec::new(),
+    };
+    // An inbox's Worker binds the database: removing it must know which one, to put
+    // it back if something fails.
+    let wants_database = need.database
+        || rows
+            .iter()
+            .any(|r| r.config.kind() == super::front::FrontKind::Inbox);
+    let database = if wants_database {
+        let indexed = local.cloud_database(account).await?;
+        match super::front::observe_database(api, account, indexed.as_deref()).await {
+            Ok(state) => Some(state),
+            // Removing a route doesn't fail because the database can't be read.
+            Err(err) if !need.required && !need.database && err.is_auth() => None,
+            Err(err) => return Err(permission(err)),
+        }
+    } else {
+        None
+    };
+    let Some(hostname) = need.hostname.as_deref() else {
+        return Ok((None, database));
+    };
+    if !need.required && rows.is_empty() {
+        return Ok((None, database));
+    }
+    let Some(zone) = Hostname::parse(hostname)
+        .ok()
+        .and_then(|h| h.zone_in(zones).cloned())
+    else {
+        return Ok((None, database));
+    };
+    match super::front::observe(api, account, hostname, &zone.id, &rows).await {
+        Ok(state) => Ok((Some(state), database)),
+        // Removing a route doesn't fail because its Workers can't be read.
+        Err(err) if !need.required && err.is_auth() => Ok((None, database)),
+        Err(err) => Err(permission(err)),
+    }
 }
 
 /// Who observes, to tell their names from other people's (M12-11).

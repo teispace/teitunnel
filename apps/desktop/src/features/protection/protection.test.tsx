@@ -73,6 +73,7 @@ beforeEach(() => {
           workersEdit: "yes",
           edgeRules: edgeRefused ? "no" : "yes",
           serviceTokens: "yes",
+          d1: "yes",
           zones: [],
         };
       case "protection_get":

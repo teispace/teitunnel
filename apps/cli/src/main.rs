@@ -15,11 +15,13 @@ macro_rules! out {
 mod analytics;
 mod app;
 mod backup;
+mod comments;
 mod complete;
 mod context;
 mod doctor;
 mod expose;
 mod exposure;
+mod fronts;
 mod inspect;
 mod local;
 mod mcp;
@@ -450,6 +452,15 @@ enum Command {
     /// Service tokens for machines (CI, scripts, servers) to pass a hostname's login.
     #[command(subcommand)]
     ServiceToken(protect::ServiceTokenCommand),
+    /// Comments reviewers pinned to your shares and Snapshots: list, reply, resolve.
+    #[command(subcommand)]
+    Comments(comments::CommentsCommand),
+    /// Show your own page instead of Cloudflare's error 1033 while this computer is off
+    /// (a Worker on your account; without options, shows what the route has).
+    Offline(fronts::OfflineArgs),
+    /// Keep webhooks while this computer is off and deliver them in order when it's back.
+    #[command(subcommand)]
+    Inbox(fronts::InboxCommand),
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
         /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
@@ -1165,6 +1176,9 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Snapshot(command) => snapshot::run(&app, command).await,
         Command::Protect(args) => protect::protect(&app, args).await,
         Command::ServiceToken(command) => protect::service_token(&app, command).await,
+        Command::Comments(command) => comments::run(&app, command).await,
+        Command::Offline(args) => fronts::offline(&app, args).await,
+        Command::Inbox(command) => fronts::inbox(&app, command).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes {
             account,
@@ -1831,6 +1845,9 @@ fn warning_text(warning: &Warning) -> String {
         ),
         Warning::MachineOnly { domain } => format!(
             "{domain} has no login yet: the new one lets in only service tokens, so people can't open it in a browser."
+        ),
+        Warning::WorkerRequests { pattern } => format!(
+            "Every request to {pattern} runs a Worker, counted against your account's 100,000 free Worker requests a day; past that the site keeps working without it."
         ),
     }
 }

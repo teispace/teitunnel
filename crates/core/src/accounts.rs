@@ -20,6 +20,9 @@ use std::{
 use tokio::time::Instant;
 
 use cf_api::{ApiToken, Client};
+
+/// A Cloudflare API client for one account (what [`Accounts::client`] returns).
+pub type CloudClient = Client;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +56,10 @@ const ACCOUNT_TABLES: &[&str] = &[
     "service_tokens",
     "paused_routes",
     "route_schedules",
+    "comments",
+    "comment_subjects",
+    "cloud_databases",
+    "front_workers",
 ];
 
 /// How an account was connected.

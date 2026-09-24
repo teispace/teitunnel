@@ -58,6 +58,7 @@ const launch: SnapshotView = {
   versions: 2,
   files: 3,
   bytes: 2_500,
+  comments: false,
 };
 
 beforeEach(() => {
@@ -167,6 +168,7 @@ describe("SnapshotsPage", () => {
         password: { type: "remove" },
         access: null,
         expiresInDays: null,
+        comments: false,
       },
     });
   });

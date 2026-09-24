@@ -134,10 +134,13 @@ fn shares_a_port_and_lets_the_app_stop_it() {
         .filter_map(|t| t["name"].as_str())
         .collect();
     // Teitunnel's 26, the sharing extras' 4 and traffic_openapi (M12-06, M12-12), the
-    // protection provider's 5 (M12-04), the reservation provider's 3 (M12-11) and
-    // expose_mcp_server (M12-02).
-    assert_eq!(names.len(), 40, "{names:?}");
+    // protection provider's 5 (M12-04), the reservation provider's 3 (M12-11), the
+    // comments provider's 3 (M12-06) and expose_mcp_server (M12-02).
+    assert_eq!(names.len(), 43, "{names:?}");
     for tool in [
+        "comments_list",
+        "comments_reply",
+        "comments_resolve",
         "get_protection",
         "protect_hostname",
         "list_reservations",

@@ -6,6 +6,7 @@ import { QuitDialog } from "@/app/quit-dialog";
 import { AppShell } from "@/components/patterns/app-shell";
 import { CommandPalette } from "@/components/patterns/command-palette";
 import { Sidebar, SidebarAction, SidebarItem, SidebarSection } from "@/components/patterns/sidebar";
+import { CommentsBadge } from "@/features/comments";
 import { DoctorBadge } from "@/features/doctor";
 import { UpdateNotice } from "@/features/updates";
 import { t } from "@/lib/i18n";
@@ -49,6 +50,7 @@ function MainLayout() {
                   icon={item.icon}
                   exact={item.to === "/"}
                   {...(item.to === "/doctor" ? { badge: <DoctorBadge /> } : {})}
+                  {...(item.to === "/comments" ? { badge: <CommentsBadge /> } : {})}
                 />
               ))}
             </SidebarSection>

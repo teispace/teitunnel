@@ -55,6 +55,24 @@ pub(crate) struct SettingsArgs {
     /// Delete it by itself after this long, e.g. `7d` or `12h`.
     #[arg(long, value_name = "DURATION", value_parser = parse_days)]
     expires: Option<u32>,
+    /// Let reviewers pin comments to the pages (kept in a D1 database on your
+    /// account; every request then runs the Snapshot's Worker).
+    #[arg(long, conflicts_with = "no_comments")]
+    comments: bool,
+    /// Turn comments off.
+    #[arg(long)]
+    no_comments: bool,
+}
+
+impl SettingsArgs {
+    /// Comments on, off, or as they are.
+    fn comments(&self) -> Option<bool> {
+        match (self.comments, self.no_comments) {
+            (true, _) => Some(true),
+            (_, true) => Some(false),
+            _ => None,
+        }
+    }
 }
 
 /// Shared by every change.
@@ -509,6 +527,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
                 password: password_input(&settings)?,
                 access: access(&settings.allow),
                 expires_in_days: settings.expires,
+                comments: settings.comments(),
             };
             // `--or-update`: a Snapshot with this name (here, or published by another
             // computer or an earlier CI job) gets a new version instead.
@@ -613,6 +632,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
                     password: password_input(&settings)?,
                     access,
                     expires_in_days: settings.expires,
+                    comments: settings.comments(),
                 },
             };
             let applied = apply(app, &preparations, &request, &change, &account).await?;

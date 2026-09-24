@@ -12,11 +12,13 @@ mod analytics;
 pub(crate) mod app;
 mod backup;
 pub(crate) mod cli;
+pub(crate) mod comments;
 pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
 mod events;
 mod exposure;
+mod fronts;
 mod inspect;
 mod integrations;
 mod local_domains;
@@ -212,7 +214,19 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             local_domains::local_domains_untrust,
             local_domains::local_domains_run_as_admin,
             local_domains::local_domains_fix,
-            local_domains::local_domains_save_ca
+            local_domains::local_domains_save_ca,
+            comments::comments_subjects,
+            comments::comments_threads,
+            comments::comments_reply,
+            comments::comments_resolve,
+            comments::comments_forget,
+            comments::comments_set_tap,
+            fronts::fronts_list,
+            fronts::fronts_preview,
+            fronts::fronts_undo_change,
+            fronts::fronts_apply,
+            fronts::inbox_items,
+            fronts::inbox_deliver
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

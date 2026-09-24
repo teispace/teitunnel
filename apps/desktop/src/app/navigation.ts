@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   LockKeyhole,
   type LucideIcon,
+  MessageSquare,
   Network,
   ScanSearch,
   Share,
@@ -24,6 +25,7 @@ export interface NavItem {
     | "/snapshots"
     | "/projects"
     | "/local-domains"
+    | "/comments"
     | "/domains"
     | "/tunnels"
     | "/activity"
@@ -39,9 +41,9 @@ export interface NavSection {
 }
 
 /**
- * Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector, Projects and
- * Local Domains have none). Local Domains sits with the things you run on this computer,
- * not under Cloudflare: it needs no account.
+ * Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector, Projects, Local
+ * Domains and Comments have none). Local Domains sits with the things you run on this
+ * computer, not under Cloudflare: it needs no account.
  */
 export const navigation: readonly NavSection[] = [
   {
@@ -54,6 +56,7 @@ export const navigation: readonly NavSection[] = [
       { to: "/snapshots", label: "nav.snapshots", icon: Camera },
       { to: "/projects", label: "nav.projects", icon: FolderGit2 },
       { to: "/local-domains", label: "nav.localDomains", icon: LockKeyhole },
+      { to: "/comments", label: "nav.comments", icon: MessageSquare },
     ],
   },
   {

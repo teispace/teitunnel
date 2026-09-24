@@ -35,6 +35,8 @@ static EMPTY: Snapshot = Snapshot {
     now: 0,
     edge: None,
     service_tokens: None,
+    database: None,
+    front: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -323,6 +325,35 @@ enum Undo {
     },
     /// A deleted token (or a replaced secret) can't come back.
     RestoreServiceToken(String),
+    DeleteDatabase(String),
+    DeleteFrontWorker {
+        hostname: String,
+        script: String,
+        config: super::front::FrontConfig,
+    },
+    /// Put a front Worker back as it was (after a replacement or a deletion).
+    RestoreFrontWorker {
+        hostname: String,
+        zone_id: String,
+        script: String,
+        config: super::front::FrontConfig,
+        database: Option<String>,
+    },
+    DeleteWorkerRoute {
+        zone: String,
+        id: String,
+        pattern: String,
+        hostname: String,
+        kind: super::front::FrontKind,
+        path: String,
+    },
+    RecreateWorkerRoute {
+        zone: String,
+        route: cf_api::WorkerRoute,
+        hostname: String,
+        kind: super::front::FrontKind,
+        path: String,
+    },
 }
 
 impl Undo {
@@ -385,6 +416,13 @@ impl Undo {
             }
             Self::DeleteServiceToken { name, .. } => msg::protection::leftover::delete_token(name),
             Self::RestoreServiceToken(name) => msg::protection::leftover::restore_token(name),
+            Self::DeleteDatabase(id) => msg::front::leftover::delete_database(id),
+            Self::DeleteFrontWorker { script, .. } => msg::front::leftover::delete_worker(script),
+            Self::RestoreFrontWorker { script, .. } => msg::front::leftover::restore_worker(script),
+            Self::DeleteWorkerRoute { pattern, .. } => msg::front::leftover::delete_route(pattern),
+            Self::RecreateWorkerRoute { route, .. } => {
+                msg::front::leftover::recreate_route(&route.pattern)
+            }
         }
     }
 }
@@ -994,6 +1032,7 @@ impl Engine {
             created_token: None,
             created_rulesets: HashMap::new(),
             issued: Vec::new(),
+            created_database: None,
         };
         let serve = matches!(
             intent,
@@ -1098,6 +1137,8 @@ struct Run<'a, C, K> {
     created_rulesets: HashMap<(String, String), String>,
     /// Credentials of tokens created or rotated, handed to the caller once.
     issued: Vec<super::edge::IssuedToken>,
+    /// The D1 database this run created (for Workers binding to it).
+    created_database: Option<String>,
 }
 
 /// What a tunnel created while applying is to this Mac.
@@ -1164,6 +1205,52 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             monitor: Some(Self::resolve_lb(monitor, self.created_monitor.as_ref())?),
             origins,
         })
+    }
+
+    fn resolve_database(&self, database: &super::front::DatabaseRef) -> Result<String, Text> {
+        match database {
+            super::front::DatabaseRef::Existing(id) => Ok(id.clone()),
+            super::front::DatabaseRef::Created => self
+                .created_database
+                .clone()
+                .ok_or_else(msg::front::error::no_database),
+        }
+    }
+
+    fn site_database(&self, settings: &super::sites::SiteSettings) -> Result<Option<String>, Text> {
+        settings
+            .comments
+            .as_ref()
+            .map(|c| self.resolve_database(&c.database))
+            .transpose()
+    }
+
+    /// Uploads a front Worker with `config` and records it in the local index.
+    async fn put_front(
+        &self,
+        hostname: &str,
+        zone_id: &str,
+        script: &str,
+        config: &super::front::FrontConfig,
+        database: Option<&str>,
+        secret: Option<&crate::Secret<String>>,
+    ) -> Result<(), Text> {
+        let metadata = super::front::metadata(script, config, database, secret);
+        self.api
+            .put_worker_script(
+                self.account,
+                script,
+                &metadata,
+                &super::front::modules(config.kind()),
+            )
+            .await
+            .map_err(|e| e.text())?;
+        warn_local(
+            self.local
+                .save_front(self.account, hostname, zone_id, script, config)
+                .await,
+        );
+        Ok(())
     }
 
     fn renamed(&self, id: &str) -> String {
@@ -1616,8 +1703,15 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .uploaded
                     .clone()
                     .ok_or_else(msg::snapshot::error::not_uploaded)?;
-                let metadata =
-                    super::sites::metadata(settings, &content, &jwt, "Teitunnel Snapshot");
+                let database = self.site_database(settings)?;
+                let metadata = super::sites::metadata(
+                    settings,
+                    &content,
+                    &jwt,
+                    "Teitunnel Snapshot",
+                    script,
+                    database.as_deref(),
+                );
                 api.put_worker_script(account, script, &metadata, &super::sites::modules())
                     .await
                     .map_err(|e| e.text())?;
@@ -1655,8 +1749,15 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .uploaded
                     .clone()
                     .ok_or_else(msg::snapshot::error::not_uploaded)?;
-                let metadata =
-                    super::sites::metadata(settings, &content, &jwt, "Teitunnel Snapshot");
+                let database = self.site_database(settings)?;
+                let metadata = super::sites::metadata(
+                    settings,
+                    &content,
+                    &jwt,
+                    "Teitunnel Snapshot",
+                    script,
+                    database.as_deref(),
+                );
                 let version = api
                     .upload_worker_version(account, script, &metadata, &super::sites::modules())
                     .await
@@ -1897,6 +1998,136 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 warn_local(self.local.disown_service_token(&token.id).await);
                 Ok(Some(Undo::RestoreServiceToken(token.name.clone())))
+            }
+            Step::CreateDatabase { name } => {
+                let database = api
+                    .create_d1_database(account, name)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_database = Some(database.uuid.clone());
+                // The tables are made at once, so the first comment or webhook doesn't
+                // wait for them (the Workers create them too if they're missing). If
+                // that fails, the new database goes again.
+                if let Err(err) = super::front::create_tables(api, account, &database.uuid).await {
+                    let _ = api.delete_d1_database(account, &database.uuid).await;
+                    self.created_database = None;
+                    return Err(err.text());
+                }
+                warn_local(
+                    self.local
+                        .set_cloud_database(account, Some((&database.uuid, name)))
+                        .await,
+                );
+                Ok(Some(Undo::DeleteDatabase(database.uuid)))
+            }
+            Step::PutFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                config,
+                previous,
+                database,
+                secret,
+            } => {
+                let database = database
+                    .as_ref()
+                    .map(|d| self.resolve_database(d))
+                    .transpose()?;
+                self.put_front(
+                    hostname,
+                    zone_id,
+                    script,
+                    config,
+                    database.as_deref(),
+                    secret.as_ref(),
+                )
+                .await?;
+                Ok(Some(match previous {
+                    Some(previous) => Undo::RestoreFrontWorker {
+                        hostname: hostname.clone(),
+                        zone_id: zone_id.clone(),
+                        script: script.clone(),
+                        config: previous.clone(),
+                        database,
+                    },
+                    None => Undo::DeleteFrontWorker {
+                        hostname: hostname.clone(),
+                        script: script.clone(),
+                        config: config.clone(),
+                    },
+                }))
+            }
+            Step::CreateWorkerRoute {
+                hostname,
+                zone_id,
+                pattern,
+                script,
+                kind,
+                path,
+            } => {
+                let route = api
+                    .create_worker_route(zone_id, pattern, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, Some(&route.id))
+                        .await,
+                );
+                Ok(Some(Undo::DeleteWorkerRoute {
+                    zone: zone_id.clone(),
+                    id: route.id,
+                    pattern: pattern.clone(),
+                    hostname: hostname.clone(),
+                    kind: *kind,
+                    path: path.clone(),
+                }))
+            }
+            Step::DeleteWorkerRoute {
+                hostname,
+                zone_id,
+                route,
+                kind,
+                path,
+            } => {
+                api.delete_worker_route(zone_id, &route.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, None)
+                        .await,
+                );
+                Ok(Some(Undo::RecreateWorkerRoute {
+                    zone: zone_id.clone(),
+                    route: route.clone(),
+                    hostname: hostname.clone(),
+                    kind: *kind,
+                    path: path.clone(),
+                }))
+            }
+            Step::DeleteFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                previous,
+                database,
+            } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .forget_front(account, hostname, previous.kind(), previous.path())
+                        .await,
+                );
+                Ok(Some(Undo::RestoreFrontWorker {
+                    hostname: hostname.clone(),
+                    zone_id: zone_id.clone(),
+                    script: script.clone(),
+                    config: previous.clone(),
+                    database: database.clone(),
+                }))
             }
             Step::RotateServiceToken { token } => {
                 let issued = api
@@ -2190,6 +2421,67 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             }
             Undo::RestoreServiceToken(name) => {
                 return Err(msg::protection::leftover::restore_token(name));
+            }
+            Undo::DeleteDatabase(id) => {
+                api.delete_d1_database(account, id).await.map_err(err)?;
+                warn_local(self.local.set_cloud_database(account, None).await);
+            }
+            Undo::DeleteFrontWorker {
+                hostname,
+                script,
+                config,
+            } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .forget_front(account, hostname, config.kind(), config.path())
+                        .await,
+                );
+            }
+            Undo::RestoreFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                config,
+                database,
+            } => {
+                self.put_front(hostname, zone_id, script, config, database.as_deref(), None)
+                    .await?;
+            }
+            Undo::DeleteWorkerRoute {
+                zone,
+                id,
+                hostname,
+                kind,
+                path,
+                ..
+            } => {
+                api.delete_worker_route(zone, id).await.map_err(err)?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, None)
+                        .await,
+                );
+            }
+            Undo::RecreateWorkerRoute {
+                zone,
+                route,
+                hostname,
+                kind,
+                path,
+            } => {
+                let script = route.script.clone().unwrap_or_default();
+                let created = api
+                    .create_worker_route(zone, &route.pattern, &script)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, Some(&created.id))
+                        .await,
+                );
             }
             Undo::RecreateLoadBalancer { zone, balancer } => {
                 let mut balancer = balancer.clone();

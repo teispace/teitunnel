@@ -12,9 +12,11 @@ mod cloud;
 mod drift;
 pub mod edge;
 mod executor;
+pub mod front;
 mod ingress;
 mod local;
 mod local_edge;
+mod local_front;
 mod local_sites;
 mod networks;
 mod observe;
@@ -34,6 +36,8 @@ mod edge_tests;
 mod executor_tests;
 #[cfg(test)]
 pub(crate) mod fake;
+#[cfg(test)]
+mod front_tests;
 #[cfg(test)]
 mod planner_tests;
 #[cfg(test)]
@@ -63,8 +67,8 @@ pub use observe::{ObserveError, ObserveNeed, Want, Who, observe};
 pub use ownership::{Hold, HoldKind, Ownership};
 pub use planner::{PlanError, plan};
 pub use sites::{
-    MAX_FILE_SIZE, MAX_FILES, Password, SiteAddress, SiteContent, SiteFile, SiteSettings, SiteSpec,
-    Transfer, content_hash, format_bytes,
+    MAX_FILE_SIZE, MAX_FILES, Password, SiteAddress, SiteComments, SiteContent, SiteFile,
+    SiteSettings, SiteSpec, Transfer, content_hash, format_bytes,
 };
 pub use tunnels::{ConnectionView, ConnectorView, TunnelSummary};
 pub use types::{

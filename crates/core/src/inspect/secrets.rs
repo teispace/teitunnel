@@ -72,6 +72,20 @@ pub async fn webhook_secret(
     Ok(secret.map(|s| lens::webhook::WebhookSecret::new(s.expose().clone())))
 }
 
+/// The saved signing secret as text (for a webhook inbox's Worker secret; never
+/// returned to the UI or an agent).
+///
+/// # Errors
+/// The keychain refused.
+pub(crate) async fn webhook_secret_text(
+    secrets: &Secrets,
+    scope: &str,
+    provider: Provider,
+) -> Result<Option<Secret<String>>, SecretError> {
+    let (secrets, key) = (secrets.clone(), webhook_key(scope, provider));
+    spawn_blocking(move || secrets.get(&key)).await
+}
+
 /// Providers with a saved secret on `scope`.
 ///
 /// # Errors

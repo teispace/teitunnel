@@ -88,8 +88,8 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Stable names: `{project}.dev.example.com` from the detected project; `{branch}` from git (`teitunnel share 3000 --on {branch}.dev.example.com`); remember per folder.
 - [x] Share a folder (static file server in Lens, directory listing optional, single-page-app fallback), from the app (drag and drop) and CLI.
 - [x] Snapshot to the user's own Cloudflare (Workers static assets, [research](../research/cloudflare-snapshots.md)) so a preview stays online when the computer sleeps (decision Q5): from a folder, a build or a crawl of a running site; incremental uploads, versions and rollback, custom hostname or workers.dev, password or Access login, expiry; app, CLI and docs.
-- [ ] Feedback overlay/comments on shares (later; LocalCan's newest feature; decision Q6).
-- [ ] Offline page: when this computer is off, a route or domain share shows a friendly page from a tiny Worker on the user's account (same mechanism as snapshots) instead of Cloudflare's 1033.
+- [x] Feedback overlay/comments on shares (decision Q6). (Live shares and inspected routes keep comments on this computer, answered by Lens; Snapshots in a D1 database on the account; Comments view, notifications, CLI `comments`, MCP `comments_*`. Screenshots of a region were left out.)
+- [x] Offline page: when this computer is off, a route or domain share shows a friendly page from a tiny Worker on the user's account instead of Cloudflare's 1033. (A fail-open Worker route `hostname/*` whose script proxies to the tunnel and answers 530 with the page; opt-in per route, plan → apply with undo; research: [cloudflare-workers-features.md](../research/cloudflare-workers-features.md).)
 - [x] Scheduled shares: on during set hours/days, off otherwise (off: the paused page, applied by whoever serves the route).
 
 ## M12-07 · Everywhere
@@ -122,7 +122,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Name reservations for teams sharing an account: the owner (person/machine) is written into the DNS record's comment, so every Teitunnel sees who holds a name; leases with expiry (`alice.dev.company.com` permanent, `pr-402…` until closed); conflicts shown before any change.
 
 ## M12-12 · More (maintainer: "any other best features", 2026-09-24)
-- [ ] Webhook inbox: a Worker on the user's account (Queues/D1/KV within free limits) receives webhooks while this computer is off and delivers them in order when it's back, with the inspector showing both the arrival and the delivery.
+- [x] Webhook inbox: a Worker on the user's account receives webhooks while this computer is off and delivers them in order when it's back, with the inspector showing both the arrival and the delivery. (D1, not Queues: Queues keep messages 24 h on Free; bounded and retained 1–30 days; optional signature check with the keychain secret; delivery through the route's service, so an inspected route shows each delivery.)
 - [x] Project file `teitunnel.yml` in a repo: its shares, routes, protection, local domains and snapshots; `teitunnel up` (or opening the folder in the app) applies it through plan → apply; checked into git so a team shares it. (D-107; local domains applied since D-115.)
 - [x] Exposure check before a share goes public: probe the origin for common leaks (`/.env`, `/.git/`, directory listings, debug pages such as Django/Laravel/Rails error pages, open admin panels, framework dev tools) and warn with details; never blocks, one click to continue. (D-108)
 - [x] Auto-stop idle shares after N minutes without requests; notify when a request hits a watched path.

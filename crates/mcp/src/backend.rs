@@ -11,6 +11,7 @@ use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 use serde::Serialize;
 use teitunnel_core::{
     accounts::Account,
+    comments::{SubjectView, Thread},
     doctor::{Fix, Issue},
     engine::edge::IssuedToken,
     engine::{
@@ -424,12 +425,46 @@ pub trait Backend: Send + Sync + 'static {
     ) -> BoxFuture<'_, BackendResult<ShareInfo>> {
         Box::pin(async { Err(unsupported_extras()) })
     }
+
+    /// Shares, routes and Snapshots with comments, with their counts.
+    fn comment_subjects(&self) -> BoxFuture<'_, BackendResult<Vec<SubjectView>>> {
+        Box::pin(async { Err(unsupported_comments()) })
+    }
+
+    /// A subject's threads (Snapshots' read from Cloudflare).
+    fn comment_threads<'a>(&'a self, _key: &'a str) -> BoxFuture<'a, BackendResult<Vec<Thread>>> {
+        Box::pin(async { Err(unsupported_comments()) })
+    }
+
+    /// The owner's reply on a thread.
+    fn comment_reply<'a>(
+        &'a self,
+        _key: &'a str,
+        _thread: &'a str,
+        _body: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Thread>> {
+        Box::pin(async { Err(unsupported_comments()) })
+    }
+
+    /// Resolves or reopens a thread.
+    fn comment_resolve<'a>(
+        &'a self,
+        _key: &'a str,
+        _thread: &'a str,
+        _resolved: bool,
+    ) -> BoxFuture<'a, BackendResult<Thread>> {
+        Box::pin(async { Err(unsupported_comments()) })
+    }
 }
 
 fn unsupported_extras() -> BackendError {
     BackendError::Unsupported(
         "Pausing, schedules and folder shares aren't available from this host.".into(),
     )
+}
+
+fn unsupported_comments() -> BackendError {
+    BackendError::Unsupported("Comments aren't available from this host.".into())
 }
 
 fn unsupported_protection() -> BackendError {

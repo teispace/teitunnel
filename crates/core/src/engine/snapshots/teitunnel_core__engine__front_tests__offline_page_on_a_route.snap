@@ -1,0 +1,8 @@
+---
+source: crates/core/src/engine/front_tests.rs
+expression: view(&first)
+---
+- - Upload the offline page Worker for app.xyz.com
+  - Run it for app.xyz.com/* (fails open past the free daily requests)
+- - type: workerRequests
+    pattern: app.xyz.com/*

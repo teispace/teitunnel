@@ -19,6 +19,7 @@
 pub mod app_approver;
 pub mod backend;
 pub mod clients;
+pub mod comments;
 pub mod config;
 mod core_backend;
 pub mod expose;
@@ -39,6 +40,7 @@ pub mod traffic;
 
 pub use app_approver::AppApprover;
 pub use backend::{Backend, BackendError, ChangeEvent, SharedBackend};
+pub use comments::CommentsTools;
 pub use config::{Mode, Settings};
 pub use core_backend::{ConnectorSource, CoreBackend, CoreParts};
 pub use expose::ExposeTools;

@@ -289,6 +289,9 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         .provider(Arc::new(
             teitunnel_mcp::reservations::ReservationTools::new(Arc::clone(&backend)),
         ))
+        .provider(Arc::new(teitunnel_mcp::CommentsTools::new(Arc::clone(
+            &backend,
+        ))))
         .provider(Arc::new(ExposeTools::new(
             Arc::clone(&backend),
             inspector.clone(),

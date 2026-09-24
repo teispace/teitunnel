@@ -65,6 +65,8 @@ fn snapshot(edge_state: EdgeState) -> Snapshot {
         now: 0,
         edge: Some(edge_state),
         service_tokens: None,
+        database: None,
+        front: None,
     }
 }
 

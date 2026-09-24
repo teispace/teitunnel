@@ -17,6 +17,9 @@
 /// in Cloudflare's documented key table yet (docs/research/cloudflare-edge-rules.md):
 /// an unknown key is dropped silently, and the capability probe and the in-place fix
 /// name the dashboard permission instead.
+/// `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments and webhook inboxes
+/// (docs/research/cloudflare-workers-features.md); also not in the documented key table
+/// (unverified), handled the same way.
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -31,6 +34,7 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("zone_waf", "edit"),
     ("transform_rules", "edit"),
     ("access_service_tokens", "edit"),
+    ("d1", "edit"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions

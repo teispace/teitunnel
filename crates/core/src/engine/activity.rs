@@ -69,6 +69,10 @@ pub enum ActivityKind {
     RevokeServiceToken,
     /// A service token got a new secret.
     RotateServiceToken,
+    /// A route's offline page was added, changed or removed.
+    OfflinePage,
+    /// A webhook inbox was added, changed or removed.
+    WebhookInbox,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -97,6 +101,8 @@ impl From<&Intent> for ActivityKind {
             Intent::CreateServiceToken { .. } => Self::CreateServiceToken,
             Intent::RevokeServiceToken { .. } => Self::RevokeServiceToken,
             Intent::RotateServiceToken { .. } => Self::RotateServiceToken,
+            Intent::SetOfflinePage { .. } => Self::OfflinePage,
+            Intent::SetInbox { .. } => Self::WebhookInbox,
         }
     }
 }
@@ -122,6 +128,8 @@ pub enum DeltaArea {
     Protection,
     /// A service token.
     ServiceToken,
+    /// A Worker in front of a route (offline page, webhook inbox).
+    Worker,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -398,6 +406,31 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                     });
                 }
             }
+            Step::CreateWorkerRoute {
+                hostname,
+                pattern,
+                script,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Worker,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(format!("{pattern} → {script}"))),
+            }),
+            Step::DeleteWorkerRoute {
+                hostname, route, ..
+            } => out.push(Delta {
+                area: DeltaArea::Worker,
+                hostname: hostname.clone(),
+                path: None,
+                before: Some(msg::raw(format!(
+                    "{} → {}",
+                    route.pattern,
+                    route.script.as_deref().unwrap_or_default()
+                ))),
+                after: None,
+            }),
             Step::CreateRecord { hostname, .. } => out.push(Delta {
                 area: DeltaArea::Dns,
                 hostname: hostname.clone(),
@@ -560,6 +593,9 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
             | Step::DeleteTunnel { .. }
             | Step::AllowServiceToken { .. }
             | Step::RotateServiceToken { .. }
+            | Step::CreateDatabase { .. }
+            | Step::PutFrontWorker { .. }
+            | Step::DeleteFrontWorker { .. }
             | Step::Verify { .. } => {}
         }
     }

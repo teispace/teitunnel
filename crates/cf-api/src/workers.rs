@@ -122,6 +122,22 @@ pub struct WorkerDomain {
     pub zone_name: String,
 }
 
+/// A Worker route: requests matching `pattern` on a proxied hostname run `script` first
+/// (its `fetch(request)` still reaches the hostname's origin, e.g. a tunnel).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkerRoute {
+    /// Route id.
+    pub id: String,
+    /// E.g. `app.example.com/*`.
+    pub pattern: String,
+    /// The Worker (none: the route disables Workers for the pattern).
+    #[serde(default)]
+    pub script: Option<String>,
+    /// Skip the Worker, instead of failing, once the daily free requests are used up.
+    #[serde(default)]
+    pub request_limit_fail_open: Option<bool>,
+}
+
 fn script_path(account: &str, script: &str) -> String {
     format!(
         "/accounts/{}/workers/scripts/{}",
@@ -412,6 +428,48 @@ impl Client {
         .await
     }
 
+    /// A zone's Worker routes (Workers Routes Read).
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn worker_routes(&self, zone: &str) -> Result<Vec<WorkerRoute>> {
+        self.get(&format!("/zones/{}/workers/routes", encode(zone)))
+            .await
+    }
+
+    /// Runs `script` for requests matching `pattern`, failing open (the site keeps
+    /// working without the Worker once the account's free requests are used up).
+    /// `request_limit_fail_open` isn't in the create reference but is part of the
+    /// routes API (docs/research/cloudflare-workers-features.md).
+    ///
+    /// # Errors
+    /// API errors, e.g. a pattern another route already has.
+    pub async fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> Result<WorkerRoute> {
+        self.post(
+            &format!("/zones/{}/workers/routes", encode(zone)),
+            &json!({ "pattern": pattern, "script": script, "request_limit_fail_open": true }),
+        )
+        .await
+    }
+
+    /// Deletes a Worker route (a missing one counts as deleted).
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn delete_worker_route(&self, zone: &str, id: &str) -> Result<()> {
+        self.delete(&format!(
+            "/zones/{}/workers/routes/{}",
+            encode(zone),
+            encode(id)
+        ))
+        .await
+    }
+
     /// Detaches a Custom Domain (its DNS record goes too; a missing one counts as gone).
     ///
     /// # Errors
@@ -461,6 +519,47 @@ mod tests {
 
     fn body_text(request: &Request) -> String {
         String::from_utf8_lossy(&request.body).into_owned()
+    }
+
+    #[tokio::test]
+    async fn manages_worker_routes_that_fail_open() {
+        let (server, client) = client().await;
+        Mock::given(method("POST"))
+            .and(path("/zones/z1/workers/routes"))
+            .and(body_json(json!({
+                "pattern": "app.example.com/*", "script": "teitunnel-offline-1",
+                "request_limit_fail_open": true
+            })))
+            .respond_with(ok(json!({
+                "id": "r1", "pattern": "app.example.com/*", "script": "teitunnel-offline-1"
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/zones/z1/workers/routes"))
+            .respond_with(ok(json!([
+                {"id": "r1", "pattern": "app.example.com/*", "script": "teitunnel-offline-1",
+                 "request_limit_fail_open": true},
+                {"id": "r2", "pattern": "x.example.com/*"}
+            ])))
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/zones/z1/workers/routes/r1"))
+            .respond_with(ok(json!({"id": "r1"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let route = client
+            .create_worker_route("z1", "app.example.com/*", "teitunnel-offline-1")
+            .await
+            .unwrap();
+        assert_eq!(route.id, "r1");
+        let routes = client.worker_routes("z1").await.unwrap();
+        assert_eq!(routes[0].request_limit_fail_open, Some(true));
+        assert_eq!(routes[1].script, None);
+        client.delete_worker_route("z1", "r1").await.unwrap();
     }
 
     #[tokio::test]

@@ -397,6 +397,63 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     tokens.retain(|t| t.id != token.id);
                 }
             }
+            Step::CreateDatabase { .. } => {
+                next.database = Some(super::front::DatabaseState {
+                    id: Some("new-database".into()),
+                });
+            }
+            Step::PutFrontWorker { script, config, .. } => {
+                if let Some(front) = next.front.as_mut() {
+                    match front.fronts.iter_mut().find(|f| {
+                        f.config.kind() == config.kind() && f.config.path() == config.path()
+                    }) {
+                        Some(existing) => {
+                            existing.config = config.clone();
+                            existing.exists = true;
+                        }
+                        None => front.fronts.push(super::front::ObservedFront {
+                            config: config.clone(),
+                            script: script.clone(),
+                            exists: true,
+                            route: None,
+                        }),
+                    }
+                }
+            }
+            Step::CreateWorkerRoute {
+                pattern,
+                script,
+                kind,
+                path,
+                ..
+            } => {
+                if let Some(front) = next.front.as_mut().and_then(|f| {
+                    f.fronts
+                        .iter_mut()
+                        .find(|x| x.config.kind() == *kind && x.config.path() == path)
+                }) {
+                    front.route = Some(cf_api::WorkerRoute {
+                        id: format!("route-{script}"),
+                        pattern: pattern.clone(),
+                        script: Some(script.clone()),
+                        request_limit_fail_open: Some(true),
+                    });
+                }
+            }
+            Step::DeleteWorkerRoute { route, .. } => {
+                if let Some(state) = next.front.as_mut() {
+                    for front in &mut state.fronts {
+                        if front.route.as_ref().is_some_and(|r| r.id == route.id) {
+                            front.route = None;
+                        }
+                    }
+                }
+            }
+            Step::DeleteFrontWorker { script, .. } => {
+                if let Some(state) = next.front.as_mut() {
+                    state.fronts.retain(|f| f.script != *script);
+                }
+            }
         }
     }
     next

@@ -34,6 +34,18 @@ pub enum Error {
     /// The inspector refused or failed.
     #[error(transparent)]
     Inspect(crate::inspect::InspectError),
+    /// Comments couldn't be read or written.
+    #[error(transparent)]
+    Comments(crate::comments::CommentsError),
+}
+
+impl From<crate::comments::CommentsError> for Error {
+    fn from(err: crate::comments::CommentsError) -> Self {
+        match err {
+            crate::comments::CommentsError::Store(err) => Self::Store(err),
+            other => Self::Comments(other),
+        }
+    }
 }
 
 impl From<crate::inspect::InspectError> for Error {
@@ -107,7 +119,10 @@ impl Error {
                     | P::SnapshotLoginNeedsDomain
                     | P::EdgeRateLimitPeriod { .. }
                     | P::InvalidTokenLabel
-                    | P::ServiceTokenExists(_),
+                    | P::ServiceTokenExists(_)
+                    | P::FrontNeedsRoute(_)
+                    | P::Front(_)
+                    | P::InboxNeedsSecret,
                 )
                 | E::Input(_) => ErrorKind::InvalidInput,
                 E::Plan(
@@ -126,7 +141,8 @@ impl Error {
                     | P::NoSuchNetwork(_)
                     | P::NotBalanced(_)
                     | P::NotReserved(_)
-                    | P::NoSuchServiceToken(_),
+                    | P::NoSuchServiceToken(_)
+                    | P::NoFront(_),
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
@@ -143,12 +159,16 @@ impl Error {
                     | P::HostnameServed { .. }
                     | P::HostnameInUse(_)
                     | P::EdgeRateLimitConflict { .. }
-                    | P::ServiceTokenNotOwned(_),
+                    | P::ServiceTokenNotOwned(_)
+                    | P::WorkerRouteTaken { .. },
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
-                E::Observe(O::AccessPermission | O::EdgePermission | O::ServiceTokenPermission) => {
-                    ErrorKind::PermissionDenied
-                }
+                E::Observe(
+                    O::AccessPermission
+                    | O::EdgePermission
+                    | O::ServiceTokenPermission
+                    | O::WorkersPermission,
+                ) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
             },
@@ -177,6 +197,20 @@ impl Error {
                 }
             }
             Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
+            Self::Comments(err) => {
+                use crate::comments::CommentsError as C;
+                match err {
+                    C::InvalidBody | C::InvalidName | C::InvalidPath | C::InvalidAnchor => {
+                        ErrorKind::InvalidInput
+                    }
+                    C::NotFound => ErrorKind::NotFound,
+                    C::TooMany | C::RateLimited => ErrorKind::Unavailable,
+                    C::NoDatabase | C::Disabled | C::NoAccount => ErrorKind::Conflict,
+                    C::Api(api) if api.is_auth() => ErrorKind::PermissionDenied,
+                    C::Api(api) if api.status().is_none() => ErrorKind::Unavailable,
+                    C::Api(_) | C::Store(_) => ErrorKind::Internal,
+                }
+            }
             Self::Analytics(err) => {
                 use crate::analytics::AnalyticsError as An;
                 match err {
@@ -241,6 +275,7 @@ impl crate::text::UserText for Error {
             Self::Analytics(err) => err.text(),
             Self::Snapshot(err) => err.text(),
             Self::Inspect(err) => err.text(),
+            Self::Comments(err) => err.text(),
         }
     }
 }

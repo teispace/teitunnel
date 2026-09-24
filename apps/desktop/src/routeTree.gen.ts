@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as MainIndexRouteImport } from "./routes/_main/index"
 import { Route as MainActivityRouteImport } from "./routes/_main/activity"
 import { Route as MainAnalyticsRouteImport } from "./routes/_main/analytics"
+import { Route as MainCommentsRouteImport } from "./routes/_main/comments"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
 import { Route as MainInspectorRouteImport } from "./routes/_main/inspector"
@@ -48,6 +49,11 @@ const MainActivityRoute = MainActivityRouteImport.update({
 const MainAnalyticsRoute = MainAnalyticsRouteImport.update({
   id: "/analytics",
   path: "/analytics",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainCommentsRoute = MainCommentsRouteImport.update({
+  id: "/comments",
+  path: "/comments",
   getParentRoute: () => MainRoute,
 } as any)
 const MainDoctorRoute = MainDoctorRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
   "/analytics": typeof MainAnalyticsRoute
+  "/comments": typeof MainCommentsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/inspector": typeof MainInspectorRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
   "/analytics": typeof MainAnalyticsRoute
+  "/comments": typeof MainCommentsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/inspector": typeof MainInspectorRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   "/settings": typeof SettingsRoute
   "/_main/activity": typeof MainActivityRoute
   "/_main/analytics": typeof MainAnalyticsRoute
+  "/_main/comments": typeof MainCommentsRoute
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
   "/_main/inspector": typeof MainInspectorRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/activity"
     | "/analytics"
+    | "/comments"
     | "/doctor"
     | "/domains"
     | "/inspector"
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/activity"
     | "/analytics"
+    | "/comments"
     | "/doctor"
     | "/domains"
     | "/inspector"
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | "/settings"
     | "/_main/activity"
     | "/_main/analytics"
+    | "/_main/comments"
     | "/_main/doctor"
     | "/_main/domains"
     | "/_main/inspector"
@@ -254,6 +266,13 @@ declare module "@tanstack/react-router" {
       path: "/analytics"
       fullPath: "/analytics"
       preLoaderRoute: typeof MainAnalyticsRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/comments": {
+      id: "/_main/comments"
+      path: "/comments"
+      fullPath: "/comments"
+      preLoaderRoute: typeof MainCommentsRouteImport
       parentRoute: typeof MainRoute
     }
     "/_main/doctor": {
@@ -339,6 +358,7 @@ declare module "@tanstack/react-router" {
 interface MainRouteChildren {
   MainActivityRoute: typeof MainActivityRoute
   MainAnalyticsRoute: typeof MainAnalyticsRoute
+  MainCommentsRoute: typeof MainCommentsRoute
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
   MainInspectorRoute: typeof MainInspectorRoute
@@ -356,6 +376,7 @@ interface MainRouteChildren {
 const MainRouteChildren: MainRouteChildren = {
   MainActivityRoute: MainActivityRoute,
   MainAnalyticsRoute: MainAnalyticsRoute,
+  MainCommentsRoute: MainCommentsRoute,
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
   MainInspectorRoute: MainInspectorRoute,

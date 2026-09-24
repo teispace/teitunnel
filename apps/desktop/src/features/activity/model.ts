@@ -29,6 +29,8 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   createServiceToken: "activity.kind.createServiceToken",
   revokeServiceToken: "activity.kind.revokeServiceToken",
   rotateServiceToken: "activity.kind.rotateServiceToken",
+  offlinePage: "activity.kind.offlinePage",
+  webhookInbox: "activity.kind.webhookInbox",
 };
 
 /** The Show menu (built on use: labels need the language). */

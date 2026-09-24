@@ -374,6 +374,9 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
         Warning::MachineOnly { domain } => format!(
             "{domain} has no login yet: the new one lets in only service tokens, so people can't open it in a browser."
         ),
+        Warning::WorkerRequests { pattern } => format!(
+            "Every request to {pattern} runs a Worker, counted against the account's 100,000 free Worker requests a day; past that the site keeps working without it."
+        ),
     }
 }
 

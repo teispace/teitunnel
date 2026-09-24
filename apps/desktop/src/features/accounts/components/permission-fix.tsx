@@ -29,7 +29,9 @@ export type PermissionNeed =
   /** Edge protection: custom and rate limiting rules, and header rules. */
   | { kind: "edgeRules" }
   /** Access service tokens for machines. */
-  | { kind: "serviceTokens" };
+  | { kind: "serviceTokens" }
+  /** D1 databases: Snapshot comments and webhook inboxes. */
+  | { kind: "d1" };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -61,6 +63,8 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.edgeRules === "no";
     case "serviceTokens":
       return caps.serviceTokens === "no";
+    case "d1":
+      return caps.d1 === "no";
   }
 }
 
@@ -114,6 +118,8 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
       ];
     case "serviceTokens":
       return [{ name: t("permissionFix.serviceTokens"), why: t("permissionFix.serviceTokensWhy") }];
+    case "d1":
+      return [{ name: t("permissionFix.d1"), why: t("permissionFix.d1Why") }];
   }
 }
 

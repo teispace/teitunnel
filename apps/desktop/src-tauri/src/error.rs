@@ -122,6 +122,7 @@ via_core!(
     teitunnel_core::quick_share::QuickShareError,
     teitunnel_core::analytics::AnalyticsError,
     teitunnel_core::snapshot::SnapshotError,
+    teitunnel_core::comments::CommentsError,
 );
 
 impl From<teitunnel_core::project::ProjectError> for AppError {

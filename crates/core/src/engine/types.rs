@@ -146,6 +146,14 @@ pub struct Snapshot {
     /// The account's Access service tokens; read only when a change involves one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tokens: Option<Vec<super::edge::ObservedServiceToken>>,
+    /// The account's D1 database for comments and inboxes; read only when a change
+    /// needs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<super::front::DatabaseState>,
+    /// Worker routes on the hostname (offline page, webhook inbox); read only when a
+    /// change involves them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front: Option<super::front::FrontState>,
 }
 
 impl Snapshot {
@@ -337,6 +345,28 @@ pub enum Intent {
         /// Token id.
         token_id: String,
     },
+    /// Show a page of the person's own instead of Cloudflare's error while this computer
+    /// is off (`None` removes it).
+    SetOfflinePage {
+        /// The hostname.
+        hostname: Hostname,
+        /// The page.
+        page: Option<super::front::OfflinePage>,
+    },
+    /// Keep webhooks to a path while this computer is off and deliver them later
+    /// (`None` removes the inbox; waiting webhooks stay until their retention ends).
+    SetInbox {
+        /// The hostname.
+        hostname: Hostname,
+        /// The path, e.g. `/webhooks/`.
+        path: String,
+        /// Its settings.
+        inbox: Option<super::front::InboxSettings>,
+        /// A new signing secret to send (from the keychain; never serialized). `None`
+        /// keeps the one the Worker has.
+        #[serde(skip)]
+        secret: Option<crate::Secret<String>>,
+    },
 }
 
 impl Intent {
@@ -356,7 +386,9 @@ impl Intent {
             | Self::ProtectHostname { hostname, .. }
             | Self::CreateServiceToken { hostname, .. }
             | Self::RevokeServiceToken { hostname, .. }
-            | Self::RotateServiceToken { hostname, .. } => Some(vec![hostname]),
+            | Self::RotateServiceToken { hostname, .. }
+            | Self::SetOfflinePage { hostname, .. }
+            | Self::SetInbox { hostname, .. } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -466,6 +498,19 @@ impl Intent {
             Self::RotateServiceToken { hostname, .. } => {
                 crate::text::msg::protection::summary::rotate_token(hostname)
             }
+            Self::SetOfflinePage { hostname, page } => match page {
+                Some(_) => crate::text::msg::front::summary::offline_on(hostname),
+                None => crate::text::msg::front::summary::offline_off(hostname),
+            },
+            Self::SetInbox {
+                hostname,
+                path,
+                inbox,
+                ..
+            } => match inbox {
+                Some(_) => crate::text::msg::front::summary::inbox_on(format!("{hostname}{path}")),
+                None => crate::text::msg::front::summary::inbox_off(format!("{hostname}{path}")),
+            },
         }
     }
 }
@@ -850,6 +895,72 @@ pub enum Step {
         /// The token.
         token: super::edge::ObservedServiceToken,
     },
+    /// Create the account's D1 database for comments and webhook inboxes, with its
+    /// tables.
+    CreateDatabase {
+        /// Its name.
+        name: String,
+    },
+    /// Upload (or replace) a Worker in front of a route: the offline page or a webhook
+    /// inbox. It serves nothing until its route exists.
+    PutFrontWorker {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The Worker.
+        script: String,
+        /// What it's deployed with.
+        config: super::front::FrontConfig,
+        /// What it had before, when it's replaced (for rollback).
+        previous: Option<super::front::FrontConfig>,
+        /// The D1 database (inboxes).
+        database: Option<super::front::DatabaseRef>,
+        /// A new signing secret (never serialized).
+        #[serde(skip)]
+        secret: Option<crate::Secret<String>>,
+    },
+    /// Run a front Worker for requests matching a pattern (fails open).
+    CreateWorkerRoute {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// E.g. `app.example.com/*`.
+        pattern: String,
+        /// The Worker.
+        script: String,
+        /// Which Worker.
+        kind: super::front::FrontKind,
+        /// The inbox path (`""` for the offline page).
+        path: String,
+    },
+    /// Stop running a front Worker for a pattern.
+    DeleteWorkerRoute {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The route (for rollback and review).
+        route: cf_api::WorkerRoute,
+        /// Which Worker.
+        kind: super::front::FrontKind,
+        /// The inbox path.
+        path: String,
+    },
+    /// Delete a front Worker (after its route).
+    DeleteFrontWorker {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The Worker.
+        script: String,
+        /// What it was deployed with (to put it back on rollback).
+        previous: super::front::FrontConfig,
+        /// The D1 database it used.
+        database: Option<String>,
+    },
 }
 
 impl Step {
@@ -990,6 +1101,36 @@ impl Step {
             Self::RotateServiceToken { token } => {
                 crate::text::msg::protection::step::rotate_token(&token.name)
             }
+            Self::CreateDatabase { name } => crate::text::msg::front::step::create_database(name),
+            Self::PutFrontWorker {
+                hostname,
+                config,
+                previous,
+                ..
+            } => {
+                use crate::text::msg::front::step as f;
+                match (config, previous.is_some()) {
+                    (super::front::FrontConfig::Offline { .. }, false) => f::put_offline(hostname),
+                    (super::front::FrontConfig::Offline { .. }, true) => {
+                        f::update_offline(hostname)
+                    }
+                    (super::front::FrontConfig::Inbox { path, .. }, false) => {
+                        f::put_inbox(format!("{hostname}{path}"))
+                    }
+                    (super::front::FrontConfig::Inbox { path, .. }, true) => {
+                        f::update_inbox(format!("{hostname}{path}"))
+                    }
+                }
+            }
+            Self::CreateWorkerRoute { pattern, .. } => {
+                crate::text::msg::front::step::create_route(pattern)
+            }
+            Self::DeleteWorkerRoute { route, .. } => {
+                crate::text::msg::front::step::delete_route(&route.pattern)
+            }
+            Self::DeleteFrontWorker { script, .. } => {
+                crate::text::msg::front::step::delete_worker(script)
+            }
         }
     }
 
@@ -1071,9 +1212,11 @@ impl Step {
                 "curl -X DELETE {auth} {API}/accounts/{account_id}/workers/domains/{}",
                 domain.id
             )),
-            Self::DeleteSnapshotWorker { script, .. } => Some(format!(
-                "curl -X DELETE {auth} '{API}/accounts/{account_id}/workers/scripts/{script}?force=true'"
-            )),
+            Self::DeleteSnapshotWorker { script, .. } | Self::DeleteFrontWorker { script, .. } => {
+                Some(format!(
+                    "curl -X DELETE {auth} '{API}/accounts/{account_id}/workers/scripts/{script}?force=true'"
+                ))
+            }
             Self::CreateEdgeRule {
                 zone_id,
                 phase,
@@ -1119,6 +1262,29 @@ impl Step {
             Self::DeleteServiceToken { token } => Some(format!(
                 "curl -X DELETE {auth} {API}/accounts/{account_id}/access/service_tokens/{}",
                 token.id
+            )),
+            Self::CreateDatabase { name } => {
+                let body = serde_json::json!({ "name": name });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/d1/database --data '{body}'"
+                ))
+            }
+            Self::CreateWorkerRoute {
+                zone_id,
+                pattern,
+                script,
+                ..
+            } => {
+                let body = serde_json::json!({
+                    "pattern": pattern, "script": script, "request_limit_fail_open": true,
+                });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/workers/routes --data '{body}'"
+                ))
+            }
+            Self::DeleteWorkerRoute { zone_id, route, .. } => Some(format!(
+                "curl -X DELETE {auth} {API}/zones/{zone_id}/workers/routes/{}",
+                route.id
             )),
             _ => None,
         }
@@ -1219,6 +1385,12 @@ pub enum Warning {
     MachineOnly {
         /// The Access domain.
         domain: String,
+    },
+    /// Every request matching the pattern runs a Worker, counted against the account's
+    /// 100,000 free Worker requests a day (past it the site keeps working without it).
+    WorkerRequests {
+        /// The route pattern.
+        pattern: String,
     },
 }
 

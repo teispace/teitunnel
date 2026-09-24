@@ -100,6 +100,8 @@ fn fresh() -> Snapshot {
         now: 0,
         edge: None,
         service_tokens: None,
+        database: None,
+        front: None,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -554,6 +556,8 @@ fn scenarios() {
         site: None,
         edge: None,
         service_tokens: None,
+        database: None,
+        front: None,
         ..fresh()
     };
 
@@ -774,6 +778,11 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::AllowServiceToken { .. } => "token-app",
             Step::DeleteServiceToken { .. } => "token-",
             Step::RotateServiceToken { .. } => "token~",
+            Step::CreateDatabase { .. } => "db+",
+            Step::PutFrontWorker { .. } => "front+",
+            Step::CreateWorkerRoute { .. } => "wroute+",
+            Step::DeleteWorkerRoute { .. } => "wroute-",
+            Step::DeleteFrontWorker { .. } => "front-",
         })
         .collect()
 }

@@ -49,8 +49,9 @@ const helpLinks: readonly [HelpLink, MessageKey, LucideIcon][] = [
 ];
 
 /**
- * The View menu's Go commands, ⌘1–⌘9 in this order. The Inspector and Projects have none
- * (all nine digits are taken); they're in the sidebar and the command palette.
+ * The View menu's Go commands, ⌘1–⌘9 in this order. The Inspector, Projects, Local Domains
+ * and Comments have none (all nine digits are taken); they're in the sidebar and the
+ * command palette.
  */
 const goMenu: readonly (readonly [NavItem["to"], MenuCommand])[] = [
   ["/", "goOverview"],

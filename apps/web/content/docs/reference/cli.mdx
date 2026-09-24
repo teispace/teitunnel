@@ -101,6 +101,18 @@ teitunnel protect app.example.com --off                 # remove Teitunnel's rul
 teitunnel service-token create api.example.com --name CI  # for machines; secret printed once
 teitunnel service-token ls api.example.com
 teitunnel service-token revoke api.example.com CI
+teitunnel comments ls                    # shares and Snapshots with review comments
+teitunnel comments ls preview.example.com --all  # its threads, resolved ones too
+teitunnel comments reply preview.example.com c1a2b3 "Fixed, thanks"
+teitunnel comments resolve preview.example.com c1a2b3   # --reopen to reopen
+teitunnel snapshot publish ./dist --on preview.example.com --comments  # reviewers can comment
+teitunnel offline app.example.com --title "Back soon"   # your page instead of error 1033
+teitunnel offline app.example.com --off
+teitunnel inbox add app.example.com /webhooks/ --days 7  # keep webhooks while you're away
+teitunnel inbox secret app.example.com stripe < secret.txt  # keychain; for --verify
+teitunnel inbox items app.example.com /webhooks/        # arrivals and deliveries
+teitunnel inbox deliver                  # deliver waiting webhooks now
+teitunnel inbox rm app.example.com /webhooks/
 teitunnel project init                   # a starter teitunnel.yml for this folder
 teitunnel project check                  # every problem in it, with line and column
 teitunnel project diff                   # what applying it would change (nothing changes)
@@ -163,6 +175,10 @@ commands in [Project files](/docs/guides/project-file/), `backup` in
 | `--no-serve`, `--here` | `local-domain add`/`serve`: only save it; serve from this terminal even when the app runs. Without the app, `add` and `serve` serve until Ctrl-C. |
 | `--browsers`, `--firefox` | `local-domain trust`: also Chrome's and Firefox's own certificate lists; Firefox's "trust the system" setting. `untrust --forget` also deletes the certificate authority. |
 | `--name <label>` | `service-token create`: what the token is for (default `CLI`). The headers are printed once on standard output. |
+| `--comments`, `--no-comments` | `snapshot publish`/`update`: let reviewers pin comments to the pages ([Comments](/docs/guides/comments)). |
+| `--all` | `comments ls <subject>`: include resolved threads. |
+| `--title`, `--message`, `--when-app-down`, `--off` | `offline`: the page shown while this computer is off; without options, shows what the route has ([Offline page](/docs/guides/offline-page)). |
+| `--max <n>`, `--days <n>`, `--verify <github\|stripe\|standard>` | `inbox add`: how many webhooks are kept, for how long, and whether only signed ones are ([Webhook inbox](/docs/guides/webhook-inbox)). The signing secret is read by `inbox secret` from `TEITUNNEL_WEBHOOK_SECRET` or standard input, never the command line. |
 
 Routes are served by the app while it's open, all the time with
 [Always-on](/docs/concepts/run-modes) (`always-on on` from the CLI), or by

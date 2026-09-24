@@ -217,25 +217,50 @@ pub struct SiteSettings {
     pub spa: bool,
     /// Password protection, checked by the Worker.
     pub password: Password,
-    /// A script injected into every HTML page (the comments overlay, designed
-    /// separately): the Worker adds `<script src=… defer>` when set.
+    /// A script injected into every HTML page: the Worker adds `<script src=… defer>`
+    /// when set (the comments overlay sets it).
     pub overlay: Option<String>,
+    /// Comments, kept in the account's D1 database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<SiteComments>,
+}
+
+/// Comments on a Snapshot (M12-06).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteComments {
+    /// The D1 database the Worker writes to.
+    pub database: super::front::DatabaseRef,
+    /// Trust Cloudflare Access's email header (the Snapshot has Teitunnel's login).
+    pub identity: bool,
 }
 
 impl SiteSettings {
     /// Whether the Worker runs before the files (a password or the overlay needs it;
     /// otherwise requests cost nothing).
     pub fn worker_first(&self) -> bool {
-        !matches!(self.password, Password::Off) || self.overlay.is_some()
+        !matches!(self.password, Password::Off) || self.overlay.is_some() || self.comments.is_some()
+    }
+
+    /// The same settings with comments on (the overlay added to every page).
+    #[must_use]
+    pub fn with_comments(mut self, comments: SiteComments) -> Self {
+        self.overlay = Some(crate::comments::OVERLAY_PATH.to_owned());
+        self.comments = Some(comments);
+        self
     }
 }
 
 /// The Worker's metadata for a version (Cloudflare's "Upload Worker Module" shape).
+/// `script` names the comments' site; `database` is the D1 id comments bind to (the
+/// executor resolves one created in the same plan).
 pub fn metadata(
     settings: &SiteSettings,
     content: &SiteContent,
     assets_jwt: &str,
     message: &str,
+    script: &str,
+    database: Option<&str>,
 ) -> Value {
     let mut config = json!({
         "html_handling": "auto-trailing-slash",
@@ -260,6 +285,13 @@ pub fn metadata(
     if let Some(src) = &settings.overlay {
         bindings.push(json!({ "type": "plain_text", "name": "OVERLAY_SRC", "text": src }));
     }
+    if let (Some(comments), Some(database)) = (&settings.comments, database) {
+        bindings.push(json!({ "type": "d1", "name": "DB", "id": database }));
+        bindings.push(json!({ "type": "plain_text", "name": "COMMENTS_SITE", "text": script }));
+        if comments.identity {
+            bindings.push(json!({ "type": "plain_text", "name": "ACCESS_IDENTITY", "text": "1" }));
+        }
+    }
     let mut metadata = json!({
         "main_module": WORKER_MODULE,
         "compatibility_date": COMPATIBILITY_DATE,
@@ -273,11 +305,13 @@ pub fn metadata(
     metadata
 }
 
-/// The Worker's code.
+/// The Worker's code, with the comments overlay's source appended as `OVERLAY_JS` (the
+/// Worker serves it when comments are on).
 pub fn modules() -> Vec<WorkerModule> {
+    let overlay = serde_json::to_string(crate::comments::OVERLAY_JS).unwrap_or_default();
     vec![WorkerModule {
         name: WORKER_MODULE.to_owned(),
-        content: WORKER_JS.to_owned(),
+        content: format!("{WORKER_JS}\nconst OVERLAY_JS = {overlay};\n"),
     }]
 }
 
@@ -540,7 +574,14 @@ mod tests {
             headers: Some("/*\n  X-Robots-Tag: noindex".into()),
             redirects: None,
         };
-        let open = metadata(&SiteSettings::default(), &content, "jwt", "Teitunnel");
+        let open = metadata(
+            &SiteSettings::default(),
+            &content,
+            "jwt",
+            "Teitunnel",
+            "snap",
+            None,
+        );
         assert_eq!(open["assets"]["config"]["run_worker_first"], false);
         assert_eq!(open["assets"]["config"]["not_found_handling"], "404-page");
         assert_eq!(
@@ -557,8 +598,9 @@ mod tests {
                 hash: Secret::new("pbkdf2-sha256$1$s$h".into()),
             },
             overlay: None,
+            comments: None,
         };
-        let meta = metadata(&locked, &content, "jwt", "m");
+        let meta = metadata(&locked, &content, "jwt", "m", "snap", None);
         assert_eq!(meta["assets"]["config"]["run_worker_first"], true);
         assert_eq!(
             meta["assets"]["config"]["not_found_handling"],
@@ -574,7 +616,7 @@ mod tests {
             password: Password::Keep,
             ..SiteSettings::default()
         };
-        let meta = metadata(&kept, &content, "jwt", "m");
+        let meta = metadata(&kept, &content, "jwt", "m", "snap", None);
         assert_eq!(meta["keep_bindings"], json!(["secret_text"]));
         assert_eq!(meta["assets"]["config"]["run_worker_first"], true);
     }

@@ -185,6 +185,28 @@ impl<S: ConnectorSource> CoreBackend<S> {
         self.parts.accounts.client(account).await.map_err(msg)
     }
 
+    /// Comments kept in this machine's database (live shares) and read from Cloudflare
+    /// (Snapshots).
+    fn comments(&self) -> teitunnel_core::comments::Comments {
+        teitunnel_core::comments::Comments::new(self.parts.store.clone())
+    }
+
+    /// The API client a subject's comments need (Snapshots only).
+    async fn comments_api(&self, key: &str) -> BackendResult<Option<cf_api::Client>> {
+        let subject = self
+            .comments()
+            .subject(key)
+            .await
+            .map_err(msg)?
+            .ok_or_else(|| BackendError::NotFound(format!("No comments for {key}.")))?;
+        match (subject.kind, subject.account_id) {
+            (teitunnel_core::comments::SubjectKind::Snapshot, Some(account)) => {
+                Ok(Some(self.api(&account).await?))
+            }
+            _ => Ok(None),
+        }
+    }
+
     fn quick_info(share: &QuickShare) -> ShareInfo {
         ShareInfo {
             id: share.id.clone(),
@@ -937,6 +959,60 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
 
     fn subscribe(&self) -> broadcast::Receiver<ChangeEvent> {
         self.changes.subscribe()
+    }
+
+    fn comment_subjects(
+        &self,
+    ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::comments::SubjectView>>> {
+        Box::pin(async move { self.comments().subjects().await.map_err(msg) })
+    }
+
+    fn comment_threads<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::comments::Thread>>> {
+        Box::pin(async move {
+            let api = self.comments_api(key).await?;
+            self.comments()
+                .threads(api.as_ref(), key)
+                .await
+                .map_err(msg)
+        })
+    }
+
+    fn comment_reply<'a>(
+        &'a self,
+        key: &'a str,
+        thread: &'a str,
+        body: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::comments::Thread>> {
+        Box::pin(async move {
+            let api = self.comments_api(key).await?;
+            let label = teitunnel_core::engine::ownership::owner_label();
+            let owner =
+                teitunnel_core::comments::Author::owner(label.split('@').next().unwrap_or(&label));
+            self.comments()
+                .reply(api.as_ref(), key, thread, body, &owner)
+                .await
+                .map_err(msg)
+        })
+    }
+
+    fn comment_resolve<'a>(
+        &'a self,
+        key: &'a str,
+        thread: &'a str,
+        resolved: bool,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::comments::Thread>> {
+        Box::pin(async move {
+            let api = self.comments_api(key).await?;
+            let label = teitunnel_core::engine::ownership::owner_label();
+            let by = label.split('@').next().unwrap_or(&label).to_owned();
+            self.comments()
+                .resolve(api.as_ref(), key, thread, resolved, &by)
+                .await
+                .map_err(msg)
+        })
     }
 
     fn reservations<'a>(

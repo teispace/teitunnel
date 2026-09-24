@@ -106,6 +106,17 @@ export const queryKeys = {
     status: () => ["localDomains", "status"] as const,
     trust: () => ["localDomains", "trust"] as const,
   },
+  comments: {
+    all: () => ["comments"] as const,
+    subjects: () => ["comments", "subjects"] as const,
+    threads: (key: string) => ["comments", "threads", key] as const,
+  },
+  fronts: {
+    all: () => ["fronts"] as const,
+    list: () => ["fronts", "list"] as const,
+    inbox: (accountId: string, hostname: string, path: string) =>
+      ["fronts", "inbox", accountId, hostname, path] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -146,6 +157,10 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.localDomains.all(), queryKeys.doctor.all()];
     case "agents":
       return [queryKeys.agents.all()];
+    case "comments":
+      return [queryKeys.comments.all()];
+    case "fronts":
+      return [queryKeys.fronts.all()];
   }
 }
 

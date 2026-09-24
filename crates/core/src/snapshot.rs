@@ -245,6 +245,10 @@ pub struct SnapshotOptions {
     pub access: Option<AccessRule>,
     /// Delete it after this many days.
     pub expires_in_days: Option<u32>,
+    /// Let reviewers comment (kept in the account's D1 database); left out: as it is
+    /// now (off for a new Snapshot).
+    #[serde(default)]
+    pub comments: Option<bool>,
 }
 
 /// A change to Snapshots, as the UI and CLI ask for it.
@@ -336,6 +340,8 @@ pub struct SnapshotView {
     /// Its size.
     #[cfg_attr(feature = "specta", specta(type = f64))]
     pub bytes: u64,
+    /// Reviewers can comment.
+    pub comments: bool,
 }
 
 /// A version, for the version list.
@@ -441,6 +447,15 @@ fn password_setting(input: &PasswordInput, has_password: bool) -> Result<Passwor
     })
 }
 
+/// Comments bound to the account's database (resolved by the planner); the email
+/// Access vouches for is trusted only behind Teitunnel's own login.
+fn comments_setting(login: bool) -> crate::engine::SiteComments {
+    crate::engine::SiteComments {
+        database: crate::engine::front::DatabaseRef::Created,
+        identity: login,
+    }
+}
+
 fn access_of(input: Option<&AccessRule>) -> Result<Option<AccessRule>, SnapshotError> {
     input
         .map(|rule| {
@@ -515,11 +530,15 @@ pub async fn plan_change<C: CloudApi>(
                 }
             };
             let access = access_of(options.access.as_ref())?;
-            let settings = SiteSettings {
+            let mut settings = SiteSettings {
                 spa: options.spa,
                 password: password_setting(&options.password, false)?,
                 overlay: None,
+                comments: None,
             };
+            if options.comments == Some(true) {
+                settings = settings.with_comments(comments_setting(access.is_some()));
+            }
             let now = crate::domain_shares::now_ms();
             let row = SiteRow {
                 id: uuid::Uuid::new_v4().to_string(),
@@ -570,12 +589,18 @@ pub async fn plan_change<C: CloudApi>(
                     .clone(),
                 None => live.clone().ok_or(SnapshotError::NoLiveFiles)?,
             };
-            let settings = SiteSettings {
+            let mut settings = SiteSettings {
                 spa: options.spa,
                 password: password_setting(&options.password, row.password)?,
                 overlay: None,
+                comments: None,
             };
             let access = access_of(options.access.as_ref())?;
+            let had_comments = local.site_comments(&row.id).await?;
+            let comments = options.comments.unwrap_or(had_comments);
+            if comments {
+                settings = settings.with_comments(comments_setting(access.is_some()));
+            }
             let unchanged = live.as_ref().is_some_and(|l| {
                 l.files == content.files
                     && l.headers == content.headers
@@ -583,7 +608,8 @@ pub async fn plan_change<C: CloudApi>(
             }) && row.spa == settings.spa
                 && matches!(settings.password, Password::Keep | Password::Off)
                 && row.password == (settings.password == Password::Keep)
-                && row.access == access;
+                && row.access == access
+                && comments == had_comments;
             if unchanged {
                 return Err(SnapshotError::Unchanged);
             }
@@ -674,8 +700,11 @@ where
         .apply(api, connectors, ctx, &planned.intent, approval, progress)
         .await;
     match (&planned.intent, &outcome) {
-        (Intent::PublishSnapshot { site, .. }, Ok(Outcome::RolledBack { .. }) | Err(_))
-        | (Intent::DeleteSnapshot { site }, Ok(Outcome::Applied { .. })) => {
+        (Intent::DeleteSnapshot { site }, Ok(Outcome::Applied { .. })) => {
+            forget_comments(local, api, ctx.account, site).await;
+            local.forget_site(&site.id).await?;
+        }
+        (Intent::PublishSnapshot { site, .. }, Ok(Outcome::RolledBack { .. }) | Err(_)) => {
             local.forget_site(&site.id).await?;
         }
         (Intent::UpdateSnapshot { site, .. }, Ok(Outcome::Applied { .. })) => {
@@ -697,6 +726,27 @@ where
         }
         _ => {}
     }
+    if let (
+        Intent::PublishSnapshot { site, settings, .. }
+        | Intent::UpdateSnapshot { site, settings, .. },
+        Ok(Outcome::Applied { .. }),
+    ) = (&planned.intent, &outcome)
+    {
+        let on = settings.comments.is_some();
+        local.set_site_comments(&site.id, on).await?;
+        if on && let Some(row) = local.site(&site.id).await? {
+            let url = row
+                .hostname
+                .as_deref()
+                .map(|h| format!("https://{h}"))
+                .unwrap_or_default();
+            let subject =
+                crate::comments::Subject::snapshot(&row.id, &row.account_id, &row.name, &url);
+            if let Err(err) = crate::comments::register_subject(local.store(), &subject).await {
+                tracing::warn!(%err, "couldn't list the Snapshot's comments");
+            }
+        }
+    }
     if let SnapshotChange::Publish { prepared, .. }
     | SnapshotChange::Update {
         prepared: Some(prepared),
@@ -707,6 +757,26 @@ where
         preparations.remove(prepared);
     }
     Ok(outcome?)
+}
+
+/// Deletes a deleted Snapshot's comments from the account's database and the app's
+/// list (best effort: the database may be gone or unreadable).
+async fn forget_comments<C: CloudApi>(
+    local: &crate::engine::Local,
+    api: &C,
+    account: &str,
+    site: &SiteSpec,
+) {
+    if let Ok(Some(database)) = local.cloud_database(account).await
+        && let Err(err) =
+            crate::comments::remote::delete_site(api, account, &database, &site.script).await
+    {
+        tracing::debug!(%err, "couldn't delete a Snapshot's comments");
+    }
+    let key = crate::comments::Subject::snapshot(&site.id, account, &site.name, "").key;
+    if let Err(err) = crate::comments::forget_subject(local.store(), &key).await {
+        tracing::debug!(%err, "couldn't forget a Snapshot's comments");
+    }
 }
 
 /// Snapshots in `account` (or every account), with their live version's size.
@@ -748,6 +818,7 @@ pub async fn list(
             versions: u32::try_from(versions.len()).unwrap_or(u32::MAX),
             files: live.map_or(0, |v| v.files),
             bytes: live.map_or(0, |v| v.bytes),
+            comments: local.site_comments(&row.id).await?,
         });
     }
     Ok(out)

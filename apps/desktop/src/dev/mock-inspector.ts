@@ -70,6 +70,7 @@ export function mockTaps(): TapView[] {
       watchedPaths: ["/webhooks/*"],
       idleStopMinutes: null,
       requests: 42,
+      comments: false,
     },
     {
       id: ROUTE_TAP,
@@ -96,6 +97,7 @@ export function mockTaps(): TapView[] {
       watchedPaths: [],
       idleStopMinutes: null,
       requests: 6,
+      comments: false,
     },
   ];
 }

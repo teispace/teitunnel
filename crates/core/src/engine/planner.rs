@@ -26,6 +26,7 @@ use crate::domain::{Hostname, PathRule};
 use crate::text::{Text, UserText, english_display, msg};
 
 mod edge;
+mod front;
 mod reservations;
 mod sites;
 
@@ -135,6 +136,21 @@ pub enum PlanError {
     NoSuchServiceToken(String),
     /// The token wasn't made by Teitunnel.
     ServiceTokenNotOwned(String),
+    /// A Worker in front of a hostname needs it proxied through Cloudflare (a route).
+    FrontNeedsRoute(String),
+    /// Another Worker's route already has the pattern.
+    WorkerRouteTaken {
+        /// The pattern.
+        pattern: String,
+        /// That Worker.
+        worker: String,
+    },
+    /// Nothing of Teitunnel's to remove there.
+    NoFront(String),
+    /// Invalid offline page or inbox settings.
+    Front(crate::engine::front::FrontError),
+    /// A verifying inbox needs its signing secret.
+    InboxNeedsSecret,
 }
 
 impl UserText for PlanError {
@@ -201,6 +217,13 @@ impl UserText for PlanError {
             Self::ServiceTokenExists(label) => msg::protection::error::token_exists(label),
             Self::NoSuchServiceToken(_) => msg::protection::error::no_such_token(),
             Self::ServiceTokenNotOwned(name) => msg::protection::error::token_not_owned(name),
+            Self::FrontNeedsRoute(hostname) => msg::front::error::needs_route(hostname),
+            Self::WorkerRouteTaken { pattern, worker } => {
+                msg::front::error::route_taken(pattern, worker)
+            }
+            Self::NoFront(target) => msg::front::error::none(target),
+            Self::Front(err) => err.text(),
+            Self::InboxNeedsSecret => msg::front::error::needs_secret(),
         }
     }
 }
@@ -790,6 +813,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                     }
                 }
             }
+            if !hostname_still_used {
+                front::remove_all(&mut b, hostname.as_str());
+            }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
             }
@@ -1076,6 +1102,15 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             edge::revoke_token(&mut b, hostname, token_id)?;
         }
         Intent::RotateServiceToken { token_id, .. } => edge::rotate_token(&mut b, token_id)?,
+        Intent::SetOfflinePage { hostname, page } => {
+            front::offline(&mut b, hostname, page.as_ref())?;
+        }
+        Intent::SetInbox {
+            hostname,
+            path,
+            inbox,
+            secret,
+        } => front::inbox(&mut b, hostname, path, inbox.as_ref(), secret.as_ref())?,
     }
     Ok(b.finish())
 }

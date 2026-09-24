@@ -4,7 +4,9 @@ import {
   Check,
   CircleCheck,
   Copy,
+  Database,
   Globe,
+  Inbox,
   Key,
   KeyRound,
   LockKeyhole,
@@ -44,6 +46,8 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   reservation: Bookmark,
   edgeRule: Shield,
   serviceToken: Key,
+  database: Database,
+  frontWorker: Inbox,
 };
 
 const quotaWarnings: Record<QuotaKind, MessageKey> = {
@@ -123,6 +127,8 @@ function warningText(warning: Warning): string {
       return t(quotaWarnings[warning.quota], warning);
     case "machineOnly":
       return t("plan.warning.machineOnly", warning);
+    case "workerRequests":
+      return t("plan.warning.workerRequests", warning);
   }
 }
 
