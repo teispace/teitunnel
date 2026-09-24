@@ -83,11 +83,13 @@ function Note({ id }: { id: PanelId }) {
         Also in every desktop download, and as a Docker image.
       </p>
     );
-  return (
-    <p className="text-sm text-fd-muted-foreground">
-      The .deb and .rpm install with your package manager; the AppImage runs anywhere.
-    </p>
-  );
+  if (id === "linux")
+    return (
+      <p className="text-sm text-fd-muted-foreground">
+        The .deb and .rpm install with your package manager; the AppImage runs anywhere.
+      </p>
+    );
+  return null;
 }
 
 function PanelView({ panel }: { panel: Panel }) {
