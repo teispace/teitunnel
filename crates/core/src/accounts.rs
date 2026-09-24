@@ -47,6 +47,7 @@ const ACCOUNT_TABLES: &[&str] = &[
     "incidents",
     // Their versions go with them (foreign key).
     "snapshots",
+    "reservations_cache",
 ];
 
 /// How an account was connected.

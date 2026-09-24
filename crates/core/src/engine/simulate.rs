@@ -4,10 +4,8 @@
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp},
     networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute},
-    types::{
-        ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, ownership_comment,
-        tunnel_target,
-    },
+    ownership::route_comment,
+    types::{ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, tunnel_target},
 };
 
 pub(crate) const CREATED_TUNNEL_ID: &str = "new-tunnel";
@@ -31,6 +29,7 @@ fn empty_access() -> AccessState {
 pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
     let mut next = snapshot.clone();
     let mut record_ids = 0;
+    let (owner, now) = (snapshot.owner.clone(), snapshot.now);
     for step in &plan.steps {
         match step {
             Step::CreateTunnel { name } => {
@@ -63,10 +62,12 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                         kind: "CNAME".into(),
                         content: tunnel_target(&resolve(tunnel)),
                         proxied: true,
-                        comment: Some(ownership_comment(route_id)),
+                        comment: Some(route_comment(route_id, &owner, None, now)),
                         ttl: 1,
                     },
                 });
+                next.held
+                    .retain(|h| !h.hostname.eq_ignore_ascii_case(hostname));
             }
             Step::UpdateRecord {
                 record_id,
@@ -78,11 +79,65 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     r.record.kind = "CNAME".into();
                     r.record.content = tunnel_target(&resolve(tunnel));
                     r.record.proxied = true;
-                    r.record.comment = Some(ownership_comment(route_id));
+                    r.record.comment = Some(route_comment(
+                        route_id,
+                        &owner,
+                        r.record.comment.as_deref(),
+                        now,
+                    ));
                     r.owned = true;
+                    let name = r.record.name.clone();
+                    next.held
+                        .retain(|h| !h.hostname.eq_ignore_ascii_case(&name));
                 }
             }
-            Step::DeleteRecord { record, .. } => next.records.retain(|r| r.record.id != record.id),
+            Step::DeleteRecord { record, .. } => {
+                next.records.retain(|r| r.record.id != record.id);
+                next.held
+                    .retain(|h| !h.hostname.eq_ignore_ascii_case(&record.name));
+            }
+            Step::CreateReservation {
+                zone_id,
+                hostname,
+                until,
+            } => {
+                record_ids += 1;
+                next.held
+                    .retain(|h| !h.hostname.eq_ignore_ascii_case(hostname));
+                next.records.push(ObservedRecord {
+                    zone_id: zone_id.clone(),
+                    owned: true,
+                    record: cf_api::DnsRecord {
+                        id: format!("sim-{record_ids}"),
+                        name: hostname.clone(),
+                        kind: super::ownership::LEASE_KIND.into(),
+                        content: super::ownership::LEASE_ADDRESS.into(),
+                        proxied: true,
+                        comment: Some(
+                            super::ownership::Ownership::lease(&next.owner, *until).render(),
+                        ),
+                        ttl: 1,
+                    },
+                });
+            }
+            Step::SetLease {
+                record,
+                lease,
+                until,
+                ..
+            } => {
+                if let Some(r) = next.records.iter_mut().find(|r| r.record.id == record.id) {
+                    let mut ownership = r
+                        .record
+                        .comment
+                        .as_deref()
+                        .and_then(super::ownership::Ownership::parse)
+                        .unwrap_or_else(|| super::ownership::Ownership::lease(&next.owner, None));
+                    ownership.lease = *lease || ownership.marker == super::ownership::Marker::Lease;
+                    ownership.until = if *lease { *until } else { None };
+                    r.record.comment = Some(ownership.render());
+                }
+            }
             Step::DeleteTunnel { .. } => next.tunnel = None,
             Step::AddLoginMethod => {
                 let access = next.access.get_or_insert_with(empty_access);

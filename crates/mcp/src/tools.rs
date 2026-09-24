@@ -333,6 +333,21 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
         } => format!(
             "{network} overlaps {other}, which goes through tunnel \"{tunnel}\". For addresses in both, the narrower range wins."
         ),
+        Warning::HeldBy {
+            hostname,
+            owner,
+            until,
+            kind,
+        } => format!(
+            "{} Applying it takes the name over, so it needs the person's confirmation.",
+            teitunnel_core::reservations::describe(&teitunnel_core::engine::Hold {
+                hostname: hostname.clone(),
+                owner: owner.clone(),
+                until: *until,
+                kind: *kind,
+            })
+            .english()
+        ),
     }
 }
 

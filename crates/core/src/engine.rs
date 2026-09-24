@@ -16,6 +16,7 @@ mod local;
 mod local_sites;
 mod networks;
 mod observe;
+pub mod ownership;
 mod planner;
 pub mod sites;
 mod tunnels;
@@ -29,6 +30,8 @@ mod executor_tests;
 pub(crate) mod fake;
 #[cfg(test)]
 mod planner_tests;
+#[cfg(test)]
+mod reservation_tests;
 #[cfg(test)]
 mod simulate;
 #[cfg(test)]
@@ -49,7 +52,8 @@ pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
 pub use local_sites::{KEPT_VERSIONS, SiteRow, SiteVersionRow};
 pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
-pub use observe::{ObserveError, ObserveNeed, Want, observe};
+pub use observe::{ObserveError, ObserveNeed, Want, Who, observe};
+pub use ownership::{Hold, HoldKind, Ownership};
 pub use planner::{PlanError, plan};
 pub use sites::{
     MAX_FILE_SIZE, MAX_FILES, Password, SiteAddress, SiteContent, SiteFile, SiteSettings, SiteSpec,
@@ -65,5 +69,5 @@ pub(crate) use verify::probe;
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{
     Change, DnsState, InputError, NetworkView, PlanView, RouteHealth, RouteInput, RouteView,
-    RoutesOverview, StepKind, StepView, TunnelView, route_id,
+    RoutesOverview, StepKind, StepView, TunnelView, parse_lease_end, route_id,
 };

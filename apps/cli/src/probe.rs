@@ -53,8 +53,14 @@ impl Connectors for ProbedConnectors {
         Err(msg::raw(NOT_HERE))
     }
 
-    async fn stop(&self, _tunnel_id: &str) -> Result<(), Text> {
-        Err(msg::raw(NOT_HERE))
+    /// Nothing to stop when no connector of this machine answers (deleting a tunnel
+    /// from a CI job after its share ended); one that runs belongs to the app.
+    async fn stop(&self, tunnel_id: &str) -> Result<(), Text> {
+        if self.states.contains_key(tunnel_id) {
+            Err(msg::raw(NOT_HERE))
+        } else {
+            Ok(())
+        }
     }
 
     async fn deleted(&self, _tunnel_id: &str) {}

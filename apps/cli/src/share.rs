@@ -165,6 +165,7 @@ pub(crate) async fn run(
     origin: &str,
     stop_after: Option<Duration>,
     qr: bool,
+    json: bool,
     host_header: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
@@ -235,7 +236,7 @@ pub(crate) async fn run(
                 }
                 if !announced {
                     announced = true;
-                    announce(&url, &share, stop_after, qr)?;
+                    announce(&url, &share, stop_after, qr && !json, json)?;
                     // So the app can list this share, and stop it.
                     let started_at = teitunnel_core::domain_shares::now_ms();
                     let record = teitunnel_core::cli_shares::CliShare {
@@ -284,9 +285,11 @@ fn announce(
     share: &QuickShare,
     stop_after: Option<Duration>,
     qr: bool,
+    json: bool,
 ) -> Result<(), String> {
-    // The URL alone on stdout, so `teitunnel share 3000 | head -1` works in scripts.
-    out!("{url}")?;
+    // The URL alone on stdout (or `{"url", "hostname"}` with --json), so
+    // `teitunnel share 3000 | head -1` works in scripts.
+    out!("{}", url_line(url, json))?;
     if qr
         && io::stdout().is_terminal()
         && let Some(code) = qr_terminal(url)
@@ -321,67 +324,143 @@ fn describe(duration: Duration) -> String {
     parts.join(" ")
 }
 
+/// What `share --on` needs besides the service and hostname.
+#[derive(Debug, Default)]
+pub(crate) struct DomainShareOptions {
+    /// The account, when several are connected.
+    pub(crate) account: Option<String>,
+    /// Require a login.
+    pub(crate) allow: Option<teitunnel_core::engine::AccessRule>,
+    /// Stop by itself after this long.
+    pub(crate) stop_after: Option<Duration>,
+    /// Print `{"url", "hostname"}` on stdout instead of the bare URL.
+    pub(crate) json: bool,
+}
+
+/// Exit code for a hostname someone else holds (or a DNS record Teitunnel didn't
+/// create): scripts tell it from other failures.
+pub(crate) const EXIT_HELD: u8 = 3;
+
+/// Prints `message` as an error and exits with [`EXIT_HELD`].
+pub(crate) fn held(message: &str) -> ExitCode {
+    status(&format!("teitunnel: {message}"));
+    ExitCode::from(EXIT_HELD)
+}
+
+/// The URL line a share prints on stdout: the bare URL, or JSON for scripts.
+pub(crate) fn url_line(url: &str, json: bool) -> String {
+    if json {
+        let hostname = url
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_end_matches('/');
+        serde_json::json!({ "url": url, "hostname": hostname }).to_string()
+    } else {
+        url.to_owned()
+    }
+}
+
+/// Why a share on a domain was refused before anything changed: who holds the name, or
+/// a record Teitunnel didn't create.
+async fn refusal(
+    app: &crate::context::App,
+    api: &cf_api::Client,
+    account: &str,
+    hostname: &str,
+) -> String {
+    use teitunnel_core::{reservations, text::UserText as _};
+    match reservations::availability(&app.engine, api, account, hostname).await {
+        Ok(reservations::Availability::Held { hold }) => format!(
+            "{} A share never takes a name over; choose another hostname, or ask them to release it.",
+            reservations::describe(&hold).english()
+        ),
+        Ok(_) => {
+            format!("{hostname} has a DNS record Teitunnel didn't create. Choose another hostname.")
+        }
+        Err(err) => err.text().english(),
+    }
+}
+
 /// `teitunnel share <origin> --on <hostname>`: a temporary route on one of the
 /// account's domains, through this machine's tunnel, for as long as the command runs
-/// (or `--for`). The app, or an Always-on connector, serves it; the app also removes it
-/// if this command dies without doing so.
+/// (or `--for`). The app, or an Always-on connector, serves it; with neither running
+/// (a server, a CI job), this command runs the tunnel's connector itself until it ends.
+/// The app also removes the route if this command dies without doing so.
 pub(crate) async fn run_on_domain(
     app: &crate::context::App,
     hostname: &str,
     origin: &str,
-    account: Option<&str>,
-    allow: Option<teitunnel_core::engine::AccessRule>,
-    stop_after: Option<Duration>,
+    options: DomainShareOptions,
     host_header: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     use teitunnel_core::{
         domain::Hostname,
         domain_shares::{self, ShareRequest},
-        engine::Outcome,
+        engine::{Connectors as _, Outcome},
         runtime,
     };
+    let DomainShareOptions {
+        account,
+        allow,
+        stop_after,
+        json,
+    } = options;
     let host_header = host_header
         .resolve(origin)
         .await
         .map_err(|e| e.to_string())?;
-    let account = app.account(account).await?;
+    let account = app.account(account.as_deref()).await?;
     let api = app
         .accounts
         .client(&account.id)
         .await
         .map_err(|e| e.to_string())?;
-    let connectors = app.connectors(&account).await;
+    let probed = app.connectors(&account).await;
+    let served_elsewhere = app
+        .engine
+        .local()
+        .machine_tunnel(&account.id)
+        .await
+        .ok()
+        .flatten()
+        .is_some_and(|t| probed.is_running(&t.tunnel_id));
+    // Nobody serves this machine's tunnel: this command runs its connector.
+    let (machine, supervisor) = if served_elsewhere {
+        (None, None)
+    } else {
+        let (machine, supervisor) = app.machine(false).await;
+        (Some(machine), Some(supervisor))
+    };
     let ctx = app.context(&account);
     let expires_at = stop_after
         .map(|d| domain_shares::now_ms() + u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
     let owner = runtime::this_process();
-    let outcome = domain_shares::start(
-        &app.engine,
-        &api,
-        &connectors,
-        ctx,
-        ShareRequest {
-            hostname,
-            origin,
-            access: allow,
-            expires_at,
-            owner: &owner,
-            host_header: host_header.as_ref().map(|h| h.value.clone()),
-        },
-    )
-    .await
-    .map_err(|e| match e {
-        teitunnel_core::engine::EngineError::NeedsConfirmation => {
-            format!("{hostname} has a DNS record Teitunnel didn't create. Choose another hostname.")
+    let request = ShareRequest {
+        hostname,
+        origin,
+        access: allow,
+        expires_at,
+        owner: &owner,
+        host_header: host_header.as_ref().map(|h| h.value.clone()),
+    };
+    let started = match &machine {
+        Some(machine) => domain_shares::start(&app.engine, &api, machine, ctx, request).await,
+        None => domain_shares::start(&app.engine, &api, &probed, ctx, request).await,
+    };
+    let outcome = match started {
+        Ok(outcome) => outcome,
+        Err(teitunnel_core::engine::EngineError::NeedsConfirmation) => {
+            return Ok(held(&refusal(app, &api, &account.id, hostname).await));
         }
-        other => other.to_string(),
-    })?;
+        Err(other) => return Err(other.to_string()),
+    };
     let hostname = hostname.trim().to_ascii_lowercase();
     match outcome {
         Outcome::Applied {
             connector_error, ..
         } => {
-            out!("https://{hostname}")?;
+            let url = format!("https://{hostname}");
+            out!("{}", url_line(&url, json))?;
             if let Some(error) = connector_error {
                 status(&format!("Note: {}", error.english()));
             }
@@ -389,9 +468,10 @@ pub(crate) async fn run_on_domain(
                 || "Press Ctrl-C to stop.".to_owned(),
                 |d| format!("Stops in {}, or press Ctrl-C.", describe(d)),
             );
-            status(&format!(
-                "{origin} is public at https://{hostname}. {until}"
-            ));
+            status(&format!("{origin} is public at {url}. {until}"));
+            if machine.is_some() {
+                status("This command runs the tunnel's connector until the share ends.");
+            }
             announce_host_header(host_header.as_ref());
             if let Ok(host) = Hostname::parse(&hostname)
                 && let Ok(result) = app
@@ -403,6 +483,9 @@ pub(crate) async fn run_on_domain(
             }
         }
         Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } => {
+            if let Some(supervisor) = supervisor {
+                supervisor.stop_all().await;
+            }
             return Err(error.english());
         }
     }
@@ -415,7 +498,13 @@ pub(crate) async fn run_on_domain(
         }
         None => interrupted().await,
     }
-    let stopped = domain_shares::stop(&app.engine, &api, &connectors, ctx, &hostname).await;
+    let stopped = match &machine {
+        Some(machine) => domain_shares::stop(&app.engine, &api, machine, ctx, &hostname).await,
+        None => domain_shares::stop(&app.engine, &api, &probed, ctx, &hostname).await,
+    };
+    if let Some(supervisor) = supervisor {
+        supervisor.stop_all().await;
+    }
     match stopped {
         Ok(()) => {
             status("Stopped sharing; the route and its DNS record are removed.");

@@ -44,8 +44,14 @@ fn token_key(tunnel_id: &str) -> String {
     format!("tunnel:{tunnel_id}")
 }
 
-/// This Mac's name for a new tunnel: the host name without `.local`.
+/// This Mac's name for a new tunnel: `TEITUNNEL_MACHINE_NAME` when set (a CI job names
+/// its tunnel after the run), otherwise the host name without `.local`.
 pub fn machine_name() -> String {
+    if let Ok(name) = std::env::var("TEITUNNEL_MACHINE_NAME")
+        && !name.trim().is_empty()
+    {
+        return name.trim().to_owned();
+    }
     sysinfo::System::host_name()
         .map(|host| host.trim_end_matches(".local").to_owned())
         .filter(|host| !host.is_empty())

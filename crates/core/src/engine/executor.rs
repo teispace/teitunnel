@@ -30,6 +30,9 @@ static EMPTY: Snapshot = Snapshot {
     networks: None,
     balance: None,
     site: None,
+    held: Vec::new(),
+    owner: String::new(),
+    now: 0,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -38,7 +41,7 @@ use super::{
     networks::NETWORK_COMMENT,
     observe::{ObserveError, observe},
     planner::{PlanError, plan},
-    types::{Intent, Plan, Snapshot, Step, TunnelRef, ownership_comment, tunnel_target},
+    types::{Intent, Plan, Snapshot, Step, TunnelRef, tunnel_target},
 };
 use crate::domain::{Hostname, RouteOrigin};
 
@@ -346,20 +349,21 @@ impl Undo {
     }
 }
 
-fn route_id_from(comment: Option<&str>) -> &str {
+fn route_id_from(comment: Option<&str>) -> String {
     comment
-        .and_then(|c| c.strip_prefix("teitunnel:route="))
+        .and_then(super::ownership::Ownership::parse)
+        .and_then(|o| o.route_id().map(str::to_owned))
         .unwrap_or_default()
 }
 
-fn tunnel_cname(hostname: &str, tunnel_id: &str, route_id: &str) -> NewDnsRecord {
+fn tunnel_cname(hostname: &str, tunnel_id: &str, comment: &str) -> NewDnsRecord {
     NewDnsRecord {
         name: hostname.to_owned(),
         kind: "CNAME".to_owned(),
         content: tunnel_target(tunnel_id),
         proxied: true,
         ttl: 1,
-        comment: Some(ownership_comment(route_id)),
+        comment: Some(comment.to_owned()),
     }
 }
 
@@ -369,6 +373,8 @@ type Locks = HashMap<String, Arc<tokio::sync::Mutex<()>>>;
 #[derive(Debug)]
 pub struct Engine {
     local: Local,
+    /// Who this is, for the DNS comments it writes (`person@machine`).
+    owner: String,
     locks: Mutex<Locks>,
     cache: Mutex<HashMap<String, (Instant, Snapshot)>>,
 }
@@ -378,8 +384,30 @@ impl Engine {
     pub fn new(local: Local) -> Self {
         Self {
             local,
+            owner: super::ownership::owner_label(),
             locks: Mutex::default(),
             cache: Mutex::default(),
+        }
+    }
+
+    /// The same engine writing `owner` (`person@machine`) into the DNS comments it makes
+    /// instead of this user and machine.
+    #[must_use]
+    pub fn with_owner(mut self, owner: &str) -> Self {
+        self.owner = super::ownership::sanitize_owner(owner);
+        self
+    }
+
+    /// Who this engine writes into DNS comments.
+    pub fn owner(&self) -> &str {
+        &self.owner
+    }
+
+    /// Who observes, now.
+    pub fn who(&self) -> super::observe::Who<'_> {
+        super::observe::Who {
+            owner: &self.owner,
+            now: crate::domain_shares::now_ms(),
         }
     }
 
@@ -451,6 +479,7 @@ impl Engine {
             ctx.machine_name,
             hostnames.as_deref(),
             &ObserveNeed::of(intent),
+            self.who(),
         )
         .await?;
         self.cache
@@ -799,6 +828,7 @@ impl Engine {
             ctx.machine_name,
             Some(&[hostname]),
             &ObserveNeed::none(),
+            self.who(),
         )
         .await?;
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
@@ -1050,6 +1080,12 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .unwrap_or_else(|| id.to_owned())
     }
 
+    /// The comment for a route's record: the route and this owner, keeping the lease the
+    /// record held for this owner.
+    fn comment(&self, route_id: &str, previous: Option<&str>) -> String {
+        super::ownership::route_comment(route_id, &self.snapshot.owner, previous, self.snapshot.now)
+    }
+
     fn was_owned(&self, record_id: &str) -> bool {
         self.snapshot
             .records
@@ -1189,7 +1225,10 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             } => {
                 let target = self.resolve(tunnel)?;
                 let record = api
-                    .create_record(zone_id, &tunnel_cname(hostname, &target, route_id))
+                    .create_record(
+                        zone_id,
+                        &tunnel_cname(hostname, &target, &self.comment(route_id, None)),
+                    )
                     .await
                     .map_err(|e| e.text())?;
                 warn_local(
@@ -1212,7 +1251,11 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 previous,
             } => {
                 let target = self.resolve(tunnel)?;
-                let cname = tunnel_cname(hostname, &target, route_id);
+                let cname = tunnel_cname(
+                    hostname,
+                    &target,
+                    &self.comment(route_id, previous.comment.as_deref()),
+                );
                 let was_owned = self.was_owned(record_id);
                 let current = if previous.kind == cname.kind {
                     api.update_record(zone_id, record_id, &cname)
@@ -1246,6 +1289,66 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 Ok(Some(Undo::RecreateRecord {
                     zone: zone_id.clone(),
                     record: record.clone(),
+                    was_owned: self.was_owned(&record.id),
+                }))
+            }
+            Step::CreateReservation {
+                zone_id,
+                hostname,
+                until,
+            } => {
+                use super::ownership::{LEASE_ADDRESS, LEASE_KIND, Ownership};
+                let placeholder = NewDnsRecord {
+                    name: hostname.clone(),
+                    kind: LEASE_KIND.to_owned(),
+                    content: LEASE_ADDRESS.to_owned(),
+                    proxied: true,
+                    ttl: 1,
+                    comment: Some(Ownership::lease(&self.snapshot.owner, *until).render()),
+                };
+                let record = api
+                    .create_record(zone_id, &placeholder)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::DeleteRecord {
+                    zone: zone_id.clone(),
+                    id: record.id,
+                    name: hostname.clone(),
+                }))
+            }
+            Step::SetLease {
+                zone_id,
+                record,
+                lease,
+                until,
+            } => {
+                use super::ownership::{Marker, Ownership};
+                let mut ownership = record
+                    .comment
+                    .as_deref()
+                    .and_then(Ownership::parse)
+                    .unwrap_or(Ownership {
+                        marker: Marker::Lease,
+                        owner: None,
+                        lease: true,
+                        until: None,
+                    });
+                if ownership.owner.is_none() {
+                    ownership.owner = Some(self.snapshot.owner.clone());
+                }
+                ownership.lease = *lease || ownership.marker == Marker::Lease;
+                ownership.until = if *lease { *until } else { None };
+                let changed = NewDnsRecord {
+                    comment: Some(ownership.render()),
+                    ..record.to_new()
+                };
+                api.update_record(zone_id, &record.id, &changed)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RestoreRecord {
+                    zone: zone_id.clone(),
+                    previous: record.clone(),
+                    current: record.id.clone(),
                     was_owned: self.was_owned(&record.id),
                 }))
             }
@@ -1627,7 +1730,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     let route = route_id_from(previous.comment.as_deref());
                     warn_local(
                         self.local
-                            .own_record(account, zone, &restored.id, &previous.name, route)
+                            .own_record(account, zone, &restored.id, &previous.name, &route)
                             .await,
                     );
                 }
@@ -1645,7 +1748,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     let route = route_id_from(record.comment.as_deref());
                     warn_local(
                         self.local
-                            .own_record(account, zone, &created.id, &record.name, route)
+                            .own_record(account, zone, &created.id, &record.name, &route)
                             .await,
                     );
                 }

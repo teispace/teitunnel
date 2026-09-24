@@ -335,3 +335,70 @@ async fn builds_a_plain_html_project_without_running_anything() {
     assert!(!prepared.single_page);
     assert!(matches!(prepared.source, SnapshotSource::Folder { .. }));
 }
+
+#[tokio::test]
+async fn a_snapshot_published_elsewhere_is_adopted_updated_and_deleted() {
+    // A CI job published it; the next job (a fresh machine, same account) updates it.
+    let mut s = Setup::new();
+    let dir = folder(&[("index.html", "<h1>v1</h1>")]);
+    let prepared = s.preparations.folder(dir.path()).await.unwrap();
+    let publish = SnapshotChange::Publish {
+        prepared: prepared.id.clone(),
+        name: "pr-42".into(),
+        address: AddressInput::Domain {
+            hostname: "pr-42.xyz.com".into(),
+        },
+        options: options(),
+    };
+    s.go(&publish).await.unwrap();
+
+    // The next job: nothing remembered locally.
+    s.engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+    assert!(matches!(
+        find(&s.engine, "acc", "pr-42").await,
+        Err(SnapshotError::NotFound)
+    ));
+    assert!(
+        adopt(&s.engine, &s.cloud, "acc", "nothing-here", "cli")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let adopted = find_or_adopt(&s.engine, &s.cloud, "acc", "pr-42.xyz.com", "cli")
+        .await
+        .unwrap();
+    assert_eq!(adopted.name, "pr-42");
+    assert_eq!(adopted.url, "https://pr-42.xyz.com");
+    assert_eq!(
+        find(&s.engine, "acc", "pr-42").await.unwrap().id,
+        adopted.id,
+        "remembered here now"
+    );
+
+    let dir = folder(&[("index.html", "<h1>v2</h1>")]);
+    let prepared = s.preparations.folder(dir.path()).await.unwrap();
+    let update = SnapshotChange::Update {
+        snapshot: adopted.id.clone(),
+        prepared: Some(prepared.id.clone()),
+        options: options(),
+    };
+    assert!(matches!(
+        s.go(&update).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
+    let delete = SnapshotChange::Delete {
+        snapshot: adopted.id,
+    };
+    assert!(matches!(
+        s.go(&delete).await.unwrap(),
+        Outcome::Applied { .. }
+    ));
+    assert!(list(&s.engine, Some("acc")).await.unwrap().is_empty());
+    assert!(
+        adopt(&s.engine, &s.cloud, "acc", "pr-42", "cli")
+            .await
+            .unwrap()
+            .is_none(),
+        "the Worker is gone"
+    );
+}

@@ -198,6 +198,40 @@ enum Command {
         /// Pass the visitor's Host header through unchanged, even to a dev server.
         #[arg(long)]
         no_host_header: bool,
+        /// Print `{"url": …, "hostname": …}` on stdout once it's live (for scripts and CI).
+        #[arg(long)]
+        json: bool,
+    },
+    /// Reserve a hostname so teammates sharing the account see it's taken (a placeholder
+    /// DNS record with your name, until a date or until released). Reserving it again
+    /// changes the end date; a route you add there keeps the reservation.
+    Reserve {
+        /// The hostname, e.g. `alice.dev.example.com`.
+        hostname: String,
+        /// When it ends: `2026-12-31` (end of that day, UTC) or `2026-12-31T18:00Z`.
+        #[arg(long, value_name = "DATE")]
+        until: Option<String>,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// List the account's reserved hostnames and who holds them (`reservations ls`).
+    Reservations {
+        /// `ls` (the default).
+        #[arg(value_enum, default_value = "ls")]
+        action: ReservationsAction,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Give up a hostname's reservation (a route there stays).
+    Release {
+        /// The hostname.
+        hostname: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
     },
     /// List shares on your domains (from the app or any terminal), or stop one.
     Shares {
@@ -460,6 +494,10 @@ struct ApplyArgs {
     /// didn't create, or routing a public range.
     #[arg(long)]
     replace: bool,
+    /// Take a hostname someone else holds (their reservation, or another machine's
+    /// route).
+    #[arg(long)]
+    take_over: bool,
     /// One of this machine's tunnels, by name. Default: the tunnel carrying the route,
     /// or the default tunnel for a new one.
     #[arg(long)]
@@ -469,6 +507,11 @@ struct ApplyArgs {
 fn parse_range(value: &str) -> Result<teitunnel_core::analytics::AnalyticsRange, String> {
     teitunnel_core::analytics::AnalyticsRange::parse(value)
         .ok_or_else(|| format!("`{value}` isn't a range; use hour, day, week or month."))
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ReservationsAction {
+    Ls,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -517,10 +560,11 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: None,
             host_header,
             no_host_header,
+            json,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            return share::run(&origin, stop_after, !no_qr, &host_header).await;
+            return share::run(&origin, stop_after, !no_qr, json, &host_header).await;
         }
         Command::Setup => return setup().await,
         Command::Mcp {
@@ -553,19 +597,36 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             allow,
             host_header,
             no_host_header,
+            json,
             ..
         } => {
             share::run_on_domain(
                 &app,
                 &hostname,
                 &origin,
-                account.as_deref(),
-                access_rule(&allow),
-                stop_after,
+                share::DomainShareOptions {
+                    account,
+                    allow: access_rule(&allow),
+                    stop_after,
+                    json,
+                },
                 &share::host_header_choice(host_header, no_host_header),
             )
             .await
         }
+        Command::Reserve {
+            hostname,
+            until,
+            apply,
+        } => change_routes(&app, Change::ReserveHostname { hostname, until }, &apply).await,
+        Command::Release { hostname, apply } => {
+            change_routes(&app, Change::ReleaseHostname { hostname }, &apply).await
+        }
+        Command::Reservations {
+            action: ReservationsAction::Ls,
+            account,
+            json,
+        } => reservations(&app, account.as_deref(), json).await,
         Command::Share { .. }
         | Command::Completions { .. }
         | Command::Setup
@@ -1204,6 +1265,21 @@ fn warning_text(warning: &Warning) -> String {
         } => format!(
             "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
         ),
+        Warning::HeldBy {
+            hostname,
+            owner,
+            until,
+            kind,
+        } => format!(
+            "{} Pass --take-over to take it.",
+            teitunnel_core::reservations::describe(&teitunnel_core::engine::Hold {
+                hostname: hostname.clone(),
+                owner: owner.clone(),
+                until: *until,
+                kind: *kind,
+            })
+            .english()
+        ),
     }
 }
 
@@ -1216,6 +1292,74 @@ fn print_plan(plan: &Plan, account_id: &str) -> Result<(), String> {
         out!("{:>2}. {}", index + 1, step.description)?;
     }
     Ok(())
+}
+
+/// What a plan needs confirming: taking a name someone else holds (`--take-over`), and
+/// anything else (`--replace`: records Teitunnel didn't create, public ranges).
+fn confirmations(plan: &Plan) -> (bool, bool) {
+    let held = plan
+        .warnings
+        .iter()
+        .any(|w| matches!(w, Warning::HeldBy { .. }));
+    let other = plan.warnings.iter().any(|w| {
+        matches!(
+            w,
+            Warning::ReplacesForeignRecord { .. }
+                | Warning::DeletesForeignRecord { .. }
+                | Warning::PublicNetwork { .. }
+        )
+    });
+    (held, other || (plan.requires_confirmation && !held))
+}
+
+/// `reservations ls`: the account's reserved hostnames and who holds them.
+async fn reservations(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    use teitunnel_core::engine::ownership::format_until;
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let listed = teitunnel_core::reservations::list(&app.engine, &api, &account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    if json {
+        out!(
+            "{}",
+            serde_json::to_string(&listed).map_err(|e| e.to_string())?
+        )?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    if listed.cached {
+        let _ = writeln!(
+            io::stderr().lock(),
+            "Cloudflare couldn't be reached; these are the reservations seen last."
+        );
+    }
+    if listed.items.is_empty() {
+        out!(
+            "No reserved hostnames in {}. Reserve one with `teitunnel reserve <hostname>`.",
+            account.name
+        )?;
+    }
+    for r in &listed.items {
+        let owner = if r.mine {
+            "you".to_owned()
+        } else {
+            r.owner
+                .clone()
+                .unwrap_or_else(|| "another Teitunnel".to_owned())
+        };
+        let until = match (r.ended, r.until) {
+            (true, Some(at)) => format!("ended {}", format_until(at)),
+            (_, Some(at)) => format!("until {}", format_until(at)),
+            (_, None) => "no end date".to_owned(),
+        };
+        let routed = if r.routed { "\troutes it" } else { "" };
+        out!("{}\t{owner}\t{until}{routed}", r.hostname)?;
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Asks `question` (y/N). Without a terminal to ask on, `--yes` is needed.
@@ -1260,7 +1404,13 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
         return Ok(ExitCode::SUCCESS);
     }
     print_plan(&plan, &account.id)?;
-    if plan.requires_confirmation && !apply.replace {
+    let (held, other) = confirmations(&plan);
+    if held && !apply.take_over {
+        return Ok(share::held(
+            "Someone else holds this hostname (see above). Pass --take-over to take it.",
+        ));
+    }
+    if plan.requires_confirmation && other && !apply.replace {
         return Err("This needs a confirmation (see above). Pass --replace to allow it.".into());
     }
     if !apply.yes && !confirm("Apply?")? {
@@ -1272,7 +1422,7 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
     let steps = plan.view(&account.id).steps;
     let approval = Approval {
         fingerprint: &plan.fingerprint,
-        confirmed: apply.replace,
+        confirmed: apply.replace || apply.take_over,
     };
     let outcome = app
         .engine

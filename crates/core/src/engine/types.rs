@@ -129,6 +129,17 @@ pub struct Snapshot {
     /// A Snapshot's Worker; read only when a change involves one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub site: Option<super::sites::SiteState>,
+    /// The hostnames involved that someone else holds (another machine's route, or a
+    /// reservation that hasn't ended).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub held: Vec<super::ownership::Hold>,
+    /// Who this is, written into the DNS comments Teitunnel makes (not part of the
+    /// fingerprint).
+    #[serde(skip)]
+    pub owner: String,
+    /// When it was observed (milliseconds since the epoch; not part of the fingerprint).
+    #[serde(skip)]
+    pub now: u64,
 }
 
 impl Snapshot {
@@ -279,6 +290,18 @@ pub enum Intent {
         /// The Snapshot.
         site: SiteSpec,
     },
+    /// Reserve a hostname for this owner (a lease in DNS, M12-11).
+    Reserve {
+        /// The hostname.
+        hostname: Hostname,
+        /// When the lease ends (milliseconds since the epoch); `None`: never.
+        until: Option<u64>,
+    },
+    /// Give up the reservation of a hostname.
+    Release {
+        /// The hostname.
+        hostname: Hostname,
+    },
 }
 
 impl Intent {
@@ -292,7 +315,9 @@ impl Intent {
             Self::RemoveRoute { hostname, .. }
             | Self::DeleteRecord { hostname, .. }
             | Self::BalanceRoute { hostname }
-            | Self::UnbalanceRoute { hostname } => Some(vec![hostname]),
+            | Self::UnbalanceRoute { hostname }
+            | Self::Reserve { hostname, .. }
+            | Self::Release { hostname } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -372,6 +397,16 @@ impl Intent {
             }
             Self::DeleteSnapshot { site } => {
                 crate::text::msg::snapshot::summary::delete(&site.name)
+            }
+            Self::Reserve { hostname, until } => match until {
+                Some(until) => crate::text::msg::reservations::summary::reserve_until(
+                    hostname,
+                    super::ownership::format_until(*until),
+                ),
+                None => crate::text::msg::reservations::summary::reserve(hostname),
+            },
+            Self::Release { hostname } => {
+                crate::text::msg::reservations::summary::release(hostname)
             }
         }
     }
@@ -646,6 +681,27 @@ pub enum Step {
         /// The Worker.
         script: String,
     },
+    /// Hold a hostname nobody routes with a placeholder record (a proxied `AAAA 100::`
+    /// carrying the lease in its comment).
+    CreateReservation {
+        /// Zone id.
+        zone_id: String,
+        /// The hostname.
+        hostname: String,
+        /// When the lease ends (milliseconds since the epoch); `None`: never.
+        until: Option<u64>,
+    },
+    /// Change the lease a Teitunnel record carries (only its comment changes).
+    SetLease {
+        /// Zone id.
+        zone_id: String,
+        /// The record as it is (for rollback and review).
+        record: DnsRecord,
+        /// Whether it holds a reservation afterwards.
+        lease: bool,
+        /// When the lease ends.
+        until: Option<u64>,
+    },
 }
 
 impl Step {
@@ -725,6 +781,32 @@ impl Step {
             }
             Self::DeleteSnapshotWorker { script, .. } => {
                 crate::text::msg::snapshot::step::delete_worker(script)
+            }
+            Self::CreateReservation {
+                hostname, until, ..
+            } => {
+                use crate::text::msg::reservations::step as r;
+                match until {
+                    Some(until) => {
+                        r::create_until(hostname, super::ownership::format_until(*until))
+                    }
+                    None => r::create(hostname),
+                }
+            }
+            Self::SetLease {
+                record,
+                lease,
+                until,
+                ..
+            } => {
+                use crate::text::msg::reservations::step as r;
+                match (lease, until) {
+                    (true, Some(until)) => {
+                        r::keep_until(&record.name, super::ownership::format_until(*until))
+                    }
+                    (true, None) => r::keep(&record.name),
+                    (false, _) => r::end(&record.name),
+                }
             }
         }
     }
@@ -879,6 +961,19 @@ pub enum Warning {
         other: String,
         /// The other route's tunnel.
         tunnel: String,
+    },
+    /// Someone else holds the hostname (another machine's route, or a reservation that
+    /// hasn't ended): going ahead takes it over, which needs a confirmation.
+    HeldBy {
+        /// Hostname.
+        hostname: String,
+        /// Who (`person@machine`); `None` when an older Teitunnel made it.
+        owner: Option<String>,
+        /// Until when (milliseconds since the epoch); `None`: no end.
+        #[cfg_attr(feature = "specta", specta(type = Option<f64>))]
+        until: Option<u64>,
+        /// Reserved or routed.
+        kind: super::ownership::HoldKind,
     },
 }
 
