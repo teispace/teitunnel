@@ -821,6 +821,8 @@
       "contacting": "Contacting GitHub…",
       "downloading": "Downloading {received} of {total} MB",
       "verifying": "Checking the checksum and Cloudflare's signature…",
+      "verifying@windows": "Checking the checksums…",
+      "verifying@linux": "Checking the checksums…",
       "installing": "Installing…"
     },
     "tooOld": "cloudflared {version} is too old",
@@ -828,6 +830,8 @@
     "missing": "cloudflared isn't installed",
     "tooOldDetail": "Teitunnel needs cloudflared 2025.6.1 or later. Install a current copy for Teitunnel; your existing installation stays as it is.",
     "missingDetail": "Teitunnel uses cloudflared, Cloudflare's connector. It's downloaded from Cloudflare's GitHub releases and checked against the published checksum and Cloudflare's code signature before it's used.",
+    "missingDetail@windows": "Teitunnel uses cloudflared, Cloudflare's connector. It's downloaded from Cloudflare's GitHub releases and checked against the checksums GitHub and Cloudflare publish before it's used.",
+    "missingDetail@linux": "Teitunnel uses cloudflared, Cloudflare's connector. It's downloaded from Cloudflare's GitHub releases and checked against the checksums GitHub and Cloudflare publish before it's used.",
     "installing": "Installing cloudflared",
     "install": "Install cloudflared",
     "checkAgain": "Check Again",

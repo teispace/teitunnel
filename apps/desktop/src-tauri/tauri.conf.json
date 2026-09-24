@@ -87,6 +87,18 @@
     ],
     "macOS": {
       "minimumSystemVersion": "14.0"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libayatana-appindicator3-1"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "libayatana-appindicator3.so.1()(64bit)"
+        ]
+      }
     }
   },
   "plugins": {

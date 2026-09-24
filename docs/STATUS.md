@@ -25,6 +25,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Nothing.
 
 ## Recently completed
+- 2026-09-24: **Linux fix** (D-087): the 0.1.0 `.deb`/`.rpm` lacked the tray library dependency, so the app aborted at launch on clean systems; packages now depend on it and the app runs without a tray icon if it's missing. Release workflow `check` job installs, launches (light/dark screenshots), checks the tray and uninstalls every package on Windows 11, Windows x64, Ubuntu 22.04, Ubuntu 24.04 arm64 and Fedora before publishing. Needs a 0.1.1 release.
 - 2026-09-24: SignPath declined for now: the code signing policy page, the "Signed by Teispace and notarized by Apple" badge and the SignPath notes were removed from the site; Windows SmartScreen instructions kept (D-085).
 - 2026-09-24: M6-04 channels (D-084): `ghcr.io/teispace/teitunnel` for amd64/arm64 built from each release's verified `teitunnel-cli` (`image.yml`, started by the release; SBOM and provenance); Homebrew tap `teispace/homebrew-tap` (cask with the CLI linked, formula with completions and `cloudflared`), tested on macOS and Linux and kept current by the tap itself; winget job with Komac behind `WINGET_TOKEN`. Download page lists Homebrew and Docker commands; install, servers, Compose and verify docs updated.
 - 2026-09-24: SignPath Foundation application submitted by the maintainer. release-please ignores commits that only touch `apps/web/` or `docs/` (no empty app releases); the 0.2.0 release PR it opened for a website change was closed.

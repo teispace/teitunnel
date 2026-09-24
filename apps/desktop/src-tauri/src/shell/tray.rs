@@ -91,6 +91,13 @@ struct TrayModel(std::sync::Mutex<(Vec<QuickShare>, TrayRoutes)>);
 /// Adds the menu bar icon, hidden unless `visible`.
 pub fn install<R: Runtime>(app: &AppHandle<R>, visible: bool) -> tauri::Result<()> {
     app.manage(TrayModel::default());
+    #[cfg(target_os = "linux")]
+    if !indicator::available() {
+        // Creating the icon would abort the app; run without one (closing the window then
+        // quits, see `is_visible`).
+        tracing::warn!("no libayatana-appindicator3 or libappindicator3: no tray icon");
+        return Ok(());
+    }
     let tray = TrayIconBuilder::with_id(ID)
         .icon(tauri::include_image!("icons/tray-template.png"))
         .icon_as_template(true)
@@ -125,10 +132,12 @@ pub fn is_visible() -> bool {
 
 /// Shows or hides the menu bar icon (the "Show in menu bar" setting).
 pub fn set_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
+    // Without an icon (Linux without an indicator library) it can never show.
+    let Some(tray) = app.tray_by_id(ID) else {
+        return;
+    };
     VISIBLE.store(visible, std::sync::atomic::Ordering::SeqCst);
-    if let Some(tray) = app.tray_by_id(ID)
-        && let Err(err) = tray.set_visible(visible)
-    {
+    if let Err(err) = tray.set_visible(visible) {
         tracing::warn!(error = %err, "failed to change menu bar icon visibility");
     }
 }
@@ -436,5 +445,147 @@ mod tests {
             Some(m::stop_routes().english())
         );
         assert_eq!(model(&[], TrayConnectors::None).toggle_title(), None);
+    }
+}
+
+/// Linux shows tray icons through libayatana-appindicator (or the older libappindicator),
+/// which the tray loads when the icon is created and aborts the app if it's missing. The
+/// packages depend on it, but an AppImage or a trimmed system may not have it, so look for
+/// it first where the dynamic loader would.
+#[cfg(any(target_os = "linux", test))]
+mod indicator {
+    use std::path::{Path, PathBuf};
+
+    const LIBRARIES: [&str; 4] = [
+        "libayatana-appindicator3.so.1",
+        "libappindicator3.so.1",
+        "libayatana-appindicator3.so",
+        "libappindicator3.so",
+    ];
+
+    #[cfg(target_os = "linux")]
+    const SYSTEM_DIRS: [&str; 10] = [
+        "/usr/lib",
+        "/usr/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/lib",
+        "/lib64",
+        "/lib/x86_64-linux-gnu",
+        "/lib/aarch64-linux-gnu",
+        "/usr/local/lib",
+        "/usr/local/lib64",
+    ];
+
+    /// Whether an indicator library is installed.
+    #[cfg(target_os = "linux")]
+    pub(super) fn available() -> bool {
+        let mut dirs = env_dirs(
+            std::env::var_os("LD_LIBRARY_PATH").as_deref(),
+            std::env::var_os("APPDIR").as_deref(),
+        );
+        dirs.extend(ld_so_conf_dirs(Path::new("/etc/ld.so.conf.d")));
+        dirs.extend(SYSTEM_DIRS.iter().map(PathBuf::from));
+        found_in(&dirs)
+    }
+
+    /// `LD_LIBRARY_PATH`, and an AppImage's own libraries.
+    pub(super) fn env_dirs(
+        ld_library_path: Option<&std::ffi::OsStr>,
+        appdir: Option<&std::ffi::OsStr>,
+    ) -> Vec<PathBuf> {
+        let mut dirs: Vec<PathBuf> = ld_library_path
+            .map(|p| std::env::split_paths(p).collect())
+            .unwrap_or_default();
+        if let Some(appdir) = appdir {
+            let appdir = Path::new(appdir);
+            dirs.push(appdir.join("usr/lib"));
+            dirs.push(appdir.join("usr/lib64"));
+        }
+        dirs
+    }
+
+    /// Directories listed in the loader's `*.conf` files (absolute paths only).
+    pub(super) fn ld_so_conf_dirs(conf_d: &Path) -> Vec<PathBuf> {
+        let Ok(entries) = std::fs::read_dir(conf_d) else {
+            return Vec::new();
+        };
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "conf"))
+            .collect();
+        files.sort();
+        files
+            .iter()
+            .filter_map(|f| std::fs::read_to_string(f).ok())
+            .flat_map(|text| {
+                text.lines()
+                    .map(|l| l.split('#').next().unwrap_or_default().trim().to_owned())
+                    .filter(|l| l.starts_with('/'))
+                    .map(PathBuf::from)
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Whether any of the libraries is in any of the directories.
+    pub(super) fn found_in(dirs: &[PathBuf]) -> bool {
+        dirs.iter()
+            .any(|dir| LIBRARIES.iter().any(|lib| dir.join(lib).exists()))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn finds_the_library_in_any_listed_directory() {
+            let empty = tempfile::tempdir().unwrap();
+            let lib = tempfile::tempdir().unwrap();
+            let dirs = [empty.path().to_owned(), lib.path().to_owned()];
+            assert!(!found_in(&dirs));
+            std::fs::write(lib.path().join("libayatana-appindicator3.so.1"), b"").unwrap();
+            assert!(found_in(&dirs));
+        }
+
+        #[test]
+        fn reads_the_loader_configuration() {
+            let conf = tempfile::tempdir().unwrap();
+            std::fs::write(
+                conf.path().join("x86_64-linux-gnu.conf"),
+                "# Multiarch support\n/usr/local/lib/x86_64-linux-gnu\n/lib/x86_64-linux-gnu # trailing\n",
+            )
+            .unwrap();
+            std::fs::write(conf.path().join("other.txt"), "/ignored\n").unwrap();
+            std::fs::write(
+                conf.path().join("include.conf"),
+                "include /etc/more/*.conf\n",
+            )
+            .unwrap();
+            assert_eq!(
+                ld_so_conf_dirs(conf.path()),
+                [
+                    PathBuf::from("/usr/local/lib/x86_64-linux-gnu"),
+                    PathBuf::from("/lib/x86_64-linux-gnu"),
+                ]
+            );
+            assert!(ld_so_conf_dirs(&conf.path().join("missing")).is_empty());
+        }
+
+        #[test]
+        fn includes_ld_library_path_and_the_appimage() {
+            let dirs = env_dirs(Some("/a:/b".as_ref()), Some("/tmp/.mount_x".as_ref()));
+            assert_eq!(
+                dirs,
+                [
+                    "/a",
+                    "/b",
+                    "/tmp/.mount_x/usr/lib",
+                    "/tmp/.mount_x/usr/lib64"
+                ]
+                .map(PathBuf::from)
+            );
+            assert!(env_dirs(None, None).is_empty());
+        }
     }
 }
