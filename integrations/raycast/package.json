@@ -1,0 +1,72 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "teitunnel",
+  "title": "Teitunnel",
+  "description": "Share a local port at a public address, see and stop your shares, and run Teitunnel's Doctor, through the Teitunnel app.",
+  "icon": "icon.png",
+  "author": "teispace",
+  "platforms": ["macOS", "Windows"],
+  "categories": ["Developer Tools"],
+  "license": "MIT",
+  "keywords": ["tunnel", "cloudflare", "localhost", "share", "dev server"],
+  "commands": [
+    {
+      "name": "share-port",
+      "title": "Share Port",
+      "subtitle": "Teitunnel",
+      "description": "Share a local port at a public address and copy the address.",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "port",
+          "placeholder": "3000",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "list-shares",
+      "title": "List Shares",
+      "subtitle": "Teitunnel",
+      "description": "Your shares: copy an address, open it, open its requests or stop it.",
+      "mode": "view"
+    },
+    {
+      "name": "open-teitunnel",
+      "title": "Open Teitunnel",
+      "subtitle": "Teitunnel",
+      "description": "Bring the Teitunnel app to the front.",
+      "mode": "no-view"
+    },
+    {
+      "name": "run-doctor",
+      "title": "Run Doctor",
+      "subtitle": "Teitunnel",
+      "description": "Check routes, shares and the connector for problems.",
+      "mode": "view"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "2.5.1",
+    "@raycast/utils": "2.3.1"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "2.2.0",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
+    "eslint": "9.39.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "build": "npm run vendor:check && ray build",
+    "dev": "npm run vendor && ray develop",
+    "lint": "ray lint",
+    "fix-lint": "ray lint --fix",
+    "vendor": "node scripts/vendor.mjs",
+    "vendor:check": "node scripts/vendor.mjs --check",
+    "test": "node scripts/vendor.mjs --check && node --test test/",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}

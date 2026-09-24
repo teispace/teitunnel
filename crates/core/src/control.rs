@@ -8,6 +8,7 @@
 //! changed) comes through the [`Ui`] port.
 
 pub mod integrations;
+pub mod requests;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
@@ -317,29 +318,12 @@ impl CoreHost {
     }
 
     async fn await_url(&self, id: &str) -> HostResult<QuickShare> {
-        let quick = &self.parts.quick_shares;
-        let mut changes = quick.subscribe();
-        let deadline = tokio::time::Instant::now() + URL_TIMEOUT;
-        loop {
-            match quick.list().into_iter().find(|s| s.id == id) {
-                None => return Err(error(code::INTERNAL, &m::error::no_url())),
-                Some(QuickShare {
-                    status: ShareStatus::Failed { message },
-                    ..
-                }) => return Err(error(code::INTERNAL, &message)),
-                Some(share) if share.status == ShareStatus::Live && share.url.is_some() => {
-                    return Ok(share);
-                }
-                Some(_) => {}
-            }
-            tokio::select! {
-                _ = changes.recv() => {}
-                () = tokio::time::sleep(Duration::from_millis(500)) => {}
-                () = tokio::time::sleep_until(deadline) => {
-                    let _ = quick.stop(id).await;
-                    return Err(error(code::TIMEOUT, &m::error::url_timeout()));
-                }
-            }
+        use crate::quick_actions::{Live, wait_live};
+        match wait_live(&self.parts.quick_shares, id, URL_TIMEOUT).await {
+            Live::Ready(share) => Ok(*share),
+            Live::Failed(message) => Err(error(code::INTERNAL, &message)),
+            Live::Gone => Err(error(code::INTERNAL, &m::error::no_url())),
+            Live::TimedOut => Err(error(code::TIMEOUT, &m::error::url_timeout())),
         }
     }
 

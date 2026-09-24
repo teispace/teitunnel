@@ -26,8 +26,9 @@ pub async fn integrations_get(state: State<'_, AppState>) -> Result<Integrations
     Ok(integrations::load(&state.store).await?)
 }
 
-/// Turns the control connection or links on or off. Turning the connection off closes
-/// every open connection.
+/// Turns the control connection or links on or off, or changes the global shortcut.
+/// Turning the connection off closes every open connection. A shortcut the system
+/// refuses (another app has it) isn't saved: the previous one stays.
 #[tauri::command]
 #[specta::specta]
 pub async fn integrations_set(
@@ -35,7 +36,20 @@ pub async fn integrations_set(
     state: State<'_, AppState>,
     patch: IntegrationsPatch,
 ) -> Result<Integrations, AppError> {
+    let previous = integrations::load(&state.store).await?;
+    let shortcut_changed = patch.shortcut.is_some();
     let updated = integrations::update(&state.store, patch).await?;
+    if shortcut_changed && let Err(err) = crate::shell::shortcut::apply(&app, &updated.shortcut) {
+        let restore = IntegrationsPatch {
+            shortcut: Some(previous.shortcut.clone()),
+            ..IntegrationsPatch::default()
+        };
+        integrations::update(&state.store, restore).await?;
+        if let Err(again) = crate::shell::shortcut::apply(&app, &previous.shortcut) {
+            tracing::warn!(%again, "couldn't restore the previous global shortcut");
+        }
+        return Err(err.into());
+    }
     if updated.control_enabled {
         state.control.start();
     } else {

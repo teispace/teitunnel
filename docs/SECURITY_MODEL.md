@@ -115,7 +115,21 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   question is shown at a time; links that only open a view don't ask. Links can be turned
   off. Nothing a link carries is passed to a process.
 - Errors and texts sent over the connection are English sentences with no secrets; the
-  protocol carries no credentials.
+  protocol carries no credentials. `requestArrived` sends the method, the path with
+  secrets masked (as the inspector's list shows it), status and duration, never headers
+  or bodies; it's bounded (at most 10 events per 250 ms) and only produced while a client
+  subscribes.
+- The editor and launcher extensions (`integrations/`: VS Code, Raycast, JetBrains) read
+  the token file themselves, hold it in memory only, and never log it or put it in an
+  error message; their names (`vscode`, `raycast`, `jetbrains`) are self-declared like
+  any client's, so **Always Allow** trusts a name, not a signed program. Any process of
+  the same user could claim one; that's the same trust boundary as reading the token.
+  They never share or stop anything without the app's approval, and a declined change is
+  reported quietly.
+- The menu bar's one-click share and the global shortcut (off by default) act on the
+  person's own click or key press, so they don't ask; they run the exposure check first
+  (D-108) and open the Quick Share sheet instead of sharing when it finds something. A
+  shortcut another app holds is refused, and nothing is registered while it's off.
 
 ### Inspector (captured traffic, `core::inspect` over `crates/lens`)
 - Taps listen on loopback only. Captures stay in the process's memory and, masked, in the

@@ -966,6 +966,16 @@ impl Inspector {
             .map(|(_, name, _)| name.clone())
     }
 
+    /// What a tap (running or known) inspects.
+    pub fn tap_scope(&self, tap: &TapId) -> Option<TapScope> {
+        if let Some(entry) = lock(&self.inner.taps).get(tap) {
+            return Some(entry.scope.clone());
+        }
+        lock(&self.inner.known)
+            .get(tap)
+            .map(|(scope, _, _)| scope.clone())
+    }
+
     /// A page of raw captures (for statistics and exports in this process); text search
     /// runs on the masked view.
     pub fn list_raw(&self, query: &lens::Query) -> lens::Page {
@@ -1277,7 +1287,7 @@ fn check_idle(inner: &Inner) {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod error_tests {

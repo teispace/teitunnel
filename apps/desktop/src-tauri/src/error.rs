@@ -157,6 +157,22 @@ impl From<teitunnel_core::backup::BackupError> for AppError {
     }
 }
 
+impl From<teitunnel_core::control::integrations::ShortcutError> for AppError {
+    fn from(err: teitunnel_core::control::integrations::ShortcutError) -> Self {
+        Self::invalid("shortcut", err.text())
+    }
+}
+
+impl From<teitunnel_core::control::integrations::IntegrationsError> for AppError {
+    fn from(err: teitunnel_core::control::integrations::IntegrationsError) -> Self {
+        use teitunnel_core::control::integrations::IntegrationsError as I;
+        match err {
+            I::Shortcut(err) => err.into(),
+            I::Store(err) => err.into(),
+        }
+    }
+}
+
 impl From<teitunnel_core::domain::OriginError> for AppError {
     fn from(err: teitunnel_core::domain::OriginError) -> Self {
         Self::invalid("origin", err.text())

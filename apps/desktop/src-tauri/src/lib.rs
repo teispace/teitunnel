@@ -74,6 +74,8 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Settings ▸ Integrations ▸ Global shortcut (nothing is registered until it's on).
+        .plugin(shell::shortcut::plugin())
         // Open at login starts hidden, into the menu bar (`--hidden`).
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -101,6 +103,8 @@ pub fn run() -> Result<(), tauri::Error> {
             app.manage(bootstrap::init(app.handle())?);
             // After the state exists: a link that launched the app is handled now.
             shell::control::listen_for_links(app.handle());
+            shell::shortcut::restore(app.handle());
+            shell::tray::refresh_services(app.handle());
             app.manage(shell::updates::Updates::new());
             shell::updates::spawn_schedule(app.handle());
             tauri::async_runtime::spawn_blocking(ipc::cli::refresh_installed);

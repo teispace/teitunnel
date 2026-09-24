@@ -133,6 +133,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         &quick_shares,
         &binary,
     );
+    tauri::async_runtime::spawn(Arc::clone(&control.host).forward_requests(inspector.clone()));
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),
@@ -567,7 +568,7 @@ fn any_window_focused<R: Runtime>(app: &AppHandle<R>) -> bool {
 }
 
 /// Shows a notification in the user's language, unless a Teitunnel window is in front.
-fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
+pub(crate) fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     if any_window_focused(app) {
         return;
     }

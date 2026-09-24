@@ -1,0 +1,243 @@
+{
+  "name": "teitunnel",
+  "displayName": "Teitunnel",
+  "description": "Share a dev server at a public address in one step, see your shares and routes, and open the request inspector, through the Teitunnel app.",
+  "version": "0.1.0",
+  "publisher": "teispace",
+  "private": true,
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/teispace/teitunnel",
+    "directory": "integrations/vscode"
+  },
+  "homepage": "https://teitunnel.teispace.com/docs/guides/integrations",
+  "bugs": "https://github.com/teispace/teitunnel/issues",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "tunnel",
+    "cloudflare",
+    "share",
+    "localhost",
+    "dev server",
+    "webhook"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "teitunnel.sharePort",
+        "title": "Share Port…",
+        "category": "Teitunnel",
+        "icon": "$(add)"
+      },
+      {
+        "command": "teitunnel.shareDevServer",
+        "title": "Share This Workspace's Dev Server",
+        "category": "Teitunnel",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "teitunnel.sharePortsItem",
+        "title": "Share with Teitunnel",
+        "category": "Teitunnel"
+      },
+      {
+        "command": "teitunnel.stopShare",
+        "title": "Stop Share",
+        "category": "Teitunnel",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "teitunnel.copyUrl",
+        "title": "Copy Address",
+        "category": "Teitunnel",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "teitunnel.openInBrowser",
+        "title": "Open in Browser",
+        "category": "Teitunnel",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "teitunnel.openInspector",
+        "title": "Open Inspector",
+        "category": "Teitunnel",
+        "icon": "$(inspect)"
+      },
+      {
+        "command": "teitunnel.openInApp",
+        "title": "Show in Teitunnel",
+        "category": "Teitunnel"
+      },
+      {
+        "command": "teitunnel.runDoctor",
+        "title": "Run Doctor",
+        "category": "Teitunnel"
+      },
+      {
+        "command": "teitunnel.openApp",
+        "title": "Open Teitunnel",
+        "category": "Teitunnel"
+      },
+      {
+        "command": "teitunnel.refresh",
+        "title": "Refresh",
+        "category": "Teitunnel",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "teitunnel",
+          "title": "Teitunnel",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "teitunnel": [
+        {
+          "id": "teitunnel.shares",
+          "name": "Shares and Routes"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "teitunnel.shares",
+        "contents": "The Teitunnel app isn't running, or its connection for extensions is off (Settings ▸ Integrations).\n[Open Teitunnel](command:teitunnel.openApp)\n[Get Teitunnel](https://teitunnel.teispace.com)",
+        "when": "!teitunnel.connected"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "teitunnel.shareDevServer",
+          "when": "view == teitunnel.shares && teitunnel.connected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "teitunnel.sharePort",
+          "when": "view == teitunnel.shares && teitunnel.connected",
+          "group": "navigation@2"
+        },
+        {
+          "command": "teitunnel.refresh",
+          "when": "view == teitunnel.shares",
+          "group": "navigation@3"
+        },
+        {
+          "command": "teitunnel.runDoctor",
+          "when": "view == teitunnel.shares && teitunnel.connected"
+        },
+        {
+          "command": "teitunnel.openInApp",
+          "when": "view == teitunnel.shares && teitunnel.connected"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "teitunnel.copyUrl",
+          "when": "view == teitunnel.shares && viewItem =~ /^(share\\.live|route)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "teitunnel.openInspector",
+          "when": "view == teitunnel.shares && viewItem =~ /^share/",
+          "group": "inline@2"
+        },
+        {
+          "command": "teitunnel.stopShare",
+          "when": "view == teitunnel.shares && viewItem =~ /^share/",
+          "group": "inline@3"
+        },
+        {
+          "command": "teitunnel.openInBrowser",
+          "when": "view == teitunnel.shares && viewItem =~ /^(share\\.live|route)$/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "teitunnel.openInApp",
+          "when": "view == teitunnel.shares && viewItem =~ /^(share|route)/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "teitunnel.sharePort",
+          "when": "view == teitunnel.shares && viewItem == group.shares",
+          "group": "inline"
+        }
+      ],
+      "ports/item/context": [
+        {
+          "command": "teitunnel.sharePortsItem",
+          "group": "teitunnel"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "teitunnel.sharePortsItem",
+          "when": "false"
+        },
+        {
+          "command": "teitunnel.openInBrowser",
+          "when": "false"
+        },
+        {
+          "command": "teitunnel.refresh",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Teitunnel",
+      "properties": {
+        "teitunnel.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show your shares in the status bar."
+        },
+        "teitunnel.notifyRequests": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show a notification when a request reaches one of your inspected shares (at most one every few seconds; bursts are counted). Off by default."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "test": "node --test test/",
+    "typecheck": "tsc -p .",
+    "package": "node scripts/build.mjs --production && pnpm dlx --allow-build=@vscode/vsce-sign @vscode/vsce@4.0.0 package --no-dependencies --out dist/teitunnel.vsix"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@teitunnel/control-client": "workspace:*",
+    "@types/node": "26.6.2",
+    "@types/vscode": "1.90.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

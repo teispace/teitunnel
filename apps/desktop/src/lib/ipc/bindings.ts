@@ -345,8 +345,9 @@ export const commands = {
 	/**  The Integrations settings. */
 	integrationsGet: () => __TAURI_INVOKE<Integrations>("integrations_get"),
 	/**
-	 *  Turns the control connection or links on or off. Turning the connection off closes
-	 *  every open connection.
+	 *  Turns the control connection or links on or off, or changes the global shortcut.
+	 *  Turning the connection off closes every open connection. A shortcut the system
+	 *  refuses (another app has it) isn't saved: the previous one stays.
 	 */
 	integrationsSet: (patch: IntegrationsPatch) => __TAURI_INVOKE<Integrations>("integrations_set", { patch }),
 	/**  Stops always allowing a program: its next change is asked about again. */
@@ -2165,6 +2166,16 @@ export type GateOutcome =
 /**  A bearer token is missing or wrong. */
 "bearerRequired";
 
+/**  A system-wide shortcut, off by default. */
+export type GlobalShortcut = {
+	/**  Registered with the system. */
+	enabled: boolean,
+	/**  The keys, e.g. `CommandOrControl+Alt+Shift+S` (Tauri's accelerator syntax). */
+	keys: string,
+	/**  What it does. */
+	action: ShortcutAction,
+};
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -2448,6 +2459,8 @@ export type Integrations = {
 	deepLinksEnabled: boolean,
 	/**  Programs that make changes without asking each time, oldest first. */
 	clients: ApprovedClient[],
+	/**  The system-wide shortcut. */
+	shortcut: GlobalShortcut,
 };
 
 /**  A change to the switches. */
@@ -2456,6 +2469,8 @@ export type IntegrationsPatch = {
 	controlEnabled?: boolean | null,
 	/**  Turn links on or off. */
 	deepLinksEnabled?: boolean | null,
+	/**  A new global shortcut (checked and normalized before it's saved). */
+	shortcut?: GlobalShortcut | null,
 };
 
 /**  A detected problem. */
@@ -3910,6 +3925,16 @@ export type ShareStatus =
 { status: "failed"; 
 /**  What went wrong, for the user. */
 message: Text };
+
+/**  What the global shortcut does. */
+export type ShortcutAction = 
+/**
+ *  Share the running dev server (copy its address if it's shared already); with
+ *  none or several, open the Quick Share sheet to choose.
+ */
+"shareDevServer" | 
+/**  Always open the Quick Share sheet. */
+"openQuickShare";
 
 /**  Why a file was left out. */
 export type SkipReason = 

@@ -1770,6 +1770,12 @@
         "notInspected": "{hostname} isn't being inspected.",
         "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
         "invalid": "{detail}"
+      },
+      "shortcut": {
+        "invalid": "{keys} isn't a shortcut Teitunnel can use. Use modifier keys with one letter, digit, function key or Space.",
+        "needsModifier": "Add a modifier key other than Shift, so the shortcut doesn't get in the way of typing.",
+        "taken": "Another app already uses this shortcut. Choose a different one.",
+        "unsupported": "This system doesn't let apps use global shortcuts."
       }
     },
     "raw": "{text}",
@@ -2084,7 +2090,12 @@
       "watchedPathBody": "{method} {path} on {name}",
       "idleStopped": "Share stopped",
       "idleStoppedBody_one": "{name} had no requests for {count} minute, so it stopped.",
-      "idleStoppedBody_other": "{name} had no requests for {count} minutes, so it stopped."
+      "idleStoppedBody_other": "{name} had no requests for {count} minutes, so it stopped.",
+      "shared": "{origin} is shared",
+      "sharedBody": "Its address is copied: {url}",
+      "addressCopied": "Address copied",
+      "addressCopiedBody": "{url}",
+      "shareNowFailed": "Couldn't share {origin}"
     },
     "verify": {
       "noRecord": "There's no DNS record for this hostname.",
@@ -2242,7 +2253,12 @@
       "startRoutes@windows": "Start Routes on This PC",
       "startRoutes@linux": "Start Routes on This Computer",
       "routesStopped@windows": "Routes stopped on this PC",
-      "routesStopped@linux": "Routes stopped on this computer"
+      "routesStopped@linux": "Routes stopped on this computer",
+      "shareService": "Share a Running Service",
+      "copyRecent": "Copy {url}",
+      "pauseAll": "Pause All Shares",
+      "resumeAll": "Resume All Shares",
+      "stopAll": "Stop All Shares"
     },
     "route": {
       "status": {
@@ -3017,6 +3033,22 @@
       "footer": "teitunnel:// links let launchers, scripts and web pages open a route or a share in Teitunnel. Sharing from a link always asks first.",
       "enabled": "Open teitunnel:// links",
       "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.example.com."
+    },
+    "shortcut": {
+      "title": "Global shortcut",
+      "footer": "Works while Teitunnel runs, from any app. Off until you turn it on.",
+      "enabled": "Use a global shortcut",
+      "enabledDetail": "Share your dev server without switching to Teitunnel.",
+      "keys": "Shortcut",
+      "record": "Change",
+      "recording": "Type the shortcut…",
+      "recordLabel": "Change the global shortcut",
+      "cancelRecord": "Cancel",
+      "action": "When pressed",
+      "shareDevServer": "Share the running dev server",
+      "shareDevServerDetail": "Shares the one dev server that's running and copies its address. With none or several, Quick Share opens so you can choose.",
+      "openQuickShare": "Open Quick Share",
+      "openQuickShareDetail": "Brings Teitunnel to the front, ready to share a port."
     },
     "error": "Couldn't save the change: {message}"
   },

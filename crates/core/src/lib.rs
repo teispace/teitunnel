@@ -33,6 +33,7 @@ pub mod machine;
 pub mod platform;
 pub mod project;
 pub mod protection;
+pub mod quick_actions;
 pub mod quick_share;
 pub mod redact;
 pub mod remote_logs;
