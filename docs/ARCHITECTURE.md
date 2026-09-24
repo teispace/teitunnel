@@ -48,6 +48,9 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
                      log/metrics parsing, local endpoints, config.yml + credentials files.
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
+crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
+                     replay, exports, webhooks, gates, stubs, simulation. Pure library, no Tauri,
+                     no core; an optional `specta` feature derives IPC types.
 crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prompts, approvals,
                      redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
                      to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
@@ -279,7 +282,20 @@ macOS always-on: `~/Library/LaunchAgents/com.teispace.teitunnel.connector.<tunne
 
 `cloudflared tunnel --config <data dir>/quick-share.yml --no-autoupdate --output json --metrics 127.0.0.1:<port> [--http-host-header <host>] --url <origin>`. The config file is Teitunnel's own, empty (`{}`), rewritten at every start, so a leftover `~/.cloudflared/config.yml` (whose ingress rules would win over `--url`) is never read. The public URL comes from `GET /quicktunnel` → `{"hostname": "…trycloudflare.com"}`, polled until present, with a 20 s timeout. Once live, the share is checked once through the edge like a route (§4.5) and the result is kept on the share. New shares of Vite, webpack-dev-server and Angular dev servers (from discovery) send the server's own address as the Host header unless told otherwise; changing the header restarts the share's cloudflared, which gives it a new URL. Several Quick Shares can run at once, one process each. Optional auto-stop timer.
 
-### 5.4 Adoption of foreign processes
+With the inspector (default, setting **Inspect Quick Shares**; per share `inspect`), `--url` is the share's Lens tap (`http://127.0.0.1:<random>`), which forwards to the origin and sets the Host header itself (Lens `HostHeader::Custom`), so changing the header updates the tap at once and keeps the URL. Turning inspection on or off restarts cloudflared (new URL).
+
+### 5.5 The inspector (`core::inspect`, M12-02)
+
+One `Inspector` per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`) owns a lazily started Lens. Taps have a scope: a Quick Share (tap id = share id) or a route (`rt-<digest>-<random>`, new each run). Captures live in Lens's ring (1,000 per tap) through `inspect::history::Captures`, which also sends finished exchanges, masked (`record.rs`: credential headers, secret query/form/JSON values, token-like strings; text bodies decoded and masked; 64 KiB per body), to a writer task that batches them into `lens_exchanges` (24 h by default, 5,000 per tap, 256 MB in all); `load()` restores recent history into memory at start. Other processes read that table (`history*` functions: `teitunnel traffic`). Settings are one JSON value (`inspector`) in `settings`.
+
+- **Routes** (`inspect::routes`): inspecting is an `UpdateRoute` through plan → apply pointing the service at the tap (access and origin options kept); the original service is stored first in `inspected_routes` with the owner (`app` or a CLI process). Reverted on off, on quit (the app sweeps its own rows before exiting), at the next launch (rows from the last run), and when a CLI owner exits (swept every 30 s). The Doctor's `inspect.orphan` reports a rule still pointing at a tap address nobody listens on, fixed by the stored restore change.
+- **Events**: taps changed, watched path hit, idle limit reached (the host stops the share: `QuickShares::watch_idle`, the app for domain shares, the CLI for its own).
+- **Live view**: `inspect::follow` coalesces Lens events into `LiveBatch`es every 100 ms (IPC `inspect_subscribe` Channel).
+- **Secrets**: webhook signing secrets per scope (`host:<hostname>` or `origin:<service>`) and provider, and bearer tokens per hostname, only in the keychain (`inspect::secrets`).
+- **Analytics**: `inspect::analytics::LensSource` answers first for routes a tap inspects.
+- **Presets** (`inspect::expose`): MCP server probe (Streamable HTTP `initialize`, SSE `endpoint`), local AI server probe (Ollama, LM Studio, vLLM), client configurations, and exposing a service on a domain share through a bearer-gated tap.
+
+### 5.6 Adoption of foreign processes
 
 At startup and on demand, `sysinfo` finds running `cloudflared` processes not started by Teitunnel. We probe candidate metrics ports (`20241..20245` plus any `--metrics` found in the process arguments) and show them as **Discovered** with Import / Adopt / Ignore. We never read secrets from other processes' arguments or environment.
 
@@ -343,6 +359,9 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `snapshots` | Snapshots Teitunnel published: account, name, Worker, hostname, source, settings flags (no password), expiry, live version |
 | `snapshot_versions` | the last 10 versions per Snapshot: Cloudflare version id, manifest (path → hash, size), `_headers`/`_redirects` |
 | `metrics_rollup` | tunnel_id, minute, requests, errors, status_2xx…5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples |
+| `inspected_routes` | routes pointed at an inspector: account, hostname, path, tunnel, original service, login, tap address, owner (§5.5) |
+| `lens_taps` | taps this machine ran: id, scope, name, service, public URL, owner, start/stop |
+| `lens_exchanges` | the inspector's history, masked (§5.5): id, tap, seq, time, method, host, path, status, kind, meta JSON, bodies |
 | `settings` | key/value JSON |
 
 App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `teitunnel.db`). Logs go to `~/Library/Logs/com.teispace.teitunnel/`.

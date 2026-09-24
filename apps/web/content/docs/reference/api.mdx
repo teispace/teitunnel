@@ -32,6 +32,9 @@ Keys are stored only as hashes. The browser dashboard signs in with a password i
 | `POST` | `/api/apply` | Applies exactly the plan you previewed |
 | `GET` | `/api/analytics?accountId=…&range=day` | Traffic of the account's routes on this machine from Cloudflare's edge; add `hostname` (and `path`) for one route in detail. Needs Zone · Analytics · Read on the token ([Analytics](/docs/guides/analytics)). |
 | `GET` | `/api/uptime` | Uptime of this machine's routes (24 h, 7 d, 30 d, P95, open incident); add `hostname` and `range` for one route's status strip, response times and incidents |
+| `GET` | `/api/traffic` | Requests the [inspector](/docs/guides/inspector) captured (shares started over `/mcp` and this machine's recent history), newest first; filter with `tap`, `host`, `method`, `status` (`404`, `5xx`), `path`, `text`, page with `limit` and `before`. Read-only; credentials are always masked. |
+| `GET` | `/api/traffic/{id}` | One captured request and its response in full (headers, bodies, timings, webhook check), masked |
+| `GET` | `/api/traffic/taps` | The inspector's taps: running in this server, and known from the history |
 | `POST`, `GET`, `DELETE` | `/mcp` | The MCP server for AI agents (Streamable HTTP), with the same keys: see [AI agents](/docs/guides/ai-agents/#a-server-over-http) |
 
 ## Making a change

@@ -78,6 +78,23 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - **HTTP:** API keys only (`Authorization: Bearer`, hashes at rest), requests with an `Origin` header refused unless allowed (DNS rebinding), loopback `Host` names only unless `--allow-remote`, no CORS headers, repeated bad keys refused per address.
 - Client setup (`teitunnel mcp install`) edits only the `teitunnel` entry of a client's configuration, keeps a backup, never touches a file it can't parse, and writes no secret (the entry is a command path and arguments).
 
+### Inspector (captured traffic, `core::inspect` over `crates/lens`)
+- Taps listen on loopback only. Captures stay in the process's memory and, masked, in the
+  local database for a day (credential headers keep only their scheme or cookie names;
+  secret-named query, form and JSON values and token-like strings are replaced; text bodies
+  are stored masked), so `teitunnel.db` still holds no secrets. Captures leave the process
+  only by an explicit export or copy, the app's IPC, `serve`'s authenticated read-only
+  `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
+  (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
+  export, or the MCP server runs with `--allow-secrets`.
+- Webhook signing secrets and bearer tokens for exposed services live only in the
+  keychain; they cross IPC only as input (never echoed back). A generated secret link key
+  or bearer token is returned once, to show the person.
+- Bearer tokens come from the OS's random generator (32 bytes). Agents get configurations
+  with a `<TOKEN>` placeholder; the person reads the token with `teitunnel token`.
+- Inspecting a route is a reviewed plan; it's reverted when inspection ends, when its
+  process quits, at the next launch after a crash, and on the Doctor's `inspect.orphan` fix.
+
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.
 - The diagnostics bundle is redacted, created locally, and shown to the user before they share it.
