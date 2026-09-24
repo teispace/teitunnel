@@ -43,6 +43,7 @@ fn options() -> SnapshotOptions {
         password: PasswordInput::Keep,
         access: None,
         expires_in_days: None,
+        comments: None,
     }
 }
 
@@ -122,6 +123,7 @@ async fn publishes_a_folder_then_updates_rolls_back_and_deletes_it() {
         address: AddressInput::WorkersDev,
         options: SnapshotOptions {
             expires_in_days: Some(7),
+            comments: None,
             ..options()
         },
     };

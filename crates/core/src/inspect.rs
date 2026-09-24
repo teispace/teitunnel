@@ -247,6 +247,7 @@ struct Inner {
     stop: CancellationToken,
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
     random: Option<Arc<dyn RandomSource>>,
+    comments: Option<crate::comments::Comments>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -298,6 +299,7 @@ impl Inspector {
     /// [`crate::domain_shares::APP_OWNER`] or [`crate::runtime::this_process`].
     pub fn new(store: Option<Store>, secrets: Option<Secrets>, owner: &str) -> Self {
         let (events, _) = broadcast::channel(256);
+        let comments = store.clone().map(crate::comments::Comments::new);
         Self {
             inner: Arc::new(Inner {
                 store,
@@ -314,6 +316,7 @@ impl Inspector {
                 stop: CancellationToken::new(),
                 tasks: Mutex::new(Vec::new()),
                 random: None,
+                comments,
             }),
         }
     }
@@ -626,6 +629,19 @@ impl Inspector {
             "UPDATE lens_taps SET public_url = ?2, name = coalesce(?2, name) WHERE id = ?1",
             url,
         );
+        // A Quick Share's address arrives after it started: its comments list follows.
+        let commented = self
+            .running()
+            .and_then(|lens| lens.tap_config(tap).ok())
+            .is_some_and(|config| config.reserved.is_some());
+        if commented
+            && let (Some(comments), Some(subject)) =
+                (self.inner.comments.clone(), self.comments_subject(tap))
+        {
+            tokio::spawn(async move {
+                let _ = comments.register(&subject).await;
+            });
+        }
         self.emit(InspectEvent::Taps);
     }
 
@@ -724,7 +740,68 @@ impl Inspector {
                 .idle_stop
                 .map(|d| u32::try_from(d.as_secs() / 60).unwrap_or(u32::MAX)),
             requests: metrics.requests,
+            comments: config.reserved.is_some(),
         })
+    }
+
+    /// Comments this process keeps for its shares (none without a database).
+    pub fn comments(&self) -> Option<&crate::comments::Comments> {
+        self.inner.comments.as_ref()
+    }
+
+    /// The comments subject of a tap, if it's running.
+    pub fn comments_subject(&self, tap: &TapId) -> Option<crate::comments::Subject> {
+        let entry = lock(&self.inner.taps).get(tap).cloned()?;
+        Some(match &entry.scope {
+            TapScope::QuickShare { share_id } => {
+                crate::comments::Subject::quick_share(share_id, entry.public_url.as_deref())
+            }
+            TapScope::Route {
+                account_id,
+                hostname,
+                ..
+            } => crate::comments::Subject::route(account_id, hostname),
+        })
+    }
+
+    /// Turns comments on a share or inspected route on or off: the overlay is added to
+    /// its HTML pages and Lens answers the comments API under `/__teitunnel/comments/`,
+    /// keeping comments in this computer's database. `trust_identity`: the hostname has
+    /// Teitunnel's Access login (its email header is then trusted).
+    ///
+    /// # Errors
+    /// Unknown tap; no database in this process ([`InspectError::Invalid`]).
+    pub async fn set_comments(
+        &self,
+        tap: &TapId,
+        on: bool,
+        trust_identity: bool,
+    ) -> Result<TapView, InspectError> {
+        let lens = self.running().ok_or(InspectError::UnknownTap)?;
+        let subject = self.comments_subject(tap).ok_or(InspectError::UnknownTap)?;
+        if on {
+            let comments = self.inner.comments.clone().ok_or_else(|| {
+                InspectError::Invalid("comments need Teitunnel's database".into())
+            })?;
+            comments
+                .register(&subject)
+                .await
+                .map_err(|e| InspectError::Invalid(e.to_string()))?;
+            let handler: Arc<dyn lens::ReservedHandler> = Arc::new(
+                crate::comments::serve::CommentsHandler::new(comments, subject, trust_identity),
+            );
+            lens.update_tap(tap, move |config| {
+                config.injection = Some(lens::Injection::new(crate::comments::SNIPPET));
+                config.reserved = Some(handler);
+            })?;
+        } else {
+            lens.update_tap(tap, |config| {
+                config.injection = None;
+                config.reserved = None;
+            })?;
+        }
+        self.emit(InspectEvent::Taps);
+        self.view(tap)
     }
 
     /// Changes a tap's settings at once.

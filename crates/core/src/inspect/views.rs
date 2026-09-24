@@ -272,6 +272,8 @@ pub struct TapView {
     /// Requests seen since it started.
     #[cfg_attr(feature = "specta", specta(type = u32))]
     pub requests: u64,
+    /// Reviewers can pin comments to its pages (the overlay is added to HTML pages).
+    pub comments: bool,
 }
 
 /// A captured exchange in a list.

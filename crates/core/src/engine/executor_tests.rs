@@ -459,6 +459,7 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
     .into_iter()
     .chain(snapshot_scenarios().await)
     .chain(super::edge_executor_tests::edge_scenarios().await)
+    .chain(super::front_tests::front_scenarios().await)
     .collect()
 }
 
@@ -579,6 +580,7 @@ async fn adopt(engine: &Engine, state: &CloudState) {
                 .unwrap();
         }
     }
+    super::front_tests::adopt_fronts(engine, state).await;
 }
 
 #[tokio::test]

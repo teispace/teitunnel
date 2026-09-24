@@ -70,6 +70,7 @@ pub(super) fn update(site: SiteSpec, content: SiteContent, password: Password) -
             spa: true,
             password,
             overlay: None,
+            comments: None,
         },
         content,
         previous: Vec::new(),
@@ -155,6 +156,8 @@ fn observed(state: SiteState, records: Vec<ObservedRecord>) -> Snapshot {
         now: 0,
         edge: None,
         service_tokens: None,
+        database: None,
+        front: None,
     }
 }
 

@@ -299,6 +299,68 @@ const MIGRATIONS: &[M<'static>] = &[
         CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
         CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
     ),
+    // 18: Comments (M12-06): comments on live shares and routes (kept here), the
+    // subjects the app lists with Snapshot counts read from Cloudflare, whether a
+    // Snapshot's live version takes comments, and the D1 database Teitunnel created on
+    // an account (ownership index: only this one is ever deleted).
+    M::up(
+        "CREATE TABLE comments (
+            id          TEXT PRIMARY KEY,
+            subject     TEXT NOT NULL,
+            account_id  TEXT,
+            thread      TEXT NOT NULL,
+            path        TEXT NOT NULL,
+            anchor      TEXT,
+            author      TEXT NOT NULL,
+            email       TEXT,
+            verified    INTEGER NOT NULL DEFAULT 0,
+            by_owner    INTEGER NOT NULL DEFAULT 0,
+            body        TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            resolved_at INTEGER,
+            resolved_by TEXT
+        ) STRICT;
+        CREATE INDEX comments_subject ON comments (subject, created_at);
+        CREATE INDEX comments_thread ON comments (subject, thread);
+        CREATE TABLE comment_subjects (
+            subject         TEXT PRIMARY KEY,
+            account_id      TEXT,
+            kind            TEXT NOT NULL,
+            label           TEXT NOT NULL,
+            url             TEXT,
+            latest_at       INTEGER NOT NULL DEFAULT 0,
+            seen_at         INTEGER NOT NULL DEFAULT 0,
+            notified_at     INTEGER NOT NULL DEFAULT 0,
+            remote_comments INTEGER NOT NULL DEFAULT 0,
+            remote_open     INTEGER NOT NULL DEFAULT 0,
+            remote_unread   INTEGER NOT NULL DEFAULT 0,
+            updated_at      INTEGER NOT NULL
+        ) STRICT;
+        ALTER TABLE snapshots ADD COLUMN comments INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE cloud_databases (
+            account_id  TEXT PRIMARY KEY NOT NULL,
+            database_id TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            created_at  INTEGER NOT NULL
+        ) STRICT;",
+    ),
+    // 19: Workers in front of a route (M12-06 offline page, M12-12 webhook inbox): the
+    // ownership index of the Worker scripts and Worker routes Teitunnel created, with
+    // the settings each was deployed with (to put them back on undo).
+    M::up(
+        "CREATE TABLE front_workers (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            kind       TEXT NOT NULL,
+            path       TEXT NOT NULL DEFAULT '',
+            script     TEXT NOT NULL,
+            zone_id    TEXT NOT NULL,
+            route_id   TEXT,
+            config     TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname, kind, path)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

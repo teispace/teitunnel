@@ -79,6 +79,120 @@ pub(crate) struct CloudState {
     pub(crate) service_tokens: BTreeMap<String, cf_api::ServiceToken>,
     /// The token can't manage service tokens (403).
     pub(crate) service_tokens_forbidden: bool,
+    /// D1 databases by id (real SQLite in memory).
+    pub(crate) d1: BTreeMap<String, FakeD1>,
+    /// The token can't use D1 (403).
+    pub(crate) d1_forbidden: bool,
+    /// Worker routes by id: the zone and the route.
+    pub(crate) worker_routes: BTreeMap<String, (String, cf_api::WorkerRoute)>,
+}
+
+/// A D1 database as the fake keeps it: a name and an in-memory SQLite connection.
+#[derive(Clone)]
+pub(crate) struct FakeD1 {
+    pub(crate) name: String,
+    pub(crate) conn: std::sync::Arc<Mutex<rusqlite::Connection>>,
+}
+
+impl FakeD1 {
+    pub(crate) fn new(name: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            conn: std::sync::Arc::new(Mutex::new(rusqlite::Connection::open_in_memory().unwrap())),
+        }
+    }
+
+    /// Runs statements like D1's query endpoint (a batch is one transaction).
+    pub(crate) fn run(
+        &self,
+        statements: &[cf_api::D1Statement],
+    ) -> cf_api::Result<Vec<cf_api::D1Result>> {
+        use rusqlite::types::Value as Sql;
+        let to_sql = |v: &serde_json::Value| match v {
+            serde_json::Value::Null => Sql::Null,
+            serde_json::Value::Bool(b) => Sql::Integer(i64::from(*b)),
+            serde_json::Value::Number(n) => n
+                .as_i64()
+                .map_or_else(|| Sql::Real(n.as_f64().unwrap_or_default()), Sql::Integer),
+            serde_json::Value::String(s) => Sql::Text(s.clone()),
+            other => Sql::Text(other.to_string()),
+        };
+        let sql_error = |e: rusqlite::Error| cf_api::Error::Api {
+            status: 400,
+            errors: vec![ApiMessage {
+                code: 7500,
+                message: e.to_string(),
+            }],
+        };
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction().map_err(sql_error)?;
+        let mut out = Vec::new();
+        for statement in statements {
+            let mut stmt = tx.prepare(&statement.sql).map_err(sql_error)?;
+            let names: Vec<String> = stmt
+                .column_names()
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect();
+            let params: Vec<Sql> = statement.params.iter().map(to_sql).collect();
+            let mut results = Vec::new();
+            if names.is_empty() {
+                let changes = stmt
+                    .execute(rusqlite::params_from_iter(params))
+                    .map_err(sql_error)?;
+                out.push(cf_api::D1Result {
+                    results,
+                    success: true,
+                    meta: cf_api::D1Meta {
+                        changes: changes as u64,
+                        last_row_id: tx.last_insert_rowid(),
+                        rows_read: 0,
+                        rows_written: changes as u64,
+                    },
+                });
+                continue;
+            }
+            let mut rows = stmt
+                .query(rusqlite::params_from_iter(params))
+                .map_err(sql_error)?;
+            while let Some(row) = rows.next().map_err(sql_error)? {
+                let mut object = serde_json::Map::new();
+                for (i, name) in names.iter().enumerate() {
+                    let value = match row.get::<_, Sql>(i).map_err(sql_error)? {
+                        Sql::Null => serde_json::Value::Null,
+                        Sql::Integer(n) => serde_json::json!(n),
+                        Sql::Real(f) => serde_json::json!(f),
+                        Sql::Text(s) => serde_json::json!(s),
+                        Sql::Blob(b) => serde_json::json!(b),
+                    };
+                    object.insert(name.clone(), value);
+                }
+                results.push(serde_json::Value::Object(object));
+            }
+            out.push(cf_api::D1Result {
+                meta: cf_api::D1Meta {
+                    rows_read: results.len() as u64,
+                    ..cf_api::D1Meta::default()
+                },
+                results,
+                success: true,
+            });
+        }
+        tx.commit().map_err(sql_error)?;
+        Ok(out)
+    }
+}
+
+impl std::fmt::Debug for FakeD1 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FakeD1({})", self.name)
+    }
+}
+
+impl PartialEq for FakeD1 {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
 }
 
 /// A Worker version as the fake stores it.
@@ -114,7 +228,12 @@ pub(crate) type Normalized = (
     Vec<(String, String, String, Option<String>)>,
     Vec<(String, Option<serde_json::Value>, bool)>,
     Vec<(String, String)>,
-    (Vec<(String, String, Vec<cf_api::NewRule>)>, Vec<String>),
+    (
+        Vec<(String, String, Vec<cf_api::NewRule>)>,
+        Vec<String>,
+        Vec<String>,
+        Vec<(String, String, Option<String>)>,
+    ),
 );
 
 impl CloudState {
@@ -204,6 +323,14 @@ impl CloudState {
             .map(|t| t.name.clone())
             .collect();
         tokens.sort();
+        let mut databases: Vec<String> = self.d1.values().map(|d| d.name.clone()).collect();
+        databases.sort();
+        let mut routes: Vec<(String, String, Option<String>)> = self
+            .worker_routes
+            .values()
+            .map(|(zone, r)| (zone.clone(), r.pattern.clone(), r.script.clone()))
+            .collect();
+        routes.sort();
         (
             tunnels,
             records,
@@ -212,7 +339,7 @@ impl CloudState {
             networks,
             workers,
             domains,
-            (rulesets, tokens),
+            (rulesets, tokens, databases, routes),
         )
     }
 
@@ -1327,6 +1454,130 @@ impl CloudApi for FakeCloud {
         self.state.lock().unwrap().service_tokens.remove(id);
         Ok(())
     }
+
+    async fn d1_databases(
+        &self,
+        _account: &str,
+        name: &str,
+    ) -> cf_api::Result<Vec<cf_api::D1Database>> {
+        let state = self.state.lock().unwrap();
+        if state.d1_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state
+            .d1
+            .iter()
+            .filter(|(_, d)| d.name == name)
+            .map(|(id, d)| cf_api::D1Database {
+                uuid: id.clone(),
+                name: d.name.clone(),
+                created_at: None,
+            })
+            .collect())
+    }
+
+    async fn create_d1_database(
+        &self,
+        _account: &str,
+        name: &str,
+    ) -> cf_api::Result<cf_api::D1Database> {
+        self.mutate()?;
+        let id = self.next_id("d1");
+        let mut state = self.state.lock().unwrap();
+        if state.d1_forbidden {
+            return Err(forbidden());
+        }
+        state.d1.insert(id.clone(), FakeD1::new(name));
+        Ok(cf_api::D1Database {
+            uuid: id,
+            name: name.to_owned(),
+            created_at: None,
+        })
+    }
+
+    async fn delete_d1_database(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state.lock().unwrap().d1.remove(id);
+        Ok(())
+    }
+
+    async fn d1_query(
+        &self,
+        _account: &str,
+        database: &str,
+        statements: &[cf_api::D1Statement],
+    ) -> cf_api::Result<Vec<cf_api::D1Result>> {
+        let db = {
+            let state = self.state.lock().unwrap();
+            if state.d1_forbidden {
+                return Err(forbidden());
+            }
+            state.d1.get(database).cloned().ok_or_else(not_found)?
+        };
+        // Reads aren't counted as mutations; writes through the query endpoint are.
+        if statements.iter().any(|s| {
+            !s.sql
+                .trim_start()
+                .to_ascii_uppercase()
+                .starts_with("SELECT")
+        }) {
+            self.mutate()?;
+        }
+        db.run(statements)
+    }
+
+    async fn worker_routes(&self, zone: &str) -> cf_api::Result<Vec<cf_api::WorkerRoute>> {
+        let state = self.state.lock().unwrap();
+        if !state.zones.iter().any(|z| z.id == zone) {
+            return Err(not_found());
+        }
+        Ok(state
+            .worker_routes
+            .values()
+            .filter(|(z, _)| z == zone)
+            .map(|(_, r)| r.clone())
+            .collect())
+    }
+
+    async fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> cf_api::Result<cf_api::WorkerRoute> {
+        self.mutate()?;
+        let id = self.next_id("wroute");
+        let mut state = self.state.lock().unwrap();
+        if !state.zones.iter().any(|z| z.id == zone) {
+            return Err(not_found());
+        }
+        if state
+            .worker_routes
+            .values()
+            .any(|(z, r)| z == zone && r.pattern == pattern)
+        {
+            return Err(conflict());
+        }
+        if !state.workers.contains_key(script) {
+            return Err(not_found());
+        }
+        let route = cf_api::WorkerRoute {
+            id: id.clone(),
+            pattern: pattern.to_owned(),
+            script: Some(script.to_owned()),
+            request_limit_fail_open: Some(true),
+        };
+        state
+            .worker_routes
+            .insert(id, (zone.to_owned(), route.clone()));
+        Ok(route)
+    }
+
+    async fn delete_worker_route(&self, _zone: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state.lock().unwrap().worker_routes.remove(id);
+        Ok(())
+    }
 }
 
 /// A version from script metadata; its assets token must be a completed upload.
@@ -1335,6 +1586,16 @@ fn fake_version(
     id: String,
     metadata: &serde_json::Value,
 ) -> cf_api::Result<FakeVersion> {
+    if metadata.get("assets").is_none() {
+        // A Worker without files (the offline page, the webhook inbox).
+        let mut metadata = metadata.clone();
+        metadata.as_object_mut().map(|m| m.remove("annotations"));
+        return Ok(FakeVersion {
+            id,
+            metadata,
+            assets: BTreeMap::new(),
+        });
+    }
     let jwt = metadata["assets"]["jwt"].as_str().unwrap_or_default();
     let Some((true, paths)) = state.asset_tokens.get(jwt) else {
         return Err(cf_api::Error::Api {

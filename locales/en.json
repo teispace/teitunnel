@@ -1230,7 +1230,8 @@
         "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
         "unknownTunnel@linux": "This computer doesn't have that tunnel any more.",
         "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token.",
-        "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token."
+        "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token.",
+        "workersPermission": "This needs the Workers Routes and D1 permissions. Add Zone › Workers Routes · Edit and Account › D1 · Edit to the account's API token; the token itself stays the same."
       },
       "cloudflare": {
         "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
@@ -2189,6 +2190,63 @@
       "io": "Couldn't use {path}: {detail}",
       "internal": "The backup couldn't be made: {detail}",
       "notPending": "Open the backup again to restore it."
+    },
+    "comments": {
+      "error": {
+        "invalidBody": "A comment needs text, at most {max} characters.",
+        "invalidName": "Add your name, at most {max} characters.",
+        "invalidPath": "That page address isn't valid.",
+        "invalidAnchor": "That spot on the page isn't valid.",
+        "tooMany": "There are too many comments here. Resolve and clear some first.",
+        "notFound": "That comment isn't there any more.",
+        "rateLimited": "Too many comments at once. Try again in a minute.",
+        "noDatabase": "Comments aren't on for this Snapshot. Publish a new version with comments on.",
+        "disabled": "Comments are off for this share.",
+        "cloudflare": "Couldn't reach the comments on Cloudflare: {detail}",
+        "noAccount": "Connect the Snapshot's Cloudflare account to read its comments."
+      },
+      "notify": {
+        "title": "New comment on {label}",
+        "body": "{author}: {excerpt}",
+        "snapshotBody_one": "{count} new comment. Open Comments to read it.",
+        "snapshotBody_other": "{count} new comments. Open Comments to read them."
+      }
+    },
+    "front": {
+      "summary": {
+        "offlineOn": "Show an offline page on {hostname}",
+        "offlineOff": "Remove the offline page from {hostname}",
+        "inboxOn": "Keep webhooks to {target} while this computer is off",
+        "inboxOff": "Remove the webhook inbox at {target}"
+      },
+      "step": {
+        "createDatabase": "Create the D1 database {name} for comments and webhooks",
+        "putOffline": "Upload the offline page Worker for {hostname}",
+        "updateOffline": "Update the offline page of {hostname}",
+        "putInbox": "Upload the webhook inbox Worker for {target}",
+        "updateInbox": "Update the webhook inbox at {target}",
+        "createRoute": "Run it for {pattern} (fails open past the free daily requests)",
+        "deleteRoute": "Stop running a Worker for {pattern}",
+        "deleteWorker": "Delete the Worker {script}"
+      },
+      "leftover": {
+        "deleteDatabase": "The D1 database {id} was created and is still there",
+        "deleteWorker": "The Worker {script} was uploaded and is still there",
+        "restoreWorker": "The Worker {script} wasn't put back as it was",
+        "deleteRoute": "The Worker route {pattern} was created and is still there",
+        "recreateRoute": "The Worker route {pattern} was removed and couldn't be put back"
+      },
+      "error": {
+        "title": "Give the page a title of at most {max} characters.",
+        "message": "Keep the message to at most {max} characters.",
+        "path": "The webhook path must start with / and have no *, ? or spaces, e.g. /webhooks/.",
+        "limits": "An inbox holds 1 to {items} webhooks for 1 to {days} days.",
+        "needsRoute": "{hostname} has no route through Cloudflare. Add a route for it first.",
+        "routeTaken": "Another Worker ({worker}) already runs for {pattern}. Teitunnel doesn't change Workers it didn't add.",
+        "none": "There's nothing of Teitunnel's to remove at {target}.",
+        "needsSecret": "Verifying signatures needs the webhook's signing secret.",
+        "noDatabase": "The D1 database wasn't created."
+      }
     }
   },
   "permissionFix": {

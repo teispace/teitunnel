@@ -7,6 +7,7 @@
 mod access;
 mod analytics;
 mod client;
+mod d1;
 mod dns;
 mod envelope;
 mod error;
@@ -31,6 +32,7 @@ pub use analytics::{
     SeriesRow, Traffic, TrafficQuery, parse_time, rfc3339,
 };
 pub use client::{API_BASE, Client};
+pub use d1::{D1Database, D1Meta, D1Result, D1Statement};
 pub use dns::{DnsRecord, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
@@ -54,7 +56,7 @@ pub use token::ApiToken;
 pub use tunnels::{Connection, IngressRule, Tunnel, TunnelConfig, VersionedConfig};
 pub use workers::{
     AssetEntry, AssetFile, DeploymentVersion, MODULE_TYPE, UploadSession, WorkerDeployment,
-    WorkerDomain, WorkerModule, WorkerVersion,
+    WorkerDomain, WorkerModule, WorkerRoute, WorkerVersion,
 };
 
 pub(crate) use resources::encode;

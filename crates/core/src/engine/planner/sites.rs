@@ -127,6 +127,16 @@ fn protect(b: &mut Builder<'_>, site: &SiteSpec) -> Result<(), PlanError> {
     }
 }
 
+/// The settings with the comments' database resolved (created first when the account
+/// has none).
+fn with_database(b: &mut Builder<'_>, settings: &SiteSettings) -> SiteSettings {
+    let mut settings = settings.clone();
+    if let Some(comments) = settings.comments.as_mut() {
+        comments.database = super::front::database(b);
+    }
+    settings
+}
+
 /// Publishes a new Snapshot.
 pub(super) fn publish(
     b: &mut Builder<'_>,
@@ -147,6 +157,7 @@ pub(super) fn publish(
     if matches!(site.address, SiteAddress::WorkersDev) && state.subdomain.is_none() {
         return Err(PlanError::NoWorkersSubdomain);
     }
+    let settings = &with_database(b, settings);
     b.steps.push(Step::UploadSnapshotFiles {
         script: site.script.clone(),
         content: content.clone(),
@@ -175,6 +186,7 @@ pub(super) fn update(
         return Err(PlanError::NoSuchSnapshot(site.name.clone()));
     }
     protect(b, site)?;
+    let settings = &with_database(b, settings);
     let (changed_files, changed_bytes) = content.changes_from(previous);
     b.steps.push(Step::UploadSnapshotFiles {
         script: site.script.clone(),

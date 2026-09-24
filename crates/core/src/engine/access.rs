@@ -454,7 +454,9 @@ impl AccessNeed {
             | Intent::BalanceRoute { .. }
             | Intent::UnbalanceRoute { .. }
             | Intent::Reserve { .. }
-            | Intent::Release { .. } => Self::default(),
+            | Intent::Release { .. }
+            | Intent::SetOfflinePage { .. }
+            | Intent::SetInbox { .. } => Self::default(),
         }
     }
 

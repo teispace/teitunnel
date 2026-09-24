@@ -12,6 +12,7 @@ pub mod backup;
 pub mod binary;
 pub mod cli_install;
 pub mod cli_shares;
+pub mod comments;
 pub mod completion;
 pub mod connector_logs;
 pub mod control;

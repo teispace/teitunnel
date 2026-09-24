@@ -419,6 +419,8 @@ fn snapshot(records: Vec<ObservedRecord>, held: Vec<super::ownership::Hold>) -> 
         now: 1_000,
         edge: None,
         service_tokens: None,
+        database: None,
+        front: None,
     }
 }
 
@@ -468,6 +470,7 @@ fn a_snapshot_asks_before_replacing_someone_elses_placeholder() {
             spa: false,
             password: super::sites::Password::Off,
             overlay: None,
+            comments: None,
         },
         content: SiteContent {
             root: None,

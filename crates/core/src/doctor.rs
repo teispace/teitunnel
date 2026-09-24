@@ -1313,6 +1313,8 @@ mod tests {
                 now: 0,
                 edge: None,
                 service_tokens: None,
+                database: None,
+                front: None,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

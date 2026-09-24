@@ -6824,6 +6824,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "http",
+ "http-body-util",
  "idna",
  "insta",
  "intl_pluralrules",

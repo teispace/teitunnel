@@ -387,6 +387,10 @@ pub enum StepKind {
     EdgeRule,
     /// Create, rotate or delete a service token, or let one through a login.
     ServiceToken,
+    /// Create the account's D1 database (comments, webhook inboxes).
+    Database,
+    /// Add, change or remove a Worker in front of a route (offline page, webhook inbox).
+    FrontWorker,
 }
 
 /// One step of a plan, as shown in the preview.
@@ -461,6 +465,11 @@ impl Step {
                 | Self::AllowServiceToken { .. }
                 | Self::DeleteServiceToken { .. }
                 | Self::RotateServiceToken { .. } => StepKind::ServiceToken,
+                Self::CreateDatabase { .. } => StepKind::Database,
+                Self::PutFrontWorker { .. }
+                | Self::CreateWorkerRoute { .. }
+                | Self::DeleteWorkerRoute { .. }
+                | Self::DeleteFrontWorker { .. } => StepKind::FrontWorker,
             },
             description: self.describe(tunnel_name),
             command: self.command(account_id, tunnel_name),

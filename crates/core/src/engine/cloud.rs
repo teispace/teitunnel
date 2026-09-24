@@ -403,6 +403,49 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// D1 databases named exactly `name`.
+    fn d1_databases(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::D1Database>>> + Send;
+    /// Creates a D1 database.
+    fn create_d1_database(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::D1Database>> + Send;
+    /// Deletes a D1 database with everything in it.
+    fn delete_d1_database(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Runs statements against a D1 database (a batch is one transaction).
+    fn d1_query(
+        &self,
+        account: &str,
+        database: &str,
+        statements: &[cf_api::D1Statement],
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::D1Result>>> + Send;
+    /// A zone's Worker routes.
+    fn worker_routes(
+        &self,
+        zone: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::WorkerRoute>>> + Send;
+    /// Runs a Worker for a pattern on a zone (failing open).
+    fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerRoute>> + Send;
+    /// Deletes a Worker route.
+    fn delete_worker_route(
+        &self,
+        zone: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
 
 /// This Mac's side of a tunnel: the connector process and its token.
@@ -849,5 +892,51 @@ impl CloudApi for Client {
 
     async fn delete_service_token(&self, account: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_service_token(self, account, id).await
+    }
+
+    async fn d1_databases(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> cf_api::Result<Vec<cf_api::D1Database>> {
+        Client::d1_databases(self, account, name).await
+    }
+
+    async fn create_d1_database(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> cf_api::Result<cf_api::D1Database> {
+        Client::create_d1_database(self, account, name).await
+    }
+
+    async fn delete_d1_database(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_d1_database(self, account, id).await
+    }
+
+    async fn d1_query(
+        &self,
+        account: &str,
+        database: &str,
+        statements: &[cf_api::D1Statement],
+    ) -> cf_api::Result<Vec<cf_api::D1Result>> {
+        Client::d1_query(self, account, database, statements).await
+    }
+
+    async fn worker_routes(&self, zone: &str) -> cf_api::Result<Vec<cf_api::WorkerRoute>> {
+        Client::worker_routes(self, zone).await
+    }
+
+    async fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> cf_api::Result<cf_api::WorkerRoute> {
+        Client::create_worker_route(self, zone, pattern, script).await
+    }
+
+    async fn delete_worker_route(&self, zone: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_worker_route(self, zone, id).await
     }
 }

@@ -347,6 +347,7 @@ pub fn snapshot_change(
         password,
         access: decl.login.clone(),
         expires_in_days: decl.expires_in_days,
+        comments: None,
     };
     match existing {
         None => SnapshotChange::Publish {

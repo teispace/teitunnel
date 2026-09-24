@@ -51,6 +51,10 @@ const ACCOUNT_TABLES: &[&str] = &[
     "reservations_cache",
     "edge_rules",
     "service_tokens",
+    "comments",
+    "comment_subjects",
+    "cloud_databases",
+    "front_workers",
 ];
 
 /// How an account was connected.
