@@ -42,6 +42,7 @@ send users an update that does nothing.
 | [Download page](https://teitunnel.teispace.com/download/) and GitHub Releases | Rebuilt by the release workflow. |
 | Docker `ghcr.io/teispace/teitunnel` (`linux/amd64`, `linux/arm64`) | `image.yml`, started after publishing: built from the release's own `teitunnel-cli` once its checksums and provenance check out, tagged `x.y.z`, `x.y` and `latest`, with an SBOM and its own provenance. Run it by hand (tag `vx.y.z`) to republish. |
 | Homebrew [`teispace/homebrew-tap`](https://github.com/teispace/homebrew-tap): cask `teitunnel`, formula `teitunnel-cli` | The tap's `teitunnel.yml` checks every three hours, takes the checksums from the release's `SHA256SUMS.txt` after verifying its provenance, installs and tests on macOS and Linux, then pushes. No secret needed. GitHub pauses scheduled workflows in a repository with no commits for 60 days: if that happens, re-enable it under the tap's Actions tab (a release commit keeps it alive). The tap is shared by Teispace apps: each app has its own `scripts/<app>.mjs` and `.github/workflows/<app>.yml`. |
+| apt and dnf repositories at `teitunnel.teispace.com/linux/` | Rebuilt with the website (`docs.yml`, which the release workflow runs after publishing): the two latest releases' `.deb` and `.rpm`, checked against checksums and provenance, repository metadata and RPMs signed with the key in `LINUX_REPO_GPG_KEY` (`scripts/release/linux-repo.sh`, D-086). The public key is `apps/web/public/linux/teitunnel.asc`. |
 | winget `Teispace.Teitunnel` | The first version is submitted by hand (step 7). After it's accepted, the release workflow's `winget` job submits each new version with Komac, using `WINGET_TOKEN`. |
 
 ## Setup status
@@ -56,6 +57,7 @@ send users an update that does nothing.
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
 | Channels: ghcr.io image, Homebrew tap | Done 2026-09-24 (the image package's visibility must be **Public** in the organization's Packages settings once, after the first push) |
 | winget | First submission: step 7; then `WINGET_TOKEN` |
+| Linux repository key | Step 8 |
 | SignPath Foundation for Windows | Declined 2026-09-24: not enough reputation yet. Reapply once Teitunnel is better known (step 6). Windows builds are unsigned. |
 
 ## One-time setup (maintainer)
@@ -176,4 +178,19 @@ gh secret set WINGET_TOKEN --env release
 ```
 
 Without the secret the release workflow skips winget with a warning.
+
+### 8. Linux repository key
+
+Once, from the repository root (needs `gpg` and `gh`):
+
+```sh
+scripts/release/linux-repo-key.sh
+```
+
+It creates an RSA 4096 signing key without expiry (every apt and rpm version can check it,
+and installed machines never need a new key), stores the private key as `LINUX_REPO_GPG_KEY`
+in the `release` environment, writes the public key to `apps/web/public/linux/teitunnel.asc`
+(commit it), and leaves `teitunnel-linux-repo.key.asc` (git-ignored): move it to your
+password manager and delete it. If the key is lost, publish a new public key and every user
+has to fetch it again; if it leaks, do the same at once.
 

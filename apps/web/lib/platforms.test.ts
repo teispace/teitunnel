@@ -67,7 +67,10 @@ describe("download panels", () => {
 
   it("gives install commands for the exact files", () => {
     const list = panels(release, { os: "linux", arch: "x64" });
-    assert.equal(get(list, "linux").commands[0]?.command, "sudo apt install ./T_amd64.deb");
+    const linux = get(list, "linux").commands.map((c) => c.command);
+    assert.match(linux[0] ?? "", /linux\/deb stable main.*sudo apt install teitunnel$/);
+    assert.match(linux[1] ?? "", /teitunnel\.repo && sudo dnf install teitunnel$/);
+    assert.equal(linux[2], "sudo apt install ./T_amd64.deb");
     const cli = get(list, "cli").commands.map((c) => c.command);
     assert.match(cli[0] ?? "", /cli_linux-x64\.tar\.gz \| sudo tar -xz/);
     assert.ok(cli.includes("brew install teispace/tap/teitunnel-cli"));

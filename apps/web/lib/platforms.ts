@@ -57,6 +57,13 @@ const channels = {
   cask: "brew install --cask teispace/tap/teitunnel",
   formula: "brew install teispace/tap/teitunnel-cli",
   docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel",
+  // The signed repositories at teitunnel.teispace.com/linux/ (D-086).
+  apt: [
+    "curl -fsSL https://teitunnel.teispace.com/linux/teitunnel.asc | sudo gpg --dearmor -o /usr/share/keyrings/teitunnel.gpg",
+    'echo "deb [signed-by=/usr/share/keyrings/teitunnel.gpg] https://teitunnel.teispace.com/linux/deb stable main" | sudo tee /etc/apt/sources.list.d/teitunnel.list',
+    "sudo apt update && sudo apt install teitunnel",
+  ].join(" && "),
+  dnf: "sudo curl -fsSLo /etc/yum.repos.d/teitunnel.repo https://teitunnel.teispace.com/linux/teitunnel.repo && sudo dnf install teitunnel",
 };
 
 function byArch(a: Download, b: Download): number {
@@ -143,7 +150,11 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       primaryDetail: deb ? `${detail(deb)} · ${formats.deb.hint}` : "",
       variants: linuxVariants,
       commands: deb
-        ? [{ label: "Ubuntu, Debian, Mint", command: `sudo apt install ./${deb.name}` }]
+        ? [
+            { label: "Ubuntu, Debian, Mint: apt repository, with updates", command: channels.apt },
+            { label: "Fedora, RHEL: dnf repository, with updates", command: channels.dnf },
+            { label: "The downloaded .deb", command: `sudo apt install ./${deb.name}` },
+          ]
         : [],
     },
     {

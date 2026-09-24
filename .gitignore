@@ -41,3 +41,6 @@ apps/desktop/src-tauri/binaries/
 # Playwright
 .playwright/
 __pycache__/
+
+# Linux repository key backup (scripts/release/linux-repo-key.sh); never commit it.
+teitunnel-linux-repo.key.asc
