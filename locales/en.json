@@ -2936,7 +2936,9 @@
         "none": "Keep every webhook",
         "github": "GitHub",
         "stripe": "Stripe",
-        "standard": "Standard Webhooks (Svix, Clerk, Resend…)"
+        "standard": "Standard Webhooks (Svix, Clerk, Resend…)",
+        "help@windows": "Uses the signing secret saved for this hostname in Windows Credential Manager (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
+        "help@linux": "Uses the signing secret saved for this hostname in your keyring (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown."
       },
       "activity": "Webhooks to {path}",
       "empty": "No webhooks kept yet.",
