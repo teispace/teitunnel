@@ -127,7 +127,17 @@ fn shares_a_port_and_lets_the_app_stop_it() {
             .env_remove("TEITUNNEL_API_TOKEN"),
     );
     let tools = session.request("tools/list", json!({}));
-    assert_eq!(tools["tools"].as_array().unwrap().len(), 26);
+    let names: Vec<&str> = tools["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+    // Teitunnel's 26 and the reservation provider's 3 (M12-11).
+    assert_eq!(names.len(), 29, "{names:?}");
+    for tool in ["list_reservations", "reserve_hostname", "release_hostname"] {
+        assert!(names.contains(&tool), "{tool}");
+    }
 
     // Without an account, what needs one says so.
     let routes = session.request(
@@ -211,6 +221,27 @@ fn changes_routes_through_reviewed_plans() {
             .contains("app.xyz.com"),
         "{undo}"
     );
+
+    // Reservations, through the provider: approval first, then listed with the owner.
+    let reserve = json!({ "hostname": "alice.xyz.com", "until": "2099-12-31" });
+    let unconfirmed = session.call("reserve_hostname", reserve.clone());
+    assert_eq!(unconfirmed["outcome"], "needsApproval", "{unconfirmed}");
+    let mut confirmed = reserve;
+    confirmed["confirmed"] = json!(true);
+    let reserved = session.call("reserve_hostname", confirmed);
+    assert_eq!(reserved["outcome"], "applied", "{reserved}");
+    let listed = session.call("list_reservations", json!({}));
+    assert_eq!(
+        listed["reservations"][0]["hostname"], "alice.xyz.com",
+        "{listed}"
+    );
+    assert_eq!(listed["reservations"][0]["mine"], true);
+    assert_eq!(listed["reservations"][0]["until"], "2100-01-01T00:00Z");
+    let released = session.call(
+        "release_hostname",
+        json!({ "hostname": "alice.xyz.com", "confirmed": true }),
+    );
+    assert_eq!(released["outcome"], "applied", "{released}");
 
     assert!(session.finish().success());
     let _ = fake.kill();
