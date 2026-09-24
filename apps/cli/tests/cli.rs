@@ -40,9 +40,58 @@ fn prints_shell_completions() {
     assert!(output.status.success());
     let script = String::from_utf8_lossy(&output.stdout);
     assert!(script.starts_with("#compdef teitunnel"), "{script}");
+    assert!(
+        script.contains("teitunnel __complete zsh"),
+        "live by default"
+    );
+    let output = cli(dir.path(), &["completions", "zsh", "--static"]);
+    let script = String::from_utf8_lossy(&output.stdout);
     for command in ["share", "doctor", "route", "export"] {
         assert!(script.contains(command), "{command}");
     }
+}
+
+#[test]
+fn completes_live_without_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let complete = |words: &[&str]| {
+        let index = (words.len() - 1).to_string();
+        let mut args = vec!["__complete", "bash", index.as_str(), "--"];
+        args.extend_from_slice(words);
+        let output = cli(dir.path(), &args);
+        assert!(output.status.success());
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+    let lines = complete(&["teitunnel", "sta"]);
+    assert_eq!(
+        lines,
+        "status\tWhether the Teitunnel app is running, and what it serves\n"
+    );
+    // No database yet: no names, and nothing is created.
+    assert_eq!(complete(&["teitunnel", "route", "remove", ""]), "");
+    assert!(!dir.path().join("teitunnel.db").exists());
+    // The word being completed may be missing.
+    let output = cli(dir.path(), &["__complete", "fish", "1", "--", "teitunnel"]);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("share\t"));
+}
+
+#[test]
+fn status_works_without_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = cli(dir.path(), &["status"]);
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Teitunnel isn't running.\n"
+    );
+    let output = cli(dir.path(), &["status", "--json"]);
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["running"], false);
+    let output = cli(dir.path(), &["share", "3000", "--app"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Teitunnel isn't running."));
+    let output = cli(dir.path(), &["share", "3000", "--app", "--here"]);
+    assert_eq!(output.status.code(), Some(2), "one or the other");
 }
 
 #[test]

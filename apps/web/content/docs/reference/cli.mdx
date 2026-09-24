@@ -41,9 +41,12 @@ teitunnel tunnel create staging          # another tunnel for this machine
 teitunnel route add beta.example.com 4000 --tunnel staging
 teitunnel tunnel delete staging
 teitunnel accounts
-teitunnel share 3000 --for 30m          # a temporary public URL, until Ctrl-C
+teitunnel status                        # is the app running, and what does it serve?
+teitunnel top                           # a live dashboard (q quits)
+teitunnel share 3000                    # a temporary public URL (in the app when it runs)
+teitunnel share 3000 --here --for 30m   # in this terminal, until Ctrl-C or 30 minutes
 teitunnel share 3000 --on demo.example.com  # the same, on your own domain
-teitunnel shares                        # shares on your domains, from anywhere
+teitunnel shares                        # every share: the app's, terminals', your domains'
 teitunnel shares --stop demo.example.com
 teitunnel analytics                     # traffic of every route, from Cloudflare's edge
 teitunnel analytics app.example.com --range week
@@ -74,7 +77,9 @@ The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/docs/guides/require-login)). |
 | `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/docs/guides/private-networks)). |
 | `--tunnel <name>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
-| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels`, `doctor`, `analytics` and `uptime`. |
+| `--json` | Machine-readable output for `accounts`, `routes`, `shares`, `status`, `tunnels`, `doctor`, `analytics` and `uptime`. |
+| `--app` | `share`, `shares`, `routes`, `top`: go through the running app, and fail if it isn't running. |
+| `--here` | `share`, `top`: don't use the app even when it runs (`share` then lasts as long as the command). |
 | `--range <hour\|day\|week\|month>` | `analytics`: how far back (default `day`); `--path` narrows it to a route's path ([Analytics](/docs/guides/analytics)). |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
@@ -90,8 +95,26 @@ Routes are served by the app while it's open, all the time with
 ([Servers and containers](/docs/guides/servers)). After adding a
 route, the CLI checks it through Cloudflare and exits with status 1 if it doesn't work yet.
 
-`share` is the exception: it runs a Quick Share for exactly as long as the command. Ctrl-C,
-closing the terminal or `--for` stops it. The URL is the only line on standard output, so
+## With the app running
+
+When the Teitunnel app is running, `teitunnel` uses it through its
+[control connection](/docs/guides/integrations/):
+
+- `teitunnel share 3000` asks the app to share the port. The share shows up in the app's
+  Quick Share and keeps running after the command ends; stop it there or with
+  `teitunnel shares --stop <url>`. The first time, the app asks you to allow the command
+  line (choose **Always Allow** to not be asked again). `--for` still works, and `--here`
+  shares from the terminal instead.
+- `teitunnel shares` lists the app's shares too, and `--stop` stops any of them.
+- `teitunnel routes` shows the status the app's connectors report.
+- `teitunnel status` says whether the app runs, its tunnels and what it shares.
+
+Without the app every command works on its own, as below.
+
+## Sharing from the terminal
+
+Without the app (or with `--here`), `share` runs a Quick Share for exactly as long as the
+command. Ctrl-C, closing the terminal or `--for` stops it. The URL is the only line on standard output, so
 `URL=$(teitunnel share 3000 | head -1)` works in scripts. `share` doesn't need an
 account, only cloudflared (the app's copy, or one on your system). Once the URL is live,
 `share` checks it through Cloudflare and, if your dev server refuses the address or the
@@ -125,15 +148,42 @@ teitunnel route add slow.example.com 8000 --connect-timeout 60 --keep-alive-time
 | `--no-happy-eyeballs` | `noHappyEyeballs` |
 | `--proxy-type socks` | `proxyType` |
 
+## teitunnel top
+
+`teitunnel top` is a live view of your shares (address, service, age, requests per
+second), routes (a status dot, where they go, uptime over 24 hours), traffic, and the
+requests of a share the app inspects. It reads from the app when it runs; otherwise from
+this machine's records (then you can see and stop terminals' shares, but not start new
+ones).
+
+| Key | Does |
+|---|---|
+| `q`, `Esc` | quit (`Esc` first clears a filter) |
+| `Tab` | next pane |
+| `↑` `↓`, `j` `k` | select |
+| `s` | share a port (through the app) |
+| `x` `x` | stop the selected share (press twice) |
+| `c` | copy the selected URL (through the terminal, so it works over SSH too) |
+| `/` | filter everything by text |
+| `?` | the keys |
+
+It follows the terminal's size and uses no colour when `NO_COLOR` is set.
+
 ## Shell completions
 
+Completions include your own names: hostnames of your routes, tunnels, domains, shares and
+accounts, read from this machine's records without going online.
+
 ```sh
-teitunnel completions zsh > ~/.zfunc/_teitunnel   # zsh (with ~/.zfunc in fpath)
-teitunnel completions bash > ~/.local/share/bash-completion/completions/teitunnel
+source <(teitunnel completions zsh)                  # zsh, in ~/.zshrc
+eval "$(teitunnel completions bash)"                 # bash, in ~/.bashrc
 teitunnel completions fish > ~/.config/fish/completions/teitunnel.fish
+teitunnel completions powershell | Out-String | Invoke-Expression  # in $PROFILE
 ```
 
-PowerShell and Elvish are supported too.
+For zsh you can also save the script as `_teitunnel` in a folder on your `fpath`. The
+script asks `teitunnel` for suggestions on every Tab. `--static` prints a script with only
+commands and flags that never runs `teitunnel`; Elvish gets that one.
 
 The first time it reads your Cloudflare token, macOS asks whether `teitunnel` may use
 the keychain item Teitunnel created. Choose **Always Allow** to not be asked again.

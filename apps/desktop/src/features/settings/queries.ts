@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { commands, type SettingsPatch } from "@/lib/ipc/bindings";
+import { commands, type IntegrationsPatch, type SettingsPatch } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
@@ -57,6 +57,31 @@ export function useSetAiClientConnected() {
     mutationFn: ({ id, connect }: { id: string; connect: boolean }) =>
       call(connect ? commands.aiClientsConnect(id) : commands.aiClientsDisconnect(id)),
     onSuccess: (view) => queryClient.setQueryData(aiClientsKey, view),
+  });
+}
+
+const integrationsKey = ["settings", "integrations"] as const;
+
+/** Settings ▸ Integrations: the control connection, links and always-allowed programs. */
+export function useIntegrations() {
+  return useQuery({ queryKey: integrationsKey, queryFn: () => call(commands.integrationsGet()) });
+}
+
+/** Turns the control connection or links on or off. */
+export function useUpdateIntegrations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: IntegrationsPatch) => call(commands.integrationsSet(patch)),
+    onSuccess: (value) => queryClient.setQueryData(integrationsKey, value),
+  });
+}
+
+/** Stops always allowing a program; stays busy until the list no longer has it. */
+export function useRevokeClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => call(commands.integrationsRevoke(name)),
+    onSuccess: (value) => queryClient.setQueryData(integrationsKey, value),
   });
 }
 

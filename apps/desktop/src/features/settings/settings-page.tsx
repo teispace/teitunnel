@@ -1,4 +1,4 @@
-import { Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
+import { Blocks, Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
 import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 import { AiTools } from "./ai-tools";
+import { IntegrationsPane } from "./integrations";
 import {
   useCliStatus,
   useOpenAtLogin,
@@ -29,12 +30,13 @@ const themes = () =>
     label: t(`settings.theme.${value}`),
   }));
 
-type Tab = "general" | "accounts" | "cloudflared";
+type Tab = "general" | "accounts" | "cloudflared" | "integrations";
 
 const tabs: readonly { id: Tab; label: MessageKey; icon: LucideIcon }[] = [
   { id: "general", label: "settings.tab.general", icon: Settings2 },
   { id: "accounts", label: "settings.tab.accounts", icon: CircleUser },
   { id: "cloudflared", label: "settings.tab.cloudflared", icon: Cable },
+  { id: "integrations", label: "settings.tab.integrations", icon: Blocks },
 ];
 
 function OpenAtLogin() {
@@ -140,6 +142,8 @@ export function SettingsPage() {
           <GeneralPane />
         ) : tab === "accounts" ? (
           <AccountsPane />
+        ) : tab === "integrations" ? (
+          <IntegrationsPane />
         ) : (
           <CloudflaredPane />
         )}

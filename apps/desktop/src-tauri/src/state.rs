@@ -20,8 +20,9 @@ pub struct AppState {
     pub quick_shares: QuickShares,
     /// Connected Cloudflare accounts.
     pub accounts: Accounts,
-    /// The routes engine (observe → plan → apply → verify).
-    pub engine: Engine,
+    /// The routes engine (observe → plan → apply → verify), shared with the control
+    /// connection so applies stay serialized.
+    pub engine: std::sync::Arc<Engine>,
     /// This Mac's tunnel connectors.
     pub machine: MachineTunnels,
     /// Live logs of connectors on other machines.
@@ -50,4 +51,6 @@ pub struct AppState {
     pub snapshots: teitunnel_core::snapshot::Preparations,
     /// Where crawled sites are captured before publishing.
     pub snapshot_dir: std::path::PathBuf,
+    /// The control connection and `teitunnel://` links.
+    pub control: crate::shell::control::Control,
 }

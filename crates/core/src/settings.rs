@@ -252,7 +252,7 @@ pub async fn set_ignored(
     load(store).await
 }
 
-fn read<T: DeserializeOwned>(
+pub(crate) fn read<T: DeserializeOwned>(
     conn: &rusqlite::Connection,
     key: &str,
 ) -> Result<Option<T>, StoreError> {
@@ -272,7 +272,7 @@ fn read<T: DeserializeOwned>(
     }))
 }
 
-fn write<T: Serialize>(
+pub(crate) fn write<T: Serialize>(
     conn: &rusqlite::Connection,
     key: &str,
     value: &T,

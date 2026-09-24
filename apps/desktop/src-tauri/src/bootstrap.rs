@@ -105,13 +105,25 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         edge,
         "app",
     );
+    let engine = Arc::new(Engine::new(local));
+    let control = control(
+        app,
+        &data_dir,
+        &store,
+        &accounts,
+        &engine,
+        &machine,
+        &quick_shares,
+        &binary,
+    );
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),
         snapshots: teitunnel_core::snapshot::Preparations::default(),
         snapshot_dir: data_dir.join("snapshots"),
         accounts,
-        engine: Engine::new(local),
+        engine,
+        control,
         machine,
         remote_logs: teitunnel_core::remote_logs::RemoteLogs::default(),
         machine_name: machine_name(),
@@ -128,6 +140,53 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         analytics,
         monitor,
     })
+}
+
+/// The control connection's host over the app's services, listening unless it's turned
+/// off in Settings ▸ Integrations.
+#[allow(clippy::too_many_arguments)]
+fn control<R: Runtime>(
+    app: &AppHandle<R>,
+    data_dir: &std::path::Path,
+    store: &Store,
+    accounts: &Accounts,
+    engine: &Arc<Engine>,
+    machine: &MachineTunnels,
+    quick_shares: &QuickShares,
+    binary: &BinaryManager,
+) -> shell::control::Control {
+    use teitunnel_core::control::{CoreHost, HostParts, integrations};
+    let host = CoreHost::new(
+        HostParts {
+            version: app.package_info().version.to_string(),
+            store: store.clone(),
+            accounts: accounts.clone(),
+            engine: Arc::clone(engine),
+            machine: machine.clone(),
+            quick_shares: quick_shares.clone(),
+            binary: binary.clone(),
+            runs: data_dir.join("run-cli"),
+            machine_name: machine_name(),
+        },
+        shell::control::ui(app),
+    );
+    shell::control::forward_changes(app, Arc::clone(&host));
+    let control = shell::control::Control::new(host, data_dir);
+    let enabled = tauri::async_runtime::block_on(integrations::load(store))
+        .map_or(true, |s| s.control_enabled);
+    if enabled {
+        control.start();
+    }
+    control
+}
+
+/// Tells the person a `teitunnel://` link couldn't be followed.
+pub(crate) fn notify_link_failed<R: Runtime>(app: &AppHandle<R>, message: &str) {
+    notify(
+        app,
+        &teitunnel_core::text::msg::control::link_failed(),
+        &teitunnel_core::text::msg::raw(message),
+    );
 }
 
 /// Where Always-on connectors run: launchd on macOS, systemd user units on Linux (when

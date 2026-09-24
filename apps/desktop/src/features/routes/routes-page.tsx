@@ -314,7 +314,14 @@ function RouteInspector({
 }
 
 /** Routes of this Mac's tunnel in the active Cloudflare account. */
-export function RoutesPage({ adding = false }: { adding?: boolean }) {
+export function RoutesPage({
+  adding = false,
+  focus,
+}: {
+  adding?: boolean;
+  /** A hostname to select first (links and the control connection). */
+  focus?: string | undefined;
+}) {
   const { isSuccess } = useAccounts();
   const { data: accounts = [] } = useAccounts();
   const active = useActiveAccount();
@@ -334,7 +341,11 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   /** The tunnel carrying a route (its connector decides whether it's live). */
   const carrier = (route: RouteView) => tunnels.find((t) => t.id === route.tunnelId) ?? tunnel;
   const zones = overview.data?.zones ?? [];
-  const selected = routes.find((r) => routeKey(r) === selectedKey) ?? routes[0] ?? null;
+  const selected =
+    routes.find((r) => routeKey(r) === selectedKey) ??
+    routes.find((r) => r.hostname === focus?.toLowerCase()) ??
+    routes[0] ??
+    null;
 
   // ⌘N / "New route" opens the sheet once the account's domains are known.
   useEffect(() => {

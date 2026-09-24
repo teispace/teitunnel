@@ -13,6 +13,8 @@ macro_rules! out {
 }
 
 mod analytics;
+mod app;
+mod complete;
 mod context;
 mod doctor;
 mod mcp;
@@ -20,6 +22,7 @@ mod probe;
 mod serve;
 mod share;
 mod snapshot;
+mod top;
 mod up;
 
 use std::{
@@ -142,6 +145,25 @@ enum Command {
         /// monitoring). Checks every account when none is named.
         #[arg(long)]
         check: bool,
+        /// Ask the running app (its connectors' state is the live one); fails if it
+        /// isn't running. By default the app is used when it runs.
+        #[arg(long, conflicts_with = "check")]
+        app: bool,
+    },
+    /// Whether the Teitunnel app is running, and what it serves.
+    Status {
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// A live dashboard of shares, routes and traffic (q quits, ? for keys).
+    Top {
+        /// Only with the running app.
+        #[arg(long, conflicts_with = "here")]
+        app: bool,
+        /// Without the app, from this machine's records.
+        #[arg(long)]
+        here: bool,
     },
     /// Add, or remove, a route.
     #[command(subcommand)]
@@ -198,15 +220,27 @@ enum Command {
         /// Pass the visitor's Host header through unchanged, even to a dev server.
         #[arg(long)]
         no_host_header: bool,
+        /// Share through the running app (it keeps the share after this command ends);
+        /// fails if the app isn't running. This is the default when the app runs.
+        #[arg(long, conflicts_with_all = ["here", "on"])]
+        app: bool,
+        /// Share from this terminal, for as long as the command runs, even when the app
+        /// is running.
+        #[arg(long)]
+        here: bool,
     },
-    /// List shares on your domains (from the app or any terminal), or stop one.
+    /// List shares (the app's, terminals' and on your domains), or stop one.
     Shares {
-        /// Stop the share at this hostname (its route and DNS record are removed).
-        #[arg(long, value_name = "HOSTNAME")]
+        /// Stop a share: its URL, its hostname on your domain, or its id.
+        #[arg(long, value_name = "URL|HOSTNAME")]
         stop: Option<String>,
         /// Print JSON.
         #[arg(long)]
         json: bool,
+        /// Ask the running app; fails if it isn't running. By default the app is used
+        /// when it runs.
+        #[arg(long)]
+        app: bool,
     },
     /// Traffic from Cloudflare's edge: one route in detail, or every route of this
     /// machine side by side. Needs the token's Zone ▸ Analytics ▸ Read permission.
@@ -249,11 +283,27 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Print a shell completion script, e.g. `teitunnel completions zsh`.
+    /// Print a shell completion script, e.g. `teitunnel completions zsh`. It completes
+    /// commands and flags, and your hostnames, tunnels, domains, shares and accounts from
+    /// this machine's records (no network).
     Completions {
         /// The shell.
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: complete::Shell,
+        /// Commands and flags only, in a script that never runs `teitunnel`.
+        #[arg(long = "static")]
+        static_script: bool,
+    },
+    /// Candidates for the completion scripts (`completions`); not for people.
+    #[command(name = "__complete", hide = true)]
+    Complete {
+        /// The shell asking.
+        shell: String,
+        /// Which word is being completed (0 is `teitunnel`).
+        index: usize,
+        /// The command line's words.
+        #[arg(raw = true)]
+        words: Vec<String>,
     },
     /// Print this machine's tunnel and routes as config.yml, Docker Compose or Terraform.
     Export {
@@ -517,10 +567,61 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: None,
             host_header,
             no_host_header,
+            app,
+            here,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
+            let wanted = app::Where::from_flags(app, here);
+            if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                return app::share(&client, &origin, stop_after, !no_qr, &host_header).await;
+            }
             return share::run(&origin, stop_after, !no_qr, &host_header).await;
+        }
+        Command::Shares { stop, json, app } => {
+            let wanted = app::Where::from_flags(app, false);
+            if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                return app::shares(&client, stop.as_deref(), json).await;
+            }
+            let app = App::open().await?;
+            return shares(&app, stop.as_deref(), json).await;
+        }
+        Command::Routes {
+            account,
+            json,
+            check: false,
+            app,
+        } => {
+            let wanted = app::Where::from_flags(app, false);
+            if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                let list = client
+                    .routes(account.as_deref())
+                    .await
+                    .map_err(|e| app::describe(&e))?;
+                return app::print_routes(&list, json);
+            }
+            let app = App::open().await?;
+            return routes(&app, account.as_deref(), json).await;
+        }
+        Command::Status { json } => return app::status(&context::data_dir()?, json).await,
+        Command::Top { app, here } => {
+            return top::run(&context::data_dir()?, app::Where::from_flags(app, here)).await;
+        }
+        Command::Complete {
+            index, mut words, ..
+        } => {
+            // Some shells drop the empty word being completed.
+            if words.len() <= index {
+                words.resize(index + 1, String::new());
+            }
+            let names = context::data_dir()
+                .map(|dir| teitunnel_core::completion::candidates(&dir))
+                .unwrap_or_default();
+            let command = <Cli as clap::CommandFactory>::command();
+            for candidate in complete::complete(&command, &words, index, &names) {
+                out!("{}", candidate.line())?;
+            }
+            return Ok(ExitCode::SUCCESS);
         }
         Command::Setup => return setup().await,
         Command::Mcp {
@@ -532,13 +633,16 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             mode,
             allow_secrets,
         } => return mcp::serve(mode, allow_secrets).await,
-        Command::Completions { shell } => {
-            clap_complete::generate(
+        Command::Completions {
+            shell,
+            static_script,
+        } => {
+            let script = complete::script(
                 shell,
+                static_script,
                 &mut <Cli as clap::CommandFactory>::command(),
-                "teitunnel",
-                &mut io::stdout(),
             );
+            write!(io::stdout().lock(), "{script}").map_err(|e| e.to_string())?;
             return Ok(ExitCode::SUCCESS);
         }
         _ => {}
@@ -568,6 +672,11 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         }
         Command::Share { .. }
         | Command::Completions { .. }
+        | Command::Complete { .. }
+        | Command::Status { .. }
+        | Command::Top { .. }
+        | Command::Shares { .. }
+        | Command::Routes { check: false, .. }
         | Command::Setup
         | Command::Mcp { .. } => {
             unreachable!("handled above")
@@ -637,8 +746,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             account,
             json,
             check: true,
+            ..
         } => check_routes(&app, account.as_deref(), json).await,
-        Command::Routes { account, json, .. } => routes(&app, account.as_deref(), json).await,
         Command::Route(RouteCommand::Add {
             hostname,
             origin,
@@ -677,7 +786,6 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             change_routes(&app, Change::RemoveNetwork { network }, &apply).await
         }
         Command::Tunnels { account, json } => tunnels(&app, account.as_deref(), json).await,
-        Command::Shares { stop, json } => shares(&app, stop.as_deref(), json).await,
         Command::Tunnel(TunnelCommand::Create { name, apply }) => {
             change_routes(&app, Change::CreateTunnel { name }, &apply).await
         }

@@ -78,6 +78,29 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - **HTTP:** API keys only (`Authorization: Bearer`, hashes at rest), requests with an `Origin` header refused unless allowed (DNS rebinding), loopback `Host` names only unless `--allow-remote`, no CORS headers, repeated bad keys refused per address.
 - Client setup (`teitunnel mcp install`) edits only the `teitunnel` entry of a client's configuration, keeps a backup, never touches a file it can't parse, and writes no secret (the entry is a command path and arguments).
 
+### Local control connection and links (`crates/control`)
+- Programs on this computer (the CLI, editor extensions, launchers) reach the running app
+  only through a Unix socket (0600, in a 0700 folder, peers checked to be the same user) or
+  a named pipe whose DACL grants only the current user, with a random name, refusing remote
+  clients. Nothing listens on TCP.
+- Each connection must present the per-install token (`<data>/control/token`, 0600,
+  compared in constant time) in `hello` within 5 seconds; a wrong token or protocol version
+  closes it. Messages are bounded (1 MiB), requests rate-limited and timed out, connections
+  capped.
+- Sharing, stopping a share and applying a plan need the person's approval in a native
+  dialog naming the program, unless they chose "Always Allow" for that program name
+  (revocable in Settings ▸ Integrations). Replacing or deleting DNS records Teitunnel didn't
+  create is asked every time. Route changes are recorded in Activity with the program's
+  name. The program's name is self-declared: the token and file permissions, not the name,
+  keep other users out; a process running as the same user is trusted like the rest of this
+  model.
+- `teitunnel://` links are parsed strictly (known actions and parameters only, a port, a
+  hostname or an id). Sharing from a link always asks, is never remembered, and only one
+  question is shown at a time; links that only open a view don't ask. Links can be turned
+  off. Nothing a link carries is passed to a process.
+- Errors and texts sent over the connection are English sentences with no secrets; the
+  protocol carries no credentials.
+
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.
 - The diagnostics bundle is redacted, created locally, and shown to the user before they share it.

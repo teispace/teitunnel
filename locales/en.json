@@ -586,7 +586,8 @@
     "tab": {
       "general": "General",
       "accounts": "Accounts",
-      "cloudflared": "cloudflared"
+      "cloudflared": "cloudflared",
+      "integrations": "Integrations"
     },
     "startup": {
       "title": "Startup",
@@ -1811,6 +1812,36 @@
       "unknown": "Teitunnel doesn't know that AI tool.",
       "failed": "Couldn't change the AI tool's settings: {detail}",
       "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel."
+    },
+    "control": {
+      "clientTitle": "Allow {client} to make this change?",
+      "linkTitle": "Share from a link?",
+      "share": "{client} wants to share {origin} at a public address. Anyone with the address can open it.",
+      "linkShare": "A link opened in another app wants to share {origin} at a public address. Anyone with the address can open it. Only allow it if you opened the link on purpose.",
+      "stop": "{client} wants to stop the share {share}.",
+      "apply_one": "{client} wants to change your routes in Cloudflare ({count} step):\n{steps}",
+      "apply_other": "{client} wants to change your routes in Cloudflare ({count} steps):\n{steps}",
+      "applyForeign": "This replaces or deletes DNS records Teitunnel didn't create.",
+      "applyUnknown": "{client} wants to change your routes in Cloudflare.",
+      "allow": "Allow",
+      "allowAlways": "Always Allow",
+      "deny": "Don't Allow",
+      "shareButton": "Share",
+      "cancel": "Cancel",
+      "error": {
+        "noAccount": "No Cloudflare account is connected.",
+        "chooseAccount": "Several accounts are connected; choose one ({accounts}).",
+        "unknownAccount": "No connected account called {account}.",
+        "unknownTunnel": "This machine has no tunnel called {tunnel}.",
+        "unknownShare": "No share called {share} is running.",
+        "noUrl": "The share stopped before it got an address.",
+        "urlTimeout": "Cloudflare didn't hand out an address within 45 seconds. Check the internet connection and try again.",
+        "noBinary": "cloudflared isn't installed. Open Teitunnel to install it.",
+        "invalidChange": "That isn't a change Teitunnel knows: {error}",
+        "stale": "Something changed in Cloudflare since this plan was made. Review the new plan.",
+        "needsConfirmation": "This plan replaces or deletes DNS records Teitunnel didn't create; apply it with confirmed set."
+      },
+      "linkFailed": "Couldn't open the Teitunnel link"
     }
   },
   "permissionFix": {
@@ -2151,5 +2182,29 @@
       "updated": "A new version of {name} is live",
       "published": "{name} is online"
     }
+  },
+  "integrations": {
+    "title": "Integrations",
+    "control": {
+      "title": "Command line and extensions",
+      "footer": "Lets the teitunnel command, editor extensions and launchers on this computer use the running app. Only programs running as you can connect, and every change needs your approval unless you always allow the program.",
+      "enabled": "Allow connections",
+      "enabledDetail": "teitunnel share, shares and routes use the app while it runs."
+    },
+    "clients": {
+      "title": "Always allowed",
+      "footer": "These programs make changes without asking each time. Remove one to be asked again.",
+      "empty": "No program is always allowed. When one asks to make a change, choose Always Allow to add it here.",
+      "approved": "Always allowed since {date}",
+      "revoke": "Remove",
+      "revokeLabel": "Stop always allowing {name}"
+    },
+    "links": {
+      "title": "Links",
+      "footer": "teitunnel:// links let launchers, scripts and web pages open a route or a share in Teitunnel. Sharing from a link always asks first.",
+      "enabled": "Open teitunnel:// links",
+      "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.example.com."
+    },
+    "error": "Couldn't save the change: {message}"
   }
 }
