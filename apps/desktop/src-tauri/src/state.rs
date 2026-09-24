@@ -61,6 +61,8 @@ pub struct AppState {
     pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
     /// The inspector (Lens) in front of Quick Shares and inspected routes.
     pub inspector: teitunnel_core::inspect::Inspector,
+    /// Local HTTPS domains, served through the inspector's Lens.
+    pub local_domains: teitunnel_core::local_domains::LocalDomains,
     /// Live inspector subscriptions of the webview, by id (cancelled to stop).
     pub inspect_live:
         std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,

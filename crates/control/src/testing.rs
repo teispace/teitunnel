@@ -13,8 +13,8 @@ use crate::{
     BoxFuture, ConfirmRequest, Decision, Endpoint, Host, HostResult, Limits, Server,
     protocol::{
         AccountInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult, ClientInfo, DoctorIssue,
-        Event, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind,
-        StartShare, Status, StopShare, View, code,
+        Event, LocalDomainInfo, LocalDomainsInfo, PlanInfo, PreviewParams, RoutesList,
+        RoutesParams, RpcError, ShareInfo, ShareKind, StartShare, Status, StopShare, View, code,
     },
 };
 
@@ -36,6 +36,8 @@ pub struct FakeHost {
     pub started: Mutex<Vec<StartShare>>,
     /// Views opened.
     pub opened: Mutex<Vec<View>>,
+    /// `localDomains.reload` calls.
+    pub reloads: Mutex<u32>,
     events: broadcast::Sender<Event>,
 }
 
@@ -49,6 +51,7 @@ impl FakeHost {
             approved: Mutex::default(),
             started: Mutex::default(),
             opened: Mutex::default(),
+            reloads: Mutex::default(),
             events,
         })
     }
@@ -171,6 +174,33 @@ impl Host for FakeHost {
 
     fn doctor(&self) -> BoxFuture<'_, HostResult<Vec<DoctorIssue>>> {
         Box::pin(async move { Ok(Vec::new()) })
+    }
+
+    fn local_domains(&self) -> BoxFuture<'_, HostResult<LocalDomainsInfo>> {
+        Box::pin(async move {
+            Ok(LocalDomainsInfo {
+                running: true,
+                https_port: Some(443),
+                http_port: Some(80),
+                error: None,
+                domains: vec![LocalDomainInfo {
+                    name: "shop.test".into(),
+                    url: "https://shop.test".into(),
+                    origin: Some("http://localhost:3000".into()),
+                    wildcard: false,
+                    https: true,
+                    inspect: false,
+                    serving: true,
+                }],
+            })
+        })
+    }
+
+    fn reload_local_domains(&self) -> BoxFuture<'_, HostResult<LocalDomainsInfo>> {
+        Box::pin(async move {
+            *lock(&self.reloads) += 1;
+            self.local_domains().await
+        })
     }
 
     fn open(&self, view: View) -> BoxFuture<'_, HostResult<()>> {

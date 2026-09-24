@@ -7,8 +7,9 @@ use std::{future::Future, pin::Pin};
 use tokio::sync::broadcast;
 
 use crate::protocol::{
-    AppInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue, Event, PlanInfo, PreviewParams,
-    RoutesList, RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare, View,
+    AppInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue, Event, LocalDomainsInfo, PlanInfo,
+    PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare,
+    View,
 };
 
 /// A boxed, sendable future (the trait is object-safe).
@@ -92,6 +93,13 @@ pub trait Host: Send + Sync + 'static {
 
     /// Runs the Doctor.
     fn doctor(&self) -> BoxFuture<'_, HostResult<Vec<DoctorIssue>>>;
+
+    /// Local HTTPS domains and whether they're served.
+    fn local_domains(&self) -> BoxFuture<'_, HostResult<LocalDomainsInfo>>;
+
+    /// Serves what's in the database now (the CLI or a project changed it). It only
+    /// makes the app read its own database, so it needs no approval.
+    fn reload_local_domains(&self) -> BoxFuture<'_, HostResult<LocalDomainsInfo>>;
 
     /// Brings the app's window to a view.
     fn open(&self, view: View) -> BoxFuture<'_, HostResult<()>>;

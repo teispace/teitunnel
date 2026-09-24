@@ -529,6 +529,35 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	 *  gets a new URL (the UI says so before).
 	 */
 	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
+	/**  The domains, the listeners, `.test` names and the CA (no prompts). */
+	localDomainsStatus: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_status"),
+	/**  Adds a local domain and serves it. */
+	localDomainsAdd: (input: LocalDomainInput) => __TAURI_INVOKE<LocalDomainView>("local_domains_add", { input }),
+	/**  Changes a local domain's service, subdomains, HTTPS or inspection. */
+	localDomainsUpdate: (input: LocalDomainInput) => __TAURI_INVOKE<LocalDomainView>("local_domains_update", { input }),
+	/**  Records a local domain's requests in the inspector, or stops. */
+	localDomainsSetInspect: (name: string, inspect: boolean) => __TAURI_INVOKE<LocalDomainView>("local_domains_set_inspect", { name, inspect }),
+	/**  Removes a local domain. */
+	localDomainsRemove: (name: string) => __TAURI_INVOKE<null>("local_domains_remove", { name }),
+	/**  Lets phones and computers on the network open `.local` names, or stops that. */
+	localDomainsSetLan: (lan: boolean) => __TAURI_INVOKE<null>("local_domains_set_lan", { lan }),
+	/**  Starts serving again (after freeing a port, for example). */
+	localDomainsRestart: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_restart"),
+	/**  Where the local CA is trusted (runs the system's tools; no prompts). */
+	localDomainsTrustStatus: () => __TAURI_INVOKE<TrustView>("local_domains_trust_status"),
+	/**  Trusts the local CA. The system asks for a password (macOS) or to confirm (Windows). */
+	localDomainsTrust: (options: TrustOptions) => __TAURI_INVOKE<TrustView>("local_domains_trust", { options }),
+	/**  Stops trusting the local CA; with `forget`, deletes it too. */
+	localDomainsUntrust: (forget: boolean) => __TAURI_INVOKE<TrustView>("local_domains_untrust", { forget }),
+	/**  Runs a step that needs an administrator through the system's dialog (Linux). */
+	localDomainsRunAsAdmin: (task: AdminTask) => __TAURI_INVOKE<null>("local_domains_run_as_admin", { task }),
+	/**  Applies a Doctor fix for local domains. */
+	localDomainsFix: (action: LocalDomainFix) => __TAURI_INVOKE<null>("local_domains_fix", { action }),
+	/**
+	 *  Saves the local CA's certificate (never its key) where the person chooses, to install
+	 *  on a phone. `None` when cancelled.
+	 */
+	localDomainsSaveCa: (format: CaFormat) => __TAURI_INVOKE<string | null>("local_domains_save_ca", { format }),
 };
 
 /** Events */
@@ -685,6 +714,13 @@ export type AddressInput =
 hostname: string } | 
 /**  The account's `workers.dev` subdomain. */
 { type: "workersDev" };
+
+/**  Steps [`LocalDomains::run_as_admin`] can run. */
+export type AdminTask = 
+/**  The `.test` resolver entry. */
+"resolver" | 
+/**  The Linux system trust store. */
+"trustStore";
 
 /**  Built-in user-agent block lists. */
 export type AgentPreset = 
@@ -916,6 +952,23 @@ export type BotMode =
 "challenge" | 
 /**  Refused. */
 "block";
+
+/**  How to save the CA certificate for another device. */
+export type CaFormat = 
+/**  An Apple configuration profile (iPhone, iPad). */
+"appleProfile" | 
+/**  A PEM certificate (Android, other computers). */
+"certificate";
+
+/**  The local certificate authority (public facts only). */
+export type CaView = {
+	/**  `Teitunnel Local CA (user@host)`. */
+	commonName: string,
+	/**  SHA-256 of the certificate. */
+	sha256: string,
+	/**  When it expires, Unix seconds. */
+	notAfter: number | null,
+};
 
 /**  Everything a credential can do in one account. */
 export type Capabilities = {
@@ -1544,7 +1597,9 @@ export type EntityKind =
 /**  Projects (teitunnel.yml files opened in the app). */
 "projects" | 
 /**  The inspector's taps and settings (captures stream on `inspect_subscribe`). */
-"inspector";
+"inspector" | 
+/**  Local HTTPS domains, their listeners and trust. */
+"localDomains";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -1960,25 +2015,29 @@ export type Fix_Deserialize =
 /**  Button title, e.g. "Fix the DNS Record". */
 label: Text; 
 /**  The change. */
-change: Change_Deserialize }) & { accountId?: never; tunnelId?: never } | 
+change: Change_Deserialize }) & { accountId?: never; action?: never; tunnelId?: never } | 
 /**  Install (or update) the managed cloudflared. */
-({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "installBinary" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Start this Mac's connector. */
 ({ type: "startConnector"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Accept an outside edit of this Mac's routes. */
 ({ type: "keepTheirs"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Create a token with the right permissions. */
-({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "reconnect" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Remove a tunnel's stale connections. */
 ({ type: "cleanConnections"; 
 /**  Account. */
 accountId: string; 
 /**  Tunnel. */
-tunnelId: string }) & { change?: never; label?: never };
+tunnelId: string }) & { action?: never; change?: never; label?: never } | 
+/**  Local domains, fixed on this computer. */
+({ type: "localDomains"; 
+/**  What to do. */
+action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; tunnelId?: never };
 
 /**  A way to fix an issue. */
 export type Fix_Serialize = 
@@ -1987,25 +2046,29 @@ export type Fix_Serialize =
 /**  Button title, e.g. "Fix the DNS Record". */
 label: Text; 
 /**  The change. */
-change: Change_Serialize }) & { accountId?: never; tunnelId?: never } | 
+change: Change_Serialize }) & { accountId?: never; action?: never; tunnelId?: never } | 
 /**  Install (or update) the managed cloudflared. */
-({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "installBinary" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Start this Mac's connector. */
 ({ type: "startConnector"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Accept an outside edit of this Mac's routes. */
 ({ type: "keepTheirs"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Create a token with the right permissions. */
-({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "reconnect" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Remove a tunnel's stale connections. */
 ({ type: "cleanConnections"; 
 /**  Account. */
 accountId: string; 
 /**  Tunnel. */
-tunnelId: string }) & { change?: never; label?: never };
+tunnelId: string }) & { action?: never; change?: never; label?: never } | 
+/**  Local domains, fixed on this computer. */
+({ type: "localDomains"; 
+/**  What to do. */
+action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; tunnelId?: never };
 
 /**  A cloudflared process Teitunnel doesn't manage. */
 export type ForeignConnector = {
@@ -2612,6 +2675,104 @@ export type LiveBatch = {
 	lagged: boolean,
 };
 
+/**  A local domain the project adds or changes on this computer (nothing in Cloudflare). */
+export type LocalDomainAction = {
+	/**  E.g. `shop.localhost`. */
+	name: string,
+	/**  The port it serves. */
+	port: number,
+	/**  Subdomains too. */
+	wildcard: boolean,
+	/**  It exists already (with another port or wildcard setting). */
+	exists: boolean,
+};
+
+/**  A fix for a local domains issue. */
+export type LocalDomainFix = 
+/**  Trust the local certificate authority. */
+"trust" | 
+/**  Add the `.test` resolver entry (the walkthrough; `pkexec` on Linux). */
+"setUpResolver" | 
+/**  Start serving again. */
+"restart" | 
+/**  Issue fresh certificates. */
+"renewCertificates" | 
+/**  Replace the certificate authority (and trust the new one). */
+"renewCa";
+
+/**  A local domain to add (or the new settings of one). */
+export type LocalDomainInput = {
+	/**  E.g. `shop.test`, `app.localhost`, `phone.local`. */
+	name: string,
+	/**  A port, `host:port` or URL. */
+	target: string,
+	/**  `*.name` goes to the same service. */
+	wildcard: boolean,
+	/**  Serve it over HTTPS (plain HTTP otherwise). */
+	https: boolean,
+	/**  Record its requests in the inspector. */
+	inspect: boolean,
+};
+
+/**  One local domain, with how it's doing. */
+export type LocalDomainView = {
+	/**  E.g. `shop.test`. */
+	name: string,
+	/**  Where to open it, e.g. `https://shop.test` (with the port when it isn't 443/80). */
+	url: string,
+	/**  The local service, e.g. `http://localhost:3000` (`None` for targets not served). */
+	origin: string | null,
+	/**  The target as stored. */
+	target: LocalTarget,
+	/**  Subdomains go to the same service. */
+	wildcard: boolean,
+	/**  Served over HTTPS. */
+	https: boolean,
+	/**  Requests are recorded in the inspector. */
+	inspect: boolean,
+	/**  The project file that declared it. */
+	project: string | null,
+	/**  When it was added, Unix seconds. */
+	createdAt: number | null,
+	/**  Teitunnel is answering for it now. */
+	serving: boolean,
+	/**  Whether the name reaches this computer. */
+	resolution: NameResolution,
+	/**  Its inspector tap while served. */
+	tapId: TapId | null,
+	/**  Requests served since it started. */
+	requests: number | null,
+};
+
+/**  Everything about local domains at a glance (no processes run, no prompts). */
+export type LocalDomainsStatus = {
+	/**  The listeners are up. */
+	running: boolean,
+	/**  The HTTPS port in use. */
+	httpsPort: number | null,
+	/**  The plain HTTP port in use. */
+	httpPort: number | null,
+	/**  Why 443 or 80 isn't used. */
+	portProblems: PortProblem[],
+	/**
+	 *  Phones and other computers on the network may connect (`.local` names only over
+	 *  HTTPS).
+	 */
+	lan: boolean,
+	/**  This computer's addresses on the network, for phones. */
+	lanAddresses: string[],
+	/**  `.test` names. */
+	resolver: ResolverView,
+	/**  The certificate authority, once created. */
+	ca: CaView | null,
+	/**  The domains. */
+	domains: LocalDomainView[],
+	/**  Why local domains aren't served, if they should be. */
+	error: Text | null,
+	/**  Which platform's steps these are. */
+	platform: PlatformKind,
+};
+
 /**  A TCP port something on this machine is listening on. */
 export type LocalService = {
 	/**  The port. */
@@ -2674,6 +2835,25 @@ export type LocalSetup_Serialize = {
 	/**  Problems reading the file. */
 	problem: Text | null,
 };
+
+/**  Where a local domain sends requests. */
+export type LocalTarget = 
+/**  A port on this computer (`http://localhost:<port>`). */
+{ kind: "port"; 
+/**  The port. */
+port: number } | 
+/**  An HTTP(S) service by URL. */
+{ kind: "url"; 
+/**  E.g. `https://127.0.0.1:5173`. */
+url: string } | 
+/**  A Quick Share, by id (not served yet; kept so files from newer versions load). */
+{ kind: "share"; 
+/**  The share's id. */
+id: string } | 
+/**  A route, by id (not served yet; kept so files from newer versions load). */
+{ kind: "route"; 
+/**  The route's id. */
+id: string };
 
 /**  One cloudflared log line, for the log drawer. */
 export type LogLine = {
@@ -2801,6 +2981,17 @@ export type MetricsSnapshot = {
 	/**  Time to the response head. */
 	latency: LatencySummary,
 };
+
+/**  Does the name reach this computer? */
+export type NameResolution = 
+/**  The system resolves it to this computer. */
+"ok" | 
+/**  `.test` names need the resolver entry (browsers can't reach it yet). */
+"needsResolver" | 
+/**  It resolves somewhere else. */
+"elsewhere" | 
+/**  Not checked (`.local` names resolve through multicast DNS on the network). */
+"unchecked";
 
 /**  Network conditions for a tap. The default changes nothing. */
 export type NetworkConfig = {
@@ -2997,6 +3188,34 @@ export type PlanView = {
 	fingerprint: string,
 };
 
+/**  The platform, for the trust walkthrough. */
+export type PlatformKind = 
+/**  macOS. */
+"macos" | 
+/**  Windows. */
+"windows" | 
+/**  Linux. */
+"linux";
+
+/**  A port Teitunnel wanted but didn't get. */
+export type PortProblem = {
+	/**  The port wanted (443 or 80). */
+	port: number,
+	/**  Why it wasn't available. */
+	reason: PortReason,
+	/**  The port used instead (`None`: none could be used). */
+	fallback: number | null,
+};
+
+/**  Why the preferred port couldn't be used. */
+export type PortReason = 
+/**  Another program listens on it. */
+"inUse" | 
+/**  The system reserves it for administrators. */
+"permissionDenied" | 
+/**  Something else. */
+"other";
+
 /**  Prepared files, for review. */
 export type PreparedView = {
 	/**  Pass back to preview and publish. */
@@ -3015,6 +3234,12 @@ export type PreparedView = {
 	singlePage: boolean,
 	/**  A crawl's report. */
 	crawl: CrawlReport | null,
+};
+
+/**  A step that needs administrator rights, for the person to run. */
+export type PrivilegedStep = {
+	/**  The command to paste into a terminal (an administrator one on Windows). */
+	command: string,
 };
 
 /**  A progress update for the step at `step` (index into the plan). */
@@ -3104,6 +3329,8 @@ export type ProjectPlan_Deserialize = {
 	shares: ShareAction[],
 	/**  Snapshots to publish. */
 	snapshots: SnapshotAction[],
+	/**  Local domains to add or change. */
+	localDomains: LocalDomainAction[],
 	/**  Some route change touches a DNS record Teitunnel didn't create. */
 	requiresConfirmation: boolean,
 	/**  Identifies this plan; applying checks it's still the same. */
@@ -3126,6 +3353,8 @@ export type ProjectPlan_Serialize = {
 	shares: ShareAction[],
 	/**  Snapshots to publish. */
 	snapshots: SnapshotAction[],
+	/**  Local domains to add or change. */
+	localDomains: LocalDomainAction[],
 	/**  Some route change touches a DNS record Teitunnel didn't create. */
 	requiresConfirmation: boolean,
 	/**  Identifies this plan; applying checks it's still the same. */
@@ -3431,6 +3660,24 @@ export type Reservations = {
 	items: Reservation[],
 	/**  Read from the local cache because Cloudflare couldn't be reached. */
 	cached: boolean,
+};
+
+/**  `.test` names: the responder and the system's resolver entry. */
+export type ResolverView = {
+	/**  Some local domain ends in `.test`. */
+	needed: boolean,
+	/**  Teitunnel's name server answers (on `127.0.0.1:<port>`). */
+	responding: boolean,
+	/**  Its port. */
+	port: number,
+	/**  The system sends `.test` names to it (checked by resolving one). */
+	configured: boolean,
+	/**  Why the name server couldn't start. */
+	error: Text | null,
+	/**  The one-time steps that add the resolver entry. */
+	setup: PrivilegedStep[],
+	/**  The steps that remove it. */
+	teardown: PrivilegedStep[],
 };
 
 /**  Who produced the response. */
@@ -4350,7 +4597,11 @@ accountId: string;
 /**  Public hostname. */
 hostname: string; 
 /**  Path rule. */
-path: string | null };
+path: string | null } | 
+/**  A local HTTPS domain on this computer (`https://shop.test`). */
+{ kind: "localDomain"; 
+/**  The name, e.g. `shop.test`. */
+name: string };
 
 /**  A tap: one inspected share or route. */
 export type TapView = {
@@ -4495,6 +4746,80 @@ export type TrafficSeries = {
 	connections: number[],
 	/**  Smoothed round trip to the edge, in milliseconds (the mean for rollups). */
 	rttMs: (number | null)[],
+};
+
+/**  What to trust beyond the system store. */
+export type TrustOptions = {
+	/**  Also add it to Chrome's and Firefox's own certificate databases (always on Linux). */
+	browsers: boolean,
+	/**  Turn on "trust the system's certificates" in Firefox profiles (macOS, Windows). */
+	firefoxSystemRoots: boolean,
+};
+
+/**  A trust store's state. */
+export type TrustState = 
+/**  Trusted. */
+{ state: "trusted" } | 
+/**  Present but not trusted. */
+{ state: "notTrusted" } | 
+/**  Not there. */
+{ state: "absent" } | 
+/**  Firefox follows the system's trust. */
+{ state: "followsSystem" } | 
+/**  Firefox doesn't follow the system's trust. */
+{ state: "disabled" } | 
+/**  No supported store here. */
+{ state: "unsupported" } | 
+/**  A tool is missing. */
+{ state: "toolMissing"; 
+/**  The program. */
+tool: string; 
+/**  The package to install. */
+package: string | null } | 
+/**  Checking or changing it failed. */
+{ state: "error"; 
+/**  Details (technical). */
+message: string };
+
+/**  A trust store. */
+export type TrustStoreKind = 
+/**  The macOS login keychain (Safari, Chrome, Edge, and Firefox by default). */
+"macosKeychain" | 
+/**  Windows' certificates for the current user. */
+"windowsUser" | 
+/**  The Linux system store (curl, Node, most tools). */
+"linuxSystem" | 
+/**  Chrome or Chromium's certificate database. */
+"chrome" | 
+/**  A Firefox profile's certificate database. */
+"firefox" | 
+/**  A Firefox profile's "trust the system's certificates" setting. */
+"firefoxSystemRoots";
+
+/**  One store's trust. */
+export type TrustStoreView = {
+	/**  Which store. */
+	kind: TrustStoreKind,
+	/**  Its folder, for databases and profiles. */
+	path: string | null,
+	/**  The Linux distribution family, for the system store. */
+	flavor: string | null,
+	/**  Its state. */
+	state: TrustState,
+};
+
+/**  Whether this computer trusts the local certificate authority, store by store. */
+export type TrustView = {
+	/**  The system's own store trusts it (what most browsers use). */
+	trusted: boolean,
+	/**  Every store found. */
+	stores: TrustStoreView[],
+	/**  Steps left that need administrator rights (Linux's system store). */
+	steps: PrivilegedStep[],
+	/**  The certificate authority (created by the first trust). */
+	ca: CaView | null,
+	/**  The platform. */
+	platform: PlatformKind,
 };
 
 /**  A tunnel in the account. */

@@ -83,6 +83,31 @@ fn error_code(response: &Value) -> Option<i64> {
 }
 
 #[tokio::test]
+async fn local_domains_list_and_reload_without_asking() {
+    let running = start(Limits::default()).await;
+    let client = ControlClient::connect(&running.endpoint, cli())
+        .await
+        .unwrap();
+    for method in ["localDomains.list", "localDomains.reload"] {
+        assert!(
+            client.hello().methods.iter().any(|m| m == method),
+            "{method}"
+        );
+    }
+    let list = client.local_domains().await.unwrap();
+    assert!(list.running);
+    assert_eq!(list.domains[0].url, "https://shop.test");
+    let reloaded = client.reload_local_domains().await.unwrap();
+    assert_eq!(reloaded, list);
+    assert_eq!(*running.host.reloads.lock().unwrap(), 1);
+    assert_eq!(
+        running.host.asked(),
+        0,
+        "reading and reloading need no approval"
+    );
+}
+
+#[tokio::test]
 async fn hello_then_reads() {
     let running = start(Limits::default()).await;
     let client = ControlClient::connect(&running.endpoint, cli())

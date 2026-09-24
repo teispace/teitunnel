@@ -353,6 +353,18 @@ pub async fn projects_apply(
             Err(error) => applied.share_errors.push(error),
         }
     }
+    // Local domains: this computer only, served at once.
+    if !plan.local_domains.is_empty() {
+        project::apply_local_domains(&state.store, &plan).await?;
+        if let Err(err) = state.local_domains.sync().await {
+            tracing::warn!(%err, "a project's local domains couldn't be served");
+        }
+        let _ = crate::ipc::EntityChanged {
+            kind: crate::ipc::EntityKind::LocalDomains,
+            id: None,
+        }
+        .emit(&app);
+    }
     changed(&app);
     Ok(applied)
 }

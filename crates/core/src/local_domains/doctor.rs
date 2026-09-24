@@ -1,7 +1,7 @@
 //! The Doctor's checks for local domains: not served, ports, trust, `.test` names,
 //! expiring certificates. Each issue has a fix the app applies in place.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{
     LocalDomains,
@@ -18,7 +18,7 @@ const CA_WARN: i64 = 30 * 24 * 60 * 60;
 const LEAF_WARN: i64 = 5 * 24 * 60 * 60;
 
 /// A fix for a local domains issue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub enum LocalDomainFix {

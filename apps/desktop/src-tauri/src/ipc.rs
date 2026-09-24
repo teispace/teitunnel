@@ -19,6 +19,7 @@ mod events;
 mod exposure;
 mod inspect;
 mod integrations;
+mod local_domains;
 mod projects;
 mod quick_share;
 mod reservations;
@@ -186,7 +187,20 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             inspect::inspect_routes,
             inspect::inspect_route_preview,
             inspect::inspect_route_apply,
-            quick_share::quick_share_set_inspected
+            quick_share::quick_share_set_inspected,
+            local_domains::local_domains_status,
+            local_domains::local_domains_add,
+            local_domains::local_domains_update,
+            local_domains::local_domains_set_inspect,
+            local_domains::local_domains_remove,
+            local_domains::local_domains_set_lan,
+            local_domains::local_domains_restart,
+            local_domains::local_domains_trust_status,
+            local_domains::local_domains_trust,
+            local_domains::local_domains_untrust,
+            local_domains::local_domains_run_as_admin,
+            local_domains::local_domains_fix,
+            local_domains::local_domains_save_ca
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }
