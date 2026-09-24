@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/teispace/teitunnel/compare/v0.1.0...v0.2.0) (2026-09-24)
+
+
+### Features
+
+* **web:** code signing policy ready for SignPath Foundation ([#20](https://github.com/teispace/teitunnel/issues/20)) ([c513c0c](https://github.com/teispace/teitunnel/commit/c513c0c86b6bb0c769e0e136e55fcb04302bd4de))
+
 ## [0.1.0](https://github.com/teispace/teitunnel/compare/v0.1.0...v0.1.0) (2026-09-23)
 
 
