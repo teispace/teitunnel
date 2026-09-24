@@ -10,7 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
 $failures = [System.Collections.Generic.List[string]]::new()
 function Fail($message) { Write-Host "::error::$message"; $failures.Add($message) }
 
@@ -34,6 +34,12 @@ function Set-Theme([bool] $dark) {
 # Windows records every notification-area icon it has seen, with the program that owns it;
 # Windows 11 hides new icons in the overflow, so the taskbar itself can't be read.
 $trayKey = 'HKCU:\Control Panel\NotifyIconSettings'
+function Test-Taskbar {
+  $condition = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Shell_TrayWnd')
+  $null -ne [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
+    [System.Windows.Automation.TreeScope]::Children, $condition)
+}
 function Find-Tray($exe) {
   Get-ChildItem $trayKey | ForEach-Object { Get-ItemProperty $_.PSPath } |
     Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $exe) }
@@ -72,8 +78,8 @@ if (-not (Test-Path $shortcut)) { Fail 'No Start menu shortcut' }
 
 Set-Theme $false
 Start-App $exe 'light' | Out-Null
-if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) {
-  Write-Host '::warning::No taskbar (Explorer isn''t running): the tray icon was not checked'
+if (-not (Test-Taskbar)) {
+  Write-Host '::warning::No taskbar on this screen: the tray icon was not checked'
 } elseif (-not (Test-Path $trayKey)) {
   Write-Host '::warning::This Windows keeps no NotifyIconSettings; the tray icon was not checked'
 } elseif (-not ($tray = Find-Tray $exe)) {
