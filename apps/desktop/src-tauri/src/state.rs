@@ -50,4 +50,6 @@ pub struct AppState {
     pub snapshots: teitunnel_core::snapshot::Preparations,
     /// Where crawled sites are captured before publishing.
     pub snapshot_dir: std::path::PathBuf,
+    /// New service token secrets, kept in memory briefly so they can be copied.
+    pub issued_secrets: teitunnel_core::protection::IssuedSecrets,
 }

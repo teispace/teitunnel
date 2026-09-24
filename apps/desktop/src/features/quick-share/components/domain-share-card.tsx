@@ -1,11 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Camera, ExternalLink, Globe } from "lucide-react";
+import { Camera, ExternalLink, Globe, Shield } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useRoute, useSendHostOnRoute } from "@/features/dev-server";
+import { ProtectionSheet, useProtection } from "@/features/protection";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -29,6 +31,8 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
   const navigate = useNavigate();
   const url = `https://${share.hostname}`;
   const fromCli = share.owner !== "app";
+  const [protecting, setProtecting] = useState(false);
+  const protection = useProtection(share.accountId, share.hostname, protecting);
   return (
     <article
       aria-label={t("quickShare.domain.cardLabel", { hostname: share.hostname })}
@@ -60,6 +64,16 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           />
         </Tooltip>
         <QrButton url={url} />
+        <Tooltip content={t("protection.protectShare")}>
+          <IconButton
+            icon={Shield}
+            label={t("protection.protectShare")}
+            variant="secondary"
+            size="lg"
+            aria-busy={protection.isFetching || undefined}
+            onClick={() => setProtecting(true)}
+          />
+        </Tooltip>
         <Tooltip content={t("quickShare.snapshot")}>
           <IconButton
             icon={Camera}
@@ -72,6 +86,18 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           />
         </Tooltip>
       </div>
+      {protecting && protection.error ? (
+        <p role="alert" className="text-callout text-error">
+          {toIpcError(protection.error).message}
+        </p>
+      ) : null}
+      <ProtectionSheet
+        accountId={share.accountId}
+        hostname={share.hostname}
+        current={protection.data}
+        open={protecting && protection.isSuccess}
+        onClose={() => setProtecting(false)}
+      />
       {hostHeader ? <HostHeaderNote header={{ value: hostHeader, autoFor: null }} /> : null}
       <ShareCheck
         check={check.data ?? null}

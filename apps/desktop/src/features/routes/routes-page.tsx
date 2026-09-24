@@ -32,6 +32,12 @@ import { RouteAnalytics } from "@/features/analytics";
 import { CheckNotes, HostRejectionFix, useSendHostOnRoute } from "@/features/dev-server";
 import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
+import {
+  ProtectionSection,
+  ProtectionSheet,
+  ServiceTokens,
+  useProtection,
+} from "@/features/protection";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
@@ -280,6 +286,8 @@ function RouteInspector({
           localTunnelIds={localTunnelIds}
         />
       ) : null}
+      {route.client ? null : <ProtectionSection accountId={accountId} hostname={route.hostname} />}
+      {route.client ? null : <ServiceTokens accountId={accountId} hostname={route.hostname} />}
       {route.client ? null : <RouteAnalytics accountId={accountId} route={route} />}
       {route.local && tunnel ? (
         <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
@@ -324,6 +332,9 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const { issues } = useIssues();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
+  /** The hostname whose edge protection is being edited from the route sheet. */
+  const [protecting, setProtecting] = useState<string | null>(null);
+  const protection = useProtection(active?.id ?? "", protecting ?? "", protecting !== null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const setups = useLocalSetups(active !== null);
@@ -526,6 +537,19 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           tunnels={tunnels}
           mode={sheet}
           onClose={() => setSheet(null)}
+          onEditProtection={(hostname) => {
+            setSheet(null);
+            setProtecting(hostname);
+          }}
+        />
+      ) : null}
+      {active && protecting ? (
+        <ProtectionSheet
+          accountId={active.id}
+          hostname={protecting}
+          current={protection.data}
+          open={protection.isSuccess}
+          onClose={() => setProtecting(null)}
         />
       ) : null}
       {active ? (

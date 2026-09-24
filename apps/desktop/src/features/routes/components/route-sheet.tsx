@@ -273,13 +273,22 @@ interface RouteSheetProps {
   /** What the sheet does; `null` closes it. */
   mode: SheetMode | null;
   onClose: () => void;
+  /** Opens the hostname's edge protection (Advanced ▸ Protection, when editing). */
+  onEditProtection?: (hostname: string) => void;
 }
 
 /**
  * Every routes change goes through this sheet: fill in (add/edit) → review the plan →
  * apply with live progress → check the URL works. Nothing changes before Apply.
  */
-export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: RouteSheetProps) {
+export function RouteSheet({
+  accountId,
+  zones,
+  tunnels = [],
+  mode,
+  onClose,
+  onEditProtection,
+}: RouteSheetProps) {
   const open = mode !== null;
   const [stage, setStage] = useState<Stage>("form");
   const [hostname, setHostname] = useState("");
@@ -744,6 +753,19 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                     error={fieldError("options") ?? undefined}
                   />
                 </Disclosure>
+                {mode?.kind === "edit" && onEditProtection && !mode.route.client ? (
+                  <div className="flex items-center gap-3">
+                    <span className="flex min-w-0 flex-1 flex-col text-body">
+                      {t("protection.title")}
+                      <span className="text-callout text-secondary">
+                        {t("protection.routeSheetHelp")}
+                      </span>
+                    </span>
+                    <Button size="sm" onClick={() => onEditProtection(mode.route.hostname)}>
+                      {t("protection.edit")}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </Disclosure>
             {fixCard}

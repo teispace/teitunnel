@@ -25,7 +25,11 @@ export type PermissionNeed =
   /** Snapshots: Workers on the account. */
   | { kind: "workers" }
   /** Snapshots: a Custom Domain on a zone. */
-  | { kind: "workersRoutes"; zone: string };
+  | { kind: "workersRoutes"; zone: string }
+  /** Edge protection: custom and rate limiting rules, and header rules. */
+  | { kind: "edgeRules" }
+  /** Access service tokens for machines. */
+  | { kind: "serviceTokens" };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -53,6 +57,10 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.workersEdit === "no";
     case "workersRoutes":
       return caps.zones.some((z) => z.zoneName === need.zone && z.workersRoutes === "no");
+    case "edgeRules":
+      return caps.edgeRules === "no";
+    case "serviceTokens":
+      return caps.serviceTokens === "no";
   }
 }
 
@@ -99,6 +107,13 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
           why: t("permissionFix.workersRoutesWhy", { zone: need.zone }),
         },
       ];
+    case "edgeRules":
+      return [
+        { name: t("permissionFix.zoneWaf"), why: t("permissionFix.zoneWafWhy") },
+        { name: t("permissionFix.transformRules"), why: t("permissionFix.transformRulesWhy") },
+      ];
+    case "serviceTokens":
+      return [{ name: t("permissionFix.serviceTokens"), why: t("permissionFix.serviceTokensWhy") }];
   }
 }
 

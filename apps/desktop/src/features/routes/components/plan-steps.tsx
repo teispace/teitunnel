@@ -4,6 +4,7 @@ import {
   CircleCheck,
   Copy,
   Globe,
+  Key,
   KeyRound,
   LockKeyhole,
   type LucideIcon,
@@ -12,6 +13,7 @@ import {
   Power,
   RotateCcw,
   Route as RouteIcon,
+  Shield,
   Split,
   TriangleAlert,
   Waypoints,
@@ -20,7 +22,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t, translate } from "@/lib/i18n";
-import type { StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
+import type { QuotaKind, StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
 
 const kindIcons: Record<StepKind, LucideIcon> = {
   createTunnel: Waypoints,
@@ -37,6 +39,14 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   verify: CircleCheck,
   snapshot: Camera,
   snapshotAddress: Globe,
+  edgeRule: Shield,
+  serviceToken: Key,
+};
+
+const quotaWarnings: Record<QuotaKind, MessageKey> = {
+  custom: "plan.warning.edgeQuota.custom",
+  rateLimit: "plan.warning.edgeQuota.rateLimit",
+  transform: "plan.warning.edgeQuota.transform",
 };
 
 function StateIcon({ state }: { state: StepState | undefined }) {
@@ -94,6 +104,10 @@ function warningText(warning: Warning): string {
       return t("plan.warning.overlapsNetwork", warning);
     case "singleEndpoint":
       return t("plan.warning.singleEndpoint", warning);
+    case "edgeQuota":
+      return t(quotaWarnings[warning.quota], warning);
+    case "machineOnly":
+      return t("plan.warning.machineOnly", warning);
   }
 }
 

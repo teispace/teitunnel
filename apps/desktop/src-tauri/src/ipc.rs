@@ -18,6 +18,7 @@ mod events;
 mod quick_share;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
+mod protection;
 mod settings;
 mod snapshots;
 mod updates;
@@ -132,7 +133,13 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             snapshots::snapshots_prepare_build,
             snapshots::snapshots_prepare_crawl,
             snapshots::snapshots_preview,
-            snapshots::snapshots_apply
+            snapshots::snapshots_apply,
+            protection::protection_get,
+            protection::protection_tokens,
+            protection::protection_preview,
+            protection::protection_apply,
+            protection::protection_copy_secret,
+            protection::protection_forget_secret
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

@@ -3,11 +3,13 @@ import {
   Camera,
   Copy,
   Globe,
+  Key,
   LockKeyhole,
   type LucideIcon,
   Network,
   RefreshCw,
   Route as RouteIcon,
+  Shield,
   Split,
 } from "lucide-react";
 import { useState } from "react";
@@ -310,6 +312,8 @@ const areas: Record<Delta["area"], { icon: LucideIcon; label: MessageKey }> = {
   access: { icon: LockKeyhole, label: "activity.area.access" },
   loadBalancing: { icon: Split, label: "activity.area.loadBalancing" },
   snapshot: { icon: Camera, label: "activity.area.snapshot" },
+  protection: { icon: Shield, label: "activity.area.protection" },
+  serviceToken: { icon: Key, label: "activity.area.serviceToken" },
 };
 
 /** Before/after, one block per route, record or login, like a diff. */

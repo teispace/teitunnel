@@ -77,6 +77,8 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.engine.nothingToRestore": retry,
   "core.error.observe.accessPermission": fix,
   "core.error.observe.unknownTunnel": retry,
+  "core.error.observe.edgePermission": fix,
+  "core.error.observe.serviceTokenPermission": fix,
   "core.error.cloudflare.permission": fix,
   "core.error.analytics.permission": fix,
   "core.error.analytics.rateLimited": retry,
