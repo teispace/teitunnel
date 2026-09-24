@@ -26,7 +26,7 @@ function steps(download: Download): ReactNode[] {
         <>Drag Teitunnel into the Applications folder.</>,
         <>
           Open Teitunnel from Applications. macOS asks once whether to open an app from the
-          internet: choose <strong>Open</strong>. It's signed and notarized, so that's all.
+          internet: choose <strong>Open</strong>.
         </>,
       ];
     case "setup":
@@ -36,11 +36,7 @@ function steps(download: Download): ReactNode[] {
         </>,
         <>
           If Windows says it protected your PC, choose <strong>More info</strong>, then{" "}
-          <strong>Run anyway</strong>. Windows signing through SignPath Foundation is on its way (
-          <Link className="underline underline-offset-4" href="/code-signing/">
-            code signing policy
-          </Link>
-          ).
+          <strong>Run anyway</strong>.
         </>,
         <>
           Teitunnel installs for your user, without an administrator, and opens. Find it later in

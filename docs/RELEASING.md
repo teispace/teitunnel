@@ -56,7 +56,7 @@ send users an update that does nothing.
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
 | Channels: ghcr.io image, Homebrew tap | Done 2026-09-24 (the image package's visibility must be **Public** in the organization's Packages settings once, after the first push) |
 | winget | First submission: step 7; then `WINGET_TOKEN` |
-| SignPath Foundation for Windows | Applied 2026-09-24 (step 6); the review usually takes one to two weeks and the reply goes to info@teispace.com. Windows builds stay unsigned until accepted. |
+| SignPath Foundation for Windows | Declined 2026-09-24: not enough reputation yet. Reapply once Teitunnel is better known (step 6). Windows builds are unsigned. |
 
 ## One-time setup (maintainer)
 
@@ -132,7 +132,12 @@ xcrun notarytool log <submission id> --key AuthKey_<KeyID>.p8 --key-id <Key ID> 
 - Cloudflare DNS for `teispace.com`: `CNAME teitunnel → teispace.github.io`, **DNS only**
   (grey cloud) so GitHub can issue the certificate.
 
-### 6. Windows signing (after 0.1.0)
+### 6. Windows signing (reapply later)
+
+The first application was declined on 2026-09-24 for lack of popularity, and the site's
+code signing policy page and signing notes were removed (D-085). To reapply, restore
+`apps/web/app/(home)/code-signing/` and its links from git history (commit `c513c0c`),
+then follow the checklist below.
 
 The application (https://signpath.org/apply) needs a person: it creates a SignPath account in
 the applicant's name, has a CAPTCHA and asks to accept SignPath Foundation's code of conduct.

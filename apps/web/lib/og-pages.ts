@@ -44,12 +44,6 @@ export function cards(): Card[] {
       title: "No telemetry. Nothing about you.",
       description: "What Teitunnel sends where.",
     },
-    {
-      slug: ["code-signing"],
-      eyebrow: "Code signing policy",
-      title: "How Teitunnel is signed",
-      description: "Who builds, signs and approves every release.",
-    },
     ...source.getPages().map((page) => ({
       slug: ["docs", ...page.slugs],
       eyebrow: sectionOf(page.slugs),

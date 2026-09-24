@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** A plain text page (privacy, code signing policy). */
+/** A plain text page, such as the privacy statement. */
 export function ProsePage({
   title,
   updated,
