@@ -16,7 +16,7 @@ const subjects: SubjectView[] = [
   {
     key: "snapshot:s1",
     kind: "snapshot",
-    accountId: "a1",
+    accountId: "acc-personal",
     label: "Launch",
     url: "https://preview.teispace.com",
     open: 2,
@@ -25,9 +25,9 @@ const subjects: SubjectView[] = [
     latestAt: minutes(4),
   },
   {
-    key: "route:a1:app.teispace.com",
+    key: "route:acc-personal:app.teispace.com",
     kind: "route",
-    accountId: "a1",
+    accountId: "acc-personal",
     label: "app.teispace.com",
     url: "https://app.teispace.com",
     open: 1,
@@ -128,7 +128,7 @@ const threads: Thread[] = [
 
 const fronts: FrontView[] = [
   {
-    accountId: "a1",
+    accountId: "acc-personal",
     hostname: "app.teispace.com",
     kind: "offline",
     path: "",
@@ -142,7 +142,7 @@ const fronts: FrontView[] = [
     routed: true,
   },
   {
-    accountId: "a1",
+    accountId: "acc-personal",
     hostname: "app.teispace.com",
     kind: "inbox",
     path: "/webhooks/",
