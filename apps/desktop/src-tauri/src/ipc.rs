@@ -27,6 +27,7 @@ mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
 mod protection;
 mod settings;
+mod sharing;
 mod snapshots;
 mod updates;
 
@@ -50,6 +51,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             cli::cli_install,
             cli::cli_uninstall,
             ai_clients::ai_clients_status,
+            ai_clients::ai_agents,
             ai_clients::ai_clients_connect,
             ai_clients::ai_clients_disconnect,
             updates::updates_check,
@@ -69,6 +71,14 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             domain_shares::domain_shares_list,
             domain_shares::domain_shares_start,
             domain_shares::domain_shares_stop,
+            sharing::sharing_set_paused,
+            sharing::sharing_schedules,
+            sharing::sharing_set_schedule,
+            sharing::sharing_name_suggestions,
+            sharing::sharing_expand_name,
+            sharing::sharing_folder,
+            sharing::sharing_choose_folder,
+            sharing::sharing_start_folder_on_domain,
             quick_share::quick_share_cli_list,
             quick_share::quick_share_cli_stop,
             quick_share::binary_status,
@@ -77,6 +87,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             quick_share::binary_reveal,
             quick_share::services_list,
             quick_share::quick_share_start,
+            quick_share::quick_share_start_folder,
             quick_share::quick_share_set_host_header,
             quick_share::quick_share_check,
             quick_share::quick_share_stop,
@@ -176,6 +187,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             inspect::inspect_replay,
             inspect::inspect_export,
             inspect::inspect_export_save,
+            inspect::inspect_openapi_save,
             inspect::inspect_clear,
             inspect::inspect_configure,
             inspect::inspect_protect,

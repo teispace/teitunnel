@@ -262,6 +262,17 @@ pub trait TrafficSource: Send + Sync + 'static {
         filter: &'a TrafficFilter,
     ) -> BoxFuture<'a, Result<TrafficStats, TrafficError>>;
 
+    /// An OpenAPI 3.1 description of the captured traffic (to `host`, or all), and what
+    /// went into it.
+    fn openapi<'a>(
+        &'a self,
+        _host: Option<&'a str>,
+        _title: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(serde_json::Value, teitunnel_core::openapi::Summary), TrafficError>>
+    {
+        not_running()
+    }
+
     /// The exchanges `ids` as `format`. `mask(name, value)` returns the header value to
     /// write (it masks credentials unless the server allows secrets). The default renders
     /// from [`TrafficSource::get`]; a source with richer exporters may override it.

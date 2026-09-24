@@ -15,6 +15,18 @@ export const queryKeys = {
     logs: (id: string) => ["quickShares", "logs", id] as const,
     /** Shares on your own domains. */
     domain: () => ["quickShares", "domain"] as const,
+    /** Schedules of shares on your domains and routes. */
+    schedules: () => ["quickShares", "schedules"] as const,
+    /** Names suggested for a share on your domain. */
+    names: (domain: string, folder: string | null, project: string | null) =>
+      ["quickShares", "names", domain, folder ?? "", project ?? ""] as const,
+    /** A hostname with its placeholders filled in. */
+    expanded: (hostname: string, folder: string | null) =>
+      ["quickShares", "expanded", hostname, folder ?? ""] as const,
+  },
+  /** AI agents connected through `teitunnel mcp`, and their approvals waiting. */
+  agents: {
+    all: () => ["agents"] as const,
   },
   qr: (value: string) => ["qr", value] as const,
   services: {
@@ -132,6 +144,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.inspector.all()];
     case "localDomains":
       return [queryKeys.localDomains.all(), queryKeys.doctor.all()];
+    case "agents":
+      return [queryKeys.agents.all()];
   }
 }
 

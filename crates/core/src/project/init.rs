@@ -156,6 +156,7 @@ mod tests {
             process: "node".into(),
             kind: ServiceKind::Vite,
             project: Some(project.into()),
+            folder: None,
             origin: format!("http://localhost:{port}"),
         }
     }
@@ -180,6 +181,10 @@ mod tests {
                 owner: "app".into(),
                 expires_at: None,
                 created_at: 0,
+                source: None,
+                folder: false,
+                paused: false,
+                schedule: None,
             }],
             services: vec![
                 service(4000, "shop"),

@@ -61,7 +61,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] `teitunnel mcp`: MCP server over stdio (Claude Code, Cursor, VS Code, Codex, Windsurf, Zed), and Streamable HTTP from `teitunnel serve` with API keys for remote agents.
 - [x] Tools: `share_port`, `stop_share`, `list_shares`, `list_routes`, `plan_change` (returns the same plan people review), `apply_plan` (by fingerprint), `verify_route`, `doctor`, `fix_issue`, `logs_tail`, `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request` (block until a matching request arrives: webhook testing without polling), `traffic_stats`, `export_config`.
 - [x] Resources (routes, shares, domains, issues) and prompts ("debug this failing webhook", "put my dev server online on my domain with a login").
-- [ ] Safety: three modes per client (read-only, ask, full). "Ask" shows a native approval in the app (or the terminal) with the plan before any Cloudflare change; secrets never exposed to agents (masked bodies unless allowed); every agent action in Activity, marked with the client's name; rate limits. (Done in `crates/mcp`: modes, elicitation or a confirmed second call, redaction, Activity `actor`, rate limits. Left: the app's own native approval dialog, via the `Approver` hook, once the app hosts the server.)
+- [x] Safety: three modes per client (read-only, ask, full). "Ask" shows a native approval in the app (or the terminal) with the plan before any Cloudflare change; secrets never exposed to agents (masked bodies unless allowed); every agent action in Activity, marked with the client's name; rate limits. (Done in `crates/mcp`: modes, elicitation or a confirmed second call, redaction, Activity `actor`, rate limits. The app's native approval: `teitunnel mcp` asks through the control connection (`agent.approve`) while the app runs, else elicitation; Settings lists connected agents.)
 - [x] One-click "Connect an AI tool" in Settings: writes the client's MCP config (with consent), shows the command for others.
 - [x] Agent Skill (`SKILL.md`) and `AGENTS.md` snippet in the docs; `llms.txt` already exists.
 - [x] No built-in LLM or cloud AI service (decision Q4): agents bring the model; Teitunnel stays local and free.
@@ -84,13 +84,13 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance.
 
 ## M12-06 · Sharing power-ups
-- [ ] Pause/resume a share on your domain: the hostname stays reserved (route kept, connector paused, a friendly "paused" page served by Lens); resume with the same URL.
-- [ ] Stable names: `{project}.dev.example.com` from the detected project; `{branch}` from git (`teitunnel share 3000 --on {branch}.dev.example.com`); remember per folder.
-- [ ] Share a folder (static file server in Lens, directory listing optional, single-page-app fallback), from the app (drag and drop) and CLI.
+- [x] Pause/resume a share on your domain: the hostname stays reserved (route kept, connector paused, a friendly "paused" page served by Lens); resume with the same URL.
+- [x] Stable names: `{project}.dev.example.com` from the detected project; `{branch}` from git (`teitunnel share 3000 --on {branch}.dev.example.com`); remember per folder.
+- [x] Share a folder (static file server in Lens, directory listing optional, single-page-app fallback), from the app (drag and drop) and CLI.
 - [x] Snapshot to the user's own Cloudflare (Workers static assets, [research](../research/cloudflare-snapshots.md)) so a preview stays online when the computer sleeps (decision Q5): from a folder, a build or a crawl of a running site; incremental uploads, versions and rollback, custom hostname or workers.dev, password or Access login, expiry; app, CLI and docs.
 - [ ] Feedback overlay/comments on shares (later; LocalCan's newest feature; decision Q6).
 - [ ] Offline page: when this computer is off, a route or domain share shows a friendly page from a tiny Worker on the user's account (same mechanism as snapshots) instead of Cloudflare's 1033.
-- [ ] Scheduled shares: on during set hours/days, off otherwise.
+- [x] Scheduled shares: on during set hours/days, off otherwise (off: the paused page, applied by whoever serves the route).
 
 ## M12-07 · Everywhere
 - [x] Tray/menu bar: share a detected service in one click, copy recent URLs, pause all. (`core::quick_actions`; pause and resume need an inspected share; also stop all.)
@@ -126,7 +126,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Project file `teitunnel.yml` in a repo: its shares, routes, protection, local domains and snapshots; `teitunnel up` (or opening the folder in the app) applies it through plan → apply; checked into git so a team shares it. (D-107; local domains applied since D-115.)
 - [x] Exposure check before a share goes public: probe the origin for common leaks (`/.env`, `/.git/`, directory listings, debug pages such as Django/Laravel/Rails error pages, open admin panels, framework dev tools) and warn with details; never blocks, one click to continue. (D-108)
 - [x] Auto-stop idle shares after N minutes without requests; notify when a request hits a watched path.
-- [ ] OpenAPI from traffic: infer an API description (paths, methods, parameters, JSON schemas from observed bodies) from captured exchanges; export for docs and agents.
+- [x] OpenAPI from traffic: infer an API description (paths, methods, parameters, JSON schemas from observed bodies) from captured exchanges; export for docs and agents.
 - [x] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere. (D-109; local domains included since D-115.)
 
 ## M12-10 · Reach

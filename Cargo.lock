@@ -6792,6 +6792,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dirs 7.0.0",
+ "jiff",
  "nix",
  "ratatui",
  "serde",
@@ -6862,6 +6863,7 @@ dependencies = [
  "insta",
  "intl_pluralrules",
  "ipnet",
+ "jiff",
  "keyring",
  "listeners",
  "nix",
@@ -6901,6 +6903,7 @@ dependencies = [
 name = "teitunnel-desktop"
 version = "0.1.1"
 dependencies = [
+ "jiff",
  "objc2-app-kit",
  "serde",
  "serde_json",
@@ -7016,6 +7019,7 @@ dependencies = [
  "sha2 0.11.0",
  "teitunnel-cf-api",
  "teitunnel-cloudflared",
+ "teitunnel-control",
  "teitunnel-core",
  "tempfile",
  "thiserror 2.0.20",

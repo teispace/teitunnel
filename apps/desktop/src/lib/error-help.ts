@@ -133,6 +133,20 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.connector.notFound": retry,
   "core.error.secret.keychain": retry,
   "core.error.secret.unavailable": retry,
+  "core.error.quickShare.folderNeedsInspector": input,
+  "core.error.folder.notFolder": input,
+  "core.error.folder.tooBroad": input,
+  "core.error.schedule.days": input,
+  "core.error.schedule.time": input,
+  "core.error.schedule.timeZone": input,
+  "core.error.schedule.spec": input,
+  // The app, `up` or `serve` must be running, or the terminal share restarted.
+  "core.error.pause.ownerGone": retry,
+  "core.error.pause.notInspected": input,
+  "core.error.pause.noHost": retry,
+  "core.error.shareName.placeholder": input,
+  "core.error.shareName.noValue": input,
+  "core.error.shareName.invalid": input,
 };
 
 /** The Cloudflare page that resolves an error, if it has one. */

@@ -59,12 +59,15 @@ pub enum QuickShareError {
     Runtime(#[from] crate::runtime::SupervisorError),
     /// The inspector couldn't put a tap in front of the service.
     Inspector(Text),
+    /// A folder share always goes through the inspector (it's what serves the files).
+    FolderNeedsInspector,
 }
 
 impl UserText for QuickShareError {
     fn text(&self) -> Text {
         match self {
             Self::Inspector(text) => text.clone(),
+            Self::FolderNeedsInspector => msg::error::quick_share::folder_needs_inspector(),
             Self::Binary(err) => err.text(),
             Self::Runtime(err) => err.text(),
             Self::NoFreePort => msg::error::quick_share::no_free_port(),
@@ -123,6 +126,8 @@ pub struct QuickShare {
     pub check: Option<Verification>,
     /// Requests go through the inspector (its tap has the share's id).
     pub inspected: bool,
+    /// A folder served by the inspector (`origin` is then the inspector's address).
+    pub folder: Option<crate::folder_share::FolderShare>,
 }
 
 /// A Host header a share sends to its service.
@@ -366,15 +371,20 @@ impl QuickShares {
         inspector: &Inspector,
         share: &QuickShare,
     ) -> Result<(lens::TapId, String), QuickShareError> {
+        let source = share
+            .folder
+            .as_ref()
+            .map_or_else(|| share.origin.to_string(), |f| f.path.clone());
         let mut spec = TapSpec::new(
             TapScope::QuickShare {
                 share_id: share.id.clone(),
             },
-            share.url.as_deref().unwrap_or(share.origin.as_str()),
-            share.origin.as_str(),
+            share.url.as_deref().unwrap_or(&source),
+            &source,
         );
         spec.host_header = share.host_header.as_ref().map(|h| h.value.clone());
         spec.public_url.clone_from(&share.url);
+        spec.folder.clone_from(&share.folder);
         let tap = inspector
             .start(spec)
             .await
@@ -389,11 +399,12 @@ impl QuickShares {
         share: &QuickShare,
         inspect: bool,
     ) -> Result<(String, Option<HostHeader>, Option<lens::TapId>), QuickShareError> {
-        match (&self.inspector, inspect) {
+        match (&self.inspector, inspect || share.folder.is_some()) {
             (Some(inspector), true) => {
                 let (tap, url) = self.start_tap(inspector, share).await?;
                 Ok((url, None, Some(tap)))
             }
+            (None, _) if share.folder.is_some() => Err(QuickShareError::FolderNeedsInspector),
             _ => Ok((share.origin.to_string(), share.host_header.clone(), None)),
         }
     }
@@ -444,6 +455,7 @@ impl QuickShares {
             host_header,
             check: None,
             inspected: inspect,
+            folder: None,
         };
         let (url, cloudflared_host, tap) = match self.target(&share, inspect).await {
             Ok(target) => target,
@@ -480,6 +492,83 @@ impl QuickShares {
         self.record_start(&share);
         self.changed(&id);
 
+        tokio::spawn(self.clone().await_url(id.clone(), port, 0));
+        if let Some(delay) = stop_after {
+            let this = self.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(delay).await;
+                let _ = this.stop(&id).await;
+            });
+        }
+        Ok(share)
+    }
+
+    /// Starts sharing a folder: the inspector serves its files (never secrets or
+    /// tooling, see [`crate::folder_share`]) and cloudflared points at it. Returns at
+    /// once; the URL arrives via [`Self::subscribe`].
+    ///
+    /// # Errors
+    /// No inspector in this process, cloudflared isn't installed, no port is free, or
+    /// the folder can't be served.
+    pub async fn start_folder(
+        &self,
+        folder: crate::folder_share::FolderShare,
+        stop_after: Option<Duration>,
+    ) -> Result<QuickShare, QuickShareError> {
+        if self.inspector.is_none() {
+            return Err(QuickShareError::FolderNeedsInspector);
+        }
+        let binary = self.binary.current().await?;
+        let port = self.ports.allocate().ok_or(QuickShareError::NoFreePort)?;
+        let id = format!("{ID_PREFIX}{}", Uuid::new_v4().simple());
+        let started_at = now_ms();
+        let mut share = QuickShare {
+            id: id.clone(),
+            // Replaced by the inspector's address below.
+            origin: OriginUrl::parse("http://127.0.0.1").map_err(|_| QuickShareError::NotFound)?,
+            url: None,
+            status: ShareStatus::Starting,
+            started_at,
+            stop_at: stop_after
+                .map(|d| started_at + u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
+            host_header: None,
+            check: None,
+            inspected: true,
+            folder: Some(folder),
+        };
+        let (url, _, tap) = match self.target(&share, true).await {
+            Ok(target) => target,
+            Err(err) => {
+                self.ports.release(port);
+                return Err(err);
+            }
+        };
+        if let Ok(origin) = OriginUrl::parse(&url) {
+            share.origin = origin;
+        }
+        let started = match self.command(&binary.path, &url, port, None).await {
+            Ok(command) => self
+                .supervisor
+                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .map_err(QuickShareError::from),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = started {
+            self.ports.release(port);
+            self.stop_tap(tap.as_ref()).await;
+            return Err(err);
+        }
+        self.lock().insert(
+            id.clone(),
+            Entry {
+                share: share.clone(),
+                port,
+                tap,
+                generation: 0,
+            },
+        );
+        self.record_start(&share);
+        self.changed(&id);
         tokio::spawn(self.clone().await_url(id.clone(), port, 0));
         if let Some(delay) = stop_after {
             let this = self.clone();
@@ -563,6 +652,9 @@ impl QuickShares {
         if current.inspected == on {
             return Ok(current);
         }
+        if current.folder.is_some() {
+            return Err(QuickShareError::FolderNeedsInspector);
+        }
         if on && self.inspector.is_none() {
             return Err(QuickShareError::Inspector(
                 crate::text::msg::error::inspect::unknown_tap(),
@@ -635,9 +727,20 @@ impl QuickShares {
             }
         };
         let inspected = tap.is_some();
+        let tap_origin = share
+            .folder
+            .as_ref()
+            .and(tap.as_ref())
+            .and_then(|tap| self.inspector.as_ref()?.tap_url(tap))
+            .and_then(|url| OriginUrl::parse(&url).ok());
+        let mut share = share;
+        if let Some(origin) = tap_origin {
+            share.origin = origin;
+        }
         if let Some(entry) = self.lock().get_mut(id) {
             entry.tap = tap;
             entry.share.inspected = inspected;
+            entry.share.origin = share.origin.clone();
         }
         self.changed(id);
         tokio::spawn(self.clone().await_url(id.to_owned(), port, generation));
@@ -842,8 +945,11 @@ impl QuickShares {
     }
 
     fn record_start(&self, share: &QuickShare) {
-        let (id, origin, started_at) =
-            (share.id.clone(), share.origin.to_string(), share.started_at);
+        let origin = share
+            .folder
+            .as_ref()
+            .map_or_else(|| share.origin.to_string(), |f| f.path.clone());
+        let (id, started_at) = (share.id.clone(), share.started_at);
         self.persist(move |conn| {
             conn.execute(
                 "INSERT INTO quick_shares (id, origin, started_at) VALUES (?1, ?2, ?3)",

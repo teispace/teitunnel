@@ -31,6 +31,22 @@ pub struct InspectorTraffic {
 }
 
 impl InspectorTraffic {
+    /// An OpenAPI description of what the inspector captured (live, restored and, with
+    /// a database, other processes' history when the inspector hasn't started).
+    async fn describe(
+        &self,
+        host: Option<&str>,
+        title: Option<&str>,
+    ) -> Result<(serde_json::Value, teitunnel_core::openapi::Summary), TrafficError> {
+        let options = teitunnel_core::openapi::Options {
+            host: host.map(str::to_owned),
+            title: title.map(str::to_owned),
+        };
+        teitunnel_core::openapi::describe(Some(&self.inspector), self.inspector.store(), &options)
+            .await
+            .map_err(|e| TrafficError::Other(e.to_string()))
+    }
+
     /// Traffic captured by `inspector`; `allow_secrets` shows credentials (the server's
     /// `--allow-secrets`).
     pub fn new(inspector: Inspector, allow_secrets: bool) -> Self {
@@ -214,6 +230,15 @@ fn percentile(sorted: &[u64], p: f64) -> Option<u64> {
 }
 
 impl TrafficSource for InspectorTraffic {
+    fn openapi<'a>(
+        &'a self,
+        host: Option<&'a str>,
+        title: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(serde_json::Value, teitunnel_core::openapi::Summary), TrafficError>>
+    {
+        Box::pin(self.describe(host, title))
+    }
+
     fn list<'a>(
         &'a self,
         filter: &'a TrafficFilter,
@@ -546,6 +571,13 @@ mod tests {
             !out.to_string().contains("s3cr3t-token-value"),
             "masked for the agent"
         );
+
+        // The API, described from what was captured.
+        let (document, summary) = source.openapi(None, Some("Demo")).await.unwrap();
+        assert_eq!(document["info"]["title"], "Demo");
+        assert!(summary.requests >= 3, "{summary:?}");
+        assert!(document["paths"].as_object().is_some_and(|p| !p.is_empty()));
+        assert!(!document.to_string().contains("s3cr3t"));
 
         // With --allow-secrets, credentials show.
         let open = InspectorTraffic::new(inspector.clone(), true);

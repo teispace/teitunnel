@@ -4,6 +4,7 @@ import { analyticsMock } from "./mock-analytics";
 import { inspectorMock } from "./mock-inspector";
 import { localDomainsMock } from "./mock-local-domains";
 import { projectsMock } from "./mock-projects";
+import { sharingMock } from "./mock-sharing";
 
 /** A message the Rust core would send (`core.*` in the catalog). */
 const core = (key: string, args: Record<string, string | number> = {}) => ({
@@ -95,6 +96,7 @@ let shares: QuickShare[] = [
     startedAt: now - 12 * 60_000,
     stopAt: now + 48 * 60_000,
     inspected: true,
+    folder: null,
     hostHeader: { value: "localhost:5173", autoFor: "vite" },
     check: {
       hostname: "quiet-river-lamp-orbit.trycloudflare.com",
@@ -113,6 +115,7 @@ let shares: QuickShare[] = [
     startedAt: now - 2 * 60_000,
     stopAt: null,
     inspected: true,
+    folder: null,
     hostHeader: null,
     check: {
       hostname: "amber-field-cloud-note.trycloudflare.com",
@@ -134,6 +137,18 @@ let shares: QuickShare[] = [
     },
   },
   {
+    id: "qs-4",
+    origin: "http://127.0.0.1:52811",
+    url: "https://mellow-stone-paper-kite.trycloudflare.com",
+    status: { status: "live" },
+    startedAt: now - 6 * 60_000,
+    stopAt: null,
+    inspected: true,
+    folder: { path: "/Users/demo/Projects/docs/dist", listing: false, spa: true },
+    hostHeader: null,
+    check: null,
+  },
+  {
     id: "qs-2",
     origin: "http://localhost:3000",
     url: null,
@@ -141,6 +156,7 @@ let shares: QuickShare[] = [
     startedAt: now - 3_000,
     stopAt: null,
     inspected: true,
+    folder: null,
     hostHeader: null,
     check: null,
   },
@@ -154,6 +170,7 @@ const services: LocalService[] = [
     process: "node",
     kind: "vite",
     project: "teitunnel-web",
+    folder: null,
     origin: "http://localhost:5173",
   },
   {
@@ -163,6 +180,7 @@ const services: LocalService[] = [
     process: "node",
     kind: "next",
     project: "marketing",
+    folder: null,
     origin: "http://localhost:3000",
   },
   {
@@ -172,6 +190,7 @@ const services: LocalService[] = [
     process: "Python",
     kind: "python",
     project: "api",
+    folder: null,
     origin: "http://localhost:8000",
   },
   {
@@ -181,6 +200,7 @@ const services: LocalService[] = [
     process: "ControlCenter",
     kind: "system",
     project: null,
+    folder: null,
     origin: "http://localhost:5000",
   },
 ];
@@ -686,6 +706,7 @@ export function installMockIpc(): void {
             startedAt: Date.now(),
             stopAt: null,
             inspected: true,
+            folder: null,
             hostHeader: null,
             check: null,
           };
@@ -1138,6 +1159,7 @@ export function installMockIpc(): void {
             projectsMock(cmd, payload) ??
             inspectorMock(cmd, payload) ??
             localDomainsMock(cmd, payload) ??
+            sharingMock(cmd, payload) ??
             null
           );
       }

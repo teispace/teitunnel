@@ -66,6 +66,13 @@ fn is_secret(name: &str) -> bool {
         )
 }
 
+/// Whether a file or folder name may be published or served from a shared folder: never
+/// secrets (`.env*`, keys), version control, `node_modules` or other dotfiles
+/// (`.well-known` folders are fine). Shared by Snapshots and folder shares.
+pub fn servable(name: &str, is_dir: bool) -> bool {
+    skip_reason(name, is_dir).is_none()
+}
+
 fn skip_reason(name: &str, is_dir: bool) -> Option<SkipReason> {
     if is_secret(name) {
         return Some(SkipReason::Secret);

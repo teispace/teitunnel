@@ -52,6 +52,7 @@ const share: QuickShare = {
   hostHeader: null,
   check: null,
   inspected: true,
+  folder: null,
 };
 
 describe("Settings ▸ Inspector", () => {

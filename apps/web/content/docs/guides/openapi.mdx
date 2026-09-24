@@ -1,0 +1,34 @@
+---
+title: OpenAPI from traffic
+description: "Describe an API from the requests Teitunnel's inspector captured: an OpenAPI 3.1 file with paths, parameters, JSON schemas and status codes, for docs, client generators and AI agents."
+---
+
+When requests to an API go through Teitunnel's [inspector](/docs/guides/inspector/) (a
+share, or an inspected route), Teitunnel can describe that API as an
+[OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) document.
+
+- **Terminal:** `teitunnel traffic openapi` prints JSON; `--out api.yaml` writes a file
+  (YAML for `.yaml`/`.yml`), `--host api.example.com` keeps one host, `--title` names it.
+- **App:** Settings ▸ General ▸ Captured Requests ▸ **Save to Downloads**.
+- **AI agents:** `traffic_openapi`, for an agent writing a client or docs.
+
+## What it infers
+
+| | From |
+|---|---|
+| Paths | Segments that look like identifiers become parameters: numbers, UUIDs, long hexadecimal ids and random tokens, dates, and positions where many different one-off names appear under the same parent (slugs). `/users/123/orders/9f2c…` becomes `/users/{userId}/orders/{id}`. |
+| Operations | One per path and method, with the number of requests seen (`x-observed-requests`). |
+| Parameters | Path parameters with their type; query parameters and custom request headers, required when every request had them. |
+| Bodies | JSON request and response bodies as JSON Schemas merged across requests: a property is required when every object had it, types that differ become a list (`["string", "null"]`), integers and numbers merge to `number`, and formats (`date-time`, `date`, `uuid`, `email`, `uri`) are kept when every value had them. Form bodies list their fields. |
+| Responses | Every status code seen, with its body per media type. |
+| Security | Bearer or Basic authentication, when requests sent it. |
+
+Pages, scripts, styles, images and fonts are left out, and so are answers Teitunnel gave
+itself (the paused page, sign-in pages, stubs, simulated faults), `OPTIONS` and `HEAD`.
+
+## Privacy
+
+The description is built from the inspector's history, where credentials are already
+masked, and it copies no captured value into the file: no examples, no header values, no
+query values. It describes only what was observed, so exercise the API (or its test suite)
+through the share first, and review the file before you publish it.

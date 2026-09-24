@@ -28,6 +28,7 @@ mod project;
 mod protect;
 mod serve;
 mod share;
+mod sharing;
 mod snapshot;
 mod top;
 mod traffic;
@@ -213,9 +214,10 @@ enum Command {
     /// Create, or delete, one of this machine's tunnels.
     #[command(subcommand)]
     Tunnel(TunnelCommand),
-    /// Share a local service at a temporary public URL until you press Ctrl-C.
+    /// Share a local service, or a folder of files, at a temporary public URL until you
+    /// press Ctrl-C.
     Share {
-        /// What to share: a port (`3000`), `host:port`, or a URL.
+        /// What to share: a port (`3000`), `host:port`, a URL, or a folder (`./dist`).
         origin: String,
         /// Stop by itself after this long, e.g. `30m`, `2h`, `90s`.
         #[arg(long = "for", value_name = "DURATION", value_parser = share::parse_duration)]
@@ -224,9 +226,24 @@ enum Command {
         #[arg(long)]
         no_qr: bool,
         /// Share at this hostname on one of your domains instead of a random
-        /// trycloudflare.com address (removed again when the command ends).
-        #[arg(long, value_name = "HOSTNAME")]
+        /// trycloudflare.com address (removed again when the command ends). `{project}`,
+        /// `{branch}` and `{user}` are filled in from this folder, e.g.
+        /// `--on {branch}.dev.example.com`; `--on` alone uses the name last used here.
+        #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
+        /// With a folder: list the files of folders that have no index.html.
+        #[arg(long)]
+        listing: bool,
+        /// With a folder: a single-page app (unknown paths get /index.html).
+        #[arg(long)]
+        spa: bool,
+        /// With --on: on only during these hours, paused otherwise, e.g.
+        /// `"mon-fri 09:00-18:00"`.
+        #[arg(long, value_name = "DAYS HH:MM-HH:MM", requires = "on")]
+        schedule: Option<String>,
+        /// With --schedule: its time zone, e.g. `Europe/Berlin` (default: this computer's).
+        #[arg(long, value_name = "ZONE", requires = "schedule")]
+        tz: Option<String>,
         /// With --on: the account, when several are connected.
         #[arg(long, short, requires = "on")]
         account: Option<String>,
@@ -348,11 +365,22 @@ enum Command {
         #[command(flatten)]
         apply: ApplyArgs,
     },
-    /// List shares (the app's, terminals' and on your domains), or stop one.
+    /// List shares (the app's, terminals' and on your domains), or stop, pause or resume
+    /// one.
     Shares {
         /// Stop a share: its URL, its hostname on your domain, or its id.
-        #[arg(long, value_name = "URL|HOSTNAME")]
+        #[arg(long, value_name = "URL|HOSTNAME", conflicts_with_all = ["pause", "resume"])]
         stop: Option<String>,
+        /// Pause a share on your domain (or a route): the address stays, and visitors see
+        /// a paused page until it's resumed.
+        #[arg(long, value_name = "HOSTNAME", conflicts_with = "resume")]
+        pause: Option<String>,
+        /// Serve a paused share or route again, at the same address.
+        #[arg(long, value_name = "HOSTNAME")]
+        resume: Option<String>,
+        /// With --pause or --resume on a route: the account, when several are connected.
+        #[arg(long, short)]
+        account: Option<String>,
         /// Print JSON.
         #[arg(long)]
         json: bool,
@@ -360,6 +388,31 @@ enum Command {
         /// when it runs.
         #[arg(long)]
         app: bool,
+    },
+    /// Run a share on your domain (or a route) only during set hours: visitors see a
+    /// paused page the rest of the time. Without hours, shows its schedule.
+    Schedule {
+        /// The hostname.
+        hostname: String,
+        /// Days and hours, e.g. `mon-fri 09:00-18:00`, `weekends 10:00-16:00` or
+        /// `daily 22:00-02:00` (past midnight).
+        #[arg(value_name = "DAYS HH:MM-HH:MM", num_args = 0..)]
+        spec: Vec<String>,
+        /// The time zone, e.g. `Europe/Berlin` (default: this computer's).
+        #[arg(long, value_name = "ZONE")]
+        tz: Option<String>,
+        /// Remove the schedule (the share stays as it is now).
+        #[arg(long, conflicts_with = "spec")]
+        off: bool,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+    },
+    /// List schedules of shares and routes.
+    Schedules {
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Traffic from Cloudflare's edge: one route in detail, or every route of this
     /// machine side by side. Needs the token's Zone ▸ Analytics ▸ Read permission.
@@ -759,12 +812,18 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             quiet,
             idle,
             watch,
+            listing,
+            spa,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            // The app inspects by its own settings; options about the inspector keep the
-            // share in this terminal.
-            let local_only = no_inspect || idle.is_some() || !watch.is_empty();
+            let folder = folder_arg(&origin, listing, spa)?;
+            if folder.is_some() && app {
+                return Err("Folders are shared from this terminal; leave out --app.".into());
+            }
+            // The app inspects by its own settings; options about the inspector (and
+            // folders, which the inspector serves) keep the share in this terminal.
+            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some();
             let wanted = app::Where::from_flags(app, here || local_only);
             let dir = context::data_dir()?;
             if let Some(client) = app::connect(&dir, wanted).await? {
@@ -780,6 +839,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             };
             return share::run(
                 &origin,
+                folder,
                 stop_after,
                 !no_qr,
                 json,
@@ -789,12 +849,27 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             )
             .await;
         }
-        Command::Shares { stop, json, app } => {
+        Command::Shares {
+            stop,
+            pause,
+            resume,
+            account,
+            json,
+            app,
+        } => {
             let wanted = app::Where::from_flags(app, false);
+            let pausing = pause.clone().map(|id| (id, true));
+            let pausing = pausing.or_else(|| resume.clone().map(|id| (id, false)));
             if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                if let Some((id, paused)) = pausing {
+                    return app::pause(&client, &id, account.as_deref(), paused).await;
+                }
                 return app::shares(&client, stop.as_deref(), json).await;
             }
             let app = App::open().await?;
+            if let Some((id, paused)) = pausing {
+                return sharing::pause_here(&app, &id, account.as_deref(), paused).await;
+            }
             return shares(&app, stop.as_deref(), json).await;
         }
         Command::Routes {
@@ -885,6 +960,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             watch,
             ..
         } => {
+            let (hostname, _) = on_hostname(&app, &hostname).await?;
             let options = share::ShareOptions {
                 inspect: true,
                 idle,
@@ -918,8 +994,23 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             quiet,
             idle,
             watch,
+            listing,
+            spa,
+            schedule,
+            tz,
             ..
         } => {
+            let folder = folder_arg(&origin, listing, spa)?;
+            if folder.is_some() && no_inspect {
+                return Err(
+                    "A folder is served by Teitunnel's inspector; leave out --no-inspect.".into(),
+                );
+            }
+            let schedule = schedule
+                .map(|spec| teitunnel_core::schedule::Schedule::parse(&spec, tz.as_deref()))
+                .transpose()
+                .map_err(|e| e.to_string())?;
+            let (hostname, remember) = on_hostname(&app, &hostname).await?;
             let options = share::ShareOptions {
                 inspect: !no_inspect,
                 idle,
@@ -937,6 +1028,9 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     stop_after,
                     json,
                     strict,
+                    folder,
+                    schedule,
+                    remember: Some(remember),
                 },
                 &share::host_header_choice(host_header, no_host_header),
                 &options,
@@ -991,6 +1085,24 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             unreachable!("handled above")
         }
         Command::Up(args) => up::up(&app, &args).await,
+        Command::Schedule {
+            hostname,
+            spec,
+            tz,
+            off,
+            account,
+        } => {
+            sharing::set_schedule(
+                &app,
+                &hostname,
+                &spec,
+                tz.as_deref(),
+                off,
+                account.as_deref(),
+            )
+            .await
+        }
+        Command::Schedules { json } => sharing::list_schedules(&app, json).await,
         Command::Backup(command) => backup::run(&app, command).await,
         Command::Serve {
             set_password: true, ..
@@ -1118,6 +1230,52 @@ async fn run(command: Command) -> Result<ExitCode, String> {
     }
 }
 
+/// A folder to share, when `origin` names one (`./dist`, `/srv/site`).
+fn folder_arg(
+    origin: &str,
+    listing: bool,
+    spa: bool,
+) -> Result<Option<teitunnel_core::folder_share::FolderShare>, String> {
+    use teitunnel_core::folder_share::{FolderShare, looks_like_folder};
+    if !looks_like_folder(origin) {
+        if listing || spa {
+            return Err(format!(
+                "--listing and --spa are for folders, and {origin} isn't one."
+            ));
+        }
+        return Ok(None);
+    }
+    FolderShare::resolve(origin, listing, spa)
+        .map(Some)
+        .map_err(|e| e.to_string())
+}
+
+/// The hostname of `share --on`: `{project}`, `{branch}` and `{user}` filled in from the
+/// current folder, or the name last used here when none is given. Also returns what to
+/// remember for the folder.
+async fn on_hostname(
+    app: &App,
+    typed: &str,
+) -> Result<(String, (std::path::PathBuf, String)), String> {
+    use teitunnel_core::share_names;
+    let dir = std::env::current_dir().map_err(|e| e.to_string())?;
+    let template = if typed.trim().is_empty() {
+        share_names::remembered(app.store(), &dir)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| {
+                "No name was used for a share from this folder yet; give one: --on demo.example.com (or --on {branch}.dev.example.com).".to_owned()
+            })?
+    } else {
+        typed.trim().to_owned()
+    };
+    let hostname = share_names::expand(&template, &dir).map_err(|e| e.to_string())?;
+    if hostname != template.to_ascii_lowercase() {
+        share::status(&format!("{template} is {hostname} here."));
+    }
+    Ok((hostname, (dir, template)))
+}
+
 async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, String> {
     use teitunnel_core::domain_shares::{self, APP_OWNER};
     let list = app
@@ -1173,10 +1331,11 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
         let ends = share.expires_at.map_or_else(String::new, |at| {
             format!(", ends in {} min", at.saturating_sub(now) / 60_000)
         });
+        let paused = if share.paused { ", paused" } else { "" };
         out!(
-            "https://{}\t{}\tstarted by {by}{ends}",
+            "https://{}\t{}\tstarted by {by}{paused}{ends}",
             share.hostname,
-            share.origin
+            share.source.as_deref().unwrap_or(&share.origin)
         )?;
     }
     for share in &terminals {

@@ -7,9 +7,9 @@ use std::{future::Future, pin::Pin};
 use tokio::sync::broadcast;
 
 use crate::protocol::{
-    AppInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue, Event, LocalDomainsInfo, PlanInfo,
-    PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare,
-    View,
+    AgentApproval, AgentInfo, AppInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue, Event,
+    LocalDomainsInfo, PauseShare, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError,
+    ShareInfo, StartShare, Status, StopShare, View, code,
 };
 
 /// A boxed, sendable future (the trait is object-safe).
@@ -25,6 +25,10 @@ pub enum Action {
     StartShare(StartShare),
     /// Stop a share.
     StopShare(StopShare),
+    /// Pause a share on your domain or a route.
+    PauseShare(PauseShare),
+    /// Serve a paused share or route again.
+    ResumeShare(PauseShare),
     /// Apply a plan to Cloudflare.
     Apply(ApplyParams),
 }
@@ -77,6 +81,35 @@ pub trait Host: Send + Sync + 'static {
 
     /// Stops a share.
     fn stop_share(&self, request: StopShare) -> BoxFuture<'_, HostResult<()>>;
+
+    /// Pauses (`paused`) or resumes a share on your domain or a route.
+    fn pause_share(&self, request: PauseShare, paused: bool) -> BoxFuture<'_, HostResult<()>> {
+        let _ = (request, paused);
+        Box::pin(async {
+            Err(RpcError::new(
+                code::METHOD_NOT_FOUND,
+                "Pausing isn't available.",
+            ))
+        })
+    }
+
+    /// An MCP server on connection `session` serves `agent` (until
+    /// [`Self::agent_disconnected`]).
+    fn agent_connected(&self, session: u64, agent: AgentInfo, client: &ClientInfo) {
+        let _ = (session, agent, client);
+    }
+
+    /// Connection `session` closed.
+    fn agent_disconnected(&self, session: u64) {
+        let _ = session;
+    }
+
+    /// Asks the person, in the app, to approve an agent's change (the dialog shows the
+    /// plan). Dismissing or a timeout is a no.
+    fn approve_for_agent(&self, session: u64, request: AgentApproval) -> BoxFuture<'_, bool> {
+        let _ = (session, request);
+        Box::pin(async { false })
+    }
 
     /// This machine's routes in an account.
     fn routes(&self, request: RoutesParams) -> BoxFuture<'_, HostResult<RoutesList>>;

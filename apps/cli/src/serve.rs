@@ -852,6 +852,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     if let Err(err) = inspector.load().await {
         crate::share::status(&format!("(Couldn't read the inspector's history: {err})"));
     }
+    let route_host = crate::sharing::RouteHost::spawn(&app, machine.clone(), inspector.clone());
     let mut mcp_backend = None;
     let mcp = match &options.mcp {
         Some(mcp) => {
@@ -902,7 +903,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     };
     let server = Arc::new(Server {
         app,
-        machine,
+        machine: machine.clone(),
         inspector: inspector.clone(),
         analytics,
         monitor: monitor.clone(),
@@ -910,6 +911,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         sessions: Mutex::default(),
         failures: Limiter::default(),
     });
+    let kept = Arc::clone(&server);
     let routes = match mcp {
         Some(mcp) => router(server).merge(mcp),
         None => router(server),
@@ -931,6 +933,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     if let Some(backend) = mcp_backend {
         backend.stop_own_shares().await;
     }
+    route_host.stop(&kept.app, &machine, &inspector).await;
     supervisor.stop_all().await;
     inspector.shutdown().await;
     Ok(ExitCode::SUCCESS)

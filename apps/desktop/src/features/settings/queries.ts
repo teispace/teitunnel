@@ -50,6 +50,21 @@ export function useAiClients() {
   return useQuery({ queryKey: aiClientsKey, queryFn: () => call(commands.aiClientsStatus()) });
 }
 
+/** AI agents connected through `teitunnel mcp` now, and their approvals waiting. */
+export function useAiAgents() {
+  return useQuery({
+    queryKey: queryKeys.agents.all(),
+    queryFn: () => call(commands.aiAgents()),
+  });
+}
+
+/** Saves an OpenAPI description of the captured requests to Downloads. */
+export function useSaveOpenApi() {
+  return useMutation({
+    mutationFn: () => call(commands.inspectOpenapiSave(null)),
+  });
+}
+
 /** Connects or disconnects an AI tool (edits only Teitunnel's entry in its settings). */
 export function useSetAiClientConnected() {
   const queryClient = useQueryClient();

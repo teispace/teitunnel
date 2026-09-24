@@ -310,6 +310,7 @@ mod tests {
             kind,
             project: project.map(str::to_owned),
             origin: format!("http://localhost:{port}"),
+            folder: None,
         }
     }
 
@@ -328,6 +329,7 @@ mod tests {
             host_header: None,
             check: None,
             inspected: false,
+            folder: None,
         }
     }
 

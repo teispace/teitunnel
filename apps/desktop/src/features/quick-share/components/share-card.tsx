@@ -46,12 +46,11 @@ export function ShareCard({ share }: { share: QuickShare }) {
   const check = useCheckShare();
   const navigate = useNavigate();
   const { dot, label } = statusOf(share);
+  // A folder is served by the inspector: show the folder, not the inspector's address.
+  const shown = share.folder?.path ?? stripScheme(share.origin);
 
   return (
-    <article
-      aria-label={t("quickShare.cardLabel", { origin: stripScheme(share.origin) })}
-      className={cardClass}
-    >
+    <article aria-label={t("quickShare.cardLabel", { origin: shown })} className={cardClass}>
       <header className="flex items-center gap-2 text-callout">
         {/* The dot springs in when the share goes live: the one "success" moment. */}
         <m.span
@@ -65,10 +64,10 @@ export function ShareCard({ share }: { share: QuickShare }) {
         </m.span>
         <span className="font-medium text-primary">{label}</span>
         <span className="text-tertiary">·</span>
-        <span className="selectable font-mono text-mono text-secondary">
-          {stripScheme(share.origin)}
+        <span className="selectable min-w-0 truncate font-mono text-mono text-secondary">
+          {shown}
         </span>
-        <span className="ml-auto text-secondary tabular">
+        <span className="ml-auto shrink-0 text-secondary tabular">
           {formatDuration(now - share.startedAt)}
         </span>
       </header>
@@ -104,18 +103,23 @@ export function ShareCard({ share }: { share: QuickShare }) {
               </Tooltip>
               <QrButton url={share.url} />
               <InspectShareButton share={share} />
-              <Tooltip content={t("quickShare.snapshot")}>
-                <IconButton
-                  icon={Camera}
-                  label={t("quickShare.snapshot")}
-                  variant="secondary"
-                  size="lg"
-                  disabled={!live}
-                  onClick={() =>
-                    void navigate({ to: "/snapshots", search: { capture: siteUrl(share.origin) } })
-                  }
-                />
-              </Tooltip>
+              {share.folder ? null : (
+                <Tooltip content={t("quickShare.snapshot")}>
+                  <IconButton
+                    icon={Camera}
+                    label={t("quickShare.snapshot")}
+                    variant="secondary"
+                    size="lg"
+                    disabled={!live}
+                    onClick={() =>
+                      void navigate({
+                        to: "/snapshots",
+                        search: { capture: siteUrl(share.origin) },
+                      })
+                    }
+                  />
+                </Tooltip>
+              )}
             </>
           ) : null}
         </div>

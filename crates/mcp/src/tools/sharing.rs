@@ -137,6 +137,8 @@ pub(crate) struct ShareOut {
     started_at: u64,
     /// Ends by itself (milliseconds since the epoch).
     expires_at: Option<u64>,
+    /// Visitors get a "paused" page (resume_share serves it again).
+    paused: bool,
 }
 
 impl From<ShareInfo> for ShareOut {
@@ -152,6 +154,7 @@ impl From<ShareInfo> for ShareOut {
             account_id: share.account_id,
             started_at: share.started_at,
             expires_at: share.expires_at,
+            paused: share.paused,
         }
     }
 }

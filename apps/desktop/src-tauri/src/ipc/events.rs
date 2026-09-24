@@ -26,6 +26,8 @@ pub enum EntityKind {
     Inspector,
     /// Local HTTPS domains, their listeners and trust.
     LocalDomains,
+    /// AI agents connected through `teitunnel mcp`, and their approvals waiting.
+    Agents,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

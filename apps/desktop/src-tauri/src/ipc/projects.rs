@@ -336,6 +336,8 @@ pub async fn projects_apply(
                             .map(|s| domain_shares::now_ms() + u64::from(s) * 1000),
                         owner: APP_OWNER,
                         host_header: resolved,
+                        source: None,
+                        folder: false,
                     },
                 )
                 .await;

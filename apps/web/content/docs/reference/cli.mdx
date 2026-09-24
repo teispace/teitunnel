@@ -48,6 +48,15 @@ teitunnel share 3000 --here --for 30m   # in this terminal, until Ctrl-C or 30 m
 teitunnel share 3000 --on demo.example.com  # the same, on your own domain
 teitunnel shares                        # every share: the app's, terminals', your domains'
 teitunnel shares --stop demo.example.com
+teitunnel shares --pause demo.example.com # a paused page; the address stays
+teitunnel shares --resume demo.example.com
+teitunnel share 3000 --on {branch}.dev.example.com  # named after the git branch
+teitunnel share 3000 --on               # the name used in this folder last time
+teitunnel share ./dist                  # share a folder of files
+teitunnel share ./dist --on docs.example.com --spa
+teitunnel schedule demo.example.com mon-fri 09:00-18:00  # on during office hours
+teitunnel schedules                     # every schedule, and when each changes next
+teitunnel schedule demo.example.com --off
 teitunnel share 3000 --no-inspect       # skip the inspector (on by default)
 teitunnel share 8000 --mcp --on mcp.example.com  # an MCP server for remote AI clients
 teitunnel share 11434 --ai              # a local AI server behind a bearer token
@@ -60,6 +69,7 @@ teitunnel traffic watch --path /webhooks
 teitunnel traffic replay 7f3a9c1b --set-header 'X-Debug: 1'
 teitunnel traffic export --har requests.har
 teitunnel traffic clear
+teitunnel traffic openapi --out api.yaml # an OpenAPI 3.1 file from captured requests
 teitunnel analytics                     # traffic of every route, from Cloudflare's edge
 teitunnel analytics app.example.com --range week
 teitunnel uptime                        # uptime of this machine's routes
@@ -125,6 +135,11 @@ commands in [Project files](/docs/guides/project-file/), `backup` in
 | `--host-header <host>` | `share`: send this Host header to the service, e.g. `localhost:5173` ([dev servers](/docs/tutorials/dev-servers)). By default Vite, webpack and Angular dev servers get their own address. |
 | `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
 | `--no-inspect` | `share`: send requests straight to the service instead of through the [inspector](/docs/guides/inspector). |
+| `--on [hostname]` | `share`: a hostname on your domain. `{project}`, `{branch}` and `{user}` are filled in from this folder; `--on` alone uses the name last used here ([Sharing extras](/docs/guides/sharing/)). |
+| `--listing`, `--spa` | `share <folder>`: list the files of folders without an index page; serve `index.html` for every page (single-page apps). |
+| `--schedule "<days> HH:MM-HH:MM"`, `--tz <zone>` | `share --on`, `schedule`: on only during these hours, e.g. `mon-fri 09:00-18:00`, in this time zone (default: this computer's). |
+| `--pause <hostname>`, `--resume <hostname>` | `shares`: show a paused page at a share on your domain (or a route) and serve it again; through the app when it runs. |
+| `--out <file>`, `--yaml`, `--title` | `traffic openapi`: write the description to a file (YAML for `.yaml`), print YAML, name it ([OpenAPI from traffic](/docs/guides/openapi/)). |
 | `-q, --quiet` | `share`: don't print a line for each request. |
 | `--idle <duration>` | `share`: stop after this long without a request. |
 | `--watch <path>` | `share`: say so when a request hits this path, e.g. `/webhooks/*` (repeatable). |

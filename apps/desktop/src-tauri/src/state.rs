@@ -63,6 +63,10 @@ pub struct AppState {
     pub inspector: teitunnel_core::inspect::Inspector,
     /// Local HTTPS domains, served through the inspector's Lens.
     pub local_domains: teitunnel_core::local_domains::LocalDomains,
+    /// Applies pauses (the paused page) to the inspector's taps.
+    pub pauses: std::sync::Arc<teitunnel_core::pause::Enforcer>,
+    /// Wakes the pause and schedule loop (a schedule changed).
+    pub schedules_changed: std::sync::Arc<tokio::sync::Notify>,
     /// Live inspector subscriptions of the webview, by id (cancelled to stop).
     pub inspect_live:
         std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,

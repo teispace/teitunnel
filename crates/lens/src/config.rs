@@ -187,6 +187,10 @@ pub struct FolderConfig {
     pub spa_fallback: bool,
     /// Serve dotfiles (`.env`, `.git/…`). Off by default.
     pub hidden: bool,
+    /// Names that are never served or listed, whatever `hidden` says (the embedder's
+    /// rules for secrets and tooling, e.g. `.env*`, keys, `node_modules`).
+    #[serde(skip)]
+    pub allow: NameFilter,
 }
 
 impl FolderConfig {
@@ -198,9 +202,53 @@ impl FolderConfig {
             listing: false,
             spa_fallback: false,
             hidden: false,
+            allow: NameFilter::default(),
         }
     }
 }
+
+/// Which file and folder names a folder upstream may serve: called with each path
+/// segment's name and whether it names a folder; `false` refuses it (404) and hides it
+/// from listings. The default allows everything.
+#[derive(Clone, Default)]
+pub struct NameFilter(Option<Arc<NameRule>>);
+
+/// A name rule: `(name, is_dir) -> allowed`.
+type NameRule = dyn Fn(&str, bool) -> bool + Send + Sync;
+
+impl NameFilter {
+    /// A filter allowing the names `allow` accepts.
+    pub fn new(allow: impl Fn(&str, bool) -> bool + Send + Sync + 'static) -> Self {
+        Self(Some(Arc::new(allow)))
+    }
+
+    /// Whether `name` (a folder when `is_dir`) may be served.
+    pub fn allows(&self, name: &str, is_dir: bool) -> bool {
+        self.0.as_ref().is_none_or(|allow| allow(name, is_dir))
+    }
+}
+
+impl fmt::Debug for NameFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "NameFilter(custom)"
+        } else {
+            "NameFilter(all)"
+        })
+    }
+}
+
+impl PartialEq for NameFilter {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (None, None) => true,
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for NameFilter {}
 
 /// Which `Host` header the upstream receives.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

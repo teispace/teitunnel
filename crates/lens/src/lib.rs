@@ -63,7 +63,7 @@ pub use capture::{
     decode::MAX_DECODED_BYTES, decode_body,
 };
 pub use config::{
-    CaptureConfig, DEFAULT_MAX_BODY_BYTES, FolderConfig, ForwardedHeaders, HostHeader,
+    CaptureConfig, DEFAULT_MAX_BODY_BYTES, FolderConfig, ForwardedHeaders, HostHeader, NameFilter,
     OriginConfig, OriginUrl, PausedPage, TapConfig, Upstream,
 };
 pub use error::{LensError, Result};

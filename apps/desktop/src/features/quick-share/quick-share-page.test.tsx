@@ -68,6 +68,10 @@ beforeEach(() => {
             owner: "app",
             expiresAt: null,
             createdAt: Date.now(),
+            source: null,
+            folder: false,
+            paused: false,
+            schedule: null,
           },
         ];
         return { type: "applied", tunnelId: "t1", verify: [], connectorError: null };
@@ -114,6 +118,7 @@ beforeEach(() => {
           startedAt: Date.now(),
           stopAt: null,
           inspected: true,
+          folder: null,
           hostHeader: null,
           check: null,
         };
@@ -210,6 +215,7 @@ describe("QuickSharePage", () => {
         startedAt: Date.now(),
         stopAt: null,
         inspected: true,
+        folder: null,
         hostHeader: null,
         check: {
           hostname: "v-w-x.trycloudflare.com",
@@ -259,6 +265,7 @@ describe("QuickSharePage", () => {
         startedAt: Date.now(),
         stopAt: null,
         inspected: true,
+        folder: null,
         hostHeader: { value: "localhost:5173", autoFor: "vite" },
         check: {
           hostname: "s-t-u.trycloudflare.com",
@@ -320,6 +327,10 @@ describe("QuickSharePage", () => {
         owner: "app",
         expiresAt: null,
         createdAt: Date.now(),
+        source: null,
+        folder: false,
+        paused: false,
+        schedule: null,
       },
     ];
     renderPage();

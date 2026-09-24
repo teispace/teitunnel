@@ -107,6 +107,7 @@ pub(crate) async fn mcp(
             stop_after,
             json: false,
             strict: false,
+            ..share::DomainShareOptions::default()
         },
         &HostHeaderChoice::Off,
         &options,
@@ -171,6 +172,7 @@ pub(crate) async fn ai(
                     stop_after,
                     json: false,
                     strict: false,
+                    ..share::DomainShareOptions::default()
                 },
                 &HostHeaderChoice::Off,
                 &options,
@@ -193,6 +195,7 @@ pub(crate) async fn ai(
             };
             share::run(
                 origin,
+                None,
                 stop_after,
                 qr,
                 false,

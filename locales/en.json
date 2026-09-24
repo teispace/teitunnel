@@ -686,6 +686,29 @@
       "footer": "Teitunnel looks at the service itself (not through Cloudflare) with a few quick requests. It only warns; you can always share anyway.",
       "check": "Check for exposed files and debug pages",
       "checkDetail": "A .env file, the git folder, backups, framework debug pages, open admin panels"
+    },
+    "aiAgents": {
+      "title": "Connected Agents",
+      "footer": "Agents using Teitunnel right now. When one wants to change something, Teitunnel asks you here with the plan.",
+      "none": "No agent is connected.",
+      "since": "Connected {when}",
+      "waiting": "{agent} is waiting for your answer",
+      "pending": "Waiting",
+      "mode": {
+        "readOnly": "Read only",
+        "ask": "Asks first",
+        "full": "Full access"
+      }
+    },
+    "openapi": {
+      "title": "Captured Requests",
+      "footer": "Only what the inspector saw is described, with no captured values. Review it before you publish it.",
+      "label": "API description",
+      "detail": "An OpenAPI 3.1 file inferred from the requests the inspector captured.",
+      "save": "Save to Downloads",
+      "saved_one": "Saved {paths} paths from {count} request to Downloads.",
+      "saved_other": "Saved {paths} paths from {count} requests to Downloads.",
+      "empty": "No API requests captured yet. Use the API through a share, then save again."
     }
   },
   "cliOffer": {
@@ -1017,7 +1040,46 @@
       "help": "Automatic sends the service's own address to dev servers that only answer it (Vite, webpack, Angular)."
     },
     "advanced": "Advanced",
-    "snapshot": "Publish a Snapshot"
+    "snapshot": "Publish a Snapshot",
+    "pause": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "badge": "Paused",
+      "detail": "Visitors see a paused page. The address stays; resume to serve it again."
+    },
+    "schedule": {
+      "button": "Schedule",
+      "title": "On a Schedule",
+      "detail": "Serve it only during these hours. The rest of the time visitors see a paused page.",
+      "days": "Days",
+      "from": "From",
+      "to": "to",
+      "timeZone": "Times in {zone}.",
+      "save": "Save",
+      "remove": "Remove Schedule",
+      "everyDay": "Every day",
+      "range": "{from}–{to}",
+      "allDay": "all day",
+      "hours": "{from}–{to}",
+      "summary": "{days}, {hours}",
+      "onUntil": "on until {when}",
+      "offUntil": "paused until {when}",
+      "line": "On a schedule: {schedule}"
+    },
+    "names": {
+      "suggested": "Suggested:",
+      "lastTime": "{name} (last time)",
+      "becomes": "It's {hostname} here.",
+      "invalid": "Use letters, digits and hyphens, and project, branch or user in braces."
+    },
+    "folder": {
+      "choose": "Share a Folder…",
+      "clear": "Share a service instead",
+      "listing": "List the files of folders without an index page",
+      "spa": "Single-page app (every page opens index.html)",
+      "safety": "Hidden files, .env files, keys, .git and node_modules are never shared.",
+      "drop": "Drop a folder to share it."
+    }
   },
   "inspector": {
     "title": "Inspector",
@@ -1744,7 +1806,8 @@
         "noFreePort": "Too many Quick Shares are running.",
         "notFound": "That Quick Share isn't running.",
         "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
-        "config": "Couldn't prepare cloudflared's settings: {detail}"
+        "config": "Couldn't prepare cloudflared's settings: {detail}",
+        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share."
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",
@@ -1784,6 +1847,26 @@
         "needsModifier": "Add a modifier key other than Shift, so the shortcut doesn't get in the way of typing.",
         "taken": "Another app already uses this shortcut. Choose a different one.",
         "unsupported": "This system doesn't let apps use global shortcuts."
+      },
+      "schedule": {
+        "days": "\"{days}\" isn't a list of days. Use names like mon-fri, sat,sun, weekdays, weekends or daily.",
+        "time": "\"{time}\" isn't a time. Use 24-hour HH:MM, like 09:00 or 18:30.",
+        "timeZone": "\"{zone}\" isn't a time zone this computer knows. Use a name like Europe/Berlin or America/New_York.",
+        "spec": "\"{spec}\" isn't a schedule. Write the days and hours, like mon-fri 09:00-18:00."
+      },
+      "pause": {
+        "ownerGone": "The terminal that shared {hostname} has stopped, so there's nothing to pause.",
+        "notInspected": "{hostname} runs in a terminal without Teitunnel's inspector (--no-inspect), which is what shows the paused page. Stop it and share it again without --no-inspect.",
+        "noHost": "Pausing {hostname} needs Teitunnel running on this computer to show the paused page: open the app, or run teitunnel up or teitunnel serve."
+      },
+      "shareName": {
+        "placeholder": "{name} isn't a placeholder Teitunnel knows. Use one of project, branch or user in braces.",
+        "noValue": "{name} has no value here (the branch comes from the git repository the share starts in).",
+        "invalid": "{hostname} isn't a hostname Teitunnel can share at. Each part may use letters, digits and hyphens."
+      },
+      "folder": {
+        "notFolder": "{path} isn't a folder on this computer.",
+        "tooBroad": "{path} holds far more than a site. Share the folder with the files you want people to see, like dist or public."
       }
     },
     "raw": "{text}",
@@ -2483,7 +2566,11 @@
         "stale": "Something changed in Cloudflare since this plan was made. Review the new plan.",
         "needsConfirmation": "This plan replaces or deletes DNS records Teitunnel didn't create; apply it with confirmed set."
       },
-      "linkFailed": "Couldn't open the Teitunnel link"
+      "linkFailed": "Couldn't open the Teitunnel link",
+      "pause": "{client} wants to pause {share}. Its address stays, and visitors see a paused page until it's resumed.",
+      "resume": "{client} wants to serve {share} again.",
+      "agentTitle": "Allow {agent} to make this change?",
+      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}"
     },
     "protection": {
       "summary": {

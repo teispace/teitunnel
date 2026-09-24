@@ -190,6 +190,27 @@ pub async fn quick_share_start(
         .await?)
 }
 
+/// Shares a folder at a random trycloudflare.com address: this Mac's inspector serves
+/// its files (never secrets or tooling), with an optional listing and single-page-app
+/// fallback. Returns at once; the URL arrives with `EntityChanged`.
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_start_folder(
+    state: State<'_, AppState>,
+    folder: teitunnel_core::folder_share::FolderShare,
+    stop_after_minutes: Option<u32>,
+) -> Result<QuickShare, AppError> {
+    use teitunnel_core::text::UserText as _;
+    let folder = teitunnel_core::folder_share::FolderShare::resolve(
+        &folder.path,
+        folder.listing,
+        folder.spa,
+    )
+    .map_err(|e| AppError::invalid("folder", e.text()))?;
+    let stop_after = stop_after_minutes.map(|m| Duration::from_secs(u64::from(m) * 60));
+    Ok(state.quick_shares.start_folder(folder, stop_after).await?)
+}
+
 /// Turns inspection of a running share on or off. cloudflared restarts, so the share
 /// gets a new URL (the UI says so before).
 #[tauri::command]

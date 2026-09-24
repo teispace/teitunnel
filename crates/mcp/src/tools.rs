@@ -3,6 +3,7 @@
 //! it (and when another tool fits better), and an example.
 
 mod diagnostics;
+mod extras;
 mod protection;
 mod routes;
 mod setup;
@@ -123,6 +124,7 @@ impl ToolProvider for CoreTools {
         tools.extend(diagnostics::specs());
         tools.extend(setup::specs());
         tools.extend(traffic::specs());
+        tools.extend(extras::specs());
         tools
     }
 
@@ -163,6 +165,11 @@ impl ToolProvider for CoreTools {
                 }
                 "traffic_stats" => traffic::stats(&*self.traffic, arguments).await,
                 "traffic_export" => traffic::export(&*self.traffic, arguments, ctx).await,
+                "traffic_openapi" => traffic::openapi(&*self.traffic, arguments).await,
+                "pause_share" => extras::pause(backend, arguments, ctx, true).await,
+                "resume_share" => extras::pause(backend, arguments, ctx, false).await,
+                "schedule_share" => extras::schedule_share(backend, arguments, ctx).await,
+                "share_folder" => extras::share_folder(backend, arguments, ctx).await,
                 other => Err(ToolError::new(format!("Unknown tool {other}."))),
             }
         })

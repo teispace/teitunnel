@@ -1,0 +1,87 @@
+---
+title: Pause, schedule, name and share folders
+description: "Pause a share on your domain without losing its address, run it only during set hours, name it after your project or branch, and share a folder of files instead of a running service."
+---
+
+A share on your own domain ([Quick Share](/docs/getting-started/quick-share/) with an
+address on one of your domains, or `teitunnel share --on`) is a temporary route. These
+extras make it behave the way a demo or a preview usually needs.
+
+## Pause and resume
+
+Pausing keeps the address: the route and its DNS record stay, and visitors get a small
+"paused" page (HTTP 503 with `Retry-After`) until you resume. Resume, and the same URL
+serves your service again.
+
+- **App:** the pause button on the share's card in Quick Share. A **Paused** badge shows
+  while it lasts.
+- **Terminal:** `teitunnel shares --pause demo.example.com`, then
+  `teitunnel shares --resume demo.example.com`.
+- **AI agents:** `pause_share` and `resume_share`, with your approval.
+
+The paused page comes from Teitunnel's [inspector](/docs/guides/inspector/) in the process
+that serves the share: the app, the terminal running `teitunnel share --on`, or
+`teitunnel up`/`serve`. A share that isn't inspected yet is pointed at the inspector
+first (the same reviewed change as *Inspect this route*) and pointed back when you resume.
+You can pause one of this machine's permanent routes the same way while the app,
+`teitunnel up` or `teitunnel serve` is running; when none runs, nothing on this computer
+can show the page, and Teitunnel says so instead of pretending. A share started with
+`--no-inspect` can't be paused; share it again without that option.
+
+## On a schedule
+
+A schedule makes a share (or a route) available only during set hours on set days, and
+paused the rest of the time.
+
+- **App:** the calendar button on the share's card: choose the days and the hours.
+- **Terminal:** `teitunnel schedule demo.example.com mon-fri 09:00-18:00`, or directly
+  with the share: `teitunnel share 3000 --on demo.example.com --schedule "mon-fri 09:00-18:00"`.
+  `teitunnel schedules` lists them; `teitunnel schedule demo.example.com --off` removes one.
+- **AI agents:** `schedule_share`.
+
+Days are written like `mon-fri`, `sat,sun`, `weekdays`, `weekends` or `daily`. Times are
+wall-clock times in your computer's time zone, or in the one you name with `--tz
+Europe/Berlin`, so daylight saving time keeps 9:00 at 9:00. A window that ends before it
+starts runs past midnight (`fri 22:00-02:00`). Pausing or resuming by hand holds until
+the schedule's next change. Whoever serves the share applies its schedule within 30
+seconds; for this machine's routes that's the app, or `teitunnel up`/`serve` when the app
+isn't running.
+
+## Names from your project and branch
+
+A hostname may contain `{project}`, `{branch}` and `{user}`, the same placeholders as
+[project files](/docs/guides/project-file/):
+
+```sh
+teitunnel share 3000 --on {branch}.dev.example.com     # login-fix.dev.example.com
+teitunnel share 3000 --on {project}-{user}.example.com # shop-ada.example.com
+teitunnel share 3000 --on                              # the name used in this folder last time
+```
+
+`{project}` is the name in the folder's `package.json`, `Cargo.toml`, `pyproject.toml`,
+`composer.json` or `go.mod` (else the folder's name), `{branch}` is read from the git
+repository the folder is in (no git process is started), and every value becomes a valid
+DNS label. The name you used is remembered for the folder. In the app, pick one of your
+domains under **Address**: Teitunnel suggests names from the project of the service you
+chose (the one used last time first) and shows what a name with placeholders becomes.
+
+A name someone on your team [reserved](/docs/guides/ci-previews#teams-sharing-one-account)
+is never taken by a share, and neither is a hostname with a DNS record Teitunnel didn't
+create.
+
+## Share a folder
+
+Share a folder of files (a built site, docs, a design export) without running a server:
+
+- **App:** drop a folder on the Quick Share window, or click the folder button next to the
+  service field. Under **Advanced**, turn on a file listing for folders without an index
+  page, or single-page-app mode (every page opens `index.html`).
+- **Terminal:** `teitunnel share ./dist` (a random address) or
+  `teitunnel share ./dist --on docs.example.com`, with `--listing` and `--spa`.
+- **AI agents:** `share_folder`.
+
+Teitunnel's inspector serves the files. Nothing outside the folder is ever served (links
+that lead out of it are refused), and neither are the things a
+[Snapshot](/docs/guides/snapshots/) never publishes: hidden files, `.env` files, private
+keys, `.git` and `node_modules`. Sharing the whole disk or your home folder is refused.
+To keep a site online while your computer sleeps, publish a Snapshot instead.

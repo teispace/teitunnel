@@ -189,6 +189,42 @@ pub async fn inspect_export_save(
         .await
 }
 
+/// Describes the API the captured requests show as OpenAPI 3.1 (to `host`, or every
+/// host), saves it to Downloads as JSON and shows it in the file manager. Returns what
+/// went into it and where it is.
+#[tauri::command]
+#[specta::specta]
+pub async fn inspect_openapi_save(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    host: Option<String>,
+) -> Result<OpenApiSaved, AppError> {
+    let options = teitunnel_core::openapi::Options {
+        host: host.filter(|h| !h.trim().is_empty()),
+        title: None,
+    };
+    let (document, summary) =
+        teitunnel_core::openapi::describe(Some(&state.inspector), Some(&state.store), &options)
+            .await?;
+    let text = teitunnel_core::openapi::render(&document, false)
+        .map_err(|e| AppError::internal(teitunnel_core::text::msg::raw(e)))?;
+    let name = teitunnel_core::diagnostics::timestamped_name("teitunnel-openapi", "json");
+    let path =
+        crate::ipc::app::save_to_downloads(&app, &name, move |path| std::fs::write(path, text))
+            .await?;
+    Ok(OpenApiSaved { path, summary })
+}
+
+/// An OpenAPI description saved to Downloads.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenApiSaved {
+    /// Where it is.
+    pub path: String,
+    /// What went into it.
+    pub summary: teitunnel_core::openapi::Summary,
+}
+
 /// Forgets captured requests of one tap, or all (in memory and on disk).
 #[tauri::command]
 #[specta::specta]

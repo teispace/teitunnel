@@ -31,6 +31,12 @@ pub mod method {
     pub const SHARES_START: &str = "shares.start";
     /// Stop a share (needs the person's approval).
     pub const SHARES_STOP: &str = "shares.stop";
+    /// Pause a share on your domain or a route: the address stays and visitors get a
+    /// "paused" page (needs the person's approval).
+    pub const SHARES_PAUSE: &str = "shares.pause";
+    /// Serve a paused share or route again at the same address (needs the person's
+    /// approval).
+    pub const SHARES_RESUME: &str = "shares.resume";
     /// This machine's routes in an account, with their status.
     pub const ROUTES_LIST: &str = "routes.list";
     /// Plan a change for review; nothing changes.
@@ -47,6 +53,11 @@ pub mod method {
     pub const LOCAL_DOMAINS_LIST: &str = "localDomains.list";
     /// Serve what's in the database now (after the CLI or a project changed it).
     pub const LOCAL_DOMAINS_RELOAD: &str = "localDomains.reload";
+    /// An MCP server (`teitunnel mcp`) says which AI agent it serves; the app lists it
+    /// in Settings ▸ AI Tools while the connection lasts.
+    pub const AGENT_REGISTER: &str = "agent.register";
+    /// An MCP server asks the person, in the app, to approve an agent's change.
+    pub const AGENT_APPROVE: &str = "agent.approve";
 
     /// Every method after `hello`.
     pub const ALL: &[&str] = &[
@@ -54,6 +65,8 @@ pub mod method {
         SHARES_LIST,
         SHARES_START,
         SHARES_STOP,
+        SHARES_PAUSE,
+        SHARES_RESUME,
         ROUTES_LIST,
         ROUTES_PREVIEW,
         ROUTES_APPLY,
@@ -62,11 +75,21 @@ pub mod method {
         EVENTS_SUBSCRIBE,
         LOCAL_DOMAINS_LIST,
         LOCAL_DOMAINS_RELOAD,
+        AGENT_REGISTER,
+        AGENT_APPROVE,
     ];
 
     /// Methods that change something, so the person approves them (or the client).
     pub fn is_mutation(name: &str) -> bool {
-        matches!(name, SHARES_START | SHARES_STOP | ROUTES_APPLY)
+        matches!(
+            name,
+            SHARES_START
+                | SHARES_STOP
+                | SHARES_PAUSE
+                | SHARES_RESUME
+                | ROUTES_APPLY
+                | AGENT_APPROVE
+        )
     }
 }
 
@@ -329,6 +352,9 @@ pub struct ShareInfo {
     pub requests: Option<u64>,
     /// The account, for domain shares.
     pub account_id: Option<String>,
+    /// Visitors get a "paused" page (shares on your domain).
+    #[serde(default)]
+    pub paused: bool,
 }
 
 /// Everything at a glance (read from the app, no network).
@@ -381,6 +407,63 @@ pub struct StartShare {
 pub struct StopShare {
     /// A share's `id` (or its URL or hostname).
     pub id: String,
+}
+
+/// `shares.pause` and `shares.resume` parameters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PauseShare {
+    /// A share on your domain or a route: its hostname or URL.
+    pub id: String,
+    /// Account id or name, for a route (needed when several are connected).
+    #[serde(default)]
+    pub account: Option<String>,
+}
+
+/// An AI agent an MCP server serves (`agent.register`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInfo {
+    /// The agent's name as its MCP client reports it, e.g. `claude-code`.
+    pub name: String,
+    /// Its version.
+    #[serde(default)]
+    pub version: Option<String>,
+    /// The MCP server's mode: `read-only`, `ask` or `full`.
+    pub mode: String,
+}
+
+impl AgentInfo {
+    /// Whether the fields are something Teitunnel will show: a 1–64 character name, and
+    /// short, printable version and mode.
+    pub fn is_valid(&self) -> bool {
+        let valid = |s: &str, max: usize| {
+            !s.trim().is_empty() && s.chars().count() <= max && !s.chars().any(char::is_control)
+        };
+        valid(&self.name, 64)
+            && self.version.as_deref().is_none_or(|v| valid(v, 64))
+            && valid(&self.mode, 16)
+    }
+}
+
+/// `agent.approve` parameters: what the agent wants to do, as the person reads it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentApproval {
+    /// The agent (as registered, or named here).
+    pub agent: String,
+    /// One line, e.g. "Add app.example.com → http://localhost:3000".
+    pub title: String,
+    /// The plan or details.
+    pub details: String,
+}
+
+/// `agent.approve` result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDecision {
+    /// The person approved it.
+    pub approved: bool,
 }
 
 /// `routes.list` parameters.
@@ -739,6 +822,9 @@ mod tests {
     fn only_changes_are_mutations() {
         assert!(method::is_mutation(method::SHARES_START));
         assert!(method::is_mutation(method::ROUTES_APPLY));
+        assert!(method::is_mutation(method::SHARES_PAUSE));
+        assert!(method::is_mutation(method::AGENT_APPROVE));
+        assert!(!method::is_mutation(method::AGENT_REGISTER));
         assert!(!method::is_mutation(method::ROUTES_PREVIEW));
         assert!(!method::is_mutation(method::OPEN));
     }

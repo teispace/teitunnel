@@ -62,6 +62,9 @@ Any other MCP client works too: run `teitunnel mcp` as a stdio server.
 | `list_reservations`, `reserve_hostname`, `release_hostname` | Hostnames reserved on the account and who holds them; reserve one (optionally until a date) or give it up, with your approval. A teammate's name is taken only if you confirm ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). |
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
 | `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares (inspected by default) and its recent history: list, inspect, replay, wait for the next one (webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. Credentials are masked unless the server runs with `--allow-secrets`. |
+| `pause_share`, `resume_share`, `schedule_share` | Pause a share on your domain (the address stays, visitors see a paused page), serve it again, or run it only during set hours ([Pause, schedule, name and share folders](/docs/guides/sharing/)). |
+| `share_folder` | Puts a folder of files online (a random link or a hostname on your domain), served by the inspector without hidden files, `.env` files, keys, `.git` or `node_modules`. |
+| `traffic_openapi` | An OpenAPI 3.1 description of the API the captured requests show ([OpenAPI from traffic](/docs/guides/openapi/)). |
 | `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`) unless the server allows secrets. |
 
 It also offers **resources** your tool can attach as context (`teitunnel://routes`,
@@ -76,9 +79,16 @@ The server runs in one of three modes:
 
 | Mode | What the agent can do |
 |---|---|
-| `ask` (default) | Everything, but every change waits for your yes. If your tool can show a question (MCP elicitation), Teitunnel asks you there with the plan. Otherwise the agent gets `needsApproval`, has to show you the plan, and can only go ahead by calling again after you agree. |
+| `ask` (default) | Everything, but every change waits for your yes. While the Teitunnel app is open, it asks you in a dialog with the plan. Otherwise, if your tool can show a question (MCP elicitation), Teitunnel asks you there; if it can't, the agent gets `needsApproval`, has to show you the plan, and can only go ahead by calling again after you agree. |
 | `read-only` | Look only. Tools that change something aren't offered at all. |
 | `full` | Changes apply without asking, still only through plans. Records Teitunnel didn't create are never replaced or deleted without an explicit confirmation. |
+
+While the app runs, the agents connected to it are listed in Settings ▸ General ▸
+**Connected Agents** with their mode, and a change waiting for your answer shows there
+too. The agent's `teitunnel mcp` asks through the app's local
+[control connection](/docs/guides/integrations/); nothing listens on a network port, and
+an agent's "confirmed" never counts while you can be asked. If you don't answer within
+about three minutes, the answer is no.
 
 Set it per tool with `teitunnel mcp install <tool> --mode read-only`, for every tool in
 `mcp.json` in Teitunnel's data folder (`{ "mode": "read-only" }`), or with

@@ -18,6 +18,7 @@ function service(
     process,
     kind,
     project,
+    folder: null,
     pid: port,
     allInterfaces: false,
     origin: `http://localhost:${port}`,
