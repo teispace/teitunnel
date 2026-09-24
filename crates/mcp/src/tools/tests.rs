@@ -56,6 +56,8 @@ pub(crate) struct FakeState {
     pub(crate) protection: teitunnel_core::engine::edge::EdgeProtection,
     pub(crate) tokens: Vec<teitunnel_core::protection::ServiceTokenView>,
     pub(crate) protection_applied: Vec<teitunnel_core::protection::ProtectionChange>,
+    /// Comment threads of `snapshot:s1` ("Launch").
+    pub(crate) threads: Vec<teitunnel_core::comments::Thread>,
 }
 
 /// An in-memory Teitunnel with one account (`acc`, "Personal") and one tunnel.
@@ -634,6 +636,83 @@ impl Backend for FakeBackend {
                 issued,
             ))
         })
+    }
+
+    fn comment_subjects(
+        &self,
+    ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::comments::SubjectView>>> {
+        let state = self.lock();
+        let open = state.threads.iter().filter(|t| !t.resolved).count();
+        let comments = state
+            .threads
+            .iter()
+            .map(|t| t.comments.len())
+            .sum::<usize>();
+        ready(Ok(vec![teitunnel_core::comments::SubjectView {
+            subject: teitunnel_core::comments::Subject::snapshot(
+                "s1",
+                "acc",
+                "Launch",
+                "https://preview.xyz.com",
+            ),
+            open: u32::try_from(open).unwrap_or(u32::MAX),
+            comments: u32::try_from(comments).unwrap_or(u32::MAX),
+            unread: 0,
+            latest_at: None,
+        }]))
+    }
+
+    fn comment_threads<'a>(
+        &'a self,
+        _key: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::comments::Thread>>> {
+        ready(Ok(self.lock().threads.clone()))
+    }
+
+    fn comment_reply<'a>(
+        &'a self,
+        _key: &'a str,
+        thread: &'a str,
+        body: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::comments::Thread>> {
+        let mut state = self.lock();
+        let result = state
+            .threads
+            .iter_mut()
+            .find(|t| t.id == thread)
+            .map(|t| {
+                t.comments.push(teitunnel_core::comments::Comment {
+                    id: "r1".into(),
+                    author: "Me".into(),
+                    email: None,
+                    verified: false,
+                    by_owner: true,
+                    body: body.into(),
+                    created_at: 2,
+                });
+                t.clone()
+            })
+            .ok_or_else(|| BackendError::NotFound("no thread".into()));
+        ready(result)
+    }
+
+    fn comment_resolve<'a>(
+        &'a self,
+        _key: &'a str,
+        thread: &'a str,
+        resolved: bool,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::comments::Thread>> {
+        let mut state = self.lock();
+        let result = state
+            .threads
+            .iter_mut()
+            .find(|t| t.id == thread)
+            .map(|t| {
+                t.resolved = resolved;
+                t.clone()
+            })
+            .ok_or_else(|| BackendError::NotFound("no thread".into()));
+        ready(result)
     }
 }
 

@@ -874,6 +874,9 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
                     false,
                 )))
                 .provider(reservations)
+                .provider(Arc::new(teitunnel_mcp::CommentsTools::new(Arc::clone(
+                    &backend,
+                ))))
                 .provider(Arc::new(teitunnel_mcp::ExposeTools::new(
                     backend,
                     inspector.clone(),
