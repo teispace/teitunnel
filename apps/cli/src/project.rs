@@ -510,6 +510,8 @@ async fn start_share<K: Connectors>(
                 .map(|s| domain_shares::now_ms() + u64::from(s) * 1000),
             owner: &owner,
             host_header: resolved.map(|h| h.value),
+            source: None,
+            folder: false,
         },
     )
     .await

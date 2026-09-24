@@ -7,7 +7,8 @@ use std::{io::IsTerminal, path::Path, process::ExitCode, time::Duration};
 use teitunnel_control::{
     ClientError, ControlClient, Endpoint,
     protocol::{
-        ClientInfo, HostHeader, RoutesList, ShareInfo, ShareKind, StartShare, Status, code,
+        ClientInfo, HostHeader, PauseShare, RoutesList, ShareInfo, ShareKind, StartShare, Status,
+        code,
     },
 };
 use teitunnel_core::quick_share::HostHeaderChoice;
@@ -131,7 +132,7 @@ pub(crate) fn share_line(share: &ShareInfo, now_ms: u64) -> String {
         ShareKind::Terminal => "in a terminal",
         ShareKind::Domain => "on your domain",
     };
-    let status = if share.status == "live" {
+    let status = if share.status == "live" && !share.paused {
         String::new()
     } else {
         format!(", {}", share.status)
@@ -147,6 +148,38 @@ pub(crate) fn share_line(share: &ShareInfo, now_ms: u64) -> String {
         share.url.as_deref().unwrap_or("(starting)"),
         share.origin
     )
+}
+
+/// `teitunnel shares --pause|--resume` through the app (it asks the person first unless
+/// the CLI is always allowed).
+pub(crate) async fn pause(
+    client: &ControlClient,
+    id: &str,
+    account: Option<&str>,
+    paused: bool,
+) -> Result<ExitCode, String> {
+    if !client.hello().approved {
+        note("Allow it in the Teitunnel app…");
+    }
+    client
+        .pause_share(
+            &PauseShare {
+                id: id.to_owned(),
+                account: account.map(str::to_owned),
+            },
+            paused,
+        )
+        .await
+        .map_err(|e| describe(&e))?;
+    let hostname = teitunnel_core::pause::hostname_of(id);
+    if paused {
+        out!(
+            "Paused https://{hostname}. Visitors see a paused page until `teitunnel shares --resume {hostname}`."
+        )?;
+    } else {
+        out!("https://{hostname} is served again.")?;
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 /// `teitunnel shares` through the app.

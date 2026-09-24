@@ -4,7 +4,9 @@
 //! The server uses the app's accounts, engine and database like every other command;
 //! connectors keep running in the app or as Always-on services (their state is probed).
 //! Shares an agent starts run in this process and end with it. Stdout carries only MCP
-//! messages; anything for a person goes to stderr.
+//! messages; anything for a person goes to stderr. While the app runs, the person
+//! approves an agent's changes there, in a dialog showing the plan, and the app lists
+//! the agent in Settings ▸ AI Tools ([`teitunnel_mcp::AppApprover`]).
 
 use std::{process::ExitCode, sync::Arc};
 
@@ -253,6 +255,7 @@ pub(crate) fn backend<S: ConnectorSource>(
             runs: app.dir().join("run-cli"),
             edge: crate::context::edge(),
             remote_logs: RemoteLogs::default(),
+            pauses: Arc::new(teitunnel_core::pause::Enforcer::new()),
         },
         source,
     )
@@ -290,11 +293,14 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
             Arc::clone(&backend),
             inspector.clone(),
         )))
+        .approver(teitunnel_mcp::AppApprover::new(app.dir(), settings.mode))
         .build();
     status(&format!(
         "Teitunnel MCP server ({} mode) on stdio. Connect an AI client with `teitunnel mcp install <client>`.",
         settings.mode
     ));
+    // Pauses and schedules of the shares on a domain this server starts.
+    let share_loop = crate::sharing::spawn_share_loop(app.store().clone(), inspector.clone());
     let stop = CancellationToken::new();
     let serving = tokio::spawn(teitunnel_mcp::serve_stdio(server, stop.clone()));
     tokio::pin!(serving);
@@ -311,6 +317,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
             }
         }
     };
+    share_loop.abort();
     backend.stop_own_shares().await;
     supervisor.stop_all().await;
     inspector.shutdown().await;

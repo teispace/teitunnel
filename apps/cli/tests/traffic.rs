@@ -195,6 +195,44 @@ async fn lists_shows_replays_exports_and_clears_captures_of_another_process() {
         serde_json::from_str(&std::fs::read_to_string(&har).unwrap()).unwrap();
     assert_eq!(har["log"]["entries"].as_array().unwrap().len(), 2);
 
+    // The API those requests show, as OpenAPI (credentials and values left out).
+    let described = run(&["traffic", "openapi", "--title", "Hooks"]).await;
+    assert!(described.status.success(), "{described:?}");
+    let document: serde_json::Value = serde_json::from_slice(&described.stdout).unwrap();
+    assert_eq!(document["openapi"], "3.1.0");
+    assert_eq!(document["info"]["title"], "Hooks");
+    let post = &document["paths"]["/webhooks/stripe"]["post"];
+    assert!(
+        post["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["name"] == "token")
+    );
+    assert_eq!(
+        post["requestBody"]["content"]["application/json"]["schema"]["properties"]["event"]["type"],
+        "string"
+    );
+    assert_eq!(post["security"], serde_json::json!([{ "bearerAuth": [] }]));
+    let text = described.stdout.clone();
+    let text = String::from_utf8_lossy(&text);
+    assert!(!text.contains("abc123") && !text.contains("paid") && !text.contains("s3cr3t"));
+    let yaml = data.path().join("api.yaml");
+    let written = {
+        let data = data.path().to_owned();
+        let yaml = yaml.clone();
+        tokio::task::spawn_blocking(move || {
+            cli(
+                &data,
+                &["traffic", "openapi", "--out", yaml.to_str().unwrap()],
+            )
+        })
+        .await
+        .unwrap()
+    };
+    assert!(written.status.success(), "{written:?}");
+    assert!(std::fs::read_to_string(&yaml).unwrap().contains("openapi:"));
+
     assert!(run(&["traffic", "clear"]).await.status.success());
     let empty = run(&["traffic", "ls"]).await;
     assert!(empty.stdout.is_empty());

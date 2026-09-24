@@ -128,6 +128,9 @@ pub(crate) async fn up(app: &App, args: &UpArgs) -> Result<ExitCode, String> {
         ));
     }
     let sweeper = crate::inspect::sweep_left_behind(app, machine.clone());
+    // Paused pages and schedules of this machine's routes, while the app isn't doing it.
+    let inspector = crate::mcp::inspector(app);
+    let route_host = crate::sharing::RouteHost::spawn(app, machine.clone(), inspector.clone());
     let report = |machine: &MachineTunnels, last: &mut Vec<&'static str>| {
         for (index, (id, name)) in running.iter().enumerate() {
             let now = describe(machine.state(id).as_ref());
@@ -158,6 +161,8 @@ pub(crate) async fn up(app: &App, args: &UpArgs) -> Result<ExitCode, String> {
         shares.stop(app).await;
     }
     sweeper.abort();
+    route_host.stop(app, &machine, &inspector).await;
+    inspector.shutdown().await;
     monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)

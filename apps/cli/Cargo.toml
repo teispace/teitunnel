@@ -20,6 +20,7 @@ teitunnel-core.workspace = true
 teitunnel-cloudflared.workspace = true
 teitunnel-mcp.workspace = true
 teitunnel-control.workspace = true
+jiff.workspace = true
 tokio-util.workspace = true
 base64.workspace = true
 # `teitunnel top` (M12-07)

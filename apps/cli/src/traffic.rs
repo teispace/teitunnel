@@ -1,5 +1,6 @@
 //! `teitunnel traffic …`: requests captured by the inspector (LocalCan parity): list,
-//! show, follow, replay, clear and export.
+//! show, follow, replay, clear and export, and an OpenAPI description inferred from
+//! them.
 //!
 //! Commands read through the [`Traffic`] trait. Today's implementation is the history
 //! the inspector keeps in the database ([`History`]): every process with Lens (the app,
@@ -109,6 +110,24 @@ pub(crate) enum TrafficCommand {
         /// How many (newest first).
         #[arg(long, default_value_t = 100)]
         last: usize,
+    },
+    /// Describe the API the captured requests show, as OpenAPI 3.1: paths with
+    /// parameters (`/users/123` becomes `/users/{id}`), methods, parameters, JSON bodies
+    /// as schemas, status codes. Pages and assets are left out; no captured values are
+    /// copied in.
+    Openapi {
+        /// Only requests to this host, e.g. `api.example.com`.
+        #[arg(long)]
+        host: Option<String>,
+        /// Write it here (`.yaml`/`.yml` writes YAML); default: JSON on stdout.
+        #[arg(long, value_name = "FILE")]
+        out: Option<PathBuf>,
+        /// YAML on stdout.
+        #[arg(long, conflicts_with = "out")]
+        yaml: bool,
+        /// The document's title.
+        #[arg(long)]
+        title: Option<String>,
     },
 }
 
@@ -226,6 +245,11 @@ pub(crate) struct Replay {
 
 /// Where captured traffic is read from.
 pub(crate) trait Traffic {
+    /// An OpenAPI description of the captured requests, and what went into it.
+    async fn openapi(
+        &self,
+        options: &teitunnel_core::openapi::Options,
+    ) -> Result<(serde_json::Value, teitunnel_core::openapi::Summary), String>;
     /// The newest requests matching `filter`.
     async fn list(&self, filter: Filter, limit: usize) -> Result<Vec<Exchange>, String>;
     /// One request by id or the end of its id.
@@ -261,6 +285,15 @@ impl History {
 }
 
 impl Traffic for History {
+    async fn openapi(
+        &self,
+        options: &teitunnel_core::openapi::Options,
+    ) -> Result<(serde_json::Value, teitunnel_core::openapi::Summary), String> {
+        teitunnel_core::openapi::describe(None, Some(&self.store), options)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
     async fn list(&self, filter: Filter, limit: usize) -> Result<Vec<Exchange>, String> {
         history(&self.store, HistoryQuery { filter, limit })
             .await
@@ -567,6 +600,41 @@ pub(crate) async fn run(
                         )?;
                     }
                 }
+            }
+        }
+        TrafficCommand::Openapi {
+            host,
+            out,
+            yaml,
+            title,
+        } => {
+            let options = teitunnel_core::openapi::Options { host, title };
+            let (document, summary) = traffic.openapi(&options).await?;
+            if summary.requests == 0 {
+                status(
+                    "No API requests captured yet (pages, scripts and images don't count). Use the API through a share or an inspected route, then run this again.",
+                );
+            }
+            let as_yaml = yaml
+                || out.as_ref().is_some_and(|p| {
+                    p.extension().is_some_and(|e| {
+                        e.eq_ignore_ascii_case("yaml") || e.eq_ignore_ascii_case("yml")
+                    })
+                });
+            let text = teitunnel_core::openapi::render(&document, as_yaml)?;
+            match out {
+                Some(path) => {
+                    std::fs::write(&path, &text)
+                        .map_err(|e| format!("Couldn't write {}: {e}", path.display()))?;
+                    status(&format!(
+                        "Wrote {} path(s), {} operation(s) from {} request(s) to {}. Review it before publishing: only what was observed is described.",
+                        summary.paths,
+                        summary.operations,
+                        summary.requests,
+                        path.display()
+                    ));
+                }
+                None => out!("{text}")?,
             }
         }
     }

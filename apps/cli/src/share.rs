@@ -1,4 +1,4 @@
-//! `teitunnel share <origin>`: a Quick Share that lives exactly as long as the
+//! `teitunnel share <origin|folder>`: a Quick Share that lives exactly as long as the
 //! command. The one place the CLI runs a connector (D-056 keeps routes' connectors in
 //! the app): a share started from a terminal belongs to that terminal, so Ctrl-C, closing
 //! the terminal or `--for` ends it, and a CLI that dies without stopping it has its
@@ -16,6 +16,7 @@ use teitunnel_core::{
     dev_server::DevServer,
     domain::OriginUrl,
     engine::{Failure, Verification},
+    folder_share::FolderShare,
     inspect::{Inspector, TapPatch, lens::TapId},
     quick_share::{
         HostHeader, HostHeaderChoice, QuickShare, QuickShares, ShareStatus, qr_terminal,
@@ -264,8 +265,10 @@ pub(crate) fn start_error(err: teitunnel_core::quick_share::QuickShareError) -> 
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
     origin: &str,
+    folder: Option<FolderShare>,
     stop_after: Option<Duration>,
     qr: bool,
     json: bool,
@@ -273,20 +276,48 @@ pub(crate) async fn run(
     options: &ShareOptions,
     strict: bool,
 ) -> Result<ExitCode, String> {
-    let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
     let dir = context::data_dir()?;
-    crate::exposure::check(origin.as_str(), Some(&store(&dir)?), strict).await?;
-    let (shares, owner_dir) = quick_shares(&dir).await?;
+    let (shares, owner_dir) = match &folder {
+        Some(_) => quick_shares(&dir).await?,
+        None => {
+            let parsed = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
+            crate::exposure::check(parsed.as_str(), Some(&store(&dir)?), strict).await?;
+            quick_shares(&dir).await?
+        }
+    };
     let Some(inspector) = shares.inspector().cloned() else {
         unreachable!("quick_shares sets up the inspector");
     };
     let mut changes = shares.subscribe();
     let inspect = options.inspect || options.bearer.is_some();
-    let share = shares
-        .start_with(origin, stop_after, host_header, Some(inspect))
-        .await
-        .map_err(start_error)?;
-    status(&format!("Sharing {}…", share.origin));
+    let share = match &folder {
+        Some(folder) => shares.start_folder(folder.clone(), stop_after).await,
+        None => {
+            let parsed = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
+            shares
+                .start_with(parsed, stop_after, host_header, Some(inspect))
+                .await
+        }
+    }
+    .map_err(start_error)?;
+    let shown = shown(&share);
+    status(&format!("Sharing {shown}…"));
+    if let Some(folder) = &folder {
+        status(&format!(
+            "Serving the files in {}{}{}. Dotfiles, .env files, keys, .git and node_modules are never served.",
+            folder.path,
+            if folder.listing {
+                ", with file listings"
+            } else {
+                ""
+            },
+            if folder.spa {
+                ", as a single-page app"
+            } else {
+                ""
+            },
+        ));
+    }
     announce_host_header(share.host_header.as_ref());
     let tap = TapId::new(&share.id).ok();
     let mut printer = None;
@@ -349,7 +380,7 @@ pub(crate) async fn run(
                     let started_at = teitunnel_core::domain_shares::now_ms();
                     let record = teitunnel_core::cli_shares::CliShare {
                         owner: teitunnel_core::runtime::this_process(),
-                        origin: share.origin.to_string(),
+                        origin: shown.clone(),
                         url: url.clone(),
                         started_at,
                         stop_at: stop_after
@@ -414,9 +445,17 @@ fn announce(
     );
     status(&format!(
         "{} is public at {url} for anyone with the link. {until}",
-        share.origin
+        shown(share)
     ));
     Ok(())
+}
+
+/// What a share shares, as a person reads it: the folder, or the service.
+fn shown(share: &QuickShare) -> String {
+    share
+        .folder
+        .as_ref()
+        .map_or_else(|| share.origin.to_string(), |f| f.path.clone())
 }
 
 /// A duration in words, e.g. `1 h 30 min`.
@@ -449,6 +488,12 @@ pub(crate) struct DomainShareOptions {
     pub(crate) json: bool,
     /// Don't share when the exposure check finds a leak.
     pub(crate) strict: bool,
+    /// Share this folder (served by the inspector) instead of the service.
+    pub(crate) folder: Option<FolderShare>,
+    /// On only during these hours.
+    pub(crate) schedule: Option<teitunnel_core::schedule::Schedule>,
+    /// Remember the hostname (as typed) for this folder once it's live.
+    pub(crate) remember: Option<(std::path::PathBuf, String)>,
 }
 
 /// Exit code for a hostname someone else holds (or a DNS record Teitunnel didn't
@@ -523,12 +568,20 @@ pub(crate) async fn run_on_domain(
         stop_after,
         json,
         strict,
+        folder,
+        schedule,
+        remember,
     } = domain;
-    crate::exposure::check(origin, Some(app.store()), strict).await?;
-    let host_header = host_header
-        .resolve(origin)
-        .await
-        .map_err(|e| e.to_string())?;
+    let host_header = match &folder {
+        Some(_) => None,
+        None => {
+            crate::exposure::check(origin, Some(app.store()), strict).await?;
+            host_header
+                .resolve(origin)
+                .await
+                .map_err(|e| e.to_string())?
+        }
+    };
     let account = app.account(account.as_deref()).await?;
     let api = app
         .accounts
@@ -555,24 +608,34 @@ pub(crate) async fn run_on_domain(
     let expires_at = stop_after
         .map(|d| domain_shares::now_ms() + u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
     let owner = runtime::this_process();
+    // Listening for Ctrl-C and SIGTERM from here on: a signal while the share is being
+    // set up or checked ends it cleanly afterwards instead of killing the process.
+    let mut stop_signal = tokio::spawn(interrupted());
     let hostname = hostname.trim().to_ascii_lowercase();
     let inspector = Inspector::new(
         Some(app.store().clone()),
         Some(app.secrets().clone()),
         &owner,
     );
-    let inspect = options.inspect || options.bearer.is_some();
+    let inspect = options.inspect || options.bearer.is_some() || folder.is_some();
     // Inspected, the route's service is the tap, which sets the Host header itself.
     let (service, route_host_header, tap) = if inspect {
-        let origin_url = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
+        let source = match &folder {
+            Some(folder) => folder.path.clone(),
+            None => OriginUrl::parse(origin)
+                .map_err(|e| e.to_string())?
+                .as_str()
+                .to_owned(),
+        };
         let mut spec = TapSpec::new(
             TapScope::route(&account.id, &hostname, None),
             &hostname,
-            origin_url.as_str(),
+            &source,
         );
         spec.public_url = Some(format!("https://{hostname}"));
         spec.host_header = host_header.as_ref().map(|h| h.value.clone());
         spec.bearer = options.bearer.iter().cloned().collect();
+        spec.folder.clone_from(&folder);
         let tap = inspector.start(spec).await.map_err(|e| e.to_string())?;
         configure_tap(&inspector, &tap.id, options)?;
         (tap.address.clone(), None, Some(tap.id))
@@ -590,6 +653,12 @@ pub(crate) async fn run_on_domain(
         expires_at,
         owner: &owner,
         host_header: route_host_header,
+        source: match &folder {
+            Some(folder) => Some(folder.path.clone()),
+            None if tap.is_some() => Some(origin.to_owned()),
+            None => None,
+        },
+        folder: folder.is_some(),
     };
     let started = match &machine {
         Some(machine) => domain_shares::start(&app.engine, &api, machine, ctx, request).await,
@@ -623,7 +692,33 @@ pub(crate) async fn run_on_domain(
                 || "Press Ctrl-C to stop.".to_owned(),
                 |d| format!("Stops in {}, or press Ctrl-C.", describe(d)),
             );
-            status(&format!("{origin} is public at {url}. {until}"));
+            let shared = folder.as_ref().map_or(origin, |f| f.path.as_str());
+            status(&format!("{shared} is public at {url}. {until}"));
+            if let Some((dir, name)) = &remember
+                && let Err(err) =
+                    teitunnel_core::share_names::remember(app.store(), dir, name).await
+            {
+                status(&format!(
+                    "(Couldn't remember the name for this folder: {err})"
+                ));
+            }
+            if let Some(schedule) = &schedule {
+                teitunnel_core::schedule::set(app.store(), &account.id, &hostname, Some(schedule))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                status(&format!(
+                    "On {} from {} to {} ({}); visitors see a paused page the rest of the time.",
+                    schedule
+                        .days
+                        .iter()
+                        .map(|d| d.name())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    schedule.from,
+                    schedule.to,
+                    schedule.time_zone.as_deref().unwrap_or("local time")
+                ));
+            }
             if machine.is_some() {
                 status("This command runs the tunnel's connector until the share ends.");
             }
@@ -652,6 +747,11 @@ pub(crate) async fn run_on_domain(
             tasks.extend(crate::traffic::print_requests(&inspector));
         }
         tasks.push(announce_events(&inspector));
+        // Pauses (`teitunnel shares --pause`, the app, an agent) and schedules.
+        tasks.push(crate::sharing::spawn_share_loop(
+            app.store().clone(),
+            inspector.clone(),
+        ));
     }
     // An idle stop ends the command like Ctrl-C.
     let idle = {
@@ -671,14 +771,14 @@ pub(crate) async fn run_on_domain(
     match stop_after {
         Some(after) => {
             tokio::select! {
-                () = interrupted() => {}
+                _ = &mut stop_signal => {}
                 () = tokio::time::sleep(after) => {}
                 () = idle => {}
             }
         }
         None => {
             tokio::select! {
-                () = interrupted() => {}
+                _ = &mut stop_signal => {}
                 () = idle => {}
             }
         }

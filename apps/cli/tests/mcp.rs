@@ -133,9 +133,10 @@ fn shares_a_port_and_lets_the_app_stop_it() {
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
-    // Teitunnel's 26, the protection provider's 5 (M12-04), the reservation provider's
-    // 3 (M12-11) and expose_mcp_server (M12-02).
-    assert_eq!(names.len(), 35, "{names:?}");
+    // Teitunnel's 26, the sharing extras' 4 and traffic_openapi (M12-06, M12-12), the
+    // protection provider's 5 (M12-04), the reservation provider's 3 (M12-11) and
+    // expose_mcp_server (M12-02).
+    assert_eq!(names.len(), 40, "{names:?}");
     for tool in [
         "get_protection",
         "protect_hostname",
@@ -176,6 +177,60 @@ fn shares_a_port_and_lets_the_app_stop_it() {
 
     // Closing stdin ends the server cleanly.
     assert!(session.finish().success());
+}
+
+#[test]
+fn asks_the_person_in_the_app_when_it_runs() {
+    let Some(cloudflared) = sibling("fake-cloudflared") else {
+        eprintln!("skipped: build the workspace first (fake-cloudflared)");
+        return;
+    };
+    let data = tempfile::tempdir().unwrap();
+    // The app, as its control connection answers.
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let app = runtime
+        .block_on(teitunnel_control::testing::serve(
+            data.path(),
+            teitunnel_control::Limits::default(),
+        ))
+        .unwrap();
+    let mut session = Session::start(
+        Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+            .args(["mcp", "--mode", "ask"])
+            .env("TEITUNNEL_DATA_DIR", data.path())
+            .env("TEITUNNEL_CLOUDFLARED", &cloudflared)
+            .env_remove("CLOUDFLARE_API_TOKEN")
+            .env_remove("TEITUNNEL_API_TOKEN"),
+    );
+    // Listed in the app while connected.
+    for _ in 0..100 {
+        if !app.host.agents.lock().unwrap().is_empty() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    {
+        let agents = app.host.agents.lock().unwrap();
+        assert_eq!(agents[0].1.name, "e2e-agent");
+        assert_eq!(agents[0].1.mode, "ask");
+    }
+
+    // The person says no in the app: nothing is shared, even though the client can't ask.
+    let declined = session.call("share_port", json!({ "target": "3000" }));
+    assert_eq!(declined["outcome"], "declined", "{declined}");
+    assert!(teitunnel_core::cli_shares::list(&data.path().join("run-cli")).is_empty());
+    // …then yes.
+    app.host.agent_answers.lock().unwrap().push_back(true);
+    let shared = session.call("share_port", json!({ "target": "3000" }));
+    assert_eq!(shared["outcome"], "shared", "{shared}");
+    {
+        let questions = app.host.agent_questions.lock().unwrap();
+        assert_eq!(questions.len(), 2);
+        assert_eq!(questions[1].agent, "e2e-agent");
+        assert!(questions[1].title.contains("3000"), "{:?}", questions[1]);
+    }
+    assert!(session.finish().success());
+    drop(app);
 }
 
 #[test]
