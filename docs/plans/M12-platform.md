@@ -79,8 +79,8 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 
 ## M12-05 · Analytics, uptime, alerts
 - [ ] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3).
-- [ ] Uptime: every route checked through the edge on a schedule; history, incidents, response time chart; notification when down/recovered; optional status badge.
-- [ ] Alerts: 5xx rate, latency, connector down, certificate/DNS problems, quota-like limits (429s on Quick Share), with quiet hours.
+- [x] Uptime: every route checked through the edge on a schedule; history, incidents, response time chart; notification when down/recovered; optional status badge.
+- [x] Alerts: 5xx rate, latency, connector down, certificate/DNS problems, quota-like limits (429s on Quick Share), with quiet hours.
 - [ ] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance.
 
 ## M12-06 · Sharing power-ups
@@ -94,14 +94,14 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 
 ## M12-07 · Everywhere
 - [ ] Tray/menu bar: share a detected service in one click, copy recent URLs, pause all.
-- [ ] `teitunnel://` deep links (share port, open route, open inspector) for Raycast, Alfred and scripts.
+- [x] `teitunnel://` deep links (share port, open route, open inspector) for Raycast, Alfred and scripts. (D-102; registration by the installers, unverified in packaged builds.)
 - [ ] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), optional browser extension (open current localhost tab as a share).
 - [ ] Global shortcut to share the frontmost dev server.
 - [ ] Local HTTPS domains (`app.test`/`.local` with a local CA, LocalCan parity; decision Q7).
-- [ ] First: a local control connection to the running app (Unix socket / named pipe, current user only) that the CLI, extensions and launchers use; everything below builds on it.
+- [x] First: a local control connection to the running app (Unix socket / named pipe, current user only) that the CLI, extensions and launchers use; everything below builds on it. (D-102, `crates/control`; the Windows pipe is untested on Windows.)
 - [ ] JetBrains plugin (after VS Code; the VS Code extension also runs in Cursor and Windsurf through Open VSX).
-- [ ] Live shell completion (hostnames, tunnels, domains from the local store, no network).
-- [ ] `teitunnel top`: a live terminal dashboard of shares, routes, traffic and requests.
+- [x] Live shell completion (hostnames, tunnels, domains from the local store, no network).
+- [x] `teitunnel top`: a live terminal dashboard of shares, routes, traffic and requests. (Requests pane lights up once the inspector sends `requestArrived`.)
 
 ## M12-08 · Cloudflare depth
 - [ ] Private hostname routes for WARP users (GA 2026-08-11) next to private networks.

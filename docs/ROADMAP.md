@@ -69,5 +69,12 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ### M11: Landing page and docs site
 - [x] Landing page · [x] Fumadocs docs · [ ] Deploy (with release work)
 
-## M12 · Inspector, agents, analytics (draft)
-Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Waiting on the maintainer's answers to its open questions. M12-03 (agents/MCP) done except the app-hosted native approval (D-097).
+## M12 · Inspector, agents, analytics
+Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Maintainer answered the open questions 2026-09-24.
+- [x] M12-01 dev servers fixed in place (D-096)
+- [ ] M12-02 inspector: Lens core done (D-100); app/CLI integration and UI in progress
+- [x] M12-03 MCP server (D-097), except the app-hosted native approval
+- [ ] M12-04 protection: edge rules and service tokens in progress
+- [ ] M12-05 analytics: edge analytics, uptime and alerts done (D-098); Lens source and live Overview left
+- [ ] M12-06 sharing: Snapshots done (D-099); pause/resume, stable names, folder share, comments, offline page, schedules left
+- [ ] M12-07 everywhere: control connection, links, live completion, `teitunnel top` done (D-102); local domains crate done (D-101), integration left; tray, extensions, global shortcut left
