@@ -30,6 +30,8 @@ Keys are stored only as hashes. The browser dashboard signs in with a password i
 | `GET` | `/api/overview` | Accounts, this machine's tunnels and routes with their status, shares on your domains |
 | `POST` | `/api/preview` | Plans a change. Nothing changes. |
 | `POST` | `/api/apply` | Applies exactly the plan you previewed |
+| `GET` | `/api/analytics?accountId=…&range=day` | Traffic of the account's routes on this machine from Cloudflare's edge; add `hostname` (and `path`) for one route in detail. Needs Zone · Analytics · Read on the token ([Analytics](/docs/guides/analytics)). |
+| `GET` | `/api/uptime` | Uptime of this machine's routes (24 h, 7 d, 30 d, P95, open incident); add `hostname` and `range` for one route's status strip, response times and incidents |
 
 ## Making a change
 

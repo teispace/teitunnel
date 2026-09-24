@@ -45,6 +45,9 @@ teitunnel share 3000 --for 30m          # a temporary public URL, until Ctrl-C
 teitunnel share 3000 --on demo.example.com  # the same, on your own domain
 teitunnel shares                        # shares on your domains, from anywhere
 teitunnel shares --stop demo.example.com
+teitunnel analytics                     # traffic of every route, from Cloudflare's edge
+teitunnel analytics app.example.com --range week
+teitunnel uptime                        # uptime of this machine's routes
 teitunnel doctor                        # check for problems; exits 1 on an error
 teitunnel doctor --fix                  # apply the safe fixes
 teitunnel setup                         # store an API token in the keychain
@@ -62,7 +65,8 @@ teitunnel api-key create deploy         # a key for the API (shown once)
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/docs/guides/require-login)). |
 | `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/docs/guides/private-networks)). |
 | `--tunnel <name>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
-| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels` and `doctor`. |
+| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels`, `doctor`, `analytics` and `uptime`. |
+| `--range <hour\|day\|week\|month>` | `analytics`: how far back (default `day`); `--path` narrows it to a route's path ([Analytics](/docs/guides/analytics)). |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
