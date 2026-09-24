@@ -43,6 +43,10 @@ pub mod method {
     pub const DOCTOR_RUN: &str = "doctor.run";
     /// Receive events as notifications.
     pub const EVENTS_SUBSCRIBE: &str = "events.subscribe";
+    /// Local HTTPS domains on this computer and whether the app serves them.
+    pub const LOCAL_DOMAINS_LIST: &str = "localDomains.list";
+    /// Serve what's in the database now (after the CLI or a project changed it).
+    pub const LOCAL_DOMAINS_RELOAD: &str = "localDomains.reload";
 
     /// Every method after `hello`.
     pub const ALL: &[&str] = &[
@@ -56,6 +60,8 @@ pub mod method {
         OPEN,
         DOCTOR_RUN,
         EVENTS_SUBSCRIBE,
+        LOCAL_DOMAINS_LIST,
+        LOCAL_DOMAINS_RELOAD,
     ];
 
     /// Methods that change something, so the person approves them (or the client).
@@ -567,6 +573,43 @@ pub struct DoctorIssue {
     pub detail: String,
 }
 
+/// A local HTTPS domain (`https://shop.test`) on this computer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalDomainInfo {
+    /// E.g. `shop.test`.
+    pub name: String,
+    /// Where to open it (with the port when it isn't 443/80).
+    pub url: String,
+    /// The local service, e.g. `http://localhost:3000`.
+    pub origin: Option<String>,
+    /// Subdomains go to the same service.
+    pub wildcard: bool,
+    /// Over HTTPS.
+    pub https: bool,
+    /// Requests are recorded in the inspector.
+    pub inspect: bool,
+    /// The app answers for it now.
+    pub serving: bool,
+}
+
+/// `localDomains.list` and `localDomains.reload` result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalDomainsInfo {
+    /// The listeners are up.
+    pub running: bool,
+    /// The HTTPS port in use.
+    pub https_port: Option<u16>,
+    /// The plain HTTP port in use.
+    pub http_port: Option<u16>,
+    /// Why they aren't served, in English.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// The domains.
+    pub domains: Vec<LocalDomainInfo>,
+}
+
 /// `events.subscribe` parameters.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -599,7 +642,7 @@ pub enum Event {
     },
     /// A request reached an inspected share (only while its inspector runs).
     RequestArrived {
-        /// The share.
+        /// The share's id, an inspected route's hostname, or a local domain's name.
         share: String,
         /// HTTP method.
         method: String,

@@ -321,6 +321,44 @@ async fn host_routing_on_one_listener() {
 }
 
 #[tokio::test]
+async fn plain_http_listener_serves_some_hosts_and_sends_others_to_https() {
+    let plain = origin(|_| async { text_response(200, "plain") }).await;
+    let lens = Lens::new(LensOptions::default()).unwrap();
+    let tap = lens
+        .add_tap(TapConfig::new(Upstream::origin(&plain.url).unwrap()))
+        .unwrap();
+    let mut options = ListenOptions::tap(tap.clone());
+    options.routing = Routing::HttpsRedirect {
+        hosts: vec![("plain.test".into(), tap)],
+        redirect: vec!["app.test".into(), "*.app.test".into()],
+        https_port: Some(8443),
+    };
+    let listener = lens.listen(options).await.unwrap();
+    let with_host = |host: &'static str, path: &'static str| {
+        Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("host", host)
+            .body(lens::empty())
+            .unwrap()
+    };
+    let moved = fetch(listener.addr, with_host("App.test:80", "/cart?x=1")).await;
+    assert_eq!(moved.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(moved.headers["location"], "https://app.test:8443/cart?x=1");
+    let sub = fetch(listener.addr, with_host("api.app.test", "/")).await;
+    assert_eq!(sub.headers["location"], "https://api.app.test:8443/");
+    assert_eq!(
+        fetch(listener.addr, with_host("plain.test", "/"))
+            .await
+            .text(),
+        "plain"
+    );
+    let other = fetch(listener.addr, with_host("evil.example", "/")).await;
+    assert_eq!(other.status, StatusCode::MISDIRECTED_REQUEST);
+    assert!(other.headers.get("location").is_none());
+}
+
+#[tokio::test]
 async fn removing_a_tap_closes_its_listener_and_shutdown_stops_everything() {
     let origin = echo_origin().await;
     let (lens, tap) = lens_for(&origin.url).await;

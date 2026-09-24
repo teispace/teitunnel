@@ -23,8 +23,9 @@ use crate::{
     framing::{Frame, read_frame, write_frame},
     protocol::{
         ApplyParams, ApplyResult, ClientInfo, DoctorIssue, EVENT_NOTIFICATION, Event, HelloParams,
-        HelloResult, MAX_MESSAGE, PROTOCOL_VERSION, PlanInfo, PreviewParams, Response, RoutesList,
-        RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare, View, code, method,
+        HelloResult, LocalDomainsInfo, MAX_MESSAGE, PROTOCOL_VERSION, PlanInfo, PreviewParams,
+        Response, RoutesList, RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare,
+        View, code, method,
     },
 };
 
@@ -280,6 +281,23 @@ impl ControlClient {
     /// See [`ControlClient::call`].
     pub async fn doctor(&self) -> Result<Vec<DoctorIssue>, ClientError> {
         self.call(method::DOCTOR_RUN, &json!({})).await
+    }
+
+    /// Local HTTPS domains and whether the app serves them.
+    ///
+    /// # Errors
+    /// See [`ControlClient::call`]; an app without the method answers
+    /// [`code::METHOD_NOT_FOUND`](crate::protocol::code::METHOD_NOT_FOUND).
+    pub async fn local_domains(&self) -> Result<LocalDomainsInfo, ClientError> {
+        self.call(method::LOCAL_DOMAINS_LIST, &json!({})).await
+    }
+
+    /// Makes the app serve what's in the database now.
+    ///
+    /// # Errors
+    /// See [`ControlClient::local_domains`].
+    pub async fn reload_local_domains(&self) -> Result<LocalDomainsInfo, ClientError> {
+        self.call(method::LOCAL_DOMAINS_RELOAD, &json!({})).await
     }
 
     /// Subscribes to events (`None`: all) and returns a receiver for them.

@@ -51,6 +51,10 @@ crates/core          The product: domain model, engine (observe → plan → app
 crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
                      replay, exports, webhooks, gates, stubs, simulation. Pure library, no Tauri,
                      no core; an optional `specta` feature derives IPC types.
+crates/localdomains  Local HTTPS domains (D-101): the name-constrained CA, leaves issued per SNI
+                     name, trust installers per OS (privileged steps returned as data), the `.test`
+                     name server, mDNS, port checks. No Tauri, no SQLite, no proxying; `core`
+                     persists and serves through Lens.
 crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prompts, approvals,
                      redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
                      to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
@@ -61,7 +65,7 @@ crates/control       The local control connection (M12-07): newline-delimited JS
                      Knows nothing about the core; `core::control::CoreHost` implements `Host`.
 apps/cli             `teitunnel`: commands only; hosts the MCP server (`teitunnel mcp`, `/mcp`);
                      uses the running app through `ControlClient` (`share`, `shares`, `routes`,
-                     `status`, `top`).
+                     `status`, `top`, `local-domain`).
 apps/desktop/src-tauri  Thin adapter: IPC commands, events bridge, tray, menus, windows, plugins.
 apps/desktop/src        React UI.
 tools/fake-cloudflared  Test double binary that behaves like cloudflared (endpoints, JSON logs, failure modes).
@@ -334,6 +338,10 @@ One `Inspector` per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`)
 - **Analytics**: `inspect::analytics::LensSource` answers first for routes a tap inspects.
 - **Presets** (`inspect::expose`): MCP server probe (Streamable HTTP `initialize`, SSE `endpoint`), local AI server probe (Ollama, LM Studio, vLLM), client configurations, and exposing a service on a domain share through a bearer-gated tap.
 
+### 5.5a Local HTTPS domains (`core::local_domains`, M12-07)
+
+`LocalDomains` (one per process that serves them: the app, `teitunnel local-domain add|serve`) serves the `local_domains` registry through the process's `Inspector`: each domain is a hosted tap (`TapScope::LocalDomain`, `ld-<digest>-<random>`, `Inspector::start_hosted`; capture on only with `inspect`), and two listeners route by host: HTTPS (443, else 8443) with `CheckedTls` (rustls through `tokio-rustls`, certificates from `localdomains::SniResolver` over a `DomainRegistry` of the HTTPS domains, so a handshake for any other name fails) and plain HTTP (80, else 8080) with Lens's `Routing::HttpsRedirect` (308 to HTTPS for HTTPS domains, served for HTTP-only ones). Both acceptors check the peer before anything is read: loopback and this computer's interface addresses (`if-addrs`) always; private-network peers only with LAN access on, and over TLS only for `.local` SNI. Listeners bind loopback (`127.0.0.1` plus `::1`), or the wildcard address when macOS refuses a low port on loopback, a `.local` domain exists or LAN access is on. `.test` names get a `DnsResponder` on `127.0.0.1:53535` (53 on Windows) and `.local` names an `MdnsAdvertiser`. The CA is loaded or made once (`LocalCa::load_or_create`, key through `KeychainCaStore` over `SecretStore`, account `localdomains:ca`; its public certificate at `<data>/localdomains/ca.pem` for the installers); leaves live only in memory (30 days, renewed 10 days before expiry). `run()` ticks every 30 s: restarts dead listeners, renews hourly and after a wake (a gap of more than 90 s), re-advertises mDNS and refreshes the peer check's addresses. Trust goes through a `TrustBackend` port (`SystemTrust` over `localdomains::TrustManager`; `FileTrust` when `TEITUNNEL_TEST_TRUST_FILE` is set). The `.test` resolver entry, the Linux system store and low-port fixes are `PrivilegedAction`s shown as copyable commands, run through `pkexec` on Linux with consent. The Doctor adds `local.*` checks (`local_domains::diagnose`) with `Fix::LocalDomains`. Project files' `localDomains` are applied by `project::apply_local_domains`; backups copy the table. The CLI saves to the registry and asks the running app to `localDomains.reload`, or serves from the terminal.
+
 ### 5.6 Adoption of foreign processes
 
 At startup and on demand, `sysinfo` finds running `cloudflared` processes not started by Teitunnel. We probe candidate metrics ports (`20241..20245` plus any `--metrics` found in the process arguments) and show them as **Discovered** with Import / Adopt / Ignore. We never read secrets from other processes' arguments or environment.
@@ -403,6 +411,7 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `inspected_routes` | routes pointed at an inspector: account, hostname, path, tunnel, original service, login, tap address, owner (§5.5) |
 | `lens_taps` | taps this machine ran: id, scope, name, service, public URL, owner, start/stop |
 | `lens_exchanges` | the inspector's history, masked (§5.5): id, tap, seq, time, method, host, path, status, kind, meta JSON, bodies |
+| `local_domains` | local HTTPS domains: name, target JSON (port, URL), wildcard, https, inspect, project, created_at (migration 17; the CA key is in the keychain) |
 | `settings` | key/value JSON |
 
 App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `teitunnel.db`). Logs go to `~/Library/Logs/com.teispace.teitunnel/`.
@@ -440,7 +449,8 @@ must come within 5 s; requests are rate-limited per connection (token bucket 40/
 | `routes.list` | `Engine::overview` |
 | `routes.preview` / `routes.apply` | `intent_for` → `preview` / `apply` by fingerprint, `with_actor(via: "control")` |
 | `open` | `Ui::open` → `OpenView` event → the webview navigates |
-| `doctor.run` | `doctor::run` minus ignored issues |
+| `doctor.run` | `doctor::run` plus local-domain issues, minus ignored issues |
+| `localDomains.list` / `localDomains.reload` | `LocalDomains::status` / `sync` then `status` (no approval: it only re-reads the app's own database) |
 | `events.subscribe` | notifications from `EntityChanged` (shares, routes) and `requestArrived` (inspector) |
 
 Changes (`shares.start`, `shares.stop`, `routes.apply`) go through the server's gate:

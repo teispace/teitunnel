@@ -79,9 +79,9 @@ const status: ProjectStatus = {
         kind: "localDomain",
         name: "shop.localhost",
         target: "localhost:3000",
-        state: "unsupported",
+        state: "missing",
         line: 22,
-        note: core("project.noteLocalDomains"),
+        note: null,
       },
     ],
     routes: [
@@ -139,6 +139,7 @@ const status: ProjectStatus = {
         exists: true,
       },
     ],
+    localDomains: [{ name: "shop.localhost", port: 3000, wildcard: false, exists: false }],
   },
 };
 

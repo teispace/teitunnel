@@ -148,6 +148,13 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - Inspecting a route is a reviewed plan; it's reverted when inspection ends, when its
   process quits, at the next launch after a crash, and on the Doctor's `inspect.orphan` fix.
 
+### Local HTTPS domains (`core::local_domains` over `crates/localdomains`)
+- The local CA is name-constrained (critical NameConstraints: `localhost`, `test`, `local`, loopback and private IP ranges; pathlen 0), so a stolen key can't sign a certificate a browser or TLS library accepts for a real site. Its key (PEM bundle) lives only in the keychain (`localdomains:ca`), is loaded on a blocking thread, and never reaches the database, backups, logs or IPC; only the public certificate is written to disk (0644) or saved for a phone on request. `TEITUNNEL_LOCAL_CA_FILE` keeps it in a plain 0600 file instead, for keychain-less servers, with a warning. Leaf keys stay in memory.
+- Trust is added at user level where the OS allows it (macOS asks for the password; Windows confirms). Nothing elevates silently: the Linux system store, the `.test` resolver entry and low-port fixes are shown as commands, or run through `pkexec` after the person chooses to.
+- Handshakes are answered only for registered names. Listeners may be on the wildcard address (macOS allows 443 only there), so every connection's peer is checked before reading: this computer's addresses always; private-network peers only with LAN access on, and over TLS only for `.local` names. The plain listener only redirects to the same listed host (no open redirect). `CF-Connecting-IP` is ignored on these taps.
+- The `.test` name server binds loopback only and answers only for registered `.test` names; `.test` is never delegated on the internet (RFC 6761).
+- `localDomains.reload` on the control connection needs no approval: it only makes the app serve what its own database already says.
+
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.
 - The diagnostics bundle is redacted, created locally, and shown to the user before they share it.
@@ -159,4 +166,5 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 - A process running as the same OS user can read the always-on token file and the child process environment. This matches the OS threat model (same-user processes are trusted); the alternative would be a privileged helper, which adds more risk than it removes.
 - `glib` 0.18 (RUSTSEC-2024-0429, unsound `VariantStrIter`) comes only through Tauri's Linux GTK/tray stack, which pins gtk-rs 0.18. Teitunnel never uses `glib` directly, so the unsound iterator is unreachable; the Dependabot alert is dismissed as a tolerable risk (2026-09-23). Revisit when Tauri moves to gtk-rs 0.20 or later.
+- A process of the same user can add a local domain (it writes the same database) and reach the services behind it over HTTPS; that's no more than it could reach on their ports directly.
 - Quick Share URLs are public and unauthenticated by design. The UI says so and offers an auto-stop timer.

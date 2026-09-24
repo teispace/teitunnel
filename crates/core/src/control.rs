@@ -98,6 +98,31 @@ pub struct HostParts {
     pub runs: PathBuf,
     /// This machine's name.
     pub machine_name: String,
+    /// Local HTTPS domains, when this process serves them.
+    pub local_domains: Option<crate::local_domains::LocalDomains>,
+}
+
+/// The wire form of the local domains' status.
+fn local_info(status: crate::local_domains::LocalDomainsStatus) -> wire::LocalDomainsInfo {
+    wire::LocalDomainsInfo {
+        running: status.running,
+        https_port: status.https_port,
+        http_port: status.http_port,
+        error: status.error.map(|e| e.english()),
+        domains: status
+            .domains
+            .into_iter()
+            .map(|d| wire::LocalDomainInfo {
+                name: d.name,
+                url: d.url,
+                origin: d.origin,
+                wildcard: d.wildcard,
+                https: d.https,
+                inspect: d.inspect,
+                serving: d.serving,
+            })
+            .collect(),
+    }
 }
 
 /// [`Host`] over the core.
@@ -679,7 +704,7 @@ impl Host for CoreHost {
                 .await
                 .map(|s| s.ignored_issues)
                 .unwrap_or_default();
-            let issues = crate::doctor::run(
+            let mut issues = crate::doctor::run(
                 &self.parts.accounts,
                 &self.parts.engine,
                 &self.parts.machine,
@@ -687,6 +712,9 @@ impl Host for CoreHost {
                 &self.parts.machine_name,
             )
             .await;
+            if let Some(local) = &self.parts.local_domains {
+                issues.extend(local.doctor().await);
+            }
             Ok(issues
                 .into_iter()
                 .filter(|issue| !ignored.contains(&issue.id))
@@ -703,6 +731,26 @@ impl Host for CoreHost {
                     account_id: issue.account_id,
                 })
                 .collect())
+        })
+    }
+
+    fn local_domains(&self) -> BoxFuture<'_, HostResult<wire::LocalDomainsInfo>> {
+        Box::pin(async move {
+            let local = self.parts.local_domains.as_ref().ok_or_else(|| {
+                RpcError::new(code::METHOD_NOT_FOUND, "Local domains aren't served here.")
+            })?;
+            Ok(local_info(local.status().await))
+        })
+    }
+
+    fn reload_local_domains(&self) -> BoxFuture<'_, HostResult<wire::LocalDomainsInfo>> {
+        Box::pin(async move {
+            let local = self.parts.local_domains.as_ref().ok_or_else(|| {
+                RpcError::new(code::METHOD_NOT_FOUND, "Local domains aren't served here.")
+            })?;
+            // A failure to serve is part of the status (and its error).
+            let _ = local.sync().await;
+            Ok(local_info(local.status().await))
         })
     }
 

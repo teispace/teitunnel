@@ -443,9 +443,12 @@ async fn plans_applies_and_is_idempotent() {
             ItemState::Missing,
             ItemState::Missing,
             ItemState::Missing,
-            ItemState::Unsupported
+            ItemState::Missing
         ]
     );
+    assert_eq!(first.local_domains.len(), 1);
+    assert_eq!(first.local_domains[0].name, "shop.localhost");
+    assert!(!first.local_domains[0].exists);
     assert_eq!(first.shares.len(), 2);
     assert_eq!(
         first.shares[0].hostname.as_deref(),
@@ -482,6 +485,31 @@ async fn plans_applies_and_is_idempotent() {
     assert!(again.routes.is_empty(), "{:?}", again.routes);
     assert_eq!(again.items[0].state, ItemState::Applied);
     assert_eq!(again.items[1].state, ItemState::Applied);
+    assert_eq!(
+        again.items[4].state,
+        ItemState::Missing,
+        "local domains aren't applied by routes"
+    );
+
+    // Local domains go into this computer's registry, marked as the project's.
+    let store = engine.local().store().clone();
+    assert_eq!(apply_local_domains(&store, &again).await.unwrap(), 1);
+    let rows = crate::local_domains::registry::list(&store).await.unwrap();
+    assert_eq!(rows[0].name.as_str(), "shop.localhost");
+    assert_eq!(rows[0].project.as_deref(), Some("/w/shop/teitunnel.yml"));
+    assert!(rows[0].https);
+    let third = plan(
+        &engine,
+        &cloud,
+        &conns,
+        CTX,
+        &project,
+        &["http://localhost:8080".to_owned()],
+    )
+    .await
+    .unwrap();
+    assert_eq!(third.items[4].state, ItemState::Applied);
+    assert!(third.local_domains.is_empty());
     assert_eq!(again.shares.len(), 1, "the Quick Share runs already");
     assert_ne!(again.fingerprint, first.fingerprint);
 }

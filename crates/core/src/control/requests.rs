@@ -31,6 +31,7 @@ pub fn request_event(inspector: &Inspector, exchange: &Exchange) -> Option<Event
     let share = match inspector.tap_scope(&exchange.tap)? {
         TapScope::QuickShare { share_id } => share_id,
         TapScope::Route { hostname, .. } => hostname,
+        TapScope::LocalDomain { name } => name,
     };
     let row = ExchangeRow::of(exchange);
     Some(Event::RequestArrived {

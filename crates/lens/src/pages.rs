@@ -126,6 +126,18 @@ pub(crate) fn text(status: StatusCode, text: String) -> Response<LensBody> {
     response
 }
 
+/// A permanent redirect (308, keeps the method) to `location`.
+pub(crate) fn redirect(location: &str) -> Response<LensBody> {
+    let mut response = text(
+        StatusCode::PERMANENT_REDIRECT,
+        format!("Moved to {location}\n"),
+    );
+    if let Ok(value) = HeaderValue::from_str(location) {
+        response.headers_mut().insert(header::LOCATION, value);
+    }
+    response
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

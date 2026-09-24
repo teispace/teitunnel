@@ -5,6 +5,7 @@ import {
   FolderGit2,
   Globe,
   LayoutGrid,
+  LockKeyhole,
   type LucideIcon,
   Network,
   ScanSearch,
@@ -22,6 +23,7 @@ export interface NavItem {
     | "/inspector"
     | "/snapshots"
     | "/projects"
+    | "/local-domains"
     | "/domains"
     | "/tunnels"
     | "/activity"
@@ -36,7 +38,11 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector and Projects have none). */
+/**
+ * Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector, Projects and
+ * Local Domains have none). Local Domains sits with the things you run on this computer,
+ * not under Cloudflare: it needs no account.
+ */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -47,6 +53,7 @@ export const navigation: readonly NavSection[] = [
       { to: "/inspector", label: "nav.inspector", icon: ScanSearch },
       { to: "/snapshots", label: "nav.snapshots", icon: Camera },
       { to: "/projects", label: "nav.projects", icon: FolderGit2 },
+      { to: "/local-domains", label: "nav.localDomains", icon: LockKeyhole },
     ],
   },
   {

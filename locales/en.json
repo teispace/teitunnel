@@ -770,7 +770,14 @@
       "startConnector": "Start Connector",
       "keepTheirs": "Keep Changes",
       "reconnect": "Connect Again…",
-      "cleanConnections": "Clean Up Connections"
+      "cleanConnections": "Clean Up Connections",
+      "local": {
+        "trust": "Trust Local Domains",
+        "setUpResolver": "Set Up .test Names…",
+        "restart": "Restart Local Domains",
+        "renewCertificates": "Renew Certificates",
+        "renewCa": "Replace Certificate Authority"
+      }
     },
     "installing": "Installing…",
     "ignore": "Ignore",
@@ -1486,7 +1493,8 @@
     "settings": "Settings",
     "analytics": "Analytics",
     "snapshots": "Snapshots",
-    "projects": "Projects"
+    "projects": "Projects",
+    "localDomains": "Local Domains"
   },
   "commands": {
     "group": {
@@ -2068,6 +2076,40 @@
         "fix": "Restore the Route",
         "address": "Inspector address: {address}",
         "original": "Its own service: {origin}"
+      },
+      "localStopped": {
+        "title": "Local domains aren't being served"
+      },
+      "localPort": {
+        "titleFallback": "Local domains use port {fallback} instead of {port}",
+        "titleNone": "Local domains can't start: port {port} isn't available",
+        "inUse": "Another app is using port {port}. Quit it and restart local domains to use the usual address without a port number.",
+        "denied": "This system only lets administrators use port {port}. Addresses include the other port number until that changes.",
+        "other": "Port {port} couldn't be used."
+      },
+      "localUntrusted": {
+        "title": "Browsers don't trust your local domains yet",
+        "detail": "Teitunnel signs certificates for your local domains with its own certificate authority, which only works for .localhost, .test and .local names. Trust it once so browsers open them without a warning.",
+        "authority": "Certificate authority: {name}"
+      },
+      "localDns": {
+        "title": "The name server for .test names isn't running"
+      },
+      "localResolver": {
+        "title": "{name} doesn't reach this computer yet",
+        "detail": "Names ending in .test need a one-time entry that sends them to Teitunnel's name server. It needs administrator rights, so Teitunnel shows the command to run."
+      },
+      "localElsewhere": {
+        "title": "{name} points at another computer",
+        "detail": "The system resolves this name to an address that isn't this computer, so browsers won't reach Teitunnel. Check your hosts file or DNS settings, or use a .localhost name."
+      },
+      "localCaExpiry": {
+        "title": "The local certificate authority expires soon",
+        "detail": "Replace it with a new one and trust that instead. Your local domains stay as they are."
+      },
+      "localCertificate": {
+        "title": "The certificate for {name} expires soon",
+        "detail": "Teitunnel renews certificates by itself, but this one wasn't renewed. Renew it now."
       }
     },
     "notify": {
@@ -2574,7 +2616,6 @@
       "changed": "Cloudflare changed since the plan was shown. Review the plan again.",
       "noteTemporary": "A temporary share uses this hostname now.",
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
-      "noteLocalDomains": "Local domains aren't available in this version of Teitunnel yet, so this entry is skipped.",
       "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
       "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
     },
@@ -2665,6 +2706,30 @@
       "io": "Couldn't use {path}: {detail}",
       "internal": "The backup couldn't be made: {detail}",
       "notPending": "Open the backup again to restore it."
+    },
+    "localDomains": {
+      "error": {
+        "nameEmpty": "Enter a name, e.g. shop.localhost.",
+        "nameTooLong": "The name is longer than 253 characters.",
+        "nameLabel": "{label} can't be part of a name. Use letters, digits and hyphens (not at the start or end), at most 63 characters between dots.",
+        "nameWildcard": "Leave out the *. To include subdomains, turn on Subdomains instead.",
+        "nameSuffix": "Local domains end in .localhost, .test or .local.",
+        "nameBare": "Add a name in front of .{suffix}, e.g. shop.{suffix}.",
+        "duplicate": "{name} is already a local domain.",
+        "notFound": "{name} isn't a local domain.",
+        "badTarget": "{value} isn't a local service. Enter a port (3000), host:port, or a URL such as http://localhost:3000.",
+        "invalidTarget": "That service can't be used: {detail}.",
+        "ca": "The local certificate authority couldn't be used: {detail}",
+        "keychain": "Teitunnel couldn't use your keychain for the local certificate authority: {detail}",
+        "keychain@windows": "Teitunnel couldn't use Credential Manager for the local certificate authority: {detail}",
+        "keychain@linux": "Teitunnel couldn't use your keyring for the local certificate authority: {detail}",
+        "noPort": "Local domains can't start: ports {port} and {fallback} are both taken or not allowed. Quit the app using them, then try again.",
+        "notSupported": "This step runs from Teitunnel only on Linux. Run the commands shown instead.",
+        "noPkexec": "pkexec isn't installed, so Teitunnel can't ask for administrator rights. Run the commands shown in a terminal instead.",
+        "privileged": "The step that needs administrator rights didn't finish: {detail}",
+        "io": "A file for local domains couldn't be written: {detail}",
+        "dns": "The name server for .test names couldn't start: {detail}"
+      }
     }
   },
   "permissionFix": {
@@ -3209,7 +3274,11 @@
       "confirm": "Replace DNS records Teitunnel didn't create",
       "apply": "Apply",
       "applying": "Applying…",
-      "nothing": "Nothing to change."
+      "nothing": "Nothing to change.",
+      "localDomains": "Local domains",
+      "localDomainNew": "Serve https://{name} from localhost:{port} on this computer",
+      "localDomainChange": "Point https://{name} at localhost:{port}",
+      "localDomainsNote": "Local domains stay on this computer; nothing changes in Cloudflare."
     },
     "applied": "Applied {name}",
     "sharesStarted_one": "{count} share started.",
@@ -3266,7 +3335,156 @@
       "access_ownership": "Logins Teitunnel added",
       "balanced_routes": "Load-balanced routes",
       "snapshots": "Snapshots",
-      "snapshot_versions": "Snapshot versions"
+      "snapshot_versions": "Snapshot versions",
+      "local_domains": "Local domains"
+    }
+  },
+  "localDomains": {
+    "title": "Local Domains",
+    "list": "Local domains",
+    "add": "Add Local Domain",
+    "refresh": "Refresh",
+    "trustButton": "Certificate Trust",
+    "loadFailed": "Couldn't read local domains",
+    "tryAgain": "Try Again",
+    "runAsAdmin": "Run as Administrator…",
+    "http": "HTTP",
+    "inspected": "Inspected",
+    "empty": {
+      "title": "No local domains",
+      "description": "Give a service on this computer an address like https://shop.test, with a certificate your browsers trust. Nothing leaves this computer.",
+      "add": "Add Local Domain"
+    },
+    "state": {
+      "serving": "Serving",
+      "stopped": "Not served",
+      "needsResolver": ".test names need setting up",
+      "elsewhere": "Points at another computer",
+      "untrusted": "Not trusted by browsers yet"
+    },
+    "sheet": {
+      "title": "Add Local Domain",
+      "editTitle": "Edit Local Domain",
+      "description": "Only this computer can open it, and phones on your network for .local names.",
+      "name": "Name",
+      "namePlaceholder": "shop.test",
+      "nameHelp": "Ends in .localhost, .test or .local. Browsers open .localhost names with no setup.",
+      "nameCompleted": "It will be {name}.",
+      "nameTest": ".test names work in every tool after a one-time setup that Teitunnel walks you through.",
+      "nameLocal": ".local names can also be opened from phones on your network.",
+      "target": "Service",
+      "targetHelp": "A port (3000), host:port, or a URL such as https://localhost:5173.",
+      "https": "Use HTTPS",
+      "httpsDetail": "With a certificate from Teitunnel's local certificate authority; plain HTTP redirects to it.",
+      "wildcard": "Include subdomains",
+      "wildcardDetail": "*.{name} opens the same service.",
+      "inspect": "Record requests in the inspector",
+      "inspectDetail": "See each request and response while you work; secrets are masked.",
+      "add": "Add",
+      "save": "Save",
+      "added": "{url} is ready",
+      "changed": "Saved {name}"
+    },
+    "detail": {
+      "open": "Open in Browser",
+      "edit": "Edit…",
+      "address": "Address",
+      "copyUrl": "Copy address",
+      "wildcardNote": "Subdomains such as www.{name} open the same service.",
+      "details": "Details",
+      "service": "Service",
+      "https": "HTTPS",
+      "wildcard": "Subdomains",
+      "project": "Project",
+      "yes": "Yes",
+      "no": "No",
+      "inspector": "Inspector",
+      "inspect": "Record requests",
+      "requests_one": "{count} request since it started",
+      "requests_other": "{count} requests since it started",
+      "phones": "Phones and other devices",
+      "remove": "Remove Local Domain…",
+      "removeTitle": "Remove {name}?",
+      "removeDetail": "Teitunnel stops answering for it. The service itself isn't touched.",
+      "removeConfirm": "Remove"
+    },
+    "phone": {
+      "useLocal": "Phones can't reach .localhost or .test names. Add a .local name to open this service from a phone on the same Wi-Fi.",
+      "lan": "Allow devices on this network",
+      "lanFooter": "Other devices can open .local names over HTTPS only while this is on. Everything else answers this computer alone.",
+      "addresses": "This computer: {addresses}",
+      "noNetwork": "Not connected to a network.",
+      "install": "Install Teitunnel's certificate authority on the phone first. On an iPhone or iPad, open the profile, then turn it on in Settings ▸ General ▸ About ▸ Certificate Trust Settings. On Android, install it as a CA certificate.",
+      "saveProfile": "Save Profile for iPhone…",
+      "saveCertificate": "Save Certificate…",
+      "saved": "Saved {path}"
+    },
+    "callout": {
+      "untrusted": "Browsers don't trust your local domains yet",
+      "untrustedDetail": "Trust Teitunnel's certificate authority once, and every local domain opens without a warning.",
+      "setUpTrust": "Set Up Trust…",
+      "resolver": "Set up .test names once",
+      "resolverDetail": "Browsers and tools ask the system for .test names. Run this once as an administrator so they reach Teitunnel's name server on port {port}.",
+      "copyCommand": "Copy command",
+      "waiting": "Checking again every few seconds…",
+      "dnsStopped": "The name server for .test names isn't running",
+      "stopped": "Local domains aren't being served",
+      "otherPort": "Local domains use another port"
+    },
+    "port": {
+      "inUse": "Another app is using port {port}.",
+      "permissionDenied": "This system only lets administrators use port {port}.",
+      "other": "Port {port} couldn't be used.",
+      "fallback": "{reason} Addresses include port {fallback} instead.",
+      "none": "{reason} No other port could be used either."
+    },
+    "trust": {
+      "title": "Trust Local Domains",
+      "description": "Browsers open your local domains without a warning once this computer trusts Teitunnel's certificate authority.",
+      "step1": "Teitunnel makes its own certificate authority. Its private key stays in your keychain.",
+      "step1@windows": "Teitunnel makes its own certificate authority. Its private key stays in Credential Manager.",
+      "step1@linux": "Teitunnel makes its own certificate authority. Its private key stays in your keyring.",
+      "step2": "It's added to your login keychain as trusted. macOS asks for your password.",
+      "step2@windows": "It's added to your trusted certificates. Windows asks you to confirm.",
+      "step2@linux": "It's added to Chrome's and Firefox's certificate lists. The system's list needs an administrator.",
+      "step3": "Each local domain gets a short-lived certificate that renews by itself.",
+      "safety": "The authority can only sign .localhost, .test and .local names and local addresses, so even a stolen key couldn't impersonate a real website.",
+      "browsers": "Also add it to Chrome's and Firefox's own certificate lists (uses NSS tools when installed)",
+      "firefox": "Let Firefox trust it",
+      "firefoxDetail": "Firefox trusts the system's certificates by default since version 120; this turns that back on in profiles where it was switched off.",
+      "trust": "Trust",
+      "done": "Done",
+      "stores": "Where it's trusted",
+      "admin": "One step needs an administrator",
+      "adminDetail": "Only an administrator can change the system's certificate list. Run these commands in a terminal, or let Teitunnel ask for your password.",
+      "copyCommands": "Copy commands",
+      "trusted": "Browsers trust your local domains.",
+      "checking": "Checking again every few seconds…",
+      "stop": "Stop Trusting…",
+      "stopTitle": "Stop trusting local domains?",
+      "stopDetail": "Browsers warn about every local domain again until you trust it again.",
+      "stopConfirm": "Stop Trusting",
+      "state": {
+        "trusted": "Trusted",
+        "notTrusted": "Added, not trusted",
+        "absent": "Not added",
+        "followsSystem": "Uses the system's trust",
+        "disabled": "Doesn't use the system's trust",
+        "unsupported": "No supported certificate list found",
+        "toolMissing": "Needs {tool}",
+        "toolMissingPackage": "Needs {tool} (install {package})",
+        "error": "Couldn't check: {message}"
+      }
+    },
+    "store": {
+      "macosKeychain": "Login keychain",
+      "macosKeychain@windows": "Your certificates",
+      "macosKeychain@linux": "Your certificates",
+      "windowsUser": "Your certificates",
+      "linuxSystem": "System certificates",
+      "chrome": "Chrome and Chromium",
+      "firefox": "Firefox profile",
+      "firefoxSystemRoots": "Firefox setting"
     }
   }
 }

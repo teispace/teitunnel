@@ -591,6 +591,8 @@ async fn dispatch(
             Ok(json!({}))
         }
         method::DOCTOR_RUN => to_value(&host.doctor().await?),
+        method::LOCAL_DOMAINS_LIST => to_value(&host.local_domains().await?),
+        method::LOCAL_DOMAINS_RELOAD => to_value(&host.reload_local_domains().await?),
         other => Err(RpcError::new(
             code::METHOD_NOT_FOUND,
             format!("No method called {other}."),

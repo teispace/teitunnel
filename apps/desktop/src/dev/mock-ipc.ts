@@ -2,6 +2,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { rawText } from "@/lib/i18n";
 import { analyticsMock } from "./mock-analytics";
 import { inspectorMock } from "./mock-inspector";
+import { localDomainsMock } from "./mock-local-domains";
 import { projectsMock } from "./mock-projects";
 
 /** A message the Rust core would send (`core.*` in the catalog). */
@@ -1136,6 +1137,7 @@ export function installMockIpc(): void {
             analyticsMock(cmd, payload) ??
             projectsMock(cmd, payload) ??
             inspectorMock(cmd, payload) ??
+            localDomainsMock(cmd, payload) ??
             null
           );
       }

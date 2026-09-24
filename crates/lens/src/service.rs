@@ -47,6 +47,9 @@ pub(crate) async fn handle(
     let host = request_host(&request, &conn);
     let routes = listener.routes();
     let normalized = normalize_host(&host);
+    if let Some(location) = routes.https_redirect(&normalized, request.uri()) {
+        return Ok(pages::redirect(&location));
+    }
     let Some(tap) = routes.resolve(&normalized).and_then(|id| shared.tap(id)) else {
         return Ok(pages::text(
             StatusCode::MISDIRECTED_REQUEST,

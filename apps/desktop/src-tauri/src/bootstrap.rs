@@ -88,6 +88,12 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_idle());
     watch_inspector(app.clone(), &inspector);
     watch_inspected_routes(app.clone());
+    let local_domains = teitunnel_core::local_domains::LocalDomains::new(
+        store.clone(),
+        inspector.clone(),
+        teitunnel_core::local_domains::LocalDomainsConfig::detect(&data_dir, Some(secrets.clone())),
+    );
+    start_local_domains(app.clone(), &local_domains);
     forward_quick_share_changes(app.clone(), &quick_shares);
 
     let local = Local::new(store.clone());
@@ -132,6 +138,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         &machine,
         &quick_shares,
         &binary,
+        &local_domains,
     );
     tauri::async_runtime::spawn(Arc::clone(&control.host).forward_requests(inspector.clone()));
 
@@ -161,8 +168,35 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         analytics,
         monitor,
         inspector,
+        local_domains,
         inspect_live: std::sync::Mutex::default(),
     })
+}
+
+/// Serves the local domains saved earlier (nothing when there are none), keeps them
+/// healthy across sleep and network changes, and tells the webview when they change.
+fn start_local_domains<R: Runtime>(
+    app: AppHandle<R>,
+    local_domains: &teitunnel_core::local_domains::LocalDomains,
+) {
+    let local = local_domains.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(err) = local.sync().await {
+            tracing::warn!(%err, "local domains couldn't be served at launch");
+        }
+        local.run().await;
+    });
+    let mut changes = local_domains.subscribe();
+    tauri::async_runtime::spawn(async move {
+        use tokio::sync::broadcast::error::RecvError;
+        while let Ok(()) | Err(RecvError::Lagged(_)) = changes.recv().await {
+            let _ = EntityChanged {
+                kind: EntityKind::LocalDomains,
+                id: None,
+            }
+            .emit(&app);
+        }
+    });
 }
 
 /// The control connection's host over the app's services, listening unless it's turned
@@ -177,6 +211,7 @@ fn control<R: Runtime>(
     machine: &MachineTunnels,
     quick_shares: &QuickShares,
     binary: &BinaryManager,
+    local_domains: &teitunnel_core::local_domains::LocalDomains,
 ) -> shell::control::Control {
     use teitunnel_core::control::{CoreHost, HostParts, integrations};
     let host = CoreHost::new(
@@ -190,6 +225,7 @@ fn control<R: Runtime>(
             binary: binary.clone(),
             runs: data_dir.join("run-cli"),
             machine_name: machine_name(),
+            local_domains: Some(local_domains.clone()),
         },
         shell::control::ui(app),
     );
@@ -816,7 +852,7 @@ fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
             if !state.doctor.due(std::time::Instant::now()) {
                 continue;
             }
-            let issues = teitunnel_core::doctor::run(
+            let mut issues = teitunnel_core::doctor::run(
                 &state.accounts,
                 &state.engine,
                 &state.machine,
@@ -824,6 +860,7 @@ fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
                 &state.machine_name,
             )
             .await;
+            issues.extend(state.local_domains.doctor().await);
             doctor_ran(&app, &state, &issues).await;
         }
     });
@@ -961,6 +998,7 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
             supervisor.stop_all().await;
             if let Some(state) = app.try_state::<AppState>() {
                 state.monitor.release().await;
+                state.local_domains.stop().await;
                 state.inspector.shutdown().await;
             }
         };

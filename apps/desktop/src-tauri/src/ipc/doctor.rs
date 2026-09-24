@@ -14,7 +14,7 @@ pub async fn doctor_run(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Issue>, AppError> {
-    let issues = doctor::run(
+    let mut issues = doctor::run(
         &state.accounts,
         &state.engine,
         &state.machine,
@@ -22,6 +22,7 @@ pub async fn doctor_run(
         &state.machine_name,
     )
     .await;
+    issues.extend(state.local_domains.doctor().await);
     crate::bootstrap::doctor_ran(&app, &state, &issues).await;
     Ok(issues)
 }

@@ -29,6 +29,7 @@ pub mod exposure;
 pub mod health;
 pub mod import;
 pub mod inspect;
+pub mod local_domains;
 pub mod machine;
 pub mod platform;
 pub mod project;

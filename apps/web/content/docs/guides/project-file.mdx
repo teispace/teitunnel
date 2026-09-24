@@ -133,7 +133,9 @@ applies keep it (to change it, use `teitunnel snapshot update --password`), and 
 
 ## Good to know
 
-- **Local domains** aren't applied by this version yet: they're listed as **Skipped**.
+- **Local domains** are added to this computer's [local domains](/docs/guides/local-domains/)
+  (marked as the project's) and served by the app, or by `teitunnel local-domain serve`.
+  They never touch Cloudflare, and an existing one keeps its HTTPS and inspection settings.
 - A share's `inspect` is kept for the inspector; shares start without it in this version.
 - An existing route stays on its tunnel; `tunnel` only picks where a new route goes.
 - Before a new route or share makes a service public, the

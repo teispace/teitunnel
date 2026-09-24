@@ -176,6 +176,11 @@ pub enum TapScope {
         /// Path rule.
         path: Option<String>,
     },
+    /// A local HTTPS domain on this computer (`https://shop.test`).
+    LocalDomain {
+        /// The name, e.g. `shop.test`.
+        name: String,
+    },
 }
 
 impl TapScope {
@@ -197,6 +202,7 @@ impl TapScope {
         match self {
             Self::QuickShare { .. } => format!("origin:{}", origin.trim().to_ascii_lowercase()),
             Self::Route { hostname, .. } => format!("host:{hostname}"),
+            Self::LocalDomain { name } => format!("local:{name}"),
         }
     }
 }

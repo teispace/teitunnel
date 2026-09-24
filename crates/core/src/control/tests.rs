@@ -78,6 +78,11 @@ fn fixture() -> Fixture {
         binary,
         runs: dir.path().join("run-cli"),
         machine_name: "test-machine".into(),
+        local_domains: Some(crate::local_domains::LocalDomains::new(
+            store.clone(),
+            crate::inspect::Inspector::new(None, None, "test"),
+            crate::local_domains::LocalDomainsConfig::isolated(&dir.path().join("local")),
+        )),
         store: store.clone(),
     };
     let ui = Arc::new(FakeUi::default());
@@ -114,6 +119,37 @@ async fn reports_an_empty_app() {
     let error = f.host.routes(RoutesParams::default()).await.unwrap_err();
     assert_eq!(error.code, code::NOT_FOUND);
     assert_eq!(error.message, "No Cloudflare account is connected.");
+}
+
+#[tokio::test]
+async fn serves_local_domains_the_cli_added_after_a_reload() {
+    let f = fixture();
+    assert!(f.host.local_domains().await.unwrap().domains.is_empty());
+    // The CLI writes the registry, then asks the app to serve it.
+    crate::local_domains::registry::save(
+        &f.store,
+        &crate::local_domains::LocalDomainRow {
+            name: localdomains::LocalName::parse_any("cli.localhost").unwrap(),
+            target: localdomains::DomainTarget::Port { port: 3000 },
+            wildcard: false,
+            https: true,
+            inspect: false,
+            project: None,
+            created_at: 1,
+        },
+    )
+    .await
+    .unwrap();
+    let listed = f.host.local_domains().await.unwrap();
+    assert!(!listed.running && !listed.domains[0].serving);
+    let reloaded = f.host.reload_local_domains().await.unwrap();
+    assert!(reloaded.running, "{:?}", reloaded.error);
+    assert!(reloaded.domains[0].serving);
+    assert!(reloaded.domains[0].url.starts_with("https://cli.localhost"));
+    assert!(
+        f.ui.prompts.lock().unwrap().is_empty(),
+        "no approval needed"
+    );
 }
 
 #[tokio::test]
