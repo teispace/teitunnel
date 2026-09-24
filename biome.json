@@ -14,7 +14,9 @@
       "!**/.next",
       "!**/out",
       "!**/.source",
-      "!**/.claude"
+      "!**/.claude",
+      "!**/integrations/raycast",
+      "!**/integrations/jetbrains"
     ]
   },
   "formatter": {
