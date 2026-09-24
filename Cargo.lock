@@ -6472,6 +6472,7 @@ name = "teitunnel-mcp"
 version = "0.1.1"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "futures-util",
  "jsonc-parser",
  "reqwest",

@@ -917,6 +917,41 @@ impl Inspector {
         }
     }
 
+    /// Waits for a finished exchange matching `filter` that started at or after
+    /// `since_ms` (one captured already counts), for up to `timeout`. Text filters see
+    /// the masked capture.
+    ///
+    /// # Errors
+    /// Lens couldn't start, the wait timed out, or Lens shut down.
+    pub async fn wait_for(
+        &self,
+        filter: &lens::Filter,
+        since_ms: u64,
+        timeout: Duration,
+    ) -> Result<Arc<Exchange>, InspectError> {
+        let lens = self.lens()?;
+        Ok(lens
+            .wait_for(
+                filter,
+                &lens::WaitOptions {
+                    timeout,
+                    since_ms: Some(since_ms),
+                    redaction: Redaction::masked(),
+                },
+            )
+            .await?)
+    }
+
+    /// The name of a tap (running or known), for listings.
+    pub fn tap_name(&self, tap: &TapId) -> Option<String> {
+        if let Some(entry) = lock(&self.inner.taps).get(tap) {
+            return Some(entry.name.clone());
+        }
+        lock(&self.inner.known)
+            .get(tap)
+            .map(|(_, name, _)| name.clone())
+    }
+
     /// A page of raw captures (for statistics and exports in this process); text search
     /// runs on the masked view.
     pub fn list_raw(&self, query: &lens::Query) -> lens::Page {
