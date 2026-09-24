@@ -104,6 +104,19 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
 - [ ] Listings: awesome-tunneling, Raycast Store, VS Code Marketplace, Homebrew core, winget, Flathub; Show HN / Product Hunt when M12-02 and M12-03 ship.
 
+## Design: local HTTPS domains (decision 7)
+- **Names:** `name.localhost` by default: Chrome, Firefox and Safari (through macOS's resolver) send `*.localhost` to loopback with no setup (RFC 6761 §6.3; W3C Secure Contexts treat it as trustworthy). Optional `name.test` for tools that don't resolve `.localhost` (curl on some systems, Node before 17, Java, Windows/Linux system resolvers): a tiny DNS responder in Teitunnel on `127.0.0.1:<port>` plus a per-TLD resolver entry, added once with the user's approval (macOS `/etc/resolver/test` with `port`; Linux systemd-resolved drop-in `Domains=~test`; Windows NRPT rule). Optional LAN access for phones: advertise `name.local` over mDNS pointing at the LAN address, with a QR code to install the CA profile on the phone.
+- **Certificates:** Teitunnel's own root CA (rcgen), **name-constrained** (X.509 NameConstraints: only `.localhost`, `.test`, `.local`, loopback and private IPs), so even a stolen key can't sign a real site (mkcert's CA isn't constrained). The CA key lives in the OS keychain; leaf certificates are issued on demand per name via SNI, short-lived (30 days) and renewed automatically.
+- **Trust:** user-level where possible, no sudo: macOS user trust settings (the system asks for the user's password once), Windows CurrentUser Root store (Windows shows its own confirmation), Linux system store with a one-time privileged step plus NSS databases for Chrome/Firefox (`certutil`, via a typed process builder). Firefox on macOS/Windows: enterprise roots preference or its NSS store. Removing local domains removes the trust entries.
+- **Ports:** Lens listens on 443/80 on loopback. macOS and Windows allow it unprivileged; on Linux, if `ip_unprivileged_port_start` > 443, offer the one-time fix (setcap or sysctl) or fall back to 8443/8080 with the port in the URL.
+- **UI:** every share, route and detected service can get `https://name.localhost` in one click; a Local domains list; automatic names from the project (`myapp.localhost`) and wildcard subdomains (`*.myapp.localhost` to the same service).
+
+## Design: comments and feedback (decision 6)
+- An overlay script injected by Lens (live shares and routes being inspected) or by the snapshot Worker (HTMLRewriter): a small comment button; reviewers click a point on the page to pin a comment (page path, CSS selector, position relative to the element, viewport size, optional screenshot of the region), reply, resolve. No external assets; accessible; can be switched off per share.
+- Identity: reviewer name (and email) typed once and remembered in their browser, or the Access identity when the share requires a login.
+- Storage: live shares keep comments in Teitunnel's store on this computer (the overlay talks to Lens's reserved `/__teitunnel/` API through the tunnel); snapshots keep them in the user's Cloudflare account (the snapshot Worker with D1 or a Durable Object), synced into the app.
+- App: a Comments view per share/snapshot with threads, jump to page, resolve/reopen, notifications for new comments; MCP tools (`comments_list`, `comments_reply`, `comments_resolve`) so agents can close the feedback loop.
+
 ## Decisions (maintainer, 2026-09-24)
 1. Quick Shares are inspected by default: in memory, last 1,000 exchanges per share, secrets masked, one switch off.
 2. Routes: the most robust design (below, "Inspecting a route").
