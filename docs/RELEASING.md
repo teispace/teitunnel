@@ -9,7 +9,10 @@ How releases work (D-074) and the one-time setup they need. The workflow is
 1. Merge work into `main` with Conventional Commit messages (`feat:`, `fix:` …).
 2. release-please keeps a pull request **"chore: release x.y.z"** up to date: the version in
    `apps/desktop/package.json`, `Cargo.toml` and `Cargo.lock`, and `CHANGELOG.md`.
-3. To release, review and merge that pull request. The workflow then:
+3. To release, review and merge that pull request. GitHub doesn't run workflows for
+   pull requests that release-please opens or updates with the workflow's own token, so
+   **close and reopen it** (or `gh pr close N && gh pr reopen N`) to run CI before merging.
+   The workflow then:
    - tags `vx.y.z` and creates a **draft** release;
    - builds macOS (universal), Windows (x64, arm64) and Linux (x64, arm64: `.deb`, `.rpm`,
      AppImage), plus the CLI for each;
@@ -28,7 +31,8 @@ setup get an unsigned dry run automatically.
 The first release, **0.1.0**, was published on 2026-09-24. From then on release-please picks
 the next version from the commits since the last release: a `fix:` makes 0.1.1, a `feat:` makes
 0.2.0, and a breaking change also makes 0.2.0 while the version is below 1.0
-(`bump-minor-pre-major`). To force a version, set `release-as` for the package in
+(`bump-minor-pre-major`). The workspace crates' versions in `Cargo.lock` are the packages
+without a `source` (`$.package[?(!@.source)].version`). To force a version, set `release-as` for the package in
 `release-please-config.json` and remove it again after that release.
 
 Commits that only touch `apps/web/` or `docs/` never cause a release (`exclude-paths`): the

@@ -72,7 +72,7 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name=='teitunnel-cf-api' || @.name=='teitunnel-cloudflared' || @.name=='teitunnel-core' || @.name=='teitunnel-cli' || @.name=='teitunnel-desktop' || @.name=='fake-cloudflared' || @.name=='fake-cloudflare')].version"
+          "jsonpath": "$.package[?(!@.source)].version"
         }
       ]
     }
