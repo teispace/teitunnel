@@ -70,6 +70,9 @@ pub struct ShareRequest<'a> {
     pub expires_at: Option<u64>,
     /// [`APP_OWNER`] or a CLI process.
     pub owner: &'a str,
+    /// Host header sent to the service (`httpHostHeader`), for dev servers that only
+    /// answer their own address.
+    pub host_header: Option<String>,
 }
 
 /// Starts a share: remembers it first (so a crash can't leave the route behind
@@ -108,7 +111,12 @@ where
             path: None,
             origin: share.origin.clone(),
             access: request.access,
-            options: None,
+            options: request.host_header.map(|host| {
+                Box::new(crate::domain::OriginOptions {
+                    http_host_header: Some(host),
+                    ..crate::domain::OriginOptions::default()
+                })
+            }),
         },
     };
     let intent = engine.intent_for(api, ctx, &change).await?;
@@ -273,6 +281,7 @@ mod tests {
             access: None,
             expires_at: None,
             owner,
+            host_header: None,
         }
     }
 
@@ -317,6 +326,29 @@ mod tests {
         stop(&engine, &cloud, &conns, CTX, "demo.xyz.com")
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn sends_the_host_header_it_was_given() {
+        let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+        let (cloud, conns) = (cloud(), FakeConnectors::default());
+        let mut vite = request("vite.xyz.com", APP_OWNER);
+        vite.host_header = Some("localhost:5173".into());
+        start(&engine, &cloud, &conns, CTX, vite).await.unwrap();
+        let state = cloud.snapshot();
+        let rule = &state
+            .tunnels
+            .values()
+            .next()
+            .unwrap()
+            .config
+            .as_ref()
+            .unwrap()
+            .ingress[0];
+        assert_eq!(
+            rule.origin_request.get("httpHostHeader"),
+            Some(&serde_json::json!("localhost:5173"))
+        );
     }
 
     #[tokio::test]

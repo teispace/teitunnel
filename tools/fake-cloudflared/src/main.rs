@@ -101,6 +101,17 @@ async fn main() -> ExitCode {
         log("fatal", "--metrics is required by the fake", json!({}));
         return ExitCode::from(2);
     };
+    // Like cloudflared, a config file named with --config has to exist.
+    if let Some(config) = value_after("--config")
+        && std::fs::metadata(config).is_err()
+    {
+        log(
+            "fatal",
+            &format!("open {config}: no such file or directory"),
+            json!({}),
+        );
+        return ExitCode::from(1);
+    }
     let is_run = args.iter().any(|a| a == "run");
     if is_run && std::env::var_os("TUNNEL_TOKEN").is_none() && value_after("--token-file").is_none()
     {
@@ -126,6 +137,8 @@ async fn main() -> ExitCode {
         }
     };
     log("info", &format!("Version {VERSION} (fake)"), json!({}));
+    // Like cloudflared's "Settings: map[…]" line, so tests can see the flags it got.
+    log("info", &format!("Settings: {}", args.join(" ")), json!({}));
     log(
         "info",
         &format!("Starting metrics server on {metrics}/metrics"),

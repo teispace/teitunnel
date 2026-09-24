@@ -1609,6 +1609,7 @@ dependencies = [
  "teitunnel-core",
  "tempfile",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]

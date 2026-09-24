@@ -35,11 +35,11 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - CLI: `teitunnel share --inspect` and `teitunnel inspect <route>` run Lens in the CLI process; `teitunnel traffic ls|get|watch|replay|export` read it (LocalCan parity).
 
 ## M12-01 · Dev servers just work
-- [ ] When a share or route goes live, the verifier fetches it once; a Vite "Blocked request. This host is not allowed", webpack "Invalid Host header", Next.js/Angular host checks or Rails `HostAuthorization` answer is recognised.
-- [ ] Fix in place: "Your dev server rejects this address. [Send Host: localhost]" (sets `httpHostHeader` for that share/route, re-checks) or "[Show the one-line config]" with the exact `allowedHosts` line for the detected framework and version.
-- [ ] Discovery marks known dev servers; new shares of them get the host header by default when safe (not for Next.js server actions or OAuth callbacks, where it breaks origin checks), with an explanation.
-- [ ] SSE on a Quick Share (Cloudflare doesn't carry it): detect `text/event-stream` and suggest "Share on my domain" (MCP servers on SSE transport, streaming UIs).
-- [ ] Explain 413 (100 MB body limit on Free/Pro), 429 (Quick Share 200 in-flight), 502/1033 inline with the fix.
+- [x] When a share or route goes live, the verifier fetches it once; a Vite "Blocked request. This host is not allowed", webpack "Invalid Host header", Next.js/Angular host checks or Rails `HostAuthorization` answer is recognised.
+- [x] Fix in place: "Your dev server rejects this address. [Send Host: localhost]" (sets `httpHostHeader` for that share/route, re-checks) or "[Show the one-line config]" with the exact `allowedHosts` line for the detected framework and version.
+- [x] Discovery marks known dev servers; new shares of them get the host header by default when safe (not for Next.js server actions or OAuth callbacks, where it breaks origin checks), with an explanation.
+- [x] SSE on a Quick Share (Cloudflare doesn't carry it): detect `text/event-stream` and suggest "Share on my domain" (MCP servers on SSE transport, streaming UIs).
+- [x] Explain 413 (100 MB body limit on Free/Pro), 429 (Quick Share 200 in-flight), 502/1033 inline with the fix.
 
 ## M12-02 · Inspector
 - [ ] `crates/lens`: streaming proxy, capture ring, masking, timing; property tests for header/body handling; fuzzed request parsing; benchmarks (added latency under 1 ms p99 locally, no buffering for streams).
@@ -98,7 +98,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Framework guides and automatic `X-Forwarded-Host`/`X-Forwarded-Proto` for Laravel/Livewire, Rails, Django, Next.js, Nuxt (wrong-domain assets, CORS).
 - [ ] Sleep/wake and network change: reconnect fast, verify, notify only if it stays down.
 - [ ] WSL: detect services in WSL and rewrite localhost (FlareDeck parity).
-- [ ] A leftover `~/.cloudflared/config.yml` never breaks Quick Shares (pass an empty config explicitly).
+- [x] A leftover `~/.cloudflared/config.yml` never breaks Quick Shares (pass an empty config explicitly).
 
 ## M12-10 · Reach
 - [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.

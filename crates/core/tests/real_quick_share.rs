@@ -58,12 +58,17 @@ async fn real_quick_share_serves_the_origin() {
         binary,
         PortAllocator::new(QUICK_SHARE_PORTS),
         Store::open_in_memory().unwrap(),
+        dir.path().join("quick-share.yml"),
     );
     tokio::spawn(shares.clone().watch_runtime());
 
     let port = origin();
     let share = shares
-        .start(OriginUrl::parse(&port.to_string()).unwrap(), None)
+        .start(
+            OriginUrl::parse(&port.to_string()).unwrap(),
+            None,
+            &teitunnel_core::quick_share::HostHeaderChoice::Auto,
+        )
         .await
         .unwrap();
 

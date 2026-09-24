@@ -18,6 +18,7 @@ import {
   useCapabilities,
   ZeroTrustFix,
 } from "@/features/accounts";
+import { CheckNotes, HostRejectionFix, useRoute, useSendHostOnRoute } from "@/features/dev-server";
 import { ServicePicker } from "@/features/quick-share";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
@@ -299,6 +300,15 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
   const apply = useApply(accountId);
   const verify = useVerify(accountId);
   const caps = useCapabilities(accountId).data;
+  // The route just changed, for fixing a dev server that refuses its address in place.
+  const checkedRoute = useRoute(
+    stage === "done" ? accountId : null,
+    verify.variables?.hostname ?? "",
+    change?.type === "addRoute" || change?.type === "updateRoute"
+      ? change.route.path?.trim() || null
+      : null,
+  ).data;
+  const sendHost = useSendHostOnRoute(accountId);
 
   const review = (next: Change, why: string | null = null, tunnel = tunnelId) => {
     setChange(next);
@@ -821,12 +831,35 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                   {t("routeSheet.verify.pending", { url })}
                 </p>
               </>
+            ) : verify.data.failure?.type === "hostRejected" ? (
+              <>
+                <HostRejectionFix
+                  rejection={verify.data.failure.rejection}
+                  via="route"
+                  onSendHost={
+                    checkedRoute
+                      ? (host) =>
+                          sendHost.mutate(
+                            { route: checkedRoute, host },
+                            {
+                              onSuccess: () =>
+                                verify.variables &&
+                                verify.mutate({ hostname: verify.variables.hostname, wait: true }),
+                            },
+                          )
+                      : undefined
+                  }
+                  sending={sendHost.isPending}
+                />
+                <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
+              </>
             ) : verify.data.failure ? (
               <>
                 <TriangleAlert aria-hidden className="size-7 text-warning" strokeWidth={1.5} />
                 <p className="max-w-sm text-body">
                   {verify.data.message ? translate(verify.data.message) : null}
                 </p>
+                <CheckNotes check={verify.data} showMessage={false} />
                 <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
               </>
             ) : verify.data.protected ? (

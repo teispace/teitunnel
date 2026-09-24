@@ -26,6 +26,12 @@ impl Harness {
     /// Tests run in parallel processes, so each gets its own block of ports.
     fn new(block: u16) -> Self {
         let run_dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(run_dir.path().join("config")).unwrap();
+        std::fs::write(
+            run_dir.path().join("config/quick-share.yml"),
+            cloudflared::NEUTRAL_CONFIG,
+        )
+        .unwrap();
         let registry = PidRegistry::new(run_dir.path().to_path_buf());
         Self {
             supervisor: Supervisor::new(registry, tokio::runtime::Handle::current()),
@@ -40,6 +46,8 @@ impl Harness {
         let command = QuickTunnelCmd {
             origin: "http://localhost:3000".into(),
             metrics_port: port,
+            config: self.run_dir.path().join("config/quick-share.yml"),
+            host_header: None,
         }
         .build(Path::new(&wrapper(self.run_dir.path(), scenario)));
         ConnectorSpec {

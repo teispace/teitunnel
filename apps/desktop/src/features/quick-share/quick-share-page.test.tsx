@@ -113,6 +113,8 @@ beforeEach(() => {
           status: { status: "live" },
           startedAt: Date.now(),
           stopAt: null,
+          hostHeader: null,
+          check: null,
         };
         shares = [share];
         return share;
@@ -122,6 +124,26 @@ beforeEach(() => {
         return null;
       case "quick_share_stats":
         return { requests: 5, errors: 0 };
+      case "quick_share_set_host_header": {
+        // Restarted with the header: a new address, and the dev server answers.
+        const [current] = shares;
+        if (!current) return null;
+        const restarted: QuickShare = {
+          ...current,
+          url: "https://new-address.trycloudflare.com",
+          hostHeader: { value: String(payload["hostHeader"]), autoFor: null },
+          check: {
+            hostname: "new-address.trycloudflare.com",
+            status: 200,
+            failure: null,
+            message: null,
+            protected: false,
+            eventStream: false,
+          },
+        };
+        shares = [restarted];
+        return restarted;
+      }
       default:
         return null;
     }
@@ -149,8 +171,108 @@ describe("QuickSharePage", () => {
     expect(within(card).getByText("https://a-b-c.trycloudflare.com")).toBeTruthy();
     expect(await within(card).findByText("5 requests")).toBeTruthy();
 
+    expect(calls.find((c) => c.cmd === "quick_share_start")?.args["hostHeader"]).toEqual({
+      mode: "auto",
+    });
+
     fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+  });
+
+  it("lets the Host header be chosen for a new share", async () => {
+    renderPage();
+    fireEvent.change(screen.getByRole("combobox", { name: "Port or address" }), {
+      target: { value: "5173" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Host header" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Custom" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Host header value" }), {
+      target: { value: "app.local" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "quick_share_start")?.args["hostHeader"]).toEqual({
+        mode: "set",
+        value: "app.local",
+      }),
+    );
+  });
+
+  it("fixes a dev server that refuses the address in place and confirms it", async () => {
+    shares = [
+      {
+        id: "qs-v",
+        origin: "http://localhost:5173",
+        url: "https://v-w-x.trycloudflare.com",
+        status: { status: "live" },
+        startedAt: Date.now(),
+        stopAt: null,
+        hostHeader: null,
+        check: {
+          hostname: "v-w-x.trycloudflare.com",
+          status: 403,
+          failure: {
+            type: "hostRejected",
+            rejection: {
+              server: "vite",
+              host: "v-w-x.trycloudflare.com",
+              hostHeader: "localhost:5173",
+              hostHeaderSafe: true,
+              configFile: "vite.config.js",
+              configLine: "server: { allowedHosts: ['.trycloudflare.com'] }",
+            },
+          },
+          message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
+          protected: false,
+          eventStream: false,
+        },
+      },
+    ];
+    renderPage();
+    const card = await screen.findByRole("article", { name: "Quick Share of localhost:5173" });
+    expect(
+      within(card).getByRole("heading", { name: "Your dev server rejects this address." }),
+    ).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Send Host: localhost:5173" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "quick_share_set_host_header")?.args).toEqual({
+        id: "qs-v",
+        hostHeader: "localhost:5173",
+      }),
+    );
+    expect(await within(card).findByText("Vite accepts the address now.")).toBeTruthy();
+    expect(within(card).getByText("Sends Host: localhost:5173 to the service.")).toBeTruthy();
+    expect(within(card).getByText("https://new-address.trycloudflare.com")).toBeTruthy();
+    expect(within(card).queryByRole("heading", { name: /rejects this address/ })).toBeNull();
+  });
+
+  it("says why a share sends a Host header, and when its service streams events", async () => {
+    shares = [
+      {
+        id: "qs-s",
+        origin: "http://localhost:5173",
+        url: "https://s-t-u.trycloudflare.com",
+        status: { status: "live" },
+        startedAt: Date.now(),
+        stopAt: null,
+        hostHeader: { value: "localhost:5173", autoFor: "vite" },
+        check: {
+          hostname: "s-t-u.trycloudflare.com",
+          status: 200,
+          failure: null,
+          message: null,
+          protected: false,
+          eventStream: true,
+        },
+      },
+    ];
+    renderPage();
+    const card = await screen.findByRole("article", { name: "Quick Share of localhost:5173" });
+    expect(
+      within(card).getByText("Sends Host: localhost:5173 so Vite accepts the public address."),
+    ).toBeTruthy();
+    expect(within(card).getByText(/Server-Sent Events/)).toBeTruthy();
   });
 
   it("shares on a subdomain of your own domain, then removes it", async () => {

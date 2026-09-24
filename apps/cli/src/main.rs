@@ -162,6 +162,14 @@ enum Command {
         /// With --on: require a login (an email address, or `@domain`); repeatable.
         #[arg(long, value_name = "EMAIL|@DOMAIN", requires = "on")]
         allow: Vec<String>,
+        /// Send this Host header to the service, e.g. `localhost:5173` for a dev server
+        /// that only answers its own address. By default Vite, webpack and Angular dev
+        /// servers get their own address.
+        #[arg(long, value_name = "HOST", conflicts_with = "no_host_header")]
+        host_header: Option<String>,
+        /// Pass the visitor's Host header through unchanged, even to a dev server.
+        #[arg(long)]
+        no_host_header: bool,
     },
     /// List shares on your domains (from the app or any terminal), or stop one.
     Shares {
@@ -445,8 +453,13 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             stop_after,
             no_qr,
             on: None,
+            host_header,
+            no_host_header,
             ..
-        } => return share::run(&origin, stop_after, !no_qr).await,
+        } => {
+            let host_header = share::host_header_choice(host_header, no_host_header);
+            return share::run(&origin, stop_after, !no_qr, &host_header).await;
+        }
         Command::Setup => return setup().await,
         Command::Completions { shell } => {
             clap_complete::generate(
@@ -467,6 +480,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: Some(hostname),
             account,
             allow,
+            host_header,
+            no_host_header,
             ..
         } => {
             share::run_on_domain(
@@ -476,6 +491,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 account.as_deref(),
                 access_rule(&allow),
                 stop_after,
+                &share::host_header_choice(host_header, no_host_header),
             )
             .await
         }
@@ -1238,6 +1254,9 @@ async fn check(
         }
         (Some(_), Some(message)) => {
             out!("https://{hostname} doesn't work yet: {message}")?;
+            share::explain(&result, share::Via::Route, &mut |line| {
+                let _ = out!("{line}");
+            });
             Ok(false)
         }
         (Some(failure), None) => {
@@ -1314,6 +1333,32 @@ mod tests {
         assert_eq!(allow, ["@team.io"]);
         // Account and logins only make sense on your own domain.
         assert!(Cli::try_parse_from(["teitunnel", "share", "3000", "--allow", "@x.io"]).is_err());
+    }
+
+    #[test]
+    fn parses_share_host_header_flags() {
+        use teitunnel_core::quick_share::HostHeaderChoice;
+        let parse = |args: &[&str]| {
+            let cli = Cli::try_parse_from(["teitunnel", "share", "5173"].iter().chain(args))?;
+            let Command::Share {
+                host_header,
+                no_host_header,
+                ..
+            } = cli.command
+            else {
+                panic!("not a share");
+            };
+            Ok::<_, clap::Error>(share::host_header_choice(host_header, no_host_header))
+        };
+        assert_eq!(parse(&[]).unwrap(), HostHeaderChoice::Auto);
+        assert_eq!(parse(&["--no-host-header"]).unwrap(), HostHeaderChoice::Off);
+        assert_eq!(
+            parse(&["--host-header", "localhost:5173"]).unwrap(),
+            HostHeaderChoice::Set {
+                value: "localhost:5173".into()
+            }
+        );
+        assert!(parse(&["--host-header", "a", "--no-host-header"]).is_err());
     }
 
     #[test]

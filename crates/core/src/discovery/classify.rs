@@ -15,6 +15,12 @@ pub enum ServiceKind {
     Nuxt,
     /// Remix / React Router.
     Remix,
+    /// SvelteKit (a Vite project with `svelte.config.js`).
+    SvelteKit,
+    /// Angular CLI (`ng serve`).
+    Angular,
+    /// webpack-dev-server (webpack, Create React App, Vue CLI).
+    Webpack,
     /// Django.
     Django,
     /// Flask.
@@ -60,6 +66,9 @@ impl ServiceKind {
             | Self::Astro
             | Self::Nuxt
             | Self::Remix
+            | Self::SvelteKit
+            | Self::Angular
+            | Self::Webpack
             | Self::Django
             | Self::Flask
             | Self::FastApi
@@ -131,7 +140,9 @@ pub(crate) fn classify(name: &str, cmd: &[String], port: u16) -> ServiceKind {
         return ServiceKind::Docker;
     }
     if matches!(lower.as_str(), "node" | "bun" | "deno") || lower.starts_with("node") {
-        return if has("vite") {
+        return if has("@angular/cli") || has("ng serve") {
+            ServiceKind::Angular
+        } else if has("vite") {
             ServiceKind::Vite
         } else if has("next") {
             ServiceKind::Next
@@ -141,6 +152,8 @@ pub(crate) fn classify(name: &str, cmd: &[String], port: u16) -> ServiceKind {
             ServiceKind::Nuxt
         } else if has("remix") || has("react-router") {
             ServiceKind::Remix
+        } else if has("webpack") || has("react-scripts") || has("vue-cli-service") {
+            ServiceKind::Webpack
         } else {
             ServiceKind::Node
         };
@@ -190,6 +203,24 @@ pub(crate) fn classify(name: &str, cmd: &[String], port: u16) -> ServiceKind {
         return ServiceKind::Go;
     }
     ServiceKind::Other
+}
+
+/// Frameworks built on Vite run as `vite dev`; their config file in the process's
+/// directory says which one it is.
+pub(crate) fn refine(kind: ServiceKind, cwd: Option<&std::path::Path>) -> ServiceKind {
+    let Some(dir) = cwd.filter(|_| kind == ServiceKind::Vite) else {
+        return kind;
+    };
+    let has = |names: &[&str]| names.iter().any(|name| dir.join(name).is_file());
+    if has(&["svelte.config.js", "svelte.config.ts", "svelte.config.mjs"]) {
+        ServiceKind::SvelteKit
+    } else if has(&["astro.config.mjs", "astro.config.ts", "astro.config.js"]) {
+        ServiceKind::Astro
+    } else if has(&["nuxt.config.ts", "nuxt.config.js"]) {
+        ServiceKind::Nuxt
+    } else {
+        kind
+    }
 }
 
 #[cfg(test)]
@@ -263,9 +294,49 @@ mod tests {
                 ServiceKind::Vite,
             ),
             ("node", "node react-router dev", ServiceKind::Remix),
+            (
+                "node",
+                "node /app/node_modules/@angular/cli/bin/ng serve",
+                ServiceKind::Angular,
+            ),
+            (
+                "node",
+                "node /app/node_modules/.bin/webpack serve --mode development",
+                ServiceKind::Webpack,
+            ),
+            (
+                "node",
+                "node /app/node_modules/react-scripts/scripts/start.js",
+                ServiceKind::Webpack,
+            ),
         ];
         for (name, line, kind) in cases {
             assert_eq!(classify(name, &cmd(line), 3000), kind, "{line}");
         }
+    }
+
+    #[test]
+    fn vite_projects_say_which_framework_they_are() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            refine(ServiceKind::Vite, Some(dir.path())),
+            ServiceKind::Vite
+        );
+        std::fs::write(dir.path().join("svelte.config.js"), "").unwrap();
+        assert_eq!(
+            refine(ServiceKind::Vite, Some(dir.path())),
+            ServiceKind::SvelteKit
+        );
+        assert_eq!(
+            refine(ServiceKind::Next, Some(dir.path())),
+            ServiceKind::Next
+        );
+        assert_eq!(refine(ServiceKind::Vite, None), ServiceKind::Vite);
+        let astro = tempfile::tempdir().unwrap();
+        std::fs::write(astro.path().join("astro.config.mjs"), "").unwrap();
+        assert_eq!(
+            refine(ServiceKind::Vite, Some(astro.path())),
+            ServiceKind::Astro
+        );
     }
 }

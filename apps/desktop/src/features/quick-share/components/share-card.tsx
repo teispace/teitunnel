@@ -14,9 +14,10 @@ import { toIpcError } from "@/lib/ipc/client";
 import { spring } from "@/lib/motion-tokens";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
-import { useShareStats, useStopShare } from "../queries";
+import { useCheckShare, useSetShareHostHeader, useShareStats, useStopShare } from "../queries";
 import { cardClass } from "./card";
 import { QrButton } from "./qr-button";
+import { HostHeaderNote, ShareCheck } from "./share-check";
 import { ShareLog } from "./share-log";
 
 function statusOf(share: QuickShare): { dot: Status; label: string } {
@@ -38,6 +39,8 @@ export function ShareCard({ share }: { share: QuickShare }) {
   const live = share.status.status === "live";
   const { data: stats } = useShareStats(share.id, live);
   const stop = useStopShare();
+  const setHostHeader = useSetShareHostHeader();
+  const check = useCheckShare();
   const { dot, label } = statusOf(share);
 
   return (
@@ -99,6 +102,18 @@ export function ShareCard({ share }: { share: QuickShare }) {
             </>
           ) : null}
         </div>
+      )}
+
+      {share.hostHeader ? <HostHeaderNote header={share.hostHeader} /> : null}
+      {share.status.status === "failed" ? null : (
+        <ShareCheck
+          check={share.check}
+          via="share"
+          onSendHost={(host) => setHostHeader.mutateAsync({ id: share.id, host })}
+          sending={setHostHeader.isPending}
+          onCheck={() => check.mutateAsync(share.id)}
+          checking={check.isPending}
+        />
       )}
 
       <footer className="flex items-center gap-3 text-callout text-secondary">

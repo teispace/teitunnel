@@ -4,20 +4,26 @@ import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useRoute, useSendHostOnRoute } from "@/features/dev-server";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { DomainShare } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
-import { useStopDomainShare } from "../queries";
+import { useDomainShareCheck, useStopDomainShare } from "../queries";
 import { cardClass } from "./card";
 import { QrButton } from "./qr-button";
+import { HostHeaderNote, ShareCheck } from "./share-check";
 
 /** One share on your own domain: a temporary route, removed when it stops. */
 export function DomainShareCard({ share }: { share: DomainShare }) {
   const now = useNow();
   const stop = useStopDomainShare();
+  const check = useDomainShareCheck(share.accountId, share.hostname);
+  const route = useRoute(share.accountId, share.hostname).data ?? null;
+  const sendHost = useSendHostOnRoute(share.accountId);
+  const hostHeader = route?.options.httpHostHeader ?? null;
   const url = `https://${share.hostname}`;
   const fromCli = share.owner !== "app";
   return (
@@ -52,6 +58,19 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
         </Tooltip>
         <QrButton url={url} />
       </div>
+      {hostHeader ? <HostHeaderNote header={{ value: hostHeader, autoFor: null }} /> : null}
+      <ShareCheck
+        check={check.data ?? null}
+        via="route"
+        onSendHost={
+          route
+            ? (host) => sendHost.mutateAsync({ route, host }).then(() => check.refetch())
+            : undefined
+        }
+        sending={sendHost.isPending}
+        onCheck={() => check.refetch()}
+        checking={check.isFetching}
+      />
       <footer className="flex items-center gap-3 text-callout text-secondary">
         <span>{fromCli ? t("quickShare.domain.fromCli") : t("quickShare.domain.endsWithApp")}</span>
         {share.expiresAt ? (

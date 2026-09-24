@@ -839,6 +839,74 @@ async fn verifies_a_route_through_the_edge() {
 }
 
 #[tokio::test]
+async fn a_route_refused_by_its_dev_server_offers_the_host_header_once() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::any};
+
+    use super::{
+        verify::{Edge, Failure},
+        views::{Change, RouteInput},
+    };
+    use crate::domain::OriginOptions;
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let edge = MockServer::start().await;
+    Mock::given(any())
+        .respond_with(
+            ResponseTemplate::new(403)
+                .set_body_string(include_str!("../dev_server/fixtures/vite-6.txt")),
+        )
+        .mount(&edge)
+        .await;
+    let host = Hostname::parse("app.xyz.com").unwrap();
+    let verify = async || {
+        engine.invalidate("acc");
+        engine
+            .verify(
+                &cloud,
+                CTX,
+                &host,
+                Edge::Test(*edge.address()),
+                std::time::Duration::ZERO,
+            )
+            .await
+            .unwrap()
+    };
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "5173")).await;
+    let refused = verify().await;
+    let Some(Failure::HostRejected { rejection }) = &refused.failure else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(rejection.host_header.as_deref(), Some("localhost:5173"));
+    assert_eq!(
+        rejection.config_line,
+        "server: { allowedHosts: ['app.xyz.com'] }"
+    );
+
+    // Once the route sends it, only the config line is left to suggest.
+    let change = Change::UpdateRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        route: RouteInput {
+            hostname: "app.xyz.com".into(),
+            path: None,
+            origin: "5173".into(),
+            access: None,
+            options: Some(Box::new(OriginOptions {
+                http_host_header: Some("localhost:5173".into()),
+                ..OriginOptions::default()
+            })),
+        },
+    };
+    let intent = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+    run(&engine, &cloud, &conns, &intent).await;
+    let still = verify().await;
+    let Some(Failure::HostRejected { rejection }) = &still.failure else {
+        panic!("{still:?}");
+    };
+    assert_eq!(rejection.host_header, None);
+}
+
+#[tokio::test]
 async fn detects_outside_edits_and_resolves_them() {
     use cf_api::IngressRule;
 

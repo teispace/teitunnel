@@ -61,16 +61,18 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     let runtime = tauri::async_runtime::handle().inner().clone();
     let supervisor = Supervisor::new(registry, runtime);
     let binary = BinaryManager::new(Locator::from_env(data_dir.join("bin")));
+    let (secrets, accounts, edge) = services(&store);
     let quick_shares = QuickShares::new(
         supervisor.clone(),
         binary.clone(),
         PortAllocator::new(QUICK_SHARE_PORTS),
         store.clone(),
-    );
+        data_dir.join("quick-share.yml"),
+    )
+    .with_edge(edge);
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
-    let (secrets, accounts, edge) = services(&store);
     let local = Local::new(store.clone());
     let paths = teitunnel_core::machine::ServicePaths {
         tokens: data_dir.join("tokens"),

@@ -10,6 +10,7 @@ pub mod binary;
 pub mod cli_install;
 pub mod cli_shares;
 pub mod connector_logs;
+pub mod dev_server;
 pub mod diagnostics;
 pub mod discovery;
 pub mod doctor;

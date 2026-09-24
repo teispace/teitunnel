@@ -192,8 +192,8 @@ End-to-end probe for a hostname, reported by stage so failures are actionable:
 
 1. **DNS:** read the record through the API and confirm it's a proxied CNAME to this Mac's tunnel. The verifier never resolves the hostname itself: a lookup made before the record propagated caches NXDOMAIN for up to 30 minutes in the Mac's and ISP's resolvers (D-037, D-040).
 2. **Edge → tunnel:** HTTPS GET sent straight to a Cloudflare edge address (from resolving `api.cloudflare.com`) with the hostname as SNI and Host. Cloudflare error 1033 means no connector; 530/1016 means DNS/tunnel mismatch; 1001 means not on Cloudflare yet; a certificate error on a multi-level subdomain means Universal SSL doesn't cover it.
-3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening.
-4. **Origin:** any other status is a success, and the status code is shown.
+3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening and names the port. Cloudflare's own 413 page means a body over the plan's limit; 429 on a Quick Share means its 200 in-flight requests are used up.
+4. **Origin:** any other status is a success, and the status code is shown, unless the answer is a dev server refusing the address (`dev_server::detect`: Vite, webpack-dev-server, Rails, Django from a bounded read of the body; Next.js by asking for a `/_next/` resource with the public `Origin`). That's a failure with its fix: the Host header the server expects (where sending it is safe) and the config line that allows the address. A `text/event-stream` answer is flagged (Quick Shares don't carry it).
 
 Transient failures (1033, 1016/530, 1001) are retried every 2 s for a short patience window after apply (`Engine::verify`).
 
@@ -246,7 +246,7 @@ macOS always-on: `~/Library/LaunchAgents/com.teispace.teitunnel.connector.<tunne
 
 ### 5.3 Quick Share
 
-`cloudflared tunnel --no-autoupdate --output json --metrics 127.0.0.1:<port> --url <origin>`. The public URL comes from `GET /quicktunnel` → `{"hostname": "…trycloudflare.com"}`, polled until present, with a 20 s timeout. Several Quick Shares can run at once, one process each. Optional auto-stop timer.
+`cloudflared tunnel --config <data dir>/quick-share.yml --no-autoupdate --output json --metrics 127.0.0.1:<port> [--http-host-header <host>] --url <origin>`. The config file is Teitunnel's own, empty (`{}`), rewritten at every start, so a leftover `~/.cloudflared/config.yml` (whose ingress rules would win over `--url`) is never read. The public URL comes from `GET /quicktunnel` → `{"hostname": "…trycloudflare.com"}`, polled until present, with a 20 s timeout. Once live, the share is checked once through the edge like a route (§4.5) and the result is kept on the share. New shares of Vite, webpack-dev-server and Angular dev servers (from discovery) send the server's own address as the Host header unless told otherwise; changing the header restarts the share's cloudflared, which gives it a new URL. Several Quick Shares can run at once, one process each. Optional auto-stop timer.
 
 ### 5.4 Adoption of foreign processes
 

@@ -21,3 +21,4 @@ teitunnel-cloudflared.workspace = true
 teitunnel-cf-api.workspace = true
 tempfile.workspace = true
 sysinfo.workspace = true
+wiremock.workspace = true
