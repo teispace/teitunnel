@@ -135,6 +135,25 @@ export function ApplySheet({ plan, onClose }: ApplySheetProps) {
                 <p className="text-footnote text-secondary">{t("project.sheet.sharesNote")}</p>
               </Section>
             ) : null}
+            {plan.localDomains.length > 0 ? (
+              <Section title={t("project.sheet.localDomains")}>
+                <ul className="flex flex-col gap-1 rounded-card bg-surface-inset px-3 py-2 text-body">
+                  {plan.localDomains.map((domain) => (
+                    <li key={domain.name}>
+                      {t(
+                        domain.exists
+                          ? "project.sheet.localDomainChange"
+                          : "project.sheet.localDomainNew",
+                        { name: domain.name, port: String(domain.port) },
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-footnote text-secondary">
+                  {t("project.sheet.localDomainsNote")}
+                </p>
+              </Section>
+            ) : null}
             {plan.requiresConfirmation ? (
               <label htmlFor={confirmId} className="flex items-center gap-2 text-body">
                 <Checkbox

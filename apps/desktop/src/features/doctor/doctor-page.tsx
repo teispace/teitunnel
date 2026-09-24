@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { CircleCheck, RefreshCw, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, PermissionFix } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
+import { useLocalFix } from "@/features/local-domains/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
 import { t, translate } from "@/lib/i18n";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
@@ -44,6 +46,8 @@ function fixLabel(fix: Fix): string {
       return t("doctor.fix.reconnect");
     case "cleanConnections":
       return t("doctor.fix.cleanConnections");
+    case "localDomains":
+      return t(`doctor.fix.local.${fix.action}`);
   }
 }
 
@@ -57,6 +61,8 @@ function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
       : "";
   const connector = useTunnelAction(accountId);
   const keep = useKeepTheirs(accountId);
+  const local = useLocalFix();
+  const navigate = useNavigate();
   const apply = useMutation({
     mutationFn: (run: () => Promise<unknown>) => run(),
     onSuccess: () => refresh(queryClient, queryKeys.doctor.all()),
@@ -89,6 +95,18 @@ function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
       return button(() => connector.mutateAsync({ action: "clean", tunnelId: fix.tunnelId }));
     case "keepTheirs":
       return button(() => keep.mutateAsync());
+    case "localDomains":
+      // The resolver entry needs a command run as an administrator: shown in place there.
+      return fix.action === "setUpResolver" ? (
+        <Button
+          variant={primary ? "primary" : "secondary"}
+          onClick={() => void navigate({ to: "/local-domains" })}
+        >
+          {fixLabel(fix)}
+        </Button>
+      ) : (
+        button(() => local.mutateAsync(fix.action))
+      );
     case "change":
       return null;
   }

@@ -16,6 +16,7 @@ import { Route as MainActivityRouteImport } from "./routes/_main/activity"
 import { Route as MainAnalyticsRouteImport } from "./routes/_main/analytics"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
+import { Route as MainLocalDomainsRouteImport } from "./routes/_main/local-domains"
 import { Route as MainProjectsRouteImport } from "./routes/_main/projects"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
 import { Route as MainRoutesRouteImport } from "./routes/_main/routes"
@@ -56,6 +57,11 @@ const MainDoctorRoute = MainDoctorRouteImport.update({
 const MainDomainsRoute = MainDomainsRouteImport.update({
   id: "/domains",
   path: "/domains",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainLocalDomainsRoute = MainLocalDomainsRouteImport.update({
+  id: "/local-domains",
+  path: "/local-domains",
   getParentRoute: () => MainRoute,
 } as any)
 const MainProjectsRoute = MainProjectsRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/local-domains": typeof MainLocalDomainsRoute
   "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/local-domains": typeof MainLocalDomainsRoute
   "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   "/_main/analytics": typeof MainAnalyticsRoute
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
+  "/_main/local-domains": typeof MainLocalDomainsRoute
   "/_main/projects": typeof MainProjectsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
   "/_main/routes": typeof MainRoutesRoute
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/doctor"
     | "/domains"
+    | "/local-domains"
     | "/projects"
     | "/quick-share"
     | "/routes"
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/doctor"
     | "/domains"
+    | "/local-domains"
     | "/projects"
     | "/quick-share"
     | "/routes"
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | "/_main/analytics"
     | "/_main/doctor"
     | "/_main/domains"
+    | "/_main/local-domains"
     | "/_main/projects"
     | "/_main/quick-share"
     | "/_main/routes"
@@ -246,6 +258,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainDomainsRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/local-domains": {
+      id: "/_main/local-domains"
+      path: "/local-domains"
+      fullPath: "/local-domains"
+      preLoaderRoute: typeof MainLocalDomainsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/projects": {
       id: "/_main/projects"
       path: "/projects"
@@ -303,6 +322,7 @@ interface MainRouteChildren {
   MainAnalyticsRoute: typeof MainAnalyticsRoute
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
+  MainLocalDomainsRoute: typeof MainLocalDomainsRoute
   MainProjectsRoute: typeof MainProjectsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
   MainRoutesRoute: typeof MainRoutesRoute
@@ -318,6 +338,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainAnalyticsRoute: MainAnalyticsRoute,
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
+  MainLocalDomainsRoute: MainLocalDomainsRoute,
   MainProjectsRoute: MainProjectsRoute,
   MainQuickShareRoute: MainQuickShareRoute,
   MainRoutesRoute: MainRoutesRoute,

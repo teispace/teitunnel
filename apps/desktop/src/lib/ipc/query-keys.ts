@@ -89,6 +89,11 @@ export const queryKeys = {
   inspector: {
     all: () => ["inspector"] as const,
   },
+  localDomains: {
+    all: () => ["localDomains"] as const,
+    status: () => ["localDomains", "status"] as const,
+    trust: () => ["localDomains", "trust"] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -125,6 +130,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.projects.all()];
     case "inspector":
       return [queryKeys.inspector.all()];
+    case "localDomains":
+      return [queryKeys.localDomains.all(), queryKeys.doctor.all()];
   }
 }
 

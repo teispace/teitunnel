@@ -26,6 +26,7 @@ const sectionLabels: Record<string, MessageKey> = {
   balanced_routes: "backup.section.balanced_routes",
   snapshots: "backup.section.snapshots",
   snapshot_versions: "backup.section.snapshot_versions",
+  local_domains: "backup.section.local_domains",
 };
 
 function sectionName(section: string): string {

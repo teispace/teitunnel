@@ -63,9 +63,9 @@ const status = (): ProjectStatus => ({
         kind: "localDomain",
         name: "shop.localhost",
         target: "localhost:3000",
-        state: "unsupported",
+        state: "missing",
         line: 10,
-        note: core("project.noteLocalDomains"),
+        note: null,
       },
     ],
     routes: [
@@ -111,6 +111,7 @@ const status = (): ProjectStatus => ({
       },
     ],
     snapshots: [],
+    localDomains: [{ name: "shop.localhost", port: 3000, wildcard: false, exists: false }],
     requiresConfirmation: false,
     fingerprint: "project-fp",
   },
@@ -169,9 +170,9 @@ describe("ProjectsPage", () => {
   it("shows each declared item's state and the file's problems with their lines", async () => {
     renderPage();
     expect(await screen.findByText("shop.xyz.com")).toBeTruthy();
-    expect(screen.getAllByText("Missing")).toHaveLength(2);
+    expect(screen.getAllByText("Missing")).toHaveLength(3);
     expect(screen.getByText("Applied")).toBeTruthy();
-    expect(screen.getByText("Skipped")).toBeTruthy();
+    expect(screen.getByText("shop.localhost")).toBeTruthy();
     expect(screen.getByText("Random trycloudflare.com address")).toBeTruthy();
     expect(screen.getByText("Line 12, column 1")).toBeTruthy();
     expect(screen.getByText(/protection isn't known/)).toBeTruthy();
@@ -184,6 +185,9 @@ describe("ProjectsPage", () => {
     expect(within(sheet).getByText("Add DNS record shop.xyz.com → tunnel “Mac”")).toBeTruthy();
     expect(
       within(sheet).getByText("Share http://localhost:5173 at a random trycloudflare.com address"),
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByText("Serve https://shop.localhost from localhost:3000 on this computer"),
     ).toBeTruthy();
     expect(calls.some((c) => c.cmd === "projects_apply")).toBe(false);
     fireEvent.click(within(sheet).getByRole("button", { name: "Apply" }));
