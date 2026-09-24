@@ -65,6 +65,8 @@ teitunnel api-key create deploy         # a key for the API (shown once)
 | `--json` | Machine-readable output for `accounts`, `routes`, `tunnels` and `doctor`. |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
+| `--host-header <host>` | `share`: send this Host header to the service, e.g. `localhost:5173` ([dev servers](/docs/tutorials/dev-servers)). By default Vite, webpack and Angular dev servers get their own address. |
+| `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
 
 Routes are served by the app while it's open, all the time with
@@ -77,7 +79,10 @@ route, the CLI checks it through Cloudflare and exits with status 1 if it doesn'
 `share` is the exception: it runs a Quick Share for exactly as long as the command. Ctrl-C,
 closing the terminal or `--for` stops it. The URL is the only line on standard output, so
 `URL=$(teitunnel share 3000 | head -1)` works in scripts. `share` doesn't need an
-account, only cloudflared (the app's copy, or one on your system).
+account, only cloudflared (the app's copy, or one on your system). Once the URL is live,
+`share` checks it through Cloudflare and, if your dev server refuses the address or the
+service streams events a Quick Share can't carry, says what to do on standard error; it keeps
+sharing either way.
 
 `doctor` runs the app's checks and hides the issues you ignored there.
 

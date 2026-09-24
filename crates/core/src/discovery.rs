@@ -99,6 +99,17 @@ pub(crate) fn merge(
     services
 }
 
+/// What listens on a local `port`, if anything we recognise (one scan, off the async
+/// threads).
+pub async fn kind_on_port(port: u16) -> Option<ServiceKind> {
+    tokio::task::spawn_blocking(list_services)
+        .await
+        .ok()?
+        .into_iter()
+        .find(|service| service.port == port)
+        .map(|service| service.kind)
+}
+
 /// Ports used by cloudflared metrics servers (ours and cloudflared's defaults).
 fn is_cloudflared_metrics(port: u16) -> bool {
     (20241..=20245).contains(&port) || (20300..20500).contains(&port)
@@ -156,8 +167,10 @@ pub fn list_services() -> Vec<LocalService> {
                         .collect()
                 })
                 .unwrap_or_default();
-            let kind = classify::classify(&listener.process.name, &cmd, port);
-            let project = process.and_then(|p| p.cwd()).and_then(project_name);
+            let cwd = process.and_then(|p| p.cwd());
+            let kind =
+                classify::refine(classify::classify(&listener.process.name, &cmd, port), cwd);
+            let project = cwd.and_then(project_name);
             LocalService {
                 port,
                 all_interfaces,

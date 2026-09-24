@@ -70,7 +70,7 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
-} | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access }),
+} | null, hostHeader: HostHeaderChoice) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
 	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
@@ -97,7 +97,18 @@ export const commands = {
 	/**  Services listening on this Mac and Docker containers' ports, likely dev servers first. */
 	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
 	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
-	quickShareStart: (origin: string, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes }),
+	quickShareStart: (origin: string, stopAfterMinutes: number | null, hostHeader: HostHeaderChoice) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes, hostHeader }),
+	/**
+	 *  Restarts a share sending `host_header` to its service (`null`: none), for a dev
+	 *  server that refuses the public address. The share gets a new URL and is checked
+	 *  again once it's live.
+	 */
+	quickShareSetHostHeader: (id: string, hostHeader: string | null) => __TAURI_INVOKE<QuickShare>("quick_share_set_host_header", { id, hostHeader }),
+	/**
+	 *  Checks a live share through Cloudflare again (e.g. after changing the dev server's
+	 *  config).
+	 */
+	quickShareCheck: (id: string) => __TAURI_INVOKE<Verification>("quick_share_check", { id }),
 	/**  Stops a share. */
 	quickShareStop: (id: string) => __TAURI_INVOKE<null>("quick_share_stop", { id }),
 	/**  Running shares, newest first. */
@@ -708,6 +719,27 @@ export type DeltaArea =
 /**  A route's load balancing. */
 "loadBalancing";
 
+/**  A dev server that checks the Host header. */
+export type DevServer = 
+/**  Vite 5.4.12+ / 6.0.9+ (`server.allowedHosts`), also Laravel's and Remix's. */
+"vite" | 
+/**  SvelteKit (Vite). */
+"svelteKit" | 
+/**  Astro (Vite). */
+"astro" | 
+/**  Nuxt (Vite). */
+"nuxt" | 
+/**  Angular CLI (`ng serve`, Vite or webpack). */
+"angular" | 
+/**  webpack-dev-server (webpack, Create React App, Vue CLI). */
+"webpack" | 
+/**  Next.js 15.2+ (`allowedDevOrigins`). */
+"next" | 
+/**  Rails 6+ (`ActionDispatch::HostAuthorization`). */
+"rails" | 
+/**  Django (`ALLOWED_HOSTS`). */
+"django";
+
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
 /**  A proxied CNAME to the tunnel. */
@@ -876,9 +908,22 @@ message: string } |
 /**  The connector couldn't reach the origin (502). */
 { type: "originUnreachable"; 
 /**  Whether something listens on the origin's local port (None: not local). */
-listening: boolean | null } | 
+listening: boolean | null; 
+/**  The origin's port, when it has one. */
+port: number | null } | 
 /**  The origin didn't answer in time (504). */
-{ type: "originTimeout" };
+{ type: "originTimeout" } | 
+/**  A dev server refused the public address (its Host or Origin check). */
+{ type: "hostRejected"; 
+/**  Which server, and the ways to fix it. */
+rejection: HostRejection } | 
+/**
+ *  Cloudflare refused a request body over its limit (413): 100 MB on the Free and
+ *  Pro plans.
+ */
+{ type: "bodyTooLarge" } | 
+/**  A Quick Share had 200 requests in flight, its limit (429). */
+{ type: "tooManyRequests" };
 
 /**  What the preview shows for a file. */
 export type FileSummary = {
@@ -1045,6 +1090,53 @@ export type HistoryRange =
 "day" | 
 /**  The last 7 days, in 30-minute buckets. */
 "week";
+
+/**  A Host header a share sends to its service. */
+export type HostHeader = {
+	/**  The value, e.g. `localhost:5173`. */
+	value: string,
+	/**
+	 *  Set by Teitunnel because the service is this dev server, which refuses unknown
+	 *  addresses (`None`: the user asked for it).
+	 */
+	autoFor: DevServer | null,
+};
+
+/**  Which Host header a new share sends. */
+export type HostHeaderChoice = 
+/**
+ *  The service's own address when it's a dev server that needs it and where that's
+ *  safe ([`dev_server::default_host_header`]); otherwise none.
+ */
+{ mode: "auto" } | 
+/**  Leave the Host header as the visitor's browser sent it. */
+{ mode: "off" } | 
+/**  Send this value. */
+{ mode: "set"; 
+/**  E.g. `localhost:5173`. */
+value: string };
+
+/**  A dev server refused a request for the public address. */
+export type HostRejection = {
+	/**  Which server. */
+	server: DevServer,
+	/**  The public hostname it refused. */
+	host: string,
+	/**
+	 *  The Host header that makes it answer (the origin's own address), when sending it
+	 *  helps and isn't sent already.
+	 */
+	hostHeader: string | null,
+	/**
+	 *  Sending that header breaks nothing (see [`DevServer::host_header_safe`]). When
+	 *  false, the config line is the recommended fix.
+	 */
+	hostHeaderSafe: boolean,
+	/**  The file the config line goes in. */
+	configFile: string,
+	/**  The line that allows the address. */
+	configLine: string,
+};
 
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
@@ -1381,6 +1473,10 @@ export type QuickShare = {
 	startedAt: number,
 	/**  When it stops by itself, milliseconds since the Unix epoch. */
 	stopAt: number | null,
+	/**  The Host header sent to the service, if any. */
+	hostHeader: HostHeader | null,
+	/**  The check through Cloudflare once the share is live (`None` until then). */
+	check: Verification | null,
 };
 
 /**  A step of the applied plan and how it ended. */
@@ -1567,6 +1663,12 @@ export type ServiceKind =
 "nuxt" | 
 /**  Remix / React Router. */
 "remix" | 
+/**  SvelteKit (a Vite project with `svelte.config.js`). */
+"svelteKit" | 
+/**  Angular CLI (`ng serve`). */
+"angular" | 
+/**  webpack-dev-server (webpack, Create React App, Vue CLI). */
+"webpack" | 
 /**  Django. */
 "django" | 
 /**  Flask. */
@@ -1903,6 +2005,11 @@ export type Verification = {
 	 *  check reached the edge but not the origin behind the login.
 	 */
 	protected: boolean,
+	/**
+	 *  The origin answered with a Server-Sent Events stream (Quick Shares don't carry
+	 *  them).
+	 */
+	eventStream: boolean,
 };
 
 /**  Something the user should know before applying. */

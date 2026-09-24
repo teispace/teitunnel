@@ -1,9 +1,11 @@
 import { type FormEvent, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useActiveAccount, useDomains } from "@/features/accounts";
 import { t } from "@/lib/i18n";
+import type { HostHeaderChoice } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { useStartDomainShare, useStartShare } from "../queries";
 import { ServicePicker } from "./service-picker";
@@ -15,6 +17,15 @@ const autoStops = () =>
 
 /** A random trycloudflare.com address, or a subdomain of one of the account's domains. */
 const RANDOM = "random";
+
+const HOST_MODES = ["auto", "off", "custom"] as const;
+type HostMode = (typeof HOST_MODES)[number];
+const hostModes = () =>
+  HOST_MODES.map((value) => ({ value, label: t(`quickShare.hostHeader.${value}`) }));
+
+function hostHeaderChoice(mode: HostMode, value: string): HostHeaderChoice {
+  return mode === "custom" ? { mode: "set", value } : { mode };
+}
 
 /** Origin field + where + auto-stop + one primary action. */
 export function ShareComposer({
@@ -28,6 +39,8 @@ export function ShareComposer({
   const [autoStop, setAutoStop] = useState<AutoStop>("never");
   const [address, setAddress] = useState<string>(RANDOM);
   const [subdomain, setSubdomain] = useState("");
+  const [hostMode, setHostMode] = useState<HostMode>("auto");
+  const [customHost, setCustomHost] = useState("");
   const account = useActiveAccount();
   const domains = (useDomains(account?.id ?? null).data ?? []).filter((d) => d.status === "active");
   const start = useStartShare();
@@ -39,6 +52,7 @@ export function ShareComposer({
   const error = failure ? toIpcError(failure) : null;
   const fieldError = error?.field === "origin" ? error.message : null;
   const stopAfterMinutes = autoStop === "never" ? null : Number(autoStop);
+  const hostHeader = hostHeaderChoice(hostMode, customHost);
 
   const reset = () => {
     if (start.error) start.reset();
@@ -56,6 +70,7 @@ export function ShareComposer({
           hostname: label ? `${label}.${address}` : address,
           origin,
           stopAfterMinutes,
+          hostHeader,
         },
         {
           onSuccess: () => {
@@ -65,7 +80,7 @@ export function ShareComposer({
         },
       );
     } else {
-      start.mutate({ origin, stopAfterMinutes }, { onSuccess: () => setOrigin("") });
+      start.mutate({ origin, stopAfterMinutes, hostHeader }, { onSuccess: () => setOrigin("") });
     }
   };
 
@@ -130,6 +145,46 @@ export function ShareComposer({
           ) : null}
         </div>
       ) : null}
+      <Disclosure
+        title={
+          <span className="text-callout font-normal text-secondary">
+            {t("quickShare.advanced")}
+          </span>
+        }
+        defaultOpen={hostMode !== "auto"}
+      >
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-callout text-secondary">{t("quickShare.hostHeader.label")}</span>
+            <Select
+              label={t("quickShare.hostHeader.label")}
+              options={hostModes()}
+              value={hostMode}
+              onValueChange={(value) => {
+                setHostMode(value);
+                reset();
+              }}
+              className="h-7"
+            />
+            {hostMode === "custom" ? (
+              <Input
+                aria-label={t("quickShare.hostHeader.value")}
+                aria-invalid={error?.field === "hostHeader" || undefined}
+                placeholder={t("quickShare.hostHeader.placeholder")}
+                autoComplete="off"
+                spellCheck={false}
+                className="h-7 min-w-0 flex-1 font-mono text-mono"
+                value={customHost}
+                onChange={(event) => {
+                  setCustomHost(event.target.value);
+                  reset();
+                }}
+              />
+            ) : null}
+          </div>
+          <p className="text-footnote text-secondary">{t("quickShare.hostHeader.help")}</p>
+        </div>
+      </Disclosure>
       {error && error.code !== "cloudflaredMissing" ? (
         <p id={errorId} role="alert" className="px-1 text-callout text-error">
           {error.message}

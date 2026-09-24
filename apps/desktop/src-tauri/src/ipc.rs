@@ -63,6 +63,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             quick_share::binary_reveal,
             quick_share::services_list,
             quick_share::quick_share_start,
+            quick_share::quick_share_set_host_header,
+            quick_share::quick_share_check,
             quick_share::quick_share_stop,
             quick_share::quick_share_list,
             quick_share::quick_share_stats,

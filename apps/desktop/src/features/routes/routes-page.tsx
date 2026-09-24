@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
+import { CheckNotes, HostRejectionFix, useSendHostOnRoute } from "@/features/dev-server";
 import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
 import { relativeTime } from "@/lib/format";
@@ -98,11 +99,40 @@ function ConnectSection({ client }: { client: ClientAccess }) {
   );
 }
 
-function TestResult({ result }: { result: Verification }) {
+function TestResult({
+  result,
+  route,
+  accountId,
+  onTest,
+  testing,
+}: {
+  result: Verification;
+  route: RouteView;
+  accountId: string;
+  /** Tests again (waiting for the change to reach the connector). */
+  onTest: () => void;
+  testing: boolean;
+}) {
+  const sendHost = useSendHostOnRoute(accountId);
+  if (result.failure?.type === "hostRejected") {
+    return (
+      <HostRejectionFix
+        rejection={result.failure.rejection}
+        via="route"
+        onSendHost={(host) => sendHost.mutate({ route, host }, { onSuccess: onTest })}
+        sending={sendHost.isPending}
+        onCheck={onTest}
+        checking={testing}
+      />
+    );
+  }
   return result.failure ? (
-    <p role="status" className="text-callout text-warning">
-      {result.message ? translate(result.message) : null}
-    </p>
+    <>
+      <p role="status" className="text-callout text-warning">
+        {result.message ? translate(result.message) : null}
+      </p>
+      <CheckNotes check={result} showMessage={false} onCheck={onTest} checking={testing} />
+    </>
   ) : (
     <p role="status" className="text-callout text-healthy">
       {result.protected
@@ -187,7 +217,15 @@ function RouteInspector({
       {routeIssues(issues, route.hostname).map((issue) => (
         <IssueCallout key={issue.id} issue={issue} />
       ))}
-      {test.data ? <TestResult result={test.data} /> : null}
+      {test.data ? (
+        <TestResult
+          result={test.data}
+          route={route}
+          accountId={accountId}
+          onTest={() => test.mutate({ hostname: route.hostname, wait: true })}
+          testing={test.isPending}
+        />
+      ) : null}
       {test.error ? (
         <p role="alert" className="text-callout text-error">
           {toIpcError(test.error).message}

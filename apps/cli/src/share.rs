@@ -12,10 +12,15 @@ use std::{
 };
 
 use teitunnel_core::{
+    dev_server::DevServer,
     domain::OriginUrl,
-    quick_share::{QuickShare, QuickShares, ShareStatus, qr_terminal},
+    engine::{Failure, Verification},
+    quick_share::{
+        HostHeader, HostHeaderChoice, QuickShare, QuickShares, ShareStatus, qr_terminal,
+    },
     runtime::{PidRegistry, PortAllocator, QUICK_SHARE_PORTS, Supervisor},
     store::Store,
+    text::msg::dev_server as m,
 };
 
 use crate::context;
@@ -87,10 +92,80 @@ pub(crate) fn status(message: &str) {
     let _ = writeln!(io::stderr().lock(), "{message}");
 }
 
+/// `--host-header <HOST>` / `--no-host-header` / neither (automatic).
+pub(crate) fn host_header_choice(value: Option<String>, off: bool) -> HostHeaderChoice {
+    match (value, off) {
+        (Some(value), _) => HostHeaderChoice::Set { value },
+        (None, true) => HostHeaderChoice::Off,
+        (None, false) => HostHeaderChoice::Auto,
+    }
+}
+
+/// Says which Host header a share sends, and why when Teitunnel chose it.
+fn announce_host_header(host_header: Option<&HostHeader>) {
+    match host_header {
+        Some(HostHeader {
+            value,
+            auto_for: Some(server),
+        }) => status(&m::auto_host_header(value, server.name()).to_string()),
+        Some(HostHeader {
+            value,
+            auto_for: None,
+        }) => status(&m::sending_host_header(value).to_string()),
+        None => {}
+    }
+}
+
+/// Where a checked address is served from, for the advice that fits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Via {
+    /// A Quick Share (restarted with `--host-header`).
+    QuickShare,
+    /// A share on your own domain.
+    Domain,
+    /// A route (`--host-header` on the route).
+    Route,
+}
+
+/// Explains a check's findings the way the app does: a dev server refusing the
+/// address with the config line that fixes it (and the Host header alternative), an
+/// edge limit, or a stream a Quick Share can't carry. Prints nothing when all is well.
+pub(crate) fn explain(result: &Verification, via: Via, print: &mut dyn FnMut(&str)) {
+    match &result.failure {
+        Some(Failure::HostRejected { rejection }) => {
+            let name = rejection.server.name();
+            print(&m::rejected(name, &rejection.host).to_string());
+            print(&m::config_line(&rejection.config_file).to_string());
+            for line in rejection.config_line.lines() {
+                print(&format!("    {line}"));
+            }
+            match &rejection.host_header {
+                _ if rejection.server == DevServer::Next => print(&m::next_origin().to_string()),
+                Some(host) if !rejection.host_header_safe => {
+                    print(&m::host_header_unsafe(host, name).to_string());
+                }
+                Some(host) if via == Via::Route => {
+                    print(&m::route_host_header(host, name).to_string());
+                }
+                Some(host) => print(&m::share_host_header(host, name).to_string()),
+                None => {}
+            }
+        }
+        // A check that couldn't reach Cloudflare says nothing about the share.
+        Some(Failure::EdgeUnreachable { .. }) | None => {}
+        Some(failure) if via != Via::Route => print(&failure.message().to_string()),
+        Some(_) => {}
+    }
+    if result.event_stream && via == Via::QuickShare {
+        print(&m::event_stream().to_string());
+    }
+}
+
 pub(crate) async fn run(
     origin: &str,
     stop_after: Option<Duration>,
     qr: bool,
+    host_header: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
     let dir = context::data_dir()?;
@@ -113,11 +188,13 @@ pub(crate) async fn run(
         // Spread by pid: the app, or another terminal, may be starting a share too.
         PortAllocator::new(QUICK_SHARE_PORTS).spread(std::process::id()),
         store(&dir)?,
-    );
+        dir.join("quick-share.yml"),
+    )
+    .with_edge(context::edge());
     tokio::spawn(shares.clone().watch_runtime());
     let mut changes = shares.subscribe();
     let share = shares
-        .start(origin, stop_after)
+        .start(origin, stop_after, host_header)
         .await
         .map_err(|e| match e {
             teitunnel_core::quick_share::QuickShareError::Binary(
@@ -126,6 +203,7 @@ pub(crate) async fn run(
             other => other.to_string(),
         })?;
     status(&format!("Sharing {}…", share.origin));
+    announce_host_header(share.host_header.as_ref());
 
     let current = |shares: &QuickShares| -> Option<QuickShare> {
         shares.list().into_iter().find(|s| s.id == share.id)
@@ -133,6 +211,7 @@ pub(crate) async fn run(
     let stop = interrupted();
     tokio::pin!(stop);
     let mut announced = false;
+    let mut checked = false;
     let mut reconnecting = false;
     let outcome = loop {
         match current(&shares) {
@@ -144,8 +223,16 @@ pub(crate) async fn run(
             Some(QuickShare {
                 status: ShareStatus::Live,
                 url: Some(url),
+                check,
                 ..
             }) => {
+                if announced
+                    && !checked
+                    && let Some(check) = check
+                {
+                    checked = true;
+                    explain(&check, Via::QuickShare, &mut status);
+                }
                 if !announced {
                     announced = true;
                     announce(&url, &share, stop_after, qr)?;
@@ -245,12 +332,18 @@ pub(crate) async fn run_on_domain(
     account: Option<&str>,
     allow: Option<teitunnel_core::engine::AccessRule>,
     stop_after: Option<Duration>,
+    host_header: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     use teitunnel_core::{
+        domain::Hostname,
         domain_shares::{self, ShareRequest},
         engine::Outcome,
         runtime,
     };
+    let host_header = host_header
+        .resolve(origin)
+        .await
+        .map_err(|e| e.to_string())?;
     let account = app.account(account).await?;
     let api = app
         .accounts
@@ -273,6 +366,7 @@ pub(crate) async fn run_on_domain(
             access: allow,
             expires_at,
             owner: &owner,
+            host_header: host_header.as_ref().map(|h| h.value.clone()),
         },
     )
     .await
@@ -298,6 +392,15 @@ pub(crate) async fn run_on_domain(
             status(&format!(
                 "{origin} is public at https://{hostname}. {until}"
             ));
+            announce_host_header(host_header.as_ref());
+            if let Ok(host) = Hostname::parse(&hostname)
+                && let Ok(result) = app
+                    .engine
+                    .verify(&api, ctx, &host, context::edge(), Duration::from_secs(30))
+                    .await
+            {
+                explain(&result, Via::Domain, &mut status);
+            }
         }
         Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } => {
             return Err(error.english());
@@ -338,6 +441,81 @@ mod tests {
         for bad in ["", "m", "1d", "-5m", "0", "169h", "1.5h"] {
             assert!(parse_duration(bad).is_err(), "{bad}");
         }
+    }
+
+    fn explained(result: &Verification, via: Via) -> Vec<String> {
+        let mut lines = Vec::new();
+        explain(result, via, &mut |line| lines.push(line.to_owned()));
+        lines
+    }
+
+    #[test]
+    fn explains_a_dev_server_refusing_the_address() {
+        use teitunnel_core::{dev_server::HostRejection, domain::RouteOrigin};
+        let origin = RouteOrigin::parse("http://localhost:5173").unwrap();
+        let rejected = |server| Verification {
+            hostname: "quiet-river.trycloudflare.com".into(),
+            status: Some(403),
+            failure: Some(Failure::HostRejected {
+                rejection: HostRejection::new(
+                    server,
+                    "quiet-river.trycloudflare.com",
+                    Some(&origin),
+                ),
+            }),
+            message: None,
+            protected: false,
+            event_stream: false,
+        };
+        let vite = explained(&rejected(DevServer::Vite), Via::QuickShare);
+        assert_eq!(
+            vite[0],
+            "Vite refuses requests for quiet-river.trycloudflare.com: it only answers addresses it knows."
+        );
+        assert!(vite[1].contains("vite.config.js"), "{vite:?}");
+        assert_eq!(
+            vite[2],
+            "    server: { allowedHosts: ['.trycloudflare.com'] }"
+        );
+        assert!(vite[3].contains("--host-header localhost:5173"), "{vite:?}");
+
+        let rails = explained(&rejected(DevServer::Rails), Via::QuickShare);
+        assert!(
+            rails
+                .last()
+                .unwrap()
+                .contains("allowing the address is better"),
+            "{rails:?}"
+        );
+        let next = explained(&rejected(DevServer::Next), Via::QuickShare);
+        assert!(
+            next.last().unwrap().contains("not the Host header"),
+            "{next:?}"
+        );
+    }
+
+    #[test]
+    fn explains_streams_and_limits_only_where_they_apply() {
+        let mut result = Verification {
+            hostname: "quiet-river.trycloudflare.com".into(),
+            status: Some(200),
+            failure: None,
+            message: None,
+            protected: false,
+            event_stream: true,
+        };
+        assert_eq!(explained(&result, Via::QuickShare).len(), 1);
+        assert!(
+            explained(&result, Via::Domain).is_empty(),
+            "domains carry streams"
+        );
+        result.event_stream = false;
+        result.failure = Some(Failure::TooManyRequests);
+        assert!(explained(&result, Via::QuickShare)[0].contains("200 requests"));
+        result.failure = Some(Failure::EdgeUnreachable {
+            message: "offline".into(),
+        });
+        assert!(explained(&result, Via::QuickShare).is_empty());
     }
 
     #[test]

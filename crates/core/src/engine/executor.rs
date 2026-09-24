@@ -743,14 +743,19 @@ impl Engine {
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
             return Ok(Verification::new(hostname.to_string(), None, Some(failure)));
         }
-        let origin = snapshot
+        let route = snapshot
             .routes()
             .into_iter()
-            .find(|r| r.hostname.as_deref() == Some(hostname.as_str()))
-            .and_then(|r| RouteOrigin::parse(&r.service).ok());
+            .find(|r| r.hostname.as_deref() == Some(hostname.as_str()));
+        let origin = route.and_then(|r| RouteOrigin::parse(&r.service).ok());
+        let sends_host = route.is_some_and(|r| r.origin_request.contains_key("httpHostHeader"));
         let deadline = Instant::now() + patience;
         loop {
-            let result = probe(edge, hostname, origin.as_ref()).await;
+            let mut result = probe(edge, hostname, origin.as_ref()).await;
+            // Sending the Host header again is no fix when the route already does.
+            if sends_host && let Some(Failure::HostRejected { rejection }) = &mut result.failure {
+                rejection.host_header = None;
+            }
             let transient = result.failure.as_ref().is_some_and(Failure::is_transient);
             if !transient || Instant::now() + VERIFY_RETRY > deadline {
                 return Ok(result);

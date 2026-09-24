@@ -109,6 +109,8 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.oauth.noCode": retry,
   "core.error.quickShare.noFreePort": retry,
   "core.error.quickShare.notFound": retry,
+  "core.error.quickShare.invalidHostHeader": input,
+  "core.error.quickShare.config": retry,
   "core.error.connector.alreadyRunning": retry,
   "core.error.connector.notFound": retry,
   "core.error.secret.keychain": retry,

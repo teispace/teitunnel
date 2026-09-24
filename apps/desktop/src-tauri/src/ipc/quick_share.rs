@@ -10,7 +10,8 @@ use teitunnel_core::{
     binary::{BinaryStatus, InstallStep as Progress},
     discovery::{self, LocalService},
     domain::OriginUrl,
-    quick_share::{QuickShare, ShareStats, qr_svg},
+    engine::Verification,
+    quick_share::{HostHeaderChoice, QuickShare, ShareStats, qr_svg},
     runtime::ConnectorId,
 };
 
@@ -176,10 +177,41 @@ pub async fn quick_share_start(
     state: State<'_, AppState>,
     origin: String,
     stop_after_minutes: Option<u32>,
+    host_header: HostHeaderChoice,
 ) -> Result<QuickShare, AppError> {
     let origin = OriginUrl::parse(&origin)?;
     let stop_after = stop_after_minutes.map(|m| Duration::from_secs(u64::from(m) * 60));
-    Ok(state.quick_shares.start(origin, stop_after).await?)
+    Ok(state
+        .quick_shares
+        .start(origin, stop_after, &host_header)
+        .await?)
+}
+
+/// Restarts a share sending `host_header` to its service (`null`: none), for a dev
+/// server that refuses the public address. The share gets a new URL and is checked
+/// again once it's live.
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_host_header(
+    state: State<'_, AppState>,
+    id: String,
+    host_header: Option<String>,
+) -> Result<QuickShare, AppError> {
+    Ok(state
+        .quick_shares
+        .set_host_header(&id, host_header.as_deref())
+        .await?)
+}
+
+/// Checks a live share through Cloudflare again (e.g. after changing the dev server's
+/// config).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_check(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Verification, AppError> {
+    Ok(state.quick_shares.recheck(&id).await?)
 }
 
 /// Stops a share.

@@ -89,15 +89,87 @@ mod share {
     }
 
     fn spawn(data: &Path, fake: &Path, args: &[&str]) -> Child {
+        // Nothing listens on the discard port: the check after going live stays offline.
+        spawn_with_edge(data, fake, args, "127.0.0.1:9")
+    }
+
+    fn spawn_with_edge(data: &Path, fake: &Path, args: &[&str], edge: &str) -> Child {
         Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
             .arg("share")
             .args(args)
             .env("TEITUNNEL_DATA_DIR", data)
             .env("TEITUNNEL_CLOUDFLARED", fake)
+            .env("TEITUNNEL_EDGE", edge)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .unwrap()
+    }
+
+    /// A stand-in for Cloudflare's edge that answers every request as a Vite dev server
+    /// refusing the address (Vite 6.0.9+).
+    fn refusing_edge() -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut request = [0_u8; 4096];
+                let _ = stream.read(&mut request);
+                let body = "Blocked request. This host (\"x.trycloudflare.com\") is not allowed.\nTo allow this host, add \"x.trycloudflare.com\" to `server.allowedHosts` in vite.config.js.";
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        addr
+    }
+
+    #[test]
+    fn explains_a_dev_server_refusing_the_address_and_keeps_sharing() {
+        let Some(fake) = fake() else {
+            eprintln!("skipped: build the workspace to get fake-cloudflared");
+            return;
+        };
+        let data = tempfile::tempdir().unwrap();
+        let mut child = spawn_with_edge(
+            data.path(),
+            &fake,
+            &["5173", "--no-qr", "--for", "30s", "--no-host-header"],
+            &refusing_edge(),
+        );
+        // Read the advice as it comes (after the URL goes live), then end the share.
+        let mut stderr = String::new();
+        let mut lines = BufReader::new(child.stderr.take().unwrap());
+        while !stderr.contains("--host-header") {
+            let mut line = String::new();
+            if lines.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            stderr.push_str(&line);
+        }
+        kill(
+            Pid::from_raw(i32::try_from(child.id()).unwrap()),
+            Signal::SIGINT,
+        )
+        .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "a warning, not a failure: {output:?}"
+        );
+        assert!(
+            stderr.contains("Vite refuses requests for fake-"),
+            "{stderr}"
+        );
+        assert!(
+            stderr.contains("server: { allowedHosts: ['.trycloudflare.com'] }"),
+            "{stderr}"
+        );
+        assert!(stderr.contains("--host-header localhost:5173"), "{stderr}");
     }
 
     fn alive(pid: u32) -> bool {

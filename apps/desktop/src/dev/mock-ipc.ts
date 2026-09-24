@@ -67,6 +67,42 @@ let shares: QuickShare[] = [
     status: { status: "live" },
     startedAt: now - 12 * 60_000,
     stopAt: now + 48 * 60_000,
+    hostHeader: { value: "localhost:5173", autoFor: "vite" },
+    check: {
+      hostname: "quiet-river-lamp-orbit.trycloudflare.com",
+      status: 200,
+      failure: null,
+      message: null,
+      protected: false,
+      eventStream: false,
+    },
+  },
+  {
+    id: "qs-3",
+    origin: "http://localhost:3001",
+    url: "https://amber-field-cloud-note.trycloudflare.com",
+    status: { status: "live" },
+    startedAt: now - 2 * 60_000,
+    stopAt: null,
+    hostHeader: null,
+    check: {
+      hostname: "amber-field-cloud-note.trycloudflare.com",
+      status: 403,
+      failure: {
+        type: "hostRejected",
+        rejection: {
+          server: "rails",
+          host: "amber-field-cloud-note.trycloudflare.com",
+          hostHeader: "localhost:3001",
+          hostHeaderSafe: false,
+          configFile: "config/environments/development.rb",
+          configLine: 'config.hosts << ".trycloudflare.com"',
+        },
+      },
+      message: { key: "core.verify.hostRejected", args: { server: "Rails" } },
+      protected: false,
+      eventStream: false,
+    },
   },
   {
     id: "qs-2",
@@ -75,6 +111,8 @@ let shares: QuickShare[] = [
     status: { status: "starting" },
     startedAt: now - 3_000,
     stopAt: null,
+    hostHeader: null,
+    check: null,
   },
 ];
 
@@ -524,6 +562,8 @@ export function installMockIpc(): void {
             status: { status: "starting" },
             startedAt: Date.now(),
             stopAt: null,
+            hostHeader: null,
+            check: null,
           };
           shares = [share, ...shares];
           return share;

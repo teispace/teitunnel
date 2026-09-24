@@ -64,9 +64,8 @@ impl Error {
             Self::QuickShare(Q::NotFound)
             | Self::Runtime(S::NotFound(_))
             | Self::Accounts(A::NotFound) => ErrorKind::NotFound,
-            Self::Accounts(A::InvalidToken | A::NoAccess | A::InvalidCert) => {
-                ErrorKind::InvalidInput
-            }
+            Self::Accounts(A::InvalidToken | A::NoAccess | A::InvalidCert)
+            | Self::QuickShare(Q::InvalidHostHeader) => ErrorKind::InvalidInput,
             Self::QuickShare(Q::NoFreePort) | Self::Runtime(S::AlreadyRunning(_)) => {
                 ErrorKind::Unavailable
             }
@@ -116,6 +115,9 @@ impl Error {
         use crate::engine::{EngineError as E, PlanError as P};
         match self {
             Self::Engine(E::Input(input)) => Some(input.field),
+            Self::QuickShare(crate::quick_share::QuickShareError::InvalidHostHeader) => {
+                Some("hostHeader")
+            }
             Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_) | P::RoutedElsewhere { .. })) => {
                 Some("hostname")
             }

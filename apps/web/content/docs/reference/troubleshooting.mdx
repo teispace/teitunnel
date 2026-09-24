@@ -75,15 +75,25 @@ different scheme through a Page Rule or redirect rule you forgot.
 
 ## Blocked request, or Invalid Host header
 
-Vite, webpack, Django and Rails refuse hostnames they don't know. See
-[dev servers](/docs/tutorials/dev-servers): set the route's **Host header** to `localhost`,
+Vite, webpack, Angular, Next.js, Django and Rails refuse hostnames they don't know.
+Teitunnel recognises their answer when a share or route goes live and offers the fix in
+place. See [dev servers](/docs/tutorials/dev-servers): send the dev server's own Host header,
 or allow the hostname in the project.
 
-## 524 timeout, or 413 too large
+## 524 timeout, 413 too large, or 429 on a Quick Share
 
 - **524** means your service took more than 100 seconds to answer. Make long jobs
   asynchronous, or stream progress.
 - **413** means the upload was over 100 MB (Free and Pro plans). Upload in chunks.
+- **429** on a Quick Share means 200 requests were in flight at once, a Quick Share's limit.
+  Share on your own domain for more.
+
+## A Quick Share serves the wrong thing, or won't start
+
+cloudflared reads `~/.cloudflared/config.yml` when it finds one, and that file's `ingress`
+rules win over the address you share. Teitunnel always starts Quick Shares with an empty
+config file of its own, so a leftover file can't get in the way; if you run
+`cloudflared tunnel --url` yourself, move the file aside first.
 
 ## A login loop, or 403 after signing in
 

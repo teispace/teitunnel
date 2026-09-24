@@ -17,6 +17,8 @@ use serde::Serialize;
 use tokio::net::{TcpStream, lookup_host};
 
 use super::types::{Snapshot, tunnel_target};
+use crate::dev_server::{self, DevServer, HostRejection};
+use crate::discovery::{self, ServiceKind};
 use crate::domain::{Hostname, RouteOrigin};
 use crate::text::Text;
 
@@ -71,9 +73,21 @@ pub enum Failure {
     OriginUnreachable {
         /// Whether something listens on the origin's local port (None: not local).
         listening: Option<bool>,
+        /// The origin's port, when it has one.
+        port: Option<u16>,
     },
     /// The origin didn't answer in time (504).
     OriginTimeout,
+    /// A dev server refused the public address (its Host or Origin check).
+    HostRejected {
+        /// Which server, and the ways to fix it.
+        rejection: HostRejection,
+    },
+    /// Cloudflare refused a request body over its limit (413): 100 MB on the Free and
+    /// Pro plans.
+    BodyTooLarge,
+    /// A Quick Share had 200 requests in flight, its limit (429).
+    TooManyRequests,
 }
 
 impl Failure {
@@ -83,9 +97,13 @@ impl Failure {
             Self::NoRecord | Self::RecordElsewhere { .. } => Stage::Dns,
             Self::EdgeUnreachable { .. }
             | Self::CertificateNotCovered
-            | Self::NotOnCloudflareYet => Stage::Edge,
+            | Self::NotOnCloudflareYet
+            | Self::BodyTooLarge
+            | Self::TooManyRequests => Stage::Edge,
             Self::NoConnector | Self::TunnelMismatch => Stage::Tunnel,
-            Self::OriginUnreachable { .. } | Self::OriginTimeout => Stage::Origin,
+            Self::OriginUnreachable { .. } | Self::OriginTimeout | Self::HostRejected { .. } => {
+                Stage::Origin
+            }
         }
     }
 
@@ -110,9 +128,20 @@ impl Failure {
             Self::TunnelMismatch => m::tunnel_mismatch(),
             Self::OriginUnreachable {
                 listening: Some(false),
+                port: Some(port),
+            } => m::origin_not_listening_on(port),
+            Self::OriginUnreachable {
+                listening: Some(false),
+                port: None,
             } => m::origin_not_listening(),
+            Self::OriginUnreachable {
+                port: Some(port), ..
+            } => m::origin_unreachable_on(port),
             Self::OriginUnreachable { .. } => m::origin_unreachable(),
             Self::OriginTimeout => m::origin_timeout(),
+            Self::HostRejected { rejection } => m::host_rejected(rejection.server.name()),
+            Self::BodyTooLarge => m::body_too_large(),
+            Self::TooManyRequests => m::too_many_requests(),
         }
     }
 }
@@ -133,6 +162,9 @@ pub struct Verification {
     /// Cloudflare asked for a login (Access) instead of passing the request on, so the
     /// check reached the edge but not the origin behind the login.
     pub protected: bool,
+    /// The origin answered with a Server-Sent Events stream (Quick Shares don't carry
+    /// them).
+    pub event_stream: bool,
 }
 
 impl Verification {
@@ -143,6 +175,7 @@ impl Verification {
             message: failure.as_ref().map(Failure::message),
             failure,
             protected: false,
+            event_stream: false,
         }
     }
 
@@ -162,7 +195,8 @@ pub enum Edge {
 }
 
 /// Maps a response from the edge to a failure, if it is one. Cloudflare error pages
-/// carry `error code: NNNN` in the body.
+/// carry `error code: NNNN` in the body; its plain nginx-style pages end with
+/// `<center>cloudflare</center>`.
 pub fn classify(status: u16, body: &str) -> Option<Failure> {
     let code = body
         .find("error code: ")
@@ -172,10 +206,20 @@ pub fn classify(status: u16, body: &str) -> Option<Failure> {
         (_, Some(1033)) => Some(Failure::NoConnector),
         (_, Some(1016)) | (530, _) => Some(Failure::TunnelMismatch),
         (_, Some(1001)) => Some(Failure::NotOnCloudflareYet),
-        (502, _) => Some(Failure::OriginUnreachable { listening: None }),
+        (502, _) => Some(Failure::OriginUnreachable {
+            listening: None,
+            port: None,
+        }),
         (504, _) => Some(Failure::OriginTimeout),
+        // The origin may answer 413 itself; only Cloudflare's page is the edge limit.
+        (413, _) if body.contains("<center>cloudflare</center>") => Some(Failure::BodyTooLarge),
         _ => None,
     }
+}
+
+/// Quick Shares answer 429 once 200 requests are in flight.
+fn is_quick_share(hostname: &str) -> bool {
+    hostname.ends_with(".trycloudflare.com")
 }
 
 /// Whether a redirect goes to Cloudflare Access's login page.
@@ -308,35 +352,113 @@ pub(crate) async fn probe(
         }
     };
     let status = response.status().as_u16();
-    let protected = response.status().is_redirection()
-        && response
-            .headers()
-            .get(reqwest::header::LOCATION)
-            .and_then(|l| l.to_str().ok())
-            .is_some_and(is_access_login);
+    let headers = response.headers();
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    let protected =
+        response.status().is_redirection() && header("location").is_some_and(is_access_login);
     if protected {
         return Verification {
             protected,
             ..result(Some(status), None)
         };
     }
-    // Error pages are small; don't download a large origin response to classify it.
-    let body = if status >= 500 || status == 404 {
-        response.text().await.unwrap_or_default()
+    let event_stream = dev_server::is_event_stream(header("content-type"));
+    let next = header("x-powered-by").is_some_and(|v| v.contains("Next.js"));
+    // Error pages are small; read a bounded prefix, and of a success only a tiny body
+    // (webpack-dev-server 3 refuses with 200). A stream never ends, so never read one.
+    let small = response.content_length().is_some_and(|n| n <= 256);
+    let body = if !event_stream && (status >= 400 || small) {
+        dev_server::read_limited(response).await
     } else {
         String::new()
     };
+    if status == 429 && is_quick_share(&name) {
+        return result(Some(status), Some(Failure::TooManyRequests));
+    }
     match classify(status, &body) {
         Some(Failure::OriginUnreachable { .. }) => {
             let listening = match origin {
                 Some(origin) => listening(origin).await,
                 None => None,
             };
-            result(Some(status), Some(Failure::OriginUnreachable { listening }))
+            let port = origin.and_then(RouteOrigin::port);
+            result(
+                Some(status),
+                Some(Failure::OriginUnreachable { listening, port }),
+            )
         }
         Some(failure) => result(None, Some(failure)),
-        None => result(Some(status), None),
+        None => {
+            let answer = Answer {
+                status,
+                body: &body,
+                next,
+            };
+            let rejection = host_rejection(&client, &url, &name, origin, answer).await;
+            Verification {
+                event_stream,
+                ..result(
+                    Some(status),
+                    rejection.map(|rejection| Failure::HostRejected { rejection }),
+                )
+            }
+        }
     }
+}
+
+/// What the origin answered, as far as recognising a dev server needs.
+struct Answer<'a> {
+    status: u16,
+    body: &'a str,
+    /// It says it's Next.js (`X-Powered-By`).
+    next: bool,
+}
+
+/// What a local origin is, from discovery (only asked once an answer looks like a
+/// refusal).
+async fn local_kind(origin: Option<&RouteOrigin>) -> Option<ServiceKind> {
+    let origin = origin.filter(|o| o.is_local())?;
+    discovery::kind_on_port(origin.port()?).await
+}
+
+/// Recognises a dev server refusing `host` (see [`dev_server::detect`]). For Next.js,
+/// whose page loads but whose dev resources are refused, it asks for one of those with
+/// the public address as `Origin`, as the browser would.
+async fn host_rejection(
+    client: &reqwest::Client,
+    url: &str,
+    host: &str,
+    origin: Option<&RouteOrigin>,
+    answer: Answer<'_>,
+) -> Option<HostRejection> {
+    let server = if let Some(server) = dev_server::detect(answer.status, answer.body) {
+        server.refine(local_kind(origin).await)
+    } else if dev_server::is_plain_django_400(answer.status, answer.body)
+        && local_kind(origin).await == Some(ServiceKind::Django)
+    {
+        DevServer::Django
+    } else if answer.next {
+        let response = client
+            .get(format!(
+                "{}{}",
+                url.trim_end_matches('/'),
+                dev_server::NEXT_PROBE_PATH
+            ))
+            .header(reqwest::header::ORIGIN, format!("https://{host}"))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .ok()?;
+        let status = response.status().as_u16();
+        let body = dev_server::read_limited(response).await;
+        if !dev_server::detect_next(status, &body) {
+            return None;
+        }
+        DevServer::Next
+    } else {
+        return None;
+    };
+    Some(HostRejection::new(server, host, origin))
 }
 
 #[cfg(test)]
@@ -360,8 +482,19 @@ mod tests {
         );
         assert_eq!(
             classify(502, "Bad Gateway"),
-            Some(Failure::OriginUnreachable { listening: None })
+            Some(Failure::OriginUnreachable {
+                listening: None,
+                port: None
+            })
         );
+        assert_eq!(
+            classify(
+                413,
+                include_str!("../dev_server/fixtures/cloudflare-413.html")
+            ),
+            Some(Failure::BodyTooLarge)
+        );
+        assert_eq!(classify(413, "too big"), None, "the origin's own 413");
         assert_eq!(classify(504, ""), Some(Failure::OriginTimeout));
         for ok in [200, 301, 401, 404, 500] {
             assert_eq!(classify(ok, "hello"), None, "{ok} is the origin answering");
@@ -438,8 +571,114 @@ mod tests {
         assert_eq!(
             bad.failure,
             Some(Failure::OriginUnreachable {
-                listening: Some(false)
+                listening: Some(false),
+                port: Some(9)
             })
         );
+        assert_eq!(
+            bad.message,
+            Some(crate::text::msg::verify::origin_not_listening_on(9))
+        );
+    }
+
+    async fn serve_with(response: wiremock::ResponseTemplate) -> wiremock::MockServer {
+        use wiremock::{Mock, MockServer, matchers::any};
+        let server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(response)
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn recognises_a_dev_server_refusing_the_address() {
+        use wiremock::ResponseTemplate;
+        let host = Hostname::parse("quiet-river-lamp.trycloudflare.com").unwrap();
+        let origin = RouteOrigin::parse("http://localhost:5173").unwrap();
+        let server = serve_with(
+            ResponseTemplate::new(403)
+                .insert_header("content-type", "text/plain")
+                .set_body_string(include_str!("../dev_server/fixtures/vite-6.txt")),
+        )
+        .await;
+        let result = probe(Edge::Test(*server.address()), &host, Some(&origin)).await;
+        let Some(Failure::HostRejected { rejection }) = &result.failure else {
+            panic!("{result:?}");
+        };
+        assert_eq!(rejection.server, DevServer::Vite);
+        assert_eq!(rejection.host, "quiet-river-lamp.trycloudflare.com");
+        assert_eq!(rejection.host_header.as_deref(), Some("localhost:5173"));
+        assert_eq!(result.status, Some(403));
+        assert_eq!(
+            result.failure.as_ref().map(Failure::stage),
+            Some(Stage::Origin)
+        );
+
+        // webpack-dev-server 3 refuses with a 200.
+        let server =
+            serve_with(ResponseTemplate::new(200).set_body_string("Invalid Host header")).await;
+        let result = probe(Edge::Test(*server.address()), &host, None).await;
+        assert!(
+            matches!(&result.failure, Some(Failure::HostRejected { rejection }) if rejection.server == DevServer::Webpack),
+            "{result:?}"
+        );
+
+        // A large ordinary page isn't read at all.
+        let page = "<p>hello</p>".repeat(1000);
+        let server = serve_with(ResponseTemplate::new(200).set_body_string(page)).await;
+        assert!(probe(Edge::Test(*server.address()), &host, None).await.ok());
+    }
+
+    #[tokio::test]
+    async fn recognises_next_blocking_its_dev_resources() {
+        use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
+        let host = Hostname::parse("app.teitunnel-test.invalid").unwrap();
+        let server = MockServer::start().await;
+        Mock::given(matchers::path_regex("^/_next/"))
+            .and(matchers::header(
+                "origin",
+                "https://app.teitunnel-test.invalid",
+            ))
+            .respond_with(ResponseTemplate::new(403).set_body_string("Unauthorized"))
+            .mount(&server)
+            .await;
+        Mock::given(matchers::path("/"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("x-powered-by", "Next.js")
+                    .set_body_string("<html></html>"),
+            )
+            .mount(&server)
+            .await;
+        let result = probe(Edge::Test(*server.address()), &host, None).await;
+        let Some(Failure::HostRejected { rejection }) = &result.failure else {
+            panic!("{result:?}");
+        };
+        assert_eq!(rejection.server, DevServer::Next);
+        assert_eq!(rejection.host_header, None);
+        assert_eq!(
+            rejection.config_line,
+            "allowedDevOrigins: ['app.teitunnel-test.invalid']"
+        );
+    }
+
+    #[tokio::test]
+    async fn explains_edge_limits_and_streams() {
+        use wiremock::ResponseTemplate;
+        let quick = Hostname::parse("quiet-river-lamp.trycloudflare.com").unwrap();
+        let server = serve_with(ResponseTemplate::new(429)).await;
+        let busy = probe(Edge::Test(*server.address()), &quick, None).await;
+        assert_eq!(busy.failure, Some(Failure::TooManyRequests));
+        // On a route, a 429 is the origin's own rate limit.
+        let own = Hostname::parse("app.teitunnel-test.invalid").unwrap();
+        assert!(probe(Edge::Test(*server.address()), &own, None).await.ok());
+
+        let server = serve_with(
+            ResponseTemplate::new(200).set_body_raw("data: hi\n\n", "text/event-stream"),
+        )
+        .await;
+        let stream = probe(Edge::Test(*server.address()), &own, None).await;
+        assert!(stream.ok() && stream.event_stream, "{stream:?}");
     }
 }

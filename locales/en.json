@@ -938,7 +938,17 @@
     "terminal": {
       "title": "From a terminal",
       "cardLabel": "Quick Share of {origin} from a terminal"
-    }
+    },
+    "hostHeader": {
+      "label": "Host header",
+      "auto": "Automatic",
+      "off": "As the browser sends it",
+      "custom": "Custom",
+      "value": "Host header value",
+      "placeholder": "localhost:5173",
+      "help": "Automatic sends the service's own address to dev servers that only answer it (Vite, webpack, Angular)."
+    },
+    "advanced": "Advanced"
   },
   "nav": {
     "overview": "Overview",
@@ -1130,7 +1140,9 @@
       },
       "quickShare": {
         "noFreePort": "Too many Quick Shares are running.",
-        "notFound": "That Quick Share isn't running."
+        "notFound": "That Quick Share isn't running.",
+        "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
+        "config": "Couldn't prepare cloudflared's settings: {detail}"
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",
@@ -1466,7 +1478,12 @@
       "recordElsewhere@windows": "The DNS record points at {content}, not at this PC's tunnel.",
       "recordElsewhere@linux": "The DNS record points at {content}, not at this computer's tunnel.",
       "noConnector@windows": "Cloudflare can't reach this PC: the connector isn't connected.",
-      "noConnector@linux": "Cloudflare can't reach this computer: the connector isn't connected."
+      "noConnector@linux": "Cloudflare can't reach this computer: the connector isn't connected.",
+      "originNotListeningOn": "Nothing is listening on port {port}. Is your server running? Start it and test again.",
+      "originUnreachableOn": "The tunnel works, but the connector couldn't connect to port {port}. Is your server running?",
+      "hostRejected": "{server} refuses requests for this address.",
+      "bodyTooLarge": "Cloudflare refused a request body over 100 MB, the limit on the Free and Pro plans. Send large files in parts, or upload them another way.",
+      "tooManyRequests": "This Quick Share hit its limit of 200 requests at once. Share on your own domain for more."
     },
     "remoteLogs": {
       "noPermission": "This account's token can't read connector logs. It needs Cloudflare Tunnel: Edit.",
@@ -1627,6 +1644,17 @@
       "seconds": "Enter a number of seconds from 1 to {max}",
       "connections": "Enter a number from 1 to {max}",
       "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
+    },
+    "devServer": {
+      "autoHostHeader": "Sending Host: {host} so {server} accepts the public address. Use --no-host-header to turn this off.",
+      "sendingHostHeader": "Sending Host: {host} to the service.",
+      "rejected": "{server} refuses requests for {address}: it only answers addresses it knows.",
+      "configLine": "Fix: add this to {file} and restart the dev server:",
+      "shareHostHeader": "Or share with --host-header {host}, which {server} accepts.",
+      "routeHostHeader": "Or have the route send Host: {host} (--host-header {host}), which {server} accepts.",
+      "hostHeaderUnsafe": "Sending Host: {host} would also work, but {server} compares it with the browser's address for forms, redirects and sign-in, so allowing the address is better.",
+      "nextOrigin": "Next.js checks where requests come from, not the Host header, so only the config change helps.",
+      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead."
     }
   },
   "permissionFix": {
@@ -1673,5 +1701,27 @@
     "addDomain": "Add a Domain to Cloudflare",
     "openAccessApps": "Open Access Applications",
     "openLoadBalancing": "Open Load Balancing"
+  },
+  "devServer": {
+    "rejected": "Your dev server rejects this address.",
+    "rejectedDetail": "{server} only answers addresses it knows, and {host} isn't one of them.",
+    "sendHost": "Send Host: {host}",
+    "sendHostShare": "Restarts the share with a new address and sends Host: {host}, which {server} accepts.",
+    "sendHostRoute": "Changes the route to send Host: {host}, which {server} accepts.",
+    "unsafe": "{server} also compares the Host header with the browser's address for forms, server actions and sign-in callbacks, so sending another one can break them. Allowing the address is the better fix.",
+    "nextOnly": "Next.js checks where requests come from, not the Host header, so the address has to be allowed in its config.",
+    "showConfig": "Show the Config Line",
+    "configHelp": "Add this to {file}, then restart the dev server:",
+    "configLabel": "Config line",
+    "checkAgain": "Check Again",
+    "checking": "Checking…",
+    "fixed": "{server} accepts the address now.",
+    "stillRejected": "{server} still refuses the address. Check that the dev server restarted with the new config.",
+    "sendsHostAuto": "Sends Host: {host} so {server} accepts the public address.",
+    "sendsHost": "Sends Host: {host} to the service.",
+    "stopSending": "Stop Sending",
+    "eventStream": "This service streams events (Server-Sent Events), which Quick Shares don't carry. Share it on your own domain instead, where streams work.",
+    "openDoctor": "Open Doctor",
+    "fixFailed": "Couldn't change the Host header"
   }
 }

@@ -40,6 +40,9 @@ export const queryKeys = {
   doctor: {
     all: () => ["doctor"] as const,
   },
+  /** Checks of a share on your domain through Cloudflare (run once; refetched on demand). */
+  domainShareCheck: (accountId: string, hostname: string) =>
+    ["domainShareCheck", accountId, hostname] as const,
   updates: {
     status: () => ["updates", "status"] as const,
   },
