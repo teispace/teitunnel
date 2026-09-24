@@ -113,6 +113,16 @@ pub async fn accounts_remove(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
+    // Temporary shares on the account's domains end with it; their routes and records
+    // go now, while the credential still works (best effort: the rows go regardless).
+    teitunnel_core::domain_shares::sweep(
+        &state.accounts,
+        &state.engine,
+        &state.machine,
+        &state.machine_name,
+        |share| share.account_id == id,
+    )
+    .await;
     // Stop this Mac's connector and delete its token before the account goes.
     state.machine.forget_account(&id).await;
     state.remote_logs.forget_account(&id);

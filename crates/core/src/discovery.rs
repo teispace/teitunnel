@@ -8,11 +8,7 @@ mod classify;
 pub mod cloudflared;
 pub mod docker;
 
-use std::{
-    collections::BTreeMap,
-    net::IpAddr,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, net::IpAddr, path::Path};
 
 use serde::Serialize;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -180,14 +176,10 @@ pub fn list_services() -> Vec<LocalService> {
 /// Names the project a process runs in: `package.json` or `Cargo.toml` name, else the
 /// directory name. Home and root directories aren't projects.
 fn project_name(cwd: &Path) -> Option<String> {
-    if cwd.parent().is_none() || Some(cwd.to_path_buf()) == home_dir() {
+    if cwd.parent().is_none() || Some(cwd.to_path_buf()) == std::env::home_dir() {
         return None;
     }
     manifest_name(cwd).or_else(|| cwd.file_name().map(|n| n.to_string_lossy().into_owned()))
-}
-
-fn home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
 }
 
 /// The `name` in `[section]` of a TOML manifest (a tiny reader: we only need one key).

@@ -35,6 +35,17 @@ use crate::{
 
 use crate::text::{Text, UserText, english_display, msg};
 
+/// Every table with rows about an account; they go with it. A test checks this against
+/// the schema, so a new table can't be forgotten.
+const ACCOUNT_TABLES: &[&str] = &[
+    "local_tunnels",
+    "dns_ownership",
+    "access_ownership",
+    "balanced_routes",
+    "domain_shares",
+    "activity",
+];
+
 /// How an account was connected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -396,8 +407,8 @@ impl Accounts {
             .store
             .call(move |conn| {
                 let tx = conn.transaction()?;
-                // What the routes engine remembered for the account goes too.
-                for table in ["local_tunnels", "dns_ownership", "activity"] {
+                // Everything remembered for the account goes too.
+                for table in ACCOUNT_TABLES {
                     tx.execute(
                         &format!("DELETE FROM {table} WHERE account_id = ?1"),
                         params![id],
@@ -548,6 +559,31 @@ mod tests {
             refresh_token: refresh.map(|r| Secret::new(r.into())),
             expires_in: std::time::Duration::from_secs(expires_in),
         }
+    }
+
+    #[tokio::test]
+    async fn removing_an_account_forgets_everything_about_it() {
+        let (_server, accounts, _) = setup().await;
+        let tables: Vec<String> = accounts
+            .store
+            .call(|conn| {
+                let mut statement = conn.prepare(
+                    "SELECT m.name FROM sqlite_master m, pragma_table_info(m.name) c \
+                     WHERE m.type = 'table' AND c.name = 'account_id' ORDER BY m.name",
+                )?;
+                let names = statement
+                    .query_map([], |row| row.get(0))?
+                    .collect::<Result<Vec<String>, _>>()?;
+                Ok(names)
+            })
+            .await
+            .unwrap();
+        let mut expected: Vec<&str> = ACCOUNT_TABLES.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            tables, expected,
+            "every table keyed by account is cleared on removal"
+        );
     }
 
     #[tokio::test]
