@@ -32,6 +32,7 @@ mod forward;
 mod gate;
 mod ids;
 mod inject;
+mod keepalive;
 mod lens;
 mod listener;
 mod metrics;
@@ -43,6 +44,7 @@ mod replay;
 mod rules;
 mod secret;
 mod service;
+mod sim;
 mod store;
 mod stream;
 mod stub;
@@ -55,10 +57,10 @@ pub mod webhook;
 pub use body::{BoxError, LensBody, empty, full};
 pub use capture::{
     BodyRecord, BodyView, ClientInfo, ContentKind, DecodeError, Direction, ErrorKind, Exchange,
-    ExchangeError, ExchangeKind, ExchangeState, ExchangeView, GateOutcome, HeaderView,
-    MessageCounts, MessageKind, MessagePreview, Redaction, RequestRecord, RequestView, Responder,
-    ResponseRecord, ResponseView, StreamStats, Timings, content_kind, decode::MAX_DECODED_BYTES,
-    decode_body,
+    ExchangeError, ExchangeKind, ExchangeState, ExchangeView, FrameOpcode, FrameRecord,
+    GateOutcome, HeaderView, MessageCounts, MessageKind, MessagePreview, Redaction, RequestRecord,
+    RequestView, Responder, ResponseRecord, ResponseView, StreamStats, Timings, content_kind,
+    decode::MAX_DECODED_BYTES, decode_body,
 };
 pub use config::{
     CaptureConfig, DEFAULT_MAX_BODY_BYTES, FolderConfig, ForwardedHeaders, HostHeader,
@@ -66,9 +68,10 @@ pub use config::{
 };
 pub use error::{LensError, Result};
 pub use events::{Change, LensEvent};
-pub use gate::{AgentPreset, BasicAuth, Gates, LOGIN_PATH, PasswordGate, SecretLink};
+pub use gate::{AgentPreset, BasicAuth, BearerToken, Gates, LOGIN_PATH, PasswordGate, SecretLink};
 pub use ids::{ExchangeId, ListenerId, TapId};
 pub use inject::{HandlerFuture, Injection, RESERVED_PREFIX, ReservedHandler, ReservedRequest};
+pub use keepalive::DEFAULT_SSE_KEEPALIVE;
 pub use lens::{Lens, LensOptions, TapHandle, WaitOptions};
 pub use listener::{
     AcceptFuture, Accepted, Acceptor, Io, Limits, ListenOptions, ListenerInfo, PlainAcceptor,
@@ -82,6 +85,9 @@ pub use redact::{
 pub use replay::{MAX_REPLAYS, ReplayOptions, ReplayTarget, RequestEdits, Resign};
 pub use rules::{HeaderOp, HeaderRules};
 pub use secret::Secret;
+pub use sim::{
+    FaultAction, FaultRecord, FaultRule, Latency, NetworkConfig, RandomSource, SplitMix,
+};
 pub use store::{CaptureStore, DEFAULT_CAPACITY, Filter, MAX_PAGE, MemoryStore, Page, Query};
 pub use stub::{StubMode, StubRule};
 pub use tap::TapInfo;

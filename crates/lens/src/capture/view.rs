@@ -162,6 +162,8 @@ pub struct ExchangeView {
     pub stream: Option<StreamStats>,
     /// Replayed exchange.
     pub replay_of: Option<ExchangeId>,
+    /// The fault rule applied, if any.
+    pub fault: Option<crate::FaultRecord>,
     /// Whether secrets are masked in this view.
     pub redacted: bool,
 }
@@ -186,6 +188,11 @@ pub(super) fn build(exchange: &Exchange, redaction: &Redaction) -> ExchangeView 
         let mut stream = stream.clone();
         for preview in &mut stream.previews {
             preview.preview = mask_json(&preview.preview, redaction).into_owned();
+        }
+        for frame in &mut stream.frames {
+            if let Some(preview) = frame.preview.as_mut() {
+                *preview = mask_json(preview, redaction).into_owned();
+            }
         }
         stream
     });
@@ -226,6 +233,7 @@ pub(super) fn build(exchange: &Exchange, redaction: &Redaction) -> ExchangeView 
         error: exchange.error.clone(),
         stream,
         replay_of: exchange.replay_of,
+        fault: exchange.fault.clone(),
         redacted: redaction.mask,
     }
 }

@@ -4,7 +4,7 @@
 //! exactly. Anything shown to people or agents goes through [`Exchange::view`] (or an
 //! [`crate::export`] function), which takes a [`Redaction`] choice.
 
-use std::{net::IpAddr, time::Duration};
+use std::{collections::VecDeque, net::IpAddr, time::Duration};
 
 use bytes::Bytes;
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
@@ -69,6 +69,11 @@ pub enum Responder {
     },
     /// The tap is paused and served its paused page.
     Paused,
+    /// A fault rule answered (a status or a simulated timeout).
+    Fault {
+        /// Index of the rule in [`crate::TapConfig::faults`].
+        rule: usize,
+    },
     /// Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages).
     Lens,
 }
@@ -97,6 +102,8 @@ pub enum GateOutcome {
     LinkRequired,
     /// HTTP basic credentials are missing or wrong.
     BasicAuthRequired,
+    /// A bearer token is missing or wrong.
+    BearerRequired,
 }
 
 /// Per-phase timings, relative to when Lens received the request head.
@@ -301,8 +308,58 @@ pub struct MessagePreview {
     pub preview: String,
     /// Whether `preview` is shorter than the message.
     pub truncated: bool,
-    /// WebSocket `permessage-deflate`: the preview is of compressed bytes.
+    /// WebSocket `permessage-deflate`: the message was compressed on the wire.
     pub compressed: bool,
+    /// For compressed messages: whether `preview` shows the inflated text (otherwise
+    /// the preview is unavailable and empty).
+    pub inflated: bool,
+}
+
+/// A WebSocket frame opcode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FrameOpcode {
+    /// Continues a fragmented message.
+    Continuation,
+    /// Text.
+    Text,
+    /// Binary.
+    Binary,
+    /// Close.
+    Close,
+    /// Ping.
+    Ping,
+    /// Pong.
+    Pong,
+}
+
+/// One WebSocket frame, observed without altering it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameRecord {
+    /// When the frame finished, relative to the request (microseconds).
+    pub at_us: u64,
+    /// Direction.
+    pub direction: Direction,
+    /// Opcode.
+    pub opcode: FrameOpcode,
+    /// Final fragment of its message.
+    pub fin: bool,
+    /// Masked on the wire (client frames are).
+    pub masked: bool,
+    /// `RSV1` set: compressed with `permessage-deflate`.
+    pub compressed: bool,
+    /// Payload size in bytes (compressed size for compressed frames).
+    pub size: u64,
+    /// The first payload bytes, unmasked: UTF-8 text for text data, hex otherwise.
+    /// `None` when unavailable (compressed frames; see the message previews).
+    pub preview: Option<String>,
+    /// Whether `preview` is shorter than the payload.
+    pub truncated: bool,
+    /// Close frames: the status code.
+    pub close_code: Option<u16>,
+    /// Close frames: the reason.
+    pub close_reason: Option<String>,
 }
 
 /// Counters for one direction of a stream.
@@ -325,6 +382,10 @@ pub struct StreamStats {
     pub server: MessageCounts,
     /// The first messages, up to the tap's preview limit.
     pub previews: Vec<MessagePreview>,
+    /// WebSocket frames: the most recent ones, up to the tap's frame limit.
+    pub frames: VecDeque<FrameRecord>,
+    /// Older frames dropped from `frames` to respect the limit.
+    pub frames_dropped: u64,
     /// Whether the stream has ended.
     pub closed: bool,
 }
@@ -360,6 +421,8 @@ pub struct Exchange {
     pub stream: Option<StreamStats>,
     /// The exchange this one replays.
     pub replay_of: Option<ExchangeId>,
+    /// The fault rule applied to it, if any.
+    pub fault: Option<crate::FaultRecord>,
 }
 
 impl Exchange {

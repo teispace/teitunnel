@@ -11,5 +11,6 @@ mod features;
 mod folder;
 mod gates;
 mod proxy;
+mod simulation;
 mod streaming;
 mod support;

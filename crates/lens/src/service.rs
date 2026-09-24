@@ -13,16 +13,18 @@ use hyper::body::Incoming;
 use crate::{
     BodyRecord, ClientInfo, Exchange, ExchangeError, ExchangeId, ExchangeKind, ExchangeState,
     GateOutcome, LensBody, RequestRecord, Responder, Timings,
-    body::{PrefixedBody, TeeBody, empty, read_limited, read_prefix},
+    body::{BoxError, PrefixedBody, TeeBody, empty, read_limited, read_prefix},
     capture::ErrorKind,
     forward,
     gate::{self, LOGIN_PATH},
     inject::{self, MAX_RESERVED_BODY, RESERVED_PREFIX, ReservedRequest},
+    keepalive::KeepAliveBody,
     lens::Shared,
     listener::{ConnInfo, ListenerState, normalize_host},
     pages,
     recorder::{Recorder, Side},
     rules,
+    sim::{self, FaultAction, ThrottledBody},
     stream::PreviewLimits,
     stub::{self, StubMode},
     tap::{Active, TapRuntime},
@@ -40,16 +42,16 @@ pub(crate) async fn handle(
     listener: Arc<ListenerState>,
     conn: ConnInfo,
     request: Request<Incoming>,
-) -> Response<LensBody> {
+) -> Result<Response<LensBody>, FaultReset> {
     let t0 = Instant::now();
     let host = request_host(&request, &conn);
     let routes = listener.routes();
     let normalized = normalize_host(&host);
     let Some(tap) = routes.resolve(&normalized).and_then(|id| shared.tap(id)) else {
-        return pages::text(
+        return Ok(pages::text(
             StatusCode::MISDIRECTED_REQUEST,
             format!("No site is set up for {normalized} here.\n"),
-        );
+        ));
     };
     let active = tap.active();
     let listener_scheme = if listener.secure { "https" } else { "http" };
@@ -89,8 +91,23 @@ pub(crate) async fn handle(
         host,
         scheme: listener_scheme,
     };
-    pipeline.run(request).await
+    let response = pipeline.run(request).await;
+    if response.extensions().get::<ResetConnection>().is_some() {
+        // A fault rule asked for a reset: failing the service makes hyper drop the
+        // connection without writing a response.
+        return Err(FaultReset);
+    }
+    Ok(response)
 }
+
+/// Marks a response that must not be sent: the connection is reset instead.
+#[derive(Debug, Clone, Copy)]
+struct ResetConnection;
+
+/// The service error that makes hyper close the connection without a response.
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[error("connection reset by a fault rule")]
+pub(crate) struct FaultReset;
 
 /// The visitor's host: `Host`, else the URI authority (HTTP/2), else the TLS name.
 fn request_host(request: &Request<Incoming>, conn: &ConnInfo) -> String {
@@ -163,6 +180,7 @@ fn skeleton(
         error: None,
         stream: None,
         replay_of: None,
+        fault: None,
     }
 }
 
@@ -182,6 +200,8 @@ impl Pipeline {
         PreviewLimits {
             count: self.active.config.capture.stream_previews,
             bytes: self.active.config.capture.preview_bytes,
+            frames: self.active.config.capture.ws_frames,
+            frame_bytes: self.active.config.capture.frame_preview_bytes,
         }
     }
 
@@ -269,6 +289,65 @@ impl Pipeline {
                 rules::preflight_response(request.headers()),
                 Responder::Lens,
             );
+        }
+
+        if let Some(latency) = config.network.latency {
+            tokio::time::sleep(latency.sample(self.shared.random.next_f64())).await;
+        }
+        if let Some(fault) = sim::pick_fault(
+            &config.faults,
+            request.method(),
+            &path,
+            &*self.shared.random,
+        ) {
+            let rule = fault.rule;
+            self.recorder.set_fault(fault.clone());
+            match fault.action {
+                FaultAction::Status {
+                    status,
+                    retry_after_secs,
+                } => {
+                    let status =
+                        StatusCode::from_u16(status).unwrap_or(StatusCode::SERVICE_UNAVAILABLE);
+                    let mut response = pages::text(
+                        status,
+                        format!(
+                            "{} {} (simulated by Teitunnel)\n",
+                            status.as_u16(),
+                            status.canonical_reason().unwrap_or_default()
+                        ),
+                    );
+                    if let Some(seconds) = retry_after_secs {
+                        response
+                            .headers_mut()
+                            .insert(header::RETRY_AFTER, HeaderValue::from(seconds));
+                    }
+                    return self.local(response, Responder::Fault { rule });
+                }
+                FaultAction::Reset => {
+                    self.recorder.fail(
+                        ErrorKind::ConnectionReset,
+                        format!("the connection was reset by fault rule {rule}"),
+                    );
+                    let mut response = Response::new(empty());
+                    response.extensions_mut().insert(ResetConnection);
+                    return response;
+                }
+                FaultAction::Delay { ms } => {
+                    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                }
+                FaultAction::Timeout { after_ms } => {
+                    tokio::time::sleep(std::time::Duration::from_millis(after_ms)).await;
+                    self.recorder.note_error(ExchangeError {
+                        kind: ErrorKind::Timeout,
+                        message: format!("a simulated timeout (fault rule {rule})"),
+                    });
+                    return self.local(
+                        error_page(ErrorKind::Timeout, request.headers()),
+                        Responder::Fault { rule },
+                    );
+                }
+            }
         }
 
         if let Some((index, rule)) =
@@ -392,7 +471,7 @@ impl Pipeline {
         {
             return SignIn::Admitted { basic: false };
         }
-        if gates.basic_ok(request.headers()) {
+        if gates.basic_ok(request.headers()) || gates.bearer_ok(request.headers()) {
             return SignIn::Admitted { basic: true };
         }
         if gates.password.is_some() {
@@ -419,6 +498,23 @@ impl Pipeline {
                 HeaderValue::from_static("Basic realm=\"Teitunnel\", charset=\"UTF-8\""),
             );
             return SignIn::Respond(response, GateOutcome::BasicAuthRequired);
+        }
+        if !gates.bearer.is_empty() {
+            let mut response = Response::new(crate::body::full(
+                "{\"error\":\"unauthorized\",\"message\":\"A bearer token is required.\"}\n",
+            ));
+            *response.status_mut() = StatusCode::UNAUTHORIZED;
+            let headers = response.headers_mut();
+            headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            headers.insert(
+                header::WWW_AUTHENTICATE,
+                HeaderValue::from_static("Bearer realm=\"Teitunnel\""),
+            );
+            headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            return SignIn::Respond(response, GateOutcome::BearerRequired);
         }
         SignIn::Respond(
             pages::html(
@@ -584,6 +680,10 @@ impl Pipeline {
     ) -> Response<LensBody> {
         let config = &self.active.config;
         let (parts, body) = request.into_parts();
+        let body: LensBody = match &self.active.up {
+            Some(bucket) => ThrottledBody::new(body, Arc::clone(bucket)).boxed_unsync(),
+            None => body.map_err(BoxError::from).boxed_unsync(),
+        };
         let path = parts.uri.path();
         let fallback = stub::find(
             &config.stubs,
@@ -717,6 +817,7 @@ impl Pipeline {
                 server_upgrade,
                 self.recorder.clone(),
                 websocket,
+                crate::stream::Deflate::negotiated(&head.headers),
                 self.limits(),
                 self.listener.cancel.clone(),
             ));
@@ -772,7 +873,14 @@ impl Pipeline {
             tee = tee.with_sse(self.limits());
         }
         let status = head.status;
-        let response = Response::from_parts(head, tee.boxed_unsync());
+        let mut body = tee.boxed_unsync();
+        if let Some(bucket) = &self.active.down {
+            body = ThrottledBody::new(body, Arc::clone(bucket)).boxed_unsync();
+        }
+        if event_stream && let Some(idle) = config.sse_keepalive {
+            body = KeepAliveBody::new(body, idle).boxed_unsync();
+        }
+        let response = Response::from_parts(head, body);
         match (&config.injection, inject) {
             (Some(injection), true) => inject::apply(injection, status, response).await,
             _ => response,

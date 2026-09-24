@@ -3,7 +3,6 @@
 
 use std::{
     collections::HashMap,
-    convert::Infallible,
     fmt,
     future::Future,
     io,
@@ -436,7 +435,7 @@ async fn serve_connection(
             let shared = Arc::clone(&shared);
             let state = Arc::clone(&state);
             let conn = conn.clone();
-            async move { Ok::<_, Infallible>(service::handle(shared, state, conn, request).await) }
+            async move { service::handle(shared, state, conn, request).await }
         })
     };
     let mut builder = auto::Builder::new(TokioExecutor::new());

@@ -6,7 +6,10 @@ use std::{fmt, path::PathBuf, sync::Arc, time::Duration};
 use http::uri::Scheme;
 use serde::{Deserialize, Serialize};
 
-use crate::{Gates, HeaderRules, Injection, LensError, ReservedHandler, StubRule, TapId};
+use crate::{
+    FaultRule, Gates, HeaderRules, Injection, LensError, NetworkConfig, ReservedHandler, StubRule,
+    TapId,
+};
 
 /// Default cap on captured bytes per body.
 pub const DEFAULT_MAX_BODY_BYTES: usize = 1024 * 1024;
@@ -241,6 +244,10 @@ pub struct CaptureConfig {
     pub stream_previews: usize,
     /// Bytes kept per message preview.
     pub preview_bytes: usize,
+    /// WebSocket frames kept per exchange (the most recent; older ones are counted).
+    pub ws_frames: usize,
+    /// Bytes kept per WebSocket frame preview.
+    pub frame_preview_bytes: usize,
 }
 
 impl Default for CaptureConfig {
@@ -251,6 +258,8 @@ impl Default for CaptureConfig {
             capacity: None,
             stream_previews: 20,
             preview_bytes: 1024,
+            ws_frames: 500,
+            frame_preview_bytes: 4 * 1024,
         }
     }
 }
@@ -307,6 +316,14 @@ pub struct TapConfig {
     pub reserved: Option<Arc<dyn ReservedHandler>>,
     /// Serve the paused page instead of forwarding.
     pub paused: Option<PausedPage>,
+    /// For `text/event-stream` responses: write `: keep-alive` after this much
+    /// downstream silence (at an event boundary), so Cloudflare doesn't end the stream
+    /// after 100 s. `None` turns it off.
+    pub sse_keepalive: Option<Duration>,
+    /// Simulated latency and bandwidth.
+    pub network: NetworkConfig,
+    /// Fault injection, checked in order.
+    pub faults: Vec<FaultRule>,
 }
 
 impl TapConfig {
@@ -326,6 +343,9 @@ impl TapConfig {
             injection: None,
             reserved: None,
             paused: None,
+            sse_keepalive: Some(crate::keepalive::DEFAULT_SSE_KEEPALIVE),
+            network: NetworkConfig::default(),
+            faults: Vec::new(),
         }
     }
 }

@@ -210,6 +210,11 @@ impl Recorder {
         }
     }
 
+    /// Marks the exchange with the fault rule applied to it.
+    pub(crate) fn set_fault(&self, fault: crate::FaultRecord) {
+        self.lock().exchange.fault = Some(fault);
+    }
+
     /// Records an error without finishing (e.g. a request body error while the
     /// response still streams); the first error wins.
     pub(crate) fn note_error(&self, error: ExchangeError) {

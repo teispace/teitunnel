@@ -14,7 +14,7 @@ use crate::{
     capture::ErrorKind,
     metrics::TapMetrics,
     recorder::Recorder,
-    stream::{PreviewLimits, WsObserver},
+    stream::{Deflate, PreviewLimits, WsObserver},
 };
 
 const BUFFER: usize = 16 * 1024;
@@ -30,6 +30,7 @@ pub(crate) async fn run(
     server: OnUpgrade,
     recorder: Recorder,
     websocket: bool,
+    deflate: Option<Deflate>,
     limits: PreviewLimits,
     cancel: CancellationToken,
 ) {
@@ -39,7 +40,7 @@ pub(crate) async fn run(
         result = async {
             let (client, server) = tokio::try_join!(client, server)
                 .map_err(|err| io::Error::other(err.to_string()))?;
-            pump(client, server, &recorder, websocket, limits).await
+            pump(client, server, &recorder, websocket, deflate, limits).await
         } => result,
         () = cancel.cancelled() => Ok(()),
     };
@@ -62,8 +63,12 @@ async fn pump(
     server: Upgraded,
     recorder: &Recorder,
     websocket: bool,
+    deflate: Option<Deflate>,
     limits: PreviewLimits,
 ) -> io::Result<()> {
+    let observer = |direction: Direction| {
+        websocket.then(|| WsObserver::new(limits, deflate.map(|d| d.resets(direction))))
+    };
     let (mut client_read, mut client_write) = tokio::io::split(TokioIo::new(client));
     let (mut server_read, mut server_write) = tokio::io::split(TokioIo::new(server));
     let up = copy(
@@ -71,7 +76,7 @@ async fn pump(
         &mut server_write,
         Direction::ClientToServer,
         recorder,
-        websocket.then(|| WsObserver::new(limits.bytes)),
+        observer(Direction::ClientToServer),
         limits,
     );
     let down = copy(
@@ -79,7 +84,7 @@ async fn pump(
         &mut client_write,
         Direction::ServerToClient,
         recorder,
-        websocket.then(|| WsObserver::new(limits.bytes)),
+        observer(Direction::ServerToClient),
         limits,
     );
     tokio::pin!(up, down);
@@ -136,8 +141,8 @@ where
                 let batch = std::mem::take(&mut messages);
                 recorder.stream_update(|stats| {
                     let mut previewed = false;
-                    for message in batch {
-                        previewed |= message.record(stats, direction, at, limits);
+                    for observed in batch {
+                        previewed |= observed.record(stats, direction, at, limits);
                     }
                     previewed
                 });

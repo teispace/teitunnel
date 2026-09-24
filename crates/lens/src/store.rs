@@ -447,6 +447,7 @@ pub(crate) mod tests {
             error: None,
             stream: None,
             replay_of: None,
+            fault: None,
         }
     }
 

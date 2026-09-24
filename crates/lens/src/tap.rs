@@ -13,6 +13,7 @@ use crate::{
     gate::LoginLimiter,
     metrics::TapMetrics,
     rules::{self, CompiledOp},
+    sim::Bucket,
     upstream::ActiveUpstream,
 };
 
@@ -24,6 +25,9 @@ pub(crate) struct Active {
     pub(crate) fingerprint: [u8; 32],
     pub(crate) request_ops: Vec<CompiledOp>,
     pub(crate) response_ops: Vec<CompiledOp>,
+    /// Bandwidth limits, shared by every exchange of the tap.
+    pub(crate) up: Option<Arc<Bucket>>,
+    pub(crate) down: Option<Arc<Bucket>>,
 }
 
 impl Active {
@@ -32,6 +36,9 @@ impl Active {
     pub(crate) fn build(config: TapConfig, previous: Option<&Self>) -> Result<Self, LensError> {
         for stub in &config.stubs {
             stub.validate()?;
+        }
+        for fault in &config.faults {
+            fault.validate()?;
         }
         if let crate::HostHeader::Custom(host) = &config.host_header {
             http::HeaderValue::from_str(host)
@@ -50,7 +57,17 @@ impl Active {
             }
             _ => ActiveUpstream::build(&config.upstream)?,
         };
+        let up = config
+            .network
+            .up_bytes_per_sec
+            .map(|rate| Arc::new(Bucket::new(rate)));
+        let down = config
+            .network
+            .down_bytes_per_sec
+            .map(|rate| Arc::new(Bucket::new(rate)));
         Ok(Self {
+            up,
+            down,
             fingerprint: config.gates.fingerprint(),
             config,
             upstream,

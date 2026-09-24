@@ -204,6 +204,74 @@ impl BasicAuth {
     }
 }
 
+/// A bearer token accepted in `Authorization: Bearer <token>` (for scripts, MCP
+/// clients and local AI servers such as Ollama or vLLM).
+#[derive(Clone, PartialEq, Eq)]
+pub struct BearerToken {
+    token: Secret<String>,
+}
+
+impl std::fmt::Debug for BearerToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("BearerToken([redacted])")
+    }
+}
+
+impl BearerToken {
+    /// Uses `token` (at least 16 characters of RFC 6750 `b64token` characters).
+    ///
+    /// # Errors
+    /// [`LensError::InvalidConfig`] for short tokens or other characters.
+    pub fn new(token: &str) -> Result<Self, LensError> {
+        let ok = token.len() >= 16
+            && token.bytes().all(|b| {
+                b.is_ascii_alphanumeric()
+                    || matches!(b, b'-' | b'.' | b'_' | b'~' | b'+' | b'/' | b'=')
+            });
+        if !ok {
+            return Err(LensError::InvalidConfig(
+                "a bearer token needs at least 16 characters of letters, digits and -._~+/=".into(),
+            ));
+        }
+        Ok(Self {
+            token: Secret::new(token.to_owned()),
+        })
+    }
+
+    /// A new random token (256 bits, base64url).
+    ///
+    /// # Errors
+    /// [`LensError::Random`] if the OS random source fails.
+    pub fn generate() -> Result<Self, LensError> {
+        let bytes = crate::util::random_bytes::<32>()?;
+        Self::new(&URL_SAFE_NO_PAD.encode(bytes))
+    }
+
+    /// The token, to give to the client.
+    pub fn token(&self) -> &Secret<String> {
+        &self.token
+    }
+}
+
+/// Whether `header_value` is `Bearer <t>` for one of `tokens`. Every token is compared
+/// (in constant time, over SHA-256 digests), so timing reveals neither the token nor
+/// which one matched.
+fn bearer_matches(tokens: &[BearerToken], header_value: &str) -> bool {
+    let Some((scheme, candidate)) = header_value.split_once(' ') else {
+        return false;
+    };
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return false;
+    }
+    let candidate = ring::digest::digest(&ring::digest::SHA256, candidate.trim().as_bytes());
+    let mut matched = false;
+    for token in tokens {
+        let expected = ring::digest::digest(&ring::digest::SHA256, token.token.expose().as_bytes());
+        matched |= ct_eq(expected.as_ref(), candidate.as_ref());
+    }
+    matched
+}
+
 /// Built-in user-agent block lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -282,6 +350,8 @@ pub struct Gates {
     /// Accept HTTP basic credentials (also the only sign-in when alone: browsers show
     /// their own prompt).
     pub basic: Option<BasicAuth>,
+    /// Accept any of these bearer tokens (`Authorization: Bearer …`).
+    pub bearer: Vec<BearerToken>,
     /// Only these networks may connect (empty: everyone).
     pub ip_allow: Vec<IpNet>,
     /// These networks may not connect.
@@ -304,6 +374,7 @@ impl Default for Gates {
             password: None,
             secret_link: None,
             basic: None,
+            bearer: Vec::new(),
             ip_allow: Vec::new(),
             ip_deny: Vec::new(),
             agent_presets: Vec::new(),
@@ -318,7 +389,10 @@ impl Default for Gates {
 impl Gates {
     /// Whether any sign-in method is configured.
     pub fn requires_sign_in(&self) -> bool {
-        self.password.is_some() || self.secret_link.is_some() || self.basic.is_some()
+        self.password.is_some()
+            || self.secret_link.is_some()
+            || self.basic.is_some()
+            || !self.bearer.is_empty()
     }
 
     /// Whether anything at all is enforced.
@@ -347,6 +421,11 @@ impl Gates {
             ctx.update(basic.user.as_bytes());
             ctx.update(b":");
             ctx.update(basic.password.expose().as_bytes());
+        }
+        for token in &self.bearer {
+            ctx.update(b"t");
+            ctx.update(token.token.expose().as_bytes());
+            ctx.update(b"\0");
         }
         let mut out = [0u8; 32];
         out.copy_from_slice(ctx.finish().as_ref());
@@ -393,6 +472,14 @@ impl Gates {
             .get(header::AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| basic.matches(value))
+    }
+
+    pub(crate) fn bearer_ok(&self, headers: &HeaderMap) -> bool {
+        !self.bearer.is_empty()
+            && headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| bearer_matches(&self.bearer, value))
     }
 
     pub(crate) fn link_ok(&self, key: &str) -> bool {
@@ -646,6 +733,35 @@ mod tests {
         assert!(!basic.matches("Basic !!!"));
         assert!(BasicAuth::new("a:b", "c").is_err());
         assert!(!format!("{basic:?}").contains("lovelace"));
+    }
+
+    #[test]
+    fn bearer_tokens() {
+        assert!(BearerToken::new("short").is_err());
+        assert!(BearerToken::new("has spaces in the token").is_err());
+        let a = BearerToken::new("token-number-one-0001").unwrap();
+        let b = BearerToken::generate().unwrap();
+        let gates = Gates {
+            bearer: vec![a.clone(), b.clone()],
+            ..Gates::default()
+        };
+        let with = |value: &str| {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::AUTHORIZATION, HeaderValue::from_str(value).unwrap());
+            headers
+        };
+        assert!(gates.requires_sign_in());
+        assert!(gates.bearer_ok(&with("Bearer token-number-one-0001")));
+        assert!(gates.bearer_ok(&with(&format!("bearer {}", b.token().expose()))));
+        assert!(!gates.bearer_ok(&with("Bearer token-number-one-0002")));
+        assert!(!gates.bearer_ok(&with("Basic token-number-one-0001")));
+        assert!(!gates.bearer_ok(&HeaderMap::new()));
+        assert!(!format!("{a:?}").contains("token-number"));
+        let other = Gates {
+            bearer: vec![b],
+            ..Gates::default()
+        };
+        assert_ne!(gates.fingerprint(), other.fingerprint());
     }
 
     #[test]

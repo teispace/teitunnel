@@ -20,6 +20,7 @@ use crate::{
     gate::Sessions,
     listener::{self, HostTable, ListenerState},
     replay::{self, ReplayOptions},
+    sim::{RandomSource, SplitMix},
     tap::{Active, TapRuntime},
     util::now_unix_ms,
 };
@@ -33,6 +34,9 @@ pub struct LensOptions {
     pub event_buffer: usize,
     /// Password checks (Argon2) allowed at once, bounding CPU under a login flood.
     pub max_password_checks: usize,
+    /// Randomness for network simulation and faults (default: seeded from the OS);
+    /// tests pass a fixed sequence.
+    pub random: Option<Arc<dyn RandomSource>>,
 }
 
 impl Default for LensOptions {
@@ -41,6 +45,7 @@ impl Default for LensOptions {
             store: None,
             event_buffer: 4_096,
             max_password_checks: 4,
+            random: None,
         }
     }
 }
@@ -96,6 +101,7 @@ pub(crate) struct Shared {
     /// Upgraded tunnels and other detached work, awaited on shutdown.
     pub(crate) tracker: TaskTracker,
     pub(crate) password_checks: Semaphore,
+    pub(crate) random: Arc<dyn RandomSource>,
 }
 
 impl Shared {
@@ -147,6 +153,9 @@ impl Lens {
                 shutdown: CancellationToken::new(),
                 tracker: TaskTracker::new(),
                 password_checks: Semaphore::new(options.max_password_checks.max(1)),
+                random: options
+                    .random
+                    .unwrap_or_else(|| Arc::new(SplitMix::from_entropy())),
             }),
         })
     }
