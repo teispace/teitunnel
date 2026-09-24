@@ -121,9 +121,14 @@ impl ServerBuilder {
         let core: Arc<dyn ToolProvider> = Arc::new(CoreTools::new(
             Arc::clone(&self.backend),
             Arc::clone(&self.traffic),
+            Arc::clone(&plans),
+        ));
+        // Edge protection plans are applied with apply_plan, so they share the plans.
+        let protection: Arc<dyn ToolProvider> = Arc::new(crate::tools::ProtectionTools::new(
+            Arc::clone(&self.backend),
             plans,
         ));
-        let mut providers = vec![core];
+        let mut providers = vec![core, protection];
         providers.extend(self.providers);
         let mut tools: Vec<(ToolSpec, usize)> = Vec::new();
         let mut names = HashSet::new();

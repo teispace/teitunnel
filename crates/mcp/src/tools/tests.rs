@@ -52,6 +52,10 @@ pub(crate) struct FakeState {
     pub(crate) activity: Vec<ActivityEntry>,
     pub(crate) applied: Vec<(Change, Option<Actor>)>,
     pub(crate) fixes_run: Vec<String>,
+    /// Edge protection of `app.xyz.com`, and its service tokens.
+    pub(crate) protection: teitunnel_core::engine::edge::EdgeProtection,
+    pub(crate) tokens: Vec<teitunnel_core::protection::ServiceTokenView>,
+    pub(crate) protection_applied: Vec<teitunnel_core::protection::ProtectionChange>,
 }
 
 /// An in-memory Teitunnel with one account (`acc`, "Personal") and one tunnel.
@@ -97,9 +101,9 @@ impl FakeBackend {
     fn hostname(change: &Change) -> Option<String> {
         match change {
             Change::AddRoute { route } => Some(route.hostname.clone()),
-            Change::UpdateRoute { hostname, .. } | Change::RemoveRoute { hostname, .. } => {
-                Some(hostname.clone())
-            }
+            Change::UpdateRoute { hostname, .. }
+            | Change::RemoveRoute { hostname, .. }
+            | Change::ProtectHostname { hostname, .. } => Some(hostname.clone()),
             _ => None,
         }
     }
@@ -538,6 +542,98 @@ impl Backend for FakeBackend {
         let before = state.shares.len();
         state.shares.retain(|s| !s.mine);
         ready(before - state.shares.len())
+    }
+
+    fn protection<'a>(
+        &'a self,
+        _account: &'a str,
+        hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::protection::ProtectionView>> {
+        use teitunnel_core::{engine::edge::ZonePlan, protection::ProtectionView};
+        ready(Ok(ProtectionView {
+            hostname: hostname.into(),
+            zone: "xyz.com".into(),
+            plan: ZonePlan::Pro,
+            protection: self.lock().protection.clone(),
+            quotas: Vec::new(),
+            rate_limit_available: true,
+            longest_period: 60,
+            shares_rate_limit_with: Vec::new(),
+        }))
+    }
+
+    fn service_tokens<'a>(
+        &'a self,
+        _account: &'a str,
+        _hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::protection::ServiceTokenView>>> {
+        ready(Ok(self.lock().tokens.clone()))
+    }
+
+    fn preview_protection<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::protection::ProtectionChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        ready(Ok(PlanView {
+            steps: vec![StepView {
+                kind: StepKind::ServiceToken,
+                description: msg::raw(format!("Change tokens of {}", change.hostname())),
+                command: None,
+            }],
+            warnings: Vec::new(),
+            requires_confirmation: false,
+            fingerprint: format!("fp-token-{}", self.lock().tokens.len()),
+        }))
+    }
+
+    fn apply_protection<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::protection::ProtectionChange,
+        approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<(Outcome, Vec<teitunnel_core::engine::edge::IssuedToken>)>>
+    {
+        use teitunnel_core::protection::{ProtectionChange, ServiceTokenView};
+        Box::pin(async move {
+            let mut state = self.lock();
+            if approval.fingerprint != format!("fp-token-{}", state.tokens.len()) {
+                return Err(BackendError::message("stale"));
+            }
+            state.protection_applied.push(change.clone());
+            let mut issued = Vec::new();
+            match change {
+                ProtectionChange::CreateToken { label, .. } => {
+                    state.tokens.push(ServiceTokenView {
+                        id: "tok1".into(),
+                        label: label.clone(),
+                        client_id: "tok1.access".into(),
+                        expires_at: None,
+                        gone: false,
+                    });
+                    issued.push(teitunnel_core::engine::edge::IssuedToken {
+                        token_id: "tok1".into(),
+                        name: label.clone(),
+                        client_id: "tok1.access".into(),
+                        client_secret: teitunnel_core::Secret::new("0123456789abcdef".into()),
+                        expires_at: None,
+                    });
+                }
+                ProtectionChange::RevokeToken { token_id, .. } => {
+                    state.tokens.retain(|t| &t.id != token_id);
+                }
+                _ => {}
+            }
+            Ok((
+                Outcome::Applied {
+                    tunnel_id: None,
+                    verify: Vec::new(),
+                    connector_error: None,
+                },
+                issued,
+            ))
+        })
     }
 }
 
