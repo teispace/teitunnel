@@ -338,12 +338,22 @@ export const commands = {
 	 *  `on_progress`.
 	 */
 	snapshotsApply: (accountId: string, change: SnapshotChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("snapshots_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  The Integrations settings. */
+	integrationsGet: () => __TAURI_INVOKE<Integrations>("integrations_get"),
+	/**
+	 *  Turns the control connection or links on or off. Turning the connection off closes
+	 *  every open connection.
+	 */
+	integrationsSet: (patch: IntegrationsPatch) => __TAURI_INVOKE<Integrations>("integrations_set", { patch }),
+	/**  Stops always allowing a program: its next change is asked about again. */
+	integrationsRevoke: (name: string) => __TAURI_INVOKE<Integrations>("integrations_revoke", { name }),
 };
 
 /** Events */
 export const events = {
 	entityChanged: makeEvent<EntityChanged>("entity-changed"),
 	menuAction: makeEvent<MenuAction>("menu-action"),
+	openView: makeEvent<OpenView>("open-view"),
 };
 
 /* Types */
@@ -591,6 +601,16 @@ export type AppInfo = {
 	arch: string,
 	/**  Directory holding the database, logs and managed binaries. */
 	dataDir: string,
+};
+
+/**  A program the person always allows. */
+export type ApprovedClient = {
+	/**  The name it introduced itself with (`teitunnel-cli`, `vscode`, …). */
+	name: string,
+	/**  Its version when it was allowed. */
+	version: string,
+	/**  When (milliseconds since the epoch). */
+	approvedAt: number,
 };
 
 /**  A message argument: a number (formatted for the language) or text. */
@@ -1441,6 +1461,24 @@ total: number } |
 /**  Moving the binary into place. */
 { step: "installing" };
 
+/**  The Integrations settings. */
+export type Integrations = {
+	/**  The CLI, extensions and launchers may connect to the running app. */
+	controlEnabled: boolean,
+	/**  `teitunnel://` links are handled. */
+	deepLinksEnabled: boolean,
+	/**  Programs that make changes without asking each time, oldest first. */
+	clients: ApprovedClient[],
+};
+
+/**  A change to the switches. */
+export type IntegrationsPatch = {
+	/**  Turn the control connection on or off. */
+	controlEnabled?: boolean | null,
+	/**  Turn links on or off. */
+	deepLinksEnabled?: boolean | null,
+};
+
 /**  A detected problem. */
 export type Issue = Issue_Serialize | Issue_Deserialize;
 
@@ -1633,6 +1671,12 @@ export type NetworkView = {
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
 	owned: boolean,
+};
+
+/**  Emitted when the window should show a view. */
+export type OpenView = {
+	/**  The view. */
+	target: ViewTarget,
 };
 
 /**  Origin settings of a route. `None`/`false` means cloudflared's default. */
@@ -2735,6 +2779,25 @@ export type Verification = {
 	 */
 	eventStream: boolean,
 };
+
+/**  Where the main window should go (asked by the control connection or a link). */
+export type ViewTarget = 
+/**  The Overview. */
+{ view: "overview" } | 
+/**  A route's sheet. */
+{ view: "route"; 
+/**  Its hostname. */
+hostname: string } | 
+/**  Quick Share, optionally one share. */
+{ view: "share"; 
+/**  The share's id. */
+id: string | null } | 
+/**  A share's request inspector. */
+{ view: "inspector"; 
+/**  The share's id. */
+share: string } | 
+/**  The Doctor. */
+{ view: "doctor" };
 
 /**  Something the user should know before applying. */
 export type Warning = 

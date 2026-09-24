@@ -79,3 +79,40 @@ pub struct MenuAction {
     /// The chosen command.
     pub command: MenuCommand,
 }
+
+/// Where the main window should go (asked by the control connection or a link).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "view",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ViewTarget {
+    /// The Overview.
+    Overview,
+    /// A route's sheet.
+    Route {
+        /// Its hostname.
+        hostname: String,
+    },
+    /// Quick Share, optionally one share.
+    Share {
+        /// The share's id.
+        id: Option<String>,
+    },
+    /// A share's request inspector.
+    Inspector {
+        /// The share's id.
+        share: String,
+    },
+    /// The Doctor.
+    Doctor,
+}
+
+/// Emitted when the window should show a view.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenView {
+    /// The view.
+    pub target: ViewTarget,
+}
