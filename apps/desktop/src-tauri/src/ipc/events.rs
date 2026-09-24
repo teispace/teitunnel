@@ -20,6 +20,8 @@ pub enum EntityKind {
     Updates,
     /// Snapshots (id: the account).
     Snapshots,
+    /// The inspector's taps and settings (captures stream on `inspect_subscribe`).
+    Inspector,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

@@ -23,7 +23,6 @@ use crate::{
 /// Webhook senders Lens understands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Provider {
     /// `Stripe-Signature: t=…,v1=…` (HMAC-SHA256 of `t.body`).
     Stripe,
@@ -130,7 +129,6 @@ impl fmt::Debug for WebhookSecret {
 /// The outcome of a verification.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "result")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Verification {
     /// The signature matches and the timestamp (if any) is recent.
     Valid,
@@ -143,10 +141,8 @@ pub enum Verification {
     /// capture, or a replay without re-signing).
     Expired {
         /// The signed timestamp (Unix seconds).
-        #[cfg_attr(feature = "specta", specta(type = u32))]
         timestamp: u64,
         /// Its age in seconds (negative when in the future).
-        #[cfg_attr(feature = "specta", specta(type = i32))]
         age_secs: i64,
     },
     /// No known signature headers.

@@ -453,7 +453,7 @@ async fn verifies_webhooks_with_the_saved_secret() {
     settle(&inspector, 1).await;
     let id = inspector.list(&ExchangeQuery::default()).items[0].id;
     let check = inspector.detail(id, false).await.unwrap().webhook.unwrap();
-    assert_eq!(check.provider, webhook::Provider::GitHub);
+    assert_eq!(check.provider, WebhookSender::GitHub);
     assert!(!check.has_secret && check.verification.is_none());
     let scope = inspector.webhook_scope(&tap.id).unwrap();
     secrets::set_webhook_secret(
@@ -465,7 +465,7 @@ async fn verifies_webhooks_with_the_saved_secret() {
     .await
     .unwrap();
     let check = inspector.detail(id, false).await.unwrap().webhook.unwrap();
-    assert_eq!(check.verification, Some(webhook::Verification::Valid));
+    assert_eq!(check.verification, Some(WebhookVerdict::Valid));
     inspector.shutdown().await;
 }
 

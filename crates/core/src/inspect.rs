@@ -49,7 +49,8 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 pub use views::{
     ExchangeDetail, ExchangePage, ExchangeQuery, ExchangeRow, NetworkPreset, ProtectionInput,
-    ProtectionResult, ProtectionView, ReplayInput, TapPatch, TapScope, TapView, WebhookCheck,
+    ProtectionResult, ProtectionView, ReplayInput, TapPatch, TapScope, TapView, TrafficFormat,
+    WebhookCheck, WebhookSender, WebhookVerdict,
 };
 
 use crate::{
@@ -972,10 +973,10 @@ impl Inspector {
                 };
                 let now = crate::domain_shares::now_ms() / 1_000;
                 Some(WebhookCheck {
-                    provider,
+                    provider: provider.into(),
                     has_secret: secret.is_some(),
                     verification: secret.map(|secret| {
-                        webhook::verify_exchange(&exchange, &secret, Some(provider), now)
+                        webhook::verify_exchange(&exchange, &secret, Some(provider), now).into()
                     }),
                 })
             }

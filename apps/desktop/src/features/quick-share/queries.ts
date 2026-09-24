@@ -80,7 +80,7 @@ export function useStartShare() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ origin, stopAfterMinutes, hostHeader = AUTO }: StartShareInput) =>
-      call(commands.quickShareStart(origin, stopAfterMinutes, hostHeader)),
+      call(commands.quickShareStart(origin, stopAfterMinutes, hostHeader, null)),
     onSuccess: (share) =>
       queryClient.setQueryData<QuickShare[]>(quickSharesQuery.queryKey, (shares = []) => [
         share,

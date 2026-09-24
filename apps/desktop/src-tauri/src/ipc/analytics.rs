@@ -60,6 +60,13 @@ pub async fn analytics_route(
         hostname: self::hostname(&hostname)?,
         path: path.and_then(|p| teitunnel_core::analytics::path_prefix(&p)),
     };
+    // The inspector's numbers are exact when it's in front of the route.
+    let lens = teitunnel_core::inspect::analytics::LensSource::new(state.inspector.clone());
+    if let Ok(Some(stats)) =
+        teitunnel_core::analytics::AnalyticsSource::route_stats(&lens, &route, range).await
+    {
+        return Ok(stats);
+    }
     Ok(state
         .analytics
         .route(&state.accounts, &account_id, &route, range)

@@ -205,7 +205,6 @@ impl FolderConfig {
 /// Which `Host` header the upstream receives.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum HostHeader {
     /// The visitor's host, as cloudflared sent it (default; what the origin would see
     /// without Lens).

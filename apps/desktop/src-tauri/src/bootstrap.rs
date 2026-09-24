@@ -62,6 +62,19 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     let supervisor = Supervisor::new(registry, runtime);
     let binary = BinaryManager::new(Locator::from_env(data_dir.join("bin")));
     let (secrets, accounts, edge) = services(&store);
+    let inspector = teitunnel_core::inspect::Inspector::new(
+        Some(store.clone()),
+        Some(secrets.clone()),
+        teitunnel_core::domain_shares::APP_OWNER,
+    );
+    {
+        let inspector = inspector.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = inspector.load().await {
+                tracing::warn!(%err, "couldn't read the inspector's settings and history");
+            }
+        });
+    }
     let quick_shares = QuickShares::new(
         supervisor.clone(),
         binary.clone(),
@@ -69,8 +82,12 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         store.clone(),
         data_dir.join("quick-share.yml"),
     )
-    .with_edge(edge);
+    .with_edge(edge)
+    .with_inspector(inspector.clone());
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
+    tauri::async_runtime::spawn(quick_shares.clone().watch_idle());
+    watch_inspector(app.clone(), &inspector);
+    watch_inspected_routes(app.clone());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
     let local = Local::new(store.clone());
@@ -127,7 +144,146 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         shutting_down: false.into(),
         analytics,
         monitor,
+        inspector,
+        inspect_live: std::sync::Mutex::default(),
     })
+}
+
+/// Tells the webview when taps change, notifies about requests to watched paths, and
+/// stops shares on your domain that were idle for their limit (Quick Shares stop in
+/// `QuickShares::watch_idle`).
+fn watch_inspector<R: Runtime>(app: AppHandle<R>, inspector: &teitunnel_core::inspect::Inspector) {
+    use teitunnel_core::inspect::{InspectEvent, TapScope};
+    let mut events = inspector.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            };
+            match event {
+                InspectEvent::Taps => {
+                    let _ = EntityChanged {
+                        kind: EntityKind::Inspector,
+                        id: None,
+                    }
+                    .emit(&app);
+                }
+                InspectEvent::Watched {
+                    name, method, path, ..
+                } => notify(
+                    &app,
+                    &n::watched_path(&path),
+                    &n::watched_path_body(&method, &path, &name),
+                ),
+                InspectEvent::Idle {
+                    scope,
+                    name,
+                    minutes,
+                    ..
+                } => {
+                    if let TapScope::Route {
+                        account_id,
+                        hostname,
+                        path: None,
+                    } = &scope
+                        && let Some(state) = app.try_state::<AppState>()
+                    {
+                        let shared = state
+                            .engine
+                            .local()
+                            .shares(Some(account_id))
+                            .await
+                            .unwrap_or_default()
+                            .iter()
+                            .any(|s| s.hostname.eq_ignore_ascii_case(hostname));
+                        if !shared {
+                            continue;
+                        }
+                        if let Ok(api) = state.accounts.client(account_id).await {
+                            let ctx = teitunnel_core::engine::Context {
+                                account: account_id,
+                                machine_name: &state.machine_name,
+                                tunnel: None,
+                            };
+                            let _ = teitunnel_core::domain_shares::stop(
+                                &state.engine,
+                                &api,
+                                &state.machine,
+                                ctx,
+                                hostname,
+                            )
+                            .await;
+                            if let Some(tap) = state.inspector.tap_for(&scope) {
+                                state.inspector.stop(&tap).await;
+                            }
+                        }
+                        let _ = EntityChanged {
+                            kind: EntityKind::QuickShares,
+                            id: None,
+                        }
+                        .emit(&app);
+                    }
+                    notify(
+                        &app,
+                        &n::idle_stopped(),
+                        &n::idle_stopped_body(u64::from(minutes), &name),
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// Ends inspections of routes that are over: on launch also the app's own from its last
+/// run (they end when it quits; this catches a crash), then every 30 s those of CLI
+/// processes that exited.
+fn watch_inspected_routes<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{domain_shares::APP_OWNER, inspect::routes};
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        let mut launch = true;
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let from_last_run = std::mem::take(&mut launch);
+            let before = routes::list(&state.store, None).await.unwrap_or_default();
+            if before.is_empty() {
+                continue;
+            }
+            routes::sweep(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.machine_name,
+                Some(&state.inspector),
+                // The app's own rows from before this launch point at a Lens that's gone.
+                |route| {
+                    route.is_over()
+                        || (from_last_run
+                            && route.owner == APP_OWNER
+                            && state
+                                .inspector
+                                .tap_for(&teitunnel_core::inspect::TapScope::route(
+                                    &route.account_id,
+                                    &route.hostname,
+                                    route.path.as_deref(),
+                                ))
+                                .is_none())
+                },
+            )
+            .await;
+            let after = routes::list(&state.store, None).await.unwrap_or_default();
+            if after.len() != before.len() {
+                for kind in [EntityKind::Routes, EntityKind::Inspector] {
+                    let _ = EntityChanged { kind, id: None }.emit(&app);
+                }
+            }
+        }
+    });
 }
 
 /// Where Always-on connectors run: launchd on macOS, systemd user units on Linux (when
@@ -718,6 +874,17 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
         let stop = async {
             if let Some(state) = app.try_state::<AppState>() {
                 use teitunnel_core::domain_shares::{self, APP_OWNER};
+                // Routes pointed at this app's inspector go back to their own service
+                // first (Lens ends with the app; an Always-on connector keeps running).
+                teitunnel_core::inspect::routes::sweep(
+                    &state.accounts,
+                    &state.engine,
+                    &state.machine,
+                    &state.machine_name,
+                    Some(&state.inspector),
+                    |route| route.owner == APP_OWNER,
+                )
+                .await;
                 domain_shares::sweep(
                     &state.accounts,
                     &state.engine,
@@ -731,6 +898,7 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
             supervisor.stop_all().await;
             if let Some(state) = app.try_state::<AppState>() {
                 state.monitor.release().await;
+                state.inspector.shutdown().await;
             }
         };
         if tokio::time::timeout(SHUTDOWN_DEADLINE, stop).await.is_err() {

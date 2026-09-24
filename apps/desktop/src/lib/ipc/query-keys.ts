@@ -67,6 +67,9 @@ export const queryKeys = {
   updates: {
     status: () => ["updates", "status"] as const,
   },
+  inspector: {
+    all: () => ["inspector"] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -94,6 +97,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.updates.status()];
     case "snapshots":
       return [queryKeys.snapshots.all()];
+    case "inspector":
+      return [queryKeys.inspector.all()];
   }
 }
 

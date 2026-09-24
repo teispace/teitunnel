@@ -50,4 +50,9 @@ pub struct AppState {
     pub snapshots: teitunnel_core::snapshot::Preparations,
     /// Where crawled sites are captured before publishing.
     pub snapshot_dir: std::path::PathBuf,
+    /// The inspector (Lens) in front of Quick Shares and inspected routes.
+    pub inspector: teitunnel_core::inspect::Inspector,
+    /// Live inspector subscriptions of the webview, by id (cancelled to stop).
+    pub inspect_live:
+        std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,
 }

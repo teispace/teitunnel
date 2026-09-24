@@ -90,6 +90,7 @@ let shares: QuickShare[] = [
     status: { status: "live" },
     startedAt: now - 12 * 60_000,
     stopAt: now + 48 * 60_000,
+    inspected: true,
     hostHeader: { value: "localhost:5173", autoFor: "vite" },
     check: {
       hostname: "quiet-river-lamp-orbit.trycloudflare.com",
@@ -107,6 +108,7 @@ let shares: QuickShare[] = [
     status: { status: "live" },
     startedAt: now - 2 * 60_000,
     stopAt: null,
+    inspected: true,
     hostHeader: null,
     check: {
       hostname: "amber-field-cloud-note.trycloudflare.com",
@@ -134,6 +136,7 @@ let shares: QuickShare[] = [
     status: { status: "starting" },
     startedAt: now - 3_000,
     stopAt: null,
+    inspected: true,
     hostHeader: null,
     check: null,
   },
@@ -675,6 +678,7 @@ export function installMockIpc(): void {
             status: { status: "starting" },
             startedAt: Date.now(),
             stopAt: null,
+            inspected: true,
             hostHeader: null,
             check: null,
           };

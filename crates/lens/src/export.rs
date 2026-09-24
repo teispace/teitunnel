@@ -20,7 +20,6 @@ const MARKDOWN_BODY_LIMIT: usize = 64 * 1024;
 /// Export formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ExportFormat {
     /// A `curl` command.
     Curl,

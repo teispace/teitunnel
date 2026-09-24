@@ -8,6 +8,151 @@ use lens::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Webhook senders the inspector recognises (Lens's [`webhook::Provider`], named for
+/// the IPC types).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub enum WebhookSender {
+    /// Stripe.
+    Stripe,
+    /// GitHub.
+    GitHub,
+    /// Slack.
+    Slack,
+    /// Shopify.
+    Shopify,
+    /// Standard Webhooks / Svix (Clerk, Resend…).
+    StandardWebhooks,
+    /// Twilio.
+    Twilio,
+    /// Linear.
+    Linear,
+    /// Discord.
+    Discord,
+}
+
+impl From<webhook::Provider> for WebhookSender {
+    fn from(provider: webhook::Provider) -> Self {
+        use webhook::Provider as P;
+        match provider {
+            P::Stripe => Self::Stripe,
+            P::GitHub => Self::GitHub,
+            P::Slack => Self::Slack,
+            P::Shopify => Self::Shopify,
+            P::StandardWebhooks => Self::StandardWebhooks,
+            P::Twilio => Self::Twilio,
+            P::Linear => Self::Linear,
+            P::Discord => Self::Discord,
+        }
+    }
+}
+
+impl From<WebhookSender> for webhook::Provider {
+    fn from(sender: WebhookSender) -> Self {
+        use WebhookSender as S;
+        match sender {
+            S::Stripe => Self::Stripe,
+            S::GitHub => Self::GitHub,
+            S::Slack => Self::Slack,
+            S::Shopify => Self::Shopify,
+            S::StandardWebhooks => Self::StandardWebhooks,
+            S::Twilio => Self::Twilio,
+            S::Linear => Self::Linear,
+            S::Discord => Self::Discord,
+        }
+    }
+}
+
+/// A webhook signature check's result (Lens's [`webhook::Verification`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(
+    tag = "result",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum WebhookVerdict {
+    /// The signature matches and the timestamp (if any) is recent.
+    Valid,
+    /// The signature doesn't match, or headers are missing.
+    Invalid {
+        /// Why (English, technical).
+        reason: String,
+    },
+    /// The signature matches but the timestamp is too old (or in the future).
+    Expired {
+        /// The signed time (Unix seconds).
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        timestamp: u64,
+        /// Its age in seconds.
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        age_secs: i64,
+    },
+    /// Not a known signature.
+    UnknownProvider,
+    /// The body wasn't captured in full.
+    NotEnoughData {
+        /// Why.
+        reason: String,
+    },
+}
+
+impl From<webhook::Verification> for WebhookVerdict {
+    fn from(verification: webhook::Verification) -> Self {
+        use webhook::Verification as V;
+        match verification {
+            V::Valid => Self::Valid,
+            V::Invalid { reason } => Self::Invalid { reason },
+            V::Expired {
+                timestamp,
+                age_secs,
+            } => Self::Expired {
+                timestamp,
+                age_secs,
+            },
+            V::UnknownProvider => Self::UnknownProvider,
+            V::NotEnoughData { reason } => Self::NotEnoughData { reason },
+        }
+    }
+}
+
+/// Export formats for captured requests (Lens's `export::ExportFormat`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub enum TrafficFormat {
+    /// A `curl` command.
+    Curl,
+    /// An HTTPie command.
+    Httpie,
+    /// A JavaScript `fetch` call.
+    Fetch,
+    /// Raw HTTP/1.1.
+    Raw,
+    /// HAR 1.2.
+    Har,
+    /// JSON.
+    Json,
+    /// Markdown (issues, agents).
+    Markdown,
+}
+
+impl From<TrafficFormat> for lens::export::ExportFormat {
+    fn from(format: TrafficFormat) -> Self {
+        use TrafficFormat as F;
+        match format {
+            F::Curl => Self::Curl,
+            F::Httpie => Self::Httpie,
+            F::Fetch => Self::Fetch,
+            F::Raw => Self::Raw,
+            F::Har => Self::Har,
+            F::Json => Self::Json,
+            F::Markdown => Self::Markdown,
+        }
+    }
+}
+
 /// What a tap inspects.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -167,7 +312,7 @@ pub struct ExchangeRow {
     /// `Content-Type` of the response.
     pub content_type: Option<String>,
     /// A recognised webhook sender.
-    pub webhook: Option<webhook::Provider>,
+    pub webhook: Option<WebhookSender>,
     /// Replays this exchange.
     pub replay_of: Option<ExchangeId>,
     /// Answered by the inspector (a stub, a gate, the paused page, a fault) rather than
@@ -210,7 +355,7 @@ impl ExchangeRow {
                     .and_then(|v| v.to_str().ok())
                     .map(str::to_owned)
             }),
-            webhook: webhook::detect(&request.headers),
+            webhook: webhook::detect(&request.headers).map(WebhookSender::from),
             replay_of: exchange.replay_of,
             answered_locally: !matches!(
                 exchange.responder,
@@ -317,11 +462,11 @@ impl ExchangeQuery {
 #[serde(rename_all = "camelCase")]
 pub struct WebhookCheck {
     /// Who sent it.
-    pub provider: webhook::Provider,
+    pub provider: WebhookSender,
     /// Whether a signing secret is saved for this share or route.
     pub has_secret: bool,
     /// The result, when a secret is saved.
-    pub verification: Option<webhook::Verification>,
+    pub verification: Option<WebhookVerdict>,
 }
 
 /// One exchange in full.

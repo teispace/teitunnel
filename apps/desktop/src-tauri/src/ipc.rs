@@ -15,6 +15,7 @@ pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
 mod events;
+mod inspect;
 mod quick_share;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
@@ -132,7 +133,30 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             snapshots::snapshots_prepare_build,
             snapshots::snapshots_prepare_crawl,
             snapshots::snapshots_preview,
-            snapshots::snapshots_apply
+            snapshots::snapshots_apply,
+            inspect::inspect_settings_get,
+            inspect::inspect_settings_set,
+            inspect::inspect_taps,
+            inspect::inspect_known_taps,
+            inspect::inspect_exchanges,
+            inspect::inspect_exchange,
+            inspect::inspect_subscribe,
+            inspect::inspect_unsubscribe,
+            inspect::inspect_replay,
+            inspect::inspect_export,
+            inspect::inspect_export_save,
+            inspect::inspect_clear,
+            inspect::inspect_configure,
+            inspect::inspect_protect,
+            inspect::inspect_metrics,
+            inspect::inspect_webhook_secrets,
+            inspect::inspect_webhook_secret_set,
+            inspect::inspect_webhook_secret_remove,
+            inspect::inspect_webhook_verify,
+            inspect::inspect_routes,
+            inspect::inspect_route_preview,
+            inspect::inspect_route_apply,
+            quick_share::quick_share_set_inspected
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }
