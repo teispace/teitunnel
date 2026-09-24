@@ -44,6 +44,12 @@ further down, and every file is also on the [download page](/download/).
 
     Teitunnel lives in the menu bar as well as the Dock, and keeps credentials in your
     keychain.
+
+    Prefer Homebrew? The same signed app, with `teitunnel-cli` on your `PATH`:
+
+    ```sh
+    brew install --cask teispace/tap/teitunnel
+    ```
   </Tab>
   <Tab value="Windows">
     <Downloads os="windows" />
@@ -113,6 +119,12 @@ further down, and every file is also on the [download page](/download/).
     teitunnel-cli --version
     ```
 
+    With Homebrew, on macOS or Linux (it installs `cloudflared` too, and shell completions):
+
+    ```sh
+    brew install teispace/tap/teitunnel-cli
+    ```
+
     Then follow [Servers and containers](/docs/guides/servers). If you have the desktop app,
     **Settings ▸ General ▸ Command line ▸ Install** puts the same CLI on your `PATH`.
   </Tab>
@@ -125,10 +137,13 @@ further down, and every file is also on the [download page](/download/).
       -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
     ```
 
-    <Callout>
-      The image is published to `ghcr.io` from a release after the first beta. Until then,
-      build it from the repository: `docker build -f docker/Dockerfile -t teitunnel .`
-    </Callout>
+    It's built for `linux/amd64` and `linux/arm64` from each release's own `teitunnel-cli`,
+    and tagged with the version (`0.1.0`), the minor version (`0.1`) and `latest`. To check
+    that an image came from this repository's release workflow:
+
+    ```sh
+    gh attestation verify oci://ghcr.io/teispace/teitunnel:latest --repo teispace/teitunnel
+    ```
 
     See [Docker Compose stacks](/docs/tutorials/docker-compose) and
     [Servers and containers](/docs/guides/servers#docker).

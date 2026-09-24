@@ -16,7 +16,9 @@ How releases work (D-074) and the one-time setup they need. The workflow is
    - signs and notarizes the Mac app and disk image, signs every update, writes
      `latest.json`, `SHA256SUMS.txt` and build provenance;
    - attaches everything and **publishes** the release (only then do the updater and the
-     website see it), then rebuilds the website.
+     website see it), then rebuilds the website;
+   - publishes the Docker image (`image.yml`) and submits the new version to winget.
+   Within three hours the Homebrew tap picks it up by itself (see Channels).
 4. A hand-written `docs/release-notes/vx.y.z.md` replaces the generated notes when present.
 
 **Dry run:** Actions ▸ Release ▸ Run workflow (on `main`) builds and signs everything and
@@ -33,6 +35,15 @@ Commits that only touch `apps/web/` or `docs/` never cause a release (`exclude-p
 website deploys on its own when it changes, and an app release with no app changes would only
 send users an update that does nothing.
 
+## Channels
+
+| Channel | How it follows releases |
+|---|---|
+| [Download page](https://teitunnel.teispace.com/download/) and GitHub Releases | Rebuilt by the release workflow. |
+| Docker `ghcr.io/teispace/teitunnel` (`linux/amd64`, `linux/arm64`) | `image.yml`, started after publishing: built from the release's own `teitunnel-cli` once its checksums and provenance check out, tagged `x.y.z`, `x.y` and `latest`, with an SBOM and its own provenance. Run it by hand (tag `vx.y.z`) to republish. |
+| Homebrew [`teispace/homebrew-tap`](https://github.com/teispace/homebrew-tap): cask `teitunnel`, formula `teitunnel-cli` | The tap's `teitunnel.yml` checks every three hours, takes the checksums from the release's `SHA256SUMS.txt` after verifying its provenance, installs and tests on macOS and Linux, then pushes. No secret needed. GitHub pauses scheduled workflows in a repository with no commits for 60 days: if that happens, re-enable it under the tap's Actions tab (a release commit keeps it alive). The tap is shared by Teispace apps: each app has its own `scripts/<app>.mjs` and `.github/workflows/<app>.yml`. |
+| winget `Teispace.Teitunnel` | The first version is submitted by hand (step 7). After it's accepted, the release workflow's `winget` job submits each new version with Komac, using `WINGET_TOKEN`. |
+
 ## Setup status
 
 | Step | State |
@@ -43,6 +54,8 @@ send users an update that does nothing.
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
+| Channels: ghcr.io image, Homebrew tap | Done 2026-09-24 (the image package's visibility must be **Public** in the organization's Packages settings once, after the first push) |
+| winget | First submission: step 7; then `WINGET_TOKEN` |
 | SignPath Foundation for Windows | Applied 2026-09-24 (step 6); the review usually takes one to two weeks and the reply goes to info@teispace.com. Windows builds stay unsigned until accepted. |
 
 ## One-time setup (maintainer)
@@ -140,3 +153,22 @@ the repository in SignPath, add the signing step where `release.yml` marks it (b
 updater signatures, so updates carry the signed installer), set product name and version
 restrictions in the artifact configuration, and change the Windows line on the code signing
 policy page from pending to signed.
+
+### 7. winget
+
+The first version of `Teispace.Teitunnel` is a pull request to
+[microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) with the three manifests
+(version, installer, `en-US` locale; the installer is per-user NSIS, `ProductCode`
+`Teitunnel`). Microsoft's bots validate it and a moderator merges it, usually within a few
+days. Unsigned installers are accepted; SmartScreen still warns until SignPath signing.
+
+After it's merged, for automatic updates: create a **classic** personal access token with
+only the `public_repo` scope (Komac forks winget-pkgs into that account and opens the pull
+request from there), then
+
+```sh
+gh secret set WINGET_TOKEN --env release
+```
+
+Without the secret the release workflow skips winget with a warning.
+

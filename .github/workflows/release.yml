@@ -4,7 +4,8 @@ name: Release
 #   push to main → release-please keeps a "chore: release x.y.z" PR (version bump +
 #   CHANGELOG). Merging it creates the tag and a DRAFT release, builds every platform,
 #   signs, and publishes the release only once every file is attached, so the updater
-#   and the website never see half a release.
+#   and the website never see half a release. Then image.yml publishes the Docker image
+#   from the release's binaries.
 #   Run it by hand (Actions ▸ Release ▸ Run workflow) for a dry run: everything is built
 #   and signed as far as the secrets allow, and kept as a workflow artifact. Pull
 #   requests that change the release setup get the same dry run, without secrets.
@@ -329,6 +330,38 @@ jobs:
           test -f dist/latest.json || { echo "::error::no latest.json"; exit 1; }
           gh release upload "$TAG" dist/* --clobber
           gh release edit "$TAG" --title "Teitunnel $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --draft=false --latest
-      - name: Rebuild the website with the new downloads
+      - name: Rebuild the website, publish the Docker image
         if: env.TAG != ''
-        run: gh workflow run docs.yml --ref main
+        run: |
+          gh workflow run docs.yml --ref main
+          gh workflow run image.yml --ref main -f tag="$TAG"
+
+  winget:
+    name: winget
+    needs: [release-please, publish]
+    if: needs.release-please.outputs.created == 'true'
+    environment: release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.release-please.outputs.tag }}
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+    steps:
+      # Opens the pull request for the new version in microsoft/winget-pkgs (Komac reads the
+      # installers and carries over the rest of the manifest). Needs WINGET_TOKEN, a classic
+      # token with public_repo from a maintainer (RELEASING.md step 7).
+      - name: Submit the new version to winget
+        run: |
+          if [ -z "$WINGET_TOKEN" ]; then
+            echo "::warning::No WINGET_TOKEN: submit Teispace.Teitunnel $TAG to winget by hand."
+            exit 0
+          fi
+          curl -fsSL -o "$RUNNER_TEMP/komac.tar.gz" \
+            https://github.com/russellbanks/Komac/releases/download/v2.16.0/komac-2.16.0-x86_64-unknown-linux-gnu.tar.gz
+          echo "7d2707fa6210f2789a3702de49fbd150b736dbf426ee0b9bc8e098736f9fd82d  $RUNNER_TEMP/komac.tar.gz" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/komac" && tar -xzf "$RUNNER_TEMP/komac.tar.gz" -C "$RUNNER_TEMP/komac"
+          komac=$(find "$RUNNER_TEMP/komac" -type f -name komac | head -1)
+          v=${TAG#v}
+          base="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          GITHUB_TOKEN="$WINGET_TOKEN" "$komac" update Teispace.Teitunnel --version "$v" \
+            --urls "$base/Teitunnel_${v}_x64-setup.exe" "$base/Teitunnel_${v}_arm64-setup.exe" \
+            --submit

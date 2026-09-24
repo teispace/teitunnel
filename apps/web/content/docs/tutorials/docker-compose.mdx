@@ -36,11 +36,6 @@ Put your Cloudflare API token in `./cloudflare_api_token` (and in `.gitignore`).
 the Cloudflare dashboard with **Account · Cloudflare Tunnel · Edit**, **Zone · DNS · Edit**
 and **Zone · Zone · Read**; see [accounts and permissions](/docs/guides/accounts#what-the-token-needs).
 
-<Callout>
-The image is published to `ghcr.io` from a release after the first beta. Until then, build it
-from the repository: `docker build -f docker/Dockerfile -t ghcr.io/teispace/teitunnel .`
-</Callout>
-
 ## Add routes
 
 Start the stack, then add a route per service, pointing at the **service name** and its

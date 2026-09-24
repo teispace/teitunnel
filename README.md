@@ -28,7 +28,15 @@
 
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/teispace/teitunnel/releases), drag Teitunnel to Applications, and open it. Developer previews aren't notarized yet: the first time, right-click the app and choose **Open**.
+Get the app for macOS, Windows or Linux from the [download page](https://teitunnel.teispace.com/download/), or:
+
+```sh
+brew install --cask teispace/tap/teitunnel         # macOS app (signed and notarized)
+brew install teispace/tap/teitunnel-cli            # the CLI only, macOS or Linux
+docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
+```
+
+Every file is also on [GitHub Releases](https://github.com/teispace/teitunnel/releases), with checksums and build provenance ([verify a download](https://teitunnel.teispace.com/docs/reference/verify/)).
 
 Teitunnel uses [cloudflared](https://github.com/cloudflare/cloudflared). If you don't have it, Teitunnel installs Cloudflare's official release for you (verified against the published checksum and Cloudflare's code signature).
 

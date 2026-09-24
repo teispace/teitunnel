@@ -5,12 +5,17 @@
 # (CLOUDFLARE_API_TOKEN_FILE); it's never written to the volume. State (which tunnels
 # this container runs, the plan engine's records) lives in /data: keep it on a volume.
 #
-# Build: docker build -f docker/Dockerfile -t teitunnel .
+# Build from source: docker build -f docker/Dockerfile -t teitunnel .
+# Releases (ghcr.io/teispace/teitunnel, .github/workflows/image.yml) use the release's
+# own verified binaries instead of compiling again: --build-arg CLI=prebuilt, with a
+# context holding linux-amd64/teitunnel-cli, linux-arm64/teitunnel-cli and an empty data/.
 
 ARG RUST_VERSION=1.98
 ARG CLOUDFLARED_VERSION=2026.9.1
+# Where teitunnel-cli comes from: `source` or `prebuilt`.
+ARG CLI=source
 
-FROM rust:${RUST_VERSION}-bookworm AS build
+FROM rust:${RUST_VERSION}-bookworm AS source
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -19,14 +24,21 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     && cp target/release/teitunnel-cli /teitunnel-cli \
     && mkdir -p /data
 
+FROM scratch AS prebuilt
+ARG TARGETARCH
+COPY --chmod=0755 linux-${TARGETARCH}/teitunnel-cli /teitunnel-cli
+COPY data /data
+
+FROM ${CLI} AS cli
+
 # Cloudflare's own image, signed and published with each release.
 FROM cloudflare/cloudflared:${CLOUDFLARED_VERSION} AS cloudflared
 
 FROM gcr.io/distroless/cc-debian12:nonroot
-COPY --from=build /teitunnel-cli /usr/local/bin/teitunnel-cli
+COPY --from=cli /teitunnel-cli /usr/local/bin/teitunnel-cli
 COPY --from=cloudflared /usr/local/bin/cloudflared /usr/local/bin/cloudflared
 # Owned by `nonroot` (65532), so a fresh volume mounted here is writable.
-COPY --from=build --chown=65532:65532 /data /data
+COPY --from=cli --chown=65532:65532 /data /data
 ENV TEITUNNEL_DATA_DIR=/data \
     TEITUNNEL_CLOUDFLARED=/usr/local/bin/cloudflared
 VOLUME ["/data"]

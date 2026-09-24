@@ -55,6 +55,9 @@ docker run -d --name teitunnel --restart unless-stopped \
   -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app ghcr.io/teispace/teitunnel
 ```
 
+The image is multi-arch (`linux/amd64`, `linux/arm64`); pin a version (`:0.1.0`) or follow
+a minor release (`:0.1`) instead of `latest` if you want to choose when it changes.
+
 Routes point at other containers by name (`http://web:80`) when they share a network.
 The container's health check is `teitunnel-cli routes --check`, which fails unless every
 route is live.

@@ -188,17 +188,19 @@ function PanelView({ panel }: { panel: Panel }) {
             </ol>
           </section>
         ) : null}
-        {panel.command ? (
+        {panel.commands.length > 0 ? (
           <section aria-label="From a terminal">
             <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-fd-muted-foreground">
-              {panel.id === "cli" ? "Install on Linux" : "Or from a terminal"}
+              {panel.id === "cli" ? "From a terminal" : "Or from a terminal"}
             </h3>
-            <CopyCommand command={panel.command} />
-            {panel.id === "cli" ? (
-              <div className="mt-2">
-                <CopyCommand command="docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel" />
-              </div>
-            ) : null}
+            <div className="space-y-3">
+              {panel.commands.map(({ label, command }) => (
+                <div key={label}>
+                  <p className="mb-1.5 text-xs text-fd-muted-foreground">{label}</p>
+                  <CopyCommand command={command} />
+                </div>
+              ))}
+            </div>
           </section>
         ) : null}
       </div>

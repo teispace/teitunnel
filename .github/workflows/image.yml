@@ -1,0 +1,147 @@
+name: Image
+
+# Publishes ghcr.io/teispace/teitunnel (linux/amd64, linux/arm64) for a release, built
+# from that release's own teitunnel-cli binaries after checking their checksums and build
+# provenance, so the image runs exactly what the release ships (D-084). Tags: 0.1.0, 0.1,
+# and latest when it's the latest release.
+#
+# release.yml starts it after publishing a release. Run it by hand (Actions ▸ Image ▸ Run
+# workflow, tag v0.1.0) to publish or republish a release's image. Pull requests that
+# change the image build it from the latest release without pushing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.1.0
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/image.yml
+      - docker/Dockerfile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  image:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PUSH: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The release's binaries, verified
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          latest=$(gh release view --json tagName -q .tagName)
+          tag=${INPUT_TAG:-$latest}
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Not a release tag: $tag"; exit 1
+          fi
+          gh release download "$tag" -D rel -p 'teitunnel-cli_*_linux-*.tar.gz' -p SHA256SUMS.txt
+          (cd rel && sha256sum --check --ignore-missing --strict SHA256SUMS.txt)
+          for f in rel/*.tar.gz; do
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+          done
+          mkdir -p ctx/data
+          for arch in x64:amd64 arm64:arm64; do
+            mkdir -p "ctx/linux-${arch#*:}"
+            tar -xzf rel/teitunnel-cli_*_linux-"${arch%:*}".tar.gz -C "ctx/linux-${arch#*:}" teitunnel-cli
+          done
+          {
+            echo "tag=$tag"
+            echo "latest=$([ "$tag" = "$latest" ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.release.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.tag }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.latest }}
+          labels: |
+            org.opencontainers.image.title=Teitunnel
+            org.opencontainers.image.description=teitunnel-cli and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
+            org.opencontainers.image.url=https://teitunnel.teispace.com/docs/guides/servers/
+            org.opencontainers.image.documentation=https://teitunnel.teispace.com/docs/tutorials/docker-compose/
+            org.opencontainers.image.vendor=Teispace
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            org.opencontainers.image.description=teitunnel-cli and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build for this runner
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ctx
+          file: docker/Dockerfile
+          build-args: CLI=prebuilt
+          platforms: linux/amd64
+          tags: teitunnel:test
+          load: true
+      - name: Smoke test
+        run: |
+          version=${{ steps.release.outputs.tag }}
+          docker run --rm teitunnel:test --version | tee /dev/stderr | grep -qx "teitunnel-cli ${version#v}"
+          docker run --rm --entrypoint /usr/local/bin/cloudflared teitunnel:test --version
+          docker run --rm teitunnel:test routes 2>&1 | grep -q CLOUDFLARE_API_TOKEN
+
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build both platforms (pushed when publishing)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ctx
+          file: docker/Dockerfile
+          build-args: CLI=prebuilt
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          push: ${{ env.PUSH == 'true' }}
+          provenance: mode=max
+          sbom: true
+      - name: Build provenance
+        if: env.PUSH == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Summary
+        if: env.PUSH == 'true'
+        run: |
+          {
+            echo "### ${IMAGE}"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo "digest ${{ steps.build.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

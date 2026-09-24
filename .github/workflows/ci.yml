@@ -81,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      - name: Build (not pushed; publishing comes with the release work)
+      - name: Build from source (not pushed; releases publish image.yml's image)
         uses: docker/build-push-action@v7
         with:
           context: .
