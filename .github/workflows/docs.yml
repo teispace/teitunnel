@@ -6,10 +6,10 @@ name: Docs
 # repository variable DEPLOY_DOCS to "true" (D-053).
 on:
   pull_request:
-    paths: ["apps/web/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+    paths: ["apps/web/**", ".github/workflows/docs.yml", "scripts/release/linux-repo.sh", "pnpm-lock.yaml"]
   push:
     branches: [main]
-    paths: ["apps/web/**", ".github/workflows/docs.yml", "pnpm-lock.yaml"]
+    paths: ["apps/web/**", ".github/workflows/docs.yml", "scripts/release/linux-repo.sh", "pnpm-lock.yaml"]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,8 @@ jobs:
   build:
     name: Build docs
     runs-on: ubuntu-latest
+    # On main, the release environment holds the Linux repository signing key.
+    environment: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true' && 'release' || '' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -38,6 +40,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_RELEASE: ${{ github.event_name == 'workflow_dispatch' }}
+      # apt and dnf repositories at /linux/ (D-086) with the two latest releases, each
+      # package checked against its release's checksums and build provenance first.
+      - name: Linux package repositories
+        if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINUX_REPO_GPG_KEY: ${{ secrets.LINUX_REPO_GPG_KEY }}
+        run: |
+          if [ -z "$LINUX_REPO_GPG_KEY" ]; then
+            echo "::warning::No LINUX_REPO_GPG_KEY: the site has no apt/dnf repositories."
+            exit 0
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c rpm >/dev/null
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          printf '%s\n' "$LINUX_REPO_GPG_KEY" | gpg --batch --quiet --import
+          pkgs="$RUNNER_TEMP/packages"
+          mkdir -p "$pkgs"
+          for tag in $(gh release list --exclude-drafts --exclude-pre-releases --limit 2 \
+            --json tagName -q '.[].tagName'); do
+            dir="$RUNNER_TEMP/release-$tag"
+            gh release download "$tag" -D "$dir" -p '*.deb' -p '*.rpm' -p SHA256SUMS.txt
+            (cd "$dir" && sha256sum --check --ignore-missing --strict --quiet SHA256SUMS.txt)
+            for f in "$dir"/*.deb "$dir"/*.rpm; do
+              gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" >/dev/null
+              cp "$f" "$pkgs/"
+            done
+          done
+          scripts/release/linux-repo.sh "$pkgs" apps/web/out/linux https://teitunnel.teispace.com/linux
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'
         with:

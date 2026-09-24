@@ -42,3 +42,8 @@ Verified 2026-09-23 unless noted. Decision: D-074.
   from `GITHUB_TOKEN`.
 - **Next.js 16.3 `next dev`** writes `AGENTS.md`/`CLAUDE.md` into the app folder only when it
   detects a coding agent (`ensureAgentRulesForDev`); they aren't part of the project.
+- **Linux packages (0.1.0):** both the `.deb` and the `.rpm` are named `teitunnel` (Tauri
+  lower-cases the product name), versions `0.1.0` and `0.1.0-1`. Ubuntu 24.04 has
+  `apt-utils`, `createrepo-c` and `rpm` (with `rpmsign`) in its archive. Tested 2026-09-24:
+  a repository signed by `scripts/release/linux-repo.sh` is accepted by apt with `signed-by`
+  and by dnf 5 with `gpgcheck=1` and `repo_gpgcheck=1` (`rpm -K`: digests signatures OK).

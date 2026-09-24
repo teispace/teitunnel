@@ -80,6 +80,29 @@ further down, and every file is also on the [download page](/download/).
     Scheduler.
   </Tab>
   <Tab value="Linux">
+    The easiest way is Teitunnel's package repository: your system then installs updates
+    with everything else. Packages and the repository are signed with
+    [Teitunnel's key](/linux/teitunnel.asc).
+
+    ```sh
+    # Ubuntu, Debian, Linux Mint, Pop!_OS
+    curl -fsSL https://teitunnel.teispace.com/linux/teitunnel.asc \
+      | sudo gpg --dearmor -o /usr/share/keyrings/teitunnel.gpg
+    echo "deb [signed-by=/usr/share/keyrings/teitunnel.gpg] https://teitunnel.teispace.com/linux/deb stable main" \
+      | sudo tee /etc/apt/sources.list.d/teitunnel.list
+    sudo apt update && sudo apt install teitunnel
+
+    # Fedora, RHEL, Rocky, AlmaLinux
+    sudo curl -fsSLo /etc/yum.repos.d/teitunnel.repo https://teitunnel.teispace.com/linux/teitunnel.repo
+    sudo dnf install teitunnel
+
+    # openSUSE
+    sudo zypper addrepo https://teitunnel.teispace.com/linux/teitunnel.repo
+    sudo zypper install teitunnel
+    ```
+
+    Or download a package:
+
     <Downloads os="linux" />
 
     Pick the package for your distribution:
@@ -173,7 +196,8 @@ background. Every update is signed, and the app refuses one whose signature does
 the key built into it. When an update is ready, the sidebar says so: choose
 **Restart to Update**, or just quit, and it installs. On Linux, `.deb` and `.rpm`
 installs wait for **Restart to Update**, because your system asks for an administrator
-password.
+password. If you installed from Teitunnel's repository, `sudo apt upgrade` or
+`sudo dnf upgrade` brings new versions too.
 
 A check downloads one small file from GitHub and sends nothing about you. To check only
 when you ask, turn off **Settings ▸ General ▸ Check for updates automatically**; on macOS,
@@ -190,7 +214,7 @@ from your keychain.
 |---|---|---|
 | macOS | Drag Teitunnel from Applications to the Trash | `~/Library/Application Support/com.teispace.teitunnel` |
 | Windows | **Settings ▸ Apps ▸ Installed apps ▸ Teitunnel ▸ Uninstall** | `%APPDATA%\com.teispace.teitunnel` |
-| Linux | `sudo apt remove teitunnel`, `sudo dnf remove teitunnel`, or delete the AppImage | `~/.local/share/com.teispace.teitunnel` |
+| Linux | `sudo apt remove teitunnel`, `sudo dnf remove teitunnel`, or delete the AppImage; to drop the repository too, delete `/etc/apt/sources.list.d/teitunnel.list` or `/etc/yum.repos.d/teitunnel.repo` | `~/.local/share/com.teispace.teitunnel` |
 
 Delete that folder too if you want nothing left behind. To build Teitunnel yourself instead,
 see the [contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
