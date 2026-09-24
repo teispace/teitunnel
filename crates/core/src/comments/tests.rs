@@ -614,3 +614,114 @@ fn the_worker_creates_the_same_table() {
         assert!(worker.contains(sql), "the Snapshot Worker lacks: {sql}");
     }
 }
+
+/// An origin answering every request with a small HTML page.
+async fn html_origin() -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 16 * 1024];
+                let mut head = Vec::new();
+                loop {
+                    let Ok(n) = socket.read(&mut buf).await else {
+                        return;
+                    };
+                    if n == 0 {
+                        return;
+                    }
+                    head.extend_from_slice(&buf[..n]);
+                    if !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                        continue;
+                    }
+                    let body = "<html><body><h1>Hi</h1></body></html>";
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{body}",
+                        body.len()
+                    );
+                    if socket.write_all(response.as_bytes()).await.is_err() {
+                        return;
+                    }
+                    head.clear();
+                }
+            });
+        }
+    });
+    format!("http://{addr}")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_live_share_serves_the_overlay_and_keeps_its_comments() {
+    use crate::inspect::{Inspector, TapScope, TapSpec};
+    let store = Store::open_in_memory().unwrap();
+    let inspector = Inspector::new(Some(store), None, "app");
+    let origin = html_origin().await;
+    let tap = inspector
+        .start(TapSpec::new(
+            TapScope::QuickShare {
+                share_id: "share1".into(),
+            },
+            "share",
+            &origin,
+        ))
+        .await
+        .unwrap();
+    let http = reqwest::Client::builder().no_proxy().build().unwrap();
+    let page = |http: &reqwest::Client| {
+        http.get(format!("{}/", tap.address))
+            .header("accept", "text/html")
+            .header("sec-fetch-dest", "document")
+            .send()
+    };
+    let before = page(&http).await.unwrap().text().await.unwrap();
+    assert!(!before.contains("overlay.js"), "{before}");
+
+    let view = inspector.set_comments(&tap.id, true, false).await.unwrap();
+    assert!(view.comments);
+    let after = page(&http).await.unwrap().text().await.unwrap();
+    assert!(after.contains(SNIPPET), "{after}");
+    let script = http
+        .get(format!("{}{OVERLAY_PATH}", tap.address))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(script.status(), 200);
+
+    let posted = http
+        .post(format!("{}/__teitunnel/comments/api/threads", tap.address))
+        .header("content-type", "application/json")
+        .header("sec-fetch-site", "same-origin")
+        .body(json!({"path": "/", "body": "Looks good", "author": "Ana"}).to_string())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(posted.status(), 200);
+    let comments = inspector.comments().unwrap();
+    let subjects = comments.subjects().await.unwrap();
+    assert_eq!(subjects[0].subject.key, "share:share1");
+    assert_eq!(subjects[0].comments, 1);
+
+    // Off again: the page is untouched and the API isn't there.
+    inspector.set_comments(&tap.id, false, false).await.unwrap();
+    assert!(
+        !page(&http)
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap()
+            .contains("overlay.js")
+    );
+    let gone = http
+        .get(format!("{}/__teitunnel/comments/api/threads", tap.address))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(gone.status(), 404);
+    inspector.stop(&tap.id).await;
+}
