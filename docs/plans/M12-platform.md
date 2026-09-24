@@ -118,8 +118,8 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] A leftover `~/.cloudflared/config.yml` never breaks Quick Shares (pass an empty config explicitly).
 
 ## M12-11 · CI/CD and teams
-- [ ] GitHub Action `teispace/teitunnel-action`: on a pull request, publish a preview at `pr-<n>.preview.example.com` either as a live share from the runner or as a snapshot (stays up after the job), comment the URL on the PR, update it on new commits, remove everything when the PR closes; account-owned tokens (D-095). GitLab CI template too.
-- [ ] Name reservations for teams sharing an account: the owner (person/machine) is written into the DNS record's comment, so every Teitunnel sees who holds a name; leases with expiry (`alice.dev.company.com` permanent, `pr-402…` until closed); conflicts shown before any change.
+- [x] GitHub Action `teispace/teitunnel-action`: on a pull request, publish a preview at `pr-<n>.preview.example.com` either as a live share from the runner or as a snapshot (stays up after the job), comment the URL on the PR, update it on new commits, remove everything when the PR closes; account-owned tokens (D-095). GitLab CI template too.
+- [x] Name reservations for teams sharing an account: the owner (person/machine) is written into the DNS record's comment, so every Teitunnel sees who holds a name; leases with expiry (`alice.dev.company.com` permanent, `pr-402…` until closed); conflicts shown before any change.
 
 ## M12-12 · More (maintainer: "any other best features", 2026-09-24)
 - [ ] Webhook inbox: a Worker on the user's account (Queues/D1/KV within free limits) receives webhooks while this computer is off and delivers them in order when it's back, with the inspector showing both the arrival and the delivery.
