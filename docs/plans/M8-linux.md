@@ -8,7 +8,7 @@
 - [x] The E2E suite (Quick Share; account → verified route → remove) runs on Linux in CI (`e2e-linux` job; cross-platform `e2e:build` script), green.
 - [x] Always-on via `systemd --user`: a unit per tunnel (`Restart=always`, `append:` logs, quoted `ExecStart`), enabled with `enable --now` (`cloudflared::systemd`, `core::service::Systemd`, D-051). Selected at runtime when there's a user session (`XDG_RUNTIME_DIR`) (D-054).
 - [x] Explain lingering: user units stop at logout unless `loginctl enable-linger`; the Always-on row says so on Linux rather than enabling it.
-- [ ] Try it on real desktops: GNOME and KDE, install, switch modes, log out/in, reboot. *(needs a Linux desktop)*
+- [ ] Try it on real desktops: GNOME and KDE, install, switch modes, log out/in, reboot. *(Install with apt/dnf, launch in light and dark, tray registration and removal are now checked on Ubuntu 22.04/24.04 and Fedora for every release (D-087); it found the missing tray-library dependency. GNOME/KDE look and Always-on across log out/reboot still need a desktop.)*
 
 ### M8-02 · Credentials
 - [x] Secret Service via `keyring` (`zbus-secret-service-keyring-store`).

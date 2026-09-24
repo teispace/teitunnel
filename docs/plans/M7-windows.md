@@ -9,7 +9,7 @@
 - [x] Helper programs start without a console window (`CREATE_NO_WINDOW`, `cloudflared::process::no_console`), for connectors, version checks and `schtasks`.
 - [x] Always-on via Task Scheduler: per-user task at logon, restart on failure, no time limit, UTF-16 task XML, `CommandLineToArgvW` quoting (`cloudflared::task_scheduler`, `core::service::TaskScheduler`, D-051). Selected at runtime on Windows (D-054).
 - [x] Logs for services the manager can't capture: the connector writes its own rotating log (`--log-directory`, 1 MB × 5, verified in cloudflared's `logger/`), which the app tails (D-054).
-- [ ] Try it on a real Windows 11 machine: install, switch modes, reboot, uninstall. *(needs a Windows machine)*
+- [ ] Try it on a real Windows 11 machine: install, switch modes, reboot, uninstall. *(Install, launch in light and dark, tray icon and uninstall are now checked on Windows 11 and Windows Server for every release (D-087). Always-on across a reboot still needs a Windows machine.)*
 - [ ] Graceful connector stop: `CTRL_BREAK` needs a shared console, which a GUI app doesn't have; evaluate a helper or keep `TerminateProcess` (the edge reroutes within seconds). *(needs a Windows machine)*
 - [x] Token file ACL: the per-user profile ACL is kept (only the user, SYSTEM and Administrators read `AppData`); an explicit ACL would need `unsafe` Win32 FFI (D-063).
 

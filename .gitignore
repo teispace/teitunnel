@@ -40,3 +40,4 @@ apps/desktop/src-tauri/binaries/
 
 # Playwright
 .playwright/
+__pycache__/
