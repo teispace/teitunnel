@@ -1278,3 +1278,31 @@ fn check_idle(inner: &Inner) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+    use crate::{Error, ErrorKind};
+
+    #[test]
+    fn errors_map_to_kinds_and_messages() {
+        let kind = |err: InspectError| Error::from(err).kind();
+        assert_eq!(kind(InspectError::NotWeb), ErrorKind::InvalidInput);
+        assert_eq!(kind(InspectError::UnknownTap), ErrorKind::NotFound);
+        assert_eq!(
+            kind(InspectError::NotRoute("a.xyz.com".into())),
+            ErrorKind::NotFound
+        );
+        assert_eq!(kind(InspectError::TapGone), ErrorKind::Conflict);
+        assert_eq!(
+            kind(InspectError::Lens(LensError::InvalidConfig("x".into()))),
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            InspectError::NotInspected("a.xyz.com".into())
+                .text()
+                .english(),
+            "a.xyz.com isn't being inspected."
+        );
+    }
+}

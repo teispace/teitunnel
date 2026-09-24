@@ -28,6 +28,36 @@ fn outcome(outcome: &Outcome) -> Result<(), String> {
     }
 }
 
+/// Every 30 s, points routes back at their own service when the `teitunnel inspect`
+/// that pointed them at its inspector has exited without doing so (for servers without
+/// the app, which does the same).
+pub(crate) fn sweep_left_behind(
+    app: &App,
+    machine: teitunnel_core::machine::MachineTunnels,
+) -> tokio::task::JoinHandle<()> {
+    let (accounts, engine, name) = (
+        app.accounts.clone(),
+        std::sync::Arc::clone(&app.engine),
+        app.machine_name.clone(),
+    );
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            for failure in routes::sweep(&accounts, &engine, &machine, &name, None, |route| {
+                route.is_over()
+            })
+            .await
+            {
+                status(&format!(
+                    "Couldn't end an inspection left behind: {}",
+                    failure.english()
+                ));
+            }
+        }
+    })
+}
+
 /// Runs `teitunnel inspect`.
 pub(crate) async fn run(
     app: &App,

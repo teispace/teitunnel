@@ -74,6 +74,7 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
             .collect::<Vec<_>>()
             .join(", ")
     ));
+    let sweeper = crate::inspect::sweep_left_behind(app, machine.clone());
     let report = |machine: &MachineTunnels, last: &mut Vec<&'static str>| {
         for (index, (id, name)) in running.iter().enumerate() {
             let now = describe(machine.state(id).as_ref());
@@ -100,6 +101,7 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
         }
     }
     status("Stopping…");
+    sweeper.abort();
     monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)

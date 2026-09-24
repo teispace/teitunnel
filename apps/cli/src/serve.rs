@@ -837,6 +837,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
             crate::share::status(&format!("{}: {}", account.name, message.english()));
         }
     }
+    let sweeper = crate::inspect::sweep_left_behind(&app, machine.clone());
     let listener = tokio::net::TcpListener::bind(options.listen)
         .await
         .map_err(|e| format!("Couldn't listen on {}: {e}", options.listen))?;
@@ -921,6 +922,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     })
     .await
     .map_err(|e| e.to_string())?;
+    sweeper.abort();
     monitor.release().await;
     if let Some(backend) = mcp_backend {
         backend.stop_own_shares().await;

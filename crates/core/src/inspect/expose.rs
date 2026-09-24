@@ -576,6 +576,33 @@ mod tests {
     }
 
     #[test]
+    fn guesses_ai_servers_from_discovery() {
+        let service = |process: &str, port: u16| LocalService {
+            port,
+            all_interfaces: false,
+            pid: 1,
+            process: process.into(),
+            kind: crate::discovery::ServiceKind::Other,
+            project: None,
+            origin: format!("http://localhost:{port}"),
+        };
+        assert_eq!(
+            AiServer::guess(&service("ollama", 11434)),
+            Some(AiServer::Ollama)
+        );
+        assert_eq!(
+            AiServer::guess(&service("LM Studio", 1234)),
+            Some(AiServer::LmStudio)
+        );
+        assert_eq!(
+            AiServer::guess(&service("python3 -m vllm", 8000)),
+            Some(AiServer::Vllm)
+        );
+        assert_eq!(AiServer::guess(&service("node", 3000)), None);
+        assert_eq!(AiServer::Ollama.api_path(), "/v1");
+    }
+
+    #[test]
     fn writes_client_configurations() {
         let configs = mcp_client_configs("notes", "https://mcp.xyz.com/mcp", "tt_abc");
         assert_eq!(
