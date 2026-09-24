@@ -69,6 +69,14 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   a Worker secret; it's never stored locally or logged, and its `Debug` is redacted.
   Sessions are HMAC-signed `__Host-` cookies (Secure, HttpOnly, SameSite=Lax) keyed to the
   hash, so changing the password ends them.
+### AI agents (MCP server, `crates/mcp`)
+- Agents get the app's abilities through `teitunnel mcp` (stdio, started by the client) and `/mcp` on `teitunnel serve` (Streamable HTTP), never more: every Cloudflare change is a plan from the engine, applied by its fingerprint.
+- **Modes** per server: `read-only` (tools that change anything aren't listed and are refused), `ask` (default: each change needs the person's approval, asked through the client with MCP elicitation when it can, else the tool answers `needsApproval` and only a second call with `confirmed: true` proceeds; an agent's `confirmed` never overrides a person who can be asked or said no), `full`. Records Teitunnel didn't create need an explicit confirmation in every mode.
+- **Secrets never reach agents:** tools return core types that hold no credentials; every string in every answer passes through the redaction rules again; captured `Authorization`, `Cookie`, `Set-Cookie`, API-key and webhook-signature headers are masked unless the server was started with `--allow-secrets`. Account credentials are fixed only in the app.
+- Every agent-initiated change is recorded in Activity with an `actor` (the client's name and version, and for HTTP the API key's name), so people can see and undo it.
+- Rate limits per tool class (reads, waits, changes, destructive changes), bounded and paged answers, timeouts, and cancellation.
+- **HTTP:** API keys only (`Authorization: Bearer`, hashes at rest), requests with an `Origin` header refused unless allowed (DNS rebinding), loopback `Host` names only unless `--allow-remote`, no CORS headers, repeated bad keys refused per address.
+- Client setup (`teitunnel mcp install`) edits only the `teitunnel` entry of a client's configuration, keeps a backup, never touches a file it can't parse, and writes no secret (the entry is a command path and arguments).
 
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.

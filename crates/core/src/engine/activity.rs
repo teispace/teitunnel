@@ -157,6 +157,38 @@ pub struct ActivityRecord {
     /// The routes were applied but this Mac's connector couldn't be started.
     #[serde(default)]
     pub connector_error: Option<Text>,
+    /// Who asked for it, when it wasn't a person in the app or the terminal (an AI agent
+    /// through Teitunnel's MCP server). Absent in older entries.
+    #[serde(default)]
+    pub actor: Option<Actor>,
+}
+
+/// Who made a change, when it wasn't a person using the app or the CLI directly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct Actor {
+    /// How it reached Teitunnel, e.g. `mcp`.
+    pub via: String,
+    /// The client's name as it introduced itself, e.g. `claude-code`.
+    pub client: String,
+    /// The client's version, if it said.
+    pub version: Option<String>,
+}
+
+tokio::task_local! {
+    static CURRENT_ACTOR: Actor;
+}
+
+/// Runs `future` on behalf of `actor`: every change it applies through the engine is
+/// recorded in the activity log with that actor.
+pub async fn with_actor<F: std::future::Future>(actor: Actor, future: F) -> F::Output {
+    CURRENT_ACTOR.scope(actor, future).await
+}
+
+/// The actor set by [`with_actor`] for the running task, if any.
+pub fn current_actor() -> Option<Actor> {
+    CURRENT_ACTOR.try_with(Clone::clone).ok()
 }
 
 impl ActivityRecord {
@@ -197,6 +229,7 @@ impl ActivityRecord {
             error: None,
             leftovers: Vec::new(),
             connector_error: None,
+            actor: current_actor(),
         }
     }
 }

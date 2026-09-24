@@ -54,13 +54,18 @@ teitunnel setup                         # store an API token in the keychain
 teitunnel up                            # run this machine's tunnels (servers, Docker)
 teitunnel always-on on                  # as a service (a system unit as root)
 teitunnel routes --check                # exit 1 unless every route is live
-teitunnel serve                         # tunnels + web dashboard and API
+teitunnel serve                         # tunnels + web dashboard, API and /mcp
 teitunnel api-key create deploy         # a key for the API (shown once)
 teitunnel snapshot publish ./dist --on preview.example.com  # a copy online while you sleep
 teitunnel snapshot publish . --build     # build the project, then publish its output
 teitunnel snapshot ls                    # Snapshots, their addresses and versions
 teitunnel snapshot rollback preview.example.com
+teitunnel mcp install cursor            # connect an AI tool (see AI agents)
+teitunnel mcp status                    # which AI tools are connected
+teitunnel mcp                           # the MCP server itself (clients start it)
 ```
+
+The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
 
 | Option | Meaning |
 |---|---|

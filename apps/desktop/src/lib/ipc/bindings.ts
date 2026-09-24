@@ -18,6 +18,12 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
+	/**  The AI clients on this computer and whether each is connected. */
+	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
+	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
+	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
+	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
+	aiClientsDisconnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_disconnect", { clientId }),
 	/**  Checks for an update now (and downloads it), even with automatic checks off. */
 	updatesCheck: () => __TAURI_INVOKE<UpdateStatus>("updates_check"),
 	/**  Quits, installs the downloaded update and starts the new version. */
@@ -442,6 +448,21 @@ export type ActivityRecord = {
 	leftovers?: Text[],
 	/**  The routes were applied but this Mac's connector couldn't be started. */
 	connectorError?: Text | null,
+	/**
+	 *  Who asked for it, when it wasn't a person in the app or the terminal (an AI agent
+	 *  through Teitunnel's MCP server). Absent in older entries.
+	 */
+	actor?: Actor | null,
+};
+
+/**  Who made a change, when it wasn't a person using the app or the CLI directly. */
+export type Actor = {
+	/**  How it reached Teitunnel, e.g. `mcp`. */
+	via: string,
+	/**  The client's name as it introduced itself, e.g. `claude-code`. */
+	client: string,
+	/**  The client's version, if it said. */
+	version: string | null,
 };
 
 /**  Where a new Snapshot answers. */
@@ -452,6 +473,30 @@ export type AddressInput =
 hostname: string } | 
 /**  The account's `workers.dev` subdomain. */
 { type: "workersDev" };
+
+/**  An AI client, as Settings shows it. */
+export type AiClientView = {
+	/**  Its id, e.g. `claude-code`. */
+	id: string,
+	/**  Its name, e.g. `Claude Code`. */
+	name: string,
+	/**  Its MCP configuration file. */
+	path: string,
+	/**  It seems installed. */
+	detected: boolean,
+	/**  Teitunnel is in its configuration. */
+	connected: boolean,
+	/**  Its configuration couldn't be read (connecting would leave it alone). */
+	problem: string | null,
+};
+
+/**  Every client, and whether Teitunnel can connect them (it needs its command line tool). */
+export type AiClientsView = {
+	/**  The command clients would run, when there is one. */
+	command: string | null,
+	/**  The clients. */
+	clients: AiClientView[],
+};
 
 /**  What to alert about. Stored in settings (`alertRules`). */
 export type AlertRules = {

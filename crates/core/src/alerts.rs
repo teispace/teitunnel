@@ -252,6 +252,8 @@ impl Alert {
             error: self.kind.is_problem().then(|| self.body.clone()),
             leftovers: Vec::new(),
             connector_error: None,
+            // Teitunnel's own finding, not something a person or an agent did.
+            actor: None,
         }
     }
 }

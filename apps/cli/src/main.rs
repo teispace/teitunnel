@@ -15,6 +15,7 @@ macro_rules! out {
 mod analytics;
 mod context;
 mod doctor;
+mod mcp;
 mod probe;
 mod serve;
 mod share;
@@ -82,6 +83,31 @@ enum Command {
         /// Set the dashboard password (read from the terminal) and exit.
         #[arg(long)]
         set_password: bool,
+        /// Don't serve the MCP endpoint (`/mcp`, for AI agents with an API key).
+        #[arg(long)]
+        no_mcp: bool,
+        /// The MCP endpoint's mode: read-only, ask (default) or full.
+        #[arg(long, value_parser = mcp::parse_mode)]
+        mcp_mode: Option<teitunnel_mcp::Mode>,
+        /// A browser origin allowed to call `/mcp` (repeatable). Agents send none.
+        #[arg(long, value_name = "ORIGIN")]
+        mcp_allow_origin: Vec<String>,
+    },
+    /// Run Teitunnel's MCP server for AI agents (Claude Code, Cursor, VS Code, Codex…)
+    /// over stdio, or connect a client to it (`teitunnel mcp install cursor`).
+    ///
+    /// Agents share local services, manage routes through reviewed plans, diagnose
+    /// problems and inspect traffic. Modes: `read-only`, `ask` (default: every change
+    /// needs your approval) and `full`. Secrets never reach the agent.
+    Mcp {
+        #[command(subcommand)]
+        command: Option<mcp::McpCommand>,
+        /// read-only, ask (default) or full.
+        #[arg(long, value_parser = mcp::parse_mode)]
+        mode: Option<teitunnel_mcp::Mode>,
+        /// Show credentials in captured traffic and logs to the agent (off by default).
+        #[arg(long)]
+        allow_secrets: bool,
     },
     /// Create, list or revoke API keys for the server API.
     #[command(subcommand)]
@@ -497,6 +523,15 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             return share::run(&origin, stop_after, !no_qr, &host_header).await;
         }
         Command::Setup => return setup().await,
+        Command::Mcp {
+            command: Some(command),
+            ..
+        } => return mcp::setup(command),
+        Command::Mcp {
+            command: None,
+            mode,
+            allow_secrets,
+        } => return mcp::serve(mode, allow_secrets).await,
         Command::Completions { shell } => {
             clap_complete::generate(
                 shell,
@@ -531,7 +566,10 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             )
             .await
         }
-        Command::Share { .. } | Command::Completions { .. } | Command::Setup => {
+        Command::Share { .. }
+        | Command::Completions { .. }
+        | Command::Setup
+        | Command::Mcp { .. } => {
             unreachable!("handled above")
         }
         Command::Up => up::up(&app).await,
@@ -542,6 +580,9 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             listen,
             allow_remote,
             secure_cookies,
+            no_mcp,
+            mcp_mode,
+            mcp_allow_origin,
             ..
         } => {
             serve::run(
@@ -550,6 +591,10 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     listen,
                     allow_remote,
                     secure_cookies,
+                    mcp: (!no_mcp).then_some(serve::McpOptions {
+                        mode: mcp_mode,
+                        allowed_origins: mcp_allow_origin,
+                    }),
                 },
             )
             .await

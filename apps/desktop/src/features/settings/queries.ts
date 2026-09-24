@@ -43,6 +43,23 @@ export function useCliStatus() {
   return useQuery({ queryKey: cliKey, queryFn: () => call(commands.cliStatus()) });
 }
 
+const aiClientsKey = ["settings", "aiClients"] as const;
+
+/** AI tools on this computer and whether each is connected to Teitunnel's MCP server. */
+export function useAiClients() {
+  return useQuery({ queryKey: aiClientsKey, queryFn: () => call(commands.aiClientsStatus()) });
+}
+
+/** Connects or disconnects an AI tool (edits only Teitunnel's entry in its settings). */
+export function useSetAiClientConnected() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, connect }: { id: string; connect: boolean }) =>
+      call(connect ? commands.aiClientsConnect(id) : commands.aiClientsDisconnect(id)),
+    onSuccess: (view) => queryClient.setQueryData(aiClientsKey, view),
+  });
+}
+
 /** Installs or removes the command line tool. */
 export function useSetCliInstalled() {
   const queryClient = useQueryClient();

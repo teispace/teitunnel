@@ -55,6 +55,7 @@ const entries: ActivityEntry[] = [
       tunnel: "Mac",
       steps: [{ step: step("Update tunnel “Mac”", "curl -X PUT …"), state: { state: "done" } }],
       changes: [],
+      actor: { via: "mcp", client: "Claude Code", version: "2.1.0" },
     },
   },
 ];
@@ -117,6 +118,11 @@ function renderPage() {
 }
 
 describe("ActivityPage", () => {
+  it("says which AI agent made a change", async () => {
+    renderPage();
+    expect(await screen.findByText(/Applied · By Claude Code/)).toBeTruthy();
+  });
+
   it("doesn't present a rolled-back change as made", async () => {
     renderPage();
     expect(await screen.findByText("Attempted Changes")).toBeTruthy();

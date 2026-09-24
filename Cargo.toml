@@ -18,6 +18,7 @@ teitunnel-cf-api = { path = "crates/cf-api" }
 teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
 teitunnel-lens = { path = "crates/lens" }
+teitunnel-mcp = { path = "crates/mcp" }
 
 # Tauri (stay on 2.x, D-015)
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
@@ -94,6 +95,12 @@ mime_guess = { version = "2.0.5", default-features = false }
 
 # Web dashboard for servers (teitunnel-cli serve)
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+
+# MCP server (teitunnel mcp, M12-03)
+rmcp = { version = "3.4.1", default-features = false }
+schemars = "1.2"
+jsonc-parser = { version = "0.33.2", features = ["cst", "serde_json"] }
+toml_edit = "0.25.15"
 
 # Persistence
 rusqlite = { version = "0.40.2", features = ["bundled"] }

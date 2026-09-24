@@ -35,6 +35,7 @@ tauri-build.workspace = true
 
 [dependencies]
 teitunnel-core = { workspace = true, features = ["specta"] }
+teitunnel-mcp.workspace = true
 tauri = { workspace = true, features = ["macos-private-api"] }
 tauri-plugin-opener.workspace = true
 tauri-plugin-clipboard-manager.workspace = true

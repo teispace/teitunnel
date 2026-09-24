@@ -7,6 +7,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 mod accounts;
+mod ai_clients;
 mod analytics;
 pub(crate) mod app;
 pub(crate) mod cli;
@@ -40,6 +41,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             cli::cli_status,
             cli::cli_install,
             cli::cli_uninstall,
+            ai_clients::ai_clients_status,
+            ai_clients::ai_clients_connect,
+            ai_clients::ai_clients_disconnect,
             updates::updates_check,
             updates::updates_restart,
             app::app_save_log,

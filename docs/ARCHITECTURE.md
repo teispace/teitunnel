@@ -48,6 +48,11 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
                      log/metrics parsing, local endpoints, config.yml + credentials files.
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
+crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prompts, approvals,
+                     redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
+                     to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
+                     come from `ToolProvider`s, traffic from a `TrafficSource`.
+apps/cli             `teitunnel`: commands only; hosts the MCP server (`teitunnel mcp`, `/mcp`).
 apps/desktop/src-tauri  Thin adapter: IPC commands, events bridge, tray, menus, windows, plugins.
 apps/desktop/src        React UI.
 tools/fake-cloudflared  Test double binary that behaves like cloudflared (endpoints, JSON logs, failure modes).
@@ -62,6 +67,7 @@ desktop ──▶ core ──▶ cf-api
 
 - `cf-api` and `cloudflared` never depend on each other, on `core`, or on Tauri.
 - `core` never depends on Tauri. It exposes a plain async Rust API, which keeps it unit-testable and lets a future CLI reuse it.
+- `mcp` depends on `core` (and `cf-api`/`cloudflared` types), never on Tauri; `cli` hosts it, and the desktop app can host it later through the same `Backend`.
 - `src-tauri` contains **no business logic**. A command is: parse args → call `core` → map result.
 - The UI never talks to Cloudflare or the filesystem directly. Only IPC.
 

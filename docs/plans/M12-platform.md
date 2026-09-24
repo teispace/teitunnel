@@ -58,13 +58,13 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded).
 
 ## M12-03 · Agents (MCP) and AI
-- [ ] `teitunnel mcp`: MCP server over stdio (Claude Code, Cursor, VS Code, Codex, Windsurf, Zed), and Streamable HTTP from `teitunnel serve` with API keys for remote agents.
-- [ ] Tools: `share_port`, `stop_share`, `list_shares`, `list_routes`, `plan_change` (returns the same plan people review), `apply_plan` (by fingerprint), `verify_route`, `doctor`, `fix_issue`, `logs_tail`, `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request` (block until a matching request arrives: webhook testing without polling), `traffic_stats`, `export_config`.
-- [ ] Resources (routes, shares, domains, issues) and prompts ("debug this failing webhook", "put my dev server online on my domain with a login").
-- [ ] Safety: three modes per client (read-only, ask, full). "Ask" shows a native approval in the app (or the terminal) with the plan before any Cloudflare change; secrets never exposed to agents (masked bodies unless allowed); every agent action in Activity, marked with the client's name; rate limits.
-- [ ] One-click "Connect an AI tool" in Settings: writes the client's MCP config (with consent), shows the command for others.
-- [ ] Agent Skill (`SKILL.md`) and `AGENTS.md` snippet in the docs; `llms.txt` already exists.
-- [ ] No built-in LLM or cloud AI service (decision Q4): agents bring the model; Teitunnel stays local and free.
+- [x] `teitunnel mcp`: MCP server over stdio (Claude Code, Cursor, VS Code, Codex, Windsurf, Zed), and Streamable HTTP from `teitunnel serve` with API keys for remote agents.
+- [x] Tools: `share_port`, `stop_share`, `list_shares`, `list_routes`, `plan_change` (returns the same plan people review), `apply_plan` (by fingerprint), `verify_route`, `doctor`, `fix_issue`, `logs_tail`, `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request` (block until a matching request arrives: webhook testing without polling), `traffic_stats`, `export_config`.
+- [x] Resources (routes, shares, domains, issues) and prompts ("debug this failing webhook", "put my dev server online on my domain with a login").
+- [ ] Safety: three modes per client (read-only, ask, full). "Ask" shows a native approval in the app (or the terminal) with the plan before any Cloudflare change; secrets never exposed to agents (masked bodies unless allowed); every agent action in Activity, marked with the client's name; rate limits. (Done in `crates/mcp`: modes, elicitation or a confirmed second call, redaction, Activity `actor`, rate limits. Left: the app's own native approval dialog, via the `Approver` hook, once the app hosts the server.)
+- [x] One-click "Connect an AI tool" in Settings: writes the client's MCP config (with consent), shows the command for others.
+- [x] Agent Skill (`SKILL.md`) and `AGENTS.md` snippet in the docs; `llms.txt` already exists.
+- [x] No built-in LLM or cloud AI service (decision Q4): agents bring the model; Teitunnel stays local and free.
 - [ ] MCP exposure preset: detect a local MCP server (Streamable HTTP probe on `/mcp`, SSE), share it on your own domain (Quick Tunnels don't carry SSE) with stream keep-alive and a bearer token checked by Lens (`Authorization: Bearer`, what MCP clients send), and print ready configs for Claude Code, Cursor, VS Code, Claude.ai and ChatGPT connectors.
 - [ ] Bearer protection preset for local AI servers (Ollama, vLLM, LM Studio): OpenAI-compatible clients send `Authorization: Bearer`, which Lens checks; Access service tokens as the Cloudflare-enforced alternative.
 - [ ] Later phase: OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key.
