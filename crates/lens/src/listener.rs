@@ -131,6 +131,18 @@ pub enum Routing {
         /// For hosts that match nothing (otherwise: 404).
         fallback: Option<TapId>,
     },
+    /// Plain HTTP next to local HTTPS domains: `hosts` are served as with
+    /// [`Routing::Hosts`] (no fallback), and requests for `redirect` hosts (same
+    /// wildcard syntax) get a permanent redirect (308) to `https://` on the same host,
+    /// with `https_port` in the URL when it isn't 443.
+    HttpsRedirect {
+        /// Host → tap, served over plain HTTP.
+        hosts: Vec<(String, TapId)>,
+        /// Hosts sent to HTTPS.
+        redirect: Vec<String>,
+        /// The HTTPS port (omitted from the URL when it's 443).
+        https_port: Option<u16>,
+    },
 }
 
 impl Routing {
@@ -143,7 +155,59 @@ impl Routing {
                 .map(|(_, tap)| tap.clone())
                 .chain(fallback.clone())
                 .collect(),
+            Self::HttpsRedirect { hosts, .. } => hosts.iter().map(|(_, tap)| tap.clone()).collect(),
         }
+    }
+}
+
+/// Exact names and wildcard suffixes (with their leading dot, longest first).
+#[derive(Debug)]
+struct HostSet<T> {
+    exact: HashMap<String, T>,
+    wildcards: Vec<(String, T)>,
+}
+
+impl<T> Default for HostSet<T> {
+    fn default() -> Self {
+        Self {
+            exact: HashMap::new(),
+            wildcards: Vec::new(),
+        }
+    }
+}
+
+impl<T> HostSet<T> {
+    fn insert(&mut self, host: &str, value: T) -> Result<(), LensError> {
+        let host = normalize_host(host);
+        if let Some(suffix) = host.strip_prefix("*.") {
+            if suffix.is_empty() {
+                return Err(LensError::InvalidConfig(
+                    "a wildcard host needs a domain".into(),
+                ));
+            }
+            self.wildcards.push((format!(".{suffix}"), value));
+        } else if host.is_empty() || host.contains('*') {
+            return Err(LensError::InvalidConfig(format!(
+                "invalid route host {host:?}"
+            )));
+        } else {
+            self.exact.insert(host, value);
+        }
+        Ok(())
+    }
+
+    fn finish(&mut self) {
+        self.wildcards
+            .sort_by_key(|(suffix, _)| std::cmp::Reverse(suffix.len()));
+    }
+
+    fn get(&self, host: &str) -> Option<&T> {
+        self.exact.get(host).or_else(|| {
+            self.wildcards
+                .iter()
+                .find(|(suffix, _)| host.ends_with(suffix.as_str()) && host.len() > suffix.len())
+                .map(|(_, value)| value)
+        })
     }
 }
 
@@ -151,10 +215,10 @@ impl Routing {
 #[derive(Debug)]
 pub(crate) struct HostTable {
     single: Option<TapId>,
-    exact: HashMap<String, TapId>,
-    /// (suffix including the leading dot, tap), longest first.
-    wildcards: Vec<(String, TapId)>,
+    hosts: HostSet<TapId>,
     fallback: Option<TapId>,
+    redirect: HostSet<()>,
+    https_port: Option<u16>,
     routing: Routing,
 }
 
@@ -162,9 +226,10 @@ impl HostTable {
     pub(crate) fn compile(routing: Routing) -> Result<Self, LensError> {
         let mut table = Self {
             single: None,
-            exact: HashMap::new(),
-            wildcards: Vec::new(),
+            hosts: HostSet::default(),
             fallback: None,
+            redirect: HostSet::default(),
+            https_port: None,
             routing: routing.clone(),
         };
         match routing {
@@ -172,28 +237,42 @@ impl HostTable {
             Routing::Hosts { hosts, fallback } => {
                 table.fallback = fallback;
                 for (host, tap) in hosts {
-                    let host = normalize_host(&host);
-                    if let Some(suffix) = host.strip_prefix("*.") {
-                        if suffix.is_empty() {
-                            return Err(LensError::InvalidConfig(
-                                "a wildcard host needs a domain".into(),
-                            ));
-                        }
-                        table.wildcards.push((format!(".{suffix}"), tap));
-                    } else if host.is_empty() || host.contains('*') {
-                        return Err(LensError::InvalidConfig(format!(
-                            "invalid route host {host:?}"
-                        )));
-                    } else {
-                        table.exact.insert(host, tap);
-                    }
+                    table.hosts.insert(&host, tap)?;
                 }
-                table
-                    .wildcards
-                    .sort_by_key(|(suffix, _)| std::cmp::Reverse(suffix.len()));
+            }
+            Routing::HttpsRedirect {
+                hosts,
+                redirect,
+                https_port,
+            } => {
+                for (host, tap) in hosts {
+                    table.hosts.insert(&host, tap)?;
+                }
+                for host in redirect {
+                    table.redirect.insert(&host, ())?;
+                }
+                table.https_port = https_port.filter(|port| *port != 443);
             }
         }
+        table.hosts.finish();
+        table.redirect.finish();
         Ok(table)
+    }
+
+    /// Where a request for `host` (normalized) goes instead, when its host is sent to
+    /// HTTPS and isn't served here. The URL is built from a listed host only, so it
+    /// can't point anywhere else.
+    pub(crate) fn https_redirect(&self, host: &str, uri: &http::Uri) -> Option<String> {
+        if self.hosts.get(host).is_some() || self.redirect.get(host).is_none() {
+            return None;
+        }
+        let path = uri
+            .path_and_query()
+            .map_or("/", http::uri::PathAndQuery::as_str);
+        Some(match self.https_port {
+            Some(port) => format!("https://{host}:{port}{path}"),
+            None => format!("https://{host}{path}"),
+        })
     }
 
     /// The tap for `host` (already normalized).
@@ -201,17 +280,7 @@ impl HostTable {
         if let Some(tap) = &self.single {
             return Some(tap);
         }
-        self.exact
-            .get(host)
-            .or_else(|| {
-                self.wildcards
-                    .iter()
-                    .find(|(suffix, _)| {
-                        host.ends_with(suffix.as_str()) && host.len() > suffix.len()
-                    })
-                    .map(|(_, tap)| tap)
-            })
-            .or(self.fallback.as_ref())
+        self.hosts.get(host).or(self.fallback.as_ref())
     }
 
     pub(crate) fn routing(&self) -> &Routing {
@@ -229,6 +298,15 @@ impl HostTable {
             Routing::Hosts { hosts, fallback } => Some(Routing::Hosts {
                 hosts: hosts.iter().filter(|(_, t)| t != tap).cloned().collect(),
                 fallback: fallback.clone().filter(|t| t != tap),
+            }),
+            Routing::HttpsRedirect {
+                hosts,
+                redirect,
+                https_port,
+            } => Some(Routing::HttpsRedirect {
+                hosts: hosts.iter().filter(|(_, t)| t != tap).cloned().collect(),
+                redirect: redirect.clone(),
+                https_port: *https_port,
             }),
         }
     }
@@ -324,7 +402,7 @@ impl ListenerState {
     fn gauge(&self, shared: &Shared) -> Option<Arc<TapMetrics>> {
         match self.routes().routing() {
             Routing::Tap(tap) => shared.tap(tap).map(|tap| Arc::clone(&tap.metrics)),
-            Routing::Hosts { .. } => None,
+            Routing::Hosts { .. } | Routing::HttpsRedirect { .. } => None,
         }
     }
 }
@@ -512,6 +590,44 @@ mod tests {
         let single = HostTable::compile(Routing::Tap(tap("s"))).unwrap();
         assert_eq!(single.resolve("anything"), Some(&tap("s")));
         assert!(single.without(&tap("s")).is_none());
+    }
+
+    #[test]
+    fn https_redirects_only_listed_hosts_not_served_here() {
+        let table = HostTable::compile(Routing::HttpsRedirect {
+            hosts: vec![("plain.test".into(), tap("p"))],
+            redirect: vec!["app.test".into(), "*.app.test".into(), "plain.test".into()],
+            https_port: Some(8443),
+        })
+        .unwrap();
+        let uri: http::Uri = "/a/b?c=1".parse().unwrap();
+        assert_eq!(
+            table.https_redirect("app.test", &uri).as_deref(),
+            Some("https://app.test:8443/a/b?c=1")
+        );
+        assert_eq!(
+            table
+                .https_redirect("x.app.test", &"/".parse().unwrap())
+                .as_deref(),
+            Some("https://x.app.test:8443/")
+        );
+        assert_eq!(table.https_redirect("plain.test", &uri), None);
+        assert_eq!(table.resolve("plain.test"), Some(&tap("p")));
+        assert_eq!(table.https_redirect("evil.com", &uri), None);
+        assert_eq!(table.resolve("evil.com"), None);
+
+        let default_port = HostTable::compile(Routing::HttpsRedirect {
+            hosts: Vec::new(),
+            redirect: vec!["app.test".into()],
+            https_port: Some(443),
+        })
+        .unwrap();
+        assert_eq!(
+            default_port.https_redirect("app.test", &uri).as_deref(),
+            Some("https://app.test/a/b?c=1")
+        );
+        let without = table.without(&tap("p")).unwrap();
+        assert!(without.taps().is_empty());
     }
 
     #[test]
