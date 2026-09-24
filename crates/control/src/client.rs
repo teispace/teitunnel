@@ -22,9 +22,10 @@ use crate::{
     endpoint::{Connection, Endpoint},
     framing::{Frame, read_frame, write_frame},
     protocol::{
-        ApplyParams, ApplyResult, ClientInfo, DoctorIssue, EVENT_NOTIFICATION, Event, HelloParams,
-        HelloResult, MAX_MESSAGE, PROTOCOL_VERSION, PlanInfo, PreviewParams, Response, RoutesList,
-        RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare, View, code, method,
+        AgentApproval, AgentDecision, AgentInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue,
+        EVENT_NOTIFICATION, Event, HelloParams, HelloResult, MAX_MESSAGE, PROTOCOL_VERSION,
+        PauseShare, PlanInfo, PreviewParams, Response, RoutesList, RoutesParams, RpcError,
+        ShareInfo, StartShare, Status, StopShare, View, code, method,
     },
 };
 
@@ -235,6 +236,40 @@ impl ControlClient {
             .call(method::SHARES_STOP, &StopShare { id: id.to_owned() })
             .await?;
         Ok(())
+    }
+
+    /// Pauses (`paused`) or resumes a share on your domain or a route (the person
+    /// approves it in the app).
+    ///
+    /// # Errors
+    /// See [`ControlClient::call`].
+    pub async fn pause_share(&self, request: &PauseShare, paused: bool) -> Result<(), ClientError> {
+        let method = if paused {
+            method::SHARES_PAUSE
+        } else {
+            method::SHARES_RESUME
+        };
+        let _: Value = self.call(method, request).await?;
+        Ok(())
+    }
+
+    /// Tells the app this connection serves an AI agent (listed in Settings ▸ AI Tools
+    /// while it lasts).
+    ///
+    /// # Errors
+    /// See [`ClientError`].
+    pub async fn register_agent(&self, agent: &AgentInfo) -> Result<(), ClientError> {
+        let _: Value = self.call(method::AGENT_REGISTER, agent).await?;
+        Ok(())
+    }
+
+    /// Asks the person, in the app, to approve an agent's change; waits for the answer.
+    ///
+    /// # Errors
+    /// See [`ClientError`].
+    pub async fn approve_for_agent(&self, request: &AgentApproval) -> Result<bool, ClientError> {
+        let decision: AgentDecision = self.call(method::AGENT_APPROVE, request).await?;
+        Ok(decision.approved)
     }
 
     /// This machine's routes in an account.

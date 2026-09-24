@@ -16,6 +16,7 @@
 //! Safety: see [`Mode`]. Secrets never reach agents; every change is recorded in
 //! Activity with the agent's name.
 
+pub mod app_approver;
 pub mod backend;
 pub mod clients;
 pub mod config;
@@ -36,6 +37,7 @@ mod server;
 pub mod tools;
 pub mod traffic;
 
+pub use app_approver::AppApprover;
 pub use backend::{Backend, BackendError, ChangeEvent, SharedBackend};
 pub use config::{Mode, Settings};
 pub use core_backend::{ConnectorSource, CoreBackend, CoreParts};

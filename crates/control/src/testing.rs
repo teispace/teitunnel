@@ -12,9 +12,9 @@ use tokio::sync::broadcast;
 use crate::{
     BoxFuture, ConfirmRequest, Decision, Endpoint, Host, HostResult, Limits, Server,
     protocol::{
-        AccountInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult, ClientInfo, DoctorIssue,
-        Event, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind,
-        StartShare, Status, StopShare, View, code,
+        AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult,
+        ClientInfo, DoctorIssue, Event, PauseShare, PlanInfo, PreviewParams, RoutesList,
+        RoutesParams, RpcError, ShareInfo, ShareKind, StartShare, Status, StopShare, View, code,
     },
 };
 
@@ -36,6 +36,14 @@ pub struct FakeHost {
     pub started: Mutex<Vec<StartShare>>,
     /// Views opened.
     pub opened: Mutex<Vec<View>>,
+    /// Pauses (`true`) and resumes asked for, by id.
+    pub paused: Mutex<Vec<(String, bool)>>,
+    /// Agents connected now, by session.
+    pub agents: Mutex<Vec<(u64, AgentInfo)>>,
+    /// Agents' approval questions, in order.
+    pub agent_questions: Mutex<Vec<AgentApproval>>,
+    /// Answers for the next agent approvals (none queued: no).
+    pub agent_answers: Mutex<VecDeque<bool>>,
     events: broadcast::Sender<Event>,
 }
 
@@ -49,6 +57,10 @@ impl FakeHost {
             approved: Mutex::default(),
             started: Mutex::default(),
             opened: Mutex::default(),
+            paused: Mutex::default(),
+            agents: Mutex::default(),
+            agent_questions: Mutex::default(),
+            agent_answers: Mutex::default(),
             events,
         })
     }
@@ -82,6 +94,7 @@ pub fn share(id: &str) -> ShareInfo {
         expires_at: None,
         requests: Some(0),
         account_id: None,
+        paused: false,
     }
 }
 
@@ -125,6 +138,28 @@ impl Host for FakeHost {
             } else {
                 Err(RpcError::new(code::NOT_FOUND, "No such share."))
             }
+        })
+    }
+
+    fn pause_share(&self, request: PauseShare, paused: bool) -> BoxFuture<'_, HostResult<()>> {
+        Box::pin(async move {
+            lock(&self.paused).push((request.id, paused));
+            Ok(())
+        })
+    }
+
+    fn agent_connected(&self, session: u64, agent: AgentInfo, _: &ClientInfo) {
+        lock(&self.agents).push((session, agent));
+    }
+
+    fn agent_disconnected(&self, session: u64) {
+        lock(&self.agents).retain(|(s, _)| *s != session);
+    }
+
+    fn approve_for_agent(&self, _: u64, request: AgentApproval) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            lock(&self.agent_questions).push(request);
+            lock(&self.agent_answers).pop_front().unwrap_or(false)
         })
     }
 

@@ -95,6 +95,8 @@ pub struct CoreParts {
     pub edge: Edge,
     /// Log streams of other machines' connectors.
     pub remote_logs: RemoteLogs,
+    /// Applies pauses to this process's taps (its shares on your domain).
+    pub pauses: Arc<teitunnel_core::pause::Enforcer>,
 }
 
 /// The backend over the core.
@@ -195,6 +197,7 @@ impl<S: ConnectorSource> CoreBackend<S> {
             account_id: None,
             started_at: share.started_at,
             expires_at: share.stop_at,
+            paused: false,
         }
     }
 
@@ -249,6 +252,9 @@ impl<S: ConnectorSource> CoreBackend<S> {
         )
         .await
         .map_err(|e| BackendError::Message(e.english()))?;
+        if let Some(inspector) = self.parts.quick_shares.inspector() {
+            domain_shares::release_tap(inspector, account, hostname).await;
+        }
         self.own_domain
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -623,6 +629,8 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                     expires_at,
                     owner: &self.owner,
                     host_header,
+                    source: None,
+                    folder: false,
                 },
             );
             let outcome = match actor {
@@ -687,6 +695,7 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                 account_id: Some(request.account.clone()),
                 started_at: now,
                 expires_at,
+                paused: false,
             };
             Ok((info, outcome))
         })
@@ -716,6 +725,7 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                         account_id: None,
                         started_at: s.started_at,
                         expires_at: s.stop_at,
+                        paused: false,
                     }),
             );
             let domain = self.engine().local().shares(None).await.map_err(msg)?;
@@ -723,8 +733,8 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                 id: s.hostname.clone(),
                 kind: ShareKind::Domain,
                 url: Some(format!("https://{}", s.hostname)),
-                origin: s.origin,
-                status: "live".into(),
+                origin: s.source.unwrap_or(s.origin),
+                status: if s.paused { "paused" } else { "live" }.into(),
                 started_by: if s.owner == APP_OWNER {
                     "the app".into()
                 } else if s.owner == self.owner {
@@ -736,6 +746,7 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                 account_id: Some(s.account_id),
                 started_at: s.created_at,
                 expires_at: s.expires_at,
+                paused: s.paused,
             }));
             Ok(shares)
         })
@@ -970,6 +981,151 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                 let _ = self.changes.send(ChangeEvent::Shares);
             }
             stopped
+        })
+    }
+
+    fn set_paused<'a>(
+        &'a self,
+        account: &'a str,
+        hostname: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async move {
+            let inspector = self.parts.quick_shares.inspector().ok_or_else(|| {
+                BackendError::message("This server has no inspector to show a paused page.")
+            })?;
+            let connectors = self.source.connectors(Some(account)).await;
+            let here = teitunnel_core::pause::Here {
+                accounts: &self.parts.accounts,
+                engine: &self.parts.engine,
+                connectors: &connectors,
+                machine_name: &self.parts.machine_name,
+                inspector,
+                enforcer: &self.parts.pauses,
+            };
+            teitunnel_core::pause::set_paused(here, account, hostname, paused)
+                .await
+                .map_err(|e| BackendError::Message(e.english()))?;
+            let _ = self.changes.send(ChangeEvent::Shares);
+            Ok(())
+        })
+    }
+
+    fn set_schedule<'a>(
+        &'a self,
+        account: &'a str,
+        hostname: &'a str,
+        schedule: Option<teitunnel_core::schedule::Schedule>,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async move {
+            teitunnel_core::schedule::set(&self.parts.store, account, hostname, schedule.as_ref())
+                .await
+                .map_err(msg)?;
+            let _ = self.changes.send(ChangeEvent::Shares);
+            Ok(())
+        })
+    }
+
+    fn schedules(
+        &self,
+    ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::schedule::RouteSchedule>>> {
+        Box::pin(async move {
+            teitunnel_core::schedule::list(&self.parts.store, None)
+                .await
+                .map_err(msg)
+        })
+    }
+
+    fn share_folder(
+        &self,
+        folder: teitunnel_core::folder_share::FolderShare,
+        domain: Option<(String, String)>,
+        expires_in: Option<Duration>,
+        actor: Option<Actor>,
+    ) -> BoxFuture<'_, BackendResult<ShareInfo>> {
+        Box::pin(async move {
+            let Some((account, hostname)) = domain else {
+                let share = self
+                    .parts
+                    .quick_shares
+                    .start_folder(folder.clone(), expires_in)
+                    .await
+                    .map_err(|e| BackendError::Message(e.to_string()))?;
+                let live = self.await_url(&share.id).await?;
+                let record = CliShare {
+                    owner: self.owner.clone(),
+                    origin: folder.path.clone(),
+                    url: live.url.clone().unwrap_or_default(),
+                    started_at: live.started_at,
+                    stop_at: live.stop_at,
+                };
+                if let Err(err) = cli_shares::record_as(&self.owner_dir(), &live.id, &record) {
+                    tracing::warn!(%err, "couldn't record the share for the app");
+                }
+                let _ = self.changes.send(ChangeEvent::Shares);
+                let mut info = Self::quick_info(&live);
+                info.origin = folder.path;
+                return Ok(info);
+            };
+            let inspector = self.parts.quick_shares.inspector().ok_or_else(|| {
+                BackendError::message("This server has no inspector to serve the folder.")
+            })?;
+            let api = self.api(&account).await?;
+            let connectors = self.source.connectors(Some(&account)).await;
+            let now = domain_shares::now_ms();
+            let expires_at =
+                expires_in.map(|d| now + u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+            let hostname = hostname.trim().to_ascii_lowercase();
+            let run = domain_shares::start_folder(
+                self.engine(),
+                &api,
+                &connectors,
+                self.context(&account, None),
+                inspector,
+                &hostname,
+                &folder,
+                None,
+                expires_at,
+            );
+            let outcome = match actor {
+                Some(actor) => with_actor(actor, run).await,
+                None => run.await,
+            }
+            .map_err(|e| match e {
+                teitunnel_core::inspect::InspectError::Engine(EngineError::NeedsConfirmation) => {
+                    BackendError::Message(format!(
+                        "{hostname} already has a DNS record Teitunnel didn't create; a share never takes it over. Choose another hostname."
+                    ))
+                }
+                other => msg(other),
+            })?;
+            if let Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } =
+                &outcome
+            {
+                return Err(BackendError::Message(format!(
+                    "Couldn't share: {}",
+                    error.english()
+                )));
+            }
+            self.own_domain
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert((account.clone(), hostname.clone()));
+            let _ = self.changes.send(ChangeEvent::Shares);
+            let _ = self.changes.send(ChangeEvent::Routes);
+            Ok(ShareInfo {
+                id: hostname.clone(),
+                kind: ShareKind::Domain,
+                url: Some(format!("https://{hostname}")),
+                origin: folder.path,
+                status: "live".into(),
+                started_by: "this agent".into(),
+                mine: true,
+                account_id: Some(account),
+                started_at: now,
+                expires_at,
+                paused: false,
+            })
         })
     }
 }

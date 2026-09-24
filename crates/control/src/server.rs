@@ -24,9 +24,10 @@ use crate::{
     framing::{Frame, read_frame, write_frame},
     host::{Action, ConfirmRequest, Decision, Host, Requester},
     protocol::{
-        ApplyParams, ClientInfo, EVENT_NOTIFICATION, HelloParams, HelloResult, MAX_MESSAGE,
-        Notification, PROTOCOL_VERSION, Request, Response, RoutesParams, RpcError, StartShare,
-        StopShare, SubscribeParams, View, code, event, method,
+        AgentApproval, AgentDecision, AgentInfo, ApplyParams, ClientInfo, EVENT_NOTIFICATION,
+        HelloParams, HelloResult, MAX_MESSAGE, Notification, PROTOCOL_VERSION, PauseShare, Request,
+        Response, RoutesParams, RpcError, StartShare, StopShare, SubscribeParams, View, code,
+        event, method,
     },
 };
 
@@ -108,6 +109,7 @@ pub struct Server {
     token: Token,
     limits: Limits,
     connections: AtomicUsize,
+    sessions: std::sync::atomic::AtomicU64,
 }
 
 impl std::fmt::Debug for Server {
@@ -148,6 +150,7 @@ impl Server {
             token,
             limits,
             connections: AtomicUsize::new(0),
+            sessions: std::sync::atomic::AtomicU64::new(1),
         })
     }
 
@@ -205,6 +208,8 @@ impl Server {
 
 /// One client's session.
 struct Session {
+    id: u64,
+    agent: bool,
     server: Arc<Server>,
     tx: mpsc::Sender<String>,
     client: Option<ClientInfo>,
@@ -220,6 +225,8 @@ impl Session {
     fn new(server: Arc<Server>, tx: mpsc::Sender<String>) -> Self {
         let limits = &server.limits;
         Self {
+            id: server.sessions.fetch_add(1, Ordering::Relaxed),
+            agent: false,
             requests: Bucket::new(limits.burst, f64::from(limits.per_second)),
             mutations: Bucket::new(
                 limits.mutations_per_minute,
@@ -282,6 +289,9 @@ impl Session {
             events.abort();
         }
         self.tasks.shutdown().await;
+        if self.agent {
+            self.server.host.agent_disconnected(self.id);
+        }
     }
 
     /// Handles one message; `false` closes the connection.
@@ -334,6 +344,22 @@ impl Session {
             .await;
             return true;
         }
+        if request.method == method::AGENT_REGISTER {
+            let response = match params::<AgentInfo>(request.params) {
+                Ok(agent) if agent.is_valid() => {
+                    self.server.host.agent_connected(self.id, agent, &client);
+                    self.agent = true;
+                    Response::ok(id, json!({}))
+                }
+                Ok(_) => Response::err(
+                    id,
+                    RpcError::new(code::INVALID_PARAMS, "Give the agent a short name."),
+                ),
+                Err(error) => Response::err(id, error),
+            };
+            self.send(response).await;
+            return true;
+        }
         if request.method == method::EVENTS_SUBSCRIBE {
             let response = match self.subscribe(request.params) {
                 Ok(result) => Response::ok(id, result),
@@ -353,6 +379,7 @@ impl Session {
         let server = Arc::clone(&self.server);
         let tx = self.tx.clone();
         let confirming = Arc::clone(&self.confirming);
+        let session = self.id;
         self.tasks.spawn(async move {
             let timeout = if mutation {
                 server.limits.mutation_timeout
@@ -365,6 +392,7 @@ impl Session {
                     &server,
                     &client,
                     &confirming,
+                    session,
                     &request.method,
                     request.params,
                 ),
@@ -544,6 +572,7 @@ async fn dispatch(
     server: &Server,
     client: &ClientInfo,
     confirming: &Mutex<()>,
+    session: u64,
     name: &str,
     raw: Option<Value>,
 ) -> Result<Value, RpcError> {
@@ -574,6 +603,36 @@ async fn dispatch(
             .await?;
             host.stop_share(request).await?;
             Ok(json!({}))
+        }
+        method::SHARES_PAUSE | method::SHARES_RESUME => {
+            let request: PauseShare = params(raw)?;
+            let paused = name == method::SHARES_PAUSE;
+            let action = if paused {
+                Action::PauseShare(request.clone())
+            } else {
+                Action::ResumeShare(request.clone())
+            };
+            gate(server, client, confirming, action).await?;
+            host.pause_share(request, paused).await?;
+            Ok(json!({}))
+        }
+        method::AGENT_APPROVE => {
+            let request: AgentApproval = params(raw)?;
+            if request.title.trim().is_empty() {
+                return Err(RpcError::new(
+                    code::INVALID_PARAMS,
+                    "Say what needs approving.",
+                ));
+            }
+            // One question per connection at a time, like other changes.
+            let Ok(_asking) = confirming.try_lock() else {
+                return Err(RpcError::new(
+                    code::RATE_LIMITED,
+                    "Teitunnel is already asking about another change from this agent.",
+                ));
+            };
+            let approved = host.approve_for_agent(session, request).await;
+            to_value(&AgentDecision { approved })
         }
         method::ROUTES_LIST => {
             let request: RoutesParams = optional_params(raw)?;

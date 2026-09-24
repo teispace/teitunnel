@@ -56,6 +56,12 @@ pub(crate) struct FakeState {
     pub(crate) protection: teitunnel_core::engine::edge::EdgeProtection,
     pub(crate) tokens: Vec<teitunnel_core::protection::ServiceTokenView>,
     pub(crate) protection_applied: Vec<teitunnel_core::protection::ProtectionChange>,
+    /// Pauses (`true`) and resumes, by hostname.
+    pub(crate) paused: Vec<(String, bool)>,
+    /// Schedules set (`None`: removed), by hostname.
+    pub(crate) schedules: Vec<(String, Option<teitunnel_core::schedule::Schedule>)>,
+    /// Folders shared.
+    pub(crate) folders: Vec<teitunnel_core::folder_share::FolderShare>,
 }
 
 /// An in-memory Teitunnel with one account (`acc`, "Personal") and one tunnel.
@@ -377,6 +383,7 @@ impl Backend for FakeBackend {
             account_id: None,
             started_at: 1,
             expires_at: stop_after.map(|d| 1 + u64::try_from(d.as_millis()).unwrap_or(0)),
+            paused: false,
         };
         self.lock().shares.push(share.clone());
         let _ = self.changes.send(ChangeEvent::Shares);
@@ -399,6 +406,7 @@ impl Backend for FakeBackend {
             account_id: Some(request.account.clone()),
             started_at: 1,
             expires_at: None,
+            paused: false,
         };
         let mut state = self.lock();
         state.shares.push(share.clone());
@@ -542,6 +550,61 @@ impl Backend for FakeBackend {
         let before = state.shares.len();
         state.shares.retain(|s| !s.mine);
         ready(before - state.shares.len())
+    }
+
+    fn set_paused<'a>(
+        &'a self,
+        _account: &'a str,
+        hostname: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        self.lock().paused.push((hostname.to_owned(), paused));
+        ready(Ok(()))
+    }
+
+    fn set_schedule<'a>(
+        &'a self,
+        _account: &'a str,
+        hostname: &'a str,
+        schedule: Option<teitunnel_core::schedule::Schedule>,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        self.lock().schedules.push((hostname.to_owned(), schedule));
+        ready(Ok(()))
+    }
+
+    fn share_folder(
+        &self,
+        folder: teitunnel_core::folder_share::FolderShare,
+        domain: Option<(String, String)>,
+        _expires_in: Option<Duration>,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'_, BackendResult<ShareInfo>> {
+        let share = ShareInfo {
+            id: domain
+                .as_ref()
+                .map_or_else(|| "qs-folder".to_owned(), |(_, h)| h.clone()),
+            kind: if domain.is_some() {
+                ShareKind::Domain
+            } else {
+                ShareKind::Quick
+            },
+            url: Some(domain.as_ref().map_or_else(
+                || "https://calm-river-1234.trycloudflare.com".to_owned(),
+                |(_, h)| format!("https://{h}"),
+            )),
+            origin: folder.path.clone(),
+            status: "live".into(),
+            started_by: "this agent".into(),
+            mine: true,
+            account_id: domain.map(|(a, _)| a),
+            started_at: 1,
+            expires_at: None,
+            paused: false,
+        };
+        let mut state = self.lock();
+        state.folders.push(folder);
+        state.shares.push(share.clone());
+        ready(Ok(share))
     }
 
     fn protection<'a>(
@@ -871,6 +934,11 @@ fn every_tool_is_listed_with_schemas_and_annotations() {
         "wait_for_request",
         "traffic_stats",
         "traffic_export",
+        "traffic_openapi",
+        "pause_share",
+        "resume_share",
+        "schedule_share",
+        "share_folder",
     ] {
         assert!(names.iter().any(|n| n == expected), "{expected} is missing");
     }
@@ -1297,6 +1365,7 @@ async fn stopping_the_persons_share_needs_approval() {
         account_id: Some("acc".into()),
         started_at: 1,
         expires_at: None,
+        paused: false,
     });
     let asked = h
         .call(
@@ -1545,6 +1614,132 @@ async fn traffic_is_masked_and_waited_for() {
             Mode::Ask,
             "traffic_export",
             json!({ "ids": [], "format": "har" })
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn pausing_and_scheduling_ask_first() {
+    let h = harness();
+    // Ask mode without a client that can ask: the agent must show the person first.
+    let asked = h
+        .call(
+            Mode::Ask,
+            "pause_share",
+            json!({ "share": "https://Demo.xyz.com/" }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(asked["outcome"], "needsApproval");
+    assert!(h.backend.lock().paused.is_empty());
+    let paused = h
+        .call(
+            Mode::Ask,
+            "pause_share",
+            json!({ "share": "https://Demo.xyz.com/", "confirmed": true }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(paused["outcome"], "paused");
+    h.call(
+        Mode::Full,
+        "resume_share",
+        json!({ "share": "demo.xyz.com" }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        h.backend.lock().paused,
+        [
+            ("demo.xyz.com".to_owned(), true),
+            ("demo.xyz.com".to_owned(), false)
+        ]
+    );
+
+    let scheduled = h
+        .call(
+            Mode::Full,
+            "schedule_share",
+            json!({ "share": "demo.xyz.com", "days": "mon-fri", "from": "9:00", "to": "18:00", "timeZone": "Europe/Berlin" }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(scheduled["outcome"], "scheduled");
+    assert!(scheduled["message"].as_str().unwrap().contains("09:00"));
+    let bad = h
+        .call(
+            Mode::Full,
+            "schedule_share",
+            json!({ "share": "demo.xyz.com", "days": "someday", "from": "9:00", "to": "18:00" }),
+        )
+        .await;
+    assert!(bad.is_err());
+    let missing = h
+        .call(
+            Mode::Full,
+            "schedule_share",
+            json!({ "share": "demo.xyz.com" }),
+        )
+        .await;
+    assert!(missing.unwrap_err().contains("off: true"));
+    h.call(
+        Mode::Full,
+        "schedule_share",
+        json!({ "share": "demo.xyz.com", "off": true }),
+    )
+    .await
+    .unwrap();
+    let schedules = h.backend.lock().schedules.clone();
+    assert_eq!(schedules.len(), 2);
+    assert_eq!(schedules[0].1.as_ref().unwrap().from, "09:00");
+    assert!(schedules[1].1.is_none());
+    // A read-only server declines (and doesn't list them, see protocol_tests).
+    let declined = h
+        .call(
+            Mode::ReadOnly,
+            "pause_share",
+            json!({ "share": "demo.xyz.com" }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(declined["outcome"], "declined");
+    assert_eq!(h.backend.lock().paused.len(), 2);
+}
+
+#[tokio::test]
+async fn folders_are_shared_with_approval() {
+    let h = harness();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().to_str().unwrap().to_owned();
+    let asked = h
+        .call(
+            Mode::Ask,
+            "share_folder",
+            json!({ "path": path, "spa": true }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(asked["outcome"], "needsApproval");
+    assert!(asked["message"].as_str().unwrap().contains(".env"));
+    let shared = h
+        .call(
+            Mode::Full,
+            "share_folder",
+            json!({ "path": path, "hostname": "docs.xyz.com", "listing": true }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(shared["outcome"], "shared");
+    assert_eq!(shared["share"]["url"], "https://docs.xyz.com");
+    let folders = h.backend.lock().folders.clone();
+    assert!(folders[0].listing && !folders[0].spa);
+    assert!(
+        h.call(
+            Mode::Full,
+            "share_folder",
+            json!({ "path": "/definitely/not/here" })
         )
         .await
         .is_err()

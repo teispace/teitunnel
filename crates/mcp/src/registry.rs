@@ -141,6 +141,12 @@ pub trait Approver: Send + Sync + 'static {
         actor: &'a Actor,
         request: &'a ApprovalRequest,
     ) -> BoxFuture<'a, Option<bool>>;
+
+    /// An agent connected (its MCP client finished initializing).
+    fn agent_connected<'a>(&'a self, actor: &'a Actor) -> BoxFuture<'a, ()> {
+        let _ = actor;
+        Box::pin(async {})
+    }
 }
 
 /// What needs approving.
@@ -207,6 +213,19 @@ impl ToolContext {
             progress: None,
             elicitation: false,
             approver: None,
+        }
+    }
+
+    /// A context without a client whose approvals go to `approver` (tests).
+    #[cfg(test)]
+    pub(crate) fn with_approver(
+        settings: Settings,
+        actor: Actor,
+        approver: Arc<dyn Approver>,
+    ) -> Self {
+        Self {
+            approver: Some(approver),
+            ..Self::detached(settings, actor)
         }
     }
 

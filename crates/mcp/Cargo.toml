@@ -13,6 +13,7 @@ name = "teitunnel_mcp"
 
 [dependencies]
 teitunnel-core.workspace = true
+teitunnel-control.workspace = true
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
 rmcp = { workspace = true, features = ["server", "schemars", "elicitation", "transport-io", "transport-streamable-http-server"] }
@@ -32,6 +33,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+teitunnel-control = { workspace = true, features = ["testing"] }
 rmcp = { workspace = true, features = ["server", "client", "schemars", "elicitation", "transport-io", "transport-streamable-http-server"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "test-util", "io-util"] }

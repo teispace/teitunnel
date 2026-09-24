@@ -107,6 +107,8 @@ pub struct ShareInfo {
     pub started_at: u64,
     /// When it ends by itself (milliseconds since the epoch).
     pub expires_at: Option<u64>,
+    /// Visitors get a "paused" page (shares on your domain).
+    pub paused: bool,
 }
 
 /// The two kinds of share.
@@ -381,6 +383,53 @@ pub trait Backend: Send + Sync + 'static {
     ) -> BoxFuture<'a, BackendResult<(Outcome, Vec<IssuedToken>)>> {
         Box::pin(async { Err(unsupported_protection()) })
     }
+
+    /// Pauses (`paused`) or resumes a share on your domain or a route: the address stays
+    /// and visitors get a "paused" page, served by whichever Teitunnel process serves it
+    /// (M12-06).
+    fn set_paused<'a>(
+        &'a self,
+        _account: &'a str,
+        _hostname: &'a str,
+        _paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Sets (or, with `None`, removes) when a share on your domain or a route is on.
+    fn set_schedule<'a>(
+        &'a self,
+        _account: &'a str,
+        _hostname: &'a str,
+        _schedule: Option<teitunnel_core::schedule::Schedule>,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Schedules of shares and routes.
+    fn schedules(
+        &self,
+    ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::schedule::RouteSchedule>>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Shares a folder (static files served by this process's inspector): a Quick Share,
+    /// or at `(account, hostname)`. Ends like any share this server started.
+    fn share_folder(
+        &self,
+        _folder: teitunnel_core::folder_share::FolderShare,
+        _domain: Option<(String, String)>,
+        _expires_in: Option<Duration>,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'_, BackendResult<ShareInfo>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+}
+
+fn unsupported_extras() -> BackendError {
+    BackendError::Unsupported(
+        "Pausing, schedules and folder shares aren't available from this host.".into(),
+    )
 }
 
 fn unsupported_protection() -> BackendError {

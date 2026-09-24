@@ -22,7 +22,7 @@ use rmcp::{
         ServerCapabilities, ServerConfig, SetLevelRequestParams, SubscribeRequestParams,
         SubscriptionFilter, Tool, UnsubscribeRequestParams,
     },
-    service::{Peer, RequestContext, SubscriptionContext},
+    service::{NotificationContext, Peer, RequestContext, SubscriptionContext},
 };
 use teitunnel_core::engine::Actor;
 
@@ -439,6 +439,24 @@ fn error(message: String) -> CallToolResult {
 }
 
 impl ServerHandler for McpServer {
+    async fn on_initialized(&self, context: NotificationContext<RoleServer>) {
+        let Some(approver) = self.shared.approver.clone() else {
+            return;
+        };
+        let info = context.peer.peer_info().map(|p| p.client_info.clone());
+        let actor = Actor {
+            via: self.shared.via.clone(),
+            client: info
+                .as_ref()
+                .map(|i| i.title.clone().unwrap_or_else(|| i.name.clone()))
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| "an AI agent".to_owned()),
+            version: info.map(|i| i.version).filter(|v| !v.is_empty()),
+        };
+        // In the background: the app may take a moment to answer.
+        tokio::spawn(async move { approver.agent_connected(&actor).await });
+    }
+
     fn get_info(&self) -> ServerConfig {
         let capabilities = ServerCapabilities::builder()
             .enable_tools()

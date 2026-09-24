@@ -8,7 +8,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use crate::{
     Action, ClientError, ControlClient, Decision, Endpoint, Limits, Requester,
     deeplink::{DeepLink, Handled, LinkHandler},
-    protocol::{ApplyParams, ClientInfo, Event, HostHeader, PreviewParams, StartShare, View, code},
+    protocol::{
+        AgentApproval, AgentInfo, ApplyParams, ClientInfo, Event, HostHeader, PauseShare,
+        PreviewParams, StartShare, View, code,
+    },
     testing::FakeHost,
 };
 
@@ -283,6 +286,90 @@ async fn changes_need_the_persons_approval() {
         .await
         .unwrap();
     assert_eq!(running.host.asked(), 4);
+}
+
+#[tokio::test]
+async fn pausing_asks_the_person() {
+    let running = start(Limits::default()).await;
+    let client = ControlClient::connect(&running.endpoint, cli())
+        .await
+        .unwrap();
+    let request = PauseShare {
+        id: "demo.example.com".into(),
+        account: None,
+    };
+    running.host.answer(Decision::Deny);
+    let declined = client.pause_share(&request, true).await.unwrap_err();
+    assert_eq!(declined.code(), Some(code::DECLINED));
+    assert!(running.host.paused.lock().unwrap().is_empty());
+    running.host.answer(Decision::Once);
+    client.pause_share(&request, true).await.unwrap();
+    running.host.answer(Decision::Once);
+    client.pause_share(&request, false).await.unwrap();
+    assert_eq!(
+        *running.host.paused.lock().unwrap(),
+        [
+            ("demo.example.com".to_owned(), true),
+            ("demo.example.com".to_owned(), false)
+        ]
+    );
+    let asked = running.host.asked.lock().unwrap();
+    assert!(matches!(asked[1].action, Action::PauseShare(_)));
+    assert!(matches!(asked[2].action, Action::ResumeShare(_)));
+}
+
+#[tokio::test]
+async fn agents_are_listed_while_connected_and_approvals_are_asked_in_the_app() {
+    let running = start(Limits::default()).await;
+    let mcp = ClientInfo {
+        name: "teitunnel-mcp".into(),
+        version: "0.2.0".into(),
+    };
+    let client = ControlClient::connect(&running.endpoint, mcp)
+        .await
+        .unwrap();
+    let agent = AgentInfo {
+        name: "claude-code".into(),
+        version: Some("2.1".into()),
+        mode: "ask".into(),
+    };
+    client.register_agent(&agent).await.unwrap();
+    assert_eq!(running.host.agents.lock().unwrap()[0].1, agent);
+    let bad = AgentInfo {
+        name: "a\nb".into(),
+        ..agent.clone()
+    };
+    assert_eq!(
+        client.register_agent(&bad).await.unwrap_err().code(),
+        Some(code::INVALID_PARAMS)
+    );
+
+    let question = AgentApproval {
+        agent: "claude-code".into(),
+        title: "Add app.example.com".into(),
+        details: "1. Create DNS record".into(),
+    };
+    running.host.agent_answers.lock().unwrap().push_back(true);
+    assert!(client.approve_for_agent(&question).await.unwrap());
+    assert!(
+        !client.approve_for_agent(&question).await.unwrap(),
+        "no answer is a no"
+    );
+    assert_eq!(running.host.agent_questions.lock().unwrap().len(), 2);
+    // Approving an agent's change isn't a way around the program's own approval.
+    assert_eq!(running.host.asked(), 0);
+
+    drop(client);
+    for _ in 0..100 {
+        if running.host.agents.lock().unwrap().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(
+        running.host.agents.lock().unwrap().is_empty(),
+        "gone with the connection"
+    );
 }
 
 #[tokio::test]

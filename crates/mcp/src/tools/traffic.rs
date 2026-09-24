@@ -92,6 +92,18 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
         ),
+        spec::<OpenApiArgs, OpenApiOut>(
+            "traffic_openapi",
+            "Describe the API from traffic",
+            "Infer an OpenAPI 3.1 description of an API from the requests the inspector captured: paths with parameters (`/users/123` → `/users/{id}`), methods, query and header parameters, request and response bodies as JSON Schemas merged across requests, status codes and the authentication seen. Pages, scripts, styles and images are left out, and no observed value is copied in (no examples). Only what was observed is described: exercise the API first (or ask the person to), then call this.\n\
+             \n\
+             Use it to document an API, write a client, or check what an app actually calls.\n\
+             \n\
+             Example: {\"host\": \"api.example.com\"}",
+            ToolClass::Read,
+            Hints::READ_LOCAL,
+            super::DEFAULT_TIMEOUT,
+        ),
         spec::<ExportArgs, ExportOut>(
             "traffic_export",
             "Export requests",
@@ -445,6 +457,53 @@ pub(super) async fn wait_for_request(
 pub(super) async fn stats(source: &dyn TrafficSource, args: JsonObject) -> ToolResult {
     let filter: TrafficFilter = arguments(args)?;
     Ok(ToolOutput::new(&source.stats(&filter).await?))
+}
+
+/// Which traffic to describe.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct OpenApiArgs {
+    /// Only requests to this host (e.g. `api.example.com`); default: every host.
+    #[serde(default)]
+    host: Option<String>,
+    /// The document's title.
+    #[serde(default)]
+    title: Option<String>,
+}
+
+/// An OpenAPI description.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OpenApiOut {
+    /// Requests described.
+    requests: u32,
+    /// Requests left out (pages, assets, Teitunnel's own answers).
+    skipped: u32,
+    /// Paths described.
+    paths: u32,
+    /// Operations (path and method) described.
+    operations: u32,
+    /// The OpenAPI 3.1 document.
+    document: serde_json::Value,
+}
+
+pub(super) async fn openapi(source: &dyn TrafficSource, args: JsonObject) -> ToolResult {
+    let args: OpenApiArgs = arguments(args)?;
+    let (document, summary) = source
+        .openapi(args.host.as_deref(), args.title.as_deref())
+        .await?;
+    let sentence = format!(
+        "{} paths ({} operations) from {} requests.",
+        summary.paths, summary.operations, summary.requests
+    );
+    Ok(ToolOutput::new(&OpenApiOut {
+        requests: summary.requests,
+        skipped: summary.skipped,
+        paths: summary.paths,
+        operations: summary.operations,
+        document,
+    })
+    .with_summary(sentence))
 }
 
 /// What to export.
