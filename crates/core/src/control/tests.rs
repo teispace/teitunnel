@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use serde_json::json;
 use teitunnel_control::{
     ControlClient, Endpoint, Server,
-    protocol::{ApplyParams, HostHeader, StartShare, StopShare, View},
+    protocol::{AgentApproval, AgentInfo, ApplyParams, HostHeader, StartShare, StopShare, View},
 };
 
 use super::*;
@@ -78,6 +78,12 @@ fn fixture() -> Fixture {
         binary,
         runs: dir.path().join("run-cli"),
         machine_name: "test-machine".into(),
+        inspector: crate::inspect::Inspector::new(
+            Some(store.clone()),
+            None,
+            crate::domain_shares::APP_OWNER,
+        ),
+        pauses: Arc::new(crate::pause::Enforcer::new()),
         store: store.clone(),
     };
     let ui = Arc::new(FakeUi::default());
@@ -235,15 +241,113 @@ async fn opens_views_and_publishes_events() {
     f.host.open(View::Doctor).await.unwrap();
     assert_eq!(f.ui.opened.lock().unwrap()[0], View::Doctor);
     let mut events = f.host.subscribe();
-    f.host.publish(event_for(&Changed::Routes {
-        account_id: "a1".into(),
-    }));
+    f.host.publish(
+        event_for(&Changed::Routes {
+            account_id: "a1".into(),
+        })
+        .unwrap(),
+    );
+    assert_eq!(event_for(&Changed::Agents), None);
     assert_eq!(
         events.recv().await.unwrap(),
         Event::RoutesChanged {
             account_id: Some("a1".into())
         }
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pauses_a_share_the_app_serves() {
+    let f = fixture();
+    let origin = crate::inspect::tests::origin().await;
+    Local::new(f.store.clone())
+        .record_share(&crate::domain_shares::DomainShare {
+            account_id: "a1".into(),
+            hostname: "demo.xyz.com".into(),
+            origin: origin.clone(),
+            owner: crate::domain_shares::APP_OWNER.into(),
+            expires_at: None,
+            created_at: 1,
+            source: None,
+            folder: false,
+            paused: false,
+            schedule: None,
+        })
+        .await
+        .unwrap();
+    let inspector = f.host.parts.inspector.clone();
+    let tap = inspector
+        .start(crate::inspect::TapSpec::new(
+            crate::inspect::TapScope::route("a1", "demo.xyz.com", None),
+            "demo.xyz.com",
+            &origin,
+        ))
+        .await
+        .unwrap();
+    let pause = |id: &str| wire::PauseShare {
+        id: id.into(),
+        account: None,
+    };
+    f.host
+        .pause_share(pause("https://Demo.xyz.com/"), true)
+        .await
+        .unwrap();
+    assert!(inspector.view(&tap.id).unwrap().paused.is_some());
+    let shares = f.host.shares().await.unwrap();
+    assert!(shares[0].paused);
+    assert_eq!(shares[0].status, "paused");
+    assert!(f.ui.changes.lock().unwrap().contains(&Changed::Shares));
+    f.host
+        .pause_share(pause("demo.xyz.com"), false)
+        .await
+        .unwrap();
+    assert!(inspector.view(&tap.id).unwrap().paused.is_none());
+    assert!(!f.host.shares().await.unwrap()[0].paused);
+    // A route with nothing to pause it (no account connected here) is refused.
+    assert!(
+        f.host
+            .pause_share(pause("other.xyz.com"), true)
+            .await
+            .is_err()
+    );
+    inspector.shutdown().await;
+}
+
+#[tokio::test]
+async fn lists_agents_and_asks_for_their_changes() {
+    let f = fixture();
+    let agent = AgentInfo {
+        name: "claude-code".into(),
+        version: Some("2.1".into()),
+        mode: "ask".into(),
+    };
+    f.host.agent_connected(7, agent, &client());
+    assert_eq!(f.host.agents()[0].name, "claude-code");
+    let question = AgentApproval {
+        agent: "someone".into(),
+        title: "Add app.example.com".into(),
+        details: "• Create a DNS record".into(),
+    };
+    *f.ui.answer.lock().unwrap() = Some(Decision::Once);
+    assert!(f.host.approve_for_agent(7, question.clone()).await);
+    *f.ui.answer.lock().unwrap() = Some(Decision::Deny);
+    assert!(!f.host.approve_for_agent(7, question).await);
+    {
+        let prompts = f.ui.prompts.lock().unwrap();
+        assert!(
+            prompts[0].title.english().contains("claude-code"),
+            "the registered name"
+        );
+        assert!(prompts[0].message.english().contains("Create a DNS record"));
+        assert!(
+            prompts[0].always.is_none(),
+            "an agent is never allowed for good"
+        );
+    }
+    assert!(f.host.pending_approvals().is_empty());
+    f.host.agent_disconnected(7);
+    assert!(f.host.agents().is_empty());
+    assert!(f.ui.changes.lock().unwrap().contains(&Changed::Agents));
 }
 
 #[tokio::test]

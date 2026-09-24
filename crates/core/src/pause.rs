@@ -645,15 +645,20 @@ impl Enforcer {
             };
             match result {
                 Ok(()) => {}
-                // The route is gone: nothing to pause or point back.
-                Err(PauseError::Inspect(
-                    InspectError::NotRoute(_)
-                    | InspectError::Engine(EngineError::Plan(
-                        PlanError::NoSuchRoute(_) | PlanError::NoTunnel,
-                    )),
-                )) => {
+                // The route is gone, or can't have a paused page (not a web service):
+                // the pause is dropped rather than retried forever.
+                Err(
+                    err @ PauseError::Inspect(
+                        InspectError::NotRoute(_)
+                        | InspectError::NotWeb
+                        | InspectError::Engine(EngineError::Plan(
+                            PlanError::NoSuchRoute(_) | PlanError::NoTunnel,
+                        )),
+                    ),
+                ) => {
                     if let Needs::Inspect(route) = &need {
                         let _ = forget(store, &route.account_id, &route.hostname).await;
+                        failures.push(err.text());
                     }
                 }
                 Err(err) => {
@@ -664,6 +669,107 @@ impl Enforcer {
         }
         failures
     }
+}
+
+/// What's needed to pause from a process that serves routes (the app, `up`, `serve`, an
+/// MCP server): its services and its inspector.
+#[derive(Debug, Clone, Copy)]
+pub struct Here<'a, K> {
+    /// Connected accounts.
+    pub accounts: &'a Accounts,
+    /// The engine.
+    pub engine: &'a Engine,
+    /// This machine's connectors.
+    pub connectors: &'a K,
+    /// This machine's name.
+    pub machine_name: &'a str,
+    /// This process's inspector.
+    pub inspector: &'a Inspector,
+    /// This process's enforcer.
+    pub enforcer: &'a Enforcer,
+}
+
+/// Pauses (`paused`) or resumes `hostname` in `account` and, when this process serves
+/// it, applies that at once (another process applies it within seconds).
+///
+/// # Errors
+/// Why it can't be paused ([`PauseError`]), or why applying it failed.
+pub async fn set_paused<K: Connectors>(
+    here: Here<'_, K>,
+    account: &str,
+    hostname: &str,
+    paused: bool,
+) -> Result<(), Text> {
+    let store = here.engine.local().store();
+    if paused {
+        request(store, account, hostname, false)
+            .await
+            .map_err(|e| e.text())?;
+    } else {
+        request_resume(store, account, hostname)
+            .await
+            .map_err(|e| e.text())?;
+    }
+    let failures = here
+        .enforcer
+        .sync(
+            here.accounts,
+            here.engine,
+            here.connectors,
+            here.machine_name,
+            here.inspector,
+        )
+        .await;
+    if !paused {
+        // A route that couldn't be pointed back still works: its tap forwards again.
+        return Ok(());
+    }
+    let row = find(store, account, hostname).await.map_err(|e| e.text())?;
+    if let Some(row) = row
+        && row.owner == here.inspector.owner()
+    {
+        let scope = TapScope::route(account, &row.hostname, None);
+        let applied = here
+            .inspector
+            .tap_for(&scope)
+            .and_then(|tap| here.inspector.view(&tap).ok())
+            .is_some_and(|view| view.paused.is_some());
+        if !applied {
+            // Nothing is left half-done: a pause that couldn't be applied is dropped.
+            let _ = forget(store, account, hostname).await;
+            return Err(failures
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| InspectError::UnknownTap.text()));
+        }
+    }
+    Ok(())
+}
+
+/// The account of a share on your domain at `hostname`, if there is one.
+///
+/// # Errors
+/// The database can't be read.
+pub async fn share_account(store: &Store, hostname: &str) -> Result<Option<String>, StoreError> {
+    let hostname = normal(hostname);
+    Ok(crate::engine::Local::new(store.clone())
+        .shares(None)
+        .await?
+        .into_iter()
+        .find(|s| s.hostname == hostname)
+        .map(|s| s.account_id))
+}
+
+/// A hostname from what a person typed: a hostname or a URL.
+pub fn hostname_of(id: &str) -> String {
+    normal(
+        id.trim()
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .split('/')
+            .next()
+            .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]

@@ -239,6 +239,46 @@ fn truncated_bodies_keep_the_media_type_only() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn describes_what_the_inspector_captured() {
+    use crate::inspect::{
+        Inspector, TapScope, TapSpec,
+        tests::{origin, send},
+    };
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let tap = inspector
+        .start(TapSpec::new(
+            TapScope::QuickShare {
+                share_id: "qs-1".into(),
+            },
+            "demo",
+            &origin,
+        ))
+        .await
+        .unwrap();
+    for path in ["/items/42", "/items/7", "/health"] {
+        send(&tap.address, "GET", path, &[]).await;
+    }
+    let mut summary = Summary::default();
+    for _ in 0..200 {
+        let (document, found) = describe(Some(&inspector), None, &Options::default())
+            .await
+            .unwrap();
+        summary = found;
+        if summary.requests == 3 {
+            let mut paths: Vec<&String> = document["paths"].as_object().unwrap().keys().collect();
+            paths.sort();
+            assert_eq!(paths, ["/health", "/items/{id}"]);
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(summary.requests, 3);
+    assert_eq!(summary.hosts, ["demo.example.com"]);
+    inspector.shutdown().await;
+}
+
 proptest! {
     /// Every observed body conforms to the schema inferred for its operation.
     #[test]

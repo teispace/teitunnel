@@ -30,8 +30,8 @@ use std::{
 };
 
 pub use history::{
-    HISTORY_BYTES, HistoryQuery, MAX_PER_TAP, StoredTap, history, history_after, history_clear,
-    history_get, history_taps,
+    HISTORY_BYTES, HistoryQuery, MAX_PER_TAP, MAX_READ, StoredTap, history, history_after,
+    history_clear, history_get, history_taps,
 };
 pub use lens;
 use lens::{

@@ -9,14 +9,23 @@
 
 pub mod integrations;
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use teitunnel_control::{
     Action, BoxFuture, ConfirmRequest, Decision, Host, HostResult, Requester,
     protocol::{
-        self as wire, AccountInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult, ClientInfo,
-        DoctorIssue, Event, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo,
-        ShareKind, StartShare, Status, StepInfo, StopShare, TunnelInfo, View, code,
+        self as wire, AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams,
+        ApplyResult, ClientInfo, DoctorIssue, Event, PauseShare, PlanInfo, PreviewParams,
+        RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare, Status, StepInfo,
+        StopShare, TunnelInfo, View, code,
     },
 };
 use tokio::sync::broadcast;
@@ -37,6 +46,39 @@ use crate::{
 
 /// How long a Quick Share may take to get its address.
 const URL_TIMEOUT: Duration = Duration::from_secs(45);
+/// How long the person has to answer an agent's approval (the control connection gives
+/// a change 180 s).
+const AGENT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(170);
+
+/// An AI agent connected through `teitunnel mcp` (Settings ▸ AI Tools).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedAgent {
+    /// The agent's name, e.g. `claude-code`.
+    pub name: String,
+    /// Its version.
+    pub version: Option<String>,
+    /// The MCP server's mode: `read-only`, `ask` or `full`.
+    pub mode: String,
+    /// When it connected (milliseconds since the epoch).
+    #[cfg_attr(feature = "specta", specta(type = f64))]
+    pub connected_at: u64,
+}
+
+/// An agent's change waiting for the person's answer in the app.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct PendingApproval {
+    /// The agent.
+    pub agent: String,
+    /// What it wants to do, in one line.
+    pub title: String,
+    /// Since when (milliseconds since the epoch).
+    #[cfg_attr(feature = "specta", specta(type = f64))]
+    pub asked_at: u64,
+}
 
 /// A question for the person, in their language.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +106,8 @@ pub enum Changed {
         /// The account.
         account_id: String,
     },
+    /// AI agents connected, or their approvals waiting.
+    Agents,
 }
 
 /// What the app's shell does for the control connection.
@@ -97,6 +141,10 @@ pub struct HostParts {
     pub runs: PathBuf,
     /// This machine's name.
     pub machine_name: String,
+    /// The app's inspector (it serves paused pages).
+    pub inspector: crate::inspect::Inspector,
+    /// Applies pauses to the app's taps.
+    pub pauses: Arc<crate::pause::Enforcer>,
 }
 
 /// [`Host`] over the core.
@@ -104,6 +152,13 @@ pub struct CoreHost {
     parts: HostParts,
     ui: Arc<dyn Ui>,
     events: broadcast::Sender<Event>,
+    agents: Mutex<BTreeMap<u64, ConnectedAgent>>,
+    approvals: Mutex<BTreeMap<u64, PendingApproval>>,
+    next_approval: AtomicU64,
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 impl std::fmt::Debug for CoreHost {
@@ -188,6 +243,7 @@ fn quick_info(share: &QuickShare, requests: Option<u64>) -> ShareInfo {
         expires_at: share.stop_at,
         requests,
         account_id: None,
+        paused: false,
     }
 }
 
@@ -203,7 +259,24 @@ impl CoreHost {
     /// A host over the app's services, asking and showing through `ui`.
     pub fn new(parts: HostParts, ui: Arc<dyn Ui>) -> Arc<Self> {
         let (events, _) = broadcast::channel(128);
-        Arc::new(Self { parts, ui, events })
+        Arc::new(Self {
+            parts,
+            ui,
+            events,
+            agents: Mutex::default(),
+            approvals: Mutex::default(),
+            next_approval: AtomicU64::new(1),
+        })
+    }
+
+    /// AI agents connected now (one per `teitunnel mcp`), in the order they came.
+    pub fn agents(&self) -> Vec<ConnectedAgent> {
+        lock(&self.agents).values().cloned().collect()
+    }
+
+    /// Agents' changes waiting for the person's answer, oldest first.
+    pub fn pending_approvals(&self) -> Vec<PendingApproval> {
+        lock(&self.approvals).values().cloned().collect()
     }
 
     /// Tells subscribers something changed (the shell forwards what its windows are
@@ -293,13 +366,14 @@ impl CoreHost {
                 id: share.hostname.clone(),
                 kind: ShareKind::Domain,
                 url: Some(format!("https://{}", share.hostname)),
-                origin: share.origin,
-                status: "live".into(),
+                origin: share.source.unwrap_or(share.origin),
+                status: if share.paused { "paused" } else { "live" }.into(),
                 error: None,
                 started_at: share.created_at,
                 expires_at: share.expires_at,
                 requests: None,
                 account_id: Some(share.account_id),
+                paused: share.paused,
             });
         }
         for share in cli_shares::list(&self.parts.runs) {
@@ -314,6 +388,7 @@ impl CoreHost {
                 expires_at: share.stop_at,
                 requests: None,
                 account_id: None,
+                paused: false,
             });
         }
         shares
@@ -361,6 +436,8 @@ impl CoreHost {
                 }
             }
             Action::StopShare(stop) => (m::stop(&client, &stop.id), false),
+            Action::PauseShare(pause) => (m::pause(&client, &pause.id), false),
+            Action::ResumeShare(pause) => (m::resume(&client, &pause.id), false),
             Action::Apply(apply) => (self.describe_apply(&client, apply).await, false),
         };
         Prompt {
@@ -529,6 +606,83 @@ impl Host for CoreHost {
             }
             self.ui.changed(Changed::Shares);
             Ok(())
+        })
+    }
+
+    fn pause_share(&self, request: PauseShare, paused: bool) -> BoxFuture<'_, HostResult<()>> {
+        Box::pin(async move {
+            let hostname = crate::pause::hostname_of(&request.id);
+            let store = &self.parts.store;
+            let account = match crate::pause::share_account(store, &hostname)
+                .await
+                .map_err(internal)?
+            {
+                Some(account) => account,
+                None => self.account(request.account.as_deref()).await?.id,
+            };
+            let here = crate::pause::Here {
+                accounts: &self.parts.accounts,
+                engine: &self.parts.engine,
+                connectors: &self.parts.machine,
+                machine_name: &self.parts.machine_name,
+                inspector: &self.parts.inspector,
+                enforcer: &self.parts.pauses,
+            };
+            let result = crate::pause::set_paused(here, &account, &hostname, paused).await;
+            self.ui.changed(Changed::Shares);
+            self.ui.changed(Changed::Routes {
+                account_id: account,
+            });
+            result.map_err(|text| error(code::INVALID_PARAMS, &text))
+        })
+    }
+
+    fn agent_connected(&self, session: u64, agent: AgentInfo, _client: &ClientInfo) {
+        lock(&self.agents).insert(
+            session,
+            ConnectedAgent {
+                name: agent.name,
+                version: agent.version,
+                mode: agent.mode,
+                connected_at: crate::domain_shares::now_ms(),
+            },
+        );
+        self.ui.changed(Changed::Agents);
+    }
+
+    fn agent_disconnected(&self, session: u64) {
+        if lock(&self.agents).remove(&session).is_some() {
+            self.ui.changed(Changed::Agents);
+        }
+    }
+
+    fn approve_for_agent(&self, session: u64, request: AgentApproval) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            let agent = lock(&self.agents)
+                .get(&session)
+                .map_or_else(|| request.agent.clone(), |a| a.name.clone());
+            let id = self.next_approval.fetch_add(1, Ordering::Relaxed);
+            lock(&self.approvals).insert(
+                id,
+                PendingApproval {
+                    agent: agent.clone(),
+                    title: request.title.clone(),
+                    asked_at: crate::domain_shares::now_ms(),
+                },
+            );
+            self.ui.changed(Changed::Agents);
+            let prompt = Prompt {
+                title: m::agent_title(&agent),
+                message: m::agent_message(&agent, &request.title, &request.details),
+                allow: m::allow(),
+                always: None,
+                deny: m::deny(),
+            };
+            let decision =
+                tokio::time::timeout(AGENT_APPROVAL_TIMEOUT, self.ui.confirm(prompt)).await;
+            lock(&self.approvals).remove(&id);
+            self.ui.changed(Changed::Agents);
+            matches!(decision, Ok(Decision::Once | Decision::Always))
         })
     }
 
@@ -760,13 +914,15 @@ impl Host for CoreHost {
     }
 }
 
-/// The event for a change the shell told its windows about.
-pub fn event_for(change: &Changed) -> Event {
+/// The event for a change the shell told its windows about (`None`: nothing clients
+/// subscribe to).
+pub fn event_for(change: &Changed) -> Option<Event> {
     match change {
-        Changed::Shares => Event::SharesChanged { id: None },
-        Changed::Routes { account_id } => Event::RoutesChanged {
+        Changed::Shares => Some(Event::SharesChanged { id: None }),
+        Changed::Routes { account_id } => Some(Event::RoutesChanged {
             account_id: Some(account_id.clone()),
-        },
+        }),
+        Changed::Agents => None,
     }
 }
 

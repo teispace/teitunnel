@@ -476,6 +476,56 @@ fn paths_out_len(document: &Value) -> usize {
     document["paths"].as_object().map_or(0, Map::len)
 }
 
+/// Exchanges read for one description at most (the newest).
+pub const MAX_EXCHANGES: usize = 5_000;
+
+/// Describes the traffic this process's `inspector` captured (live and restored) or,
+/// without one, the history every process keeps in `store` (masked, D-110).
+///
+/// # Errors
+/// The history can't be read.
+pub async fn describe(
+    inspector: Option<&crate::inspect::Inspector>,
+    store: Option<&crate::store::Store>,
+    options: &Options,
+) -> Result<(Value, Summary), crate::store::StoreError> {
+    let filter = lens::Filter {
+        host: options.host.clone(),
+        ..lens::Filter::default()
+    };
+    let exchanges: Vec<Exchange> = match (inspector, store) {
+        (Some(inspector), _) if inspector.running().is_some() => {
+            let mut out = Vec::new();
+            let mut before = None;
+            while out.len() < MAX_EXCHANGES {
+                let page = inspector.list_raw(&lens::Query {
+                    filter: filter.clone(),
+                    limit: Some(lens::MAX_PAGE),
+                    before,
+                });
+                out.extend(page.items.iter().map(|e| (**e).clone()));
+                match page.next {
+                    Some(next) => before = Some(next),
+                    None => break,
+                }
+            }
+            out
+        }
+        (_, Some(store)) => {
+            crate::inspect::history(
+                store,
+                crate::inspect::HistoryQuery {
+                    filter,
+                    limit: MAX_EXCHANGES,
+                },
+            )
+            .await?
+        }
+        _ => Vec::new(),
+    };
+    Ok(infer(&exchanges, options))
+}
+
 /// A document as text: YAML when `yaml`, else pretty JSON.
 ///
 /// # Errors

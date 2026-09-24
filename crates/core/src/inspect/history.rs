@@ -337,12 +337,15 @@ pub struct HistoryQuery {
     pub limit: usize,
 }
 
-/// The newest exchanges in the history matching `query`.
+/// Exchanges read from the history at most in one call.
+pub const MAX_READ: usize = 10_000;
+
+/// The newest exchanges in the history matching `query` (at most [`MAX_READ`]).
 ///
 /// # Errors
 /// The database can't be read.
 pub async fn history(store: &Store, query: HistoryQuery) -> Result<Vec<Exchange>, StoreError> {
-    let limit = query.limit.clamp(1, lens::MAX_PAGE);
+    let limit = query.limit.clamp(1, MAX_READ);
     let filter = query.filter;
     store
         .call(move |conn| {

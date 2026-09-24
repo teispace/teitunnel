@@ -1986,7 +1986,11 @@
         "stale": "Something changed in Cloudflare since this plan was made. Review the new plan.",
         "needsConfirmation": "This plan replaces or deletes DNS records Teitunnel didn't create; apply it with confirmed set."
       },
-      "linkFailed": "Couldn't open the Teitunnel link"
+      "linkFailed": "Couldn't open the Teitunnel link",
+      "pause": "{client} wants to pause {share}. Its address stays, and visitors see a paused page until it's resumed.",
+      "resume": "{client} wants to serve {share} again.",
+      "agentTitle": "Allow {agent} to make this change?",
+      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}"
     },
     "protection": {
       "summary": {
