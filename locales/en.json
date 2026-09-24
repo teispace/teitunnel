@@ -1811,6 +1811,140 @@
       "unknown": "Teitunnel doesn't know that AI tool.",
       "failed": "Couldn't change the AI tool's settings: {detail}",
       "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel."
+    },
+    "project": {
+      "syntax": "The file isn't valid YAML: {message}",
+      "notAMapping": "The file must be a mapping of keys, starting with version: 1.",
+      "versionMissing": "Add version: 1 at the top of the file.",
+      "versionUnsupported": "Version {version} needs a newer Teitunnel; this one reads version 1.",
+      "expectedText": "{key} should be text here.",
+      "expectedBool": "{key} should be true or false.",
+      "expectedList": "{key} should be a list.",
+      "expectedMapping": "Each entry of {key} should be a mapping of keys.",
+      "unknownKey": "{key} isn't known to this version of Teitunnel, so it's ignored.",
+      "missing": "Add {key} here.",
+      "duplicate": "{name} is declared twice.",
+      "badPort": "{value} isn't a port (1 to 65535).",
+      "badDuration": "{value} isn't a duration. Try 90s, 30m, 2h or 7d (at most 90 days; whole days for Snapshots).",
+      "badHostHeader": "{value} isn't a host for the Host header, e.g. localhost:5173.",
+      "badOriginRequest": "These origin settings have a value of the wrong type.",
+      "literalSecret": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
+      "literalSecret@windows": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry (keychain: NAME) instead.",
+      "literalSecret@linux": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry (keychain: NAME) instead.",
+      "secretValue": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
+      "secretValue@windows": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry (keychain: NAME) instead.",
+      "secretValue@linux": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry (keychain: NAME) instead.",
+      "secretRef": "{key} must be a secret reference, env: NAME or keychain: NAME (letters, digits, -, _ and .).",
+      "shareOrigin": "A share needs port or url.",
+      "shareBoth": "Give port or url, not both.",
+      "loginNeedsHostname": "A login needs a hostname on one of your domains.",
+      "localName": "{value} isn't a local name. Use name.localhost, name.test or name.local.",
+      "relativePath": "{value} must be a folder inside the project, relative to teitunnel.yml.",
+      "snapshotSource": "source must be folder: PATH or build: PATH.",
+      "unknownPlaceholder": "Unknown placeholder {name}. The placeholders are branch, user and project, in braces.",
+      "unclosedPlaceholder": "A placeholder is missing its closing brace.",
+      "noValue": "The {name} placeholder has no value here (the branch needs a git repository).",
+      "noTunnel": "This machine has no tunnel named {name}. Create it first with teitunnel tunnel create {name}.",
+      "missingEnv": "The environment variable {name} isn't set.",
+      "missingKeychain": "The keychain has no entry named {name} for Teitunnel.",
+      "missingKeychain@windows": "Windows Credential Manager has no entry named {name} for Teitunnel.",
+      "missingKeychain@linux": "The keyring has no entry named {name} for Teitunnel.",
+      "notFound": "No teitunnel.yml in {dir} or the folders above it (up to the repository's root).",
+      "io": "Couldn't read {path}: {detail}",
+      "tooLarge": "{path} is over 256 KB; a project file is much smaller.",
+      "invalid_one": "The project file has {count} error. Fix it and try again.",
+      "invalid_other": "The project file has {count} errors. Fix them and try again.",
+      "changed": "Cloudflare changed since the plan was shown. Review the plan again.",
+      "noteTemporary": "A temporary share uses this hostname now.",
+      "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
+      "noteLocalDomains": "Local domains aren't available in this version of Teitunnel yet, so this entry is skipped."
+    },
+    "exposure": {
+      "envFile": {
+        "title": "Its .env file can be downloaded",
+        "advice": "Anyone could read the secrets in it. Serve a build folder instead of the project folder, or block dotfiles in the server's settings."
+      },
+      "gitRepository": {
+        "title": "Its .git folder can be downloaded",
+        "advice": "The repository's history and remotes can be downloaded. Serve a build folder instead of the project folder, or block dotfiles."
+      },
+      "dsStore": {
+        "title": "A .DS_Store file lists the folder's files",
+        "advice": "It reveals file names that aren't linked anywhere. Delete it, or block dotfiles in the server's settings."
+      },
+      "directoryListing": {
+        "title": "It lists the files in its folder",
+        "advice": "Visitors can browse and download every file there. Turn off directory listings, or serve only a build folder."
+      },
+      "backupArchive": {
+        "title": "A backup archive can be downloaded",
+        "advice": "Move backups out of the folder being served."
+      },
+      "databaseDump": {
+        "title": "A database dump can be downloaded",
+        "advice": "Move dumps out of the folder being served; they hold your data."
+      },
+      "databaseFile": {
+        "title": "A SQLite database can be downloaded",
+        "advice": "Move the database file out of the folder being served."
+      },
+      "djangoDebug": {
+        "title": "Django runs with DEBUG = True",
+        "advice": "Error pages show settings, code and URL patterns. Set DEBUG = False for anything public."
+      },
+      "laravelDebug": {
+        "title": "Laravel's debug tools are on",
+        "advice": "Ignition and Whoops show code and environment details, and old Ignition versions allow running code. Set APP_DEBUG=false."
+      },
+      "railsDevelopment": {
+        "title": "Rails runs in development mode",
+        "advice": "Error pages, web-console or better_errors show code and can run commands. Run it in production mode to share it."
+      },
+      "symfonyProfiler": {
+        "title": "Symfony's profiler is reachable",
+        "advice": "It shows requests, configuration and environment variables. Turn off the web profiler (APP_ENV=prod)."
+      },
+      "springActuator": {
+        "title": "Spring Boot's actuator shows the environment",
+        "advice": "/actuator/env lists configuration and environment. Don't expose the env endpoint, or require a login for actuator."
+      },
+      "phpInfo": {
+        "title": "phpinfo() is reachable",
+        "advice": "It shows the server's configuration and environment. Delete the file."
+      },
+      "stackTrace": {
+        "title": "Error pages show stack traces",
+        "advice": "Traces reveal code paths and libraries. Run the app in production mode, or show a plain error page."
+      },
+      "openAdmin": {
+        "title": "An admin panel opens without a login",
+        "advice": "Anyone could change your data. Log out of it, or require a login on the share."
+      },
+      "databaseTool": {
+        "title": "A database tool (Adminer or phpMyAdmin) is reachable",
+        "advice": "Anyone could try to sign in to your databases. Remove it from what you share, or require a login on the share."
+      },
+      "databasePort": {
+        "title": "This port is a database, not a website",
+        "advice": "Sharing it over HTTP won't work, and a database shouldn't be public. For a database, use a TCP route with a login instead."
+      },
+      "jupyter": {
+        "title": "Jupyter runs without a token",
+        "advice": "Anyone could run code on this computer. Start Jupyter with a token or password."
+      },
+      "sourceMap": {
+        "title": "Source maps include your source code",
+        "advice": "Visitors can read the original code. That's usually fine for a demo; turn off source maps in the build otherwise."
+      }
+    },
+    "backup": {
+      "weakPassphrase": "Use a passphrase of at least {min} characters.",
+      "notABackup": "This file isn't a Teitunnel backup, or it's damaged.",
+      "unsupported": "This backup was made by a newer Teitunnel (format {version}). Update Teitunnel to restore it.",
+      "wrongPassphrase": "The passphrase is wrong, or the file was changed or damaged.",
+      "newerSchema": "This backup was made by a newer Teitunnel. Update Teitunnel to restore it.",
+      "io": "Couldn't use {path}: {detail}",
+      "internal": "The backup couldn't be made: {detail}"
     }
   },
   "permissionFix": {

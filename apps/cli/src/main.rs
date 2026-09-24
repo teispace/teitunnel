@@ -13,10 +13,13 @@ macro_rules! out {
 }
 
 mod analytics;
+mod backup;
 mod context;
 mod doctor;
+mod exposure;
 mod mcp;
 mod probe;
+mod project;
 mod serve;
 mod share;
 mod snapshot;
@@ -65,7 +68,17 @@ enum Command {
     /// template at https://dash.cloudflare.com/profile/api-tokens.
     Setup,
     /// Run this machine's tunnels in the foreground until stopped (servers, containers).
-    Up,
+    ///
+    /// In a folder with a teitunnel.yml, its plan is shown and applied first, and its
+    /// shares run as long as this does.
+    Up(up::UpArgs),
+    /// Work with the project file (teitunnel.yml): check, diff, apply, init, down.
+    #[command(subcommand)]
+    Project(project::ProjectCommand),
+    /// Move to another computer: an encrypted backup of Teitunnel's setup (never a
+    /// token or password), and restoring it.
+    #[command(subcommand)]
+    Backup(backup::BackupCommand),
     /// Run this machine's tunnels plus a web dashboard and JSON API (servers).
     ///
     /// Listens on 127.0.0.1:8765 unless told otherwise. Sign in with the password set by
@@ -198,6 +211,10 @@ enum Command {
         /// Pass the visitor's Host header through unchanged, even to a dev server.
         #[arg(long)]
         no_host_header: bool,
+        /// Don't share when the exposure check finds a leak (a .env file, the git
+        /// folder, debug pages…); by default it only warns.
+        #[arg(long)]
+        strict: bool,
     },
     /// List shares on your domains (from the app or any terminal), or stop one.
     Shares {
@@ -400,6 +417,10 @@ enum RouteCommand {
         allow: Vec<String>,
         #[command(flatten)]
         origin_options: OriginArgs,
+        /// Don't add the route when the exposure check finds a leak in the service;
+        /// by default it only warns.
+        #[arg(long)]
+        strict: bool,
         #[command(flatten)]
         apply: ApplyArgs,
     },
@@ -517,12 +538,14 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: None,
             host_header,
             no_host_header,
+            strict,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            return share::run(&origin, stop_after, !no_qr, &host_header).await;
+            return share::run(&origin, stop_after, !no_qr, &host_header, strict).await;
         }
         Command::Setup => return setup().await,
+        Command::Project(command) => return project::run(command).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -553,6 +576,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             allow,
             host_header,
             no_host_header,
+            strict,
             ..
         } => {
             share::run_on_domain(
@@ -563,16 +587,19 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 access_rule(&allow),
                 stop_after,
                 &share::host_header_choice(host_header, no_host_header),
+                strict,
             )
             .await
         }
         Command::Share { .. }
         | Command::Completions { .. }
         | Command::Setup
+        | Command::Project(_)
         | Command::Mcp { .. } => {
             unreachable!("handled above")
         }
-        Command::Up => up::up(&app).await,
+        Command::Up(args) => up::up(&app, &args).await,
+        Command::Backup(command) => backup::run(&app, command).await,
         Command::Serve {
             set_password: true, ..
         } => set_web_password(&app).await,
@@ -645,8 +672,10 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             path,
             allow,
             origin_options,
+            strict,
             apply,
         }) => {
+            exposure::check(&origin, Some(app.store()), strict).await?;
             let change = Change::AddRoute {
                 route: RouteInput {
                     hostname,
@@ -1514,6 +1543,7 @@ mod tests {
             allow,
             origin_options,
             apply,
+            ..
         }) = cli.command
         else {
             unreachable!()

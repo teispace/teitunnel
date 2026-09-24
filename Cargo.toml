@@ -76,6 +76,8 @@ keyring = "4.2.0"
 base64 = "0.23"
 getrandom = "0.4.3"
 argon2 = { version = "0.6", default-features = false, features = ["alloc", "password-hash"] }
+# Encrypted backups ("move to a new computer"): RustCrypto AEAD (NCC Group audit, 2020).
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 
 # Lens: the local inspector proxy (crates/lens)
 hyper = { version = "1.11", default-features = false }

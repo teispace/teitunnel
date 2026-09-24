@@ -24,10 +24,48 @@ fn describe(state: Option<&ConnectorState>) -> &'static str {
     }
 }
 
+/// `teitunnel up`'s options.
+#[derive(Debug, Default, Clone, clap::Args)]
+pub(crate) struct UpArgs {
+    /// The project file to apply first (default: teitunnel.yml in this folder or the
+    /// nearest one above it in the repository, when there is one).
+    #[arg(long, short = 'f', value_name = "PATH", conflicts_with = "no_project")]
+    pub(crate) file: Option<std::path::PathBuf>,
+    /// Don't apply a project file, even if there is one here.
+    #[arg(long)]
+    pub(crate) no_project: bool,
+    #[command(flatten)]
+    pub(crate) apply: crate::project::ApplyOptions,
+}
+
+/// The project to apply, if any: `--file`, else the one for this folder.
+fn project_for(args: &UpArgs) -> Result<Option<teitunnel_core::project::Loaded>, String> {
+    if args.no_project {
+        return Ok(None);
+    }
+    if let Some(file) = &args.file {
+        return crate::project::load(Some(file)).map(Some);
+    }
+    let here = std::env::current_dir().map_err(|e| e.to_string())?;
+    match teitunnel_core::project::find(&here) {
+        Some(path) => crate::project::load(Some(&path)).map(Some),
+        None => Ok(None),
+    }
+}
+
 /// Runs this machine's tunnels (every account's) in the foreground until interrupted:
 /// the entrypoint for a container, or a unit of any process supervisor. Tunnels that
-/// are Always-on run as their own service and are left to it.
-pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
+/// are Always-on run as their own service and are left to it. With a project file
+/// (`teitunnel.yml`) here, it's applied first (its plan shown and confirmed) and its
+/// shares run as long as this does.
+pub(crate) async fn up(app: &App, args: &UpArgs) -> Result<ExitCode, String> {
+    let applied = match project_for(args)? {
+        Some(loaded) => {
+            status(&format!("Project file: {}", loaded.path.display()));
+            crate::project::apply(app, &loaded, &args.apply).await?
+        }
+        None => None,
+    };
     let (machine, supervisor) = app.machine(false).await;
     let mut running: Vec<(String, String)> = Vec::new();
     for account in app.accounts.list().await.map_err(|e| e.to_string())? {
@@ -59,21 +97,36 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
             }
         }
     }
-    if running.is_empty() {
+    let has_shares = applied.as_ref().is_some_and(|a| !a.shares.is_empty());
+    if running.is_empty() && !has_shares {
         return Err(
             "This machine has no tunnel to run. Add a route first (`teitunnel route add …`)."
                 .into(),
         );
     }
-    status(&format!(
-        "Running {} tunnel(s): {}. Press Ctrl-C to stop.",
-        running.len(),
-        running
-            .iter()
-            .map(|(_, name)| name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    ));
+    let shares = match applied {
+        Some(applied) if has_shares => {
+            match crate::project::start_shares(app, applied, &machine, args.apply.strict).await {
+                Ok(shares) => Some(shares),
+                Err(message) => {
+                    supervisor.stop_all().await;
+                    return Err(message);
+                }
+            }
+        }
+        _ => None,
+    };
+    if !running.is_empty() {
+        status(&format!(
+            "Running {} tunnel(s): {}. Press Ctrl-C to stop.",
+            running.len(),
+            running
+                .iter()
+                .map(|(_, name)| name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
     let report = |machine: &MachineTunnels, last: &mut Vec<&'static str>| {
         for (index, (id, name)) in running.iter().enumerate() {
             let now = describe(machine.state(id).as_ref());
@@ -100,6 +153,9 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
         }
     }
     status("Stopping…");
+    if let Some(shares) = shares {
+        shares.stop(app).await;
+    }
     monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)

@@ -234,6 +234,11 @@ impl App {
         &self.store
     }
 
+    /// The keychain (or, with a token from the environment, memory).
+    pub(crate) fn secrets(&self) -> &Secrets {
+        &self.secrets
+    }
+
     /// Uptime checks and alerts for this machine's routes; `owner` names this process
     /// for the lease that keeps two processes from checking the same routes.
     pub(crate) fn monitor(

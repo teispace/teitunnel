@@ -77,6 +77,9 @@ pub struct Settings {
     /// The one-time "Install teitunnel?" offer was answered (Install or Not now), on
     /// installs where the CLI isn't put on the PATH by the installer (D-090).
     pub cli_offer_dismissed: bool,
+    /// Check a service for common leaks (`.env`, `.git`, debug pages…) before sharing it
+    /// or adding a route to it.
+    pub exposure_check: bool,
     /// Doctor issues the user chose to ignore (stable issue ids). Changed with
     /// [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
     pub ignored_issues: Vec<String>,
@@ -94,6 +97,7 @@ impl Default for Settings {
             quiet_hours: QuietHours::default(),
             check_for_updates: true,
             cli_offer_dismissed: false,
+            exposure_check: true,
             ignored_issues: Vec::new(),
         }
     }
@@ -131,6 +135,9 @@ pub struct SettingsPatch {
     /// The command line offer answered.
     #[serde(default)]
     pub cli_offer_dismissed: Option<bool>,
+    /// The exposure check on or off.
+    #[serde(default)]
+    pub exposure_check: Option<bool>,
 }
 
 const THEME: &str = "theme";
@@ -143,6 +150,7 @@ const QUIET_HOURS: &str = "quietHours";
 const IGNORED_ISSUES: &str = "ignoredIssues";
 const CHECK_FOR_UPDATES: &str = "checkForUpdates";
 const CLI_OFFER_DISMISSED: &str = "cliOfferDismissed";
+const EXPOSURE_CHECK: &str = "exposureCheck";
 
 /// Loads all settings.
 ///
@@ -169,6 +177,7 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                     .unwrap_or(defaults.check_for_updates),
                 cli_offer_dismissed: read(conn, CLI_OFFER_DISMISSED)?
                     .unwrap_or(defaults.cli_offer_dismissed),
+                exposure_check: read(conn, EXPOSURE_CHECK)?.unwrap_or(defaults.exposure_check),
                 ignored_issues: read(conn, IGNORED_ISSUES)?.unwrap_or(defaults.ignored_issues),
             })
         })
@@ -215,6 +224,9 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             if let Some(done) = patch.cli_offer_dismissed {
                 write(&tx, CLI_OFFER_DISMISSED, &done)?;
             }
+            if let Some(on) = patch.exposure_check {
+                write(&tx, EXPOSURE_CHECK, &on)?;
+            }
             tx.commit()?;
             Ok(())
         })
@@ -252,7 +264,7 @@ pub async fn set_ignored(
     load(store).await
 }
 
-fn read<T: DeserializeOwned>(
+pub(crate) fn read<T: DeserializeOwned>(
     conn: &rusqlite::Connection,
     key: &str,
 ) -> Result<Option<T>, StoreError> {
@@ -272,7 +284,7 @@ fn read<T: DeserializeOwned>(
     }))
 }
 
-fn write<T: Serialize>(
+pub(crate) fn write<T: Serialize>(
     conn: &rusqlite::Connection,
     key: &str,
     value: &T,

@@ -1,0 +1,23 @@
+---
+source: crates/core/src/project/init.rs
+expression: text
+---
+# yaml-language-server: $schema=https://teitunnel.teispace.com/schema/teitunnel.v1.json
+# Teitunnel project file: `teitunnel up` applies it. Never put secrets here.
+version: 1
+project: "shop"
+account: "Acme"
+
+routes:
+  - hostname: "api.example.com"
+    origin: "http://localhost:4000"
+    path: "^/v1"
+    login:
+      - "me@example.com"
+      - "@team.io"
+    originRequest:
+      httpHostHeader: "localhost:4000"
+
+shares:
+  - port: 5173
+    hostname: "demo.example.com"

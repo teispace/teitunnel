@@ -1,0 +1,1 @@
+{"version":3,"file":"index-DiwrgTda.js","sources":["../../src/main.tsx","../../src/App.tsx"],"sourcesContent":["import { createRoot } from \"react-dom/client\";\n","export function App() { return null; }\n"],"names":[],"mappings":"AAAA"}

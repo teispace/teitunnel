@@ -188,7 +188,7 @@ pub fn list_services() -> Vec<LocalService> {
 
 /// Names the project a process runs in: `package.json` or `Cargo.toml` name, else the
 /// directory name. Home and root directories aren't projects.
-fn project_name(cwd: &Path) -> Option<String> {
+pub fn project_name(cwd: &Path) -> Option<String> {
     if cwd.parent().is_none() || Some(cwd.to_path_buf()) == std::env::home_dir() {
         return None;
     }

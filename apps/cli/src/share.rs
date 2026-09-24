@@ -161,14 +161,9 @@ pub(crate) fn explain(result: &Verification, via: Via, print: &mut dyn FnMut(&st
     }
 }
 
-pub(crate) async fn run(
-    origin: &str,
-    stop_after: Option<Duration>,
-    qr: bool,
-    host_header: &HostHeaderChoice,
-) -> Result<ExitCode, String> {
-    let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
-    let dir = context::data_dir()?;
+/// Quick Shares run by this process (reaping what an earlier CLI left running), and the
+/// folder where this process records them for the app.
+pub(crate) async fn quick_shares(dir: &Path) -> Result<(QuickShares, std::path::PathBuf), String> {
     let runs = dir.join("run-cli");
     let reaped = PidRegistry::reap_abandoned(&runs).await;
     if !reaped.is_empty() {
@@ -184,24 +179,43 @@ pub(crate) async fn run(
     );
     let shares = QuickShares::new(
         supervisor,
-        context::binary(&dir),
+        context::binary(dir),
         // Spread by pid: the app, or another terminal, may be starting a share too.
         PortAllocator::new(QUICK_SHARE_PORTS).spread(std::process::id()),
-        store(&dir)?,
+        store(dir)?,
         dir.join("quick-share.yml"),
     )
     .with_edge(context::edge());
     tokio::spawn(shares.clone().watch_runtime());
+    Ok((shares, owner_dir))
+}
+
+/// The message for a Quick Share that couldn't start.
+pub(crate) fn start_error(err: teitunnel_core::quick_share::QuickShareError) -> String {
+    match err {
+        teitunnel_core::quick_share::QuickShareError::Binary(cloudflared::Error::NotFound) => {
+            "cloudflared isn't installed. Open Teitunnel to install it, or install it with your package manager.".to_owned()
+        }
+        other => other.to_string(),
+    }
+}
+
+pub(crate) async fn run(
+    origin: &str,
+    stop_after: Option<Duration>,
+    qr: bool,
+    host_header: &HostHeaderChoice,
+    strict: bool,
+) -> Result<ExitCode, String> {
+    let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
+    let dir = context::data_dir()?;
+    crate::exposure::check(origin.as_str(), Some(&store(&dir)?), strict).await?;
+    let (shares, owner_dir) = quick_shares(&dir).await?;
     let mut changes = shares.subscribe();
     let share = shares
         .start(origin, stop_after, host_header)
         .await
-        .map_err(|e| match e {
-            teitunnel_core::quick_share::QuickShareError::Binary(
-                cloudflared::Error::NotFound,
-            ) => "cloudflared isn't installed. Open Teitunnel to install it, or install it with your package manager.".to_owned(),
-            other => other.to_string(),
-        })?;
+        .map_err(start_error)?;
     status(&format!("Sharing {}…", share.origin));
     announce_host_header(share.host_header.as_ref());
 
@@ -325,6 +339,7 @@ fn describe(duration: Duration) -> String {
 /// account's domains, through this machine's tunnel, for as long as the command runs
 /// (or `--for`). The app, or an Always-on connector, serves it; the app also removes it
 /// if this command dies without doing so.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn run_on_domain(
     app: &crate::context::App,
     hostname: &str,
@@ -333,6 +348,7 @@ pub(crate) async fn run_on_domain(
     allow: Option<teitunnel_core::engine::AccessRule>,
     stop_after: Option<Duration>,
     host_header: &HostHeaderChoice,
+    strict: bool,
 ) -> Result<ExitCode, String> {
     use teitunnel_core::{
         domain::Hostname,
@@ -340,6 +356,7 @@ pub(crate) async fn run_on_domain(
         engine::Outcome,
         runtime,
     };
+    crate::exposure::check(origin, Some(app.store()), strict).await?;
     let host_header = host_header
         .resolve(origin)
         .await
