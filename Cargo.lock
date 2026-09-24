@@ -1590,7 +1590,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cloudflare"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde_json",
  "teitunnel-cf-api",
@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cloudflared"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde_json",
  "sysinfo",
@@ -5887,7 +5887,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cf-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -5902,7 +5902,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "clap",
@@ -5920,7 +5920,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cloudflared"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "insta",
@@ -5940,7 +5940,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -5981,7 +5981,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "objc2-app-kit",
  "serde",
