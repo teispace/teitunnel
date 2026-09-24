@@ -16,6 +16,7 @@ mod doctor;
 mod domain_shares;
 mod events;
 mod quick_share;
+mod reservations;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
 mod settings;
@@ -132,7 +133,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             snapshots::snapshots_prepare_build,
             snapshots::snapshots_prepare_crawl,
             snapshots::snapshots_preview,
-            snapshots::snapshots_apply
+            snapshots::snapshots_apply,
+            reservations::reservations_list,
+            reservations::reservations_availability
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

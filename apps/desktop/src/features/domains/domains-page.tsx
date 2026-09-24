@@ -23,6 +23,7 @@ import {
   useActiveAccount,
   useDomains,
 } from "@/features/accounts";
+import { ReservationsSection } from "@/features/reservations";
 import { t } from "@/lib/i18n";
 import type { Domain, DomainStatus } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -73,6 +74,7 @@ function DomainInspector({ domain, accountId }: { domain: Domain; accountId: str
       <InspectorSection title={t("domains.permissions")}>
         <CapabilityList accountId={accountId} zoneId={domain.id} />
       </InspectorSection>
+      <ReservationsSection accountId={accountId} domain={domain} />
     </Inspector>
   );
 }

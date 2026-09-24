@@ -58,6 +58,7 @@
     "confirm": {
       "publicNetwork": "Send these public addresses through this Mac",
       "records": "Replace the existing records",
+      "takeOver": "Take this hostname from whoever holds it",
       "publicNetwork@windows": "Send these public addresses through this PC",
       "publicNetwork@linux": "Send these public addresses through this computer"
     },
@@ -525,7 +526,9 @@
       "publishSnapshot": "Snapshots Published",
       "updateSnapshot": "Snapshot Versions",
       "rollbackSnapshot": "Snapshot Rollbacks",
-      "deleteSnapshot": "Snapshots Deleted"
+      "deleteSnapshot": "Snapshots Deleted",
+      "reserveHostname": "Hostnames Reserved",
+      "releaseHostname": "Reservations Released"
     },
     "show": {
       "all": "All Changes",
@@ -1085,7 +1088,13 @@
     "noEnd": "No end date",
     "endsOn": "Until {date}",
     "ended": "Ended {date}",
-    "routed": "Routed here",
+    "routed": "Also routed",
+    "takeOver": "Take Over",
+    "reserved": "{hostname} is reserved.",
+    "released": "{hostname} is free again.",
+    "failed": "Couldn't change the reservation",
+    "cachedNote": "Cloudflare can't be reached; these are the reservations seen last.",
+    "untilLabel": "Until (optional)",
     "availability": {
       "checking": "Checking…",
       "free": "Available",

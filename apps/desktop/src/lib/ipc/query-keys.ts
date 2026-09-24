@@ -36,6 +36,10 @@ export const queryKeys = {
     activity: (accountId: string) => ["routes", "activity", accountId] as const,
     tunnels: (accountId: string) => ["routes", "tunnels", accountId] as const,
     foreign: () => ["routes", "foreign"] as const,
+    /** Reserved hostnames (M12-11); under routes so an applied change refreshes them. */
+    reservations: (accountId: string) => ["routes", "reservations", accountId] as const,
+    availability: (accountId: string, hostname: string) =>
+      ["routes", "availability", accountId, hostname] as const,
   },
   doctor: {
     all: () => ["doctor"] as const,

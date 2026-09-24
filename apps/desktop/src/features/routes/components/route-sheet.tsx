@@ -20,6 +20,7 @@ import {
 } from "@/features/accounts";
 import { CheckNotes, HostRejectionFix, useRoute, useSendHostOnRoute } from "@/features/dev-server";
 import { ServicePicker } from "@/features/quick-share";
+import { HostnameAvailability } from "@/features/reservations/hostname-availability";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type {
@@ -670,7 +671,11 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                 />
               )}
             </Field>
-            {fieldError("hostname") ? <ErrorLink error={failure} accountId={accountId} /> : null}
+            {fieldError("hostname") ? (
+              <ErrorLink error={failure} accountId={accountId} />
+            ) : mode?.kind !== "edit" || mode.route.hostname !== hostname.trim().toLowerCase() ? (
+              <HostnameAvailability accountId={accountId} hostname={hostname} />
+            ) : null}
             {kind === "add" && tunnels.length > 1 ? (
               <Field label={t("routeSheet.tunnel.label")} help={t("routeSheet.tunnel.help")}>
                 {(control) => (
@@ -783,7 +788,9 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                 />
                 {plan.warnings.some((w) => w.type === "publicNetwork")
                   ? t("routeSheet.confirm.publicNetwork")
-                  : t("routeSheet.confirm.records")}
+                  : plan.warnings.some((w) => w.type === "heldBy")
+                    ? t("routeSheet.confirm.takeOver")
+                    : t("routeSheet.confirm.records")}
               </label>
             ) : null}
             {generalError ? (
