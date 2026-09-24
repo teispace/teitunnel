@@ -32,6 +32,8 @@ pub struct LocalService {
     pub kind: ServiceKind,
     /// Project the process runs in (from its working directory), e.g. `my-app`.
     pub project: Option<String>,
+    /// The folder the process runs in, when known (for names like `{branch}`).
+    pub folder: Option<String>,
     /// Suggested origin URL, e.g. `http://localhost:5173`.
     pub origin: String,
 }
@@ -83,6 +85,7 @@ pub(crate) fn merge(
                 process: "docker".to_owned(),
                 kind,
                 project: Some(container.label()),
+                folder: None,
                 origin: kind.origin(port),
             };
             match services.iter_mut().find(|s| s.port == port) {
@@ -171,6 +174,9 @@ pub fn list_services() -> Vec<LocalService> {
             let kind =
                 classify::refine(classify::classify(&listener.process.name, &cmd, port), cwd);
             let project = cwd.and_then(project_name);
+            let folder = cwd
+                .filter(|dir| project.is_some() && dir.is_absolute())
+                .map(|dir| dir.display().to_string());
             LocalService {
                 port,
                 all_interfaces,
@@ -178,6 +184,7 @@ pub fn list_services() -> Vec<LocalService> {
                 process: listener.process.name,
                 kind,
                 project,
+                folder,
                 origin: kind.origin(port),
             }
         })
@@ -292,6 +299,7 @@ mod tests {
             process: "com.docker.backend".into(),
             kind: ServiceKind::Docker,
             project: None,
+            folder: None,
             origin: "http://localhost:8088".into(),
         }];
         let containers = [

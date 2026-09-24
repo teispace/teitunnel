@@ -12,7 +12,9 @@ import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
+import { AiAgents } from "./ai-agents";
 import { AiTools } from "./ai-tools";
+import { ApiDescription } from "./api-description";
 import { IntegrationsPane } from "./integrations";
 import { MoveComputer } from "./move-computer";
 import {
@@ -181,6 +183,7 @@ function GeneralPane() {
       <OpenAtLogin />
       <CommandLine />
       <AiTools />
+      <AiAgents />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}
@@ -243,6 +246,7 @@ function GeneralPane() {
           />
         </GroupedRow>
       </GroupedSection>
+      <ApiDescription />
       <MoveComputer />
       <GroupedSection title={t("settings.menuBar.title")} footer={t("settings.menuBar.footer")}>
         <GroupedRow

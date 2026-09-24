@@ -61,6 +61,10 @@ pub struct AppState {
     pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
     /// The inspector (Lens) in front of Quick Shares and inspected routes.
     pub inspector: teitunnel_core::inspect::Inspector,
+    /// Applies pauses (the paused page) to the inspector's taps.
+    pub pauses: std::sync::Arc<teitunnel_core::pause::Enforcer>,
+    /// Wakes the pause and schedule loop (a schedule changed).
+    pub schedules_changed: std::sync::Arc<tokio::sync::Notify>,
     /// Live inspector subscriptions of the webview, by id (cancelled to stop).
     pub inspect_live:
         std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,

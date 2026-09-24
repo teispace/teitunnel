@@ -454,6 +454,7 @@ impl Backend for FakeBackend {
                 process: "node".into(),
                 kind: ServiceKind::Vite,
                 project: Some("my-app".into()),
+                folder: None,
                 origin: "http://localhost:5173".into(),
             },
             LocalService {
@@ -463,6 +464,7 @@ impl Backend for FakeBackend {
                 process: "postgres".into(),
                 kind: ServiceKind::Database,
                 project: None,
+                folder: None,
                 origin: "tcp://localhost:5432".into(),
             },
         ]))

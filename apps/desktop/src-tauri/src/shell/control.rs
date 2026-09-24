@@ -108,6 +108,7 @@ impl<R: Runtime> Ui for TauriUi<R> {
     fn changed(&self, change: Changed) {
         let (kind, id) = match change {
             Changed::Shares => (EntityKind::QuickShares, None),
+            Changed::Agents => (EntityKind::Agents, None),
             Changed::Routes { account_id } => {
                 shell_refresh(&self.app);
                 (EntityKind::Routes, Some(account_id))

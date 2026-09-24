@@ -6866,6 +6866,7 @@ dependencies = [
 name = "teitunnel-desktop"
 version = "0.1.1"
 dependencies = [
+ "jiff",
  "objc2-app-kit",
  "serde",
  "serde_json",

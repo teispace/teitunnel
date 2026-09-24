@@ -3,6 +3,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShareComposer } from "@/features/quick-share/components/share-composer";
 import type { ExposureReport } from "@/lib/ipc/bindings";
 
@@ -69,7 +70,9 @@ beforeEach(() => {
 function share() {
   render(
     <QueryClientProvider client={createQueryClient()}>
-      <ShareComposer />
+      <TooltipProvider>
+        <ShareComposer />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
   const field = screen.getByLabelText("Port or address");

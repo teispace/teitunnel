@@ -24,6 +24,8 @@ pub enum EntityKind {
     Projects,
     /// The inspector's taps and settings (captures stream on `inspect_subscribe`).
     Inspector,
+    /// AI agents connected through `teitunnel mcp`, and their approvals waiting.
+    Agents,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

@@ -156,6 +156,7 @@ mod tests {
             process: "node".into(),
             kind: ServiceKind::Vite,
             project: Some(project.into()),
+            folder: None,
             origin: format!("http://localhost:{port}"),
         }
     }

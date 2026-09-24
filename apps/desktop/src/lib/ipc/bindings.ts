@@ -20,6 +20,8 @@ export const commands = {
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
 	/**  The AI clients on this computer and whether each is connected. */
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
+	/**  Agents connected now, and approvals waiting. */
+	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
 	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
 	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
 	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
@@ -69,16 +71,67 @@ export const commands = {
 	/**
 	 *  Shares a local service at a hostname on one of the account's domains, through this
 	 *  Mac's tunnel, until it's stopped, `stop_after_minutes` pass, or Teitunnel quits. Never
-	 *  replaces a DNS record Teitunnel didn't create.
+	 *  replaces a DNS record Teitunnel didn't create. `{project}`, `{branch}` and `{user}` in
+	 *  the hostname are filled in from `folder` (the service's project folder), and the
+	 *  name is remembered for it.
 	 */
 	domainSharesStart: (accountId: string, hostname: string, origin: string, stopAfterMinutes: number | null, access: {
 	/**  Email addresses, e.g. `me@xyz.com`. */
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
-} | null, hostHeader: HostHeaderChoice) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader }),
+} | null, hostHeader: HostHeaderChoice, folder: string | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader, folder }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
+	/**
+	 *  Pauses (`paused`) or resumes a share on your domain or a route: the address stays,
+	 *  and visitors get a "paused" page from this Mac's inspector until it's resumed.
+	 */
+	sharingSetPaused: (accountId: string, hostname: string, paused: boolean) => __TAURI_INVOKE<null>("sharing_set_paused", { accountId, hostname, paused }),
+	/**  Schedules of shares and routes, with whether each is on now and when it changes. */
+	sharingSchedules: () => __TAURI_INVOKE<RouteSchedule[]>("sharing_schedules"),
+	/**
+	 *  Sets (or, with `null`, removes) when a share on your domain or a route is on. The
+	 *  app applies it within 30 seconds.
+	 */
+	sharingSetSchedule: (accountId: string, hostname: string, schedule: {
+	/**  The days a window starts on, Monday first. */
+	days: Weekday[],
+	/**  Start, `HH:MM` (24-hour). */
+	from: string,
+	/**  End, `HH:MM`. Earlier than `from`: the next day. Equal: the whole day. */
+	to: string,
+	/**  An IANA time zone, e.g. `Europe/Berlin` (`None`: this computer's). */
+	timeZone: string | null,
+} | null) => __TAURI_INVOKE<null>("sharing_set_schedule", { accountId, hostname, schedule }),
+	/**
+	 *  Names to offer for a share on `domain` of a service in `folder` (or known only by
+	 *  its `project` name): the one used there last, `{project}`, `{branch}-{project}`…
+	 */
+	sharingNameSuggestions: (domain: string, folder: string | null, project: string | null) => __TAURI_INVOKE<NameSuggestion[]>("sharing_name_suggestions", { domain, folder, project }),
+	/**
+	 *  Fills in a hostname's `{project}`, `{branch}` and `{user}` for a share of a service
+	 *  in `folder` (to show what it becomes).
+	 */
+	sharingExpandName: (hostname: string, folder: string | null) => __TAURI_INVOKE<string>("sharing_expand_name", { hostname, folder }),
+	/**
+	 *  Checks a folder chosen or dropped for sharing (it must exist and not be the whole
+	 *  disk or the home folder).
+	 */
+	sharingFolder: (path: string, listing: boolean, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
+	/**  Asks the person to choose a folder to share (a native panel). `null`: cancelled. */
+	sharingChooseFolder: () => __TAURI_INVOKE<string | null>("sharing_choose_folder"),
+	/**
+	 *  Shares a folder at a hostname on one of the account's domains: this Mac's inspector
+	 *  serves its files (never secrets or tooling) until it's stopped, `stop_after_minutes`
+	 *  pass, or Teitunnel quits.
+	 */
+	sharingStartFolderOnDomain: (accountId: string, hostname: string, folder: FolderShare, stopAfterMinutes: number | null, access: {
+	/**  Email addresses, e.g. `me@xyz.com`. */
+	emails: string[],
+	/**  Email domains, e.g. `xyz.com`. */
+	emailDomains: string[],
+} | null) => __TAURI_INVOKE<Outcome>("sharing_start_folder_on_domain", { accountId, hostname, folder, stopAfterMinutes, access }),
 	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
 	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
 	/**  Stops a terminal's Quick Share (asks its `teitunnel` to end). */
@@ -108,6 +161,12 @@ export const commands = {
 	 *  default).
 	 */
 	quickShareStart: (origin: string, stopAfterMinutes: number | null, hostHeader: HostHeaderChoice, inspect: boolean | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes, hostHeader, inspect }),
+	/**
+	 *  Shares a folder at a random trycloudflare.com address: this Mac's inspector serves
+	 *  its files (never secrets or tooling), with an optional listing and single-page-app
+	 *  fallback. Returns at once; the URL arrives with `EntityChanged`.
+	 */
+	quickShareStartFolder: (folder: FolderShare, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start_folder", { folder, stopAfterMinutes }),
 	/**
 	 *  Sends `host_header` to a share's service (`null`: none), for a dev server that
 	 *  refuses the public address. An inspected share changes at once and keeps its URL;
@@ -449,6 +508,12 @@ export const commands = {
 	inspectExport: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export", { ids, format, redact }),
 	/**  Saves an export to Downloads and shows it in the file manager. Returns its path. */
 	inspectExportSave: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export_save", { ids, format, redact }),
+	/**
+	 *  Describes the API the captured requests show as OpenAPI 3.1 (to `host`, or every
+	 *  host), saves it to Downloads as JSON and shows it in the file manager. Returns what
+	 *  went into it and where it is.
+	 */
+	inspectOpenapiSave: (host: string | null) => __TAURI_INVOKE<OpenApiSaved>("inspect_openapi_save", { host }),
 	/**  Forgets captured requests of one tap, or all (in memory and on disk). */
 	inspectClear: (tap: string | null) => __TAURI_INVOKE<null>("inspect_clear", { tap }),
 	/**
@@ -694,6 +759,17 @@ export type AgentPreset =
 "searchEngines" | 
 /**  SEO and marketing crawlers (AhrefsBot, SemrushBot…). */
 "seoCrawlers";
+
+/**
+ *  AI agents connected through `teitunnel mcp` while the app runs, and their changes
+ *  waiting for the person's answer (asked in a dialog).
+ */
+export type AiAgentsView = {
+	/**  Connected agents. */
+	agents: ConnectedAgent[],
+	/**  Waiting approvals. */
+	approvals: PendingApproval[],
+};
 
 /**  An AI client, as Settings shows it. */
 export type AiClientView = {
@@ -1206,6 +1282,18 @@ export type ClientProtocol =
 /**  Any TCP service (a database, …). */
 "tcp";
 
+/**  An AI agent connected through `teitunnel mcp` (Settings ▸ AI Tools). */
+export type ConnectedAgent = {
+	/**  The agent's name, e.g. `claude-code`. */
+	name: string,
+	/**  Its version. */
+	version: string | null,
+	/**  The MCP server's mode: `read-only`, `ask` or `full`. */
+	mode: string,
+	/**  When it connected (milliseconds since the epoch). */
+	connectedAt: number | null,
+};
+
 /**  One edge connection of a connector. */
 export type ConnectionView = {
 	/**  Edge location, e.g. `ams01`. */
@@ -1449,6 +1537,17 @@ export type DomainShare = {
 	expiresAt: number | null,
 	/**  When it started (milliseconds since the epoch). */
 	createdAt: number | null,
+	/**
+	 *  What it shares when its route points at an inspector (`origin` is then the
+	 *  inspector's address): the service as given, or a folder.
+	 */
+	source: string | null,
+	/**  It shares a folder (`source`), served by the inspector. */
+	folder: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
+	/**  On only during these hours ([`crate::schedule`]). */
+	schedule: Schedule | null,
 };
 
 /**  Where a domain is in its setup. */
@@ -1544,7 +1643,9 @@ export type EntityKind =
 /**  Projects (teitunnel.yml files opened in the app). */
 "projects" | 
 /**  The inspector's taps and settings (captures stream on `inspect_subscribe`). */
-"inspector";
+"inspector" | 
+/**  AI agents connected through `teitunnel mcp`, and their approvals waiting. */
+"agents";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -2006,6 +2107,16 @@ accountId: string }) & { change?: never; label?: never; tunnelId?: never } |
 accountId: string; 
 /**  Tunnel. */
 tunnelId: string }) & { change?: never; label?: never };
+
+/**  A folder to share. */
+export type FolderShare = {
+	/**  The folder (absolute once resolved). */
+	path: string,
+	/**  List a folder's files when it has no `index.html`. */
+	listing?: boolean,
+	/**  A single-page app: unknown paths that ask for a page get `/index.html`. */
+	spa?: boolean,
+};
 
 /**  A cloudflared process Teitunnel doesn't manage. */
 export type ForeignConnector = {
@@ -2626,6 +2737,8 @@ export type LocalService = {
 	kind: ServiceKind,
 	/**  Project the process runs in (from its working directory), e.g. `my-app`. */
 	project: string | null,
+	/**  The folder the process runs in, when known (for names like `{branch}`). */
+	folder: string | null,
 	/**  Suggested origin URL, e.g. `http://localhost:5173`. */
 	origin: string,
 };
@@ -2802,6 +2915,19 @@ export type MetricsSnapshot = {
 	latency: LatencySummary,
 };
 
+/**  A suggested name for a share. */
+export type NameSuggestion = {
+	/**
+	 *  What to type (placeholders kept, so the name follows the branch), e.g.
+	 *  `{branch}.dev.example.com`.
+	 */
+	template: string,
+	/**  What it is right now, e.g. `login-fix.dev.example.com`. */
+	hostname: string,
+	/**  Used for this folder last time. */
+	remembered: boolean,
+};
+
 /**  Network conditions for a tap. The default changes nothing. */
 export type NetworkConfig = {
 	/**  Delay before each request is handled. */
@@ -2834,6 +2960,14 @@ export type NetworkView = {
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
 	owned: boolean,
+};
+
+/**  An OpenAPI description saved to Downloads. */
+export type OpenApiSaved = {
+	/**  Where it is. */
+	path: string,
+	/**  What went into it. */
+	summary: Summary,
 };
 
 /**  Emitted when the window should show a view. */
@@ -2973,6 +3107,16 @@ export type PausedPage = {
 	message: string,
 	/**  `Retry-After`, in seconds. */
 	retryAfterSecs: number,
+};
+
+/**  An agent's change waiting for the person's answer in the app. */
+export type PendingApproval = {
+	/**  The agent. */
+	agent: string,
+	/**  What it wants to do, in one line. */
+	title: string,
+	/**  Since when (milliseconds since the epoch). */
+	askedAt: number | null,
 };
 
 /**  Percentiles in milliseconds. */
@@ -3292,6 +3436,8 @@ export type QuickShare = {
 	check: Verification | null,
 	/**  Requests go through the inspector (its tap has the share's id). */
 	inspected: boolean,
+	/**  A folder served by the inspector (`origin` is then the inspector's address). */
+	folder: FolderShare | null,
 };
 
 /**
@@ -3561,6 +3707,20 @@ export type RouteRef = {
 	path: string | null,
 };
 
+/**  Where a schedule applies, and when it next changes (for the UI). */
+export type RouteSchedule = {
+	/**  Account id. */
+	accountId: string,
+	/**  The route's hostname. */
+	hostname: string,
+	/**  The schedule. */
+	schedule: Schedule,
+	/**  On right now. */
+	on: boolean,
+	/**  When it next changes (milliseconds since the epoch). */
+	nextChange: number | null,
+};
+
 /**  Everything known about one route's traffic over a range. */
 export type RouteStats = {
 	/**  Where the numbers come from. */
@@ -3720,6 +3880,18 @@ export type RuleChange = {
 	before: string | null,
 	/**  The service now (None: removed elsewhere). */
 	after: string | null,
+};
+
+/**  When a route is on. */
+export type Schedule = {
+	/**  The days a window starts on, Monday first. */
+	days: Weekday[],
+	/**  Start, `HH:MM` (24-hour). */
+	from: string,
+	/**  End, `HH:MM`. Earlier than `from`: the next day. Equal: the whole day. */
+	to: string,
+	/**  An IANA time zone, e.g. `Europe/Berlin` (`None`: this computer's). */
+	timeZone: string | null,
 };
 
 /**  What to copy of a kept secret. */
@@ -4275,6 +4447,20 @@ export type StubRule = {
 	body: string,
 };
 
+/**  What went into a description. */
+export type Summary = {
+	/**  Requests used. */
+	requests: number,
+	/**  Requests left out (pages, assets, Teitunnel's own answers…). */
+	skipped: number,
+	/**  Paths described. */
+	paths: number,
+	/**  Operations (path and method) described. */
+	operations: number,
+	/**  Hosts seen. */
+	hosts: string[],
+};
+
 /**
  *  Identifies a tap (one inspected share, route or folder).
  * 
@@ -4804,6 +4990,23 @@ ageSecs: number | null } |
 { result: "notEnoughData"; 
 /**  Why. */
 reason: string };
+
+/**  A day of the week. */
+export type Weekday = 
+/**  Monday. */
+"mon" | 
+/**  Tuesday. */
+"tue" | 
+/**  Wednesday. */
+"wed" | 
+/**  Thursday. */
+"thu" | 
+/**  Friday. */
+"fri" | 
+/**  Saturday. */
+"sat" | 
+/**  Sunday. */
+"sun";
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {

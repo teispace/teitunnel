@@ -88,6 +88,9 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_idle());
     watch_inspector(app.clone(), &inspector);
     watch_inspected_routes(app.clone());
+    let pauses = Arc::new(teitunnel_core::pause::Enforcer::new());
+    let schedules_changed = Arc::new(tokio::sync::Notify::new());
+    watch_pauses(app.clone());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
     let local = Local::new(store.clone());
@@ -126,12 +129,16 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     let control = control(
         app,
         &data_dir,
-        &store,
-        &accounts,
-        &engine,
-        &machine,
-        &quick_shares,
-        &binary,
+        ControlParts {
+            store: &store,
+            accounts: &accounts,
+            engine: &engine,
+            machine: &machine,
+            quick_shares: &quick_shares,
+            binary: &binary,
+            inspector: &inspector,
+            pauses: &pauses,
+        },
     );
 
     Ok(AppState {
@@ -160,24 +167,43 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         analytics,
         monitor,
         inspector,
+        pauses,
+        schedules_changed,
         inspect_live: std::sync::Mutex::default(),
     })
 }
 
+/// What the control connection's host is made of.
+#[derive(Clone, Copy)]
+struct ControlParts<'a> {
+    store: &'a Store,
+    accounts: &'a Accounts,
+    engine: &'a Arc<Engine>,
+    machine: &'a MachineTunnels,
+    quick_shares: &'a QuickShares,
+    binary: &'a BinaryManager,
+    inspector: &'a teitunnel_core::inspect::Inspector,
+    pauses: &'a Arc<teitunnel_core::pause::Enforcer>,
+}
+
 /// The control connection's host over the app's services, listening unless it's turned
 /// off in Settings ▸ Integrations.
-#[allow(clippy::too_many_arguments)]
 fn control<R: Runtime>(
     app: &AppHandle<R>,
     data_dir: &std::path::Path,
-    store: &Store,
-    accounts: &Accounts,
-    engine: &Arc<Engine>,
-    machine: &MachineTunnels,
-    quick_shares: &QuickShares,
-    binary: &BinaryManager,
+    parts: ControlParts<'_>,
 ) -> shell::control::Control {
     use teitunnel_core::control::{CoreHost, HostParts, integrations};
+    let ControlParts {
+        store,
+        accounts,
+        engine,
+        machine,
+        quick_shares,
+        binary,
+        inspector,
+        pauses,
+    } = parts;
     let host = CoreHost::new(
         HostParts {
             version: app.package_info().version.to_string(),
@@ -189,6 +215,8 @@ fn control<R: Runtime>(
             binary: binary.clone(),
             runs: data_dir.join("run-cli"),
             machine_name: machine_name(),
+            inspector: inspector.clone(),
+            pauses: Arc::clone(pauses),
         },
         shell::control::ui(app),
     );
@@ -346,6 +374,79 @@ fn watch_inspected_routes<R: Runtime>(app: AppHandle<R>) {
             }
         }
     });
+}
+
+/// Serves paused pages and runs schedules (M12-06): the app holds the route host lease
+/// (renewed every 30 s), evaluates schedules every 30 s (or at once when one changes),
+/// and applies pauses to its inspector's taps every 3 s, so a pause asked for by
+/// another process (`teitunnel shares --pause`, an agent) shows within seconds. Starts
+/// after the first sweep of routes left inspected by a previous run.
+fn watch_pauses<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{domain_shares::APP_OWNER, pause, schedule};
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        let scheduler = schedule::Scheduler::new();
+        let mut tick = tokio::time::interval(Duration::from_secs(3));
+        let mut count = 0u32;
+        let mut before: Vec<pause::PausedRoute> = Vec::new();
+        loop {
+            let Some(state) = app.try_state::<AppState>() else {
+                tick.tick().await;
+                continue;
+            };
+            let wake = Arc::clone(&state.schedules_changed);
+            let woken = tokio::select! {
+                _ = tick.tick() => false,
+                () = wake.notified() => true,
+            };
+            if woken || count.is_multiple_of(10) {
+                let _ = pause::claim_host(&state.store, APP_OWNER, true).await;
+                for failure in schedule::run_tick(
+                    &state.store,
+                    &scheduler,
+                    APP_OWNER,
+                    true,
+                    jiff::Timestamp::now(),
+                )
+                .await
+                {
+                    tracing::warn!("schedule: {}", failure.english());
+                }
+            }
+            count = count.wrapping_add(1);
+            let failures = state
+                .pauses
+                .sync(
+                    &state.accounts,
+                    &state.engine,
+                    &state.machine,
+                    &state.machine_name,
+                    &state.inspector,
+                )
+                .await;
+            for failure in failures {
+                tracing::warn!("pause: {}", failure.english());
+            }
+            let after = pause::list(&state.store, None).await.unwrap_or_default();
+            if after != before {
+                for kind in [
+                    EntityKind::QuickShares,
+                    EntityKind::Routes,
+                    EntityKind::Inspector,
+                ] {
+                    let _ = EntityChanged { kind, id: None }.emit(&app);
+                }
+                before = after;
+            }
+        }
+    });
+}
+
+/// Evaluates schedules now (one was set or removed).
+pub(crate) fn apply_schedules_soon<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.schedules_changed.notify_one();
+    }
 }
 
 /// Where Always-on connectors run: launchd on macOS, systemd user units on Linux (when
@@ -960,6 +1061,11 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
             supervisor.stop_all().await;
             if let Some(state) = app.try_state::<AppState>() {
                 state.monitor.release().await;
+                let _ = teitunnel_core::pause::release_host(
+                    &state.store,
+                    teitunnel_core::domain_shares::APP_OWNER,
+                )
+                .await;
                 state.inspector.shutdown().await;
             }
         };

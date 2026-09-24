@@ -31,6 +31,27 @@ pub struct AiClientView {
     pub problem: Option<String>,
 }
 
+/// AI agents connected through `teitunnel mcp` while the app runs, and their changes
+/// waiting for the person's answer (asked in a dialog).
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAgentsView {
+    /// Connected agents.
+    pub agents: Vec<teitunnel_core::control::ConnectedAgent>,
+    /// Waiting approvals.
+    pub approvals: Vec<teitunnel_core::control::PendingApproval>,
+}
+
+/// Agents connected now, and approvals waiting.
+#[tauri::command]
+#[specta::specta]
+pub fn ai_agents(state: tauri::State<'_, crate::state::AppState>) -> AiAgentsView {
+    AiAgentsView {
+        agents: state.control.host.agents(),
+        approvals: state.control.host.pending_approvals(),
+    }
+}
+
 /// Every client, and whether Teitunnel can connect them (it needs its command line tool).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

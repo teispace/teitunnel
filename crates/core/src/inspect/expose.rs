@@ -586,6 +586,7 @@ mod tests {
             process: process.into(),
             kind: crate::discovery::ServiceKind::Other,
             project: None,
+            folder: None,
             origin: format!("http://localhost:{port}"),
         };
         assert_eq!(
