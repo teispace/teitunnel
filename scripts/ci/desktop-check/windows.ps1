@@ -1,6 +1,7 @@
 # Checks a released Windows installer on a real Windows machine (CI runner):
 # silent per-user install, the Apps entry, launch in light and dark with screenshots,
-# the tray icon, and a silent uninstall that leaves nothing behind.
+# the tray icon, and a silent uninstall that leaves nothing behind. (The windows-11-arm
+# runner's screen shows Windows' first-run setup, so its screenshots show that instead.)
 #
 #   windows.ps1 -Installer Teitunnel_0.1.0_x64-setup.exe -Out shots
 param(
@@ -9,7 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $failures = [System.Collections.Generic.List[string]]::new()
 function Fail($message) { Write-Host "::error::$message"; $failures.Add($message) }
 
@@ -30,20 +31,12 @@ function Set-Theme([bool] $dark) {
   Set-ItemProperty -Path $key -Name SystemUsesLightTheme -Value $value -Type DWord
 }
 
-function Find-Tray {
-  # The notification area and its overflow; names come from the tray tooltip.
-  $root = [System.Windows.Automation.AutomationElement]::RootElement
-  $names = foreach ($class in 'Shell_TrayWnd', 'NotifyIconOverflowWindow', 'TopLevelWindowForOverflowXamlIsland') {
-    $condition = New-Object System.Windows.Automation.PropertyCondition(
-      [System.Windows.Automation.AutomationElement]::ClassNameProperty, $class)
-    $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
-    if ($window) {
-      $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
-        [System.Windows.Automation.Condition]::TrueCondition) |
-        ForEach-Object { $_.Current.Name } | Where-Object { $_ }
-    }
-  }
-  $names | Sort-Object -Unique
+# Windows records every notification-area icon it has seen, with the program that owns it;
+# Windows 11 hides new icons in the overflow, so the taskbar itself can't be read.
+$trayKey = 'HKCU:\Control Panel\NotifyIconSettings'
+function Find-Tray($exe) {
+  Get-ChildItem $trayKey | ForEach-Object { Get-ItemProperty $_.PSPath } |
+    Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $exe) }
 }
 
 function Start-App($exe, $name) {
@@ -79,9 +72,14 @@ if (-not (Test-Path $shortcut)) { Fail 'No Start menu shortcut' }
 
 Set-Theme $false
 Start-App $exe 'light' | Out-Null
-$tray = Find-Tray
-$tray | Out-File (Join-Path $Out 'tray.txt')
-if (-not ($tray -match 'Teitunnel')) { Write-Host '::warning::No Teitunnel icon found in the notification area' }
+if (-not (Test-Path $trayKey)) {
+  Write-Host '::warning::This Windows keeps no NotifyIconSettings; the tray icon was not checked'
+} elseif (-not ($tray = Find-Tray $exe)) {
+  Fail 'Teitunnel has no notification-area icon'
+} else {
+  $tray | Select-Object ExecutablePath, InitialTooltip, IsPromoted | Format-List | Out-String |
+    Tee-Object -FilePath (Join-Path $Out 'tray.txt') | Write-Host
+}
 Stop-App
 
 Set-Theme $true
