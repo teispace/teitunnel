@@ -167,6 +167,7 @@ fn fix_label(fix: &Fix) -> (String, &'static str) {
             "reconnect",
         ),
         Fix::CleanConnections { .. } => ("Remove stale connections".into(), "cleanConnections"),
+        Fix::LocalDomains { .. } => ("Fix local domains in Teitunnel".into(), "localDomains"),
     }
 }
 
@@ -379,6 +380,10 @@ pub(super) async fn fix_issue(
         Fix::Reconnect => only(
             "guidance",
             "The account's credential can't do this. Ask the person to reconnect it in Teitunnel (Settings → Accounts) or create a token from Teitunnel's template; credentials never pass through agents.",
+        ),
+        Fix::LocalDomains { .. } => only(
+            "guidance",
+            "This is about local HTTPS domains on this computer (trust, ports or .test names). Ask the person to open Local Domains in Teitunnel, or run `teitunnel local-domain status`; trusting certificates needs their confirmation.",
         ),
         Fix::StartConnector { .. } | Fix::KeepTheirs { .. } | Fix::CleanConnections { .. } => {
             let (label, _) = fix_label(fix);

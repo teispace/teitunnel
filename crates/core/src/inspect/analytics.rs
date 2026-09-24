@@ -37,6 +37,8 @@ impl LensSource {
                 .as_deref()
                 .and_then(|u| u.strip_prefix("https://"))
                 .is_some_and(|h| h.eq_ignore_ascii_case(hostname)),
+            // Local domains never reach Cloudflare's analytics.
+            TapScope::LocalDomain { .. } => false,
         })
     }
 }

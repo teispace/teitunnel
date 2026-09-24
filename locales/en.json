@@ -1602,6 +1602,40 @@
         "fix": "Restore the Route",
         "address": "Inspector address: {address}",
         "original": "Its own service: {origin}"
+      },
+      "localStopped": {
+        "title": "Local domains aren't being served"
+      },
+      "localPort": {
+        "titleFallback": "Local domains use port {fallback} instead of {port}",
+        "titleNone": "Local domains can't start: port {port} isn't available",
+        "inUse": "Another app is using port {port}. Quit it and restart local domains to use the usual address without a port number.",
+        "denied": "This system only lets administrators use port {port}. Addresses include the other port number until that changes.",
+        "other": "Port {port} couldn't be used."
+      },
+      "localUntrusted": {
+        "title": "Browsers don't trust your local domains yet",
+        "detail": "Teitunnel signs certificates for your local domains with its own certificate authority, which only works for .localhost, .test and .local names. Trust it once so browsers open them without a warning.",
+        "authority": "Certificate authority: {name}"
+      },
+      "localDns": {
+        "title": "The name server for .test names isn't running"
+      },
+      "localResolver": {
+        "title": "{name} doesn't reach this computer yet",
+        "detail": "Names ending in .test need a one-time entry that sends them to Teitunnel's name server. It needs administrator rights, so Teitunnel shows the command to run."
+      },
+      "localElsewhere": {
+        "title": "{name} points at another computer",
+        "detail": "The system resolves this name to an address that isn't this computer, so browsers won't reach Teitunnel. Check your hosts file or DNS settings, or use a .localhost name."
+      },
+      "localCaExpiry": {
+        "title": "The local certificate authority expires soon",
+        "detail": "Replace it with a new one and trust that instead. Your local domains stay as they are."
+      },
+      "localCertificate": {
+        "title": "The certificate for {name} expires soon",
+        "detail": "Teitunnel renews certificates by itself, but this one wasn't renewed. Renew it now."
       }
     },
     "notify": {
@@ -2189,6 +2223,30 @@
       "io": "Couldn't use {path}: {detail}",
       "internal": "The backup couldn't be made: {detail}",
       "notPending": "Open the backup again to restore it."
+    },
+    "localDomains": {
+      "error": {
+        "nameEmpty": "Enter a name, e.g. shop.localhost.",
+        "nameTooLong": "The name is longer than 253 characters.",
+        "nameLabel": "{label} can't be part of a name. Use letters, digits and hyphens (not at the start or end), at most 63 characters between dots.",
+        "nameWildcard": "Leave out the *. To include subdomains, turn on Subdomains instead.",
+        "nameSuffix": "Local domains end in .localhost, .test or .local.",
+        "nameBare": "Add a name in front of .{suffix}, e.g. shop.{suffix}.",
+        "duplicate": "{name} is already a local domain.",
+        "notFound": "{name} isn't a local domain.",
+        "badTarget": "{value} isn't a local service. Enter a port (3000), host:port, or a URL such as http://localhost:3000.",
+        "invalidTarget": "That service can't be used: {detail}.",
+        "ca": "The local certificate authority couldn't be used: {detail}",
+        "keychain": "Teitunnel couldn't use your keychain for the local certificate authority: {detail}",
+        "keychain@windows": "Teitunnel couldn't use Credential Manager for the local certificate authority: {detail}",
+        "keychain@linux": "Teitunnel couldn't use your keyring for the local certificate authority: {detail}",
+        "noPort": "Local domains can't start: ports {port} and {fallback} are both taken or not allowed. Quit the app using them, then try again.",
+        "notSupported": "This step runs from Teitunnel only on Linux. Run the commands shown instead.",
+        "noPkexec": "pkexec isn't installed, so Teitunnel can't ask for administrator rights. Run the commands shown in a terminal instead.",
+        "privileged": "The step that needs administrator rights didn't finish: {detail}",
+        "io": "A file for local domains couldn't be written: {detail}",
+        "dns": "The name server for .test names couldn't start: {detail}"
+      }
     }
   },
   "permissionFix": {

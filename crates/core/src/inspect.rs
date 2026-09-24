@@ -21,7 +21,6 @@ mod views;
 
 use std::{
     collections::{HashMap, HashSet},
-    net::SocketAddr,
     sync::{
         Arc, Mutex, PoisonError, Weak,
         atomic::{AtomicU32, Ordering},
@@ -206,7 +205,9 @@ struct TapEntry {
     name: String,
     origin: String,
     public_url: Option<String>,
-    address: SocketAddr,
+    /// Where requests reach the tap, as a URL (`http://127.0.0.1:…`, or a local
+    /// domain's `https://…`).
+    address: String,
     started_at: u64,
     watched: Vec<String>,
     idle_stop: Option<Duration>,
@@ -259,32 +260,36 @@ pub struct Inspector {
     inner: Arc<Inner>,
 }
 
-/// A tap id: the Quick Share's id, or `rt-` + a digest of the route + a random part (a
-/// new one each time, so captures of earlier runs never mix with new ones). `None`
-/// lets Lens choose.
+/// A tap id: the Quick Share's id, or a prefix (`rt-` for a route, `ld-` for a local
+/// domain) + a digest of the scope + a random part (a new one each time, so captures of
+/// earlier runs never mix with new ones). `None` lets Lens choose.
 fn tap_id_for(scope: &TapScope) -> Option<TapId> {
+    let digested = |prefix: &str, parts: &[&str]| {
+        let mut hash = Sha256::new();
+        for part in parts {
+            hash.update(part.as_bytes());
+            hash.update([0]);
+        }
+        let digest: String = hash.finalize()[..6]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let mut random = [0u8; 3];
+        getrandom::fill(&mut random).ok()?;
+        let random: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        TapId::new(&format!("{prefix}-{digest}-{random}")).ok()
+    };
     match scope {
         TapScope::QuickShare { share_id } => TapId::new(share_id).ok(),
         TapScope::Route {
             account_id,
             hostname,
             path,
-        } => {
-            let mut hash = Sha256::new();
-            hash.update(account_id.as_bytes());
-            hash.update([0]);
-            hash.update(hostname.as_bytes());
-            hash.update([0]);
-            hash.update(path.as_deref().unwrap_or_default().as_bytes());
-            let digest: String = hash.finalize()[..6]
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect();
-            let mut random = [0u8; 3];
-            getrandom::fill(&mut random).ok()?;
-            let random: String = random.iter().map(|b| format!("{b:02x}")).collect();
-            TapId::new(&format!("rt-{digest}-{random}")).ok()
-        }
+        } => digested(
+            "rt",
+            &[account_id, hostname, path.as_deref().unwrap_or_default()],
+        ),
+        TapScope::LocalDomain { name } => digested("ld", &[name]),
     }
 }
 
@@ -490,17 +495,10 @@ impl Inspector {
     pub fn tap_url(&self, tap: &TapId) -> Option<String> {
         lock(&self.inner.taps)
             .get(tap)
-            .map(|entry| format!("http://{}", entry.address))
+            .map(|entry| entry.address.clone())
     }
 
-    /// Starts a tap (replacing one already inspecting the same scope).
-    ///
-    /// # Errors
-    /// [`InspectError::NotWeb`] for a service that isn't HTTP(S); Lens errors.
-    pub async fn start(&self, spec: TapSpec) -> Result<TapView, InspectError> {
-        if let Some(existing) = self.tap_for(&spec.scope) {
-            self.stop(&existing).await;
-        }
+    fn tap_config(spec: &TapSpec) -> Result<TapConfig, InspectError> {
         let url = OriginUrl::parse(spec.origin.trim().trim_end_matches('/'))
             .map_err(|_| InspectError::NotWeb)?;
         let mut origin = OriginConfig::new(url);
@@ -514,26 +512,23 @@ impl Inspector {
             .host_header
             .clone()
             .map_or(HostHeader::Preserve, HostHeader::Custom);
-        // The listener is on loopback and fed by cloudflared, which sets the visitor's
-        // address in `CF-Connecting-IP`.
-        config.trust_cf_connecting_ip = true;
         for token in &spec.bearer {
             config.gates.bearer.push(BearerToken::new(token.expose())?);
         }
-        let settings = self.settings();
-        let lens = self.lens()?;
-        let handle = lens.start_tap(config).await?;
-        let id = handle.id.clone();
+        Ok(config)
+    }
+
+    fn register(&self, id: &TapId, spec: &TapSpec, address: String, idle_stop: Option<Duration>) {
         let started_at = crate::domain_shares::now_ms();
         let entry = TapEntry {
             scope: spec.scope.clone(),
             name: spec.name.clone(),
             origin: spec.origin.clone(),
             public_url: spec.public_url.clone(),
-            address: handle.addr,
+            address,
             started_at,
             watched: Vec::new(),
-            idle_stop: settings.idle_stop_minutes.map(duration_minutes),
+            idle_stop,
             last_activity: tokio::time::Instant::now(),
             idle_reported: false,
         };
@@ -542,9 +537,105 @@ impl Inspector {
             id.clone(),
             (spec.scope.clone(), spec.name.clone(), spec.origin.clone()),
         );
-        self.record_tap(&id, &spec, started_at);
+        self.record_tap(id, spec, started_at);
         self.emit(InspectEvent::Taps);
+    }
+
+    /// Starts a tap (replacing one already inspecting the same scope).
+    ///
+    /// # Errors
+    /// [`InspectError::NotWeb`] for a service that isn't HTTP(S); Lens errors.
+    pub async fn start(&self, spec: TapSpec) -> Result<TapView, InspectError> {
+        if let Some(existing) = self.tap_for(&spec.scope) {
+            self.stop(&existing).await;
+        }
+        let mut config = Self::tap_config(&spec)?;
+        // The listener is on loopback and fed by cloudflared, which sets the visitor's
+        // address in `CF-Connecting-IP`.
+        config.trust_cf_connecting_ip = true;
+        let settings = self.settings();
+        let lens = self.lens()?;
+        let handle = lens.start_tap(config).await?;
+        let id = handle.id.clone();
+        self.register(
+            &id,
+            &spec,
+            format!("http://{}", handle.addr),
+            settings.idle_stop_minutes.map(duration_minutes),
+        );
         self.view(&id)
+    }
+
+    /// Starts a tap without a listener of its own, for a listener that routes to it by
+    /// host (local domains, [`Inspector::listen`]). `address` is where people reach it
+    /// (e.g. `https://shop.test`); `capture` records its requests. Never stops when idle,
+    /// and ignores `CF-Connecting-IP` (nothing sits in front of it).
+    ///
+    /// # Errors
+    /// [`InspectError::NotWeb`] for a service that isn't HTTP(S); Lens errors.
+    pub async fn start_hosted(
+        &self,
+        spec: TapSpec,
+        address: String,
+        capture: bool,
+    ) -> Result<TapId, InspectError> {
+        if let Some(existing) = self.tap_for(&spec.scope) {
+            self.stop(&existing).await;
+        }
+        let mut config = Self::tap_config(&spec)?;
+        config.trust_cf_connecting_ip = false;
+        config.capture.enabled = capture;
+        let id = self.lens()?.add_tap(config)?;
+        self.register(&id, &spec, address, None);
+        Ok(id)
+    }
+
+    /// Binds a listener in this process's Lens (starting it if needed).
+    ///
+    /// # Errors
+    /// Lens refused (bind failure, unknown taps, invalid hosts).
+    pub async fn listen(
+        &self,
+        options: lens::ListenOptions,
+    ) -> Result<lens::ListenerInfo, InspectError> {
+        Ok(self.lens()?.listen(options).await?)
+    }
+
+    /// Replaces a listener's routing.
+    ///
+    /// # Errors
+    /// Lens refused (unknown listener or taps, invalid hosts).
+    pub fn set_routing(
+        &self,
+        listener: lens::ListenerId,
+        routing: lens::Routing,
+    ) -> Result<(), InspectError> {
+        Ok(self.lens()?.set_routing(listener, routing)?)
+    }
+
+    /// Closes a listener (in-flight requests finish first); a closed one is fine.
+    pub async fn close_listener(&self, listener: lens::ListenerId) {
+        if let Some(lens) = self.running() {
+            let _ = lens.close_listener(listener).await;
+        }
+    }
+
+    /// Whether a listener is still open.
+    pub fn is_listening(&self, listener: lens::ListenerId) -> bool {
+        self.running()
+            .is_some_and(|lens| lens.listeners().iter().any(|l| l.id == listener))
+    }
+
+    /// Records requests on a tap or stops recording them.
+    ///
+    /// # Errors
+    /// [`InspectError::UnknownTap`].
+    pub fn set_capture(&self, tap: &TapId, capture: bool) -> Result<(), InspectError> {
+        let lens = self.running().ok_or(InspectError::UnknownTap)?;
+        lens.update_tap(tap, |config| config.capture.enabled = capture)
+            .map_err(|_| InspectError::UnknownTap)?;
+        self.emit(InspectEvent::Taps);
+        Ok(())
     }
 
     fn record_tap(&self, id: &TapId, spec: &TapSpec, started_at: u64) {
@@ -692,7 +783,7 @@ impl Inspector {
             name: entry.name,
             origin: entry.origin,
             public_url: entry.public_url,
-            address: format!("http://{}", entry.address),
+            address: entry.address,
             started_at: entry.started_at,
             capturing: config.capture.enabled,
             paused: config.paused.clone(),

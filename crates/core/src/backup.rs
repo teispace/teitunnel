@@ -3,7 +3,9 @@
 //! What's in it: settings (alert rules and the project list included), this machine's
 //! tunnels (ids and names; they run on the new computer instead), the indexes of the DNS
 //! records and Access applications Teitunnel created (so it still only changes its own),
-//! load-balanced routes, and Snapshots with their recent versions. Accounts by name only.
+//! load-balanced routes, Snapshots with their recent versions, and local domains (names
+//! and targets; the new computer makes and trusts its own certificate authority).
+//! Accounts by name only.
 //!
 //! What's never in it: API tokens, OAuth grants, tunnel run tokens, webhook secrets,
 //! the local CA's key, dashboard password and API-key hashes. After restoring, accounts
@@ -53,6 +55,7 @@ const TABLES: &[(&str, &[&str])] = &[
     ("snapshot_versions", &[]),
     ("edge_rules", &[]),
     ("service_tokens", &[]),
+    ("local_domains", &[]),
 ];
 
 /// Settings that belong to this machine (a lease held by a running process).

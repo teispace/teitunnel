@@ -77,6 +77,11 @@ pub enum Fix {
         /// Tunnel.
         tunnel_id: String,
     },
+    /// Local domains, fixed on this computer.
+    LocalDomains {
+        /// What to do.
+        action: crate::local_domains::LocalDomainFix,
+    },
 }
 
 /// A detected problem.

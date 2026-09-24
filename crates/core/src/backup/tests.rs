@@ -17,6 +17,7 @@ const API_TOKEN: &str = "cf-api-token-0123456789-SECRET-VALUE-abcdef";
 const RUN_TOKEN: &str = "eyJhIjoiYWNjIiwidCI6InR1bm5lbCIsInMiOiJydW4tdG9rZW4tc2VjcmV0In0=";
 const WEBHOOK_SECRET: &str = "whsec_super_secret_webhook_value";
 const PASSWORD_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNo";
+const CA_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----\n";
 
 fn pass(text: &str) -> Secret<String> {
     Secret::new(text.to_owned())
@@ -54,6 +55,24 @@ async fn populated() -> (Store, MemoryStore) {
     crate::project::registry::remember(&store, "/w/shop/teitunnel.yml", "shop")
         .await
         .unwrap();
+    crate::local_domains::registry::save(
+        &store,
+        &crate::local_domains::LocalDomainRow {
+            name: localdomains::LocalName::parse_any("shop.test").unwrap(),
+            target: localdomains::DomainTarget::Port { port: 3000 },
+            wildcard: true,
+            https: true,
+            inspect: false,
+            project: None,
+            created_at: 1,
+        },
+    )
+    .await
+    .unwrap();
+    // The local CA's key sits in the keychain, like every secret.
+    keychain
+        .set(localdomains::CA_KEYCHAIN_ACCOUNT, &pass(CA_KEY))
+        .unwrap();
     (store, keychain)
 }
 
@@ -88,6 +107,16 @@ async fn round_trips_to_another_computer() {
     assert_eq!(settings.theme, crate::settings::Theme::Dark);
     let projects = crate::project::registry::list(&fresh).await.unwrap();
     assert_eq!(projects[0].name, "shop");
+    let domains = crate::local_domains::registry::list(&fresh).await.unwrap();
+    assert_eq!(domains.len(), 1);
+    assert_eq!(domains[0].name.as_str(), "shop.test");
+    assert!(domains[0].wildcard);
+    assert!(
+        summary
+            .sections
+            .iter()
+            .any(|s| s.section == "local_domains" && s.count == 1)
+    );
     // Accounts are connected again by the user; nothing about them is created.
     let accounts: i64 = fresh
         .call(|c| Ok(c.query_row("SELECT COUNT(*) FROM accounts", [], |r| r.get(0))?))
@@ -113,6 +142,8 @@ async fn never_holds_a_secret() {
         RUN_TOKEN,
         WEBHOOK_SECRET,
         PASSWORD_HASH,
+        CA_KEY,
+        "PRIVATE KEY",
         "webhookSecret",
         "uptimeRunner",
     ] {

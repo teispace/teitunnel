@@ -547,9 +547,12 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                         .map_err(msg)?;
                     Ok("Removed the tunnel's stale connections.".into())
                 }
-                Fix::Change { .. } | Fix::InstallBinary | Fix::Reconnect => Err(
-                    BackendError::Unsupported("This fix isn't run this way.".into()),
-                ),
+                Fix::Change { .. }
+                | Fix::InstallBinary
+                | Fix::Reconnect
+                | Fix::LocalDomains { .. } => Err(BackendError::Unsupported(
+                    "This fix isn't run this way.".into(),
+                )),
             }
         })
     }

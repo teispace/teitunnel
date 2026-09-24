@@ -299,6 +299,20 @@ const MIGRATIONS: &[M<'static>] = &[
         CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
         CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
     ),
+    // 17: local HTTPS domains (M12-07): the registry Lens routes by. `target` is the
+    // JSON of `localdomains::DomainTarget`; `project` is the project file that declared
+    // it, if any. The CA's key lives in the keychain, never here.
+    M::up(
+        "CREATE TABLE local_domains (
+            name       TEXT PRIMARY KEY NOT NULL,
+            target     TEXT NOT NULL,
+            wildcard   INTEGER NOT NULL DEFAULT 0,
+            https      INTEGER NOT NULL DEFAULT 1,
+            inspect    INTEGER NOT NULL DEFAULT 0,
+            project    TEXT,
+            created_at INTEGER NOT NULL
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
