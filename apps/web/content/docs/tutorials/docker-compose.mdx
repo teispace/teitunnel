@@ -17,7 +17,7 @@ services:
     image: ghcr.io/you/api:latest
 
   teitunnel:
-    image: ghcr.io/teispace/teitunnel:latest
+    image: teispace/teitunnel:latest
     environment:
       CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
     secrets: [cloudflare_api_token]

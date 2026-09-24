@@ -155,12 +155,14 @@ further down, and every file is also on the [download page](/download/).
 
     ```sh
     docker run -d --name teitunnel --restart unless-stopped \
-      -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
+      -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel
     ```
 
-    It's built for `linux/amd64` and `linux/arm64` from each release's own `teitunnel-cli`,
-    and tagged with the version (`0.1.0`), the minor version (`0.1`) and `latest`. To check
-    that an image came from this repository's release workflow:
+    It's on [Docker Hub](https://hub.docker.com/r/teispace/teitunnel) and as
+    `ghcr.io/teispace/teitunnel` (the same image), built for `linux/amd64` and `linux/arm64`
+    from each release's own `teitunnel-cli`, and tagged with the version (`0.1.1`), the minor
+    version (`0.1`) and `latest`. To check that an image came from this repository's release
+    workflow:
 
     ```sh
     gh attestation verify oci://ghcr.io/teispace/teitunnel:latest --repo teispace/teitunnel

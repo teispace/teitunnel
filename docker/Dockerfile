@@ -6,7 +6,7 @@
 # this container runs, the plan engine's records) lives in /data: keep it on a volume.
 #
 # Build from source: docker build -f docker/Dockerfile -t teitunnel .
-# Releases (ghcr.io/teispace/teitunnel, .github/workflows/image.yml) use the release's
+# Releases (teispace/teitunnel on Docker Hub and ghcr.io, .github/workflows/image.yml) use the release's
 # own verified binaries instead of compiling again: --build-arg CLI=prebuilt, with a
 # context holding linux-amd64/teitunnel-cli, linux-arm64/teitunnel-cli and an empty data/.
 

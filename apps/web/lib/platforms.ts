@@ -56,7 +56,7 @@ const archOrder: Arch[] = ["universal", "x64", "arm64"];
 const channels = {
   cask: "brew install --cask teispace/tap/teitunnel",
   formula: "brew install teispace/tap/teitunnel-cli",
-  docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel",
+  docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel",
   // The signed repositories at teitunnel.teispace.com/linux/ (D-086).
   apt: [
     "curl -fsSL https://teitunnel.teispace.com/linux/teitunnel.asc | sudo gpg --dearmor -o /usr/share/keyrings/teitunnel.gpg",

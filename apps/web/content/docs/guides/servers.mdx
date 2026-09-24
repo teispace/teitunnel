@@ -50,9 +50,9 @@ its state in `/data`, and runs `up` by default:
 ```sh
 docker volume create teitunnel
 docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
-  ghcr.io/teispace/teitunnel route add app.example.com http://web:80 --yes
+  teispace/teitunnel route add app.example.com http://web:80 --yes
 docker run -d --name teitunnel --restart unless-stopped \
-  -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app ghcr.io/teispace/teitunnel
+  -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app teispace/teitunnel
 ```
 
 The image is multi-arch (`linux/amd64`, `linux/arm64`); pin a version (`:0.1.0`) or follow
@@ -67,7 +67,7 @@ route is live.
 ```yaml
 services:
   teitunnel:
-    image: ghcr.io/teispace/teitunnel:latest
+    image: teispace/teitunnel:latest
     environment:
       CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
     secrets: [cloudflare_api_token]
@@ -104,7 +104,7 @@ spec:
     spec:
       containers:
         - name: teitunnel
-          image: ghcr.io/teispace/teitunnel:latest
+          image: teispace/teitunnel:latest
           env:
             - name: CLOUDFLARE_API_TOKEN
               valueFrom: { secretKeyRef: { name: cloudflare, key: api-token } }

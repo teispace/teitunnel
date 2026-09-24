@@ -1,6 +1,7 @@
 name: Image
 
-# Publishes ghcr.io/teispace/teitunnel (linux/amd64, linux/arm64) for a release, built
+# Publishes ghcr.io/teispace/teitunnel and docker.io/teispace/teitunnel (the same image,
+# the same digest; linux/amd64, linux/arm64) for a release, built
 # from that release's own teitunnel-cli binaries after checking their checksums and build
 # provenance, so the image runs exactly what the release ships (D-084). Tags: 0.1.0, 0.1,
 # and latest when it's the latest release.
@@ -35,6 +36,8 @@ jobs:
     name: Build and publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Publishing reads the Docker Hub token from the release environment (main only).
+    environment: ${{ github.event_name == 'workflow_dispatch' && 'release' || '' }}
     permissions:
       contents: read
       packages: write
@@ -135,11 +138,33 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      # Docker Hub gets a copy of the index just pushed, so both registries serve
+      # identical bytes (and the provenance above covers both).
+      - name: Copy to Docker Hub
+        if: env.PUSH == 'true'
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::warning::No DOCKERHUB_TOKEN: not copied to Docker Hub."
+            exit 0
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
+          args=()
+          while read -r tag; do
+            [ -n "$tag" ] && args+=(-t "docker.io/teispace/teitunnel:${tag##*:}")
+          done <<<"$TAGS"
+          docker buildx imagetools create "${args[@]}" "$IMAGE@$DIGEST"
+          docker buildx imagetools inspect "docker.io/teispace/teitunnel@$DIGEST" --format '{{json .Manifest.Digest}}'
+          docker logout docker.io
       - name: Summary
         if: env.PUSH == 'true'
         run: |
           {
-            echo "### ${IMAGE}"
+            echo "### ${IMAGE} and docker.io/teispace/teitunnel"
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo "digest ${{ steps.build.outputs.digest }}"
