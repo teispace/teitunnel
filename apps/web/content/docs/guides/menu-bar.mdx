@@ -10,8 +10,18 @@ The icon shows a dot when a route isn't working. Its menu has:
 - a **health line** ("All 3 routes live", "1 of 3 routes not working"),
 - each **route** with its status, to copy its URL or open it,
 - **Stop Routes on This Mac** / **Start Routes on This Mac** (*This PC* on Windows, *This Computer* on Linux),
-- your **Quick Shares**, with **Share a Local Port…**,
+- your **Quick Shares**, each with **Copy URL**, **Open in Browser** and **Stop Sharing**,
+- **Copy** for the three newest addresses, in one click,
+- **Pause All Shares** / **Resume All Shares** (visitors see a "paused" page and the
+  addresses keep working; for inspected shares) and **Stop All Shares**,
+- **Share a Running Service**: dev servers and other local services that aren't shared yet,
+  shared in one click. Teitunnel runs its exposure check first; if it finds something, the
+  Quick Share sheet opens so you can decide. The address is copied once it's live.
+- **Share a Local Port…**,
 - **Open Teitunnel** and **Quit Teitunnel**.
+
+Running services are looked up when you point at the icon (macOS, Windows); on Linux, at
+launch and whenever a share changes.
 
 Stopping routes yourself doesn't count as a problem, so the icon stays plain.
 

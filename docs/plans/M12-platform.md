@@ -93,15 +93,15 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Scheduled shares: on during set hours/days, off otherwise.
 
 ## M12-07 · Everywhere
-- [ ] Tray/menu bar: share a detected service in one click, copy recent URLs, pause all.
+- [x] Tray/menu bar: share a detected service in one click, copy recent URLs, pause all. (`core::quick_actions`; pause and resume need an inspected share; also stop all.)
 - [x] `teitunnel://` deep links (share port, open route, open inspector) for Raycast, Alfred and scripts. (D-102; registration by the installers, unverified in packaged builds.)
-- [ ] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), optional browser extension (open current localhost tab as a share).
-- [ ] Global shortcut to share the frontmost dev server.
+- [x] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), in `integrations/` on a shared TypeScript client. The Ports view gets a context-menu item (its data API is still proposed); the inspector opens in the app. Not published yet. The optional browser extension is left for later.
+- [x] Global shortcut to share the frontmost dev server. (Off by default, Settings ▸ Integrations; shares the one running dev server, else opens Quick Share; "frontmost" isn't detectable portably.)
 - [ ] Local HTTPS domains (`app.test`/`.local` with a local CA, LocalCan parity; decision Q7).
 - [x] First: a local control connection to the running app (Unix socket / named pipe, current user only) that the CLI, extensions and launchers use; everything below builds on it. (D-102, `crates/control`; the Windows pipe is untested on Windows.)
-- [ ] JetBrains plugin (after VS Code; the VS Code extension also runs in Cursor and Windsurf through Open VSX).
+- [x] JetBrains plugin (after VS Code; the VS Code extension also runs in Cursor and Windsurf through Open VSX). (`integrations/jetbrains`, IntelliJ Platform Gradle Plugin 2.x; not published.)
 - [x] Live shell completion (hostnames, tunnels, domains from the local store, no network).
-- [x] `teitunnel top`: a live terminal dashboard of shares, routes, traffic and requests. (Requests pane lights up once the inspector sends `requestArrived`.)
+- [x] `teitunnel top`: a live terminal dashboard of shares, routes, traffic and requests. (The inspector now sends `requestArrived`, bounded and coalesced.)
 
 ## M12-08 · Cloudflare depth
 - [ ] Private hostname routes for WARP users (GA 2026-08-11) next to private networks.
