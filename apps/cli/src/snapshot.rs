@@ -149,6 +149,9 @@ pub(crate) enum SnapshotCommand {
     Rm {
         /// The Snapshot's name or hostname.
         snapshot: String,
+        /// Succeed when there's no such Snapshot (cleanup jobs that may run twice).
+        #[arg(long)]
+        missing_ok: bool,
         #[command(flatten)]
         change: ChangeArgs,
     },
@@ -698,10 +701,23 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
         }
         SnapshotCommand::Rm {
             snapshot: key,
+            missing_ok,
             change,
         } => {
             let account = app.account(change.account.as_deref()).await?;
-            let found = locate(app, &account, &key).await?;
+            let api = app
+                .accounts
+                .client(&account.id)
+                .await
+                .map_err(|e| e.to_string())?;
+            let found =
+                match snapshot::find_or_adopt(&app.engine, &api, &account.id, &key, "cli").await {
+                    Err(snapshot::SnapshotError::NotFound) if missing_ok => {
+                        out!("No Snapshot {key}; nothing to delete.")?;
+                        return Ok(ExitCode::SUCCESS);
+                    }
+                    found => found.map_err(|e| error(&e))?,
+                };
             let request = SnapshotChange::Delete { snapshot: found.id };
             Ok(exit(
                 apply(app, &preparations, &request, &change, &account).await?,

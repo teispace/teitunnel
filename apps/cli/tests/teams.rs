@@ -115,6 +115,15 @@ fn names_are_reserved_refused_and_taken_over_and_a_ci_share_cleans_up() {
     assert_eq!(refused.status.code(), Some(3), "{}", text(&refused));
     assert!(text(&refused).contains("--take-over"), "{}", text(&refused));
 
+    // The action checks for cloudflared first (and installs it when missing).
+    let status = bob(&["cloudflared", "status"]);
+    assert!(status.status.success(), "{}", text(&status));
+    assert!(
+        text(&status).contains("fake-cloudflared"),
+        "{}",
+        text(&status)
+    );
+
     // A CI job's share: its own connector, the URL as JSON, cleaned up when stopped.
     let mut share = as_("bob@ci", bob_dir.path(), &fake, &cloudflared)
         .args(["share", "3000", "--on", "pr-7.xyz.com", "--json"])
@@ -149,6 +158,12 @@ fn names_are_reserved_refused_and_taken_over_and_a_ci_share_cleans_up() {
     assert!(deleted.status.success(), "{}", text(&deleted));
     let tunnels = json(&bob(&["tunnels", "--json"]));
     assert!(tunnels.as_array().unwrap().is_empty(), "{tunnels}");
+
+    // A cleanup job for a preview that was never a Snapshot (or is already gone).
+    let cleaned = bob(&["snapshot", "rm", "pr-7.xyz.com", "--missing-ok", "--yes"]);
+    assert!(cleaned.status.success(), "{}", text(&cleaned));
+    let missing = bob(&["snapshot", "rm", "pr-7.xyz.com", "--yes"]);
+    assert_eq!(missing.status.code(), Some(1), "{}", text(&missing));
 
     // Taking over, explicitly.
     let taken = bob(&[

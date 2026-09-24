@@ -283,6 +283,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// The cloudflared Teitunnel uses: `status`, or `install` (the latest release from
+    /// Cloudflare, verified, into Teitunnel's data folder; for servers and CI).
+    Cloudflared {
+        /// `status` or `install`.
+        #[arg(value_enum, default_value = "status")]
+        action: CloudflaredAction,
+    },
     /// Print a shell completion script, e.g. `teitunnel completions zsh`.
     Completions {
         /// The shell.
@@ -510,6 +517,12 @@ fn parse_range(value: &str) -> Result<teitunnel_core::analytics::AnalyticsRange,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
+enum CloudflaredAction {
+    Status,
+    Install,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
 enum ReservationsAction {
     Ls,
 }
@@ -567,6 +580,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             return share::run(&origin, stop_after, !no_qr, json, &host_header).await;
         }
         Command::Setup => return setup().await,
+        Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -628,6 +642,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             json,
         } => reservations(&app, account.as_deref(), json).await,
         Command::Share { .. }
+        | Command::Cloudflared { .. }
         | Command::Completions { .. }
         | Command::Setup
         | Command::Mcp { .. } => {
@@ -941,6 +956,26 @@ async fn tunnel_for(
             .map_err(|e| e.to_string()),
         _ => Ok(None),
     }
+}
+
+/// `cloudflared status|install`: the binary Teitunnel runs, found like the app finds it.
+async fn cloudflared_command(action: CloudflaredAction) -> Result<ExitCode, String> {
+    let binary = context::binary(&context::data_dir()?);
+    let found = match action {
+        CloudflaredAction::Status => binary.current().await,
+        CloudflaredAction::Install => binary.install_latest(|_| {}).await,
+    }
+    .map_err(|e| match e {
+        cloudflared::Error::NotFound => {
+            "cloudflared isn't installed. Run `teitunnel cloudflared install`.".to_owned()
+        }
+        other => other.to_string(),
+    })?;
+    let version = found
+        .version
+        .map_or_else(|| "unknown version".to_owned(), |v| v.to_string());
+    out!("{}\t{version}", found.path.display())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Connects the accounts an API token reaches. With a token in the environment it only
