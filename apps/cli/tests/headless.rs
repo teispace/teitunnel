@@ -92,6 +92,12 @@ fn adds_routes_and_runs_them_with_a_token_from_the_environment() {
     let list: serde_json::Value = serde_json::from_slice(&tunnels.stdout).unwrap();
     assert_eq!(list.as_array().unwrap().len(), 1, "{list}");
 
+    // The route is monitored; nothing ran the checks yet.
+    let uptime = run(cli(data.path(), &fake, &cloudflared).args(["uptime", "--json"]));
+    let routes: serde_json::Value = serde_json::from_slice(&uptime.stdout).unwrap();
+    assert_eq!(routes[0]["route"]["hostname"], "app.xyz.com", "{routes}");
+    assert!(routes[0]["up"].is_null(), "{routes}");
+
     // `up` runs the connector in the foreground until interrupted.
     let mut up = cli(data.path(), &fake, &cloudflared)
         .arg("up")
@@ -321,6 +327,25 @@ fn serves_a_signed_in_dashboard_and_an_api() {
     assert_eq!(
         overview["accounts"][0]["overview"]["routes"][0]["hostname"],
         "app.xyz.com"
+    );
+
+    // Uptime of this machine's routes, read-only under the same sign-in.
+    assert_eq!(http(&addr, "GET", "/api/uptime", &[], None).0, 401);
+    let (status, _, body) = http(&addr, "GET", "/api/uptime", &cookie, None);
+    assert_eq!(status, 200, "{body}");
+    let uptime: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(uptime[0]["route"]["hostname"], "app.xyz.com", "{uptime}");
+    let (status, _, _) = http(
+        &addr,
+        "GET",
+        "/api/uptime?hostname=elsewhere.xyz.com",
+        &cookie,
+        None,
+    );
+    assert_eq!(status, 404);
+    assert_eq!(
+        http(&addr, "GET", "/api/analytics?accountId=x", &[], None).0,
+        401
     );
 
     // A change from the browser needs the header too; the plan comes back in English.

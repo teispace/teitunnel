@@ -207,6 +207,22 @@ impl App {
         &self.store
     }
 
+    /// Uptime checks and alerts for this machine's routes; `owner` names this process
+    /// for the lease that keeps two processes from checking the same routes.
+    pub(crate) fn monitor(
+        &self,
+        analytics: teitunnel_core::analytics::Analytics,
+        owner: &str,
+    ) -> teitunnel_core::uptime::Monitor {
+        teitunnel_core::uptime::Monitor::new(
+            self.store.clone(),
+            self.accounts.clone(),
+            analytics,
+            edge(),
+            owner,
+        )
+    }
+
     /// The engine context for `account`.
     pub(crate) fn context<'a>(&'a self, account: &'a Account) -> Context<'a> {
         Context {

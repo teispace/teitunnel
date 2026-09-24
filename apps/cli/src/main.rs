@@ -12,6 +12,7 @@ macro_rules! out {
     }};
 }
 
+mod analytics;
 mod context;
 mod doctor;
 mod probe;
@@ -168,6 +169,31 @@ enum Command {
         /// Stop the share at this hostname (its route and DNS record are removed).
         #[arg(long, value_name = "HOSTNAME")]
         stop: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Traffic from Cloudflare's edge: one route in detail, or every route of this
+    /// machine side by side. Needs the token's Zone ▸ Analytics ▸ Read permission.
+    Analytics {
+        /// A route's hostname (default: every route of this machine).
+        hostname: Option<String>,
+        /// With a hostname: only requests under this path, e.g. `/api`.
+        #[arg(long)]
+        path: Option<String>,
+        /// `hour`, `day`, `week` or `month`.
+        #[arg(long, default_value = "day", value_parser = parse_range)]
+        range: teitunnel_core::analytics::AnalyticsRange,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Uptime of this machine's routes (checked every minute through Cloudflare while the
+    /// app, `up` or `serve` runs).
+    Uptime {
         /// Print JSON.
         #[arg(long)]
         json: bool,
@@ -401,6 +427,11 @@ struct ApplyArgs {
     tunnel: Option<String>,
 }
 
+fn parse_range(value: &str) -> Result<teitunnel_core::analytics::AnalyticsRange, String> {
+    teitunnel_core::analytics::AnalyticsRange::parse(value)
+        .ok_or_else(|| format!("`{value}` isn't a range; use hour, day, week or month."))
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum AlwaysOnAction {
     On,
@@ -516,6 +547,24 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             up::always_on(&app, action, account.as_deref(), tunnel.as_deref()).await
         }
         Command::Doctor { fix, yes, json } => doctor::run(&app, json, fix, yes).await,
+        Command::Analytics {
+            hostname,
+            path,
+            range,
+            account,
+            json,
+        } => {
+            analytics::analytics(
+                &app,
+                hostname.as_deref(),
+                path.as_deref(),
+                range,
+                account.as_deref(),
+                json,
+            )
+            .await
+        }
+        Command::Uptime { json } => analytics::uptime(&app, json).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes {
             account,

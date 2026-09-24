@@ -87,6 +87,8 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
             }
         }
     };
+    let monitor =
+        crate::analytics::spawn_monitor(app, teitunnel_core::analytics::Analytics::default());
     let mut last = Vec::new();
     let stop = interrupted();
     tokio::pin!(stop);
@@ -98,6 +100,7 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
         }
     }
     status("Stopping…");
+    monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)
 }
