@@ -252,6 +252,20 @@ delete the new Worker, redeploy the previous version, re-attach or detach domain
 workers.dev back. The Worker (`engine/snapshot-worker.js`) runs only for a password or the
 comments overlay (`run_worker_first`); otherwise assets are served without it.
 
+Comments (`core::comments`): the overlay script (`comments/overlay.js`) and one JSON API
+under `/__teitunnel/comments/`, answered by Lens's `ReservedHandler` for live shares and
+inspected routes (kept in the local store, migration 18) and by the Snapshot Worker for
+Snapshots (kept in the account's D1 database, bound as `DB`; a planned `CreateDatabase`
+step makes it the first time). The app reads Snapshot comments with the D1 query endpoint.
+
+Workers in front of a route (`engine/front.rs`, `engine/planner/front.rs`): the offline page
+and webhook inboxes are Worker scripts (`tt-offline-…`, `tt-inbox-…`) on Worker routes
+(`hostname/*`, `hostname/path*`) that proxy to the tunnel. Plans: `CreateDatabase` (an inbox's
+first) → `PutFrontWorker` → `CreateWorkerRoute`; removal `DeleteWorkerRoute` →
+`DeleteFrontWorker`, and removing a hostname's last route removes them. Ownership is the
+`front_workers` index (migration 19). `core::inbox` delivers kept webhooks to the route's
+own service.
+
 ### 4.9 Edge protection and service tokens (M12-04)
 
 Rules Cloudflare enforces for **one hostname** (research:

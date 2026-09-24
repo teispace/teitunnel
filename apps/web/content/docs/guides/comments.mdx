@@ -1,0 +1,75 @@
+---
+title: Comments
+description: "Let reviewers pin comments to any spot on a share or Snapshot, reply and resolve; read and answer them in Teitunnel, the terminal or from an AI agent."
+---
+
+Send someone a link and get feedback exactly where it applies. With **Comments** on, the
+shared pages get a small comment button in the corner. Reviewers click a spot on the page,
+type, and the comment is pinned there with a number; they can reply to each other and
+resolve threads. You read and answer everything in Teitunnel's **Comments** view.
+
+## Turn it on
+- **A Quick Share or a share on your domain:** on its card in **Quick Share**, switch on
+  **Comments**. It works while requests go through the [inspector](/docs/guides/inspector)
+  (the default).
+- **A route:** while the route is being inspected, the same switch appears for it.
+- **A Snapshot:** when you publish it (or a new version), switch on **Comments** in the
+  settings, or pass `--comments` to `teitunnel snapshot publish`.
+
+## For reviewers
+The button shows how many threads are open. **Add a comment**, then click the spot (or
+**Comment on the whole page**), type, and press **Comment** (⌘/Ctrl-Enter works too).
+Reviewers give their name once; their browser remembers it. When the hostname has a
+[login](/docs/guides/require-login), the name comes from Cloudflare Access and the
+comment is marked **Signed in**.
+
+The overlay is keyboard accessible, follows the page's light or dark system setting and
+Reduce Motion, and lives in its own Shadow DOM, so it never picks up or changes the page's
+styles. It loads nothing from anywhere else, and works with a Content Security Policy
+that allows scripts from the site itself.
+
+## Read and answer
+**Comments** in the sidebar lists every share and Snapshot with comments, with a badge for
+new ones; a notification tells you when someone writes. Each thread shows its page, the
+comments, and:
+
+- **Reply**: your answer is marked as yours for reviewers.
+- **Resolve** / **Reopen**.
+- **Show on Page**: opens the page in your browser at the spot, with the thread open.
+
+From the terminal:
+
+```sh
+teitunnel comments ls
+teitunnel comments ls preview.example.com
+teitunnel comments reply preview.example.com c1a2b3 "Fixed, thanks"
+teitunnel comments resolve preview.example.com c1a2b3
+```
+
+AI agents connected with [MCP](/docs/guides/ai-agents) get `comments_list`,
+`comments_reply` and `comments_resolve`: an agent can read the feedback on a preview,
+change the code and answer. Replies and resolutions ask you first, like every change.
+Reviewers' email addresses are never given to agents.
+
+## Where comments are kept
+- **Shares and routes:** in Teitunnel's database on this computer. Nothing goes to
+  Cloudflare, and it works on Quick Shares without an account (the page is only
+  reachable while this computer is on anyway).
+- **Snapshots:** in a **D1 database** on your own Cloudflare account (`teitunnel-data`,
+  created the first time you turn comments on, through the reviewed plan). The Snapshot's
+  Worker answers reviewers; Teitunnel reads and answers with your API token. Deleting a
+  Snapshot deletes its comments.
+
+## Limits
+A comment is at most 4,000 characters, a name 80. A share or Snapshot keeps up to 2,000
+comments and a thread 200. Each visitor can write 10 comments a minute and 60 an hour.
+Comments are stored and shown as plain text: HTML or scripts in them are never run.
+
+With comments on, every request to a Snapshot runs its Worker (to add the comment button),
+which counts toward Cloudflare's free 100,000 Worker requests a day. D1's free plan
+includes 5 million rows read and 100,000 written a day.
+
+## Permissions
+Snapshot comments need **Account · D1 · Edit** on your API token, besides the Workers
+permissions Snapshots already use. If it's missing, Teitunnel shows how to add it to the
+same token.

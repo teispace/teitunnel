@@ -134,6 +134,41 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - Inspecting a route is a reviewed plan; it's reverted when inspection ends, when its
   process quits, at the next launch after a crash, and on the Doctor's `inspect.orphan` fix.
 
+### Comments (`core::comments`, the overlay, the Snapshot Worker)
+- Live shares answer the comments API from Lens under the reserved `/__teitunnel/comments/`
+  path, after the tap's gates (password, secret link, bearer…) admitted the visitor;
+  comments are kept in the local database. Snapshots answer it from their Worker, with a D1
+  binding; the app reads and answers through the D1 query endpoint with the account's
+  token, so no Worker exposes an owner API or holds an owner key.
+- Writes must be `application/json` from the same site (`Sec-Fetch-Site: same-origin`, or a
+  matching `Origin`), so a cross-site form or script can't post; bodies are capped (16 KB),
+  and each visitor is rate-limited (10 writes a minute, 60 an hour; in the Worker by a
+  hash of site and IP, never the IP itself).
+- Text is validated (lengths, no control or bidirectional-override characters) and stored
+  as typed; the overlay sets text only with `textContent`, the app renders it as React text.
+  The overlay runs in a closed Shadow DOM, uses constructable stylesheets and DOM APIs only
+  (works under a strict CSP that allows same-origin scripts), and loads nothing external.
+- Reviewer identity is a typed name, or the `Cf-Access-Authenticated-User-Email` header only
+  when the hostname has Teitunnel's own Access login (otherwise a visitor could send it).
+  Email addresses are never returned to reviewers or to agents.
+- Caps: 2,000 comments per subject, 200 per thread; agents' replies and resolutions need
+  the person's approval like any change.
+
+### Workers in front of routes (offline page, webhook inbox; `engine::front`, `core::inbox`)
+- Created, changed and removed only through plan → apply with rollback and undo; Teitunnel
+  touches only Worker scripts named `tt-…` and Worker routes recorded in its ownership index
+  (migration 19); a route pattern someone else's Worker has is refused, never replaced.
+  Routes are created to fail open, so the daily free-request limit never takes a site down.
+- The offline Worker changes no working response; it replaces only 530 (and, if chosen,
+  502/504) answers, with `no-store`, `noindex` and a restrictive CSP on its page.
+- The inbox keeps at most 1,000 webhooks of at most 512 KB, drops cookies, `cf-*` and
+  forwarding headers, deletes everything after its retention (1–30 days), and answers 503
+  when full. A verifying inbox's signing secret comes from the keychain (never IPC outward,
+  never argv: the CLI reads it from the environment or standard input), is sent only as a
+  `secret_text` binding and kept on later versions with `keep_bindings`; it's never in a
+  plan, Activity or the local database. Delivery goes only to the route's own local service
+  (its ingress rule), without following redirects.
+
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.
 - The diagnostics bundle is redacted, created locally, and shown to the user before they share it.

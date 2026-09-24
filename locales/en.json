@@ -2932,7 +2932,7 @@
       "days": "days",
       "verify": {
         "label": "Keep only signed webhooks",
-        "help": "Uses the signing secret saved in the inspector for this hostname. It's sent to Cloudflare as a Worker secret and never shown.",
+        "help": "Uses the signing secret saved for this hostname in the keychain (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
         "none": "Keep every webhook",
         "github": "GitHub",
         "stripe": "Stripe",
