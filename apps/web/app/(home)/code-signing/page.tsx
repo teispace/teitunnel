@@ -11,7 +11,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function CodeSigning() {
   return (
-    <ProsePage title="Code signing policy" updated="September 23, 2026">
+    <ProsePage title="Code signing policy" updated="September 24, 2026">
       <p>
         Every Teitunnel download is built from this repository's source by GitHub Actions, from a
         tagged commit, and nothing is built or signed on a personal computer. Releases are made by
@@ -25,9 +25,11 @@ export default function CodeSigning() {
           runtime, and notarized by Apple.
         </li>
         <li>
-          <strong>Windows:</strong> not yet code-signed. We're applying for free code signing for
-          open source projects from SignPath Foundation; once it's in place, this page will say so
-          and Windows installers will be signed with its certificate.
+          <strong>Windows:</strong> free code signing provided by{" "}
+          <a href="https://signpath.io">SignPath.io</a>, certificate by{" "}
+          <a href="https://signpath.org">SignPath Foundation</a>. Our application is being reviewed;
+          until it's approved, Windows installers are unsigned, and this page will say when that
+          changes.
         </li>
         <li>
           <strong>Linux:</strong> the packages aren't signed by a distribution; verify them with the
@@ -47,18 +49,25 @@ export default function CodeSigning() {
       <h2>Team and roles</h2>
       <ul>
         <li>
-          <strong>Committers and reviewers:</strong> the maintainers in the{" "}
-          <a href="https://github.com/teispace">Teispace organization</a>. Changes from other
-          contributors are reviewed by a maintainer before they're merged.
+          <strong>Committers and reviewers:</strong>{" "}
+          <a href="https://github.com/orgs/teispace/people">members of the Teispace organization</a>
+          . Every change goes through a pull request on <code>main</code>, and changes from anyone
+          outside the organization are reviewed by a member before they're merged.
         </li>
         <li>
-          <strong>Approvers:</strong> Teispace's owners, who approve each release.
+          <strong>Approvers:</strong>{" "}
+          <a href="https://github.com/orgs/teispace/people?query=role%3Aowner">
+            Teispace's organization owners
+          </a>
+          , who approve each release and each signing request.
         </li>
       </ul>
       <p>
-        All team members use multi-factor authentication for GitHub. Only software built from this
-        repository is signed; the cloudflared binary Teitunnel downloads is Cloudflare's own, and
-        Teitunnel checks Cloudflare's signature and checksums before using it.
+        Everyone on the team uses multi-factor authentication for GitHub and for SignPath. Only
+        software built from this repository is signed: release builds run on GitHub Actions from a
+        tagged commit, and nothing is signed on a personal computer. The desktop app downloads
+        Cloudflare's own cloudflared when you ask and checks Cloudflare's signature and checksums
+        before using it; the Docker image includes it unmodified. We never sign cloudflared.
       </p>
       <h2>Privacy</h2>
       <p>

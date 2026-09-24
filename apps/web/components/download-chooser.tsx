@@ -87,9 +87,9 @@ function Note({ id }: { id: PanelId }) {
   if (id === "windows")
     return (
       <p className="text-sm text-fd-muted-foreground">
-        This beta isn't code-signed yet.{" "}
+        Not code-signed yet: signing through SignPath Foundation is on its way.{" "}
         <Link href="/code-signing/" className="underline underline-offset-4">
-          Why
+          Code signing policy
         </Link>
       </p>
     );
