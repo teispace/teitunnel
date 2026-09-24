@@ -8,6 +8,7 @@ use crate::{LensBody, LensError, body::empty};
 /// One header change.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum HeaderOp {
     /// Replace every value of `name` with `value`.
     Set {
@@ -33,6 +34,7 @@ pub enum HeaderOp {
 /// Header rewrites for a tap.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct HeaderRules {
     /// Applied to requests before they go upstream (after Lens's own headers).
     pub request: Vec<HeaderOp>,

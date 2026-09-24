@@ -32,6 +32,7 @@ const THROTTLE_CHUNK: usize = 16 * 1024;
 /// Added latency: `base_ms` plus a uniform jitter in `±jitter_ms`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Latency {
     /// Base delay in milliseconds.
     pub base_ms: u32,
@@ -67,18 +68,22 @@ impl Latency {
 /// Network conditions for a tap. The default changes nothing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct NetworkConfig {
     /// Delay before each request is handled.
     pub latency: Option<Latency>,
     /// Request bodies (visitor → origin), bytes per second, shared by the tap.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub up_bytes_per_sec: Option<u64>,
     /// Response bodies (origin → visitor), bytes per second, shared by the tap.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub down_bytes_per_sec: Option<u64>,
 }
 
 /// What a fault rule does.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum FaultAction {
     /// Answer with this status (e.g. 500, 502, 503, 504, 429) without forwarding.
     Status {
@@ -92,11 +97,13 @@ pub enum FaultAction {
     /// Forward normally, but only after this many milliseconds.
     Delay {
         /// Milliseconds.
+        #[cfg_attr(feature = "specta", specta(type = u32))]
         ms: u64,
     },
     /// Hold the request, then answer `504 Gateway Timeout` (as Cloudflare would).
     Timeout {
         /// How long to hold, in milliseconds.
+        #[cfg_attr(feature = "specta", specta(type = u32))]
         after_ms: u64,
     },
 }
@@ -104,12 +111,15 @@ pub enum FaultAction {
 /// A fault applied to a share of matching requests.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FaultRule {
     /// Method to match (case-insensitive); `None` matches any.
     pub method: Option<String>,
     /// Path to match.
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub path: PathPattern,
     /// Share of matching requests affected, 0–100.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub percent: f64,
     /// What happens to them.
     pub action: FaultAction,
@@ -149,8 +159,10 @@ impl FaultRule {
 /// The fault applied to a captured exchange.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FaultRecord {
     /// Index of the rule in [`crate::TapConfig::faults`].
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub rule: usize,
     /// What it did.
     pub action: FaultAction,

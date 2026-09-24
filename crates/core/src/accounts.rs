@@ -43,6 +43,7 @@ const ACCOUNT_TABLES: &[&str] = &[
     "access_ownership",
     "balanced_routes",
     "domain_shares",
+    "inspected_routes",
     "activity",
     "incidents",
     // Their versions go with them (foreign key).

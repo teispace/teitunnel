@@ -71,6 +71,7 @@ fn read_bounded(reader: impl Read, name: &'static str) -> Result<Vec<u8>, Decode
 /// A coarse classification of a body, for display and export choices.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ContentKind {
     /// No body.
     Empty,

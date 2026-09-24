@@ -31,6 +31,19 @@ pub enum Error {
     /// A Snapshot couldn't be prepared or changed.
     #[error(transparent)]
     Snapshot(crate::snapshot::SnapshotError),
+    /// The inspector refused or failed.
+    #[error(transparent)]
+    Inspect(crate::inspect::InspectError),
+}
+
+impl From<crate::inspect::InspectError> for Error {
+    fn from(err: crate::inspect::InspectError) -> Self {
+        match err {
+            crate::inspect::InspectError::Engine(err) => Self::Engine(err),
+            crate::inspect::InspectError::Store(err) => Self::Store(err),
+            other => Self::Inspect(other),
+        }
+    }
 }
 
 impl From<crate::snapshot::SnapshotError> for Error {
@@ -132,6 +145,21 @@ impl Error {
                     _ => ErrorKind::InvalidInput,
                 }
             }
+            Self::Inspect(err) => {
+                use crate::inspect::InspectError as I;
+                match err {
+                    I::UnknownTap | I::UnknownExchange | I::NotRoute(_) | I::NotInspected(_) => {
+                        ErrorKind::NotFound
+                    }
+                    I::NotWeb
+                    | I::Invalid(_)
+                    | I::Lens(
+                        lens::LensError::InvalidConfig(_) | lens::LensError::BodyTruncated { .. },
+                    ) => ErrorKind::InvalidInput,
+                    I::TapGone => ErrorKind::Conflict,
+                    _ => ErrorKind::Internal,
+                }
+            }
             Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
             Self::Analytics(err) => {
                 use crate::analytics::AnalyticsError as An;
@@ -196,6 +224,7 @@ impl crate::text::UserText for Error {
             Self::Engine(err) => err.text(),
             Self::Analytics(err) => err.text(),
             Self::Snapshot(err) => err.text(),
+            Self::Inspect(err) => err.text(),
         }
     }
 }

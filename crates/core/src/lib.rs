@@ -24,6 +24,7 @@ mod error;
 pub mod export;
 pub mod health;
 pub mod import;
+pub mod inspect;
 pub mod machine;
 pub mod platform;
 pub mod quick_share;

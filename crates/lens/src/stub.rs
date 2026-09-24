@@ -9,6 +9,7 @@ use crate::{LensBody, LensError, PathPattern, body::full};
 /// When a stub answers.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum StubMode {
     /// Every matching request, without contacting the upstream.
     Always,
@@ -20,10 +21,12 @@ pub enum StubMode {
 /// A canned response for requests matching a method and path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct StubRule {
     /// Method to match (case-insensitive); `None` matches any.
     pub method: Option<String>,
     /// Path to match.
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub path: PathPattern,
     /// When to answer.
     pub mode: StubMode,

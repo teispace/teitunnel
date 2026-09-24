@@ -13,7 +13,8 @@ use crate::LensError;
 /// a [`crate::CaptureStore`] stay attributable across restarts, or lets Lens generate
 /// one. 1–64 characters of `A–Z a–z 0–9 . _ : -`.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TapId(Arc<str>);
+#[cfg_attr(feature = "specta", derive(specta::Type), specta(transparent))]
+pub struct TapId(#[cfg_attr(feature = "specta", specta(type = String))] Arc<str>);
 
 impl TapId {
     /// Validates and wraps an id.
@@ -87,7 +88,8 @@ impl<'de> Deserialize<'de> for TapId {
 /// a pagination cursor. Each exchange also has a per-tap sequence number for display.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ExchangeId(Uuid);
+#[cfg_attr(feature = "specta", derive(specta::Type), specta(transparent))]
+pub struct ExchangeId(#[cfg_attr(feature = "specta", specta(type = String))] Uuid);
 
 impl ExchangeId {
     pub(crate) fn new() -> Self {

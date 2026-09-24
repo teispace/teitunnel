@@ -119,8 +119,10 @@ impl Histogram {
 /// Latency percentiles (time to the response head), in milliseconds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct LatencySummary {
     /// Samples.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub count: u64,
     /// Median.
     pub p50_ms: Option<f64>,
@@ -137,42 +139,58 @@ pub struct LatencySummary {
 /// Responses by status class.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct StatusCounts {
     /// 1xx (mostly `101 Switching Protocols`).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub informational: u64,
     /// 2xx.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub success: u64,
     /// 3xx.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub redirect: u64,
     /// 4xx.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub client_error: u64,
     /// 5xx.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub server_error: u64,
 }
 
 /// A point-in-time copy of a tap's metrics.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct MetricsSnapshot {
     /// Requests received.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub requests: u64,
     /// Responses by status class.
     pub status: StatusCounts,
     /// Exchanges that failed (upstream unreachable, reset, client aborted…).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub errors: u64,
     /// Requests stopped by a gate.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub blocked: u64,
     /// Requests answered by a stub.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub stubbed: u64,
     /// Request body bytes received from clients.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_in: u64,
     /// Response body bytes sent to clients.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_out: u64,
     /// Open client connections on listeners routing to this tap.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub active_connections: u64,
     /// Requests in flight.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub active_requests: u64,
     /// Open WebSocket/upgraded streams.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub active_streams: u64,
     /// Time to the response head.
     pub latency: LatencySummary,

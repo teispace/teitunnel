@@ -187,6 +187,11 @@ impl BasicAuth {
         })
     }
 
+    /// The user name (not a secret; shown in settings).
+    pub fn user(&self) -> &str {
+        &self.user
+    }
+
     fn matches(&self, header_value: &str) -> bool {
         let Some(encoded) = header_value
             .strip_prefix("Basic ")
@@ -275,6 +280,7 @@ fn bearer_matches(tokens: &[BearerToken], header_value: &str) -> bool {
 /// Built-in user-agent block lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum AgentPreset {
     /// AI training and answer crawlers (GPTBot, ClaudeBot, CCBot, PerplexityBot…).
     AiCrawlers,

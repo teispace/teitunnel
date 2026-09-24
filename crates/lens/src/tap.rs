@@ -127,6 +127,7 @@ impl TapRuntime {
 /// A summary of a tap, for lists.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TapInfo {
     /// Id.
     pub id: TapId,
