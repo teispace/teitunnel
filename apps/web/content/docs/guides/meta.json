@@ -9,6 +9,7 @@
     "private-networks",
     "several-tunnels",
     "servers",
+    "ci-previews",
     "load-balancing",
     "observability",
     "analytics",

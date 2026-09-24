@@ -357,7 +357,13 @@ pub fn held_by_other(record: &cf_api::DnsRecord, me: Me<'_>) -> Option<Hold> {
         kind,
     };
     match (&ownership.marker, tunnel) {
-        (Marker::Route(_), Some(tunnel)) if me.tunnels.iter().any(|t| t == tunnel) => None,
+        // Through one of this machine's tunnels, or written by this same owner elsewhere
+        // (a CI job's stable label, across runs): this owner's.
+        (Marker::Route(_), Some(tunnel))
+            if me.tunnels.iter().any(|t| t == tunnel) || mine(ownership.owner.as_deref()) =>
+        {
+            None
+        }
         (Marker::Route(_), Some(_)) => Some(if ownership.leased_at(me.now) {
             hold(HoldKind::Reservation, ownership.until)
         } else {
@@ -544,6 +550,18 @@ mod tests {
                     "b.xyz.com",
                     "t-mine.cfargotunnel.com",
                     Some("teitunnel:route=r;by=bob@pc")
+                ),
+                me
+            ),
+            None
+        );
+        // The same owner's route through another tunnel (an earlier CI run): mine.
+        assert_eq!(
+            held_by_other(
+                &record(
+                    "b.xyz.com",
+                    "t-other.cfargotunnel.com",
+                    Some("teitunnel:route=r;by=alice@mac")
                 ),
                 me
             ),

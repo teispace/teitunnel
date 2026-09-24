@@ -1,0 +1,83 @@
+name: Teitunnel Preview
+description: Pull request previews on your own Cloudflare domain, as a live share from the runner or a Snapshot that stays up, with the URL commented on the PR.
+author: Teispace
+branding:
+  icon: globe
+  color: orange
+
+inputs:
+  cloudflare-api-token:
+    description: Cloudflare API token (a secret). Account-owned tokens work. Needs Cloudflare Tunnel Edit, DNS Edit and Zone Read; Snapshots also need Workers Scripts Edit and Workers Routes Edit; `allow` needs Access Apps Edit.
+    required: true
+  account:
+    description: Cloudflare account name or id, when the token reaches several.
+    required: false
+  mode:
+    description: "`snapshot` (a static copy that stays up after the job), `share` (a live server the job started, up while the job runs) or `cleanup` (remove the preview; use on `pull_request: closed`)."
+    required: false
+    default: snapshot
+  port:
+    description: Share mode, the port of the server the job started (e.g. 3000).
+    required: false
+  url:
+    description: Share mode, the server's URL instead of a port (e.g. http://localhost:8080).
+    required: false
+  path:
+    description: Snapshot mode, the folder to publish (or the project, with `build`).
+    required: false
+    default: .
+  build:
+    description: Snapshot mode, build the project first (its package manager runs its build script).
+    required: false
+    default: "false"
+  hostname:
+    description: "Hostname template. Placeholders: {number} (PR number), {branch}, {sha} (7 characters), {repo}, {owner} (each made a DNS label) and {zone}."
+    required: false
+    default: pr-{number}.preview.{zone}
+  zone:
+    description: One of the account's domains, for {zone} (e.g. example.com).
+    required: false
+  name:
+    description: Snapshot mode, the Snapshot's name template (the Worker is `teitunnel-<name>`; keep it unique per repository and PR).
+    required: false
+    default: "{repo}-pr-{number}"
+  expires:
+    description: End by itself after this long (share `30m`, `2h`; snapshot `7d`).
+    required: false
+  password:
+    description: Snapshot mode, a password visitors must type (pass a secret). Only a salted hash reaches Cloudflare.
+    required: false
+  allow:
+    description: Require a Cloudflare Access login for these emails or `@domains` (comma or newline separated).
+    required: false
+  comment:
+    description: Comment the URL on the pull request, updated in place on new pushes.
+    required: false
+    default: "true"
+  github-token:
+    description: "Token for the comment (needs `pull-requests: write`) and for downloading the CLI."
+    required: false
+    default: ${{ github.token }}
+  version:
+    description: Teitunnel CLI version to install (`latest`, or e.g. `0.3.0`).
+    required: false
+    default: latest
+  cli-path:
+    description: Use this `teitunnel` binary instead of installing one (self-hosted runners, tests).
+    required: false
+  wait:
+    description: Share mode, seconds to wait for the share to be live.
+    required: false
+    default: "120"
+
+outputs:
+  url:
+    description: The preview's URL (empty in cleanup mode).
+  hostname:
+    description: The preview's hostname.
+
+runs:
+  using: node24
+  main: src/main.mjs
+  post: src/post.mjs
+  post-if: always()

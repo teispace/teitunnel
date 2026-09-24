@@ -1,0 +1,164 @@
+# Teitunnel previews for GitLab merge requests, on your own Cloudflare account.
+#
+# Include this file and extend its hidden jobs:
+#
+#   include:
+#     - remote: https://raw.githubusercontent.com/teispace/teitunnel/main/integrations/gitlab-ci/teitunnel.gitlab-ci.yml
+#
+#   variables:
+#     TEITUNNEL_ZONE: example.com
+#
+#   preview:
+#     extends: .teitunnel-snapshot
+#     stage: deploy
+#     variables:
+#       TEITUNNEL_PATH: dist          # a built folder (or set TEITUNNEL_BUILD: "true")
+#     environment:
+#       on_stop: preview-stop
+#
+#   preview-stop:
+#     extends: .teitunnel-snapshot-stop
+#     stage: deploy
+#
+# A live share of a server the job started (for the job's lifetime, e.g. end-to-end tests):
+#
+#   e2e:
+#     extends: .teitunnel-share
+#     variables:
+#       TEITUNNEL_PORT: "3000"
+#     script:
+#       - npm run test:e2e -- --base-url "$TEITUNNEL_URL"
+#
+# Set CLOUDFLARE_API_TOKEN as a masked CI/CD variable (account-owned tokens work). A
+# protected variable reaches only pipelines of protected branches; merge requests from
+# forks get no variables at all, so their previews are skipped. GitLab shows the preview
+# URL on the merge request through the environment ("View app").
+#
+# The job image needs a POSIX shell, curl, tar and sha256sum (any Debian or Ubuntu image;
+# on Alpine, `apk add curl`).
+
+variables:
+  TEITUNNEL_VERSION: latest
+  TEITUNNEL_ZONE: ""
+  TEITUNNEL_HOSTNAME: mr-${CI_MERGE_REQUEST_IID}.preview.${TEITUNNEL_ZONE}
+  TEITUNNEL_NAME: ${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}
+  TEITUNNEL_PATH: .
+  TEITUNNEL_BUILD: "false"
+  TEITUNNEL_EXPIRES: ""
+  TEITUNNEL_PORT: ""
+
+# Installs the released CLI, verified against the release's SHA256SUMS.txt, and sets
+# up the environment it runs with (the token is only ever read from the environment).
+.teitunnel-setup: &teitunnel-setup
+  - |
+    set -eu
+    if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+      echo "CLOUDFLARE_API_TOKEN isn't set (merge requests from forks don't get variables)."
+      exit 1
+    fi
+    if [ -z "$TEITUNNEL_ZONE" ]; then echo "Set TEITUNNEL_ZONE, e.g. example.com."; exit 1; fi
+    version="$TEITUNNEL_VERSION"
+    if [ "$version" = latest ]; then
+      version=$(curl -fsSL https://api.github.com/repos/teispace/teitunnel/releases/latest \
+        | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)
+    fi
+    case "$(uname -m)" in
+      x86_64|amd64) arch=x64 ;;
+      aarch64|arm64) arch=arm64 ;;
+      *) echo "No Teitunnel CLI for $(uname -m)."; exit 1 ;;
+    esac
+    asset="teitunnel-cli_${version}_linux-${arch}.tar.gz"
+    base="https://github.com/teispace/teitunnel/releases/download/v${version}"
+    mkdir -p "$CI_PROJECT_DIR/.teitunnel/bin" "$CI_PROJECT_DIR/.teitunnel/data"
+    (
+      cd "$CI_PROJECT_DIR/.teitunnel"
+      curl -fsSLO "$base/$asset"
+      curl -fsSLO "$base/SHA256SUMS.txt"
+      grep "  $asset\$" SHA256SUMS.txt | sha256sum -c -
+      tar -xzf "$asset" -C bin
+    )
+    export PATH="$CI_PROJECT_DIR/.teitunnel/bin:$PATH"
+    export TEITUNNEL_DATA_DIR="$CI_PROJECT_DIR/.teitunnel/data"
+    export TEITUNNEL_OWNER="gitlab-ci/$CI_PROJECT_PATH"
+    export TEITUNNEL_MACHINE_NAME="gl-${CI_PROJECT_NAME}-${CI_JOB_ID}"
+    teitunnel --version
+
+# A static copy of the site that stays up after the job (updated on each push).
+.teitunnel-snapshot:
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  script:
+    - *teitunnel-setup
+    - |
+      set -- snapshot publish "$TEITUNNEL_PATH" --name "$TEITUNNEL_NAME" \
+        --on "$TEITUNNEL_HOSTNAME" --or-update --yes --json
+      if [ "$TEITUNNEL_BUILD" = true ]; then set -- "$@" --build; fi
+      if [ -n "$TEITUNNEL_EXPIRES" ]; then set -- "$@" --expires "$TEITUNNEL_EXPIRES"; fi
+      status=0
+      teitunnel "$@" || status=$?
+      if [ "$status" -eq 3 ]; then
+        echo "Someone else holds $TEITUNNEL_HOSTNAME (see above). Choose another TEITUNNEL_HOSTNAME."
+      fi
+      [ "$status" -eq 0 ]
+      echo "TEITUNNEL_URL=https://$TEITUNNEL_HOSTNAME" > teitunnel.env
+  artifacts:
+    reports:
+      dotenv: teitunnel.env
+  environment:
+    name: preview/mr-$CI_MERGE_REQUEST_IID
+    url: https://$TEITUNNEL_HOSTNAME
+
+# Removes the Snapshot (the environment's on_stop job: runs when the merge request is
+# merged or closed, or by hand). Nothing there is fine.
+.teitunnel-snapshot-stop:
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+      when: manual
+      allow_failure: true
+  script:
+    - *teitunnel-setup
+    - teitunnel snapshot rm "$TEITUNNEL_HOSTNAME" --missing-ok --yes
+  environment:
+    name: preview/mr-$CI_MERGE_REQUEST_IID
+    action: stop
+
+# A live share of a server this job starts, up while the job's script runs; the
+# after_script stops it (its DNS record goes) and deletes the job's tunnel.
+.teitunnel-share:
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+  before_script:
+    - *teitunnel-setup
+    - |
+      if [ -z "$TEITUNNEL_PORT" ]; then echo "Set TEITUNNEL_PORT to the server's port."; exit 1; fi
+      teitunnel cloudflared status || teitunnel cloudflared install
+      out="$CI_PROJECT_DIR/.teitunnel/share.out"
+      err="$CI_PROJECT_DIR/.teitunnel/share.err"
+      set -- share "$TEITUNNEL_PORT" --on "$TEITUNNEL_HOSTNAME" --json --no-qr
+      if [ -n "$TEITUNNEL_EXPIRES" ]; then set -- "$@" --for "$TEITUNNEL_EXPIRES"; fi
+      teitunnel "$@" > "$out" 2> "$err" &
+      echo $! > "$CI_PROJECT_DIR/.teitunnel/share.pid"
+      for _ in $(seq 120); do
+        if grep -q '"url"' "$out"; then break; fi
+        if ! kill -0 "$(cat "$CI_PROJECT_DIR/.teitunnel/share.pid")" 2>/dev/null; then
+          cat "$err"; echo "The share ended before it was live."; exit 1
+        fi
+        sleep 1
+      done
+      grep -q '"url"' "$out" || { cat "$err"; echo "The share wasn't live in time."; exit 1; }
+      export TEITUNNEL_URL="https://$TEITUNNEL_HOSTNAME"
+      echo "Preview: $TEITUNNEL_URL"
+  after_script:
+    - |
+      export PATH="$CI_PROJECT_DIR/.teitunnel/bin:$PATH"
+      export TEITUNNEL_DATA_DIR="$CI_PROJECT_DIR/.teitunnel/data"
+      pid_file="$CI_PROJECT_DIR/.teitunnel/share.pid"
+      if [ -f "$pid_file" ]; then
+        pid=$(cat "$pid_file")
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in $(seq 30); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+      fi
+      if teitunnel shares --json 2>/dev/null | grep -q "\"$TEITUNNEL_HOSTNAME\""; then
+        teitunnel shares --stop "$TEITUNNEL_HOSTNAME" || true
+      fi
+      teitunnel tunnel delete "gl-${CI_PROJECT_NAME}-${CI_JOB_ID}" --yes || true

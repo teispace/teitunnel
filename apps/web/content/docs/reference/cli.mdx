@@ -60,6 +60,12 @@ teitunnel snapshot publish ./dist --on preview.example.com  # a copy online whil
 teitunnel snapshot publish . --build     # build the project, then publish its output
 teitunnel snapshot ls                    # Snapshots, their addresses and versions
 teitunnel snapshot rollback preview.example.com
+teitunnel snapshot publish dist --name web-pr-7 --on pr-7.example.com --or-update --yes --json  # CI
+teitunnel snapshot rm pr-7.example.com --missing-ok --yes
+teitunnel reserve alice.dev.example.com --until 2026-12-31  # hold a name for yourself
+teitunnel reservations ls                # reserved names and who holds them
+teitunnel release alice.dev.example.com
+teitunnel cloudflared install            # a verified cloudflared (servers, CI)
 teitunnel mcp install cursor            # connect an AI tool (see AI agents)
 teitunnel mcp status                    # which AI tools are connected
 teitunnel mcp                           # the MCP server itself (clients start it)
@@ -73,8 +79,9 @@ The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/docs/guides/require-login)). |
 | `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/docs/guides/private-networks)). |
+| `--take-over` | Take a hostname someone else holds (their reservation, or another machine's route) ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). Without it, the command exits with status 3. |
 | `--tunnel <name>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
-| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels`, `doctor`, `analytics` and `uptime`. |
+| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels`, `doctor`, `analytics`, `uptime`, `reservations` and `snapshot`; `share --json` prints `{"url", "hostname"}` once it's live. |
 | `--range <hour\|day\|week\|month>` | `analytics`: how far back (default `day`); `--path` narrows it to a route's path ([Analytics](/docs/guides/analytics)). |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
@@ -97,6 +104,11 @@ account, only cloudflared (the app's copy, or one on your system). Once the URL 
 `share` checks it through Cloudflare and, if your dev server refuses the address or the
 service streams events a Quick Share can't carry, says what to do on standard error; it keeps
 sharing either way.
+
+Exit status: 0 when it worked, 1 when it didn't, 2 for a mistyped command, and 3 when a
+hostname is held by someone else (a share never takes one; other commands need
+`--take-over`). `share --on` runs the tunnel's connector itself when neither the app nor
+an Always-on service does (a server, a CI job; see [Previews in CI](/docs/guides/ci-previews)).
 
 `doctor` runs the app's checks and hides the issues you ignored there.
 
