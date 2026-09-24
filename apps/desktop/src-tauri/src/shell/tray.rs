@@ -452,7 +452,7 @@ mod tests {
 /// which the tray loads when the icon is created and aborts the app if it's missing. The
 /// packages depend on it, but an AppImage or a trimmed system may not have it, so look for
 /// it first where the dynamic loader would.
-#[cfg(any(target_os = "linux", test))]
+#[cfg(any(target_os = "linux", all(test, unix)))]
 mod indicator {
     use std::path::{Path, PathBuf};
 
