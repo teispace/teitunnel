@@ -97,7 +97,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] `teitunnel://` deep links (share port, open route, open inspector) for Raycast, Alfred and scripts. (D-102; registration by the installers, unverified in packaged builds.)
 - [x] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), in `integrations/` on a shared TypeScript client. The Ports view gets a context-menu item (its data API is still proposed); the inspector opens in the app. Not published yet. The optional browser extension is left for later.
 - [x] Global shortcut to share the frontmost dev server. (Off by default, Settings ▸ Integrations; shares the one running dev server, else opens Quick Share; "frontmost" isn't detectable portably.)
-- [ ] Local HTTPS domains (`app.test`/`.local` with a local CA, LocalCan parity; decision Q7).
+- [x] Local HTTPS domains (`app.test`/`.local` with a local CA, LocalCan parity; decision Q7). (D-101, D-115; untested on real systems; share/route targets and a one-click `name.localhost` for detected services later.)
 - [x] First: a local control connection to the running app (Unix socket / named pipe, current user only) that the CLI, extensions and launchers use; everything below builds on it. (D-102, `crates/control`; the Windows pipe is untested on Windows.)
 - [x] JetBrains plugin (after VS Code; the VS Code extension also runs in Cursor and Windsurf through Open VSX). (`integrations/jetbrains`, IntelliJ Platform Gradle Plugin 2.x; not published.)
 - [x] Live shell completion (hostnames, tunnels, domains from the local store, no network).
@@ -123,11 +123,11 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 
 ## M12-12 · More (maintainer: "any other best features", 2026-09-24)
 - [ ] Webhook inbox: a Worker on the user's account (Queues/D1/KV within free limits) receives webhooks while this computer is off and delivers them in order when it's back, with the inspector showing both the arrival and the delivery.
-- [x] Project file `teitunnel.yml` in a repo: its shares, routes, protection, local domains and snapshots; `teitunnel up` (or opening the folder in the app) applies it through plan → apply; checked into git so a team shares it. (D-107; local domains are skipped until they're persisted.)
+- [x] Project file `teitunnel.yml` in a repo: its shares, routes, protection, local domains and snapshots; `teitunnel up` (or opening the folder in the app) applies it through plan → apply; checked into git so a team shares it. (D-107; local domains applied since D-115.)
 - [x] Exposure check before a share goes public: probe the origin for common leaks (`/.env`, `/.git/`, directory listings, debug pages such as Django/Laravel/Rails error pages, open admin panels, framework dev tools) and warn with details; never blocks, one click to continue. (D-108)
 - [x] Auto-stop idle shares after N minutes without requests; notify when a request hits a watched path.
 - [ ] OpenAPI from traffic: infer an API description (paths, methods, parameters, JSON schemas from observed bodies) from captured exchanges; export for docs and agents.
-- [x] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere. (D-109; local domains join once they're persisted.)
+- [x] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere. (D-109; local domains included since D-115.)
 
 ## M12-10 · Reach
 - [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
