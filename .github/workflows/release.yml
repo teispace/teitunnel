@@ -260,6 +260,8 @@ jobs:
             runner: windows-11-arm
             bundle: aarch64-pc-windows-msvc
             file: "*_arm64-setup.exe"
+            # Its screen stays on Windows' first-run setup: no taskbar, no screenshots of the app.
+            skip-tray: true
           - name: Windows x64
             runner: windows-latest
             bundle: x86_64-pc-windows-msvc
@@ -297,7 +299,8 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem bundle -Filter '${{ matrix.file }}' | Select-Object -First 1
-          ./scripts/ci/desktop-check/windows.ps1 -Installer $installer.FullName -Out shots
+          $skipTray = '${{ matrix.skip-tray }}' -eq 'true'
+          ./scripts/ci/desktop-check/windows.ps1 -Installer $installer.FullName -Out shots -SkipTray:$skipTray
       - name: Check (Linux)
         if: runner.os == 'Linux'
         shell: bash
