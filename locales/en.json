@@ -2132,7 +2132,6 @@
       "changed": "Cloudflare changed since the plan was shown. Review the plan again.",
       "noteTemporary": "A temporary share uses this hostname now.",
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
-      "noteLocalDomains": "Local domains aren't available in this version of Teitunnel yet, so this entry is skipped.",
       "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
       "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
     },

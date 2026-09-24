@@ -20,12 +20,12 @@ mod yaml;
 use std::path::{Path, PathBuf};
 
 pub use apply::{
-    RouteFailure, RoutesApplied, SnapshotResult, apply_routes, build_command, failure_text,
-    publish_snapshot,
+    RouteFailure, RoutesApplied, SnapshotResult, apply_local_domains, apply_routes, build_command,
+    failure_text, publish_snapshot,
 };
 pub use plan::{
-    ProjectPlan, RouteAction, ShareAction, SnapshotAction, apply_route, plan, resolve_secret,
-    snapshot_change,
+    LocalDomainAction, ProjectPlan, RouteAction, ShareAction, SnapshotAction, apply_route, plan,
+    resolve_secret, snapshot_change,
 };
 pub use schema::{
     Diagnostic, DiagnosticSeverity, HostHeaderDecl, LocalDomainDecl, Parsed, ProjectFile,

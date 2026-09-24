@@ -73,6 +73,21 @@ pub struct SnapshotAction {
     pub exists: bool,
 }
 
+/// A local domain the project adds or changes on this computer (nothing in Cloudflare).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct LocalDomainAction {
+    /// E.g. `shop.localhost`.
+    pub name: String,
+    /// The port it serves.
+    pub port: u16,
+    /// Subdomains too.
+    pub wildcard: bool,
+    /// It exists already (with another port or wildcard setting).
+    pub exists: bool,
+}
+
 /// Everything applying the project would do, for review.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -92,6 +107,8 @@ pub struct ProjectPlan {
     pub shares: Vec<ShareAction>,
     /// Snapshots to publish.
     pub snapshots: Vec<SnapshotAction>,
+    /// Local domains to add or change.
+    pub local_domains: Vec<LocalDomainAction>,
     /// Some route change touches a DNS record Teitunnel didn't create.
     pub requires_confirmation: bool,
     /// Identifies this plan; applying checks it's still the same.
@@ -101,7 +118,10 @@ pub struct ProjectPlan {
 impl ProjectPlan {
     /// Nothing to do.
     pub fn is_empty(&self) -> bool {
-        self.routes.is_empty() && self.shares.is_empty() && self.snapshots.is_empty()
+        self.routes.is_empty()
+            && self.shares.is_empty()
+            && self.snapshots.is_empty()
+            && self.local_domains.is_empty()
     }
 }
 
@@ -147,6 +167,7 @@ pub async fn plan<C: CloudApi, K: Connectors>(
     let domain_shares = local.shares(Some(ctx.account)).await?;
     let snapshots: Vec<SiteRow> = local.sites(Some(ctx.account)).await?;
     let tunnels = local.tunnels(ctx.account).await?;
+    let local_rows = crate::local_domains::registry::list(local.store()).await?;
 
     let items = state::status(
         &resolved,
@@ -155,8 +176,22 @@ pub async fn plan<C: CloudApi, K: Connectors>(
             domain_shares: &domain_shares,
             quick_origins,
             snapshots: &snapshots,
+            local_domains: &local_rows,
         },
     );
+    let local_domains = resolved
+        .local_domains
+        .iter()
+        .filter_map(|decl| {
+            let state = state::local_domain_state(decl, &local_rows);
+            (state != state::ItemState::Applied).then(|| LocalDomainAction {
+                name: decl.name.clone(),
+                port: decl.port,
+                wildcard: decl.wildcard,
+                exists: state == state::ItemState::Differs,
+            })
+        })
+        .collect();
 
     let mut routes = Vec::new();
     for (decl, input) in &resolved.routes {
@@ -238,6 +273,7 @@ pub async fn plan<C: CloudApi, K: Connectors>(
         routes,
         shares,
         snapshots: snapshot_actions,
+        local_domains,
         fingerprint: String::new(),
     };
     plan.fingerprint = fingerprint(&plan);
@@ -250,7 +286,10 @@ fn fingerprint(plan: &ProjectPlan) -> String {
         hash.update(route.plan.fingerprint.as_bytes());
         hash.update([0]);
     }
-    hash.update(serde_json::to_vec(&(&plan.shares, &plan.snapshots)).unwrap_or_default());
+    hash.update(
+        serde_json::to_vec(&(&plan.shares, &plan.snapshots, &plan.local_domains))
+            .unwrap_or_default(),
+    );
     hash.finalize()[..12]
         .iter()
         .fold(String::with_capacity(24), |mut out, b| {

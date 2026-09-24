@@ -115,6 +115,42 @@ where
     Ok(applied)
 }
 
+/// Adds or changes the plan's local domains in this computer's registry (marked as the
+/// project's). A domain that exists keeps its HTTPS and inspection settings. The caller
+/// then serves them (the app's `LocalDomains::sync`, or the CLI).
+///
+/// # Errors
+/// The database.
+pub async fn apply_local_domains(store: &Store, plan: &ProjectPlan) -> Result<usize, ProjectError> {
+    use crate::local_domains::{LocalDomainRow, registry as local};
+    let mut applied = 0;
+    for action in &plan.local_domains {
+        let Ok(name) = localdomains::LocalName::parse_any(&action.name) else {
+            continue;
+        };
+        let existing = local::get(store, &name).await?;
+        let row = LocalDomainRow {
+            target: localdomains::DomainTarget::Port { port: action.port },
+            wildcard: action.wildcard,
+            https: existing.as_ref().is_none_or(|r| r.https),
+            inspect: existing.as_ref().is_some_and(|r| r.inspect),
+            project: Some(plan.path.clone()),
+            created_at: existing.as_ref().map_or_else(
+                || {
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+                },
+                |r| r.created_at,
+            ),
+            name,
+        };
+        local::save(store, &row).await?;
+        applied += 1;
+    }
+    Ok(applied)
+}
+
 /// What publishing a declared Snapshot did.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]

@@ -1,6 +1,7 @@
 //! What a project file asks for on this machine (placeholders filled in), and how that
 //! compares with what's there: each declared item is applied, differs or missing.
 
+use localdomains::DomainTarget;
 use serde::Serialize;
 
 use super::{
@@ -11,6 +12,7 @@ use crate::{
     domain::{Hostname, RouteOrigin},
     domain_shares::DomainShare,
     engine::{Change, DnsState, RouteInput, RouteView, SiteRow},
+    local_domains::LocalDomainRow,
     text::{Text, UserText, msg::project as m},
 };
 
@@ -166,6 +168,22 @@ pub struct Observed<'a> {
     pub quick_origins: &'a [String],
     /// The account's Snapshots.
     pub snapshots: &'a [SiteRow],
+    /// This computer's local domains.
+    pub local_domains: &'a [LocalDomainRow],
+}
+
+/// How a declared local domain compares with this computer's.
+pub(crate) fn local_domain_state(decl: &LocalDomainDecl, rows: &[LocalDomainRow]) -> ItemState {
+    match rows.iter().find(|r| r.name.as_str() == decl.name) {
+        None => ItemState::Missing,
+        Some(row)
+            if row.target == (DomainTarget::Port { port: decl.port })
+                && row.wildcard == decl.wildcard =>
+        {
+            ItemState::Applied
+        }
+        Some(_) => ItemState::Differs,
+    }
 }
 
 fn same_origin(a: &str, b: &str) -> bool {
@@ -331,9 +349,9 @@ pub fn status(resolved: &Resolved, observed: Observed<'_>) -> Vec<ProjectItem> {
                 domain.name.clone()
             },
             target: format!("localhost:{}", domain.port),
-            state: ItemState::Unsupported,
+            state: local_domain_state(domain, observed.local_domains),
             line: domain.line,
-            note: Some(m::note_local_domains()),
+            note: None,
         });
     }
     items
