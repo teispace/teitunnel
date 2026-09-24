@@ -35,6 +35,36 @@ pub enum DomainTarget {
         /// The port (1–65535).
         port: u16,
     },
+    /// An HTTP(S) service by URL (`http://127.0.0.1:8080`, `https://localhost:5173`), for
+    /// services that aren't on loopback or speak TLS themselves. No path or query.
+    Url {
+        /// The URL.
+        url: String,
+    },
+}
+
+/// Longest accepted target URL.
+const MAX_URL_LEN: usize = 2048;
+
+fn valid_target_url(url: &str) -> Result<(), &'static str> {
+    let rest = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))
+        .ok_or("the URL must start with http:// or https://")?;
+    if url.len() > MAX_URL_LEN {
+        return Err("URL too long");
+    }
+    if url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("the URL has spaces or control characters");
+    }
+    let authority = rest.strip_suffix('/').unwrap_or(rest);
+    if authority.is_empty() {
+        return Err("the URL has no host");
+    }
+    if authority.contains(['/', '?', '#', '@']) {
+        return Err("the URL can't have a path, query or credentials");
+    }
+    Ok(())
 }
 
 /// One local domain.
@@ -140,6 +170,9 @@ impl DomainRegistry {
                 if *port == 0 {
                     return Err(RegistryError::InvalidTarget("port 0"));
                 }
+            }
+            DomainTarget::Url { url } => {
+                valid_target_url(url).map_err(RegistryError::InvalidTarget)?;
             }
         }
         if self.domains.contains_key(&domain.name) {
@@ -282,7 +315,28 @@ mod tests {
         let mut bad = domain("y.localhost", false);
         bad.target = DomainTarget::Share { id: " ".into() };
         assert!(matches!(reg.add(bad), Err(RegistryError::InvalidTarget(_))));
-        assert_eq!(reg.len(), 1);
+        for url in [
+            "localhost:3000",
+            "ftp://x",
+            "http://",
+            "http://a/path",
+            "http://a?q",
+            "http://u:p@a",
+            "http://a b",
+        ] {
+            let mut bad = domain("z.localhost", false);
+            bad.target = DomainTarget::Url { url: url.into() };
+            assert!(
+                matches!(reg.add(bad), Err(RegistryError::InvalidTarget(_))),
+                "{url}"
+            );
+        }
+        let mut good = domain("u.localhost", false);
+        good.target = DomainTarget::Url {
+            url: "https://127.0.0.1:5173/".into(),
+        };
+        reg.add(good).unwrap();
+        assert_eq!(reg.len(), 2);
     }
 
     #[test]
