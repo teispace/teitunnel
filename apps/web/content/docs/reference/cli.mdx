@@ -60,6 +60,12 @@ teitunnel snapshot publish ./dist --on preview.example.com  # a copy online whil
 teitunnel snapshot publish . --build     # build the project, then publish its output
 teitunnel snapshot ls                    # Snapshots, their addresses and versions
 teitunnel snapshot rollback preview.example.com
+teitunnel protect app.example.com --bots challenge --block-ai  # rules at Cloudflare's edge
+teitunnel protect app.example.com --rate-limit 30/1m    # Pro plans and up
+teitunnel protect app.example.com --off                 # remove Teitunnel's rules
+teitunnel service-token create api.example.com --name CI  # for machines; secret printed once
+teitunnel service-token ls api.example.com
+teitunnel service-token revoke api.example.com CI
 teitunnel mcp install cursor            # connect an AI tool (see AI agents)
 teitunnel mcp status                    # which AI tools are connected
 teitunnel mcp                           # the MCP server itself (clients start it)
@@ -82,6 +88,10 @@ The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
 | `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
 | `--build`, `--crawl <url>`, `--password`, `--expires 7d` | `snapshot publish`: build the project first, capture a running site, ask visitors for a password, delete it later ([Snapshots](/docs/guides/snapshots)). |
+| `--bots <off\|challenge\|block>`, `--block-ai`, `--allow-ai` | `protect`: automated clients and AI crawlers on one hostname ([Edge protection](/docs/guides/protection)). |
+| `--rate-limit <n/period[:block\|challenge]>`, `--no-rate-limit` | `protect`: e.g. `30/1m` or `100/10s:challenge`; periods 10s, 1m, 2m, 5m, 10m, 1h, within the plan's limit. |
+| `--set-request-header K:V`, `--remove-request-header K`, `--set-response-header K:V`, `--add-response-header K:V`, `--remove-response-header K`, `--clear-headers` | `protect`: header rules (repeatable); `--off` removes every rule Teitunnel added. Without options, `protect` shows what the hostname has. |
+| `--name <label>` | `service-token create`: what the token is for (default `CLI`). The headers are printed once on standard output. |
 
 Routes are served by the app while it's open, all the time with
 [Always-on](/docs/concepts/run-modes) (`always-on on` from the CLI), or by
