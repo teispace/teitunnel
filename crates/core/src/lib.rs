@@ -6,6 +6,8 @@
 //! See `docs/ARCHITECTURE.md` for the design of each module.
 
 pub mod accounts;
+pub mod alerts;
+pub mod analytics;
 pub mod binary;
 pub mod cli_install;
 pub mod cli_shares;
@@ -35,6 +37,7 @@ pub mod store;
 pub mod text;
 pub mod traffic;
 pub mod updates;
+pub mod uptime;
 pub mod web_auth;
 
 pub use cloudflared::Error as CloudflaredError;

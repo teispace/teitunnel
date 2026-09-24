@@ -19,6 +19,8 @@ pub enum Permission {
     DnsEdit,
     /// Protect routes with Access (optional).
     AccessEdit,
+    /// Read traffic analytics (Zone ▸ Analytics ▸ Read; optional).
+    Analytics,
 }
 
 /// The result of probing one permission.
@@ -70,6 +72,8 @@ pub struct Capabilities {
     pub tunnels_edit: Grant,
     /// Access policies (optional feature).
     pub access_edit: Grant,
+    /// Traffic analytics (optional feature), probed on the first domain.
+    pub analytics: Grant,
     /// DNS editing, per domain.
     pub zones: Vec<ZoneGrant>,
 }
@@ -107,8 +111,15 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         Err(err) if err.is_auth() => Grant::No,
         Err(_) => Grant::Unknown,
     };
+    let zones_list = zones_result.unwrap_or_default();
+    // Every domain in an account shares the token's analytics grant in practice
+    // (tokens are made for "all zones" from the template); one probe is enough.
+    let analytics = match zones_list.first() {
+        Some(zone) => client.probe_analytics(&zone.id).await.into(),
+        None => Grant::Unknown,
+    };
     let mut zones = Vec::new();
-    for zone in zones_result.unwrap_or_default() {
+    for zone in zones_list {
         let dns_edit = client
             .probe_write(&format!("/zones/{}/dns_records/{NIL_ID}", zone.id))
             .await
@@ -124,6 +135,7 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         tunnels_read: tunnels_read.into(),
         tunnels_edit: tunnels_edit.into(),
         access_edit: both(access_apps, access_methods),
+        analytics,
         zones,
     }
 }
@@ -201,7 +213,16 @@ mod tests {
             .respond_with(error(403, 10000))
             .mount(&server)
             .await;
-        // No POST/PUT/DELETE may ever be sent.
+        // Analytics is probed with a read-only GraphQL query (the zone's limits).
+        Mock::given(method("POST"))
+            .and(path("/graphql"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": null, "errors": [{"message": "zones ['z1'] are not authorized"}]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        // No other POST, and no PUT/DELETE, may ever be sent.
         Mock::given(path_regex(".*"))
             .and(method("POST"))
             .respond_with(ResponseTemplate::new(500))
@@ -221,6 +242,7 @@ mod tests {
         assert_eq!(caps.tunnels_read, Grant::Yes);
         assert_eq!(caps.tunnels_edit, Grant::Yes);
         assert_eq!(caps.access_edit, Grant::No);
+        assert_eq!(caps.analytics, Grant::No);
         assert_eq!(
             caps.zones
                 .iter()

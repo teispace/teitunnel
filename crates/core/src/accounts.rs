@@ -44,6 +44,7 @@ const ACCOUNT_TABLES: &[&str] = &[
     "balanced_routes",
     "domain_shares",
     "activity",
+    "incidents",
 ];
 
 /// How an account was connected.

@@ -514,7 +514,8 @@
       "removeNetwork": "Networks Unshared",
       "createTunnel": "Tunnels Created",
       "balanceRoute": "Load Balancing Started",
-      "unbalanceRoute": "Load Balancing Stopped"
+      "unbalanceRoute": "Load Balancing Stopped",
+      "alert": "Alerts"
     },
     "show": {
       "all": "All Changes",
@@ -523,7 +524,9 @@
     "outcome": {
       "applied": "Applied",
       "rolledBack": "Failed and undone",
-      "partiallyApplied": "Failed, partly undone"
+      "partiallyApplied": "Failed, partly undone",
+      "alert": "Alert",
+      "resolved": "Resolved"
     },
     "title": "Activity",
     "refresh": "Refresh activity",
@@ -601,7 +604,14 @@
       "footer@windows": "Only when no Teitunnel window is in front. Windows decides how they look in Settings ▸ System ▸ Notifications.",
       "footer@linux": "Only when no Teitunnel window is in front. Your desktop's notification settings decide how they look.",
       "routesDetail@windows": "When this PC's connector loses its connection for more than 20 seconds.",
-      "routesDetail@linux": "When this computer's connector loses its connection for more than 20 seconds."
+      "routesDetail@linux": "When this computer's connector loses its connection for more than 20 seconds.",
+      "alerts": "Alerts",
+      "alertsDetail": "When a route goes down or comes back, answers with errors, or gets slow. Set the rules below.",
+      "alertsLabel": "Alert notifications",
+      "quiet": "Quiet hours",
+      "quietDetail": "Alerts are still recorded in Activity, without a notification.",
+      "quietFrom": "Quiet from",
+      "quietTo": "Quiet until"
     },
     "menuBar": {
       "title": "Menu bar",
@@ -952,7 +962,8 @@
     "doctor": "Doctor",
     "developer": "Developer",
     "gallery": "Gallery",
-    "settings": "Settings"
+    "settings": "Settings",
+    "analytics": "Analytics"
   },
   "commands": {
     "group": {
@@ -1148,6 +1159,12 @@
         "alreadyHere@linux": "This computer already runs that tunnel.",
         "gone": "That tunnel doesn't exist any more.",
         "locallyConfigured": "“{name}” is configured with a local config file, so Teitunnel can't manage its routes. Import its routes instead."
+      },
+      "analytics": {
+        "permission": "This account's token can't read analytics. Add the Analytics permission to see traffic.",
+        "rateLimited": "Cloudflare's analytics limit is used up for a few minutes. Try again shortly.",
+        "notOnPlan": "This domain's Cloudflare plan doesn't include traffic analytics.",
+        "noZone": "None of this account's domains holds {hostname}."
       }
     },
     "raw": "{text}",
@@ -1627,6 +1644,44 @@
       "seconds": "Enter a number of seconds from 1 to {max}",
       "connections": "Enter a number from 1 to {max}",
       "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
+    },
+    "uptime": {
+      "cause": {
+        "noConnector": "No connector is connected to the tunnel.",
+        "tunnelMismatch": "The hostname points at a tunnel that doesn't serve it.",
+        "notOnCloudflare": "Cloudflare doesn't know this hostname yet.",
+        "originUnreachable": "The connector can't reach the local service.",
+        "originTimeout": "The local service didn't answer in time.",
+        "serverError": "The local service answered with a server error.",
+        "edgeUnreachable": "Cloudflare's edge couldn't be reached for this hostname.",
+        "certificate": "The certificate doesn't cover this hostname.",
+        "timeout": "The check took too long.",
+        "noRecord": "The hostname's DNS record is missing or points elsewhere."
+      }
+    },
+    "alerts": {
+      "down": "{route} is down",
+      "downBody": "It stopped answering through Cloudflare.",
+      "recovered": "{route} is back up",
+      "recoveredBody_one": "It was down for {count} minute.",
+      "recoveredBody_other": "It was down for {count} minutes.",
+      "errors": "{route} answers with errors",
+      "errorsTunnel": "Routes through {tunnel} answer with errors",
+      "errorsBody": "{percent}% of requests failed with a server error in the last {minutes} minutes.",
+      "errorsResolved": "{route}: errors are back to normal",
+      "errorsResolvedBody": "Fewer than {percent}% of requests fail now.",
+      "slow": "{route} is slow",
+      "slowBody": "Responses took {ms} ms (95th percentile) over the last {minutes} minutes.",
+      "fast": "{route} is fast again",
+      "fastBody": "Responses take {ms} ms (95th percentile) now.",
+      "connectorDown": "{tunnel} lost its connection to Cloudflare",
+      "connectorDownBody": "Its routes don't answer until it reconnects. Teitunnel keeps retrying.",
+      "connectorBack": "{tunnel} is connected again",
+      "connectorBackBody": "Its routes answer again.",
+      "many_one": "{count} alert",
+      "many_other": "{count} alerts",
+      "manyBody_one": "{first}, and {count} more.",
+      "manyBody_other": "{first}, and {count} more."
     }
   },
   "permissionFix": {
@@ -1659,7 +1714,11 @@
     "createToken": "Create Token",
     "lbPools": "Account · Load Balancing: Monitors and Pools · Edit",
     "lbBalancers": "Zone · Load Balancers · Edit",
-    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first."
+    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first.",
+    "analytics": "Zone · Analytics · Read",
+    "analyticsWhy": "To show each route's traffic as Cloudflare sees it. Include your domains under Zone Resources.",
+    "accountAnalytics": "Account · Account Analytics · Read",
+    "accountAnalyticsWhy": "For traffic numbers Cloudflare keeps per account."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",
@@ -1673,5 +1732,128 @@
     "addDomain": "Add a Domain to Cloudflare",
     "openAccessApps": "Open Access Applications",
     "openLoadBalancing": "Open Load Balancing"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "range": {
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "rangeLabel": "Time range",
+    "noun": {
+      "hour": "the last hour",
+      "day": "the last 24 hours",
+      "week": "the last 7 days",
+      "month": "the last 30 days"
+    },
+    "refresh": "Refresh analytics",
+    "list": "Routes",
+    "column": {
+      "route": "Route",
+      "requests": "Requests",
+      "errors": "Server errors",
+      "p95": "P95",
+      "uptime": "Uptime"
+    },
+    "sortBy": "Sort by {column}",
+    "sparkline": "Requests to {route} over {period}",
+    "empty": {
+      "title": "No routes yet",
+      "description": "Add a route on one of your domains to see its traffic, errors and uptime here."
+    },
+    "loadFailed": "Couldn't load traffic from Cloudflare.",
+    "edgeNote": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this Mac every minute.",
+    "edgeNote@windows": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this PC every minute.",
+    "edgeNote@linux": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this computer every minute.",
+    "shortHistory": "This domain's plan keeps traffic since {date}.",
+    "notOnPlan": "Not on this domain's plan: {parts}.",
+    "part": {
+      "errors": "errors over time",
+      "statuses": "status codes",
+      "paths": "paths",
+      "countries": "countries",
+      "browsers": "browsers",
+      "bots": "bots",
+      "cache": "cache status",
+      "latency": "response times"
+    },
+    "notHere": "Not on this Mac",
+    "notHere@windows": "Not on this PC",
+    "notHere@linux": "Not on this computer",
+    "section": "Analytics",
+    "requestsChart": "Requests over {period}",
+    "requests": "Requests",
+    "serverErrors": "5xx",
+    "sent": "Sent",
+    "responses": "Responses",
+    "originTime": "Origin time",
+    "originTimeValue": "P50 {p50} · P95 {p95} · P99 {p99}",
+    "edgeTime": "Time to first byte",
+    "topPaths": "Top paths",
+    "countries": "Countries",
+    "browsers": "Browsers",
+    "bots": "Verified bots",
+    "cache": "Cache",
+    "people": "People and other clients",
+    "noTraffic": "No requests in {period}.",
+    "permissionTitle": "Traffic needs one more permission",
+    "rateLimited": "Cloudflare's analytics limit is used up for a moment.",
+    "source": {
+      "edge": "From Cloudflare's edge",
+      "connector": "From this Mac's connector",
+      "connector@windows": "From this PC's connector",
+      "connector@linux": "From this computer's connector",
+      "proxy": "From the local inspector"
+    }
+  },
+  "uptime": {
+    "title": "Uptime",
+    "strip": "Uptime over {period}, {count} slices",
+    "bar": "{from}: {percent} up",
+    "barEmpty": "{from}: not checked",
+    "value": "{percent} over {period}",
+    "notChecked": "Not checked yet. Routes are checked through Cloudflare every minute while Teitunnel runs.",
+    "responseTime": "Response time",
+    "responseChart": "Response time through Cloudflare over {period}",
+    "incidents": "Incidents",
+    "noIncidents": "No incidents in {period}.",
+    "ongoing": "Ongoing, since {time}",
+    "lasted": "{time}, for {duration}",
+    "up": "Up",
+    "down": "Down",
+    "unknown": "Not checked",
+    "cause": {
+      "noConnector": "No connector",
+      "tunnelMismatch": "Wrong tunnel",
+      "notOnCloudflare": "Not on Cloudflare yet",
+      "originUnreachable": "Service unreachable",
+      "originTimeout": "Service timed out",
+      "serverError": "Server error",
+      "edgeUnreachable": "Edge unreachable",
+      "certificate": "Certificate",
+      "timeout": "Timed out",
+      "noRecord": "DNS record"
+    }
+  },
+  "alerts": {
+    "title": "Alerts",
+    "footer": "Alerts are recorded in Activity. Checks run through Cloudflare every minute while Teitunnel, teitunnel up or teitunnel serve runs.",
+    "routeDown": "A route is down",
+    "routeDownDetail": "After it fails this many checks in a row.",
+    "downAfter_one": "{count} check",
+    "downAfter_other": "{count} checks",
+    "recovered": "A route is back up",
+    "errorRate": "Too many server errors",
+    "errorRateDetail": "Share of 5xx answers over 10 minutes, with at least 20 requests.",
+    "latency": "Slow responses",
+    "latencyDetail": "Response time through Cloudflare (95th percentile) over 10 minutes.",
+    "connectorDown": "A connector loses Cloudflare",
+    "percent": "{value}%",
+    "ms": "{value} ms",
+    "downAfterLabel": "Checks before a route counts as down",
+    "percentLabel": "Error rate that alerts",
+    "latencyLabel": "Response time that alerts"
   }
 }
