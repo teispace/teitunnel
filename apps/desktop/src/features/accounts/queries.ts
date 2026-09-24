@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useUiStore } from "@/app/ui-store";
 import { type Account, commands, type TokenPage } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 export const accountsQuery = queryOptions({
   queryKey: queryKeys.accounts.all(),
@@ -53,10 +53,7 @@ function useAccountMutation<TVars, TResult>(fn: (vars: TVars) => Promise<TResult
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.domains.all() });
-    },
+    onSuccess: () => refresh(queryClient, queryKeys.accounts.all(), queryKeys.domains.all()),
   });
 }
 

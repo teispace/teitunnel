@@ -123,7 +123,13 @@ function NewToken({ detail, onConnected }: { detail: string; onConnected: () => 
         )}
       </Field>
       <div>
-        <Button size="sm" variant="primary" disabled={!canSubmit} onClick={submit}>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!canSubmit}
+          pending={addToken.isPending}
+          onClick={submit}
+        >
           {addToken.isPending ? t("connect.checking") : t("connect.connect")}
         </Button>
       </div>

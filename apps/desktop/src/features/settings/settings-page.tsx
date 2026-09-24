@@ -1,7 +1,7 @@
 import { Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
-import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
@@ -72,11 +72,11 @@ function CommandLine() {
     <GroupedSection title={t("settings.cli.title")} footer={t("settings.cli.footer")}>
       <GroupedRow label="teitunnel" description={description}>
         {state.state === "installed" ? (
-          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(false)}>
+          <Button size="sm" pending={change.isPending} onClick={() => change.mutate(false)}>
             {t("settings.cli.uninstall")}
           </Button>
         ) : state.state === "notInstalled" && !state.command ? (
-          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(true)}>
+          <Button size="sm" pending={change.isPending} onClick={() => change.mutate(true)}>
             {t("settings.cli.install")}
           </Button>
         ) : null}
@@ -148,7 +148,15 @@ export function SettingsPage() {
 function GeneralPane() {
   const { data: settings } = useSettings();
   const update = useUpdateSettings();
-  if (!settings) return null;
+  if (!settings) {
+    return (
+      <>
+        <SkeletonSection />
+        <SkeletonSection rows={2} />
+        <SkeletonSection rows={3} />
+      </>
+    );
+  }
   return (
     <>
       <GroupedSection>

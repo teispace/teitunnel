@@ -89,7 +89,7 @@ export function ShareComposer({
           onValueChange={setAutoStop}
           className="h-7"
         />
-        <Button type="submit" variant="primary" size="lg" disabled={disabled || pending}>
+        <Button type="submit" variant="primary" size="lg" disabled={disabled} pending={pending}>
           {t("quickShare.share")}
         </Button>
       </div>

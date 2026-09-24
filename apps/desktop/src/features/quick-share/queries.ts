@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { type AccessRule, commands, type QuickShare } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 export const quickSharesQuery = queryOptions({
   queryKey: queryKeys.quickShares.all(),
@@ -89,7 +89,7 @@ export function useStopShare() {
       queryClient.setQueryData<QuickShare[]>(quickSharesQuery.queryKey, (shares = []) =>
         shares.filter((share) => share.id !== id),
       ),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: quickSharesQuery.queryKey }),
+    onSettled: () => refresh(queryClient, quickSharesQuery.queryKey),
   });
 }
 
@@ -117,8 +117,7 @@ export function useStartDomainShare() {
       call(
         commands.domainSharesStart(accountId, hostname, origin, stopAfterMinutes, access ?? null),
       ),
-    onSettled: () =>
-      void queryClient.invalidateQueries({ queryKey: queryKeys.quickShares.domain() }),
+    onSettled: () => refresh(queryClient, queryKeys.quickShares.domain()),
   });
 }
 
@@ -127,8 +126,7 @@ export function useStopDomainShare() {
   return useMutation({
     mutationFn: ({ accountId, hostname }: { accountId: string; hostname: string }) =>
       call(commands.domainSharesStop(accountId, hostname)),
-    onSettled: () =>
-      void queryClient.invalidateQueries({ queryKey: queryKeys.quickShares.domain() }),
+    onSettled: () => refresh(queryClient, queryKeys.quickShares.domain()),
   });
 }
 
@@ -145,6 +143,6 @@ export function useStopTerminalShare() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (owner: string) => call(commands.quickShareCliStop(owner)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.quickShares.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.quickShares.all()),
   });
 }

@@ -772,7 +772,9 @@
     "welcomeDetail@windows": "Share anything running on this PC at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
     "welcomeDetail@linux": "Share anything running on this computer at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
     "traffic@windows": "Traffic on this PC",
-    "traffic@linux": "Traffic on this computer"
+    "traffic@linux": "Traffic on this computer",
+    "loading": "Loading what's running",
+    "routesFailed": "Couldn't load your routes."
   },
   "accounts": {
     "credential": {
@@ -949,7 +951,8 @@
     "activity": "Activity",
     "doctor": "Doctor",
     "developer": "Developer",
-    "gallery": "Gallery"
+    "gallery": "Gallery",
+    "settings": "Settings"
   },
   "commands": {
     "group": {

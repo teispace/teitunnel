@@ -31,7 +31,9 @@ export function Sidebar({ children, footer }: { children: ReactNode; footer?: Re
       >
         {children}
       </nav>
-      {footer ? <div className="shrink-0 px-2.5 pb-2.5 empty:hidden">{footer}</div> : null}
+      {footer ? (
+        <div className="flex shrink-0 flex-col gap-2 px-2.5 pb-2.5 empty:hidden">{footer}</div>
+      ) : null}
     </aside>
   );
 }
@@ -99,5 +101,33 @@ export function SidebarItem({ to, label, icon: Icon, badge, exact = false }: Sid
         {badge}
       </Link>
     </li>
+  );
+}
+
+/**
+ * A sidebar row that does something instead of navigating (Settings, which opens its own
+ * window). Styled like an item, never shown as selected.
+ */
+export function SidebarAction({
+  label,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-8 w-full items-center gap-2.5 rounded-row px-2 text-left text-body text-primary",
+        "cursor-default outline-none focus-visible:outline-offset-[-2px] active:bg-surface-pressed",
+      )}
+    >
+      <Icon aria-hidden size={18} strokeWidth={1.6} className="shrink-0 text-sidebar-icon" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   );
 }

@@ -1,3 +1,4 @@
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { EntityKind } from "./bindings";
 
 /** The only place query keys are built. Keys are hierarchical: invalidating a prefix covers children. */
@@ -67,4 +68,13 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
     case "updates":
       return [queryKeys.updates.status()];
   }
+}
+
+/**
+ * Refetches what a change touched and resolves once the new data is in. Mutations return
+ * it from `onSuccess`/`onSettled`, so they stay pending (their buttons busy) until the
+ * screen shows the result, instead of the old data lingering after the button came back.
+ */
+export function refresh(client: QueryClient, ...keys: readonly QueryKey[]): Promise<unknown> {
+  return Promise.all(keys.map((queryKey) => client.invalidateQueries({ queryKey })));
 }

@@ -482,15 +482,14 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
               variant="primary"
               type="submit"
               form="route-form"
+              pending={preview.isPending}
               disabled={
-                preview.isPending ||
                 (kind === "addNetwork"
                   ? network
                   : kind === "createTunnel"
                     ? tunnelName
                     : origin
-                ).trim() === "" ||
-                gaps.length > 0
+                ).trim() === "" || gaps.length > 0
               }
             >
               {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
@@ -533,7 +532,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
             </SheetClose>
           </>
         ) : (
-          <Button disabled>{t("routeSheet.applying")}</Button>
+          <Button pending>{t("routeSheet.applying")}</Button>
         );
       case "done":
         return (
@@ -541,7 +540,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
             {verify.data && !verify.data.failure ? null : (
               <Button
                 className="mr-auto"
-                disabled={verify.isPending}
+                pending={verify.isPending}
                 onClick={() =>
                   verify.variables &&
                   verify.mutate({ hostname: verify.variables.hostname, wait: false })

@@ -25,6 +25,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - Nothing.
 
 ## Recently completed
+- 2026-09-24 (local, not pushed): UX pass (D-092): actions stay busy until their result is on screen (pending buttons, `ConfirmDialog`, `refresh`), loading placeholders in every view and Settings pane, Overview error instead of a false "Nothing running yet", Settings row in the sidebar. Branch `fix/pending-states` (on `feat/cli-with-app`).
 - 2026-09-24 (local, not pushed; maintainer is reviewing): the command is `teitunnel` (D-091) and comes with the app (D-090: Windows installer puts it on the PATH and removes it on uninstall, one-time offer on macOS/AppImage). Docker Hub `teispace/teitunnel` set up (D-089). Sign in with Cloudflare: public OAuth client verified and tested (branch feat/oauth-client).
 - 2026-09-24: CI tidy (D-088): website/docs-only pull requests skip Rust, E2E, image and cargo-deny; one required check `CI`; all actions pinned to commits; timeouts everywhere. Linux repositories live at teitunnel.teispace.com/linux (key 61AF5B92…2C5A25E3), verified from clean Ubuntu and Fedora. release-please now bumps `Cargo.lock` (#29).
 - 2026-09-24: apt/dnf repositories (D-086): `scripts/release/linux-repo.sh` builds signed repositories into the site at `/linux/` from the two latest releases (checksums and provenance checked), tested end to end in Ubuntu and Fedora containers; download page and install guide show the repository commands. Live once the maintainer runs `scripts/release/linux-repo-key.sh` (RELEASING step 8).

@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { commands, type SettingsPatch } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 export const settingsQuery = queryOptions({
   queryKey: queryKeys.settings.all(),
@@ -32,7 +32,7 @@ export function useSetOpenAtLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (enabled: boolean) => call(commands.appSetOpenAtLogin(enabled)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: loginKey }),
+    onSettled: () => refresh(queryClient, loginKey),
   });
 }
 

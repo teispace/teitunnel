@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { m } from "motion/react";
+import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -9,10 +10,12 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
+import { toIpcError } from "@/lib/ipc/client";
 import { spring } from "@/lib/motion-tokens";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
 import { useShareStats, useStopShare } from "../queries";
+import { cardClass } from "./card";
 import { QrButton } from "./qr-button";
 import { ShareLog } from "./share-log";
 
@@ -40,7 +43,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
   return (
     <article
       aria-label={t("quickShare.cardLabel", { origin: stripScheme(share.origin) })}
-      className="flex flex-col gap-3 rounded-card bg-surface-inset p-4"
+      className={cardClass}
     >
       <header className="flex items-center gap-2 text-callout">
         {/* The dot springs in when the share goes live: the one "success" moment. */}
@@ -114,8 +117,12 @@ export function ShareCard({ share }: { share: QuickShare }) {
           variant="destructive"
           size="sm"
           className="ml-auto"
-          disabled={stop.isPending}
-          onClick={() => stop.mutate(share.id)}
+          pending={stop.isPending}
+          onClick={() =>
+            stop.mutate(share.id, {
+              onError: (error) => toast.error(toIpcError(error).message),
+            })
+          }
         >
           {t("quickShare.stop")}
         </Button>

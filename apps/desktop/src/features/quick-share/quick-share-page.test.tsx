@@ -13,6 +13,8 @@ let accounts: Account[];
 let domainShares: DomainShare[];
 let terminalShares: CliShare[];
 let calls: { cmd: string; args: Record<string, unknown> }[];
+/** Holds `domain_shares_stop` until released, like a slow Cloudflare. */
+let stopGate: Promise<void> | null;
 
 beforeEach(() => {
   shares = [];
@@ -21,6 +23,7 @@ beforeEach(() => {
   domainShares = [];
   terminalShares = [];
   calls = [];
+  stopGate = null;
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
@@ -69,8 +72,10 @@ beforeEach(() => {
         ];
         return { type: "applied", tunnelId: "t1", verify: [], connectorError: null };
       case "domain_shares_stop":
-        domainShares = [];
-        return null;
+        return (stopGate ?? Promise.resolve()).then(() => {
+          domainShares = [];
+          return null;
+        });
       case "binary_status":
         return binaryInstalled
           ? {
@@ -174,6 +179,34 @@ describe("QuickSharePage", () => {
     expect(calls.some((c) => c.cmd === "quick_share_start")).toBe(false);
 
     fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
+    await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+  });
+
+  it("keeps a share that's stopping on screen, busy, until it's gone", async () => {
+    let release!: () => void;
+    stopGate = new Promise((resolve) => {
+      release = resolve;
+    });
+    domainShares = [
+      {
+        accountId: "acc",
+        hostname: "demo.xyz.com",
+        origin: "http://localhost:3000",
+        owner: "app",
+        expiresAt: null,
+        createdAt: Date.now(),
+      },
+    ];
+    renderPage();
+    const card = await screen.findByRole("article", { name: "Share at demo.xyz.com" });
+    fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
+
+    await waitFor(() => expect(card.getAttribute("aria-busy")).toBe("true"));
+    const stop = within(card).getByRole("button", { name: "Stop Sharing" });
+    expect(stop.getAttribute("aria-busy")).toBe("true");
+    expect(stop.hasAttribute("disabled")).toBe(true);
+
+    release();
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
   });
 

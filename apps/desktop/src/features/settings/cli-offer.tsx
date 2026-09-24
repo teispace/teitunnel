@@ -53,7 +53,8 @@ export function CliOffer() {
           <Button
             size="sm"
             variant="primary"
-            disabled={install.isPending || update.isPending}
+            disabled={update.isPending}
+            pending={install.isPending}
             onClick={() => install.mutate(true, { onSuccess: dismiss })}
           >
             {t("cliOffer.install")}

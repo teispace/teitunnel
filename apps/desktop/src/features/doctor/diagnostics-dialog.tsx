@@ -56,7 +56,8 @@ export function DiagnosticsDialog() {
             </DialogClose>
             <Button
               variant="primary"
-              disabled={!preview.isSuccess || save.isPending}
+              disabled={!preview.isSuccess}
+              pending={save.isPending}
               onClick={() => save.mutate()}
             >
               {save.isPending

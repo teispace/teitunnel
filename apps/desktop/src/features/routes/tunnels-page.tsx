@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { detectPlatform } from "@/app/platform";
 import { useUiStore } from "@/app/ui-store";
+import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
 import { Inspector, InspectorSection } from "@/components/patterns/inspector";
@@ -13,7 +14,6 @@ import { SplitView } from "@/components/patterns/split-view";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { IconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ import { useIssues } from "@/features/doctor/queries";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ConnectorView, ForeignConnector, Issue, TunnelSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 import { NetworksSection } from "./components/networks-section";
 import { RemoteLogsSheet } from "./components/remote-logs-sheet";
 import { RouteSheet, type SheetMode } from "./components/route-sheet";
@@ -81,36 +82,16 @@ function ForeignInspector({ process }: { process: ForeignConnector }) {
         </span>
       }
       actions={
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="destructive">{t("tunnels.foreign.stop")}</Button>
-          </DialogTrigger>
-          <DialogContent
-            title={t("tunnels.foreign.stopTitle")}
-            description={
-              process.service ? t("tunnels.foreign.stopService") : t("tunnels.foreign.stopProcess")
-            }
-            footer={
-              <>
-                <DialogClose asChild>
-                  <Button>{t("common.cancel")}</Button>
-                </DialogClose>
-                <DialogClose asChild>
-                  <Button
-                    variant="destructive"
-                    onClick={() =>
-                      stop.mutate(process.pid, {
-                        onError: (error) => toast.error(toIpcError(error).message),
-                      })
-                    }
-                  >
-                    {t("tunnels.foreign.stopConfirm")}
-                  </Button>
-                </DialogClose>
-              </>
-            }
-          />
-        </Dialog>
+        <ConfirmDialog
+          trigger={<Button variant="destructive">{t("tunnels.foreign.stop")}</Button>}
+          title={t("tunnels.foreign.stopTitle")}
+          description={
+            process.service ? t("tunnels.foreign.stopService") : t("tunnels.foreign.stopProcess")
+          }
+          confirmLabel={t("tunnels.foreign.stopConfirm")}
+          variant="destructive"
+          onConfirm={() => stop.mutateAsync(process.pid)}
+        />
       }
     >
       <p className="text-callout text-secondary">{t("tunnels.foreign.onlyShown")}</p>
@@ -235,12 +216,20 @@ function TunnelInspector({
       actions={
         <>
           {tunnel.thisMac ? (
-            <Button disabled={action.isPending} onClick={() => run(running ? "stop" : "start")}>
+            <Button
+              disabled={action.isPending}
+              pending={action.isPending && action.variables.action !== "clean"}
+              onClick={() => run(running ? "stop" : "start")}
+            >
               {running ? t("tunnels.stopHere") : t("tunnels.startHere")}
             </Button>
           ) : null}
           {tunnel.connectors.length > 0 ? (
-            <Button disabled={action.isPending} onClick={() => run("clean")}>
+            <Button
+              disabled={action.isPending}
+              pending={action.isPending && action.variables.action === "clean"}
+              onClick={() => run("clean")}
+            >
               {t("tunnels.clean")}
             </Button>
           ) : null}
@@ -307,35 +296,16 @@ function AdoptButton({ tunnel, accountId }: { tunnel: TunnelSummary; accountId: 
   const adopt = useAdoptTunnel(accountId);
   const elsewhere = tunnel.connectors.length > 0;
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button>{t("tunnels.adopt.button")}</Button>
-      </DialogTrigger>
-      <DialogContent
-        title={t("tunnels.adopt.title", { name: tunnel.name })}
-        description={elsewhere ? t("tunnels.adopt.elsewhere") : t("tunnels.adopt.detail")}
-        footer={
-          <>
-            <DialogClose asChild>
-              <Button>{t("common.cancel")}</Button>
-            </DialogClose>
-            <DialogClose asChild>
-              <Button
-                variant="primary"
-                onClick={() =>
-                  adopt.mutate(tunnel.id, {
-                    onSuccess: () => toast.success(t("tunnels.adopt.done", { name: tunnel.name })),
-                    onError: (error) => toast.error(toIpcError(error).message),
-                  })
-                }
-              >
-                {t("tunnels.adopt.confirm")}
-              </Button>
-            </DialogClose>
-          </>
-        }
-      />
-    </Dialog>
+    <ConfirmDialog
+      trigger={<Button>{t("tunnels.adopt.button")}</Button>}
+      title={t("tunnels.adopt.title", { name: tunnel.name })}
+      description={elsewhere ? t("tunnels.adopt.elsewhere") : t("tunnels.adopt.detail")}
+      confirmLabel={t("tunnels.adopt.confirm")}
+      onConfirm={async () => {
+        await adopt.mutateAsync(tunnel.id);
+        toast.success(t("tunnels.adopt.done", { name: tunnel.name }));
+      }}
+    />
   );
 }
 
@@ -389,6 +359,7 @@ export function TunnelsPage() {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const tunnels = useTunnels(active?.id ?? null);
+  const reload = useManualRefetch(tunnels.refetch);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
   const [remote, setRemote] = useState<{ tunnelId: string; connector: ConnectorView } | null>(null);
@@ -423,8 +394,8 @@ export function TunnelsPage() {
         <IconButton
           icon={RefreshCw}
           label={t("tunnels.refresh")}
-          onClick={() => void tunnels.refetch()}
-          disabled={tunnels.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
     </TitlebarToolbar>

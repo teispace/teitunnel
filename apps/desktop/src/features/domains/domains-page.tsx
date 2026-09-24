@@ -26,6 +26,7 @@ import {
 import { t } from "@/lib/i18n";
 import type { Domain, DomainStatus } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 
 const dots: Record<DomainStatus, Status> = {
   active: "healthy",
@@ -82,6 +83,7 @@ export function DomainsPage() {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const domains = useDomains(active?.id ?? null);
+  const reload = useManualRefetch(domains.refetch);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const all = domains.data ?? [];
@@ -102,8 +104,8 @@ export function DomainsPage() {
         <IconButton
           icon={RefreshCw}
           label={t("domains.refresh")}
-          onClick={() => void domains.refetch()}
-          disabled={domains.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
       {active ? (

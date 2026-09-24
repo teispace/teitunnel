@@ -1,4 +1,4 @@
-import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,7 +39,7 @@ export function UpdateSection() {
   const setSettings = useUpdateSettings();
   const check = useCheckForUpdates();
   const restart = useRestartToUpdate();
-  if (!status || !settings) return null;
+  if (!status || !settings) return <SkeletonSection rows={2} />;
 
   const { state } = status;
   const busy = state.state === "checking" || state.state === "downloading" || check.isPending;
@@ -71,7 +71,7 @@ export function UpdateSection() {
             <Button
               size="sm"
               variant="primary"
-              disabled={restart.isPending}
+              pending={restart.isPending}
               onClick={() => restart.mutate()}
             >
               {t("updates.restart")}

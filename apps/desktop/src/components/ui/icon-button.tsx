@@ -2,11 +2,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import type { LucideIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
+import { Spinner } from "./spinner";
 
 const iconButtonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center rounded-full text-secondary outline-offset-1",
-    "transition-[background-color,color] transition-snappy disabled:pointer-events-none disabled:opacity-40",
+    "transition-[background-color,color] transition-snappy disabled:pointer-events-none disabled:opacity-40 aria-busy:opacity-100",
   ],
   {
     variants: {
@@ -30,6 +31,8 @@ interface IconButtonProps
   icon: LucideIcon;
   /** Required: icon-only controls need an accessible name (DESIGN §11). */
   label: string;
+  /** Busy with what it started: disabled, the icon replaced by a spinner. */
+  pending?: boolean;
 }
 
 export function IconButton({
@@ -39,6 +42,8 @@ export function IconButton({
   size,
   className,
   type = "button",
+  pending = false,
+  disabled,
   ...props
 }: IconButtonProps) {
   return (
@@ -46,10 +51,12 @@ export function IconButton({
       type={type}
       aria-label={label}
       title={label}
+      disabled={disabled || pending}
+      aria-busy={pending || undefined}
       className={cn(iconButtonVariants({ variant, size }), className)}
       {...props}
     >
-      <Icon aria-hidden strokeWidth={1.75} />
+      {pending ? <Spinner label={null} /> : <Icon aria-hidden strokeWidth={1.75} />}
     </button>
   );
 }

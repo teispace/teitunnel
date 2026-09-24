@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
-import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Disclosure } from "@/components/ui/disclosure";
 import { t } from "@/lib/i18n";
 import type { Account } from "@/lib/ipc/bindings";
@@ -23,36 +23,24 @@ export function credentialLabel(account: Account): string {
 function RemoveButton({ account }: { account: Account }) {
   const remove = useRemoveAccount();
   return (
-    <Dialog>
-      <DialogTrigger asChild>
+    <ConfirmDialog
+      trigger={
         <Button size="sm" variant="destructive">
           {t("accounts.disconnect")}
         </Button>
-      </DialogTrigger>
-      <DialogContent
-        title={t("accounts.disconnectTitle", { name: account.name })}
-        description={t("accounts.disconnectDetail")}
-        footer={
-          <>
-            <DialogClose asChild>
-              <Button>{t("common.cancel")}</Button>
-            </DialogClose>
-            <DialogClose asChild>
-              <Button variant="primary" onClick={() => remove.mutate(account.id)}>
-                {t("accounts.disconnect")}
-              </Button>
-            </DialogClose>
-          </>
-        }
-      />
-    </Dialog>
+      }
+      title={t("accounts.disconnectTitle", { name: account.name })}
+      description={t("accounts.disconnectDetail")}
+      confirmLabel={t("accounts.disconnect")}
+      onConfirm={() => remove.mutateAsync(account.id)}
+    />
   );
 }
 
 /** Settings → Accounts. */
 export function AccountsPane() {
   const { data: accounts = [], isSuccess } = useAccounts();
-  if (!isSuccess) return null;
+  if (!isSuccess) return <SkeletonSection rows={2} />;
   return (
     <GroupedSection title={t("accounts.title")} footer={t("accounts.footer")}>
       {accounts.length === 0 ? (

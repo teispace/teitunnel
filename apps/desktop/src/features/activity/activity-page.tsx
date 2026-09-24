@@ -30,6 +30,7 @@ import { cn } from "@/lib/cn";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ActivityEntry, ActivityRecord, Delta } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 import { commandScript, leftoversOf, matches, type Show, showOptions, summaryOf } from "./model";
 
 const outcomes: Record<string, { dot: Status; label: MessageKey }> = {
@@ -70,6 +71,7 @@ export function ActivityPage() {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const activity = useActivity(active?.id ?? null);
+  const reload = useManualRefetch(activity.refetch);
   const overview = useRoutesOverview(active?.id ?? null).data;
   const zones = overview?.zones ?? [];
   const all = activity.data ?? [];
@@ -99,8 +101,8 @@ export function ActivityPage() {
         <IconButton
           icon={RefreshCw}
           label={t("activity.refresh")}
-          onClick={() => void activity.refetch()}
-          disabled={activity.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
     </TitlebarToolbar>
@@ -382,7 +384,7 @@ function CheckRow({ accountId, hostname }: { accountId: string; hostname: string
       </div>
       <Button
         size="sm"
-        disabled={verify.isPending}
+        pending={verify.isPending}
         onClick={() => verify.mutate({ hostname, wait: false })}
       >
         {t("activity.check.check")}

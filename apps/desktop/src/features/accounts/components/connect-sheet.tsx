@@ -82,7 +82,7 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
               <Button
                 variant="plain"
                 className="mr-auto"
-                disabled={importCert.isPending}
+                pending={importCert.isPending}
                 onClick={() => importCert.mutate(undefined, { onSuccess: (a) => finish([a.name]) })}
               >
                 {t("connect.useCert")}
@@ -95,7 +95,8 @@ export function ConnectSheet({ trigger }: { trigger: ReactNode }) {
               variant="primary"
               type="submit"
               form="connect-token"
-              disabled={token.trim() === "" || addToken.isPending}
+              disabled={token.trim() === ""}
+              pending={addToken.isPending}
             >
               {addToken.isPending ? t("connect.checking") : t("connect.connect")}
             </Button>

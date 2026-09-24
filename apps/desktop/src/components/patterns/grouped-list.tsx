@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
 
 /**
@@ -48,5 +49,19 @@ export function GroupedRow({
       </div>
       {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
     </div>
+  );
+}
+
+/** A grouped section's shape while its data loads (fades in after 300 ms, like Skeleton). */
+export function SkeletonSection({ rows = 1 }: { rows?: number }) {
+  return (
+    <GroupedSection>
+      {Array.from({ length: rows }, (_, row) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows are positional
+        <div key={row} className="flex min-h-9 items-center py-2">
+          <Skeleton className="h-3 w-2/5 bg-surface-control" />
+        </div>
+      ))}
+    </GroupedSection>
   );
 }

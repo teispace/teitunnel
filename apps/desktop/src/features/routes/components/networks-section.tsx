@@ -4,6 +4,7 @@ import { InspectorSection } from "@/components/patterns/inspector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PermissionFix } from "@/features/accounts";
 import { useIssues } from "@/features/doctor/queries";
 import { t, translate } from "@/lib/i18n";
@@ -24,7 +25,13 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
   const overview = useRoutesOverview(accountId);
   const { issues } = useIssues();
   const queryClient = useQueryClient();
-  if (!overview.data) return null;
+  if (!overview.data) {
+    return (
+      <InspectorSection title={t("networks.title")}>
+        <Skeleton className="h-9" />
+      </InspectorSection>
+    );
+  }
   const networks = overview.data.networks;
   const problems = issues.filter(
     (issue) => issue.accountId === accountId && issue.check.startsWith("network."),

@@ -4,7 +4,7 @@ import { useUiStore } from "@/app/ui-store";
 import { settingsQuery, useSettings } from "@/features/settings/queries";
 import { commands, type Issue } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 export const doctorQuery = queryOptions({
   queryKey: queryKeys.doctor.all(),
@@ -69,9 +69,6 @@ export function useFixSafe() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => call(commands.doctorFixSafe()),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.doctor.all() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() });
-    },
+    onSettled: () => refresh(queryClient, queryKeys.doctor.all(), queryKeys.routes.all()),
   });
 }

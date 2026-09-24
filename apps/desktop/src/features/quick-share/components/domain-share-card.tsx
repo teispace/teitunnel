@@ -11,6 +11,7 @@ import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
 import { useStopDomainShare } from "../queries";
+import { cardClass } from "./card";
 import { QrButton } from "./qr-button";
 
 /** One share on your own domain: a temporary route, removed when it stops. */
@@ -22,7 +23,8 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
   return (
     <article
       aria-label={t("quickShare.domain.cardLabel", { hostname: share.hostname })}
-      className="flex flex-col gap-3 rounded-card bg-surface-inset p-4"
+      aria-busy={stop.isPending || undefined}
+      className={cardClass}
     >
       <header className="flex items-center gap-2 text-callout">
         <Globe aria-hidden className="size-3.5 text-accent" strokeWidth={2} />
@@ -61,7 +63,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           variant="destructive"
           size="sm"
           className="ml-auto"
-          disabled={stop.isPending}
+          pending={stop.isPending}
           onClick={() =>
             stop.mutate(
               { accountId: share.accountId, hostname: share.hostname },

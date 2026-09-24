@@ -35,6 +35,7 @@ import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 import { describeAllowed } from "./access";
 import { BalanceHealth } from "./components/balance-health";
 import { DriftBanner } from "./components/drift-banner";
@@ -271,6 +272,7 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const overview = useRoutesOverview(active?.id ?? null);
+  const reload = useManualRefetch(overview.refetch);
   const { issues } = useIssues();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
@@ -305,8 +307,8 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         <IconButton
           icon={RefreshCw}
           label={t("routes.refresh")}
-          onClick={() => void overview.refetch()}
-          disabled={overview.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
       {active && overview.isSuccess && importable ? (

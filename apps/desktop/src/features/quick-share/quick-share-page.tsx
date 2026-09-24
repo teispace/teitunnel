@@ -17,9 +17,13 @@ const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 /** Quick Share: a public URL for a local service, no account needed. */
 export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const { data: shares = [] } = useQuickShares();
-  const domainShares = useDomainShares().data ?? [];
-  const terminalShares = useTerminalShares().data ?? [];
+  const sharesQuery = useQuickShares();
+  const domainQuery = useDomainShares();
+  const terminalQuery = useTerminalShares();
+  const shares = sharesQuery.data ?? [];
+  const domainShares = domainQuery.data ?? [];
+  const terminalShares = terminalQuery.data ?? [];
+  const loaded = sharesQuery.isSuccess && domainQuery.isSuccess && terminalQuery.isSuccess;
   const binary = useBinaryStatus();
   const visible = usePageVisible();
   const missing = binary.isSuccess && !binaryReady(binary.data);
@@ -78,7 +82,8 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             ))}
           </AnimatePresence>
 
-          {shares.length === 0 &&
+          {loaded &&
+          shares.length === 0 &&
           domainShares.length === 0 &&
           terminalShares.length === 0 &&
           !missing ? (
