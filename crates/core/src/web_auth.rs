@@ -1,4 +1,4 @@
-//! Sign-in for the web dashboard `teitunnel-cli serve` offers on servers (M10-06,
+//! Sign-in for the web dashboard `teitunnel serve` offers on servers (M10-06,
 //! D-070): one password (argon2id) and named API keys for automation (random 256-bit,
 //! stored as SHA-256 since they're high-entropy). Only hashes are stored; a key is shown
 //! once, when it's made.

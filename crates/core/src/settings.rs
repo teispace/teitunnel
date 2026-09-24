@@ -39,6 +39,9 @@ pub struct Settings {
     pub notify_doctor: bool,
     /// Check for app updates by itself (at launch and daily).
     pub check_for_updates: bool,
+    /// The one-time "Install teitunnel?" offer was answered (Install or Not now), on
+    /// installs where the CLI isn't put on the PATH by the installer (D-090).
+    pub cli_offer_dismissed: bool,
     /// Doctor issues the user chose to ignore (stable issue ids). Changed with
     /// [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
     pub ignored_issues: Vec<String>,
@@ -53,6 +56,7 @@ impl Default for Settings {
             notify_quick_shares: true,
             notify_doctor: true,
             check_for_updates: true,
+            cli_offer_dismissed: false,
             ignored_issues: Vec::new(),
         }
     }
@@ -81,6 +85,9 @@ pub struct SettingsPatch {
     /// Automatic update checks on or off.
     #[serde(default)]
     pub check_for_updates: Option<bool>,
+    /// The command line offer answered.
+    #[serde(default)]
+    pub cli_offer_dismissed: Option<bool>,
 }
 
 const THEME: &str = "theme";
@@ -90,6 +97,7 @@ const NOTIFY_QUICK_SHARES: &str = "notifyQuickShares";
 const NOTIFY_DOCTOR: &str = "notifyDoctor";
 const IGNORED_ISSUES: &str = "ignoredIssues";
 const CHECK_FOR_UPDATES: &str = "checkForUpdates";
+const CLI_OFFER_DISMISSED: &str = "cliOfferDismissed";
 
 /// Loads all settings.
 ///
@@ -110,6 +118,8 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                 notify_doctor: read(conn, NOTIFY_DOCTOR)?.unwrap_or(defaults.notify_doctor),
                 check_for_updates: read(conn, CHECK_FOR_UPDATES)?
                     .unwrap_or(defaults.check_for_updates),
+                cli_offer_dismissed: read(conn, CLI_OFFER_DISMISSED)?
+                    .unwrap_or(defaults.cli_offer_dismissed),
                 ignored_issues: read(conn, IGNORED_ISSUES)?.unwrap_or(defaults.ignored_issues),
             })
         })
@@ -141,6 +151,9 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             }
             if let Some(on) = patch.check_for_updates {
                 write(&tx, CHECK_FOR_UPDATES, &on)?;
+            }
+            if let Some(done) = patch.cli_offer_dismissed {
+                write(&tx, CLI_OFFER_DISMISSED, &done)?;
             }
             tx.commit()?;
             Ok(())
@@ -297,6 +310,17 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(load(&store).await.unwrap().theme, Theme::System);
+    }
+
+    #[tokio::test]
+    async fn remembers_the_answered_cli_offer() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(!load(&store).await.unwrap().cli_offer_dismissed);
+        let patch: SettingsPatch = serde_json::from_str(r#"{"cliOfferDismissed":true}"#).unwrap();
+        let after = update(&store, patch).await.unwrap();
+        assert!(after.cli_offer_dismissed);
+        assert!(after.show_in_menu_bar, "other settings keep their values");
+        assert!(load(&store).await.unwrap().cli_offer_dismissed);
     }
 
     #[test]

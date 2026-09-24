@@ -49,7 +49,7 @@ docker compose restart teitunnel
 ```
 
 The routes live in the `teitunnel` volume, so they survive restarts and upgrades. The
-container runs `teitunnel-cli up` by default and its health check fails unless every route is
+container runs `teitunnel up` by default and its health check fails unless every route is
 live, so `docker compose ps` tells you when something's wrong.
 
 ## Things that trip people up

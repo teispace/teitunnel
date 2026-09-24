@@ -13,7 +13,7 @@ import { site } from "@/lib/site";
 export const metadata: Metadata = pageMetadata({
   title: "Download Teitunnel for macOS, Windows and Linux",
   description:
-    "Download Teitunnel, the free Cloudflare Tunnel app, for macOS (Apple silicon and Intel), Windows (x64 and Arm) and Linux (.deb, .rpm, AppImage), or teitunnel-cli for servers.",
+    "Download Teitunnel, the free Cloudflare Tunnel app, for macOS (Apple silicon and Intel), Windows (x64 and Arm) and Linux (.deb, .rpm, AppImage), or the teitunnel command for servers.",
   path: "/download/",
   image: ogImage(["download"]),
 });

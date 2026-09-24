@@ -76,7 +76,7 @@ pub(crate) fn edge() -> teitunnel_core::engine::Edge {
 }
 
 /// Connects every account `token` reaches and stores it in the OS keychain (creating the
-/// database if needed): `teitunnel-cli setup` on a machine without the app.
+/// database if needed): `teitunnel setup` on a machine without the app.
 pub(crate) async fn connect(token: Secret<String>) -> Result<Vec<Account>, String> {
     let dir = data_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -116,7 +116,7 @@ impl App {
         let token = env_token()?;
         if token.is_none() && !dir.join("teitunnel.db").exists() {
             return Err(
-                "Teitunnel hasn't been set up on this machine yet. Open the app and connect an account, or set CLOUDFLARE_API_TOKEN (see `teitunnel-cli setup --help`)."
+                "Teitunnel hasn't been set up on this machine yet. Open the app and connect an account, or set CLOUDFLARE_API_TOKEN (see `teitunnel setup --help`)."
                     .to_owned(),
             );
         }
@@ -145,7 +145,7 @@ impl App {
         })
     }
 
-    /// This machine's connectors, run by this process (`teitunnel-cli up`), with the
+    /// This machine's connectors, run by this process (`teitunnel up`), with the
     /// system's service manager for Always-on (`services`; systemd's system instance when
     /// running as root, for servers). The supervisor is returned too, to stop this
     /// process's connectors when it ends.

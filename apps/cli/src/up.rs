@@ -1,4 +1,4 @@
-//! `teitunnel-cli up` and `always-on`: running this machine's tunnels without the app,
+//! `teitunnel up` and `always-on`: running this machine's tunnels without the app,
 //! for servers and containers (M10-04, D-069).
 
 use std::{process::ExitCode, time::Duration};
@@ -61,7 +61,7 @@ pub(crate) async fn up(app: &App) -> Result<ExitCode, String> {
     }
     if running.is_empty() {
         return Err(
-            "This machine has no tunnel to run. Add a route first (`teitunnel-cli route add …`)."
+            "This machine has no tunnel to run. Add a route first (`teitunnel route add …`)."
                 .into(),
         );
     }
@@ -122,7 +122,7 @@ pub(crate) async fn always_on(
     let account = app.account(account).await?;
     let (machine, _supervisor) = app.machine(true).await;
     if !machine.supports_always_on() {
-        return Err("No service manager is available here. Run `teitunnel-cli up` under your process supervisor (Docker, runit, …) instead.".into());
+        return Err("No service manager is available here. Run `teitunnel up` under your process supervisor (Docker, runit, …) instead.".into());
     }
     let tunnels = app
         .engine
@@ -186,7 +186,7 @@ pub(crate) async fn always_on(
                     .await
                     .map_err(|e| e.english())?;
                 out!(
-                    "{}: the service is removed; its routes are served while the app or `teitunnel-cli up` runs.",
+                    "{}: the service is removed; its routes are served while the app or `teitunnel up` runs.",
                     t.name
                 )?;
             }

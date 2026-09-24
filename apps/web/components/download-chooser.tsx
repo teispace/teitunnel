@@ -115,7 +115,7 @@ function PanelView({ panel }: { panel: Panel }) {
               className="inline-flex h-12 items-center gap-2.5 rounded-full bg-fd-foreground px-7 font-medium text-fd-background transition-[opacity,transform] duration-200 hover:opacity-85 active:scale-[0.98]"
             >
               <DownloadIcon className="size-4.5" aria-hidden />
-              {panel.id === "cli" ? "Download teitunnel-cli" : `Download for ${panel.title}`}
+              {panel.id === "cli" ? "Download the CLI" : `Download for ${panel.title}`}
             </Link>
             <p className="ps-1 font-mono text-xs text-fd-muted-foreground">
               {panel.primaryDetail} · {formatSize(panel.primary.size)}

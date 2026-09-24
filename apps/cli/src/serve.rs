@@ -1,4 +1,4 @@
-//! `teitunnel-cli serve`: this machine's tunnels plus a web dashboard and JSON API, for
+//! `teitunnel serve`: this machine's tunnels plus a web dashboard and JSON API, for
 //! servers without the app (M10-06, D-070). It runs the connectors like `up`, and every
 //! change goes through the same plan → apply engine (preview, then apply the reviewed
 //! plan by its fingerprint).
@@ -449,7 +449,7 @@ fn openapi_document() -> serde_json::Value {
         "info": {
             "title": "Teitunnel server API",
             "version": env!("CARGO_PKG_VERSION"),
-            "description": "Manage this machine's Cloudflare Tunnel routes. Authenticate with `Authorization: Bearer ttk_…` (create a key with `teitunnel-cli api-key create NAME`). Changes are two steps: `POST /api/preview` returns a plan with a fingerprint; `POST /api/apply` applies exactly that plan, or answers 409 if Cloudflare changed meanwhile."
+            "description": "Manage this machine's Cloudflare Tunnel routes. Authenticate with `Authorization: Bearer ttk_…` (create a key with `teitunnel api-key create NAME`). Changes are two steps: `POST /api/preview` returns a plan with a fingerprint; `POST /api/apply` applies exactly that plan, or answers 409 if Cloudflare changed meanwhile."
         },
         "components": {
             "securitySchemes": { "apiKey": { "type": "http", "scheme": "bearer" } },
@@ -538,7 +538,10 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         .await
         .map_err(|e| e.to_string())?
     {
-        return Err("Set a password first: `teitunnel-cli serve --set-password` (or TEITUNNEL_WEB_PASSWORD).".into());
+        return Err(
+            "Set a password first: `teitunnel serve --set-password` (or TEITUNNEL_WEB_PASSWORD)."
+                .into(),
+        );
     }
     let (machine, supervisor) = app.machine(false).await;
     for account in app.accounts.list().await.map_err(|e| e.to_string())? {

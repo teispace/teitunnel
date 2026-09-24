@@ -51,7 +51,7 @@ function OpenAtLogin() {
   );
 }
 
-/** Settings ▸ General ▸ Command line: `teitunnel-cli` on the PATH (D-077). */
+/** Settings ▸ General ▸ Command line: `teitunnel` on the PATH (D-077). */
 function CommandLine() {
   const { data: state } = useCliStatus();
   const change = useSetCliInstalled();
@@ -70,7 +70,7 @@ function CommandLine() {
   })();
   return (
     <GroupedSection title={t("settings.cli.title")} footer={t("settings.cli.footer")}>
-      <GroupedRow label="teitunnel-cli" description={description}>
+      <GroupedRow label="teitunnel" description={description}>
         {state.state === "installed" ? (
           <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(false)}>
             {t("settings.cli.uninstall")}

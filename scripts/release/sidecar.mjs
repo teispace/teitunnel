@@ -1,6 +1,9 @@
 #!/usr/bin/env node
-// Builds teitunnel-cli for a target and puts it where Tauri bundles it next to the app
-// (`bundle.externalBin` in apps/desktop/src-tauri/tauri.cli.conf.json, D-077).
+// Builds the CLI (crate teitunnel-cli, command `teitunnel`) for a target and puts it where
+// Tauri bundles it next to the app (`bundle.externalBin`, D-077, D-091). Linux packages
+// carry it as `teitunnel` (tauri.cli.linux.conf.json); macOS and Windows as `teitunnel-cli`
+// (tauri.cli.conf.json), because their file systems ignore case and the app itself is
+// `Teitunnel`. What people type is always `teitunnel`.
 //
 // Usage: node scripts/release/sidecar.mjs [target]   (default: this machine)
 // `universal-apple-darwin` builds both Mac architectures and joins them with lipo.
@@ -13,12 +16,13 @@ const host = execFileSync("rustc", ["-vV"], { encoding: "utf8" }).match(/^host: 
 const target = process.argv[2] ?? host;
 if (!target) throw new Error("couldn't tell the target");
 const exe = target.includes("windows") ? ".exe" : "";
+const name = target.includes("linux") ? "teitunnel" : "teitunnel-cli";
 
 const dir = "apps/desktop/src-tauri/binaries";
 mkdirSync(dir, { recursive: true });
 /** Puts a built CLI where Tauri looks for it for `triple`. */
 const place = (built, triple) => {
-  const sidecar = join(dir, `teitunnel-cli-${triple}${exe}`);
+  const sidecar = join(dir, `${name}-${triple}${exe}`);
   copyFileSync(built, sidecar);
   process.stdout.write(`sidecar: ${sidecar}\n`);
 };

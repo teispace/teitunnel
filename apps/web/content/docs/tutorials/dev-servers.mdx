@@ -14,7 +14,7 @@ The quickest fix, with no change to your project. Edit the route (or create it),
 **Advanced ▸ Origin settings** and set **Host header** to `localhost`. From the terminal:
 
 ```sh
-teitunnel-cli route add app.example.com 5173 --host-header localhost
+teitunnel route add app.example.com 5173 --host-header localhost
 ```
 
 Your dev server then sees every request as a request for `localhost`. This works for most

@@ -1,7 +1,7 @@
-//! `teitunnel-cli`: Teitunnel's routes from the terminal. It uses the app's accounts,
+//! `teitunnel`: Teitunnel's routes from the terminal. It uses the app's accounts,
 //! keychain and database (or, on a server, an API token from the environment), and makes
 //! every change through the same plan → apply engine, showing the plan before applying
-//! it. Connectors run in the app, as Always-on services, or in `teitunnel-cli up`
+//! it. Connectors run in the app, as Always-on services, or in `teitunnel up`
 //! (servers and containers); `share` runs its own for the command's lifetime.
 
 /// Writes a line to stdout; a write error (e.g. a closed pipe) ends the command.
@@ -39,7 +39,10 @@ const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "teitunnel-cli",
+    name = "teitunnel",
+    // Help and errors say `teitunnel` whatever the file is called (inside the macOS and
+    // Windows packages it's teitunnel-cli, D-091).
+    bin_name = "teitunnel",
     version,
     about = "Manage Teitunnel routes from the terminal.",
     long_about = "Manage Teitunnel routes from the terminal. Uses the accounts connected in the Teitunnel app; every change is shown before it's applied."
@@ -181,7 +184,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Print a shell completion script, e.g. `teitunnel-cli completions zsh`.
+    /// Print a shell completion script, e.g. `teitunnel completions zsh`.
     Completions {
         /// The shell.
         #[arg(value_enum)]
@@ -428,7 +431,7 @@ async fn main() -> ExitCode {
     match run(cli.command).await {
         Ok(code) => code,
         Err(message) => {
-            let _ = writeln!(io::stderr().lock(), "teitunnel-cli: {message}");
+            let _ = writeln!(io::stderr().lock(), "teitunnel: {message}");
             ExitCode::FAILURE
         }
     }
@@ -449,7 +452,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             clap_complete::generate(
                 shell,
                 &mut <Cli as clap::CommandFactory>::command(),
-                "teitunnel-cli",
+                "teitunnel",
                 &mut io::stdout(),
             );
             return Ok(ExitCode::SUCCESS);
@@ -589,7 +592,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
         let share = list
             .iter()
             .find(|s| s.hostname.eq_ignore_ascii_case(hostname.trim()))
-            .ok_or_else(|| format!("No share at {hostname}. See `teitunnel-cli shares`."))?;
+            .ok_or_else(|| format!("No share at {hostname}. See `teitunnel shares`."))?;
         let account = app.account(Some(&share.account_id)).await?;
         let api = app
             .accounts
@@ -619,7 +622,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
     }
     if list.is_empty() && terminals.is_empty() {
         out!(
-            "No shares running. Start one with `teitunnel-cli share 3000` (add `--on demo.example.com` for your own domain)."
+            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.example.com` for your own domain)."
         )?;
     }
     let now = domain_shares::now_ms();
@@ -668,7 +671,7 @@ async fn adopt(app: &App, name: &str, account: Option<&str>) -> Result<ExitCode,
         .await
         .map_err(|e| e.to_string())?;
     out!(
-        "“{}” is now one of this machine's tunnels. Run it with `teitunnel-cli up` or the app.",
+        "“{}” is now one of this machine's tunnels. Run it with `teitunnel up` or the app.",
         tunnel.name
     )?;
     Ok(ExitCode::SUCCESS)
@@ -748,7 +751,7 @@ async fn tunnel_for(
             .find(|t| t.name.eq_ignore_ascii_case(name) || t.tunnel_id == name)
             .map(|t| Some(t.tunnel_id))
             .ok_or_else(|| {
-                format!("This machine has no tunnel named “{name}”. See `teitunnel-cli tunnels`.")
+                format!("This machine has no tunnel named “{name}”. See `teitunnel tunnels`.")
             });
     }
     match change {
@@ -817,7 +820,7 @@ async fn set_web_password(app: &App) -> Result<ExitCode, String> {
     teitunnel_core::web_auth::set_password(app.store(), password.trim_end_matches(['\r', '\n']))
         .await
         .map_err(|e| e.to_string())?;
-    out!("Password set. Start the dashboard with `teitunnel-cli serve`.")?;
+    out!("Password set. Start the dashboard with `teitunnel serve`.")?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -1286,7 +1289,7 @@ mod tests {
     #[test]
     fn parses_a_share_on_a_domain() {
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "share",
             "3000",
             "--on",
@@ -1310,21 +1313,19 @@ mod tests {
         assert_eq!(stop_after, Some(Duration::from_secs(7200)));
         assert_eq!(allow, ["@team.io"]);
         // Account and logins only make sense on your own domain.
-        assert!(
-            Cli::try_parse_from(["teitunnel-cli", "share", "3000", "--allow", "@x.io"]).is_err()
-        );
+        assert!(Cli::try_parse_from(["teitunnel", "share", "3000", "--allow", "@x.io"]).is_err());
     }
 
     #[test]
     fn parses_tunnel_commands() {
         let cli =
-            Cli::try_parse_from(["teitunnel-cli", "tunnel", "create", "staging", "--yes"]).unwrap();
+            Cli::try_parse_from(["teitunnel", "tunnel", "create", "staging", "--yes"]).unwrap();
         assert!(matches!(
             cli.command,
             Command::Tunnel(TunnelCommand::Create { ref name, ref apply }) if name == "staging" && apply.yes
         ));
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "route",
             "add",
             "beta.example.com",
@@ -1342,7 +1343,7 @@ mod tests {
     #[test]
     fn parses_a_route_add() {
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "route",
             "add",
             "app.example.com",
@@ -1398,14 +1399,9 @@ mod tests {
 
     #[test]
     fn parses_a_network_add() {
-        let cli = Cli::try_parse_from([
-            "teitunnel-cli",
-            "network",
-            "add",
-            "192.168.1.0/24",
-            "--replace",
-        ])
-        .unwrap_or_else(|e| unreachable!("{e}"));
+        let cli =
+            Cli::try_parse_from(["teitunnel", "network", "add", "192.168.1.0/24", "--replace"])
+                .unwrap_or_else(|e| unreachable!("{e}"));
         let Command::Network(NetworkCommand::Add { network, apply }) = cli.command else {
             unreachable!()
         };

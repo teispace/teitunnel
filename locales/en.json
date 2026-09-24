@@ -623,12 +623,21 @@
       "notInstalled": "Manage routes from a terminal, a script or over SSH.",
       "installed": "Installed at {path}.",
       "packaged": "Installed with the app at {path}.",
-      "taken": "Another teitunnel-cli is at {path}. Teitunnel leaves it alone.",
+      "taken": "Another program named teitunnel is at {path}. Teitunnel leaves it alone.",
       "manual": "Teitunnel can't write to that folder by itself. Run this in Terminal:",
       "manual@windows": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
       "manual@linux": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
-      "footer": "Puts teitunnel-cli on your PATH. It updates with the app."
+      "footer": "Puts the teitunnel command on your PATH. It updates with the app."
     }
+  },
+  "cliOffer": {
+    "title": "Use Teitunnel from the terminal too?",
+    "detail": "Adds the teitunnel command: routes, shares and the Doctor from a terminal, a script or over SSH. It updates with the app.",
+    "manual": "Adds the teitunnel command. Teitunnel can't write to that folder by itself, so run this in Terminal:",
+    "manual@linux": "Adds the teitunnel command. Teitunnel can't write to that folder by itself, so run this in a terminal:",
+    "install": "Install",
+    "notNow": "Not Now",
+    "done": "Done"
   },
   "updates": {
     "title": "Updates",

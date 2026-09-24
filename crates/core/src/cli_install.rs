@@ -1,11 +1,13 @@
-//! Putting the `teitunnel-cli` that ships inside the app on the PATH (D-077).
+//! Putting the `teitunnel` command that ships inside the app on the PATH (D-077, D-091).
 //!
 //! The packages carry the CLI next to the app's own binary. How it reaches the PATH:
 //! - macOS: a symlink in Homebrew's `bin` or `/usr/local/bin`, whichever the user can
 //!   write; the app bundle's path is stable across updates, so the link stays right.
 //!   Without a writable one, the app shows the `sudo ln -s …` to run.
 //! - Windows: a copy in `%LOCALAPPDATA%\Microsoft\WindowsApps`, which is on every user's
-//!   PATH; refreshed at launch when the app was updated.
+//!   PATH. The installer makes it and the uninstaller removes it
+//!   (`windows/installer-hooks.nsh`, D-090); the app refreshes it at launch after an
+//!   update and can put it back.
 //! - Linux: `.deb`/`.rpm` install it to `/usr/bin` already. The AppImage's copy goes to
 //!   `~/.local/bin`, refreshed at launch.
 //!
@@ -18,11 +20,22 @@ use std::{
 
 use serde::Serialize;
 
-/// The CLI's file name.
+/// The command's file name on the PATH: people type `teitunnel` (D-091).
 pub const CLI_NAME: &str = if cfg!(windows) {
-    "teitunnel-cli.exe"
+    "teitunnel.exe"
 } else {
+    "teitunnel"
+};
+
+/// The CLI's file name inside the packages, next to the app. Linux packages carry it as
+/// `teitunnel`; on macOS and Windows, whose file systems ignore case, it can't sit next to
+/// the app's own `Teitunnel`, so there it's `teitunnel-cli`.
+pub const BUNDLED_NAME: &str = if cfg!(windows) {
+    "teitunnel-cli.exe"
+} else if cfg!(target_os = "macos") {
     "teitunnel-cli"
+} else {
+    "teitunnel"
 };
 
 /// How the CLI gets onto the PATH on this system.
@@ -92,7 +105,7 @@ fn writable(dir: &Path) -> bool {
 impl Layout {
     /// This system's layout, when the app ships the CLI next to `app_exe`.
     pub fn detect(app_exe: &Path) -> Option<Self> {
-        let bundled = app_exe.parent()?.join(CLI_NAME);
+        let bundled = app_exe.parent()?.join(BUNDLED_NAME);
         if !bundled.is_file() {
             return None;
         }
@@ -238,7 +251,7 @@ impl Layout {
 }
 
 /// A copy Teitunnel made carries a marker file next to it, so an outdated copy is still
-/// recognised as ours (and a `teitunnel-cli` from elsewhere never is).
+/// recognised as ours (and a `teitunnel` from elsewhere never is).
 fn marker(target: &Path) -> PathBuf {
     target.with_extension("teitunnel")
 }
@@ -273,7 +286,7 @@ mod tests {
     fn bundled(dir: &Path, contents: &str) -> PathBuf {
         let app = dir.join("app");
         fs::create_dir_all(&app).unwrap();
-        let path = app.join(CLI_NAME);
+        let path = app.join(BUNDLED_NAME);
         fs::write(&path, contents).unwrap();
         path
     }
@@ -372,7 +385,7 @@ mod tests {
     #[test]
     fn a_package_manager_install_needs_nothing() {
         let layout = Layout {
-            bundled: PathBuf::from("/usr/bin/teitunnel-cli"),
+            bundled: PathBuf::from("/usr/bin/teitunnel"),
             method: Method::Copy(PathBuf::from("/nonexistent")),
         };
         assert!(matches!(layout.state(), CliState::Packaged { .. }));

@@ -99,6 +99,11 @@
           "libayatana-appindicator3.so.1()(64bit)"
         ]
       }
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
     }
   },
   "plugins": {

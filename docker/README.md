@@ -1,6 +1,6 @@
 # Teitunnel
 
-**Cloudflare Tunnel routes on servers and in containers.** The image has `teitunnel-cli`
+**Cloudflare Tunnel routes on servers and in containers.** The image has `teitunnel`
 and Cloudflare's own `cloudflared`: add routes through reviewed plans (tunnel, DNS record
 and optional login in one step), and run this machine's tunnels as the container's main
 process.
@@ -20,7 +20,7 @@ docker run -d --name teitunnel --restart unless-stopped \
 The API token needs **Cloudflare Tunnel: Edit**, **DNS: Edit** and **Zone: Read**. It's
 read from `CLOUDFLARE_API_TOKEN` or, better, a secret file (`CLOUDFLARE_API_TOKEN_FILE`),
 and never written to the volume. Routes point at other containers by name when they share
-a network. The health check is `teitunnel-cli routes --check`.
+a network. The health check is `teitunnel routes --check`.
 
 With Docker Compose, see the
 [Compose guide](https://teitunnel.teispace.com/docs/tutorials/docker-compose/).
@@ -32,7 +32,7 @@ With Docker Compose, see the
 
 ## Trust
 
-- Built by GitHub Actions from each release's own `teitunnel-cli`, after checking its
+- Built by GitHub Actions from each release's own `teitunnel`, after checking its
   checksums and build provenance; no rebuild.
 - Runs as a non-root user on a distroless base; state lives only in `/data`.
 - SBOM and SLSA provenance attached. Verify with the GitHub CLI:

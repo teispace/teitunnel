@@ -193,7 +193,7 @@ const faq: { q: string; a: string }[] = [
 // What the CLI prints (apps/cli/src/main.rs, locales/en.json).
 const cli = [
   "$ export CLOUDFLARE_API_TOKEN=…",
-  "$ teitunnel-cli route add app.example.com 3000 --yes",
+  "$ teitunnel route add app.example.com 3000 --yes",
   " 1. Create tunnel “web-01”",
   " 2. Update tunnel “web-01” to serve 1 route",
   " 3. Add DNS record app.example.com → tunnel “web-01”",
@@ -202,7 +202,7 @@ const cli = [
   "    done: Add DNS record app.example.com → tunnel “web-01”",
   "Checking https://app.example.com…",
   "https://app.example.com works.",
-  "$ sudo -E teitunnel-cli always-on on",
+  "$ sudo -E teitunnel always-on on",
   "Turning Always-on on for web-01…",
   "Done: the connectors run as a service and start again after a restart.",
 ];

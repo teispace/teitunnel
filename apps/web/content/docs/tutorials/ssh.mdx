@@ -12,9 +12,9 @@ to the internet.
 On the machine you want to reach, add a route with a non-HTTP origin:
 
 ```sh
-teitunnel-cli route add ssh.example.com ssh://localhost:22 --allow you@example.com
-teitunnel-cli route add desktop.example.com rdp://localhost:3389 --allow you@example.com
-teitunnel-cli route add db.example.com tcp://localhost:5432 --allow you@example.com
+teitunnel route add ssh.example.com ssh://localhost:22 --allow you@example.com
+teitunnel route add desktop.example.com rdp://localhost:3389 --allow you@example.com
+teitunnel route add db.example.com tcp://localhost:5432 --allow you@example.com
 ```
 
 In the app: **New Route**, service `ssh://localhost:22`, and under **Advanced** turn on

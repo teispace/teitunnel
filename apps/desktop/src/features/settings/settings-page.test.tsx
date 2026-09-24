@@ -19,6 +19,7 @@ beforeEach(() => {
     notifyQuickShares: true,
     notifyDoctor: true,
     checkForUpdates: true,
+    cliOfferDismissed: false,
     ignoredIssues: [],
   };
   update = {
@@ -29,7 +30,7 @@ beforeEach(() => {
     state: { state: "idle" },
     installOnQuit: true,
   };
-  cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
+  cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel", command: null };
   calls.length = 0;
   mockIPC((cmd, args) => {
     calls.push(cmd);
@@ -43,6 +44,7 @@ beforeEach(() => {
         notifyQuickShares: patch.notifyQuickShares ?? stored.notifyQuickShares,
         notifyDoctor: patch.notifyDoctor ?? stored.notifyDoctor,
         checkForUpdates: patch.checkForUpdates ?? stored.checkForUpdates,
+        cliOfferDismissed: patch.cliOfferDismissed ?? stored.cliOfferDismissed,
         ignoredIssues: stored.ignoredIssues,
       };
       return stored;
@@ -50,11 +52,11 @@ beforeEach(() => {
     if (cmd === "updates_status") return update;
     if (cmd === "cli_status") return cli;
     if (cmd === "cli_install") {
-      cli = { state: "installed", path: "/opt/homebrew/bin/teitunnel-cli" };
+      cli = { state: "installed", path: "/opt/homebrew/bin/teitunnel" };
       return cli;
     }
     if (cmd === "cli_uninstall") {
-      cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
+      cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel", command: null };
       return cli;
     }
     if (cmd === "updates_check") {
@@ -124,7 +126,7 @@ describe("SettingsPage", () => {
   it("installs the command line tool and removes it again", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: "Install" }));
-    expect(await screen.findByText("Installed at /opt/homebrew/bin/teitunnel-cli.")).toBeTruthy();
+    expect(await screen.findByText("Installed at /opt/homebrew/bin/teitunnel.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Uninstall" }));
     await waitFor(() => expect(calls).toContain("cli_uninstall"));
     expect(await screen.findByRole("button", { name: "Install" })).toBeTruthy();
@@ -133,9 +135,9 @@ describe("SettingsPage", () => {
   it("shows the command to run when it can't write the folder itself", async () => {
     cli = {
       state: "notInstalled",
-      path: "/usr/local/bin/teitunnel-cli",
+      path: "/usr/local/bin/teitunnel",
       command:
-        "sudo ln -s '/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli' '/usr/local/bin/teitunnel-cli'",
+        "sudo ln -s '/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli' '/usr/local/bin/teitunnel'",
     };
     renderPage();
     expect(await screen.findByText(/can't write to that folder/)).toBeTruthy();

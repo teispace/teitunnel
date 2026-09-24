@@ -44,7 +44,7 @@ further down, and every file is also on the [download page](/download/).
     Teitunnel lives in the menu bar as well as the Dock, and keeps credentials in your
     keychain.
 
-    Prefer Homebrew? The same signed app, with `teitunnel-cli` on your `PATH`:
+    Prefer Homebrew? The same signed app, with `teitunnel` on your `PATH`:
 
     ```sh
     brew install --cask teispace/tap/teitunnel
@@ -128,7 +128,7 @@ further down, and every file is also on the [download page](/download/).
     installed and unlocked; routes can keep running as a `systemd --user` service.
   </Tab>
   <Tab value="Server (CLI)">
-    `teitunnel-cli` is released on its own for servers without a desktop:
+    The `teitunnel` command is also released on its own, for servers without a desktop:
 
     <Downloads cli />
 
@@ -136,8 +136,8 @@ further down, and every file is also on the [download page](/download/).
 
     ```sh
     curl -LO https://github.com/teispace/teitunnel/releases/latest/download/teitunnel-cli_<version>_linux-x64.tar.gz
-    sudo tar -xzf teitunnel-cli_*_linux-x64.tar.gz -C /usr/local/bin teitunnel-cli
-    teitunnel-cli --version
+    sudo tar -xzf teitunnel-cli_*_linux-x64.tar.gz -C /usr/local/bin teitunnel
+    teitunnel --version
     ```
 
     With Homebrew, on macOS or Linux (it installs `cloudflared` too, and shell completions):
@@ -146,8 +146,8 @@ further down, and every file is also on the [download page](/download/).
     brew install teispace/tap/teitunnel-cli
     ```
 
-    Then follow [Servers and containers](/docs/guides/servers). If you have the desktop app,
-    **Settings ▸ General ▸ Command line ▸ Install** puts the same CLI on your `PATH`.
+    Then follow [Servers and containers](/docs/guides/servers). With the desktop app you
+    already have it: see [Command line](/docs/reference/cli#install-it).
   </Tab>
   <Tab value="Docker">
     The image has the command line and Cloudflare's own `cloudflared`, runs as a non-root user
@@ -160,7 +160,7 @@ further down, and every file is also on the [download page](/download/).
 
     It's on [Docker Hub](https://hub.docker.com/r/teispace/teitunnel) and as
     `ghcr.io/teispace/teitunnel` (the same image), built for `linux/amd64` and `linux/arm64`
-    from each release's own `teitunnel-cli`, and tagged with the version (`0.1.1`), the minor
+    from each release's own `teitunnel`, and tagged with the version (`0.1.1`), the minor
     version (`0.1`) and `latest`. To check that an image came from this repository's release
     workflow:
 

@@ -73,9 +73,9 @@ export const commands = {
 } | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
-	/**  Quick Shares running in terminals (`teitunnel-cli share`), oldest first. */
+	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
 	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
-	/**  Stops a terminal's Quick Share (asks its `teitunnel-cli` to end). */
+	/**  Stops a terminal's Quick Share (asks its `teitunnel` to end). */
 	quickShareCliStop: (owner: string) => __TAURI_INVOKE<null>("quick_share_cli_stop", { owner }),
 	/**  The cloudflared binary in use, or `null` if none is installed. */
 	binaryStatus: () => __TAURI_INVOKE<{
@@ -1617,6 +1617,11 @@ export type Settings = {
 	/**  Check for app updates by itself (at launch and daily). */
 	checkForUpdates: boolean,
 	/**
+	 *  The one-time "Install teitunnel?" offer was answered (Install or Not now), on
+	 *  installs where the CLI isn't put on the PATH by the installer (D-090).
+	 */
+	cliOfferDismissed: boolean,
+	/**
 	 *  Doctor issues the user chose to ignore (stable issue ids). Changed with
 	 *  [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
 	 */
@@ -1637,6 +1642,8 @@ export type SettingsPatch = {
 	notifyDoctor?: boolean | null,
 	/**  Automatic update checks on or off. */
 	checkForUpdates?: boolean | null,
+	/**  The command line offer answered. */
+	cliOfferDismissed?: boolean | null,
 };
 
 /**  How bad an issue is. */

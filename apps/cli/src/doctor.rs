@@ -1,4 +1,4 @@
-//! `teitunnel-cli doctor`: the app's checks, from the terminal. Issues ignored in the
+//! `teitunnel doctor`: the app's checks, from the terminal. Issues ignored in the
 //! app stay hidden; `--fix` applies only the fixes the app's "Fix Safe Issues" would
 //! (each through a fresh plan that touches nothing Teitunnel doesn't own).
 

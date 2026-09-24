@@ -132,7 +132,7 @@ export function useStopDomainShare() {
   });
 }
 
-/** Quick Shares running in terminals (`teitunnel-cli share`); refreshed every 5 s. */
+/** Quick Shares running in terminals (`teitunnel share`); refreshed every 5 s. */
 export function useTerminalShares() {
   return useQuery({
     queryKey: [...queryKeys.quickShares.all(), "terminals"],

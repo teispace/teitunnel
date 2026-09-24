@@ -73,10 +73,10 @@ function steps(download: Download): ReactNode[] {
         ? [
             <>
               Unpack it onto your PATH:
-              <Code>{`sudo tar -xzf ${file} -C /usr/local/bin teitunnel-cli`}</Code>
+              <Code>{`sudo tar -xzf ${file} -C /usr/local/bin teitunnel`}</Code>
             </>,
             <>
-              Check it: <code>teitunnel-cli --version</code>, then see{" "}
+              Check it: <code>teitunnel --version</code>, then see{" "}
               <Link className="underline underline-offset-4" href="/docs/guides/servers">
                 Servers and containers
               </Link>
@@ -85,11 +85,11 @@ function steps(download: Download): ReactNode[] {
           ]
         : [
             <>
-              Unzip <strong>{file}</strong> and move <code>teitunnel-cli</code> to a folder on your
+              Unzip <strong>{file}</strong> and move <code>teitunnel</code> to a folder on your
               PATH.
             </>,
             <>
-              Check it: <code>teitunnel-cli --version</code>, then see the{" "}
+              Check it: <code>teitunnel --version</code>, then see the{" "}
               <Link className="underline underline-offset-4" href="/docs/reference/cli">
                 CLI reference
               </Link>

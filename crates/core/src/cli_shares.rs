@@ -1,4 +1,4 @@
-//! Quick Shares started by `teitunnel-cli share` in a terminal, as the app sees them: the
+//! Quick Shares started by `teitunnel share` in a terminal, as the app sees them: the
 //! CLI records its live share next to its process registry (`run-cli/<pid>-<start>/`),
 //! and the app lists the ones whose CLI is still running and can stop them (M10-03).
 

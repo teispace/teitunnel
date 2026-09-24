@@ -38,7 +38,7 @@ export function useSetOpenAtLogin() {
 
 const cliKey = ["settings", "cli"] as const;
 
-/** Whether `teitunnel-cli` is on the PATH (D-077). */
+/** Whether `teitunnel` is on the PATH (D-077). */
 export function useCliStatus() {
   return useQuery({ queryKey: cliKey, queryFn: () => call(commands.cliStatus()) });
 }

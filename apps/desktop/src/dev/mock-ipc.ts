@@ -39,6 +39,8 @@ let settings: Settings = {
   notifyQuickShares: true,
   notifyDoctor: true,
   checkForUpdates: true,
+  // Screenshots and design review show the app as it looks after the one-time offer.
+  cliOfferDismissed: true,
   ignoredIssues: [],
 };
 
@@ -485,9 +487,9 @@ export function installMockIpc(): void {
         case "updates_restart":
           return null;
         case "cli_status":
-          return { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel-cli", command: null };
+          return { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel", command: null };
         case "cli_install":
-          return { state: "installed", path: "/opt/homebrew/bin/teitunnel-cli" };
+          return { state: "installed", path: "/opt/homebrew/bin/teitunnel" };
         case "settings_set": {
           const patch = payload["patch"] as SettingsPatch;
           settings = {
@@ -497,6 +499,7 @@ export function installMockIpc(): void {
             notifyQuickShares: patch.notifyQuickShares ?? settings.notifyQuickShares,
             notifyDoctor: patch.notifyDoctor ?? settings.notifyDoctor,
             checkForUpdates: patch.checkForUpdates ?? settings.checkForUpdates,
+            cliOfferDismissed: patch.cliOfferDismissed ?? settings.cliOfferDismissed,
             ignoredIssues: settings.ignoredIssues,
           };
           return settings;

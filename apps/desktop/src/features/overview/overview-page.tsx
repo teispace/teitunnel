@@ -13,6 +13,7 @@ import { useQuickShares } from "@/features/quick-share";
 import { useLiveTraffic } from "@/features/routes";
 import { useRoutesOverview } from "@/features/routes/queries";
 import { routeStatus } from "@/features/routes/status";
+import { CliOffer } from "@/features/settings";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
@@ -69,6 +70,9 @@ export function OverviewPage() {
     return (
       <>
         <TitlebarToolbar title={t("overview.title")} />
+        <div className="mx-auto w-full max-w-[680px] px-5 pt-2 empty:hidden">
+          <CliOffer />
+        </div>
         <EmptyState
           icon={LayoutGrid}
           title={t("overview.empty.title")}
@@ -96,6 +100,7 @@ export function OverviewPage() {
     <>
       <TitlebarToolbar title={t("overview.title")} />
       <div className="mx-auto flex w-full max-w-[680px] flex-col gap-6 overflow-y-auto px-5 pt-2 pb-8">
+        <CliOffer />
         {problems > 0 ? (
           <Link
             to="/doctor"

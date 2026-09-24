@@ -1,9 +1,9 @@
 ---
 title: Servers and containers
-description: Run Cloudflare Tunnel routes on a VPS, AWS EC2, Azure, Google Cloud, Docker or Kubernetes with teitunnel-cli, as a sandboxed systemd service, with a web dashboard and an API.
+description: Run Cloudflare Tunnel routes on a VPS, AWS EC2, Azure, Google Cloud, Docker or Kubernetes with teitunnel, as a sandboxed systemd service, with a web dashboard and an API.
 ---
 
-The app is for your computer. On a server, `teitunnel-cli` does the same job from the
+The app is for your computer. On a server, `teitunnel` does the same job from the
 terminal: it adds routes through the same reviewed plans, and runs the connectors itself
 or as a system service.
 
@@ -19,14 +19,14 @@ export CLOUDFLARE_API_TOKEN_FILE=/run/secrets/cloudflare_api_token
 The token is checked, used for that command and never written to disk. Create it in the
 Cloudflare dashboard with **Cloudflare Tunnel · Edit**, **DNS · Edit** and **Zone · Read**
 (add the two **Access** permissions if routes should require a login). On a machine that
-does have a keychain, `teitunnel-cli setup` stores it there once instead.
+does have a keychain, `teitunnel setup` stores it there once instead.
 
 ## Any Linux server (VPS, EC2, Azure VM, Compute Engine)
 
 ```sh
-teitunnel-cli route add app.example.com 3000 --yes   # creates this server's tunnel
-sudo -E teitunnel-cli always-on on                   # a systemd service, started at boot
-teitunnel-cli routes                                 # status
+teitunnel route add app.example.com 3000 --yes   # creates this server's tunnel
+sudo -E teitunnel always-on on                   # a systemd service, started at boot
+teitunnel routes                                 # status
 ```
 
 Run as root, `always-on` installs a **system** unit in `/etc/systemd/system`: it starts at
@@ -39,7 +39,7 @@ Nothing about the cloud provider matters: the connector only makes outbound conn
 Cloudflare, so no inbound port, load balancer or security-group rule is needed. Keep the
 origin (your app) listening on `localhost`.
 
-Without systemd, run `teitunnel-cli up` under the supervisor you have (runit, s6,
+Without systemd, run `teitunnel up` under the supervisor you have (runit, s6,
 OpenRC, a `@reboot` job): it runs every tunnel of the machine in the foreground and stops
 them on `SIGTERM`.
 
@@ -59,7 +59,7 @@ The image is multi-arch (`linux/amd64`, `linux/arm64`); pin a version (`:0.1.0`)
 a minor release (`:0.1`) instead of `latest` if you want to choose when it changes.
 
 Routes point at other containers by name (`http://web:80`) when they share a network.
-The container's health check is `teitunnel-cli routes --check`, which fails unless every
+The container's health check is `teitunnel routes --check`, which fails unless every
 route is live.
 
 ### Docker Compose
@@ -115,29 +115,29 @@ spec:
 ```
 
 Route to Services by their cluster name, e.g.
-`kubectl exec deploy/teitunnel -- teitunnel-cli route add app.example.com http://web.default.svc:80 --yes`.
+`kubectl exec deploy/teitunnel -- teitunnel route add app.example.com http://web.default.svc:80 --yes`.
 
 ## Web dashboard and API
-`teitunnel-cli serve` runs the tunnels like `up` and adds a small dashboard: every
+`teitunnel serve` runs the tunnels like `up` and adds a small dashboard: every
 tunnel and route with its status, adding and removing routes and tunnels (each change is
 reviewed before it's applied), and shares on your domains.
 
 ```sh
-teitunnel-cli serve --set-password      # once; or set TEITUNNEL_WEB_PASSWORD
-teitunnel-cli serve                     # http://127.0.0.1:8765
+teitunnel serve --set-password      # once; or set TEITUNNEL_WEB_PASSWORD
+teitunnel serve                     # http://127.0.0.1:8765
 ```
 
 It listens on this machine only. To reach it from elsewhere, publish it through Teitunnel
-itself with a login (`teitunnel-cli route add admin.example.com http://127.0.0.1:8765
+itself with a login (`teitunnel route add admin.example.com http://127.0.0.1:8765
 --allow you@example.com`), or pass `--listen 0.0.0.0:8765 --allow-remote` behind a TLS
 proxy with `--secure-cookies`.
 
-For automation, create an API key (`teitunnel-cli api-key create deploy`, shown once) and
+For automation, create an API key (`teitunnel api-key create deploy`, shown once) and
 call the API with `Authorization: Bearer <key>`. A change is two calls: `POST
 /api/preview` returns the plan and its fingerprint, and `POST /api/apply` applies exactly
 that plan (or answers 409 if Cloudflare changed in between). The API is described at
 `/api/openapi.json`.
 
 ## Temporary shares from a server
-`teitunnel-cli share 8080` prints a random `trycloudflare.com` address for as long as the
+`teitunnel share 8080` prints a random `trycloudflare.com` address for as long as the
 command runs; `--on demo.example.com` uses your own domain instead.

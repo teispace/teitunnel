@@ -11,7 +11,7 @@ import { useNow } from "@/lib/use-now";
 import { useStopTerminalShare } from "../queries";
 import { QrButton } from "./qr-button";
 
-/** A Quick Share running in a terminal (`teitunnel-cli share`). */
+/** A Quick Share running in a terminal (`teitunnel share`). */
 export function TerminalShareCard({ share }: { share: CliShare }) {
   const now = useNow();
   const stop = useStopTerminalShare();

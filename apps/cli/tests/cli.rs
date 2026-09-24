@@ -39,7 +39,7 @@ fn prints_shell_completions() {
     let output = cli(dir.path(), &["completions", "zsh"]);
     assert!(output.status.success());
     let script = String::from_utf8_lossy(&output.stdout);
-    assert!(script.starts_with("#compdef teitunnel-cli"), "{script}");
+    assert!(script.starts_with("#compdef teitunnel"), "{script}");
     for command in ["share", "doctor", "route", "export"] {
         assert!(script.contains(command), "{command}");
     }

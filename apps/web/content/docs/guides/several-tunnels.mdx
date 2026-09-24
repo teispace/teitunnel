@@ -43,11 +43,11 @@ instead.
 ## From the terminal
 
 ```sh
-teitunnel-cli tunnels                                # this machine's tunnels
-teitunnel-cli tunnel create staging
-teitunnel-cli route add beta.example.com 4000 --tunnel staging
-teitunnel-cli route remove beta.example.com          # finds the tunnel by itself
-teitunnel-cli export config-yaml --tunnel staging
-teitunnel-cli tunnel adopt home-lab                  # run an existing tunnel here too
-teitunnel-cli tunnel delete staging
+teitunnel tunnels                                # this machine's tunnels
+teitunnel tunnel create staging
+teitunnel route add beta.example.com 4000 --tunnel staging
+teitunnel route remove beta.example.com          # finds the tunnel by itself
+teitunnel export config-yaml --tunnel staging
+teitunnel tunnel adopt home-lab                  # run an existing tunnel here too
+teitunnel tunnel delete staging
 ```

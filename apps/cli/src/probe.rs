@@ -37,7 +37,7 @@ impl ProbedConnectors {
     }
 }
 
-const NOT_HERE: &str = "Teitunnel runs connectors, not the CLI. Open Teitunnel, run `teitunnel-cli up`, or turn on Always-on to serve this machine's routes.";
+const NOT_HERE: &str = "Teitunnel runs connectors, not the CLI. Open Teitunnel, run `teitunnel up`, or turn on Always-on to serve this machine's routes.";
 
 impl Connectors for ProbedConnectors {
     fn state(&self, tunnel_id: &str) -> Option<ConnectorState> {

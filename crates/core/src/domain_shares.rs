@@ -1,6 +1,6 @@
 //! Share on your own domain: a temporary route (a hostname on one of the account's
 //! domains, on this machine's default tunnel) that goes away when the share is stopped,
-//! when it expires, or when whoever started it (the app, or a `teitunnel-cli share`)
+//! when it expires, or when whoever started it (the app, or a `teitunnel share`)
 //! exits. It is made and removed through the plan → apply engine like any route; this
 //! module only remembers which routes are temporary and when they end (M10-03, D-068).
 

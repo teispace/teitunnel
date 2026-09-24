@@ -39,14 +39,15 @@ case "$package" in
 esac
 
 echo "$files" >"$out/files.txt"
-app=$(grep -E '^/usr/bin/[Tt]eitunnel$' <<<"$files" || true)
+# The app is /usr/bin/Teitunnel; the command /usr/bin/teitunnel (D-091).
+app=$(grep -x '/usr/bin/Teitunnel' <<<"$files" || true)
 [ -n "$app" ] || { fail "No /usr/bin/Teitunnel in the package"; exit 1; }
-grep -q '^/usr/bin/teitunnel-cli$' <<<"$files" || fail "teitunnel-cli isn't in the package"
+grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the package"
 desktop=$(grep -E '\.desktop$' <<<"$files" | head -1)
 [ -n "$desktop" ] || fail "No desktop entry"
 [ -n "$desktop" ] && cp "$desktop" "$out/"
 grep -qE '/icons/hicolor/.*/apps/' <<<"$files" || fail "No icon in the hicolor theme"
-teitunnel-cli --version
+teitunnel --version | grep '^teitunnel ' || fail "teitunnel --version failed"
 
 # A virtual display, a session bus, a window manager, and a tray watcher.
 export DISPLAY=:99

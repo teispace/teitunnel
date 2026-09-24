@@ -1,4 +1,4 @@
-//! `teitunnel-cli share <origin>`: a Quick Share that lives exactly as long as the
+//! `teitunnel share <origin>`: a Quick Share that lives exactly as long as the
 //! command. The one place the CLI runs a connector (D-056 keeps routes' connectors in
 //! the app): a share started from a terminal belongs to that terminal, so Ctrl-C, closing
 //! the terminal or `--for` ends it, and a CLI that dies without stopping it has its
@@ -98,7 +98,7 @@ pub(crate) async fn run(
     let reaped = PidRegistry::reap_abandoned(&runs).await;
     if !reaped.is_empty() {
         status(&format!(
-            "Stopped {} share(s) left running by an earlier teitunnel-cli.",
+            "Stopped {} share(s) left running by an earlier teitunnel.",
             reaped.len()
         ));
     }
@@ -198,7 +198,7 @@ fn announce(
     stop_after: Option<Duration>,
     qr: bool,
 ) -> Result<(), String> {
-    // The URL alone on stdout, so `teitunnel-cli share 3000 | head -1` works in scripts.
+    // The URL alone on stdout, so `teitunnel share 3000 | head -1` works in scripts.
     out!("{url}")?;
     if qr
         && io::stdout().is_terminal()
@@ -234,7 +234,7 @@ fn describe(duration: Duration) -> String {
     parts.join(" ")
 }
 
-/// `teitunnel-cli share <origin> --on <hostname>`: a temporary route on one of the
+/// `teitunnel share <origin> --on <hostname>`: a temporary route on one of the
 /// account's domains, through this machine's tunnel, for as long as the command runs
 /// (or `--for`). The app, or an Always-on connector, serves it; the app also removes it
 /// if this command dies without doing so.

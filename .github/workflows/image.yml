@@ -2,7 +2,7 @@ name: Image
 
 # Publishes ghcr.io/teispace/teitunnel and docker.io/teispace/teitunnel (the same image,
 # the same digest; linux/amd64, linux/arm64) for a release, built
-# from that release's own teitunnel-cli binaries after checking their checksums and build
+# from that release's own teitunnel binaries after checking their checksums and build
 # provenance, so the image runs exactly what the release ships (D-084). Tags: 0.1.0, 0.1,
 # and latest when it's the latest release.
 #
@@ -67,7 +67,7 @@ jobs:
           mkdir -p ctx/data
           for arch in x64:amd64 arm64:arm64; do
             mkdir -p "ctx/linux-${arch#*:}"
-            tar -xzf rel/teitunnel-cli_*_linux-"${arch%:*}".tar.gz -C "ctx/linux-${arch#*:}" teitunnel-cli
+            tar -xzf rel/teitunnel-cli_*_linux-"${arch%:*}".tar.gz -C "ctx/linux-${arch#*:}" teitunnel
           done
           {
             echo "tag=$tag"
@@ -86,13 +86,13 @@ jobs:
             type=raw,value=latest,enable=${{ steps.release.outputs.latest }}
           labels: |
             org.opencontainers.image.title=Teitunnel
-            org.opencontainers.image.description=teitunnel-cli and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
+            org.opencontainers.image.description=The teitunnel command and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
             org.opencontainers.image.url=https://teitunnel.teispace.com/docs/guides/servers/
             org.opencontainers.image.documentation=https://teitunnel.teispace.com/docs/tutorials/docker-compose/
             org.opencontainers.image.vendor=Teispace
             org.opencontainers.image.licenses=MIT
           annotations: |
-            org.opencontainers.image.description=teitunnel-cli and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
+            org.opencontainers.image.description=The teitunnel command and cloudflared: run and manage Cloudflare Tunnel routes on servers and in containers.
             org.opencontainers.image.licenses=MIT
 
       - name: Build for this runner
@@ -107,7 +107,7 @@ jobs:
       - name: Smoke test
         run: |
           version=${{ steps.release.outputs.tag }}
-          docker run --rm teitunnel:test --version | tee /dev/stderr | grep -qx "teitunnel-cli ${version#v}"
+          docker run --rm teitunnel:test --version | tee /dev/stderr | grep -qx "teitunnel ${version#v}"
           docker run --rm --entrypoint /usr/local/bin/cloudflared teitunnel:test --version
           docker run --rm teitunnel:test routes 2>&1 | grep -q CLOUDFLARE_API_TOKEN
 

@@ -3,7 +3,7 @@ title: Server API
 description: Automate a Teitunnel server with its HTTP API.
 ---
 
-`teitunnel-cli serve` runs a server's tunnels and offers a small HTTP API next to its web
+`teitunnel serve` runs a server's tunnels and offers a small HTTP API next to its web
 dashboard (see [Servers and containers](/docs/guides/servers#web-dashboard-and-api)). The
 machine-readable description is at `/api/openapi.json`.
 
@@ -12,9 +12,9 @@ machine-readable description is at `/api/openapi.json`.
 Create a key on the server and send it as a bearer token:
 
 ```sh
-teitunnel-cli api-key create deploy     # printed once; store it as a secret
-teitunnel-cli api-key list
-teitunnel-cli api-key revoke 3
+teitunnel api-key create deploy     # printed once; store it as a secret
+teitunnel api-key list
+teitunnel api-key revoke 3
 ```
 
 ```http
