@@ -17,6 +17,7 @@ publish = false
 teitunnel-cf-api = { path = "crates/cf-api" }
 teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
+teitunnel-lens = { path = "crates/lens" }
 
 # Tauri (stay on 2.x, D-015)
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
@@ -72,6 +73,23 @@ keyring = "4.2.0"
 base64 = "0.23"
 getrandom = "0.4.3"
 argon2 = { version = "0.6", default-features = false, features = ["alloc", "password-hash"] }
+
+# Lens: the local inspector proxy (crates/lens)
+hyper = { version = "1.11", default-features = false }
+hyper-util = { version = "0.1.20", default-features = false }
+http = "1.5"
+http-body = "1.1"
+http-body-util = "0.1.5"
+bytes = "1.12"
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = { version = "0.26.5", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls-platform-verifier = "0.7.0"
+ring = "0.17.14"
+subtle = "2.6"
+brotli-decompressor = "5.0.3"
+httpdate = "1.0.3"
+percent-encoding = "2.3.2"
+mime_guess = { version = "2.0.5", default-features = false }
 
 # Web dashboard for servers (teitunnel-cli serve)
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
