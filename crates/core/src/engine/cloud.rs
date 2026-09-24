@@ -84,6 +84,12 @@ pub trait CloudApi: Send + Sync {
         &self,
         zone: &str,
     ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
+    /// Records in a zone whose comment contains `needle` (e.g. Teitunnel's marker).
+    fn records_with_comment(
+        &self,
+        zone: &str,
+        needle: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
     /// Creates a record.
     fn create_record(
         &self,
@@ -447,6 +453,14 @@ impl CloudApi for Client {
 
     async fn cname_records(&self, zone: &str) -> cf_api::Result<Vec<DnsRecord>> {
         self.dns_records_of_type(zone, "CNAME").await
+    }
+
+    async fn records_with_comment(
+        &self,
+        zone: &str,
+        needle: &str,
+    ) -> cf_api::Result<Vec<DnsRecord>> {
+        self.dns_records_with_comment(zone, needle).await
     }
 
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {

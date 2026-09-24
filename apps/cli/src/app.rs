@@ -92,6 +92,7 @@ pub(crate) async fn share(
     origin: &str,
     stop_after: Option<Duration>,
     qr: bool,
+    json: bool,
     choice: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     if client.hello().approved {
@@ -108,8 +109,9 @@ pub(crate) async fn share(
         .await
         .map_err(|e| describe(&e))?;
     let url = share.url.clone().unwrap_or_default();
-    out!("{url}")?;
+    out!("{}", crate::share::url_line(&url, json))?;
     if qr
+        && !json
         && std::io::stdout().is_terminal()
         && let Some(code) = teitunnel_core::quick_share::qr_terminal(&url)
     {

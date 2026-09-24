@@ -262,7 +262,11 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         accounts: app.accounts.clone(),
     };
     let backend = backend(&app, source, machine, supervisor.clone());
-    let server = McpServer::builder(Arc::clone(&backend), settings.clone()).build();
+    let server = McpServer::builder(Arc::clone(&backend), settings.clone())
+        .provider(Arc::new(
+            teitunnel_mcp::reservations::ReservationTools::new(Arc::clone(&backend)),
+        ))
+        .build();
     status(&format!(
         "Teitunnel MCP server ({} mode) on stdio. Connect an AI client with `teitunnel mcp install <client>`.",
         settings.mode

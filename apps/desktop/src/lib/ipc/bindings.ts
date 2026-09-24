@@ -347,6 +347,10 @@ export const commands = {
 	integrationsSet: (patch: IntegrationsPatch) => __TAURI_INVOKE<Integrations>("integrations_set", { patch }),
 	/**  Stops always allowing a program: its next change is asked about again. */
 	integrationsRevoke: (name: string) => __TAURI_INVOKE<Integrations>("integrations_revoke", { name }),
+	/**  The account's reserved hostnames and who holds them (the cache when offline). */
+	reservationsList: (accountId: string) => __TAURI_INVOKE<Reservations>("reservations_list", { accountId }),
+	/**  Whether `hostname` is free, yours, or held by someone else (one DNS read). */
+	reservationsAvailability: (accountId: string, hostname: string) => __TAURI_INVOKE<Availability>("reservations_availability", { accountId, hostname }),
 };
 
 /** Events */
@@ -436,7 +440,11 @@ export type ActivityKind =
 /**  A Snapshot was rolled back to an earlier version. */
 "rollbackSnapshot" | 
 /**  A Snapshot was deleted. */
-"deleteSnapshot";
+"deleteSnapshot" | 
+/**  A hostname was reserved (or its reservation renewed). */
+"reserveHostname" | 
+/**  A reservation was released. */
+"releaseHostname";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -620,6 +628,21 @@ number | null |
 /**  Anything else, already as text (hostnames, names, versions). */
 string;
 
+/**  Whether a hostname can be used, as the hostname field shows it while typing. */
+export type Availability = 
+/**  Nothing is there. */
+{ state: "free" } | 
+/**  This owner holds it (a reservation, or a route of this machine's). */
+{ state: "yours" } | 
+/**  Someone else holds it. */
+{ state: "held"; 
+/**  Who, until when, and how. */
+hold: Hold } | 
+/**  A DNS record Teitunnel didn't create is there. */
+{ state: "foreign" } | 
+/**  Not in any of the account's domains. */
+{ state: "noZone" };
+
 /**  Where cloudflared comes from and whether it's new enough. */
 export type BinaryInfo = {
 	/**  Absolute path. */
@@ -685,7 +708,7 @@ export type Change_Deserialize =
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -693,45 +716,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
+routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -739,14 +762,30 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never; until?: never } | 
+/**
+ *  Reserve a hostname for this owner, so teammates sharing the account see it's
+ *  taken (M12-11). Reserving it again changes the end date.
+ */
+({ type: "reserveHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**
+ *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
+ *  `2026-12-31T18:00Z`; `None` or empty: no end.
+ */
+until?: string | null }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Give up a hostname's reservation (a route there stays). */
+({ type: "releaseHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A change the user asks for (or a Doctor fix proposes). */
 export type Change_Serialize = 
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -754,45 +793,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
+routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -800,7 +839,23 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never; until?: never } | 
+/**
+ *  Reserve a hostname for this owner, so teammates sharing the account see it's
+ *  taken (M12-11). Reserving it again changes the end date.
+ */
+({ type: "reserveHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**
+ *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
+ *  `2026-12-31T18:00Z`; `None` or empty: no end.
+ */
+until: string | null }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Give up a hostname's reservation (a route there stays). */
+({ type: "releaseHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A terminal's live Quick Share. */
 export type CliShare = {
@@ -996,7 +1051,12 @@ export type DnsState =
 /**  A record pointing somewhere else (or not proxied). */
 { state: "elsewhere"; 
 /**  What it points at. */
-content: string };
+content: string; 
+/**
+ *  Who holds the name now, when it's another Teitunnel (their route or
+ *  reservation).
+ */
+heldBy: Hold | null };
 
 /**  A domain in a connected account. */
 export type Domain = {
@@ -1366,6 +1426,25 @@ export type HistoryRange =
 "day" | 
 /**  The last 7 days, in 30-minute buckets. */
 "week";
+
+/**  A hostname someone else holds. */
+export type Hold = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Who (`person@machine`); `None` when an older Teitunnel made it. */
+	owner: string | null,
+	/**  Until when (milliseconds since the epoch); `None`: no end. */
+	until: number | null,
+	/**  Reserved or routed. */
+	kind: HoldKind,
+};
+
+/**  How a name is held. */
+export type HoldKind = 
+/**  Reserved (a placeholder, or a lease on a route's record). */
+"reservation" | 
+/**  Routed by another machine's tunnel. */
+"route";
 
 /**  A Host header a share sends to its service. */
 export type HostHeader = {
@@ -1950,6 +2029,30 @@ export type RemoteLogsView = {
 	lines: LogLine[],
 };
 
+/**  One reserved hostname. */
+export type Reservation = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Who holds it (`person@machine`); `None` when the writer didn't say. */
+	owner: string | null,
+	/**  When it ends (milliseconds since the epoch); `None`: no end. */
+	until: number | null,
+	/**  The holder routes it too (the lease is on the route's record). */
+	routed: boolean,
+	/**  Held by this owner. */
+	mine: boolean,
+	/**  It has ended (the name is free; the record is cleaned up on the next change). */
+	ended: boolean,
+};
+
+/**  The account's reservations, and whether they came from the cache. */
+export type Reservations = {
+	/**  By hostname. */
+	items: Reservation[],
+	/**  Read from the local cache because Cloudflare couldn't be reached. */
+	cached: boolean,
+};
+
 /**  A route as typed in the add/edit sheet. */
 export type RouteInput = RouteInput_Serialize | RouteInput_Deserialize;
 
@@ -2511,7 +2614,9 @@ export type StepKind =
 /**  Upload, publish, roll back or delete a Snapshot. */
 "snapshot" | 
 /**  Give a Snapshot its address, or take it away. */
-"snapshotAddress";
+"snapshotAddress" | 
+/**  Reserve a hostname, renew or end a reservation. */
+"reservation";
 
 /**  The state of one step while applying. */
 export type StepState = 
@@ -2848,7 +2953,20 @@ network: string;
 /**  The other route's range. */
 other: string; 
 /**  The other route's tunnel. */
-tunnel: string };
+tunnel: string } | 
+/**
+ *  Someone else holds the hostname (another machine's route, or a reservation that
+ *  hasn't ended): going ahead takes it over, which needs a confirmation.
+ */
+{ type: "heldBy"; 
+/**  Hostname. */
+hostname: string; 
+/**  Who (`person@machine`); `None` when an older Teitunnel made it. */
+owner: string | null; 
+/**  Until when (milliseconds since the epoch); `None`: no end. */
+until: number | null; 
+/**  Reserved or routed. */
+kind: HoldKind };
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {

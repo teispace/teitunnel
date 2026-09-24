@@ -102,7 +102,8 @@ impl Error {
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
                     | P::NoSuchNetwork(_)
-                    | P::NotBalanced(_),
+                    | P::NotBalanced(_)
+                    | P::NotReserved(_),
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
@@ -116,7 +117,8 @@ impl Error {
                     | P::BalancerExists(_)
                     | P::SnapshotExists(_)
                     | P::HostnameRouted(_)
-                    | P::HostnameServed { .. },
+                    | P::HostnameServed { .. }
+                    | P::HostnameInUse(_),
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,

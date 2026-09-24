@@ -228,6 +228,40 @@ enum Command {
         /// is running.
         #[arg(long)]
         here: bool,
+        /// Print `{"url": …, "hostname": …}` on stdout once it's live (for scripts and CI).
+        #[arg(long)]
+        json: bool,
+    },
+    /// Reserve a hostname so teammates sharing the account see it's taken (a placeholder
+    /// DNS record with your name, until a date or until released). Reserving it again
+    /// changes the end date; a route you add there keeps the reservation.
+    Reserve {
+        /// The hostname, e.g. `alice.dev.example.com`.
+        hostname: String,
+        /// When it ends: `2026-12-31` (end of that day, UTC) or `2026-12-31T18:00Z`.
+        #[arg(long, value_name = "DATE")]
+        until: Option<String>,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// List the account's reserved hostnames and who holds them (`reservations ls`).
+    Reservations {
+        /// `ls` (the default).
+        #[arg(value_enum, default_value = "ls")]
+        action: ReservationsAction,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Give up a hostname's reservation (a route there stays).
+    Release {
+        /// The hostname.
+        hostname: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
     },
     /// List shares (the app's, terminals' and on your domains), or stop one.
     Shares {
@@ -282,6 +316,13 @@ enum Command {
         /// Print JSON.
         #[arg(long)]
         json: bool,
+    },
+    /// The cloudflared Teitunnel uses: `status`, or `install` (the latest release from
+    /// Cloudflare, verified, into Teitunnel's data folder; for servers and CI).
+    Cloudflared {
+        /// `status` or `install`.
+        #[arg(value_enum, default_value = "status")]
+        action: CloudflaredAction,
     },
     /// Print a shell completion script, e.g. `teitunnel completions zsh`. It completes
     /// commands and flags, and your hostnames, tunnels, domains, shares and accounts from
@@ -510,6 +551,10 @@ struct ApplyArgs {
     /// didn't create, or routing a public range.
     #[arg(long)]
     replace: bool,
+    /// Take a hostname someone else holds (their reservation, or another machine's
+    /// route).
+    #[arg(long)]
+    take_over: bool,
     /// One of this machine's tunnels, by name. Default: the tunnel carrying the route,
     /// or the default tunnel for a new one.
     #[arg(long)]
@@ -519,6 +564,17 @@ struct ApplyArgs {
 fn parse_range(value: &str) -> Result<teitunnel_core::analytics::AnalyticsRange, String> {
     teitunnel_core::analytics::AnalyticsRange::parse(value)
         .ok_or_else(|| format!("`{value}` isn't a range; use hour, day, week or month."))
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CloudflaredAction {
+    Status,
+    Install,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ReservationsAction {
+    Ls,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -569,14 +625,15 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             no_host_header,
             app,
             here,
+            json,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
             let wanted = app::Where::from_flags(app, here);
             if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
-                return app::share(&client, &origin, stop_after, !no_qr, &host_header).await;
+                return app::share(&client, &origin, stop_after, !no_qr, json, &host_header).await;
             }
-            return share::run(&origin, stop_after, !no_qr, &host_header).await;
+            return share::run(&origin, stop_after, !no_qr, json, &host_header).await;
         }
         Command::Shares { stop, json, app } => {
             let wanted = app::Where::from_flags(app, false);
@@ -624,6 +681,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             return Ok(ExitCode::SUCCESS);
         }
         Command::Setup => return setup().await,
+        Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -657,20 +715,38 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             allow,
             host_header,
             no_host_header,
+            json,
             ..
         } => {
             share::run_on_domain(
                 &app,
                 &hostname,
                 &origin,
-                account.as_deref(),
-                access_rule(&allow),
-                stop_after,
+                share::DomainShareOptions {
+                    account,
+                    allow: access_rule(&allow),
+                    stop_after,
+                    json,
+                },
                 &share::host_header_choice(host_header, no_host_header),
             )
             .await
         }
+        Command::Reserve {
+            hostname,
+            until,
+            apply,
+        } => change_routes(&app, Change::ReserveHostname { hostname, until }, &apply).await,
+        Command::Release { hostname, apply } => {
+            change_routes(&app, Change::ReleaseHostname { hostname }, &apply).await
+        }
+        Command::Reservations {
+            action: ReservationsAction::Ls,
+            account,
+            json,
+        } => reservations(&app, account.as_deref(), json).await,
         Command::Share { .. }
+        | Command::Cloudflared { .. }
         | Command::Completions { .. }
         | Command::Complete { .. }
         | Command::Status { .. }
@@ -988,6 +1064,26 @@ async fn tunnel_for(
             .map_err(|e| e.to_string()),
         _ => Ok(None),
     }
+}
+
+/// `cloudflared status|install`: the binary Teitunnel runs, found like the app finds it.
+async fn cloudflared_command(action: CloudflaredAction) -> Result<ExitCode, String> {
+    let binary = context::binary(&context::data_dir()?);
+    let found = match action {
+        CloudflaredAction::Status => binary.current().await,
+        CloudflaredAction::Install => binary.install_latest(|_| {}).await,
+    }
+    .map_err(|e| match e {
+        cloudflared::Error::NotFound => {
+            "cloudflared isn't installed. Run `teitunnel cloudflared install`.".to_owned()
+        }
+        other => other.to_string(),
+    })?;
+    let version = found
+        .version
+        .map_or_else(|| "unknown version".to_owned(), |v| v.to_string());
+    out!("{}\t{version}", found.path.display())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Connects the accounts an API token reaches. With a token in the environment it only
@@ -1312,6 +1408,21 @@ fn warning_text(warning: &Warning) -> String {
         } => format!(
             "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
         ),
+        Warning::HeldBy {
+            hostname,
+            owner,
+            until,
+            kind,
+        } => format!(
+            "{} Pass --take-over to take it.",
+            teitunnel_core::reservations::describe(&teitunnel_core::engine::Hold {
+                hostname: hostname.clone(),
+                owner: owner.clone(),
+                until: *until,
+                kind: *kind,
+            })
+            .english()
+        ),
     }
 }
 
@@ -1324,6 +1435,74 @@ fn print_plan(plan: &Plan, account_id: &str) -> Result<(), String> {
         out!("{:>2}. {}", index + 1, step.description)?;
     }
     Ok(())
+}
+
+/// What a plan needs confirming: taking a name someone else holds (`--take-over`), and
+/// anything else (`--replace`: records Teitunnel didn't create, public ranges).
+fn confirmations(plan: &Plan) -> (bool, bool) {
+    let held = plan
+        .warnings
+        .iter()
+        .any(|w| matches!(w, Warning::HeldBy { .. }));
+    let other = plan.warnings.iter().any(|w| {
+        matches!(
+            w,
+            Warning::ReplacesForeignRecord { .. }
+                | Warning::DeletesForeignRecord { .. }
+                | Warning::PublicNetwork { .. }
+        )
+    });
+    (held, other || (plan.requires_confirmation && !held))
+}
+
+/// `reservations ls`: the account's reserved hostnames and who holds them.
+async fn reservations(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    use teitunnel_core::engine::ownership::format_until;
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let listed = teitunnel_core::reservations::list(&app.engine, &api, &account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    if json {
+        out!(
+            "{}",
+            serde_json::to_string(&listed).map_err(|e| e.to_string())?
+        )?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    if listed.cached {
+        let _ = writeln!(
+            io::stderr().lock(),
+            "Cloudflare couldn't be reached; these are the reservations seen last."
+        );
+    }
+    if listed.items.is_empty() {
+        out!(
+            "No reserved hostnames in {}. Reserve one with `teitunnel reserve <hostname>`.",
+            account.name
+        )?;
+    }
+    for r in &listed.items {
+        let owner = if r.mine {
+            "you".to_owned()
+        } else {
+            r.owner
+                .clone()
+                .unwrap_or_else(|| "another Teitunnel".to_owned())
+        };
+        let until = match (r.ended, r.until) {
+            (true, Some(at)) => format!("ended {}", format_until(at)),
+            (_, Some(at)) => format!("until {}", format_until(at)),
+            (_, None) => "no end date".to_owned(),
+        };
+        let routed = if r.routed { "\troutes it" } else { "" };
+        out!("{}\t{owner}\t{until}{routed}", r.hostname)?;
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Asks `question` (y/N). Without a terminal to ask on, `--yes` is needed.
@@ -1368,7 +1547,13 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
         return Ok(ExitCode::SUCCESS);
     }
     print_plan(&plan, &account.id)?;
-    if plan.requires_confirmation && !apply.replace {
+    let (held, other) = confirmations(&plan);
+    if held && !apply.take_over {
+        return Ok(share::held(
+            "Someone else holds this hostname (see above). Pass --take-over to take it.",
+        ));
+    }
+    if plan.requires_confirmation && other && !apply.replace {
         return Err("This needs a confirmation (see above). Pass --replace to allow it.".into());
     }
     if !apply.yes && !confirm("Apply?")? {
@@ -1380,7 +1565,7 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
     let steps = plan.view(&account.id).steps;
     let approval = Approval {
         fingerprint: &plan.fingerprint,
-        confirmed: apply.replace,
+        confirmed: apply.replace || apply.take_over,
     };
     let outcome = app
         .engine

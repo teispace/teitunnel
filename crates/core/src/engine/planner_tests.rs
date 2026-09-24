@@ -95,6 +95,9 @@ fn fresh() -> Snapshot {
         elsewhere: Vec::new(),
         balance: None,
         site: None,
+        held: Vec::new(),
+        owner: "me@Mac".into(),
+        now: 0,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -758,6 +761,8 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::AttachSnapshotDomain { .. } => "domain+",
             Step::DetachSnapshotDomain { .. } => "domain-",
             Step::DeleteSnapshotWorker { .. } => "worker-",
+            Step::CreateReservation { .. } => "reserve+",
+            Step::SetLease { .. } => "lease~",
         })
         .collect()
 }

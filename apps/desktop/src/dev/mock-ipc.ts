@@ -1024,6 +1024,40 @@ export function installMockIpc(): void {
           ];
         case "snapshots_list":
           return snapshots;
+        case "reservations_list":
+          return {
+            cached: false,
+            items: [
+              {
+                hostname: "alice.teispace.com",
+                owner: "alice@Alice-MacBook",
+                until: Date.parse("2026-12-31T00:00:00Z"),
+                routed: true,
+                mine: false,
+                ended: false,
+              },
+              {
+                hostname: "demo.teispace.com",
+                owner: "krishna@Krishnas-MacBook-Pro",
+                until: null,
+                routed: false,
+                mine: true,
+                ended: false,
+              },
+            ],
+          };
+        case "reservations_availability":
+          return String(payload["hostname"]).startsWith("alice.")
+            ? {
+                state: "held",
+                hold: {
+                  hostname: "alice.teispace.com",
+                  owner: "alice@Alice-MacBook",
+                  until: Date.parse("2026-12-31T00:00:00Z"),
+                  kind: "reservation",
+                },
+              }
+            : { state: "free" };
         case "snapshots_versions":
           return [
             {

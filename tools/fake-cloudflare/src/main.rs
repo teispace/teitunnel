@@ -210,8 +210,11 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 None => err(404, 1003, "Tunnel not found"),
             }
         }
-        // No Load Balancing add-on: no load balancers.
-        ("GET", ["zones", _, "load_balancers"]) => ok(json!([])),
+        // No Load Balancing add-on: no load balancers. No Workers either: no Custom
+        // Domains (a cleanup job finds no Snapshot).
+        ("GET", ["zones", _, "load_balancers"] | ["accounts", _, "workers", "domains"]) => {
+            ok(json!([]))
+        }
         ("GET", ["zones", zone, "dns_records"]) => {
             let records = s.records.get(*zone).cloned().unwrap_or_default();
             let matching = records
@@ -220,6 +223,11 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                     req.query.get("name").is_none_or(|n| r["name"] == *n)
                         && req.query.get("type").is_none_or(|t| r["type"] == *t)
                         && req.query.get("content").is_none_or(|c| r["content"] == *c)
+                        && req.query.get("comment.contains").is_none_or(|needle| {
+                            r["comment"]
+                                .as_str()
+                                .is_some_and(|comment| comment.contains(needle.as_str()))
+                        })
                 })
                 .collect();
             ok(Value::Array(matching))

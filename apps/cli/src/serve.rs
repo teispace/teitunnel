@@ -724,8 +724,12 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
             let backend =
                 crate::mcp::backend(&app, machine.clone(), machine.clone(), supervisor.clone());
             mcp_backend = Some(Arc::clone(&backend));
+            let reservations = Arc::new(teitunnel_mcp::reservations::ReservationTools::new(
+                Arc::clone(&backend),
+            ));
             let server = teitunnel_mcp::McpServer::builder(backend, settings.clone())
                 .via("mcp over HTTP")
+                .provider(reservations)
                 .build();
             let store = app.store().clone();
             let verify: teitunnel_mcp::http::KeyVerifier = Arc::new(move |key: String| {

@@ -58,6 +58,7 @@
     "confirm": {
       "publicNetwork": "Send these public addresses through this Mac",
       "records": "Replace the existing records",
+      "takeOver": "Take this hostname from whoever holds it",
       "publicNetwork@windows": "Send these public addresses through this PC",
       "publicNetwork@linux": "Send these public addresses through this computer"
     },
@@ -388,7 +389,11 @@
       "remoteOrigin@linux": "{origin} isn't on this computer. It must be reachable from here.",
       "publicNetwork@windows": "{network} isn't a private range. WARP clients would reach those addresses through this PC instead of the internet.",
       "publicNetwork@linux": "{network} isn't a private range. WARP clients would reach those addresses through this computer instead of the internet.",
-      "singleEndpoint": "Only this tunnel serves {hostname} so far. Add the same route on another machine so the load balancer has somewhere to fail over to."
+      "singleEndpoint": "Only this tunnel serves {hostname} so far. Add the same route on another machine so the load balancer has somewhere to fail over to.",
+      "heldByReservation": "{hostname} is reserved by {owner} until {until}. Going ahead takes it over.",
+      "heldByReservationForever": "{hostname} is reserved by {owner}. Going ahead takes it over.",
+      "heldByRoute": "{hostname} is routed by {owner} on another machine. Going ahead takes it over, and their route stops working.",
+      "heldBySomeone": "another Teitunnel"
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -489,6 +494,7 @@
     "stopped": "Connector stopped",
     "noDns": "No DNS record",
     "dnsElsewhere": "DNS points elsewhere",
+    "dnsHeldBy": "Routed by {owner} now",
     "live": "Live",
     "dot": {
       "healthy": "Healthy",
@@ -520,7 +526,9 @@
       "publishSnapshot": "Snapshots Published",
       "updateSnapshot": "Snapshot Versions",
       "rollbackSnapshot": "Snapshot Rollbacks",
-      "deleteSnapshot": "Snapshots Deleted"
+      "deleteSnapshot": "Snapshots Deleted",
+      "reserveHostname": "Hostnames Reserved",
+      "releaseHostname": "Reservations Released"
     },
     "show": {
       "all": "All Changes",
@@ -1061,7 +1069,75 @@
     "label": "Log",
     "noMatch": "No lines match."
   },
+  "reservations": {
+    "title": "Reservations",
+    "detail": "Reserved names are kept in your DNS, so everyone sharing this account sees who holds them.",
+    "list": "Reservations",
+    "loadFailed": "Couldn't load reservations",
+    "none": "No reservations",
+    "noneDetail": "Reserve a hostname so teammates sharing this account see it's taken.",
+    "reserve": "Reserve",
+    "reserveTitle": "Reserve a hostname",
+    "reserveDetail": "Teitunnel adds a placeholder DNS record that answers nothing, with your name on it. A route you add there later keeps the reservation.",
+    "hostname": "Hostname",
+    "until": "Until",
+    "untilHint": "Leave empty to keep it until you release it.",
+    "release": "Release",
+    "releaseLabel": "Release {hostname}",
+    "owner": "Owner",
+    "yours": "You",
+    "noEnd": "No end date",
+    "endsOn": "Until {date}",
+    "ended": "Ended {date}",
+    "routed": "Also routed",
+    "takeOver": "Take Over",
+    "reserved": "{hostname} is reserved.",
+    "released": "{hostname} is free again.",
+    "failed": "Couldn't change the reservation",
+    "cachedNote": "Cloudflare can't be reached; these are the reservations seen last.",
+    "untilLabel": "Until (optional)",
+    "availability": {
+      "checking": "Checking…",
+      "free": "Available",
+      "yours": "Reserved by you",
+      "reserved": "Reserved by {owner} until {until}",
+      "reservedForever": "Reserved by {owner}",
+      "routed": "Routed by {owner} on another machine",
+      "foreign": "Has a DNS record Teitunnel didn't create",
+      "someone": "another Teitunnel"
+    }
+  },
   "core": {
+    "reservations": {
+      "summary": {
+        "reserve": "Reserve {hostname}",
+        "reserveUntil": "Reserve {hostname} until {until}",
+        "release": "Release the reservation of {hostname}"
+      },
+      "step": {
+        "create": "Reserve {hostname} with a placeholder DNS record (no end date)",
+        "createUntil": "Reserve {hostname} with a placeholder DNS record until {until}",
+        "keep": "Keep {hostname} reserved (no end date)",
+        "keepUntil": "Keep {hostname} reserved until {until}",
+        "end": "End the reservation of {hostname} (a route there stays)"
+      },
+      "delta": {
+        "reserved": "Reserved",
+        "reservedUntil": "Reserved until {until}"
+      },
+      "error": {
+        "hostnameInUse": "{hostname} has a DNS record Teitunnel didn't create, so it can't be reserved. Choose another name.",
+        "notReserved": "{hostname} isn't reserved.",
+        "invalidUntil": "Enter an end date like 2026-12-31, or leave it empty for no end date.",
+        "untilPast": "The end date has already passed. Choose a later one."
+      },
+      "held": {
+        "reserved": "{hostname} is reserved by {owner} until {until}.",
+        "reservedForever": "{hostname} is reserved by {owner}.",
+        "routed": "{hostname} is routed by {owner}.",
+        "someone": "another Teitunnel"
+      }
+    },
     "error": {
       "hostname": {
         "empty": "Enter a hostname, like app.example.com.",

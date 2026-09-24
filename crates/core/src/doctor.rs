@@ -217,6 +217,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
             networks: Want::IfAllowed,
             ..ObserveNeed::none()
         },
+        engine.who(),
     )
     .await?;
     let tunnels = engine.tunnels(api, connectors, ctx.account).await?;
@@ -1272,6 +1273,9 @@ mod tests {
                 elsewhere: Vec::new(),
                 balance: None,
                 site: None,
+                held: Vec::new(),
+                owner: String::new(),
+                now: 0,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

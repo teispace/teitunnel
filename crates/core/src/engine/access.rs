@@ -338,7 +338,9 @@ impl AccessNeed {
             | Intent::RemoveNetwork { .. }
             | Intent::CreateTunnel { .. }
             | Intent::BalanceRoute { .. }
-            | Intent::UnbalanceRoute { .. } => Self::default(),
+            | Intent::UnbalanceRoute { .. }
+            | Intent::Reserve { .. }
+            | Intent::Release { .. } => Self::default(),
         }
     }
 

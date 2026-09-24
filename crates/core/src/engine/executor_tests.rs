@@ -24,7 +24,7 @@ const CTX: Context<'static> = Context {
 };
 
 fn engine() -> Engine {
-    Engine::new(Local::new(Store::open_in_memory().unwrap()))
+    Engine::new(Local::new(Store::open_in_memory().unwrap())).with_owner("me@Mac")
 }
 
 fn zones() -> CloudState {
@@ -169,7 +169,10 @@ async fn two_domains_from_zero_then_nothing_left() {
     let record = &state.records["z-yx"][0];
     assert_eq!(record.content, format!("{tunnel}.cfargotunnel.com"));
     assert!(record.proxied);
-    assert_eq!(record.comment.as_deref(), Some("teitunnel:route=r2"));
+    assert_eq!(
+        record.comment.as_deref(),
+        Some("teitunnel:route=r2;by=me@Mac")
+    );
     assert_eq!(engine.local().owned_records("acc").await.unwrap().len(), 2);
     let starts = conns
         .calls()
@@ -1536,8 +1539,8 @@ async fn exports_the_routes_and_records_as_they_are() {
     assert_eq!(
         records,
         [
-            ("xyz.com", Some("teitunnel:route=r1")),
-            ("yx.com", Some("teitunnel:route=r2"))
+            ("xyz.com", Some("teitunnel:route=r1;by=me@Mac")),
+            ("yx.com", Some("teitunnel:route=r2;by=me@Mac"))
         ]
     );
     let terraform = crate::export::render(&input, crate::export::ExportFormat::Terraform);

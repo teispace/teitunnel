@@ -411,6 +411,20 @@ impl CloudApi for FakeCloud {
         })
     }
 
+    async fn records_with_comment(
+        &self,
+        zone: &str,
+        needle: &str,
+    ) -> cf_api::Result<Vec<DnsRecord>> {
+        self.with_zone(zone, |records| {
+            Ok(records
+                .iter()
+                .filter(|r| r.comment.as_deref().is_some_and(|c| c.contains(needle)))
+                .cloned()
+                .collect())
+        })
+    }
+
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {
         self.mutate()?;
         let id = self.next_id("rec");

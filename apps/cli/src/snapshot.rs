@@ -88,6 +88,10 @@ pub(crate) enum SnapshotCommand {
         /// Its name. Default: the folder's or project's.
         #[arg(long)]
         name: Option<String>,
+        /// If a Snapshot with this name exists (on this computer, or published by another
+        /// computer or an earlier CI job), publish a new version of it instead.
+        #[arg(long)]
+        or_update: bool,
         #[command(flatten)]
         source: SourceArgs,
         #[command(flatten)]
@@ -145,6 +149,9 @@ pub(crate) enum SnapshotCommand {
     Rm {
         /// The Snapshot's name or hostname.
         snapshot: String,
+        /// Succeed when there's no such Snapshot (cleanup jobs that may run twice).
+        #[arg(long)]
+        missing_ok: bool,
         #[command(flatten)]
         change: ChangeArgs,
     },
@@ -411,6 +418,23 @@ async fn apply(
     }
 }
 
+/// The Snapshot by name, hostname or id: remembered here, or else published from
+/// another computer or CI job (then remembered here too).
+async fn locate(
+    app: &App,
+    account: &teitunnel_core::accounts::Account,
+    key: &str,
+) -> Result<SnapshotView, String> {
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    snapshot::find_or_adopt(&app.engine, &api, &account.id, key, "cli")
+        .await
+        .map_err(|e| error(&e))
+}
+
 fn exit(applied: bool) -> ExitCode {
     if applied {
         ExitCode::SUCCESS
@@ -471,6 +495,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             path,
             on,
             name,
+            or_update,
             source,
             settings,
             change,
@@ -479,22 +504,57 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             let prepared = prepare(&preparations, &path, &source, change.yes).await?;
             print_prepared(&prepared)?;
             let name = name.unwrap_or_else(|| prepared.suggested_name.clone());
-            let request = SnapshotChange::Publish {
-                prepared: prepared.id.clone(),
-                name: name.clone(),
-                address: on.map_or(AddressInput::WorkersDev, |hostname| AddressInput::Domain {
-                    hostname,
-                }),
-                options: SnapshotOptions {
-                    spa: settings.spa || prepared.single_page,
-                    password: password_input(&settings)?,
-                    access: access(&settings.allow),
-                    expires_in_days: settings.expires,
+            let options = SnapshotOptions {
+                spa: settings.spa || prepared.single_page,
+                password: password_input(&settings)?,
+                access: access(&settings.allow),
+                expires_in_days: settings.expires,
+            };
+            // `--or-update`: a Snapshot with this name (here, or published by another
+            // computer or an earlier CI job) gets a new version instead.
+            let existing = if or_update {
+                locate(app, &account, &name).await.ok()
+            } else {
+                None
+            };
+            let request = match &existing {
+                Some(current) => {
+                    if let Some(hostname) = on.as_deref()
+                        && !current.hostname.eq_ignore_ascii_case(hostname)
+                    {
+                        out!(
+                            "! {} already answers at {}; its address stays.",
+                            current.name,
+                            current.url
+                        )?;
+                    }
+                    SnapshotChange::Update {
+                        snapshot: current.id.clone(),
+                        prepared: Some(prepared.id.clone()),
+                        options: SnapshotOptions {
+                            access: options.access.clone().or_else(|| current.access.clone()),
+                            ..options
+                        },
+                    }
+                }
+                None => SnapshotChange::Publish {
+                    prepared: prepared.id.clone(),
+                    name: name.clone(),
+                    address: on.map_or(AddressInput::WorkersDev, |hostname| AddressInput::Domain {
+                        hostname,
+                    }),
+                    options,
                 },
             };
-            let applied = apply(app, &preparations, &request, &change, &account).await?;
-            if applied && let Ok(published) = snapshot::find(&app.engine, &account.id, &name).await
-            {
+            let applied = match apply(app, &preparations, &request, &change, &account).await {
+                Err(message) if existing.is_some() && message.contains("same files") => {
+                    out!("Nothing to change: the same files and settings are live.")?;
+                    true
+                }
+                other => other?,
+            };
+            let key = existing.as_ref().map_or(name.as_str(), |e| e.id.as_str());
+            if applied && let Ok(published) = snapshot::find(&app.engine, &account.id, key).await {
                 print_result(&published, change.json)?;
             }
             Ok(exit(applied))
@@ -508,9 +568,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             change,
         } => {
             let account = app.account(change.account.as_deref()).await?;
-            let current = snapshot::find(&app.engine, &account.id, &key)
-                .await
-                .map_err(|e| error(&e))?;
+            let current = locate(app, &account, &key).await?;
             let prepared = if settings_only {
                 None
             } else {
@@ -593,9 +651,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             json,
         } => {
             let account = app.account(account.as_deref()).await?;
-            let found = snapshot::find(&app.engine, &account.id, &key)
-                .await
-                .map_err(|e| error(&e))?;
+            let found = locate(app, &account, &key).await?;
             let versions = snapshot::versions(&app.engine, &found.id)
                 .await
                 .map_err(|e| error(&e))?;
@@ -623,9 +679,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             change,
         } => {
             let account = app.account(change.account.as_deref()).await?;
-            let found = snapshot::find(&app.engine, &account.id, &key)
-                .await
-                .map_err(|e| error(&e))?;
+            let found = locate(app, &account, &key).await?;
             let version = match version {
                 Some(version) => version,
                 None => snapshot::versions(&app.engine, &found.id)
@@ -647,12 +701,23 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
         }
         SnapshotCommand::Rm {
             snapshot: key,
+            missing_ok,
             change,
         } => {
             let account = app.account(change.account.as_deref()).await?;
-            let found = snapshot::find(&app.engine, &account.id, &key)
+            let api = app
+                .accounts
+                .client(&account.id)
                 .await
-                .map_err(|e| error(&e))?;
+                .map_err(|e| e.to_string())?;
+            let found =
+                match snapshot::find_or_adopt(&app.engine, &api, &account.id, &key, "cli").await {
+                    Err(snapshot::SnapshotError::NotFound) if missing_ok => {
+                        out!("No Snapshot {key}; nothing to delete.")?;
+                        return Ok(ExitCode::SUCCESS);
+                    }
+                    found => found.map_err(|e| error(&e))?,
+                };
             let request = SnapshotChange::Delete { snapshot: found.id };
             Ok(exit(
                 apply(app, &preparations, &request, &change, &account).await?,

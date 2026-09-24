@@ -6,6 +6,7 @@
 
 use super::{Builder, PlanError};
 use crate::engine::{
+    ownership::{Marker, Ownership},
     sites::{SiteAddress, SiteContent, SiteFile, SiteSettings, SiteSpec, SiteState},
     types::{Step, Warning},
 };
@@ -55,12 +56,29 @@ fn serve(b: &mut Builder<'_>, site: &SiteSpec, state: &SiteState) -> Result<(), 
                     worker: worker.clone(),
                 });
             }
-            let existing: Vec<_> = b
+            let (placeholders, existing): (Vec<_>, Vec<_>) = b
                 .snapshot
                 .records_named(hostname.as_str())
                 .filter(|r| matches!(r.record.kind.as_str(), "A" | "AAAA" | "CNAME"))
                 .cloned()
-                .collect();
+                .partition(|r| {
+                    r.record
+                        .comment
+                        .as_deref()
+                        .and_then(Ownership::parse)
+                        .is_some_and(|o| o.marker == Marker::Lease)
+                });
+            // A reservation's placeholder makes way for the Snapshot (someone else's only
+            // with a confirmation).
+            if !placeholders.is_empty() {
+                b.take_over(hostname.as_str());
+            }
+            for record in placeholders {
+                b.steps.push(Step::DeleteRecord {
+                    zone_id: record.zone_id.clone(),
+                    record: record.record,
+                });
+            }
             if existing.iter().any(|r| r.owned) {
                 return Err(PlanError::HostnameRouted(hostname.to_string()));
             }

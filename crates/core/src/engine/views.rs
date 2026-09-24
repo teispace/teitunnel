@@ -113,6 +113,21 @@ pub enum Change {
         /// Record id.
         record_id: String,
     },
+    /// Reserve a hostname for this owner, so teammates sharing the account see it's
+    /// taken (M12-11). Reserving it again changes the end date.
+    ReserveHostname {
+        /// The hostname.
+        hostname: String,
+        /// When the reservation ends: `2026-12-31` (end of that day, UTC) or
+        /// `2026-12-31T18:00Z`; `None` or empty: no end.
+        #[serde(default)]
+        until: Option<String>,
+    },
+    /// Give up a hostname's reservation (a route there stays).
+    ReleaseHostname {
+        /// The hostname.
+        hostname: String,
+    },
 }
 
 /// Rejected input, pointing at the field to fix.
@@ -283,7 +298,37 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         Change::RestoreConfig => Intent::RestoreConfig {
             ingress: Vec::new(),
         },
+        Change::ReserveHostname { hostname, until } => Intent::Reserve {
+            hostname: parse_hostname(hostname)?,
+            until: parse_lease_end(until.as_deref(), crate::domain_shares::now_ms())?,
+        },
+        Change::ReleaseHostname { hostname } => Intent::Release {
+            hostname: parse_hostname(hostname)?,
+        },
     })
+}
+
+/// A reservation's end as typed (`2026-12-31`, `2026-12-31T18:00Z`; empty: none), which
+/// must be after `now`.
+///
+/// # Errors
+/// Not a date, or in the past (field `until`).
+pub fn parse_lease_end(input: Option<&str>, now: u64) -> Result<Option<u64>, InputError> {
+    use crate::text::msg::reservations::error as m;
+    let Some(input) = input.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let until = super::ownership::parse_until(input).ok_or_else(|| InputError {
+        field: "until",
+        message: m::invalid_until(),
+    })?;
+    if until <= now {
+        return Err(InputError {
+            field: "until",
+            message: m::until_past(),
+        });
+    }
+    Ok(Some(until))
 }
 
 /// What a step does, for its icon.
@@ -319,6 +364,8 @@ pub enum StepKind {
     Snapshot,
     /// Give a Snapshot its address, or take it away.
     SnapshotAddress,
+    /// Reserve a hostname, renew or end a reservation.
+    Reservation,
 }
 
 /// One step of a plan, as shown in the preview.
@@ -385,6 +432,7 @@ impl Step {
                 | Self::DisableWorkersDev { .. }
                 | Self::AttachSnapshotDomain { .. }
                 | Self::DetachSnapshotDomain { .. } => StepKind::SnapshotAddress,
+                Self::CreateReservation { .. } | Self::SetLease { .. } => StepKind::Reservation,
             },
             description: self.describe(tunnel_name),
             command: self.command(account_id, tunnel_name),
@@ -421,6 +469,10 @@ pub enum DnsState {
     Elsewhere {
         /// What it points at.
         content: String,
+        /// Who holds the name now, when it's another Teitunnel (their route or
+        /// reservation).
+        #[serde(rename = "heldBy")]
+        held_by: Option<super::ownership::Hold>,
     },
 }
 
@@ -610,6 +662,11 @@ pub(crate) fn overview(
             } else if let Some(first) = records.first() {
                 DnsState::Elsewhere {
                     content: first.record.content.clone(),
+                    held_by: snapshot
+                        .held
+                        .iter()
+                        .find(|h| h.hostname.eq_ignore_ascii_case(&hostname))
+                        .cloned(),
                 }
             } else {
                 DnsState::Missing

@@ -10,6 +10,7 @@ use super::{
     cloud::CloudApi,
     local::Local,
     networks::{NetworkState, ObservedNetworkRoute},
+    ownership::{Hold, Me, held_by_other},
     types::{ObservedRecord, ObservedTunnel, RouteElsewhere, Snapshot},
 };
 use crate::{domain::Hostname, store::StoreError};
@@ -138,6 +139,7 @@ impl ObserveNeed {
 /// API or database errors, or [`ObserveError::UnknownTunnel`] for a `target` that isn't
 /// this Mac's. A tunnel deleted elsewhere isn't an error: it's observed as missing, so
 /// the planner creates a new one.
+#[allow(clippy::too_many_arguments)]
 pub async fn observe<C: CloudApi>(
     api: &C,
     local: &Local,
@@ -146,6 +148,7 @@ pub async fn observe<C: CloudApi>(
     machine_name: &str,
     hostnames: Option<&[&Hostname]>,
     need: &ObserveNeed,
+    me: Who<'_>,
 ) -> Result<Snapshot, ObserveError> {
     let machine = local.tunnel(account, target).await?;
     if target.is_some() && machine.is_none() {
@@ -203,6 +206,25 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
+    let mine: Vec<String> = local
+        .tunnels(account)
+        .await?
+        .into_iter()
+        .map(|t| t.tunnel_id)
+        .collect();
+    let held: Vec<Hold> = records
+        .iter()
+        .filter_map(|r| {
+            held_by_other(
+                &r.record,
+                Me {
+                    owner: me.owner,
+                    tunnels: &mine,
+                    now: me.now,
+                },
+            )
+        })
+        .collect();
     let (access, networks, balance, site) = tokio::try_join!(
         observe_access(api, local, account, &need.access, &names),
         observe_networks(api, account, need.networks),
@@ -230,7 +252,19 @@ pub async fn observe<C: CloudApi>(
         networks,
         balance,
         site,
+        held,
+        owner: me.owner.to_owned(),
+        now: me.now,
     })
+}
+
+/// Who observes, to tell their names from other people's (M12-11).
+#[derive(Debug, Clone, Copy)]
+pub struct Who<'a> {
+    /// This machine's owner label (`person@machine`).
+    pub owner: &'a str,
+    /// Now (milliseconds since the epoch), for leases.
+    pub now: u64,
 }
 
 /// The routes Teitunnel last wrote to this Mac's other tunnels in `account`.

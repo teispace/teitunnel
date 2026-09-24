@@ -843,6 +843,18 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         self.changes.subscribe()
     }
 
+    fn reservations<'a>(
+        &'a self,
+        account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::reservations::Reservations>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            teitunnel_core::reservations::list(self.engine(), &api, account)
+                .await
+                .map_err(|e| engine_error(e, account))
+        })
+    }
+
     fn stop_own_shares(&self) -> BoxFuture<'_, usize> {
         Box::pin(async move {
             let quick: Vec<String> = self

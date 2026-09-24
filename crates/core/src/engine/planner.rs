@@ -25,6 +25,7 @@ use crate::domain::{Hostname, PathRule};
 
 use crate::text::{Text, UserText, english_display, msg};
 
+mod reservations;
 mod sites;
 
 /// Why no plan could be made. Messages are shown to the user.
@@ -90,6 +91,10 @@ pub enum PlanError {
     NoWorkersSubdomain,
     /// A login (Access) needs a hostname on one of the account's domains.
     SnapshotLoginNeedsDomain,
+    /// A DNS record Teitunnel didn't create is on the hostname, so it can't be reserved.
+    HostnameInUse(String),
+    /// The hostname isn't reserved.
+    NotReserved(String),
 }
 
 impl UserText for PlanError {
@@ -123,6 +128,8 @@ impl UserText for PlanError {
             }
             Self::NoWorkersSubdomain => msg::snapshot::error::no_workers_subdomain(),
             Self::SnapshotLoginNeedsDomain => msg::snapshot::error::login_needs_domain(),
+            Self::HostnameInUse(hostname) => msg::reservations::error::hostname_in_use(hostname),
+            Self::NotReserved(hostname) => msg::reservations::error::not_reserved(hostname),
         }
     }
 }
@@ -366,6 +373,7 @@ impl<'a> Builder<'a> {
             .records_named(hostname.as_str())
             .filter(|r| matches!(r.record.kind.as_str(), "A" | "AAAA" | "CNAME"))
             .collect();
+        self.take_over(hostname.as_str());
         let already_ours = existing.len() == 1
             && target.as_deref().is_some_and(|t| {
                 existing[0].record.content.eq_ignore_ascii_case(t) && existing[0].record.proxied
@@ -431,6 +439,7 @@ impl<'a> Builder<'a> {
                     zone_id: record.zone_id.clone(),
                     record: record.record.clone(),
                 });
+                reservations::restore(self, &record);
             } else {
                 self.warnings.push(Warning::KeepsForeignRecord {
                     hostname: hostname.to_owned(),
@@ -951,6 +960,8 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             number,
         } => sites::rollback(&mut b, site, version_id, *number)?,
         Intent::DeleteSnapshot { site } => sites::delete(&mut b, site),
+        Intent::Reserve { hostname, until } => reservations::reserve(&mut b, hostname, *until)?,
+        Intent::Release { hostname } => reservations::release(&mut b, hostname)?,
     }
     Ok(b.finish())
 }

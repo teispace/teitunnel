@@ -1,0 +1,171 @@
+---
+title: Previews in CI and teams
+description: Pull request previews on your own Cloudflare domain with the Teitunnel GitHub Action or GitLab CI template, and hostname reservations for teams sharing one account.
+---
+
+Every pull request can get its own address on your domain, like
+`https://pr-42.preview.example.com`, published from CI to your own Cloudflare account:
+commented on the pull request, updated on every push, and removed when it closes.
+
+## Two kinds of preview
+
+- **Snapshot**: a static copy of your built site ([Snapshots](/docs/guides/snapshots)). It
+  stays up after the job, so reviewers can open it whenever they like. Each push
+  publishes a new version; only changed files are uploaded.
+- **Share**: a live tunnel to a server the job started (an API, a server-rendered app),
+  for as long as the job runs. Useful for end-to-end tests against a real hostname, or for
+  webhooks that need a public address.
+
+## GitHub Actions
+
+```yaml
+# .github/workflows/preview.yml
+name: Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  publish:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm ci
+      - uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          build: true
+          zone: example.com
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          mode: cleanup
+          zone: example.com
+```
+
+For a live share, start the server, then use `mode: share` with its `port`. The share
+stays up until the job ends; the action's post step stops it, removes its DNS record and
+deletes the job's tunnel, even when a step failed.
+
+The hostname is a template: `{number}`, `{branch}`, `{sha}`, `{repo}`, `{owner}` and
+`{zone}`, each made a valid DNS label. When several repositories share a zone, include
+`{repo}`: `pr-{number}.{repo}.{zone}`. The action's
+[README](https://github.com/teispace/teitunnel/tree/main/integrations/github-action) lists
+every input (`expires`, `password`, `allow` for a Cloudflare Access login, and more).
+
+### The token
+
+Use an **account-owned API token** (*Manage account ▸ Account API tokens*): it belongs to
+the account, not to a person who might leave. It needs:
+
+| Permission | For |
+|---|---|
+| Account · Cloudflare Tunnel · Edit, Zone · DNS · Edit, Zone · Zone · Read | Shares |
+| Account · Workers Scripts · Edit, Zone · Workers Routes · Edit | Snapshots |
+| Account · Access: Apps and Policies · Edit | `allow` (a login in front of the preview) |
+
+Limit it to the zones previews use and store it as a repository or environment secret.
+The action masks it and gives it to the CLI through the environment only.
+
+### Pull requests from forks
+
+GitHub doesn't give secrets to workflows run for pull requests from forks, so those
+previews are skipped. Don't work around it with `pull_request_target`: it runs with your
+secrets and a write token, and building the fork's code there hands both to whoever opened
+the pull request. If you must preview forks, let a maintainer apply a label after reviewing
+the code, run on `pull_request_target` only for that label, and check out the reviewed
+commit by its SHA.
+
+## GitLab CI
+
+Include the template and extend its jobs. GitLab shows the preview on the merge request
+through the environment ("View app"), and runs the stop job when the merge request is
+merged or closed.
+
+```yaml
+include:
+  - remote: https://raw.githubusercontent.com/teispace/teitunnel/main/integrations/gitlab-ci/teitunnel.gitlab-ci.yml
+
+variables:
+  TEITUNNEL_ZONE: example.com
+
+preview:
+  extends: .teitunnel-snapshot
+  stage: deploy
+  variables:
+    TEITUNNEL_PATH: dist
+  environment:
+    on_stop: preview-stop
+
+preview-stop:
+  extends: .teitunnel-snapshot-stop
+  stage: deploy
+```
+
+`.teitunnel-share` runs a live share around your job's `script` (set `TEITUNNEL_PORT`; the
+URL is in `$TEITUNNEL_URL`). Set `CLOUDFLARE_API_TOKEN` as a masked CI/CD variable.
+
+## Anywhere else
+
+The action and the template are thin wrappers around the CLI, which works in any CI:
+
+```sh
+export CLOUDFLARE_API_TOKEN=…            # from your CI's secrets
+teitunnel snapshot publish dist --name web-pr-42 --on pr-42.preview.example.com \
+  --or-update --yes --json               # {"url": "https://pr-42.preview.example.com", …}
+teitunnel snapshot rm pr-42.preview.example.com --missing-ok --yes
+
+teitunnel cloudflared install            # a verified cloudflared, if the machine has none
+teitunnel share 3000 --on pr-42.preview.example.com --json &   # up until stopped
+```
+
+`--json` prints the URL as `{"url", "hostname"}`. A hostname someone else holds exits
+with code **3**; other failures exit with 1.
+
+## Teams sharing one account
+
+When several people (and CI) use one Cloudflare account, Teitunnel writes who made each
+DNS record into its comment: `teitunnel:route=…;by=alice@Alice-MacBook`. Every Teitunnel
+reading the account sees who holds a name, and a plan that would take a teammate's
+hostname says so and needs your confirmation first.
+
+### Reservations
+
+Reserve a hostname so nobody else takes it, optionally until a date:
+
+```sh
+teitunnel reserve alice.dev.example.com                     # no end date
+teitunnel reserve pr-402.preview.example.com --until 2026-12-31
+teitunnel reservations ls
+teitunnel release alice.dev.example.com
+```
+
+In the app: **Domains ▸ Reservations ▸ Reserve**. The hostname field of a new route
+shows, as you type, whether the name is free, yours, or held by someone (and until when).
+
+A reservation lives in your DNS, so it needs no server: a placeholder record
+(`AAAA 100::`, proxied, which serves nothing) carrying the owner and end date in its
+comment. When you add a route on your reserved name, the route keeps the reservation;
+remove the route and the placeholder comes back. An ended reservation frees the name.
+
+Taking a name someone else holds needs `--take-over` on the command line (or confirming in
+the app). A share never takes one.
+
+<Callout>
+Your owner label is your user name and this computer's name. On a server or in CI set
+`TEITUNNEL_OWNER` to a stable name (the GitHub Action uses `github-actions/<repository>`).
+</Callout>
+
+AI agents can list, reserve and release names too, through the MCP tools
+`list_reservations`, `reserve_hostname` and `release_hostname`
+([AI agents](/docs/guides/ai-agents)).

@@ -1,5 +1,6 @@
 import type { Status } from "@/components/ui/status-dot";
 import { routeIssues } from "@/features/doctor/match";
+import { ownerName } from "@/features/reservations/format";
 import { t, translate } from "@/lib/i18n";
 import type { ConnectorState, Issue, RouteView, TunnelView } from "@/lib/ipc/bindings";
 
@@ -29,7 +30,13 @@ export function routeStatus(
   issues: readonly Issue[] = [],
 ): { dot: Status; label: string } {
   if (route.dns.state === "missing") return { dot: "warning", label: t("status.noDns") };
-  if (route.dns.state === "elsewhere") return { dot: "warning", label: t("status.dnsElsewhere") };
+  if (route.dns.state === "elsewhere")
+    return {
+      dot: "warning",
+      label: route.dns.heldBy
+        ? t("status.dnsHeldBy", { owner: ownerName(route.dns.heldBy.owner) })
+        : t("status.dnsElsewhere"),
+    };
   const connector = connectorStatus(tunnel?.connector ?? null);
   if (connector.dot !== "healthy") return connector;
   const [issue] = routeIssues(issues, route.hostname);

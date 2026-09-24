@@ -804,6 +804,105 @@ pub async fn find(
         .ok_or(SnapshotError::NotFound)
 }
 
+/// Finds a Snapshot this computer doesn't remember but the account has: published from
+/// another computer or an earlier CI job (a Worker named `teitunnel-<name>`, or the
+/// Worker serving `key` as a hostname). Remembers it here so it can be updated, rolled
+/// forward or deleted; its earlier versions' manifests aren't known here, and a password
+/// it had is kept only if given again on the next update. `Ok(None)`: no such Worker.
+///
+/// # Errors
+/// API and database errors.
+pub async fn adopt<C: CloudApi>(
+    engine: &Engine,
+    api: &C,
+    account: &str,
+    key: &str,
+    owner: &str,
+) -> Result<Option<SnapshotView>, SnapshotError> {
+    use crate::engine::sites::{SiteNeed, observe};
+    let key = key
+        .trim()
+        .trim_start_matches("https://")
+        .trim_end_matches('/');
+    let script = if key.contains('.') {
+        let served = api.worker_domains(account, None, Some(key)).await?;
+        match served
+            .into_iter()
+            .find(|d| d.hostname.eq_ignore_ascii_case(key))
+        {
+            Some(domain) if domain.service.starts_with(SCRIPT_PREFIX) => domain.service,
+            _ => return Ok(None),
+        }
+    } else if key.starts_with(SCRIPT_PREFIX) {
+        key.to_owned()
+    } else {
+        script_for(&valid_name(key)?)
+    };
+    let need = SiteNeed {
+        script: Some(script.clone()),
+        hostname: None,
+    };
+    let Some(state) = observe(api, account, &need).await? else {
+        return Ok(None);
+    };
+    if !state.exists {
+        return Ok(None);
+    }
+    let name = script
+        .strip_prefix(SCRIPT_PREFIX)
+        .unwrap_or(&script)
+        .to_owned();
+    let hostname = state
+        .domains
+        .first()
+        .map(|d| d.hostname.clone())
+        .or_else(|| {
+            state
+                .subdomain
+                .as_deref()
+                .filter(|_| state.workers_dev)
+                .map(|s| format!("{script}.{s}.workers.dev"))
+        });
+    let now = crate::domain_shares::now_ms();
+    let row = SiteRow {
+        id: uuid::Uuid::new_v4().to_string(),
+        account_id: account.to_owned(),
+        name: name.clone(),
+        script,
+        hostname,
+        source: String::new(),
+        spa: false,
+        password: false,
+        access: None,
+        expires_at: None,
+        owner: owner.to_owned(),
+        live_version: state.active_version,
+        created_at: now,
+        updated_at: now,
+    };
+    engine.local().save_site(&row).await?;
+    Ok(Some(find(engine, account, &row.id).await?))
+}
+
+/// [`find`], or else [`adopt`] from the account.
+///
+/// # Errors
+/// See both; [`SnapshotError::NotFound`] when neither finds it.
+pub async fn find_or_adopt<C: CloudApi>(
+    engine: &Engine,
+    api: &C,
+    account: &str,
+    key: &str,
+    owner: &str,
+) -> Result<SnapshotView, SnapshotError> {
+    match find(engine, account, key).await {
+        Err(SnapshotError::NotFound) => adopt(engine, api, account, key, owner)
+            .await?
+            .ok_or(SnapshotError::NotFound),
+        found => found,
+    }
+}
+
 /// Deletes every Snapshot whose time is up, in every account (swept like domain shares).
 /// Returns what couldn't be deleted; they're tried again next time.
 pub async fn sweep_expired<K: Connectors>(

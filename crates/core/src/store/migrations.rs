@@ -218,6 +218,19 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (snapshot_id, number)
         ) STRICT;",
     ),
+    // 14: a cache of the account's reservations (the truth is in DNS comments, M12-11)
+    M::up(
+        "CREATE TABLE IF NOT EXISTS reservations_cache (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            owner      TEXT,
+            until      INTEGER,
+            routed     INTEGER NOT NULL DEFAULT 0,
+            mine       INTEGER NOT NULL DEFAULT 0,
+            seen_at    INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

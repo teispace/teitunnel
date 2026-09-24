@@ -30,7 +30,7 @@ async fn a_share_through_the_app_needs_its_approval() {
     let app = testing::serve(dir.path(), Limits::default()).await.unwrap();
     let client = connect(dir.path(), Where::App).await.unwrap().unwrap();
 
-    let declined = share(&client, "5173", None, false, &HostHeaderChoice::Off)
+    let declined = share(&client, "5173", None, false, false, &HostHeaderChoice::Off)
         .await
         .unwrap_err();
     assert_eq!(declined, "Not allowed in Teitunnel. Nothing changed.");
@@ -41,6 +41,7 @@ async fn a_share_through_the_app_needs_its_approval() {
         &client,
         "5173",
         Some(Duration::from_secs(90)),
+        false,
         false,
         &HostHeaderChoice::Set {
             value: "localhost:5173".into(),

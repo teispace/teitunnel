@@ -326,6 +326,19 @@ pub trait Backend: Send + Sync + 'static {
     /// Stops everything this server started (its Quick Shares and domain shares).
     /// Returns how many were stopped.
     fn stop_own_shares(&self) -> BoxFuture<'_, usize>;
+
+    /// The account's reserved hostnames and who holds them (M12-11). Backends without
+    /// Cloudflare access say so.
+    fn reservations<'a>(
+        &'a self,
+        _account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::reservations::Reservations>> {
+        Box::pin(async {
+            Err(BackendError::Message(
+                "Reservations aren't available here.".into(),
+            ))
+        })
+    }
 }
 
 /// A backend shared between sessions.

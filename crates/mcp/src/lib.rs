@@ -28,6 +28,7 @@ mod prompts;
 mod protocol_tests;
 pub mod redaction;
 pub mod registry;
+pub mod reservations;
 mod resources;
 mod server;
 pub mod tools;

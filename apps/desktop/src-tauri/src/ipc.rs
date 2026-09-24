@@ -17,6 +17,7 @@ mod domain_shares;
 mod events;
 mod integrations;
 mod quick_share;
+mod reservations;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
 mod settings;
@@ -136,7 +137,9 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             snapshots::snapshots_apply,
             integrations::integrations_get,
             integrations::integrations_set,
-            integrations::integrations_revoke
+            integrations::integrations_revoke,
+            reservations::reservations_list,
+            reservations::reservations_availability
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

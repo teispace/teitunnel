@@ -57,6 +57,10 @@ pub enum ActivityKind {
     RollbackSnapshot,
     /// A Snapshot was deleted.
     DeleteSnapshot,
+    /// A hostname was reserved (or its reservation renewed).
+    ReserveHostname,
+    /// A reservation was released.
+    ReleaseHostname,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -79,6 +83,8 @@ impl From<&Intent> for ActivityKind {
             Intent::UpdateSnapshot { .. } => Self::UpdateSnapshot,
             Intent::RollbackSnapshot { .. } => Self::RollbackSnapshot,
             Intent::DeleteSnapshot { .. } => Self::DeleteSnapshot,
+            Intent::Reserve { .. } => Self::ReserveHostname,
+            Intent::Release { .. } => Self::ReleaseHostname,
         }
     }
 }
@@ -241,6 +247,15 @@ fn describe_rule(rule: &IngressRule) -> Text {
     }
     let settings: Vec<&str> = rule.origin_request.keys().map(String::as_str).collect();
     msg::raw(format!("{} · {}", rule.service, settings.join(", ")))
+}
+
+/// A reservation, e.g. `Reserved until 2026-12-31T00:00Z`.
+fn reserved(until: Option<u64>) -> Text {
+    use crate::text::msg::reservations::delta as m;
+    match until {
+        Some(until) => m::reserved_until(super::ownership::format_until(until)),
+        None => m::reserved(),
+    }
 }
 
 /// A DNS record's value, e.g. `A 192.0.2.1`.
@@ -409,6 +424,29 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 path: None,
                 before: Some(delta::endpoints(pool.origins.len() as u64)),
                 after: None,
+            }),
+            Step::CreateReservation {
+                hostname, until, ..
+            } => out.push(Delta {
+                area: DeltaArea::Dns,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(reserved(*until)),
+            }),
+            Step::SetLease {
+                record,
+                lease,
+                until,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Dns,
+                hostname: record.name.clone(),
+                path: None,
+                before: super::ownership::Ownership::parse(record.comment.as_deref().unwrap_or(""))
+                    .filter(|o| o.lease)
+                    .map(|o| reserved(o.until)),
+                after: lease.then(|| reserved(*until)),
             }),
             Step::AttachSnapshotDomain {
                 hostname, script, ..
