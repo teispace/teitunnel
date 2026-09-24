@@ -35,6 +35,7 @@ tauri-plugin-updater = "2.12.0"
 tauri-plugin-dialog = "2.7.3"
 # `teitunnel://` links (M12-07)
 tauri-plugin-deep-link = "2.4.10"
+tauri-plugin-global-shortcut = "2.3.2"
 # E2E only (never in release builds): embedded WebDriver for @wdio/tauri-service.
 tauri-plugin-wdio-webdriver = "1.4.0"
 tauri-plugin-wdio = "1.4.0"

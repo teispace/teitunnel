@@ -84,6 +84,40 @@ impl ServiceKind {
         }
     }
 
+    /// The framework's or runtime's own name (not translated), for native menus.
+    pub fn product_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::Vite => "Vite",
+            Self::Next => "Next.js",
+            Self::Astro => "Astro",
+            Self::Nuxt => "Nuxt",
+            Self::Remix => "Remix",
+            Self::SvelteKit => "SvelteKit",
+            Self::Angular => "Angular",
+            Self::Webpack => "webpack",
+            Self::Django => "Django",
+            Self::Flask => "Flask",
+            Self::FastApi => "FastAPI",
+            Self::Rails => "Rails",
+            Self::Laravel => "Laravel",
+            Self::Hugo => "Hugo",
+            Self::Jekyll => "Jekyll",
+            Self::Node => "Node.js",
+            Self::Python => "Python",
+            Self::Ruby => "Ruby",
+            Self::Php => "PHP",
+            Self::Java => "Java",
+            Self::Go => "Go",
+            Self::Docker => "Docker",
+            Self::Database | Self::System | Self::Other => return None,
+        })
+    }
+
+    /// Whether it's a dev server Teitunnel recognises by its framework.
+    pub fn is_dev_server(self) -> bool {
+        self.rank() == 0
+    }
+
     /// Suggested origin URL.
     pub(crate) fn origin(self, port: u16) -> String {
         match self {

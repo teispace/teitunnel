@@ -1,12 +1,115 @@
+import { useEffect, useState } from "react";
+import { detectPlatform } from "@/app/platform";
 import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { t } from "@/lib/i18n";
-import type { IntegrationsPatch } from "@/lib/ipc/bindings";
+import type {
+  GlobalShortcut,
+  Integrations,
+  IntegrationsPatch,
+  ShortcutAction,
+} from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { acceleratorFromEvent, formatAccelerator } from "./global-shortcut";
 import { useIntegrations, useRevokeClient, useUpdateIntegrations } from "./queries";
 
 const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+/**
+ * Settings ▸ Integrations ▸ Global shortcut: off by default; the keys are recorded by
+ * typing them, and the shell registers them (a shortcut another app has is refused).
+ */
+function ShortcutSection({
+  shortcut,
+  disabled,
+  onChange,
+}: {
+  shortcut: GlobalShortcut;
+  disabled: boolean;
+  onChange: (shortcut: GlobalShortcut) => void;
+}) {
+  const platform = detectPlatform();
+  const [recording, setRecording] = useState(false);
+  useEffect(() => {
+    if (!recording) return;
+    const onKey = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        setRecording(false);
+        return;
+      }
+      const keys = acceleratorFromEvent(event, platform);
+      if (!keys) return;
+      setRecording(false);
+      onChange({ ...shortcut, keys });
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording, platform, shortcut, onChange]);
+  const actions: { value: ShortcutAction; label: string }[] = [
+    { value: "shareDevServer", label: t("integrations.shortcut.shareDevServer") },
+    { value: "openQuickShare", label: t("integrations.shortcut.openQuickShare") },
+  ];
+  return (
+    <GroupedSection
+      title={t("integrations.shortcut.title")}
+      footer={t("integrations.shortcut.footer")}
+    >
+      <GroupedRow
+        label={t("integrations.shortcut.enabled")}
+        description={t("integrations.shortcut.enabledDetail")}
+      >
+        <Switch
+          aria-label={t("integrations.shortcut.enabled")}
+          checked={shortcut.enabled}
+          disabled={disabled}
+          onCheckedChange={(enabled) => onChange({ ...shortcut, enabled })}
+        />
+      </GroupedRow>
+      <GroupedRow label={t("integrations.shortcut.keys")}>
+        {recording ? (
+          <span role="status" className="text-callout text-secondary">
+            {t("integrations.shortcut.recording")}
+          </span>
+        ) : (
+          <Kbd keys={formatAccelerator(shortcut.keys, platform)} />
+        )}
+        <Button
+          size="sm"
+          disabled={disabled}
+          aria-label={
+            recording
+              ? t("integrations.shortcut.cancelRecord")
+              : t("integrations.shortcut.recordLabel")
+          }
+          onClick={() => setRecording((now) => !now)}
+        >
+          {recording ? t("integrations.shortcut.cancelRecord") : t("integrations.shortcut.record")}
+        </Button>
+      </GroupedRow>
+      <GroupedRow
+        label={t("integrations.shortcut.action")}
+        description={
+          shortcut.action === "shareDevServer"
+            ? t("integrations.shortcut.shareDevServerDetail")
+            : t("integrations.shortcut.openQuickShareDetail")
+        }
+      >
+        <Select
+          label={t("integrations.shortcut.action")}
+          options={actions}
+          value={shortcut.action}
+          disabled={disabled}
+          onValueChange={(action) => onChange({ ...shortcut, action })}
+        />
+      </GroupedRow>
+    </GroupedSection>
+  );
+}
 
 /** Settings ▸ Integrations: the control connection, links and always-allowed programs. */
 export function IntegrationsPane() {
@@ -24,7 +127,8 @@ export function IntegrationsPane() {
   }
   // Show the switch where it's going while the change is saved.
   const pending = update.isPending ? update.variables : undefined;
-  const value = (key: keyof IntegrationsPatch) => pending?.[key] ?? data[key];
+  const value = <K extends keyof IntegrationsPatch & keyof Integrations>(key: K) =>
+    pending?.[key] ?? data[key];
   const error = update.error ?? revoke.error;
   return (
     <>
@@ -88,6 +192,11 @@ export function IntegrationsPane() {
           />
         </GroupedRow>
       </GroupedSection>
+      <ShortcutSection
+        shortcut={value("shortcut")}
+        disabled={update.isPending}
+        onChange={(shortcut) => update.mutate({ shortcut })}
+      />
       {error ? (
         <p role="alert" className="text-callout text-error">
           {t("integrations.error", { message: toIpcError(error).message })}

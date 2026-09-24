@@ -568,7 +568,7 @@ fn any_window_focused<R: Runtime>(app: &AppHandle<R>) -> bool {
 }
 
 /// Shows a notification in the user's language, unless a Teitunnel window is in front.
-fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
+pub(crate) fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     if any_window_focused(app) {
         return;
     }
