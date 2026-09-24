@@ -399,7 +399,8 @@
         "rateLimit": "{zone} will use {used} of the {limit} rate limiting rules its plan allows.",
         "transform": "{zone} will use {used} of the {limit} Transform Rules its plan allows."
       },
-      "machineOnly": "{domain} has no login yet. The new one lets in only service tokens: people opening it in a browser are refused."
+      "machineOnly": "{domain} has no login yet. The new one lets in only service tokens: people opening it in a browser are refused.",
+      "workerRequests": "Every request to {pattern} runs a Worker and counts against your account's 100,000 free Worker requests a day. Past that, the site keeps working without it."
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -538,7 +539,9 @@
       "protectHostname": "Edge protection",
       "createServiceToken": "New service token",
       "revokeServiceToken": "Revoked service token",
-      "rotateServiceToken": "Rotated service token"
+      "rotateServiceToken": "Rotated service token",
+      "offlinePage": "Offline page",
+      "webhookInbox": "Webhook inbox"
     },
     "show": {
       "all": "All Changes",
@@ -583,7 +586,8 @@
       "loadBalancing": "Load balancing",
       "snapshot": "Snapshot",
       "protection": "Edge rule",
-      "serviceToken": "Service token"
+      "serviceToken": "Service token",
+      "worker": "Worker route"
     },
     "before": "Before: ",
     "after": "After: ",
@@ -863,7 +867,8 @@
     "access": "Protect routes with Access (optional)",
     "workers": "Publish Snapshots (optional)",
     "edgeRules": "Edge rules (bots, rate limits, headers)",
-    "serviceTokens": "Service tokens"
+    "serviceTokens": "Service tokens",
+    "d1": "Comments and webhook inboxes (optional)"
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -1026,7 +1031,8 @@
     "settings": "Settings",
     "analytics": "Analytics",
     "snapshots": "Snapshots",
-    "projects": "Projects"
+    "projects": "Projects",
+    "comments": "Comments"
   },
   "commands": {
     "group": {
@@ -2293,7 +2299,9 @@
     "transformRules": "Zone · Transform Rules · Edit",
     "transformRulesWhy": "To set or remove request and response headers on one hostname.",
     "serviceTokens": "Account · Access: Service Tokens · Edit",
-    "serviceTokensWhy": "To create and revoke tokens that let machines through a login."
+    "serviceTokensWhy": "To create and revoke tokens that let machines through a login.",
+    "d1": "Account · D1 · Edit",
+    "d1Why": "To keep Snapshot comments and webhooks in a database on your account."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",
@@ -2511,7 +2519,10 @@
       "expires": "Deletes itself",
       "never": "Never",
       "worker": "Worker",
-      "versions": "Versions"
+      "versions": "Versions",
+      "comments": "Comments",
+      "commentsOn": "On",
+      "commentsOff": "Off"
     },
     "protection": {
       "none": "Anyone with the address",
@@ -2571,7 +2582,9 @@
       "expires": "Delete after",
       "expiresNever": "Never",
       "expiresDays_one": "{count} day",
-      "expiresDays_other": "{count} days"
+      "expiresDays_other": "{count} days",
+      "comments": "Comments",
+      "commentsHelp": "Reviewers can pin comments to any spot on the pages. They're kept in a D1 database on your account, and every request then runs the Snapshot's Worker (100,000 a day on the free plan)."
     },
     "sheet": {
       "title": "Publish a Snapshot",
@@ -2592,7 +2605,8 @@
       "partial": "Publishing failed: {error}. Left in place: {leftovers}",
       "updated": "A new version of {name} is live",
       "published": "{name} is online"
-    }
+    },
+    "comments": "Comments"
   },
   "integrations": {
     "title": "Integrations",
@@ -2833,6 +2847,106 @@
       "balanced_routes": "Load-balanced routes",
       "snapshots": "Snapshots",
       "snapshot_versions": "Snapshot versions"
+    }
+  },
+  "comments": {
+    "title": "Comments",
+    "refresh": "Refresh Comments",
+    "list": "Shares with comments",
+    "loadFailed": "Couldn't load the comments",
+    "noSelection": "Select a share",
+    "empty": {
+      "title": "No comments yet",
+      "description": "Turn on Comments on a share or a Snapshot. Reviewers can then pin comments to any spot on its pages, and they show up here."
+    },
+    "kind": {
+      "quickShare": "Quick Share",
+      "route": "Route",
+      "snapshot": "Snapshot"
+    },
+    "none": "No comments yet",
+    "counts": "{open} · {comments}",
+    "openCount_one": "{count} open",
+    "openCount_other": "{count} open",
+    "commentCount_one": "{count} comment",
+    "commentCount_other": "{count} comments",
+    "unread_one": "{count} unread comment",
+    "unread_other": "{count} unread comments",
+    "threadLabel": "Comments on {path}",
+    "open": "Open",
+    "resolved": "Resolved",
+    "owner": "You",
+    "signedIn": "Signed in",
+    "replyLabel": "Reply",
+    "replyPlaceholder": "Reply…",
+    "reply": "Reply",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "openAtSpot": "Show on Page",
+    "openPage": "Open Page",
+    "filter": "Show",
+    "filterOpen_one": "Open ({count})",
+    "filterOpen_other": "Open ({count})",
+    "filterResolved_one": "Resolved ({count})",
+    "filterResolved_other": "Resolved ({count})",
+    "noneOpen": "Nothing open. Resolved comments are under Resolved.",
+    "noneResolved": "No resolved comments.",
+    "toggle": {
+      "label": "Comments",
+      "on": "Reviewers can now comment on this share's pages",
+      "off": "Comments are off for this share",
+      "open": "Show Comments"
+    }
+  },
+  "fronts": {
+    "title": "While This Computer Is Off",
+    "where": "Workers on your Cloudflare account keep answering when this computer is off or asleep.",
+    "off": "Off",
+    "edit": "Edit…",
+    "turnOn": "Turn On…",
+    "remove": "Remove",
+    "apply": "Apply",
+    "applyRemove": "Remove",
+    "applied": "{hostname} is updated",
+    "cost": "Every request it covers runs a Worker and counts against your account's 100,000 free Worker requests a day. Past that, the site keeps working without it.",
+    "offline": {
+      "label": "Offline page",
+      "sheetTitle": "Offline Page for {hostname}",
+      "description": "When this computer is off, visitors see your page instead of Cloudflare's error 1033.",
+      "title": "Title",
+      "message": "Message",
+      "whenAppDown": "Also when the app doesn't answer",
+      "whenAppDownHelp": "Shows the page when the tunnel is up but the local service returns 502 or 504."
+    },
+    "inbox": {
+      "label": "Webhook inbox",
+      "add": "Add Webhook Inbox…",
+      "sheetTitle": "Webhook Inbox for {hostname}",
+      "description": "Webhooks sent while this computer is off are kept on Cloudflare and delivered in order when it's back. Senders get 202 Accepted.",
+      "path": "Path",
+      "pathHelp": "Webhooks to this path and below, e.g. /webhooks/ or /api/stripe.",
+      "keep": "Keep up to",
+      "maxItems": "Webhooks kept",
+      "webhooksFor": "webhooks for",
+      "retention": "Days kept",
+      "days": "days",
+      "verify": {
+        "label": "Keep only signed webhooks",
+        "help": "Uses the signing secret saved in the inspector for this hostname. It's sent to Cloudflare as a Worker secret and never shown.",
+        "none": "Keep every webhook",
+        "github": "GitHub",
+        "stripe": "Stripe",
+        "standard": "Standard Webhooks (Svix, Clerk, Resend…)"
+      },
+      "activity": "Webhooks to {path}",
+      "empty": "No webhooks kept yet.",
+      "arrived": "Arrived {when}",
+      "waiting": "Waiting",
+      "retrying": "Waiting: {error}",
+      "delivered": "Delivered {when} ({status})",
+      "deliverNow": "Deliver Now",
+      "deliveredNow_one": "{count} webhook delivered",
+      "deliveredNow_other": "{count} webhooks delivered"
     }
   }
 }

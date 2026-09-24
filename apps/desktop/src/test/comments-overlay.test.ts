@@ -36,9 +36,9 @@ interface Overlay {
 const overlay = {} as Overlay;
 
 beforeAll(() => {
-  (globalThis as Record<string, unknown>).__TEITUNNEL_COMMENTS_TEST__ = overlay;
+  (globalThis as Record<string, unknown>)["__TEITUNNEL_COMMENTS_TEST__"] = overlay;
   new Function(source)();
-  delete (globalThis as Record<string, unknown>).__TEITUNNEL_COMMENTS_TEST__;
+  delete (globalThis as Record<string, unknown>)["__TEITUNNEL_COMMENTS_TEST__"];
 });
 
 function rect(el: Element, box: { left: number; top: number; width: number; height: number }) {

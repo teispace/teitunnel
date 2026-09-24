@@ -3,6 +3,7 @@ import {
   Camera,
   Copy,
   Globe,
+  Inbox,
   Key,
   LockKeyhole,
   type LucideIcon,
@@ -314,6 +315,7 @@ const areas: Record<Delta["area"], { icon: LucideIcon; label: MessageKey }> = {
   snapshot: { icon: Camera, label: "activity.area.snapshot" },
   protection: { icon: Shield, label: "activity.area.protection" },
   serviceToken: { icon: Key, label: "activity.area.serviceToken" },
+  worker: { icon: Inbox, label: "activity.area.worker" },
 };
 
 /** Before/after, one block per route, record or login, like a diff. */

@@ -127,7 +127,7 @@ describe("webhook inbox", () => {
     const response = await inbox.handle(webhook('{"a":1}'), env(db));
     expect(response.status).toBe(200);
     expect(await calls[0]?.text()).toBe('{"a":1}');
-    expect(db.rows("SELECT count(*) AS n FROM teitunnel_inbox")[0]?.n).toBe(0);
+    expect(db.rows("SELECT count(*) AS n FROM teitunnel_inbox")[0]?.["n"]).toBe(0);
   });
 
   it("keeps webhooks while the computer is off, in order, then refuses when full", async () => {
@@ -146,12 +146,12 @@ describe("webhook inbox", () => {
     const rows = db.rows(
       "SELECT method, path, headers, body, size FROM teitunnel_inbox ORDER BY seq",
     );
-    expect(rows.map((r) => Buffer.from(String(r.body), "base64").toString())).toEqual([
+    expect(rows.map((r) => Buffer.from(String(r["body"]), "base64").toString())).toEqual([
       '{"n":1}',
       '{"n":2}',
     ]);
-    expect(rows[0]?.path).toBe("/hooks/github?x=1");
-    const headers = JSON.parse(String(rows[0]?.headers)) as [string, string][];
+    expect(rows[0]?.["path"]).toBe("/hooks/github?x=1");
+    const headers = JSON.parse(String(rows[0]?.["headers"])) as [string, string][];
     const names = headers.map(([name]) => name);
     expect(names).toContain("content-type");
     expect(names).not.toContain("cookie");
@@ -164,7 +164,7 @@ describe("webhook inbox", () => {
     await inbox.handle(webhook("{}"), env(db), 0);
     db.db.exec("UPDATE teitunnel_inbox SET delivered_at = 1");
     await inbox.handle(webhook("{}"), env(db), 8 * 86_400_000);
-    expect(db.rows("SELECT count(*) AS n FROM teitunnel_inbox")[0]?.n).toBe(1);
+    expect(db.rows("SELECT count(*) AS n FROM teitunnel_inbox")[0]?.["n"]).toBe(1);
   });
 
   it("passes other methods and large bodies through", async () => {
@@ -175,7 +175,7 @@ describe("webhook inbox", () => {
     await inbox.handle(webhook("x".repeat(600 * 1024)), env(db));
     expect(calls).toHaveLength(2);
     expect(
-      db.rows("SELECT count(*) AS n FROM sqlite_master WHERE name = 'teitunnel_inbox'")[0]?.n,
+      db.rows("SELECT count(*) AS n FROM sqlite_master WHERE name = 'teitunnel_inbox'")[0]?.["n"],
     ).toBe(0);
   });
 

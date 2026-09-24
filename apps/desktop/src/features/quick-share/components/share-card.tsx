@@ -8,6 +8,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
+import { CommentsToggle } from "@/features/comments";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
@@ -130,6 +131,10 @@ export function ShareCard({ share }: { share: QuickShare }) {
           checking={check.isPending}
         />
       )}
+
+      {share.inspected && live ? (
+        <CommentsToggle target={{ kind: "quickShare", shareId: share.id }} />
+      ) : null}
 
       <footer className="flex items-center gap-3 text-callout text-secondary">
         {live && stats ? (

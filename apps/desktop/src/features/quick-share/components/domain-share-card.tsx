@@ -6,6 +6,7 @@ import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { CommentsToggle } from "@/features/comments";
 import { useRoute, useSendHostOnRoute } from "@/features/dev-server";
 import { ProtectionSheet, useProtection } from "@/features/protection";
 import { siteUrl } from "@/features/snapshots";
@@ -110,6 +111,9 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
         sending={sendHost.isPending}
         onCheck={() => check.refetch()}
         checking={check.isFetching}
+      />
+      <CommentsToggle
+        target={{ kind: "route", accountId: share.accountId, hostname: share.hostname }}
       />
       <footer className="flex items-center gap-3 text-callout text-secondary">
         <span>{fromCli ? t("quickShare.domain.fromCli") : t("quickShare.domain.endsWithApp")}</span>

@@ -128,12 +128,12 @@ describe("snapshot comments", () => {
       env,
     );
     const body = await json(list);
-    expect((body.threads as Thread[]).length).toBe(1);
-    expect(body.me).toEqual({ verified: false, name: null });
+    expect((body["threads"] as Thread[]).length).toBe(1);
+    expect(body["me"]).toEqual({ verified: false, name: null });
     // What's stored is what the app reads through D1's query endpoint.
     const rows = db.rows("SELECT site, author, email FROM teitunnel_comments ORDER BY created_at");
-    expect(rows.map((r) => r.site)).toEqual(["teitunnel-demo", "teitunnel-demo"]);
-    expect(rows.every((r) => r.email === null)).toBe(true);
+    expect(rows.map((r) => r["site"])).toEqual(["teitunnel-demo", "teitunnel-demo"]);
+    expect(rows.every((r) => r["email"] === null)).toBe(true);
   });
 
   it("refuses cross-site writes, bad input and unknown threads", async () => {
@@ -154,7 +154,7 @@ describe("snapshot comments", () => {
     expect((await worker.comments(form, env)).status).toBe(403);
     const nameless = await worker.comments(post("api/threads", { path: "/", body: "x" }), env);
     expect(nameless.status).toBe(400);
-    expect(String((await json(nameless)).error)).toContain("name");
+    expect(String((await json(nameless))["error"])).toContain("name");
     const missing = await worker.comments(
       post("api/threads/nope/replies", { body: "x", author: "A" }),
       env,
@@ -221,7 +221,7 @@ describe("snapshot comments", () => {
     expect(thread.comments[0]).toMatchObject({ author: "boss@example.com", verified: true });
     // The address is kept for the owner but never sent to reviewers.
     expect(JSON.stringify(thread)).not.toContain('"email"');
-    expect(db.rows("SELECT email FROM teitunnel_comments WHERE verified = 1")[0]?.email).toBe(
+    expect(db.rows("SELECT email FROM teitunnel_comments WHERE verified = 1")[0]?.["email"]).toBe(
       "boss@example.com",
     );
   });

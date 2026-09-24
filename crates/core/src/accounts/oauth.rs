@@ -55,6 +55,8 @@ const OPTIONAL_SCOPES: &[&str] = &[
     "zone-waf.write",
     "transform-rules.write",
     "access-service-tokens.write",
+    // Snapshot comments and webhook inboxes (unconfirmed name, like the others).
+    "d1.write",
 ];
 
 /// Errors from the OAuth flow. Messages are shown to the user.

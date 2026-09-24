@@ -12,11 +12,13 @@ mod analytics;
 pub(crate) mod app;
 mod backup;
 pub(crate) mod cli;
+pub(crate) mod comments;
 pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
 mod events;
 mod exposure;
+mod fronts;
 mod inspect;
 mod integrations;
 mod projects;
@@ -186,7 +188,19 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             inspect::inspect_routes,
             inspect::inspect_route_preview,
             inspect::inspect_route_apply,
-            quick_share::quick_share_set_inspected
+            quick_share::quick_share_set_inspected,
+            comments::comments_subjects,
+            comments::comments_threads,
+            comments::comments_reply,
+            comments::comments_resolve,
+            comments::comments_forget,
+            comments::comments_set_tap,
+            fronts::fronts_list,
+            fronts::fronts_preview,
+            fronts::fronts_undo_change,
+            fronts::fronts_apply,
+            fronts::inbox_items,
+            fronts::inbox_deliver
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

@@ -87,6 +87,9 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
     tauri::async_runtime::spawn(quick_shares.clone().watch_idle());
     watch_inspector(app.clone(), &inspector);
+    watch_comments(app.clone(), &inspector);
+    watch_snapshot_comments(app.clone());
+    watch_inboxes(app.clone());
     watch_inspected_routes(app.clone());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
@@ -200,6 +203,149 @@ fn control<R: Runtime>(
         control.start();
     }
     control
+}
+
+/// Tells the webview when comments change and notifies about new ones on live shares
+/// (outside quiet hours, unless the window is in front).
+fn watch_comments<R: Runtime>(app: AppHandle<R>, inspector: &teitunnel_core::inspect::Inspector) {
+    use teitunnel_core::{comments::CommentsEvent, text::msg::comments::notify as c};
+    let Some(comments) = inspector.comments() else {
+        return;
+    };
+    let mut events = comments.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            };
+            let key = match &event {
+                CommentsEvent::New { subject, .. } => subject.key.clone(),
+                CommentsEvent::Changed { subject } => subject.clone(),
+            };
+            let _ = EntityChanged {
+                kind: EntityKind::Comments,
+                id: Some(key),
+            }
+            .emit(&app);
+            if let CommentsEvent::New {
+                subject,
+                author,
+                excerpt,
+                ..
+            } = event
+                && let Some(state) = app.try_state::<AppState>()
+            {
+                let prefs = settings::load(&state.store).await.unwrap_or_default();
+                if !quiet_now(&state, &prefs).await {
+                    notify(&app, &c::title(&subject.label), &c::body(&author, &excerpt));
+                }
+            }
+        }
+    });
+}
+
+/// Reads Snapshot comment counts from Cloudflare every two minutes (one D1 query per
+/// account with commented Snapshots) and notifies about new ones.
+fn watch_snapshot_comments<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{comments::SubjectKind, text::msg::comments::notify as c};
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        let mut tick = tokio::time::interval(Duration::from_secs(120));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let Some(comments) = state.inspector.comments().cloned() else {
+                return;
+            };
+            let subjects = comments.subjects().await.unwrap_or_default();
+            let mut accounts: Vec<String> = subjects
+                .iter()
+                .filter(|s| s.subject.kind == SubjectKind::Snapshot)
+                .filter_map(|s| s.subject.account_id.clone())
+                .collect();
+            accounts.sort();
+            accounts.dedup();
+            let prefs = settings::load(&state.store).await.unwrap_or_default();
+            let quiet = quiet_now(&state, &prefs).await;
+            for account in accounts {
+                let Ok(api) = state.accounts.client(&account).await else {
+                    continue;
+                };
+                match comments.poll_snapshots(&api, &account).await {
+                    Ok(news) => {
+                        for (subject, count) in news {
+                            let _ = EntityChanged {
+                                kind: EntityKind::Comments,
+                                id: Some(subject.key.clone()),
+                            }
+                            .emit(&app);
+                            if !quiet {
+                                notify(
+                                    &app,
+                                    &c::title(&subject.label),
+                                    &c::snapshot_body(u64::from(count)),
+                                );
+                            }
+                        }
+                    }
+                    Err(err) => tracing::debug!(%err, "couldn't read Snapshot comments"),
+                }
+            }
+        }
+    });
+}
+
+/// Delivers webhooks the inboxes kept while this computer was off, every 30 seconds
+/// (only accounts with an inbox on a route this computer serves; `core::inbox`).
+fn watch_inboxes<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(http) = teitunnel_core::inbox::client() else {
+            return;
+        };
+        // Connectors and local services take a moment at launch.
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let Ok(inboxes) = teitunnel_core::fronts::list(&state.engine, None).await else {
+                continue;
+            };
+            let mut accounts: Vec<String> = inboxes
+                .iter()
+                .filter(|f| f.kind == teitunnel_core::engine::front::FrontKind::Inbox && f.routed)
+                .map(|f| f.account_id.clone())
+                .collect();
+            accounts.sort();
+            accounts.dedup();
+            for account in accounts {
+                let Ok(api) = state.accounts.client(&account).await else {
+                    continue;
+                };
+                let Ok(reports) =
+                    teitunnel_core::inbox::drain_account(&state.engine, &api, &http, &account)
+                        .await
+                else {
+                    continue;
+                };
+                if reports.iter().any(|r| r.delivered > 0) {
+                    let _ = EntityChanged {
+                        kind: EntityKind::Fronts,
+                        id: Some(account.clone()),
+                    }
+                    .emit(&app);
+                }
+            }
+        }
+    });
 }
 
 /// Tells the person a `teitunnel://` link couldn't be followed.

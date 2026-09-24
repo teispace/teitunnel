@@ -1,4 +1,5 @@
-import { ExternalLink, RotateCcw, Trash2, Upload } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ExternalLink, MessageSquare, RotateCcw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -71,6 +72,7 @@ interface SnapshotInspectorProps {
 export function SnapshotInspector({ snapshot, onUpdate }: SnapshotInspectorProps) {
   const versions = useSnapshotVersions(snapshot.id);
   const remove = useSnapshotChange();
+  const navigate = useNavigate();
   const expires = snapshot.expiresAt
     ? new Date(snapshot.expiresAt).toLocaleString(undefined, { dateStyle: "medium" })
     : t("snapshots.detail.never");
@@ -89,6 +91,16 @@ export function SnapshotInspector({ snapshot, onUpdate }: SnapshotInspectorProps
             <Button variant="primary" onClick={() => void openUrl(snapshot.url)}>
               <ExternalLink />
               {t("snapshots.open")}
+            </Button>
+          ) : null}
+          {snapshot.comments ? (
+            <Button
+              onClick={() =>
+                void navigate({ to: "/comments", search: { subject: `snapshot:${snapshot.id}` } })
+              }
+            >
+              <MessageSquare />
+              {t("snapshots.comments")}
             </Button>
           ) : null}
           {snapshot.liveVersion === null ? null : (
@@ -142,6 +154,12 @@ export function SnapshotInspector({ snapshot, onUpdate }: SnapshotInspectorProps
             },
             { label: t("snapshots.detail.published"), value: relativeTime(snapshot.updatedAt) },
             { label: t("snapshots.detail.expires"), value: expires },
+            {
+              label: t("snapshots.detail.comments"),
+              value: snapshot.comments
+                ? t("snapshots.detail.commentsOn")
+                : t("snapshots.detail.commentsOff"),
+            },
             { label: t("snapshots.detail.worker"), value: snapshot.script, mono: true },
           ]}
         />

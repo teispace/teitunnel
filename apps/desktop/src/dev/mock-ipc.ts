@@ -1,6 +1,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { rawText } from "@/lib/i18n";
 import { analyticsMock } from "./mock-analytics";
+import { commentsMock } from "./mock-comments";
 import { projectsMock } from "./mock-projects";
 
 /** A message the Rust core would send (`core.*` in the catalog). */
@@ -226,6 +227,7 @@ const capabilities: Capabilities = {
   workersEdit: "yes",
   edgeRules: "yes",
   serviceTokens: "yes",
+  d1: "yes",
   zones: domains.map((d) => ({
     zoneId: d.id,
     zoneName: d.name,
@@ -259,6 +261,7 @@ const snapshots: SnapshotView[] = [
     versions: 3,
     files: 48,
     bytes: 1_840_000,
+    comments: true,
   },
   {
     id: "s2",
@@ -279,6 +282,7 @@ const snapshots: SnapshotView[] = [
     versions: 1,
     files: 12,
     bytes: 312_000,
+    comments: false,
   },
 ];
 
@@ -1124,7 +1128,12 @@ export function installMockIpc(): void {
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:
-          return analyticsMock(cmd, payload) ?? projectsMock(cmd, payload) ?? null;
+          return (
+            commentsMock(cmd, payload) ??
+            analyticsMock(cmd, payload) ??
+            projectsMock(cmd, payload) ??
+            null
+          );
       }
     },
     { shouldMockEvents: true },

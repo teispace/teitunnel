@@ -71,6 +71,7 @@ function initialDetails(mode: PublishMode, zones: readonly ZoneRef[]): DetailsSt
       : "",
     spa: snapshot?.spa ?? false,
     expires: "never",
+    comments: snapshot?.comments ?? false,
   };
 }
 
@@ -171,6 +172,7 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
           : { type: "keep" },
     access: details.protection === "login" ? parseAllowed(details.allowed) : null,
     expiresInDays: details.expires === "never" ? null : Number(details.expires),
+    comments: details.comments,
   });
 
   const review = (next: SnapshotChange) => {

@@ -89,6 +89,8 @@ pub struct Capabilities {
     pub edge_rules: Grant,
     /// Access service tokens (optional feature).
     pub service_tokens: Grant,
+    /// D1 databases: Snapshot comments and webhook inboxes (optional feature).
+    pub d1: Grant,
     /// DNS editing, per domain.
     pub zones: Vec<ZoneGrant>,
 }
@@ -115,13 +117,16 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     let worker_member =
         format!("{account}/workers/scripts/teitunnel-permission-check/script-settings");
     let service_tokens = format!("{account}/access/service_tokens");
-    let (tunnels_read, tunnels_edit, access_apps, access_methods, workers_edit, tokens) = tokio::join!(
+    // D1: PATCHing a database that doesn't exist is 404 when D1 Write is granted.
+    let d1_member = format!("{account}/d1/database/{NIL_UUID}");
+    let (tunnels_read, tunnels_edit, access_apps, access_methods, workers_edit, tokens, d1) = tokio::join!(
         client.probe_read(&tunnels),
         client.probe_write(&tunnel_member),
         client.probe_write(&access_member),
         client.probe_read(&login_methods),
         client.probe_write(&worker_member),
         client.probe_read(&service_tokens),
+        client.probe_write(&d1_member),
     );
     let zones_result: Result<Vec<Zone>, _> = match only_zone {
         Some(zone_id) => client.zone(zone_id).await.map(|zone| vec![zone]),
@@ -178,6 +183,7 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         workers_edit: workers_edit.into(),
         edge_rules,
         service_tokens: tokens.into(),
+        d1: d1.into(),
         zones,
     }
 }

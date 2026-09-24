@@ -529,6 +529,36 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	 *  gets a new URL (the UI says so before).
 	 */
 	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
+	/**  Every share, route and Snapshot with comments, newest activity first. */
+	commentsSubjects: () => __TAURI_INVOKE<SubjectView[]>("comments_subjects"),
+	/**  A subject's threads (with verified addresses, for the owner); marks them read. */
+	commentsThreads: (key: string) => __TAURI_INVOKE<Thread_Serialize[]>("comments_threads", { key }),
+	/**  The owner's reply. */
+	commentsReply: (key: string, thread: string, body: string) => __TAURI_INVOKE<Thread_Serialize>("comments_reply", { key, thread, body }),
+	/**  Resolves or reopens a thread. */
+	commentsResolve: (key: string, thread: string, resolved: boolean) => __TAURI_INVOKE<Thread_Serialize>("comments_resolve", { key, thread, resolved }),
+	/**
+	 *  Removes a subject from the list, with the comments kept on this computer for it
+	 *  (a Snapshot's comments on Cloudflare stay until the Snapshot is deleted).
+	 */
+	commentsForget: (key: string) => __TAURI_INVOKE<null>("comments_forget", { key }),
+	/**
+	 *  Turns comments on a Quick Share or an inspected route on or off. A route with
+	 *  Teitunnel's login trusts the address Cloudflare Access vouches for.
+	 */
+	commentsSetTap: (tap: TapId, on: boolean) => __TAURI_INVOKE<TapView>("comments_set_tap", { tap, on }),
+	/**  Teitunnel's offline pages and webhook inboxes (from this computer's records). */
+	frontsList: (accountId: string | null) => __TAURI_INVOKE<FrontView[]>("fronts_list", { accountId }),
+	/**  Plans an offline page or inbox change for review. Nothing is changed. */
+	frontsPreview: (accountId: string, change: FrontChange) => __TAURI_INVOKE<PlanView>("fronts_preview", { accountId, change }),
+	/**  The change that puts things back as they are now (for Undo after applying). */
+	frontsUndoChange: (accountId: string, change: FrontChange) => __TAURI_INVOKE<FrontChange>("fronts_undo_change", { accountId, change }),
+	/**  Applies a reviewed change; step progress streams on `on_progress`. */
+	frontsApply: (accountId: string, change: FrontChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("fronts_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  A webhook inbox's recent webhooks: when each arrived and when it was delivered. */
+	inboxItems: (accountId: string, hostname: string, path: string) => __TAURI_INVOKE<InboxItem[]>("inbox_items", { accountId, hostname, path }),
+	/**  Delivers waiting webhooks now (the app also does every 30 seconds). */
+	inboxDeliver: (accountId: string) => __TAURI_INVOKE<DrainReport[]>("inbox_deliver", { accountId }),
 };
 
 /** Events */
@@ -638,7 +668,11 @@ export type ActivityKind =
 /**  A service token was revoked. */
 "revokeServiceToken" | 
 /**  A service token got a new secret. */
-"rotateServiceToken";
+"rotateServiceToken" | 
+/**  A route's offline page was added, changed or removed. */
+"offlinePage" | 
+/**  A webhook inbox was added, changed or removed. */
+"webhookInbox";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -782,6 +816,24 @@ export type AnalyticsSummary = {
 	bucketSeconds: number,
 	/**  When fetched. */
 	fetchedAt: number,
+};
+
+/**  Where on a page a thread is pinned. */
+export type Anchor = {
+	/**  CSS selector of the element clicked. */
+	selector: string,
+	/**  Horizontal position inside the element (0–1). */
+	x: number | null,
+	/**  Vertical position inside the element (0–1). */
+	y: number | null,
+	/**  Page coordinates, used when the element can't be found. */
+	left: number | null,
+	/**  Page coordinates, used when the element can't be found. */
+	top: number | null,
+	/**  The reviewer's viewport width. */
+	vw: number,
+	/**  The reviewer's viewport height. */
+	vh: number,
 };
 
 /**
@@ -935,6 +987,8 @@ export type Capabilities = {
 	edgeRules: Grant,
 	/**  Access service tokens (optional feature). */
 	serviceTokens: Grant,
+	/**  D1 databases: Snapshot comments and webhook inboxes (optional feature). */
+	d1: Grant,
 	/**  DNS editing, per domain. */
 	zones: ZoneGrant[],
 };
@@ -1206,6 +1260,45 @@ export type ClientProtocol =
 /**  Any TCP service (a database, …). */
 "tcp";
 
+/**  One comment. */
+export type Comment = Comment_Serialize | Comment_Deserialize;
+
+/**  One comment. */
+export type Comment_Deserialize = {
+	/**  Id. */
+	id: string,
+	/**  Who wrote it. */
+	author: string,
+	/**  Their email, when Cloudflare Access vouched for it (only shown to the owner). */
+	email: string | null,
+	/**  Signed in with Cloudflare Access. */
+	verified: boolean,
+	/**  Written by the owner (from the app, the CLI or an agent). */
+	byOwner: boolean,
+	/**  The text, as typed. */
+	body: string,
+	/**  When (ms since the epoch). */
+	createdAt: number | null,
+};
+
+/**  One comment. */
+export type Comment_Serialize = {
+	/**  Id. */
+	id: string,
+	/**  Who wrote it. */
+	author: string,
+	/**  Their email, when Cloudflare Access vouched for it (only shown to the owner). */
+	email?: string | null,
+	/**  Signed in with Cloudflare Access. */
+	verified: boolean,
+	/**  Written by the owner (from the app, the CLI or an agent). */
+	byOwner: boolean,
+	/**  The text, as typed. */
+	body: string,
+	/**  When (ms since the epoch). */
+	createdAt: number | null,
+};
+
 /**  One edge connection of a connector. */
 export type ConnectionView = {
 	/**  Edge location, e.g. `ams01`. */
@@ -1352,7 +1445,9 @@ export type DeltaArea =
 /**  A rule at Cloudflare's edge (bots, rate limit, headers). */
 "protection" | 
 /**  A service token. */
-"serviceToken";
+"serviceToken" | 
+/**  A Worker in front of a route (offline page, webhook inbox). */
+"worker";
 
 /**  A dev server that checks the Host header. */
 export type DevServer = 
@@ -1462,6 +1557,20 @@ export type DomainStatus =
 /**  Being set up, or a state we don't know. */
 "other";
 
+/**  What a delivery round did for one inbox. */
+export type DrainReport = {
+	/**  The hostname. */
+	hostname: string,
+	/**  The inbox path. */
+	path: string,
+	/**  Delivered this round. */
+	delivered: number,
+	/**  Still waiting. */
+	waiting: number,
+	/**  Why delivery stopped, if it did. */
+	error: string | null,
+};
+
 /**  An outside edit of this Mac's tunnel configuration. */
 export type Drift = {
 	/**  Tunnel id. */
@@ -1544,7 +1653,11 @@ export type EntityKind =
 /**  Projects (teitunnel.yml files opened in the app). */
 "projects" | 
 /**  The inspector's taps and settings (captures stream on `inspect_subscribe`). */
-"inspector";
+"inspector" | 
+/**  Comments on shares, routes and Snapshots (id: the subject's key). */
+"comments" | 
+/**  Offline pages and webhook inboxes (id: the account). */
+"fronts";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -2140,6 +2253,50 @@ export type Framework =
 /**  Plain HTML: the folder itself, no build. */
 "static";
 
+/**  A change to a route's Workers, as the app, the CLI and agents ask for it. */
+export type FrontChange = 
+/**  Show this page while the computer is off (`None` removes it). */
+{ type: "offline"; 
+/**  The hostname. */
+hostname: string; 
+/**  The page. */
+page: OfflinePage | null } | 
+/**  Keep webhooks to `path` while the computer is off (`None` removes the inbox). */
+{ type: "inbox"; 
+/**  The hostname. */
+hostname: string; 
+/**  The path, e.g. `/webhooks/`. */
+path: string; 
+/**  Its settings. */
+inbox: InboxSettings | null };
+
+/**  Which Worker. */
+export type FrontKind = 
+/**  The offline page. */
+"offline" | 
+/**  The webhook inbox. */
+"inbox";
+
+/**  One of Teitunnel's Workers in front of a route, as the app lists it. */
+export type FrontView = {
+	/**  Account id. */
+	accountId: string,
+	/**  The hostname. */
+	hostname: string,
+	/**  Which Worker. */
+	kind: FrontKind,
+	/**  The inbox path (empty for the offline page). */
+	path: string,
+	/**  The page, for the offline page. */
+	page: OfflinePage | null,
+	/**  The settings, for an inbox. */
+	inbox: InboxSettings | null,
+	/**  Its Worker. */
+	script: string,
+	/**  Whether its route is in place. */
+	routed: boolean,
+};
+
 /**  Why a gate stopped a request. */
 export type GateOutcome = 
 /**  The client IP isn't on the allow list. */
@@ -2334,6 +2491,50 @@ export type HostSummary = {
 	/**  5xx answers per bucket (zeros when [`StatsPart::Errors`] is unavailable). */
 	sparkErrors: number[],
 };
+
+/**  A kept webhook, as the app and the inspector show it (never its body). */
+export type InboxItem = {
+	/**  Id (sent along as `X-Teitunnel-Inbox`). */
+	id: string,
+	/**  When it arrived at Cloudflare (ms). */
+	receivedAt: number | null,
+	/**  Method. */
+	method: string,
+	/**  Path and query. */
+	path: string,
+	/**  Body size in bytes. */
+	size: number | null,
+	/**  When it was delivered (ms). */
+	deliveredAt: number | null,
+	/**  What the local service answered. */
+	status: number | null,
+	/**  Delivery attempts. */
+	attempts: number,
+	/**  Why the last attempt failed. */
+	error: string | null,
+};
+
+/**  A webhook inbox's settings. */
+export type InboxSettings = {
+	/**  Most webhooks kept waiting (older ones stay; new ones get `503` when full). */
+	maxItems: number,
+	/**  Days a webhook is kept, delivered or not. */
+	retentionDays: number,
+	/**
+	 *  Keep only webhooks with a valid signature (the secret is in the keychain and
+	 *  sent to Cloudflare as a Worker secret).
+	 */
+	verify?: InboxVerify | null,
+};
+
+/**  How the webhook inbox verifies senders before keeping a webhook (optional). */
+export type InboxVerify = 
+/**  GitHub's `X-Hub-Signature-256`. */
+"github" | 
+/**  Stripe's `Stripe-Signature`. */
+"stripe" | 
+/**  Standard Webhooks (`webhook-signature`: Svix, Clerk, Resend…). */
+"standard";
 
 /**  An outage of one route. */
 export type Incident = {
@@ -2834,6 +3035,16 @@ export type NetworkView = {
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
 	owned: boolean,
+};
+
+/**  The page shown while this computer is off. */
+export type OfflinePage = {
+	/**  Heading, e.g. "Back soon". */
+	title: string,
+	/**  A line or two for visitors. */
+	message: string,
+	/**  Also show it when the tunnel is up but the local app doesn't answer (502/504). */
+	whenAppDown?: boolean,
 };
 
 /**  Emitted when the window should show a view. */
@@ -3989,6 +4200,11 @@ export type SnapshotOptions = {
 	access: AccessRule | null,
 	/**  Delete it after this many days. */
 	expiresInDays: number | null,
+	/**
+	 *  Let reviewers comment (kept in the account's D1 database); left out: as it is
+	 *  now (off for a new Snapshot).
+	 */
+	comments?: boolean | null,
 };
 
 /**  What publishing a declared Snapshot did. */
@@ -4086,6 +4302,8 @@ export type SnapshotView = {
 	files: number | null,
 	/**  Its size. */
 	bytes: number | null,
+	/**  Reviewers can comment. */
+	comments: boolean,
 };
 
 /**  Where numbers come from. */
@@ -4193,7 +4411,11 @@ export type StepKind =
 /**  Add, change or remove an edge rule (bots, rate limit, headers). */
 "edgeRule" | 
 /**  Create, rotate or delete a service token, or let one through a login. */
-"serviceToken";
+"serviceToken" | 
+/**  Create the account's D1 database (comments, webhook inboxes). */
+"database" | 
+/**  Add, change or remove a Worker in front of a route (offline page, webhook inbox). */
+"frontWorker";
 
 /**  The state of one step while applying. */
 export type StepState = 
@@ -4274,6 +4496,41 @@ export type StubRule = {
 	/**  Response body (text; use a `Content-Type` header to describe it). */
 	body: string,
 };
+
+/**  A share, route or Snapshot that has comments. */
+export type Subject = {
+	/**  Stable key: `share:<id>`, `route:<account>:<hostname>` or `snapshot:<id>`. */
+	key: string,
+	/**  What it is. */
+	kind: SubjectKind,
+	/**  The account (none for a Quick Share). */
+	accountId: string | null,
+	/**  What people see, e.g. the hostname. */
+	label: string,
+	/**  The address to open. */
+	url: string | null,
+};
+
+/**  What a set of comments is about. */
+export type SubjectKind = 
+/**  A Quick Share (a new address each time it starts). */
+"quickShare" | 
+/**  A route or a share on your domain. */
+"route" | 
+/**  A Snapshot (kept on Cloudflare). */
+"snapshot";
+
+/**  A subject with its counts, for the app's list. */
+export type SubjectView = {
+	/**  Unresolved threads. */
+	open: number,
+	/**  Comments. */
+	comments: number,
+	/**  Comments written after the owner last looked. */
+	unread: number,
+	/**  Newest comment (ms). */
+	latestAt: number | null,
+} & Subject;
 
 /**
  *  Identifies a tap (one inspected share, route or folder).
@@ -4395,6 +4652,8 @@ export type TapView = {
 	idleStopMinutes: number | null,
 	/**  Requests seen since it started. */
 	requests: number,
+	/**  Reviewers can pin comments to its pages (the overlay is added to HTML pages). */
+	comments: boolean,
 };
 
 /**
@@ -4418,6 +4677,49 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread = Thread_Serialize | Thread_Deserialize;
+
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread_Deserialize = {
+	/**  Id (the first comment's). */
+	id: string,
+	/**  The page, e.g. `/pricing`. */
+	path: string,
+	/**  Where it's pinned (none: the whole page). */
+	anchor: Anchor | null,
+	/**  Resolved. */
+	resolved: boolean,
+	/**  Who resolved it. */
+	resolvedBy: string | null,
+	/**  When. */
+	resolvedAt: number | null,
+	/**  When it started. */
+	createdAt: number | null,
+	/**  Comments, oldest first. */
+	comments: Comment_Deserialize[],
+};
+
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread_Serialize = {
+	/**  Id (the first comment's). */
+	id: string,
+	/**  The page, e.g. `/pricing`. */
+	path: string,
+	/**  Where it's pinned (none: the whole page). */
+	anchor: Anchor | null,
+	/**  Resolved. */
+	resolved: boolean,
+	/**  Who resolved it. */
+	resolvedBy: string | null,
+	/**  When. */
+	resolvedAt: number | null,
+	/**  When it started. */
+	createdAt: number | null,
+	/**  Comments, oldest first. */
+	comments: Comment_Serialize[],
+};
 
 /**  Per-phase timings, relative to when Lens received the request head. */
 export type Timings = {
@@ -4750,7 +5052,14 @@ limit: number } |
  */
 { type: "machineOnly"; 
 /**  The Access domain. */
-domain: string };
+domain: string } | 
+/**
+ *  Every request matching the pattern runs a Worker, counted against the account's
+ *  100,000 free Worker requests a day (past it the site keeps working without it).
+ */
+{ type: "workerRequests"; 
+/**  The route pattern. */
+pattern: string };
 
 /**  A webhook signature check. */
 export type WebhookCheck = {

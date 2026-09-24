@@ -163,7 +163,7 @@ pub struct Anchor {
 }
 
 /// One comment.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Comment {
@@ -172,13 +172,11 @@ pub struct Comment {
     /// Who wrote it.
     pub author: String,
     /// Their email, when Cloudflare Access vouched for it (only shown to the owner).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     /// Signed in with Cloudflare Access.
-    #[serde(default)]
     pub verified: bool,
     /// Written by the owner (from the app, the CLI or an agent).
-    #[serde(default)]
     pub by_owner: bool,
     /// The text, as typed.
     pub body: String,
@@ -188,7 +186,7 @@ pub struct Comment {
 }
 
 /// A thread: the first comment, its replies and whether it's resolved.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Thread {

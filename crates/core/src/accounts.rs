@@ -20,6 +20,9 @@ use std::{
 use tokio::time::Instant;
 
 use cf_api::{ApiToken, Client};
+
+/// A Cloudflare API client for one account (what [`Accounts::client`] returns).
+pub type CloudClient = Client;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 

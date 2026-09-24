@@ -20,6 +20,8 @@ export interface DetailsState {
   allowed: string;
   spa: boolean;
   expires: Expiry;
+  /** Reviewers can pin comments (kept in a D1 database on the account). */
+  comments: boolean;
 }
 
 interface DetailsStepProps {
@@ -157,6 +159,17 @@ export function DetailsStep({
           aria-label={t("snapshots.details.spa")}
           checked={state.spa}
           onCheckedChange={(spa) => set({ spa })}
+        />
+      </div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-body">{t("snapshots.details.comments")}</p>
+          <p className="text-callout text-secondary">{t("snapshots.details.commentsHelp")}</p>
+        </div>
+        <Switch
+          aria-label={t("snapshots.details.comments")}
+          checked={state.comments}
+          onCheckedChange={(comments) => set({ comments })}
         />
       </div>
       <Field label={t("snapshots.details.expires")}>

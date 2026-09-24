@@ -24,6 +24,10 @@ pub enum EntityKind {
     Projects,
     /// The inspector's taps and settings (captures stream on `inspect_subscribe`).
     Inspector,
+    /// Comments on shares, routes and Snapshots (id: the subject's key).
+    Comments,
+    /// Offline pages and webhook inboxes (id: the account).
+    Fronts,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

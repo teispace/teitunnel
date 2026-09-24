@@ -89,6 +89,17 @@ export const queryKeys = {
   inspector: {
     all: () => ["inspector"] as const,
   },
+  comments: {
+    all: () => ["comments"] as const,
+    subjects: () => ["comments", "subjects"] as const,
+    threads: (key: string) => ["comments", "threads", key] as const,
+  },
+  fronts: {
+    all: () => ["fronts"] as const,
+    list: () => ["fronts", "list"] as const,
+    inbox: (accountId: string, hostname: string, path: string) =>
+      ["fronts", "inbox", accountId, hostname, path] as const,
+  },
   binary: {
     status: () => ["binary", "status"] as const,
     update: () => ["binary", "update"] as const,
@@ -125,6 +136,10 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.projects.all()];
     case "inspector":
       return [queryKeys.inspector.all()];
+    case "comments":
+      return [queryKeys.comments.all()];
+    case "fronts":
+      return [queryKeys.fronts.all()];
   }
 }
 
