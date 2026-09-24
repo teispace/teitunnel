@@ -37,6 +37,8 @@ const outcomes: Record<string, { dot: Status; label: MessageKey }> = {
   applied: { dot: "healthy", label: "activity.outcome.applied" },
   rolledBack: { dot: "warning", label: "activity.outcome.rolledBack" },
   partiallyApplied: { dot: "error", label: "activity.outcome.partiallyApplied" },
+  alert: { dot: "error", label: "activity.outcome.alert" },
+  resolved: { dot: "healthy", label: "activity.outcome.resolved" },
 };
 
 /** The Domain menu's "any" item (Radix Select items can't have an empty value). */
@@ -248,33 +250,38 @@ function RecordDetails({
           <ChangeList changes={record.changes} muted={outcome !== "applied"} />
         </InspectorSection>
       ) : null}
-      <InspectorSection title={t("activity.steps")}>
-        <PlanSteps steps={steps} states={states} copyable />
-        {leftovers.length > 0 ? (
-          <ul className="flex flex-col gap-1">
-            {leftovers.map((line) => (
-              <li key={line} className="selectable text-callout text-error">
-                {line}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {script ? (
-          <div>
-            <Button
-              size="sm"
-              onClick={() =>
-                void navigator.clipboard
-                  .writeText(script)
-                  .then(() => toast.success(t("activity.copiedCommands")))
-              }
-            >
-              <Copy aria-hidden className="size-3" strokeWidth={1.75} />
-              {t("activity.copyCommands")}
-            </Button>
-          </div>
-        ) : null}
-      </InspectorSection>
+      {record.kind === "alert" && record.error ? (
+        <p className="selectable text-body">{translate(record.error)}</p>
+      ) : null}
+      {steps.length === 0 && leftovers.length === 0 ? null : (
+        <InspectorSection title={t("activity.steps")}>
+          <PlanSteps steps={steps} states={states} copyable />
+          {leftovers.length > 0 ? (
+            <ul className="flex flex-col gap-1">
+              {leftovers.map((line) => (
+                <li key={line} className="selectable text-callout text-error">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {script ? (
+            <div>
+              <Button
+                size="sm"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(script)
+                    .then(() => toast.success(t("activity.copiedCommands")))
+                }
+              >
+                <Copy aria-hidden className="size-3" strokeWidth={1.75} />
+                {t("activity.copyCommands")}
+              </Button>
+            </div>
+          ) : null}
+        </InspectorSection>
+      )}
       {checkable.length > 0 ? (
         <InspectorSection title={t("activity.checkAgain")}>
           <ul className="flex flex-col rounded-card bg-surface-inset px-3 py-1">

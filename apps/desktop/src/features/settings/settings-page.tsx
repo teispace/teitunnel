@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
+import { AlertSettings } from "@/features/analytics";
 import { CloudflaredPane } from "@/features/binary";
 import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
@@ -19,6 +20,7 @@ import {
   useSettings,
   useUpdateSettings,
 } from "./queries";
+import { QuietHoursRow } from "./quiet-hours";
 
 const themes = () =>
   (["system", "light", "dark"] as const).map((value) => ({
@@ -206,7 +208,22 @@ function GeneralPane() {
             onCheckedChange={(notifyQuickShares) => update.mutate({ notifyQuickShares })}
           />
         </GroupedRow>
+        <GroupedRow
+          label={t("settings.notifications.alerts")}
+          description={t("settings.notifications.alertsDetail")}
+        >
+          <Switch
+            aria-label={t("settings.notifications.alertsLabel")}
+            checked={settings.notifyAlerts}
+            onCheckedChange={(notifyAlerts) => update.mutate({ notifyAlerts })}
+          />
+        </GroupedRow>
+        <QuietHoursRow
+          value={settings.quietHours}
+          onChange={(quietHours) => update.mutate({ quietHours })}
+        />
       </GroupedSection>
+      <AlertSettings />
       <GroupedSection title={t("settings.menuBar.title")} footer={t("settings.menuBar.footer")}>
         <GroupedRow
           label={t("settings.menuBar.show")}

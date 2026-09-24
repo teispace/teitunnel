@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
+import { RouteAnalytics } from "@/features/analytics";
 import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
 import { relativeTime } from "@/lib/format";
@@ -241,6 +242,7 @@ function RouteInspector({
           localTunnelIds={localTunnelIds}
         />
       ) : null}
+      {route.client ? null : <RouteAnalytics accountId={accountId} route={route} />}
       {route.local && tunnel ? (
         <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
       ) : null}
@@ -249,12 +251,20 @@ function RouteInspector({
           <ul className="flex flex-col gap-1.5">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="flex flex-col text-callout">
-                <span className={entry.outcome === "applied" ? "" : "text-warning"}>
+                <span
+                  className={
+                    entry.outcome === "applied" || entry.outcome === "resolved"
+                      ? ""
+                      : "text-warning"
+                  }
+                >
                   {summaryOf(entry)}
                 </span>
                 <span className="text-secondary">
                   {relativeTime(entry.at)}
-                  {entry.outcome === "applied" ? "" : t("routes.activity.undone")}
+                  {entry.outcome === "applied" || entry.record?.kind === "alert"
+                    ? ""
+                    : t("routes.activity.undone")}
                 </span>
               </li>
             ))}

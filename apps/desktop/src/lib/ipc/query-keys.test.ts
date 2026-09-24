@@ -4,7 +4,7 @@ import { keysForEntity, queryKeys, refresh } from "./query-keys";
 
 describe("keysForEntity", () => {
   it("maps settings changes to the settings prefix", () => {
-    expect(keysForEntity("settings")).toEqual([queryKeys.settings.all()]);
+    expect(keysForEntity("settings")).toEqual([queryKeys.settings.all(), queryKeys.alerts.rules()]);
     expect(keysForEntity("quickShares")).toEqual([queryKeys.quickShares.all()]);
   });
 });

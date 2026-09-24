@@ -19,7 +19,9 @@ export type PermissionNeed =
   | { kind: "anyDns" }
   /** Cloudflare Load Balancing (a paid add-on); not probed, so shown only on refusal. */
   | { kind: "loadBalancing" }
-  | { kind: "access" };
+  | { kind: "access" }
+  /** Traffic analytics (Cloudflare's GraphQL Analytics; optional feature). */
+  | { kind: "analytics" };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -41,6 +43,8 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return false;
     case "access":
       return caps.accessEdit === "no";
+    case "analytics":
+      return caps.analytics === "no";
   }
 }
 
@@ -69,6 +73,14 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
       return [
         { name: t("permissionFix.accessApps"), why: t("permissionFix.accessAppsWhy") },
         { name: t("permissionFix.accessOrg"), why: t("permissionFix.accessOrgWhy") },
+      ];
+    case "analytics":
+      return [
+        { name: t("permissionFix.analytics"), why: t("permissionFix.analyticsWhy") },
+        {
+          name: t("permissionFix.accountAnalytics"),
+          why: t("permissionFix.accountAnalyticsWhy"),
+        },
       ];
   }
 }

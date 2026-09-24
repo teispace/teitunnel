@@ -7,6 +7,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 mod accounts;
+mod analytics;
 pub(crate) mod app;
 pub(crate) mod cli;
 pub(crate) use app::mark_launch;
@@ -109,7 +110,13 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             doctor::doctor_set_ignored,
             doctor::doctor_fix_safe,
             doctor::diagnostics_preview,
-            doctor::diagnostics_export
+            doctor::diagnostics_export,
+            analytics::analytics_summary,
+            analytics::analytics_route,
+            analytics::uptime_list,
+            analytics::uptime_route,
+            analytics::alerts_get,
+            analytics::alerts_set
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

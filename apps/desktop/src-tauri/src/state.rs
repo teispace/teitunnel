@@ -42,4 +42,8 @@ pub struct AppState {
     pub shutting_down: AtomicBool,
     /// Registries of `teitunnel` processes (their shares show in Quick Share).
     pub cli_runs: std::path::PathBuf,
+    /// Edge analytics (cached GraphQL answers).
+    pub analytics: teitunnel_core::analytics::Analytics,
+    /// Uptime checks and alerts.
+    pub monitor: teitunnel_core::uptime::Monitor,
 }

@@ -92,7 +92,16 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     watch_connector_health(app.clone());
     watch_doctor(app.clone());
     watch_domain_shares(app.clone());
+    watch_uptime(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
+    let analytics = teitunnel_core::analytics::Analytics::default();
+    let monitor = teitunnel_core::uptime::Monitor::new(
+        store.clone(),
+        accounts.clone(),
+        analytics.clone(),
+        edge,
+        "app",
+    );
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),
@@ -111,6 +120,8 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         paused: std::sync::Mutex::default(),
         quit_confirmed: false.into(),
         shutting_down: false.into(),
+        analytics,
+        monitor,
     })
 }
 
@@ -348,6 +359,59 @@ fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     }
 }
 
+/// Whether it's quiet hours now (alerts and connector notices are recorded, not shown).
+async fn quiet_now(state: &AppState, settings: &settings::Settings) -> bool {
+    settings.quiet_hours.enabled
+        && teitunnel_core::alerts::local_minute(&state.store)
+            .await
+            .is_ok_and(|minute| settings.quiet_hours.contains(minute))
+}
+
+/// Checks every route through the edge once a minute and delivers alerts (the checks,
+/// incidents and rules are `core::uptime` and `core::alerts`). Tunnels the user stopped
+/// aren't checked.
+fn watch_uptime<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        // Connectors take a moment to connect at launch.
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+        let mut tick = tokio::time::interval(teitunnel_core::uptime::INTERVAL);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let paused = state
+                .paused
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let now = teitunnel_core::domain_shares::now_ms();
+            let report = state
+                .monitor
+                .tick(i64::try_from(now).unwrap_or(i64::MAX), &paused)
+                .await;
+            if report.alerts.is_empty() {
+                continue;
+            }
+            let _ = EntityChanged {
+                kind: EntityKind::Routes,
+                id: None,
+            }
+            .emit(&app);
+            let settings = settings::load(&state.store).await.unwrap_or_default();
+            if !settings.notify_alerts || quiet_now(&state, &settings).await {
+                continue;
+            }
+            let shown: Vec<&teitunnel_core::alerts::Alert> =
+                report.alerts.iter().filter(|a| a.notify).collect();
+            if let Some((title, body)) = teitunnel_core::alerts::notice(&shown) {
+                notify(&app, &title, &body);
+            }
+        }
+    });
+}
+
 /// Notifies when this Mac's connector goes down, comes back, or crash-loops (the policy
 /// is `core::health`: brief blips stay quiet). Connectors the user stopped are skipped.
 fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
@@ -363,9 +427,8 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let Some(state) = app.try_state::<AppState>() else {
                 continue;
             };
-            let enabled = settings::load(&state.store)
-                .await
-                .map_or(true, |s| s.notify_connectors);
+            let prefs = settings::load(&state.store).await.unwrap_or_default();
+            let enabled = prefs.notify_connectors && !quiet_now(&state, &prefs).await;
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
@@ -377,10 +440,12 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                         .local()
                         .tunnels(&account.id)
                         .await
-                        .unwrap_or_default(),
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|tunnel| (account.id.clone(), tunnel)),
                 );
             }
-            for tunnel in tunnels {
+            for (account, tunnel) in tunnels {
                 let id = tunnel.tunnel_id;
                 let paused = state
                     .paused
@@ -392,6 +457,18 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                     continue;
                 }
                 let notice = watch.observe(&id, state.machine.state(&id).as_ref(), now);
+                // Recorded in Activity as an alert, whatever the notification settings.
+                if let Some(down) = match notice {
+                    Some(Notice::Down | Notice::CrashLoop) => Some(true),
+                    Some(Notice::Back) => Some(false),
+                    None => None,
+                } {
+                    let at = i64::try_from(now).unwrap_or(i64::MAX);
+                    state
+                        .monitor
+                        .connector_changed(&account, &tunnel.name, down, at)
+                        .await;
+                }
                 if !enabled {
                     continue;
                 }
@@ -610,6 +687,9 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
             }
             quick_shares.stop_all().await;
             supervisor.stop_all().await;
+            if let Some(state) = app.try_state::<AppState>() {
+                state.monitor.release().await;
+            }
         };
         if tokio::time::timeout(SHUTDOWN_DEADLINE, stop).await.is_err() {
             tracing::warn!("connectors didn't stop in time; exiting anyway");

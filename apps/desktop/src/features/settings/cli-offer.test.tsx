@@ -18,6 +18,8 @@ beforeEach(() => {
     notifyConnectors: true,
     notifyQuickShares: true,
     notifyDoctor: true,
+    notifyAlerts: true,
+    quietHours: { enabled: false, from: 1320, to: 420 },
     checkForUpdates: true,
     cliOfferDismissed: false,
     ignoredIssues: [],
