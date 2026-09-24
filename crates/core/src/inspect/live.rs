@@ -110,34 +110,34 @@ mod tests {
         let inspector = Inspector::new(None, None, "app");
         let batches: Arc<Mutex<Vec<LiveBatch>>> = Arc::default();
         let stop = CancellationToken::new();
-        let follower = {
-            let (inspector, batches, stop) = (inspector.clone(), batches.clone(), stop.clone());
-            tokio::spawn(async move {
-                follow(&inspector, stop, move |batch| {
-                    batches.lock().unwrap().push(batch);
-                    true
-                })
+        let sink = batches.clone();
+        let follower = follow(&inspector, stop.clone(), move |batch| {
+            sink.lock().unwrap().push(batch);
+            true
+        });
+        let driver = async {
+            let tap = inspector
+                .start(TapSpec::new(
+                    TapScope::QuickShare {
+                        share_id: "qs-live".into(),
+                    },
+                    "demo",
+                    &origin,
+                ))
                 .await
-            })
+                .unwrap();
+            for i in 0..20 {
+                send(&tap.address, "GET", &format!("/{i}"), &[]).await;
+            }
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            inspector.clear(None).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            stop.cancel();
         };
-        let tap = inspector
-            .start(TapSpec::new(
-                TapScope::QuickShare {
-                    share_id: "qs-live".into(),
-                },
-                "demo",
-                &origin,
-            ))
-            .await
-            .unwrap();
-        for i in 0..20 {
-            send(&tap.address, "GET", &format!("/{i}"), &[]).await;
-        }
-        tokio::time::sleep(Duration::from_millis(400)).await;
-        inspector.clear(None).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(250)).await;
-        stop.cancel();
-        follower.await.unwrap().unwrap();
+        // `biased`: the follower subscribes on its first poll, before the tap starts
+        // (a spawned follower could subscribe after the taps event and miss it).
+        let (followed, ()) = tokio::join!(biased; follower, driver);
+        followed.unwrap();
         let batches = batches.lock().unwrap().clone();
         assert!(batches.iter().any(|b| b.taps_changed));
         let rows: Vec<&ExchangeRow> = batches.iter().flat_map(|b| &b.exchanges).collect();
