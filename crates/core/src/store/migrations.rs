@@ -147,6 +147,41 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
+    // 12: uptime checks through the edge (raw for 2 days, hourly for 30) and incidents
+    M::up(
+        "CREATE TABLE uptime_checks (
+            route      TEXT NOT NULL,
+            at         INTEGER NOT NULL,
+            ok         INTEGER NOT NULL,
+            status     INTEGER,
+            latency_ms INTEGER,
+            cause      TEXT,
+            PRIMARY KEY (route, at)
+        ) STRICT, WITHOUT ROWID;
+        CREATE INDEX uptime_checks_at ON uptime_checks (at);
+        CREATE TABLE uptime_hourly (
+            route           TEXT NOT NULL,
+            hour            INTEGER NOT NULL,
+            checks          INTEGER NOT NULL,
+            up              INTEGER NOT NULL,
+            latency_sum_ms  INTEGER NOT NULL,
+            latency_samples INTEGER NOT NULL,
+            PRIMARY KEY (route, hour)
+        ) STRICT, WITHOUT ROWID;
+        CREATE INDEX uptime_hourly_hour ON uptime_hourly (hour);
+        CREATE TABLE incidents (
+            id         INTEGER PRIMARY KEY,
+            route      TEXT NOT NULL,
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            path       TEXT,
+            started_at INTEGER NOT NULL,
+            ended_at   INTEGER,
+            cause      TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX incidents_route ON incidents (route, started_at DESC);
+        CREATE UNIQUE INDEX incidents_open ON incidents (route) WHERE ended_at IS NULL;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

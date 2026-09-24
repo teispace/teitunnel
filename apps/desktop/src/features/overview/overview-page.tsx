@@ -211,7 +211,7 @@ export function OverviewPage() {
   );
 }
 
-/** This Mac's traffic in the last hour, at a glance; opens the Tunnels view. */
+/** This Mac's traffic in the last hour, at a glance; opens Analytics. */
 function TrafficCard({ tunnelId }: { tunnelId: string }) {
   // Every 10 s is enough for a glance, and keeps the connector on its idle sampling rate.
   const traffic = useLiveTraffic(tunnelId, 10_000).data;
@@ -220,7 +220,7 @@ function TrafficCard({ tunnelId }: { tunnelId: string }) {
   const rates = perSecond(traffic.series.requests, traffic.series.span).map((v) => v ?? 0);
   return (
     <Link
-      to="/tunnels"
+      to="/analytics"
       className="flex items-center gap-4 rounded-card bg-surface-inset px-3 py-2.5 outline-offset-0"
     >
       <div className="flex w-36 shrink-0 flex-col">

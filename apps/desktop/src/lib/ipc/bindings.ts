@@ -281,6 +281,33 @@ export const commands = {
 	 *  added as it is (it can take a minute: it runs traceroutes).
 	 */
 	diagnosticsExport: (includeCloudflared: boolean) => __TAURI_INVOKE<string>("diagnostics_export", { includeCloudflared }),
+	/**
+	 *  Traffic of `hostnames` (in one of the account's domains) side by side, from
+	 *  Cloudflare's edge. Cached, so polling it is cheap.
+	 */
+	analyticsSummary: (accountId: string, hostnames: string[], range: AnalyticsRange) => __TAURI_INVOKE<AnalyticsSummary>("analytics_summary", { accountId, hostnames, range }),
+	/**  One route's traffic in detail, from Cloudflare's edge. */
+	analyticsRoute: (accountId: string, hostname: string, path: string | null, range: AnalyticsRange) => __TAURI_INVOKE<RouteStats>("analytics_route", { accountId, hostname, path, range }),
+	/**  Uptime of every route this Mac serves. */
+	uptimeList: () => __TAURI_INVOKE<UptimeSummary[]>("uptime_list"),
+	/**
+	 *  One route's uptime over `range` (null when this Mac doesn't serve it). `path` is the
+	 *  route's path rule, as in the routes view.
+	 */
+	uptimeRoute: (hostname: string, path: string | null, range: AnalyticsRange) => __TAURI_INVOKE<{
+	/**  The summary. */
+	summary: UptimeSummary,
+	/**  90 slices of the range, oldest first. */
+	bars: UptimeBar[],
+	/**  Response times over the range. */
+	latency: LatencySeries,
+	/**  Incidents in the range, newest first. */
+	incidents: Incident[],
+} | null>("uptime_route", { hostname, path, range }),
+	/**  The alert rules. */
+	alertsGet: () => __TAURI_INVOKE<AlertRules>("alerts_get"),
+	/**  Saves the alert rules (values out of range are brought into it) and returns them. */
+	alertsSet: (rules: AlertRules) => __TAURI_INVOKE<AlertRules>("alerts_set", { rules }),
 };
 
 /** Events */
@@ -356,7 +383,12 @@ export type ActivityKind =
 /**  A route started being load balanced. */
 "balanceRoute" | 
 /**  A route stopped being load balanced. */
-"unbalanceRoute";
+"unbalanceRoute" | 
+/**
+ *  An alert: a route went down or came back, errors, slowness, a connector (not a
+ *  change; recorded by the uptime monitor).
+ */
+"alert";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -380,12 +412,69 @@ export type ActivityRecord = {
 	connectorError?: Text | null,
 };
 
+/**  What to alert about. Stored in settings (`alertRules`). */
+export type AlertRules = {
+	/**  A route stops answering. */
+	routeDown: boolean,
+	/**  Failed checks in a row before "down" (a check runs every minute). */
+	downAfter: number,
+	/**  A route that was down answers again. */
+	recovered: boolean,
+	/**  Too many 5xx answers. */
+	errorRate: boolean,
+	/**  The share of 5xx answers that alerts, in percent. */
+	errorRatePercent: number,
+	/**  Over this many minutes. */
+	errorRateMinutes: number,
+	/**  With at least this many requests in the window (a few requests prove nothing). */
+	minRequests: number,
+	/**  Slow answers. */
+	latency: boolean,
+	/**  The response time (P95 of the checks through the edge) that alerts, in ms. */
+	latencyMs: number,
+	/**  Over this many minutes. */
+	latencyMinutes: number,
+	/**  A connector on this machine loses Cloudflare. */
+	connectorDown: boolean,
+	/**  Routes (`hostname` or `hostname/path`) that never alert. */
+	muted: string[],
+};
+
 /**  Whether this Mac's connector can run as a service, and whether it does. */
 export type AlwaysOn = {
 	/**  This system supports Always-on. */
 	supported: boolean,
 	/**  The connector runs as a service. */
 	enabled: boolean,
+};
+
+/**  How far back to look. */
+export type AnalyticsRange = 
+/**  The last hour, per minute. */
+"hour" | 
+/**  The last 24 hours, per 15 minutes. */
+"day" | 
+/**  The last 7 days, per hour. */
+"week" | 
+/**  The last 30 days, per day. */
+"month";
+
+/**  Every route of an account, side by side. */
+export type AnalyticsSummary = {
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  One entry per hostname asked for, in the order asked. */
+	hosts: HostSummary[],
+	/**  Data starts here when the plan keeps less than the range. */
+	availableFrom: number | null,
+	/**  Parts not on the plan. */
+	unavailable: StatsPart[],
+	/**  End of the last bucket of every sparkline, milliseconds since the epoch. */
+	endsAt: number,
+	/**  Seconds per sparkline bucket. */
+	bucketSeconds: number,
+	/**  When fetched. */
+	fetchedAt: number,
 };
 
 /**
@@ -447,9 +536,38 @@ export type Capabilities = {
 	tunnelsEdit: Grant,
 	/**  Access policies (optional feature). */
 	accessEdit: Grant,
+	/**  Traffic analytics (optional feature), probed on the first domain. */
+	analytics: Grant,
 	/**  DNS editing, per domain. */
 	zones: ZoneGrant[],
 };
+
+/**  Why a check failed. */
+export type Cause = 
+/**  No connector is connected to the tunnel (Cloudflare error 1033). */
+"noConnector" | 
+/**  The hostname points at a tunnel that doesn't serve it (1016/530). */
+"tunnelMismatch" | 
+/**  Cloudflare doesn't know the hostname (1001). */
+"notOnCloudflare" | 
+/**  The connector couldn't reach the origin (502). */
+"originUnreachable" | 
+/**  The origin didn't answer in time (504). */
+"originTimeout" | 
+/**  The origin answered with a server error (500, 503…). */
+"serverError" | 
+/**  The edge couldn't be reached for this hostname. */
+"edgeUnreachable" | 
+/**  The certificate doesn't cover the hostname. */
+"certificate" | 
+/**  The check took too long. */
+"timeout" | 
+/**  The DNS record is missing or points elsewhere. */
+"noRecord" | 
+/**  The local service refuses the public address (a dev server's host check). */
+"hostRejected" | 
+/**  Cloudflare refused the request because a limit was reached (413, 429). */
+"limited";
 
 /**  A change the user asks for (or a Doctor fix proposes). */
 export type Change = Change_Serialize | Change_Deserialize;
@@ -1138,6 +1256,40 @@ export type HostRejection = {
 	configLine: string,
 };
 
+/**  One route's line in the overview. */
+export type HostSummary = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Bytes sent. */
+	bytes: number,
+	/**  Share of 5xx answers (0–1), when there were requests and it's known. */
+	errorRate: number | null,
+	/**  Origin response time P95 (Pro and up). */
+	p95Ms: number | null,
+	/**  Requests per bucket, for a sparkline. */
+	spark: number[],
+	/**  5xx answers per bucket (zeros when [`StatsPart::Errors`] is unavailable). */
+	sparkErrors: number[],
+};
+
+/**  An outage of one route. */
+export type Incident = {
+	/**  Row id. */
+	id: number,
+	/**  Account. */
+	accountId: string,
+	/**  The route. */
+	route: RouteRef,
+	/**  First failed check, milliseconds since the epoch. */
+	startedAt: number,
+	/**  First good check after it, if it's over. */
+	endedAt: number | null,
+	/**  Why the checks failed (at the start). */
+	cause: Cause,
+};
+
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
 /**  Downloading: bytes received of total. */
@@ -1204,6 +1356,14 @@ export type Issue_Serialize = {
 	fixes: Fix_Serialize[],
 	/**  The tunnel of this Mac's it's about, when not the default one (a fix applies there). */
 	tunnelId: string | null,
+};
+
+/**  Response time over time (a check's time through the edge). */
+export type LatencySeries = {
+	/**  Time of each point, milliseconds since the epoch. */
+	at: number[],
+	/**  Response time (the mean for hourly points), milliseconds; None: the check failed. */
+	ms: (number | null)[],
 };
 
 /**  A TCP port something on this machine is listening on. */
@@ -1434,6 +1594,16 @@ error: Text;
 /**  What was left in place. */
 leftovers: Text[] };
 
+/**  Percentiles in milliseconds. */
+export type Percentiles = {
+	/**  Median. */
+	p50: number | null,
+	/**  95th percentile. */
+	p95: number | null,
+	/**  99th percentile. */
+	p99: number | null,
+};
+
 /**  A plan, as shown in the preview. */
 export type PlanView = {
 	/**  Steps in order (empty: nothing to change). */
@@ -1477,6 +1647,27 @@ export type QuickShare = {
 	hostHeader: HostHeader | null,
 	/**  The check through Cloudflare once the share is live (`None` until then). */
 	check: Verification | null,
+};
+
+/**
+ *  Hours when alerts are recorded but don't notify, in minutes after local midnight.
+ *  `from` after `to` spans midnight (22:00–07:00).
+ */
+export type QuietHours = {
+	/**  Whether quiet hours apply. */
+	enabled: boolean,
+	/**  Start, minutes after midnight. */
+	from: number,
+	/**  End, minutes after midnight. */
+	to: number,
+};
+
+/**  A value of a breakdown and its requests. */
+export type Ranked = {
+	/**  The value: a path, a country, a status code, a browser, a cache status. */
+	key: string,
+	/**  Requests. */
+	requests: number,
 };
 
 /**  A step of the applied plan and how it ended. */
@@ -1541,6 +1732,57 @@ export type RouteInput_Serialize = {
 	access: AccessRule | null,
 	/**  Origin settings. On an edit, `None` keeps the route's current ones. */
 	options: OriginOptions_Serialize | null,
+};
+
+/**  A route to measure: a hostname and, for path rules, the path they start with. */
+export type RouteRef = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Literal path prefix (e.g. `/api`), when the route has a path rule. */
+	path: string | null,
+};
+
+/**  Everything known about one route's traffic over a range. */
+export type RouteStats = {
+	/**  Where the numbers come from. */
+	source: SourceKind,
+	/**  The route. */
+	route: RouteRef,
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  Requests over time. */
+	series: StatsSeries,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Bytes sent to visitors. */
+	bytes: number,
+	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */
+	classes: StatusClasses,
+	/**  Requests per status code. */
+	statuses: Ranked[],
+	/**  Top paths. */
+	paths: Ranked[],
+	/**  Top countries. */
+	countries: Ranked[],
+	/**  Top browsers. */
+	browsers: Ranked[],
+	/**  Verified bot categories (the empty key: people and unverified bots). */
+	bots: Ranked[],
+	/**  Cache statuses. */
+	cache: Ranked[],
+	/**  Origin response time. */
+	originMs: Percentiles | null,
+	/**  Edge time to first byte. */
+	ttfbMs: Percentiles | null,
+	/**
+	 *  Data starts here, not at the range's start (the plan keeps less history);
+	 *  milliseconds since the epoch.
+	 */
+	availableFrom: number | null,
+	/**  Parts the plan or the source doesn't offer. */
+	unavailable: StatsPart[],
+	/**  When the numbers were fetched, milliseconds since the epoch. */
+	fetchedAt: number,
 };
 
 /**  One route of this Mac's tunnel. */
@@ -1716,6 +1958,10 @@ export type Settings = {
 	notifyQuickShares: boolean,
 	/**  Notify when the Doctor finds a new error. */
 	notifyDoctor: boolean,
+	/**  Notify about alerts (routes down or back, errors, slowness). */
+	notifyAlerts: boolean,
+	/**  When alerts and connector notices stay quiet. */
+	quietHours: QuietHours,
 	/**  Check for app updates by itself (at launch and daily). */
 	checkForUpdates: boolean,
 	/**
@@ -1742,6 +1988,10 @@ export type SettingsPatch = {
 	notifyQuickShares?: boolean | null,
 	/**  Doctor notifications on or off. */
 	notifyDoctor?: boolean | null,
+	/**  Alert notifications on or off. */
+	notifyAlerts?: boolean | null,
+	/**  New quiet hours. */
+	quietHours?: QuietHours | null,
 	/**  Automatic update checks on or off. */
 	checkForUpdates?: boolean | null,
 	/**  The command line offer answered. */
@@ -1777,6 +2027,62 @@ export type ShareStatus =
 { status: "failed"; 
 /**  What went wrong, for the user. */
 message: Text };
+
+/**  Where numbers come from. */
+export type SourceKind = 
+/**  Cloudflare's edge (GraphQL Analytics), per hostname, any connector. */
+"edge" | 
+/**  This machine's cloudflared metrics, per tunnel. */
+"connector" | 
+/**  A local inspecting proxy in front of the origin, per route. */
+"proxy";
+
+/**  A part of the numbers that may be missing (not on the plan, or not measured). */
+export type StatsPart = 
+/**  4xx/5xx over time. */
+"errors" | 
+/**  Requests per status code. */
+"statuses" | 
+/**  Top paths. */
+"paths" | 
+/**  Top countries. */
+"countries" | 
+/**  Top browsers. */
+"browsers" | 
+/**  Verified bots. */
+"bots" | 
+/**  Cache status. */
+"cache" | 
+/**  Response time percentiles. */
+"latency";
+
+/**  Requests over time, as columns (entry `i` of every column is one bucket). */
+export type StatsSeries = {
+	/**  End of each bucket, milliseconds since the epoch; ascending. */
+	at: number[],
+	/**  Seconds each bucket covers. */
+	span: number[],
+	/**  Requests. */
+	requests: number[],
+	/**  4xx responses. */
+	clientErrors: number[],
+	/**  5xx responses. */
+	serverErrors: number[],
+	/**  Bytes sent to visitors. */
+	bytes: number[],
+};
+
+/**  Responses by class. */
+export type StatusClasses = {
+	/**  1xx and 2xx. */
+	ok: number,
+	/**  3xx. */
+	redirects: number,
+	/**  4xx. */
+	clientErrors: number,
+	/**  5xx. */
+	serverErrors: number,
+};
 
 /**  What a step does, for its icon. */
 export type StepKind = 
@@ -1988,6 +2294,56 @@ export type UpdateStatus = {
 	state: UpdateState,
 	/**  A ready update installs when the app quits. */
 	installOnQuit: boolean,
+};
+
+/**  A slice of time in the status strip. */
+export type UptimeBar = {
+	/**  Start, milliseconds since the epoch. */
+	start: number,
+	/**  End. */
+	end: number,
+	/**  Checks made (0: no data, the app wasn't running or the computer was offline). */
+	checks: number,
+	/**  Checks that passed. */
+	up: number,
+};
+
+/**  One route's uptime in detail. */
+export type UptimeDetail = {
+	/**  The summary. */
+	summary: UptimeSummary,
+	/**  90 slices of the range, oldest first. */
+	bars: UptimeBar[],
+	/**  Response times over the range. */
+	latency: LatencySeries,
+	/**  Incidents in the range, newest first. */
+	incidents: Incident[],
+};
+
+/**  One route's uptime at a glance. */
+export type UptimeSummary = {
+	/**  Account. */
+	accountId: string,
+	/**  The route. */
+	route: RouteRef,
+	/**  The last check passed (None: never checked). */
+	up: boolean | null,
+	/**  When it was last checked. */
+	lastChecked: number | null,
+	/**  How long the last answer took. */
+	lastLatencyMs: number | null,
+	/**  Why the last check failed. */
+	lastCause: Cause | null,
+	/**  Share of passing checks over 24 hours (0–1). */
+	uptimeDay: number | null,
+	/**  Over 7 days. */
+	uptimeWeek: number | null,
+	/**  Over 30 days. */
+	uptimeMonth: number | null,
+	/**  Response time P95 over 24 hours, milliseconds. */
+	p95Ms: number | null,
+	/**  The outage going on, if any. */
+	openIncident: Incident | null,
 };
 
 /**  The result of checking one hostname. */

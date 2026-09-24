@@ -56,6 +56,19 @@ fn doctor_needs_the_app_to_be_set_up() {
 }
 
 #[test]
+fn analytics_takes_known_ranges_and_needs_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = cli(dir.path(), &["analytics", "--range", "year"]);
+    assert_eq!(output.status.code(), Some(2), "a usage error");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("hour, day, week or month"));
+    for args in [&["analytics"][..], &["uptime", "--json"][..]] {
+        let output = cli(dir.path(), args);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("hasn't been set up"));
+    }
+}
+
+#[test]
 fn share_rejects_bad_input_before_starting_anything() {
     let dir = tempfile::tempdir().unwrap();
     let output = cli(dir.path(), &["share", "not a port"]);

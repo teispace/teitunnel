@@ -7,6 +7,9 @@
 /// "Cloudflare Tunnel: Edit" if it's missing, and capability probing catches it.
 /// `access` (Access: Apps and Policies) and `access_acct` (Access: Organizations,
 /// Identity Providers, and Groups) let routes require a login from the start (D-065).
+/// `analytics` (Zone ▸ Analytics ▸ Read) is what the zone-scoped GraphQL traffic
+/// datasets need; `account_analytics` (Account Analytics ▸ Read) covers the
+/// account-scoped ones (research/cloudflare-analytics.md).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -14,6 +17,8 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("account_settings", "read"),
     ("access", "edit"),
     ("access_acct", "edit"),
+    ("analytics", "read"),
+    ("account_analytics", "read"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions
@@ -59,6 +64,11 @@ mod tests {
         let access_acct = "%7B%22key%22%3A%22access_acct%22%2C%22type%22%3A%22edit%22%7D";
         // Logins need both Access groups, asked for up front (D-065).
         assert!(url.contains(access) && url.contains(access_acct));
+        // Analytics reads traffic per hostname (zone) and per account.
+        assert!(url.contains("%7B%22key%22%3A%22analytics%22%2C%22type%22%3A%22read%22%7D"));
+        assert!(
+            url.contains("%7B%22key%22%3A%22account_analytics%22%2C%22type%22%3A%22read%22%7D")
+        );
         // Same encoding as Cloudflare's own example for `[{"key":"dns","type":"edit"}]`.
         assert_eq!(
             percent_encode(r#"[{"key":"dns","type":"edit"}]"#),

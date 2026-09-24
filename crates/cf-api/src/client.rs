@@ -21,6 +21,9 @@ const MAX_PAGES: u32 = 200;
 /// Cloudflare's global limit is 1200 requests per 5 minutes per user; stay under it.
 const RATE_LIMIT: usize = 1100;
 const RATE_WINDOW: Duration = Duration::from_secs(300);
+/// Cloudflare's GraphQL Analytics API allows 300 queries per 5 minutes per user, counted
+/// apart from the REST limit; keep some room for the dashboard and other tools.
+const GRAPHQL_LIMIT: usize = 250;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Retry {
@@ -38,6 +41,8 @@ pub struct Client {
     token: ApiToken,
     limiter: Arc<Mutex<VecDeque<Instant>>>,
     rate: (usize, Duration),
+    graphql_limiter: Arc<Mutex<VecDeque<Instant>>>,
+    graphql_rate: (usize, Duration),
     backoff: Duration,
 }
 
@@ -66,6 +71,8 @@ impl Client {
             token,
             limiter: Arc::default(),
             rate: (RATE_LIMIT, RATE_WINDOW),
+            graphql_limiter: Arc::default(),
+            graphql_rate: (GRAPHQL_LIMIT, RATE_WINDOW),
             backoff: Duration::from_millis(500),
         })
     }
@@ -90,6 +97,36 @@ impl Client {
             sent.pop_front();
         }
         sent.push_back(Instant::now());
+    }
+
+    /// Takes one query from the GraphQL budget, or reports that it's used up. Unlike the
+    /// REST budget this never waits: a chart can show "try again shortly" instead of
+    /// hanging for minutes.
+    async fn take_graphql_budget(&self) -> bool {
+        let (limit, window) = self.graphql_rate;
+        let mut sent = self.graphql_limiter.lock().await;
+        let now = Instant::now();
+        while sent
+            .front()
+            .is_some_and(|t| now.duration_since(*t) >= window)
+        {
+            sent.pop_front();
+        }
+        if sent.len() >= limit {
+            return false;
+        }
+        sent.push_back(now);
+        true
+    }
+
+    /// `POST /graphql` with a query (read-only, so retried like a GET). Returns the
+    /// status and body; `analytics` decodes the GraphQL envelope.
+    pub(crate) async fn post_graphql(&self, body: &serde_json::Value) -> Result<(u16, Vec<u8>)> {
+        if !self.take_graphql_budget().await {
+            return Ok((429, Vec::new()));
+        }
+        let url = self.url("/graphql");
+        self.send(|| self.http.post(&url).json(body)).await
     }
 
     /// Sends an idempotent request (GET/PUT/PATCH/DELETE) with retries.
@@ -249,6 +286,12 @@ impl Client {
     #[cfg(test)]
     pub(crate) fn with_backoff(mut self, backoff: Duration) -> Self {
         self.backoff = backoff;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_graphql_rate(mut self, limit: usize, window: Duration) -> Self {
+        self.graphql_rate = (limit, window);
         self
     }
 

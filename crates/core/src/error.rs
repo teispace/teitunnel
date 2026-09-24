@@ -25,6 +25,9 @@ pub enum Error {
     /// A routes change failed before anything was applied.
     #[error(transparent)]
     Engine(#[from] crate::engine::EngineError),
+    /// Analytics couldn't be read.
+    #[error(transparent)]
+    Analytics(#[from] crate::analytics::AnalyticsError),
 }
 
 /// A coarse classification of [`Error`] for user-facing handling.
@@ -104,6 +107,17 @@ impl Error {
                 E::Observe(_) => ErrorKind::Internal,
             },
             Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
+            Self::Analytics(err) => {
+                use crate::analytics::AnalyticsError as An;
+                match err {
+                    An::Permission => ErrorKind::PermissionDenied,
+                    An::RateLimited | An::NotOnPlan => ErrorKind::Unavailable,
+                    An::NoZone(_) | An::Account(A::NotFound) => ErrorKind::NotFound,
+                    An::Api(api) if api.is_auth() => ErrorKind::PermissionDenied,
+                    An::Api(api) if api.status().is_none() => ErrorKind::Unavailable,
+                    _ => ErrorKind::Internal,
+                }
+            }
             _ => ErrorKind::Internal,
         }
     }
@@ -142,6 +156,7 @@ impl crate::text::UserText for Error {
             Self::Runtime(err) => err.text(),
             Self::Store(err) => err.text(),
             Self::Engine(err) => err.text(),
+            Self::Analytics(err) => err.text(),
         }
     }
 }

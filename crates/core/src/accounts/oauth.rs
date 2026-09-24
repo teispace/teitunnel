@@ -37,6 +37,13 @@ const SCOPES: &[&str] = &[
     "offline_access",
 ];
 
+/// Scopes registered as optional (Aug 2026: users may untick them on the consent
+/// screen, and the token then lacks them; capability probing notices). Analytics reads
+/// traffic per hostname (zone analytics) and per account. Cloudflare's documented scope
+/// format is `<permission-group>.<level>` (`zone.read`, `workers-scripts.write`); these
+/// ids are confirmed with the others when the client is registered.
+const OPTIONAL_SCOPES: &[&str] = &["analytics.read", "account-analytics.read"];
+
 /// Errors from the OAuth flow. Messages are shown to the user.
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthError {
@@ -110,7 +117,11 @@ impl OAuthConfig {
             authorize_url: format!("{base}/oauth2/auth"),
             token_url: format!("{base}/oauth2/token"),
             revoke_url: format!("{base}/oauth2/revoke"),
-            scopes: SCOPES.iter().map(|s| (*s).to_owned()).collect(),
+            scopes: SCOPES
+                .iter()
+                .chain(OPTIONAL_SCOPES)
+                .map(|s| (*s).to_owned())
+                .collect(),
             ports: REDIRECT_PORTS.to_vec(),
         }
     }

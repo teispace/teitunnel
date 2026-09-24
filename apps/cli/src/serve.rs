@@ -20,7 +20,7 @@ use std::{
 
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Query, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -59,6 +59,8 @@ pub(crate) struct Options {
 struct Server {
     app: App,
     machine: MachineTunnels,
+    analytics: teitunnel_core::analytics::Analytics,
+    monitor: teitunnel_core::uptime::Monitor,
     secure_cookies: bool,
     sessions: Mutex<HashMap<String, Instant>>,
     failures: Limiter,
@@ -437,6 +439,121 @@ async fn apply(
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AnalyticsQuery {
+    account_id: String,
+    /// One route in detail; every route of this machine in the account without it.
+    hostname: Option<String>,
+    path: Option<String>,
+    range: Option<String>,
+}
+
+fn range_of(value: Option<&str>) -> Result<teitunnel_core::analytics::AnalyticsRange, ApiError> {
+    value.map_or(Ok(teitunnel_core::analytics::AnalyticsRange::Day), |r| {
+        teitunnel_core::analytics::AnalyticsRange::parse(r)
+            .ok_or_else(|| bad("range must be hour, day, week or month"))
+    })
+}
+
+fn analytics_error(err: &teitunnel_core::analytics::AnalyticsError) -> ApiError {
+    use teitunnel_core::analytics::AnalyticsError as E;
+    let status = match err {
+        E::Permission => StatusCode::FORBIDDEN,
+        E::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+        E::NoZone(_) => StatusCode::NOT_FOUND,
+        _ => StatusCode::BAD_GATEWAY,
+    };
+    ApiError(status, err.to_string())
+}
+
+fn now_ms() -> i64 {
+    i64::try_from(teitunnel_core::domain_shares::now_ms()).unwrap_or(i64::MAX)
+}
+
+/// Edge analytics: one route (`hostname`, optional `path`) or all of the account's
+/// routes on this machine.
+async fn analytics(
+    State(server): State<Shared>,
+    headers: HeaderMap,
+    Query(query): Query<AnalyticsQuery>,
+) -> Result<Response, ApiError> {
+    use teitunnel_core::analytics::{RouteRef, path_prefix};
+    server.authorize(&headers, false).await?;
+    let range = range_of(query.range.as_deref())?;
+    let app = &server.app;
+    let account = app.account(Some(&query.account_id)).await.map_err(bad)?;
+    if let Some(hostname) = query.hostname {
+        let hostname = teitunnel_core::domain::Hostname::parse(&hostname).map_err(bad)?;
+        let route = RouteRef {
+            hostname: hostname.as_str().to_owned(),
+            path: query.path.as_deref().and_then(path_prefix),
+        };
+        let stats = server
+            .analytics
+            .route(&app.accounts, &account.id, &route, range)
+            .await
+            .map_err(|e| analytics_error(&e))?;
+        return Ok(hardened(english(&stats).into_response()));
+    }
+    let mut hosts: Vec<String> = teitunnel_core::uptime::targets(&app.accounts, app.engine.local())
+        .await
+        .into_iter()
+        .filter(|t| t.account_id == account.id)
+        .map(|t| t.route.hostname)
+        .collect();
+    hosts.sort();
+    hosts.dedup();
+    let summary = server
+        .analytics
+        .summary(&app.accounts, &account.id, &hosts, range)
+        .await
+        .map_err(|e| analytics_error(&e))?;
+    Ok(hardened(english(&summary).into_response()))
+}
+
+#[derive(Deserialize)]
+struct UptimeQuery {
+    hostname: Option<String>,
+    path: Option<String>,
+    range: Option<String>,
+}
+
+/// Uptime of every route on this machine, or one route in detail (`hostname`).
+async fn uptime(
+    State(server): State<Shared>,
+    headers: HeaderMap,
+    Query(query): Query<UptimeQuery>,
+) -> Result<Response, ApiError> {
+    use teitunnel_core::analytics::{RouteRef, path_prefix};
+    server.authorize(&headers, false).await?;
+    let Some(hostname) = query.hostname else {
+        let list = server.monitor.summaries(now_ms()).await.map_err(bad)?;
+        return Ok(hardened(english(&list).into_response()));
+    };
+    let range = range_of(query.range.as_deref())?;
+    let route = RouteRef {
+        hostname: hostname.trim().to_ascii_lowercase(),
+        path: query
+            .path
+            .as_deref()
+            .and_then(path_prefix)
+            .filter(|p| p != "/"),
+    };
+    match server
+        .monitor
+        .detail(&route, range, now_ms())
+        .await
+        .map_err(bad)?
+    {
+        Some(detail) => Ok(hardened(english(&detail).into_response())),
+        None => Err(ApiError(
+            StatusCode::NOT_FOUND,
+            format!("This machine doesn't serve {}.", route.key()),
+        )),
+    }
+}
+
 /// The API described for automation (OpenAPI 3.1).
 async fn openapi() -> Response {
     hardened(Json(openapi_document()).into_response())
@@ -484,6 +601,32 @@ fn openapi_document() -> serde_json::Value {
                     "400": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
                 }
             }},
+            "/api/analytics": { "get": {
+                "summary": "Traffic from Cloudflare's edge: one route in detail, or every route of this machine in the account (needs Zone Analytics Read on the token)",
+                "parameters": [
+                    { "name": "accountId", "in": "query", "required": true, "schema": { "type": "string" } },
+                    { "name": "hostname", "in": "query", "schema": { "type": "string" }, "description": "One route; all of this machine's without it" },
+                    { "name": "path", "in": "query", "schema": { "type": "string" }, "description": "The route's path rule, e.g. ^/api" },
+                    { "name": "range", "in": "query", "schema": { "type": "string", "enum": ["hour", "day", "week", "month"], "default": "day" } }
+                ],
+                "responses": {
+                    "200": json(serde_json::json!({ "type": "object", "description": "With hostname: requests, bytes, classes, statuses, paths, countries, browsers, bots, cache, originMs, series. Without: hosts with requests, errorRate, p95Ms, spark" })),
+                    "403": json(serde_json::json!({ "$ref": "#/components/schemas/Error" })),
+                    "429": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
+                }
+            }},
+            "/api/uptime": { "get": {
+                "summary": "Uptime of every route on this machine (24 h, 7 d, 30 d, P95, open incident), or one route in detail with its status strip, response times and incidents",
+                "parameters": [
+                    { "name": "hostname", "in": "query", "schema": { "type": "string" } },
+                    { "name": "path", "in": "query", "schema": { "type": "string" } },
+                    { "name": "range", "in": "query", "schema": { "type": "string", "enum": ["hour", "day", "week", "month"], "default": "day" } }
+                ],
+                "responses": {
+                    "200": json(serde_json::json!({ "type": ["array", "object"] })),
+                    "404": json(serde_json::json!({ "$ref": "#/components/schemas/Error" }))
+                }
+            }},
             "/api/apply": { "post": {
                 "summary": "Apply a reviewed plan",
                 "requestBody": json(serde_json::json!({
@@ -517,6 +660,8 @@ fn router(server: Shared) -> Router {
         .route("/api/overview", get(overview))
         .route("/api/preview", post(preview))
         .route("/api/apply", post(apply))
+        .route("/api/analytics", get(analytics))
+        .route("/api/uptime", get(uptime))
         .route("/api/openapi.json", get(openapi))
         .with_state(server)
 }
@@ -558,9 +703,13 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         "Teitunnel dashboard on http://{}. Press Ctrl-C to stop.",
         listener.local_addr().map_err(|e| e.to_string())?
     ));
+    let analytics = teitunnel_core::analytics::Analytics::default();
+    let monitor = crate::analytics::spawn_monitor(&app, analytics.clone());
     let server = Arc::new(Server {
         app,
         machine,
+        analytics,
+        monitor: monitor.clone(),
         secure_cookies: options.secure_cookies,
         sessions: Mutex::default(),
         failures: Limiter::default(),
@@ -572,6 +721,7 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
     .with_graceful_shutdown(crate::share::interrupted())
     .await
     .map_err(|e| e.to_string())?;
+    monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)
 }
@@ -618,7 +768,13 @@ mod tests {
     fn documents_the_api() {
         let doc = openapi_document();
         assert_eq!(doc["openapi"], "3.1.0");
-        for path in ["/api/overview", "/api/preview", "/api/apply"] {
+        for path in [
+            "/api/overview",
+            "/api/preview",
+            "/api/apply",
+            "/api/analytics",
+            "/api/uptime",
+        ] {
             assert!(doc["paths"][path].is_object(), "{path}");
         }
     }

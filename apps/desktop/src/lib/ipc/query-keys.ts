@@ -43,6 +43,22 @@ export const queryKeys = {
   /** Checks of a share on your domain through Cloudflare (run once; refetched on demand). */
   domainShareCheck: (accountId: string, hostname: string) =>
     ["domainShareCheck", accountId, hostname] as const,
+  analytics: {
+    all: () => ["analytics"] as const,
+    summary: (accountId: string, range: string, hostnames: readonly string[]) =>
+      ["analytics", "summary", accountId, range, hostnames.join(",")] as const,
+    route: (accountId: string, hostname: string, path: string | null, range: string) =>
+      ["analytics", "route", accountId, hostname, path ?? "", range] as const,
+  },
+  uptime: {
+    all: () => ["uptime"] as const,
+    list: () => ["uptime", "list"] as const,
+    route: (hostname: string, path: string | null, range: string) =>
+      ["uptime", "route", hostname, path ?? "", range] as const,
+  },
+  alerts: {
+    rules: () => ["alerts", "rules"] as const,
+  },
   updates: {
     status: () => ["updates", "status"] as const,
   },
@@ -56,7 +72,7 @@ export const queryKeys = {
 export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] {
   switch (kind) {
     case "settings":
-      return [queryKeys.settings.all()];
+      return [queryKeys.settings.all(), queryKeys.alerts.rules()];
     case "quickShares":
       return [queryKeys.quickShares.all()];
     case "accounts":
@@ -67,7 +83,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
         queryKeys.doctor.all(),
       ];
     case "routes":
-      return [queryKeys.routes.all(), queryKeys.doctor.all()];
+      // Alerts also announce themselves as a routes change: uptime moved.
+      return [queryKeys.routes.all(), queryKeys.doctor.all(), queryKeys.uptime.all()];
     case "updates":
       return [queryKeys.updates.status()];
   }

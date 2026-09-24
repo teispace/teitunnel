@@ -120,6 +120,7 @@ via_core!(
     teitunnel_core::engine::EngineError,
     teitunnel_core::store::StoreError,
     teitunnel_core::quick_share::QuickShareError,
+    teitunnel_core::analytics::AnalyticsError,
 );
 
 impl From<teitunnel_core::domain::OriginError> for AppError {

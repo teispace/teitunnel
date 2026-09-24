@@ -1,5 +1,6 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { rawText } from "@/lib/i18n";
+import { analyticsMock } from "./mock-analytics";
 
 /** A message the Rust core would send (`core.*` in the catalog). */
 const core = (key: string, args: Record<string, string | number> = {}) => ({
@@ -38,6 +39,8 @@ let settings: Settings = {
   notifyConnectors: true,
   notifyQuickShares: true,
   notifyDoctor: true,
+  notifyAlerts: true,
+  quietHours: { enabled: false, from: 22 * 60, to: 7 * 60 },
   checkForUpdates: true,
   // Screenshots and design review show the app as it looks after the one-time offer.
   cliOfferDismissed: true,
@@ -194,6 +197,7 @@ const capabilities: Capabilities = {
   tunnelsRead: "yes",
   tunnelsEdit: "yes",
   accessEdit: "no",
+  analytics: "yes",
   zones: domains.map((d) => ({
     zoneId: d.id,
     zoneName: d.name,
@@ -536,6 +540,8 @@ export function installMockIpc(): void {
             notifyConnectors: patch.notifyConnectors ?? settings.notifyConnectors,
             notifyQuickShares: patch.notifyQuickShares ?? settings.notifyQuickShares,
             notifyDoctor: patch.notifyDoctor ?? settings.notifyDoctor,
+            notifyAlerts: patch.notifyAlerts ?? settings.notifyAlerts,
+            quietHours: patch.quietHours ?? settings.quietHours,
             checkForUpdates: patch.checkForUpdates ?? settings.checkForUpdates,
             cliOfferDismissed: patch.cliOfferDismissed ?? settings.cliOfferDismissed,
             ignoredIssues: settings.ignoredIssues,
@@ -912,7 +918,7 @@ export function installMockIpc(): void {
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:
-          return null;
+          return analyticsMock(cmd, payload) ?? null;
       }
     },
     { shouldMockEvents: true },

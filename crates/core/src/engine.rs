@@ -48,6 +48,7 @@ pub use types::{
     Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,
     ZoneRef, ownership_comment, tunnel_target,
 };
+pub(crate) use verify::is_access_login;
 pub(crate) use verify::probe;
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{

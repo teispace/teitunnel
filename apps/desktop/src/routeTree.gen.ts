@@ -13,6 +13,7 @@ import { Route as MainRouteImport } from "./routes/_main"
 import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as MainIndexRouteImport } from "./routes/_main/index"
 import { Route as MainActivityRouteImport } from "./routes/_main/activity"
+import { Route as MainAnalyticsRouteImport } from "./routes/_main/analytics"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
@@ -38,6 +39,11 @@ const MainIndexRoute = MainIndexRouteImport.update({
 const MainActivityRoute = MainActivityRouteImport.update({
   id: "/activity",
   path: "/activity",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainAnalyticsRoute = MainAnalyticsRouteImport.update({
+  id: "/analytics",
+  path: "/analytics",
   getParentRoute: () => MainRoute,
 } as any)
 const MainDoctorRoute = MainDoctorRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   "/": typeof MainIndexRoute
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
+  "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/quick-share": typeof MainQuickShareRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
+  "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/quick-share": typeof MainQuickShareRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   "/_main": typeof MainRouteWithChildren
   "/settings": typeof SettingsRoute
   "/_main/activity": typeof MainActivityRoute
+  "/_main/analytics": typeof MainAnalyticsRoute
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | "/"
     | "/settings"
     | "/activity"
+    | "/analytics"
     | "/doctor"
     | "/domains"
     | "/quick-share"
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
   to:
     | "/settings"
     | "/activity"
+    | "/analytics"
     | "/doctor"
     | "/domains"
     | "/quick-share"
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | "/_main"
     | "/settings"
     | "/_main/activity"
+    | "/_main/analytics"
     | "/_main/doctor"
     | "/_main/domains"
     | "/_main/quick-share"
@@ -187,6 +199,13 @@ declare module "@tanstack/react-router" {
       path: "/activity"
       fullPath: "/activity"
       preLoaderRoute: typeof MainActivityRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/analytics": {
+      id: "/_main/analytics"
+      path: "/analytics"
+      fullPath: "/analytics"
+      preLoaderRoute: typeof MainAnalyticsRouteImport
       parentRoute: typeof MainRoute
     }
     "/_main/doctor": {
@@ -243,6 +262,7 @@ declare module "@tanstack/react-router" {
 
 interface MainRouteChildren {
   MainActivityRoute: typeof MainActivityRoute
+  MainAnalyticsRoute: typeof MainAnalyticsRoute
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
@@ -255,6 +275,7 @@ interface MainRouteChildren {
 
 const MainRouteChildren: MainRouteChildren = {
   MainActivityRoute: MainActivityRoute,
+  MainAnalyticsRoute: MainAnalyticsRoute,
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
   MainQuickShareRoute: MainQuickShareRoute,

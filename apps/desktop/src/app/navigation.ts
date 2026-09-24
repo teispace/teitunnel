@@ -1,5 +1,6 @@
 import {
   Activity,
+  ChartNoAxesColumn,
   Globe,
   LayoutGrid,
   type LucideIcon,
@@ -11,7 +12,15 @@ import {
 import type { MessageKey } from "@/lib/i18n";
 
 export interface NavItem {
-  readonly to: "/" | "/routes" | "/quick-share" | "/domains" | "/tunnels" | "/activity" | "/doctor";
+  readonly to:
+    | "/"
+    | "/routes"
+    | "/quick-share"
+    | "/domains"
+    | "/tunnels"
+    | "/activity"
+    | "/doctor"
+    | "/analytics";
   readonly label: MessageKey;
   readonly icon: LucideIcon;
 }
@@ -21,7 +30,7 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘7 follow this order. */
+/** Sidebar information architecture. ⌘1–⌘8 follow this order. */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -43,6 +52,7 @@ export const navigation: readonly NavSection[] = [
     items: [
       { to: "/activity", label: "nav.activity", icon: Activity },
       { to: "/doctor", label: "nav.doctor", icon: Stethoscope },
+      { to: "/analytics", label: "nav.analytics", icon: ChartNoAxesColumn },
     ],
   },
 ];

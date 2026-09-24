@@ -46,6 +46,9 @@ pub enum ActivityKind {
     BalanceRoute,
     /// A route stopped being load balanced.
     UnbalanceRoute,
+    /// An alert: a route went down or came back, errors, slowness, a connector (not a
+    /// change; recorded by the uptime monitor).
+    Alert,
 }
 
 impl From<&Intent> for ActivityKind {
