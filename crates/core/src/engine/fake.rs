@@ -59,6 +59,40 @@ pub(crate) struct CloudState {
     pub(crate) load_balancers: BTreeMap<String, (String, cf_api::LoadBalancer)>,
     /// Pool endpoints (by address) whose health checks fail.
     pub(crate) lb_failing: BTreeSet<String>,
+    /// Workers (Snapshots) by name.
+    pub(crate) workers: BTreeMap<String, FakeWorker>,
+    /// Custom Domains by id.
+    pub(crate) worker_domains: BTreeMap<String, cf_api::WorkerDomain>,
+    /// The workers.dev subdomain.
+    pub(crate) workers_subdomain: Option<String>,
+    /// Asset hashes Cloudflare stores (uploads aren't state the user sees).
+    pub(crate) assets: BTreeSet<String>,
+    /// Upload and completion tokens → the manifest they're for.
+    pub(crate) asset_tokens: BTreeMap<String, (bool, BTreeMap<String, String>)>,
+}
+
+/// A Worker version as the fake stores it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct FakeVersion {
+    pub(crate) id: String,
+    /// Metadata without the one-off assets token.
+    pub(crate) metadata: serde_json::Value,
+    /// Path → hash.
+    pub(crate) assets: BTreeMap<String, String>,
+}
+
+/// A Worker as the fake stores it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct FakeWorker {
+    pub(crate) versions: Vec<FakeVersion>,
+    pub(crate) active: String,
+    pub(crate) workers_dev: bool,
+}
+
+impl FakeWorker {
+    pub(crate) fn live(&self) -> Option<&FakeVersion> {
+        self.versions.iter().find(|v| v.id == self.active)
+    }
 }
 
 /// State with ids and versions stripped, for "is it back to how it was?" checks.
@@ -68,6 +102,8 @@ pub(crate) type Normalized = (
     Vec<serde_json::Value>,
     usize,
     Vec<(String, String, String, Option<String>)>,
+    Vec<(String, Option<serde_json::Value>, bool)>,
+    Vec<(String, String)>,
 );
 
 impl CloudState {
@@ -119,7 +155,33 @@ impl CloudState {
             })
             .collect();
         networks.sort();
-        (tunnels, records, apps, self.login_methods.len(), networks)
+        // Workers by what serves (the live version's settings and files), not by ids.
+        let workers = self
+            .workers
+            .iter()
+            .map(|(name, w)| {
+                (
+                    name.clone(),
+                    w.live().map(|v| serde_json::json!([v.metadata, v.assets])),
+                    w.workers_dev,
+                )
+            })
+            .collect();
+        let mut domains: Vec<_> = self
+            .worker_domains
+            .values()
+            .map(|d| (d.hostname.clone(), d.service.clone()))
+            .collect();
+        domains.sort();
+        (
+            tunnels,
+            records,
+            apps,
+            self.login_methods.len(),
+            networks,
+            workers,
+            domains,
+        )
     }
 
     pub(crate) fn record_count(&self) -> usize {
@@ -781,6 +843,271 @@ impl CloudApi for FakeCloud {
         self.state.lock().unwrap().load_balancers.remove(id);
         Ok(())
     }
+
+    async fn workers_subdomain(&self, _account: &str) -> cf_api::Result<Option<String>> {
+        Ok(self.state.lock().unwrap().workers_subdomain.clone())
+    }
+
+    async fn worker_deployments(
+        &self,
+        _account: &str,
+        script: &str,
+    ) -> cf_api::Result<Option<Vec<cf_api::WorkerDeployment>>> {
+        let state = self.state.lock().unwrap();
+        Ok(state.workers.get(script).map(|w| {
+            vec![cf_api::WorkerDeployment {
+                id: format!("deployment-{}", w.active),
+                created_on: None,
+                versions: vec![cf_api::DeploymentVersion {
+                    version_id: w.active.clone(),
+                    percentage: 100.0,
+                }],
+            }]
+        }))
+    }
+
+    async fn worker_domains(
+        &self,
+        _account: &str,
+        service: Option<&str>,
+        hostname: Option<&str>,
+    ) -> cf_api::Result<Vec<cf_api::WorkerDomain>> {
+        let state = self.state.lock().unwrap();
+        Ok(state
+            .worker_domains
+            .values()
+            .filter(|d| service.is_none_or(|s| d.service == s))
+            .filter(|d| hostname.is_none_or(|h| d.hostname.eq_ignore_ascii_case(h)))
+            .cloned()
+            .collect())
+    }
+
+    async fn worker_on_workers_dev(&self, _account: &str, script: &str) -> cf_api::Result<bool> {
+        let state = self.state.lock().unwrap();
+        state
+            .workers
+            .get(script)
+            .map(|w| w.workers_dev)
+            .ok_or_else(not_found)
+    }
+
+    async fn create_assets_upload_session(
+        &self,
+        _account: &str,
+        _script: &str,
+        manifest: &BTreeMap<String, cf_api::AssetEntry>,
+    ) -> cf_api::Result<cf_api::UploadSession> {
+        self.mutate()?;
+        let jwt = self.next_id("session");
+        let mut state = self.state.lock().unwrap();
+        let mut missing: Vec<String> = manifest
+            .values()
+            .map(|e| e.hash.clone())
+            .filter(|h| !state.assets.contains(h))
+            .collect();
+        missing.sort();
+        missing.dedup();
+        let paths = manifest
+            .iter()
+            .map(|(p, e)| (p.clone(), e.hash.clone()))
+            .collect();
+        // Nothing to send: the session's token completes the upload.
+        state
+            .asset_tokens
+            .insert(jwt.clone(), (missing.is_empty(), paths));
+        Ok(cf_api::UploadSession {
+            jwt,
+            buckets: missing.chunks(2).map(<[String]>::to_vec).collect(),
+        })
+    }
+
+    async fn upload_assets(
+        &self,
+        _account: &str,
+        jwt: &str,
+        files: &[cf_api::AssetFile],
+    ) -> cf_api::Result<Option<String>> {
+        self.mutate()?;
+        let done = self.next_id("done");
+        let mut state = self.state.lock().unwrap();
+        let Some((_, paths)) = state.asset_tokens.get(jwt).cloned() else {
+            return Err(forbidden());
+        };
+        for file in files {
+            state.assets.insert(file.hash.clone());
+        }
+        if paths.values().all(|h| state.assets.contains(h)) {
+            state.asset_tokens.insert(done.clone(), (true, paths));
+            return Ok(Some(done));
+        }
+        Ok(None)
+    }
+
+    async fn put_worker_script(
+        &self,
+        _account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        _modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<()> {
+        self.mutate()?;
+        let id = self.next_id("version");
+        let mut state = self.state.lock().unwrap();
+        let version = fake_version(&state, id, metadata)?;
+        let worker = state.workers.entry(script.to_owned()).or_default();
+        worker.active = version.id.clone();
+        worker.versions.push(version);
+        Ok(())
+    }
+
+    async fn upload_worker_version(
+        &self,
+        _account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        _modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<cf_api::WorkerVersion> {
+        self.mutate()?;
+        let id = self.next_id("version");
+        let mut state = self.state.lock().unwrap();
+        let mut version = fake_version(&state, id, metadata)?;
+        let worker = state.workers.get_mut(script).ok_or_else(not_found)?;
+        if metadata.get("keep_bindings").is_some()
+            && let Some(live) = worker.live()
+        {
+            // Secrets carry over from the live version.
+            let secrets: Vec<serde_json::Value> = live.metadata["bindings"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|b| b["type"] == "secret_text")
+                .cloned()
+                .collect();
+            if let Some(bindings) = version.metadata["bindings"].as_array_mut() {
+                bindings.extend(secrets);
+            }
+            version
+                .metadata
+                .as_object_mut()
+                .map(|m| m.remove("keep_bindings"));
+        }
+        worker.versions.push(version.clone());
+        Ok(cf_api::WorkerVersion {
+            id: version.id,
+            number: Some(worker.versions.len() as u64),
+        })
+    }
+
+    async fn deploy_worker_version(
+        &self,
+        _account: &str,
+        script: &str,
+        version_id: &str,
+    ) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        let worker = state.workers.get_mut(script).ok_or_else(not_found)?;
+        if !worker.versions.iter().any(|v| v.id == version_id) {
+            return Err(not_found());
+        }
+        version_id.clone_into(&mut worker.active);
+        Ok(())
+    }
+
+    async fn set_worker_on_workers_dev(
+        &self,
+        _account: &str,
+        script: &str,
+        enabled: bool,
+    ) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        state
+            .workers
+            .get_mut(script)
+            .ok_or_else(not_found)?
+            .workers_dev = enabled;
+        Ok(())
+    }
+
+    async fn delete_worker_script(&self, _account: &str, script: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        state.workers.remove(script);
+        state.worker_domains.retain(|_, d| d.service != script);
+        Ok(())
+    }
+
+    async fn attach_worker_domain(
+        &self,
+        _account: &str,
+        hostname: &str,
+        zone_id: &str,
+        service: &str,
+    ) -> cf_api::Result<cf_api::WorkerDomain> {
+        self.mutate()?;
+        let id = self.next_id("domain");
+        let mut state = self.state.lock().unwrap();
+        let clash = state.records.get(zone_id).is_some_and(|records| {
+            records.iter().any(|r| {
+                r.name.eq_ignore_ascii_case(hostname)
+                    && matches!(r.kind.as_str(), "A" | "AAAA" | "CNAME")
+            })
+        }) || state
+            .worker_domains
+            .values()
+            .any(|d| d.hostname.eq_ignore_ascii_case(hostname) && d.service != service);
+        if clash || !state.workers.contains_key(service) {
+            return Err(conflict());
+        }
+        let zone_name = state
+            .zones
+            .iter()
+            .find(|z| z.id == zone_id)
+            .map(|z| z.name.clone())
+            .ok_or_else(not_found)?;
+        let domain = cf_api::WorkerDomain {
+            id: id.clone(),
+            hostname: hostname.to_owned(),
+            service: service.to_owned(),
+            zone_id: zone_id.to_owned(),
+            zone_name,
+        };
+        state.worker_domains.insert(id, domain.clone());
+        Ok(domain)
+    }
+
+    async fn detach_worker_domain(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state.lock().unwrap().worker_domains.remove(id);
+        Ok(())
+    }
+}
+
+/// A version from script metadata; its assets token must be a completed upload.
+fn fake_version(
+    state: &CloudState,
+    id: String,
+    metadata: &serde_json::Value,
+) -> cf_api::Result<FakeVersion> {
+    let jwt = metadata["assets"]["jwt"].as_str().unwrap_or_default();
+    let Some((true, paths)) = state.asset_tokens.get(jwt) else {
+        return Err(cf_api::Error::Api {
+            status: 400,
+            errors: vec![ApiMessage {
+                code: 10021,
+                message: "invalid assets token".into(),
+            }],
+        });
+    };
+    let mut metadata = metadata.clone();
+    metadata["assets"].as_object_mut().map(|a| a.remove("jwt"));
+    metadata.as_object_mut().map(|m| m.remove("annotations"));
+    Ok(FakeVersion {
+        id,
+        metadata,
+        assets: paths.clone(),
+    })
 }
 
 fn fake_app(id: &str, app: &NewAccessApp) -> AccessApp {

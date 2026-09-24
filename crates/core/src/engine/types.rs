@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
+use super::sites::{SiteContent, SiteFile, SiteSettings, SiteSpec};
 use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
 use crate::text::Text;
 
@@ -125,6 +126,9 @@ pub struct Snapshot {
     /// Load balancing for the hostname involved; read only when a change involves it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<super::balance::BalanceState>,
+    /// A Snapshot's Worker; read only when a change involves one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub site: Option<super::sites::SiteState>,
 }
 
 impl Snapshot {
@@ -240,6 +244,41 @@ pub enum Intent {
         /// The ingress Teitunnel last applied.
         ingress: Vec<IngressRule>,
     },
+    /// Publish a new Snapshot.
+    PublishSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+        /// How it answers.
+        settings: SiteSettings,
+        /// Its files.
+        content: SiteContent,
+    },
+    /// Publish a new version of a Snapshot (new files and/or settings), and bring its
+    /// login in line with `site.access`.
+    UpdateSnapshot {
+        /// The Snapshot, with the login it should have.
+        site: SiteSpec,
+        /// How the new version answers.
+        settings: SiteSettings,
+        /// Its files.
+        content: SiteContent,
+        /// The live version's files (to count what changed).
+        previous: Vec<SiteFile>,
+    },
+    /// Make an earlier version of a Snapshot live again.
+    RollbackSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+        /// Cloudflare's id of the version.
+        version_id: String,
+        /// Its number, for messages.
+        number: u32,
+    },
+    /// Delete a Snapshot: its address, login and Worker.
+    DeleteSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+    },
 }
 
 impl Intent {
@@ -261,6 +300,21 @@ impl Intent {
             | Self::RemoveNetwork { .. }
             | Self::CreateTunnel { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
+            Self::PublishSnapshot { site, .. }
+            | Self::UpdateSnapshot { site, .. }
+            | Self::RollbackSnapshot { site, .. }
+            | Self::DeleteSnapshot { site } => Some(site.address.hostname().into_iter().collect()),
+        }
+    }
+
+    /// The Snapshot a change is about.
+    pub fn site(&self) -> Option<&SiteSpec> {
+        match self {
+            Self::PublishSnapshot { site, .. }
+            | Self::UpdateSnapshot { site, .. }
+            | Self::RollbackSnapshot { site, .. }
+            | Self::DeleteSnapshot { site } => Some(site),
+            _ => None,
         }
     }
 
@@ -303,6 +357,22 @@ impl Intent {
             Self::CreateTunnel { name } => m::create_tunnel(name),
             Self::BalanceRoute { hostname } => m::balance_route(hostname),
             Self::UnbalanceRoute { hostname } => m::unbalance_route(hostname),
+            Self::PublishSnapshot { site, content, .. } => {
+                crate::text::msg::snapshot::summary::publish(
+                    content.files.len() as u64,
+                    &site.name,
+                    site.label(),
+                )
+            }
+            Self::UpdateSnapshot { site, .. } => {
+                crate::text::msg::snapshot::summary::update(&site.name)
+            }
+            Self::RollbackSnapshot { site, number, .. } => {
+                crate::text::msg::snapshot::summary::rollback(&site.name, u64::from(*number))
+            }
+            Self::DeleteSnapshot { site } => {
+                crate::text::msg::snapshot::summary::delete(&site.name)
+            }
         }
     }
 }
@@ -496,6 +566,86 @@ pub enum Step {
         /// Hostname.
         hostname: String,
     },
+    /// Upload the files of a Snapshot version that Cloudflare doesn't have yet.
+    UploadSnapshotFiles {
+        /// The Worker.
+        script: String,
+        /// The files.
+        content: SiteContent,
+        /// Files new or changed since the live version.
+        changed_files: u64,
+        /// Their size.
+        changed_bytes: u64,
+    },
+    /// Create the Snapshot's Worker with the uploaded files (live at once; it has no
+    /// address yet).
+    CreateSnapshotWorker {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// How it answers.
+        settings: SiteSettings,
+    },
+    /// Upload a new version with the uploaded files, then make it live.
+    PublishSnapshotVersion {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// How it answers.
+        settings: SiteSettings,
+        /// The version live before, for rollback.
+        previous: Option<String>,
+    },
+    /// Make an earlier version live again.
+    RollBackSnapshot {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// The version to make live.
+        version_id: String,
+        /// Its number.
+        number: u32,
+        /// The version live before, for rollback.
+        previous: Option<String>,
+    },
+    /// Answer on the account's workers.dev subdomain.
+    EnableWorkersDev {
+        /// The Worker.
+        script: String,
+        /// The address, for review.
+        address: String,
+    },
+    /// Stop answering on workers.dev.
+    DisableWorkersDev {
+        /// The Worker.
+        script: String,
+        /// The address, for review.
+        address: String,
+    },
+    /// Serve a hostname with the Snapshot (Cloudflare adds the DNS record).
+    AttachSnapshotDomain {
+        /// Zone id.
+        zone_id: String,
+        /// The hostname.
+        hostname: String,
+        /// The Worker.
+        script: String,
+    },
+    /// Stop serving a hostname with the Snapshot.
+    DetachSnapshotDomain {
+        /// The Custom Domain, for rollback.
+        domain: cf_api::WorkerDomain,
+    },
+    /// Delete the Snapshot's Worker with every version (always the last step).
+    DeleteSnapshotWorker {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+    },
 }
 
 impl Step {
@@ -544,6 +694,38 @@ impl Step {
             Self::DeleteLbPool { pool } => m::delete_lb_pool(&pool.name),
             Self::DeleteLbMonitor { .. } => m::delete_lb_monitor(),
             Self::Verify { hostname } => m::verify(hostname),
+            Self::UploadSnapshotFiles {
+                content,
+                changed_files,
+                changed_bytes,
+                ..
+            } => crate::text::msg::snapshot::step::upload(
+                *changed_files,
+                content.files.len() as u64,
+                crate::text::msg::raw(super::sites::format_bytes(*changed_bytes)),
+            ),
+            Self::CreateSnapshotWorker { script, .. } => {
+                crate::text::msg::snapshot::step::create_worker(script)
+            }
+            Self::PublishSnapshotVersion { .. } => crate::text::msg::snapshot::step::publish(),
+            Self::RollBackSnapshot { number, .. } => {
+                crate::text::msg::snapshot::step::roll_back(u64::from(*number))
+            }
+            Self::EnableWorkersDev { address, .. } => {
+                crate::text::msg::snapshot::step::enable_workers_dev(address)
+            }
+            Self::DisableWorkersDev { address, .. } => {
+                crate::text::msg::snapshot::step::disable_workers_dev(address)
+            }
+            Self::AttachSnapshotDomain { hostname, .. } => {
+                crate::text::msg::snapshot::step::attach_domain(hostname)
+            }
+            Self::DetachSnapshotDomain { domain } => {
+                crate::text::msg::snapshot::step::detach_domain(&domain.hostname)
+            }
+            Self::DeleteSnapshotWorker { script, .. } => {
+                crate::text::msg::snapshot::step::delete_worker(script)
+            }
         }
     }
 
@@ -594,6 +776,40 @@ impl Step {
                 route.network
             )),
             Self::Verify { hostname } => Some(format!("curl -I https://{hostname}")),
+            Self::RollBackSnapshot {
+                script, version_id, ..
+            } => {
+                let body = serde_json::json!({
+                    "strategy": "percentage",
+                    "versions": [{ "version_id": version_id, "percentage": 100 }],
+                });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/scripts/{script}/deployments --data '{body}'"
+                ))
+            }
+            Self::EnableWorkersDev { script, .. } | Self::DisableWorkersDev { script, .. } => {
+                let enabled = matches!(self, Self::EnableWorkersDev { .. });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/scripts/{script}/subdomain --data '{{\"enabled\":{enabled}}}'"
+                ))
+            }
+            Self::AttachSnapshotDomain {
+                zone_id,
+                hostname,
+                script,
+            } => {
+                let body = serde_json::json!({ "hostname": hostname, "zone_id": zone_id, "service": script });
+                Some(format!(
+                    "curl -X PUT {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/domains --data '{body}'"
+                ))
+            }
+            Self::DetachSnapshotDomain { domain } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/workers/domains/{}",
+                domain.id
+            )),
+            Self::DeleteSnapshotWorker { script, .. } => Some(format!(
+                "curl -X DELETE {auth} '{API}/accounts/{account_id}/workers/scripts/{script}?force=true'"
+            )),
             _ => None,
         }
     }

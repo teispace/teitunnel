@@ -19,6 +19,8 @@ pub enum Permission {
     DnsEdit,
     /// Protect routes with Access (optional).
     AccessEdit,
+    /// Publish Snapshots as Workers (optional).
+    WorkersEdit,
 }
 
 /// The result of probing one permission.
@@ -55,6 +57,8 @@ pub struct ZoneGrant {
     pub zone_name: String,
     /// Whether DNS records can be edited.
     pub dns_edit: Grant,
+    /// Whether Workers can answer on its hostnames (Snapshots' Custom Domains).
+    pub workers_routes: Grant,
 }
 
 /// Everything a credential can do in one account.
@@ -70,6 +74,8 @@ pub struct Capabilities {
     pub tunnels_edit: Grant,
     /// Access policies (optional feature).
     pub access_edit: Grant,
+    /// Workers (Snapshots, optional feature).
+    pub workers_edit: Grant,
     /// DNS editing, per domain.
     pub zones: Vec<ZoneGrant>,
 }
@@ -92,11 +98,15 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     // separate "Organizations, Identity Providers, and Groups" permission. Its update
     // endpoint is PUT-only, so a PATCH probe would read 405 as allowed: list it instead.
     let login_methods = format!("{account}/access/identity_providers");
-    let (tunnels_read, tunnels_edit, access_apps, access_methods) = tokio::join!(
+    // Snapshots are Workers: PATCHing a missing Worker's settings is 404 when allowed.
+    let worker_member =
+        format!("{account}/workers/scripts/teitunnel-permission-check/script-settings");
+    let (tunnels_read, tunnels_edit, access_apps, access_methods, workers_edit) = tokio::join!(
         client.probe_read(&tunnels),
         client.probe_write(&tunnel_member),
         client.probe_write(&access_member),
         client.probe_read(&login_methods),
+        client.probe_write(&worker_member),
     );
     let zones_result: Result<Vec<Zone>, _> = match only_zone {
         Some(zone_id) => client.zone(zone_id).await.map(|zone| vec![zone]),
@@ -109,14 +119,15 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     };
     let mut zones = Vec::new();
     for zone in zones_result.unwrap_or_default() {
-        let dns_edit = client
-            .probe_write(&format!("/zones/{}/dns_records/{NIL_ID}", zone.id))
-            .await
-            .into();
+        let dns = format!("/zones/{}/dns_records/{NIL_ID}", zone.id);
+        let routes = format!("/zones/{}/workers/routes", zone.id);
+        let (dns_edit, workers_routes) =
+            tokio::join!(client.probe_write(&dns), client.probe_read(&routes));
         zones.push(ZoneGrant {
             zone_id: zone.id,
             zone_name: zone.name,
-            dns_edit,
+            dns_edit: dns_edit.into(),
+            workers_routes: workers_routes.into(),
         });
     }
     Capabilities {
@@ -124,6 +135,7 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         tunnels_read: tunnels_read.into(),
         tunnels_edit: tunnels_edit.into(),
         access_edit: both(access_apps, access_methods),
+        workers_edit: workers_edit.into(),
         zones,
     }
 }
@@ -183,6 +195,23 @@ mod tests {
             .respond_with(list(serde_json::json!([])))
             .mount(&server)
             .await;
+        Mock::given(method("PATCH"))
+            .and(path(
+                "/accounts/a1/workers/scripts/teitunnel-permission-check/script-settings",
+            ))
+            .respond_with(error(404, 10007))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/zones/z1/workers/routes"))
+            .respond_with(list(serde_json::json!([])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/zones/z2/workers/routes"))
+            .respond_with(error(403, 10000))
+            .mount(&server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/zones"))
             .respond_with(list(serde_json::json!([
@@ -221,6 +250,14 @@ mod tests {
         assert_eq!(caps.tunnels_read, Grant::Yes);
         assert_eq!(caps.tunnels_edit, Grant::Yes);
         assert_eq!(caps.access_edit, Grant::No);
+        assert_eq!(caps.workers_edit, Grant::Yes);
+        assert_eq!(
+            caps.zones
+                .iter()
+                .map(|z| z.workers_routes)
+                .collect::<Vec<_>>(),
+            [Grant::Yes, Grant::No]
+        );
         assert_eq!(
             caps.zones
                 .iter()

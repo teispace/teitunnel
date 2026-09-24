@@ -58,6 +58,7 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
           { kind: "tunnels" },
           ...caps.zones.map((z) => ({ kind: "dns" as const, zone: z.zoneName })),
           { kind: "access" },
+          { kind: "workers" },
         ]
       : [{ kind: "tunnels" }, ...(zone ? [{ kind: "dns" as const, zone }] : [])];
   return (
@@ -77,7 +78,10 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
             />
           ))}
         {zoneId === undefined ? (
-          <Row grant={caps.accessEdit} label={t("capabilities.access")} />
+          <>
+            <Row grant={caps.accessEdit} label={t("capabilities.access")} />
+            <Row grant={caps.workersEdit} label={t("capabilities.workers")} />
+          </>
         ) : null}
       </ul>
       <PermissionFix accountId={accountId} needs={needs} />

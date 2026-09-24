@@ -373,7 +373,8 @@
       "failed": "Failed",
       "undoing": "Undoing",
       "undone": "Undone",
-      "undoFailed": "Couldn't undo"
+      "undoFailed": "Couldn't undo",
+      "transferring": "Uploading"
     },
     "warning": {
       "replacesForeignRecord": "{hostname} already has a DNS record ({kind} {content}) that Teitunnel didn't create. It will be replaced.",
@@ -514,7 +515,11 @@
       "removeNetwork": "Networks Unshared",
       "createTunnel": "Tunnels Created",
       "balanceRoute": "Load Balancing Started",
-      "unbalanceRoute": "Load Balancing Stopped"
+      "unbalanceRoute": "Load Balancing Stopped",
+      "publishSnapshot": "Snapshots Published",
+      "updateSnapshot": "Snapshot Versions",
+      "rollbackSnapshot": "Snapshot Rollbacks",
+      "deleteSnapshot": "Snapshots Deleted"
     },
     "show": {
       "all": "All Changes",
@@ -554,7 +559,8 @@
       "dns": "DNS record",
       "network": "Private network",
       "access": "Login",
-      "loadBalancing": "Load balancing"
+      "loadBalancing": "Load balancing",
+      "snapshot": "Snapshot"
     },
     "before": "Before: ",
     "after": "After: ",
@@ -803,7 +809,8 @@
     "zones": "See your domains",
     "tunnels": "Create and manage tunnels",
     "dns": "Edit DNS for {zone}",
-    "access": "Protect routes with Access (optional)"
+    "access": "Protect routes with Access (optional)",
+    "workers": "Publish Snapshots (optional)"
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -938,12 +945,153 @@
     "terminal": {
       "title": "From a terminal",
       "cardLabel": "Quick Share of {origin} from a terminal"
+    },
+    "snapshot": "Publish a Snapshot"
+  },
+  "snapshots": {
+    "title": "Snapshots",
+    "list": "Snapshots",
+    "refresh": "Refresh Snapshots",
+    "publish": "Publish a Snapshot",
+    "loadFailed": "Couldn't load Snapshots",
+    "noSelection": "No Snapshot selected",
+    "connectDescription": "Snapshots are hosted on your own Cloudflare account. Connect it to publish one.",
+    "empty": {
+      "title": "No Snapshots yet",
+      "description": "A Snapshot is a copy of your site on your own Cloudflare account. It stays online while this computer sleeps."
+    },
+    "bytes_one": "{count} byte",
+    "bytes_other": "{count} bytes",
+    "files_one": "{count} file",
+    "files_other": "{count} files",
+    "status": {
+      "live": "Online",
+      "incomplete": "Publishing didn't finish"
+    },
+    "open": "Open in Browser",
+    "update": "Publish New Version",
+    "delete": {
+      "action": "Delete",
+      "title": "Delete {name}?",
+      "description": "Its address stops working and every version is deleted from Cloudflare. This can't be undone.",
+      "confirm": "Delete Snapshot",
+      "done": "{name} was deleted"
+    },
+    "rollback": {
+      "action": "Roll Back",
+      "title": "Make version {number} live?",
+      "description": "Visitors get version {number} right away. The version live now stays available.",
+      "confirm": "Make Live",
+      "done": "Version {number} is live"
+    },
+    "version": {
+      "label": "Version {number}",
+      "live": "Live",
+      "meta": "{files} · {size} · {when}",
+      "kept": "The last 10 versions are kept here."
+    },
+    "detail": {
+      "address": "Address",
+      "title": "Details",
+      "source": "Files from",
+      "size": "Size",
+      "sizeValue": "{files}, {size}",
+      "protection": "Who can open it",
+      "pages": "Pages",
+      "spa": "Single-page app",
+      "static": "As published",
+      "published": "Last published",
+      "expires": "Deletes itself",
+      "never": "Never",
+      "worker": "Worker",
+      "versions": "Versions"
+    },
+    "protection": {
+      "none": "Anyone with the address",
+      "password": "Anyone with the password",
+      "loginFor": "People who sign in: {people}"
+    },
+    "source": {
+      "label": "Files",
+      "keep": "Current Files",
+      "keepHelp": "The files stay as they are; only the settings change.",
+      "folder": "Folder",
+      "project": "Build a Project",
+      "site": "Running Site",
+      "chooseFolder": "Choose Folder…",
+      "noFolder": "No folder chosen",
+      "folderHelp": "Published as it is. Hidden files, .env files, keys, .git and node_modules are left out.",
+      "projectHelp": "Choose the project folder. Its build runs only after you confirm.",
+      "staticSite": "Plain HTML: there is nothing to build.",
+      "detected": "{framework} project. Building runs {command} in the project folder, then publishes {output}.",
+      "detectedOther": "Building runs {command} in the project folder, then publishes {output}.",
+      "nextNeedsExport": "Next.js builds a server app unless next.config sets output: 'export'. Add it, or capture the running app instead.",
+      "svelteKitNeedsStaticAdapter": "SvelteKit needs @sveltejs/adapter-static to produce files. Add it, or capture the running app instead.",
+      "url": "Address",
+      "urlHelp": "A site running on this computer, such as http://localhost:5173. Its pages and files are captured.",
+      "buildOutput": "Build output",
+      "build": "{command} in {project}",
+      "crawl": "Captured from {url}"
+    },
+    "prepared": {
+      "summary": "Ready: {files}, {size}.",
+      "skipped_one": "Left out: {names}",
+      "skipped_other": "Left out ({count}): {names}",
+      "truncated": "Stopped at the limit: some pages weren't captured.",
+      "failed_one": "{count} link answered with an error.",
+      "failed_other": "{count} links answered with an error."
+    },
+    "details": {
+      "name": "Name",
+      "nameHelp": "Also names its Worker in your Cloudflare dashboard.",
+      "address": "Address",
+      "myDomain": "My Domain",
+      "workersDev": "workers.dev",
+      "hostname": "Hostname",
+      "workersDevHelp": "Your account's free workers.dev address.",
+      "protection": "Who can open it",
+      "protectionNone": "Anyone with the address",
+      "protectionPassword": "Anyone with the password",
+      "protectionLogin": "People I choose (Cloudflare login)",
+      "password": "Password",
+      "passwordHelp": "At least 6 characters. Only a salted hash is stored, on Cloudflare.",
+      "passwordKeep": "Leave empty to keep the current password.",
+      "passwordLimit": "With a password, every visit runs the Snapshot's Worker, which counts toward Cloudflare's free 100,000 Worker requests a day.",
+      "allowed": "People who can sign in",
+      "allowedHelp": "Email addresses, or @domain for everyone at a domain.",
+      "spa": "Single-page app",
+      "spaHelp": "Paths without a file show index.html, for apps that route in the browser.",
+      "expires": "Delete after",
+      "expiresNever": "Never",
+      "expiresDays_one": "{count} day",
+      "expiresDays_other": "{count} days"
+    },
+    "sheet": {
+      "title": "Publish a Snapshot",
+      "updateTitle": "Publish a New Version of {name}",
+      "description": "A copy of your site on your own Cloudflare account, online while this computer sleeps.",
+      "continue": "Continue",
+      "back": "Back",
+      "buildAndContinue": "Build and Continue",
+      "capture": "Capture",
+      "review": "Review",
+      "publish": "Publish",
+      "publishVersion": "Publish Version",
+      "confirmReplace": "Delete the DNS records above",
+      "nothing": "Nothing to change.",
+      "uploading": "Uploading",
+      "uploadProgress": "Uploading {files} of {total} files ({size})",
+      "rolledBack": "Publishing failed and everything was undone: {error}",
+      "partial": "Publishing failed: {error}. Left in place: {leftovers}",
+      "updated": "A new version of {name} is live",
+      "published": "{name} is online"
     }
   },
   "nav": {
     "overview": "Overview",
     "routes": "Routes",
     "quickShare": "Quick Share",
+    "snapshots": "Snapshots",
     "cloudflare": "Cloudflare",
     "domains": "Domains",
     "tunnels": "Tunnels",
@@ -1548,6 +1696,7 @@
       "overview": "Overview",
       "routes": "Routes",
       "quickShare": "Quick Share",
+      "snapshots": "Snapshots",
       "domains": "Domains",
       "tunnels": "Tunnels",
       "activity": "Activity",
@@ -1627,6 +1776,75 @@
       "seconds": "Enter a number of seconds from 1 to {max}",
       "connections": "Enter a number from 1 to {max}",
       "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
+    },
+    "snapshot": {
+      "summary": {
+        "publish_one": "Publish {name} ({count} file) at {address}",
+        "publish_other": "Publish {name} ({count} files) at {address}",
+        "update": "Publish a new version of {name}",
+        "rollback": "Roll {name} back to version {number}",
+        "delete": "Delete Snapshot {name}"
+      },
+      "step": {
+        "upload_one": "Upload {count} new or changed file of {total} ({size}); files Cloudflare already has aren't sent again",
+        "upload_other": "Upload {count} new or changed files of {total} ({size}); files Cloudflare already has aren't sent again",
+        "createWorker": "Create the Worker {script} with these files",
+        "publish": "Make the new version live once every file is uploaded",
+        "rollBack": "Make version {number} live again",
+        "enableWorkersDev": "Answer at {address}",
+        "disableWorkersDev": "Stop answering at {address}",
+        "attachDomain": "Serve {hostname} with the Snapshot (Cloudflare adds its DNS record and certificate)",
+        "detachDomain": "Stop serving {hostname} (its DNS record goes too)",
+        "deleteWorker": "Delete the Worker {script} with every version"
+      },
+      "leftover": {
+        "deleteWorker": "The Worker {script} was created and is still there",
+        "redeploy": "{script} wasn't switched back to the version it had",
+        "workersDevOff": "{script} still answers on workers.dev",
+        "workersDevOn": "{script} no longer answers on workers.dev",
+        "detachDomain": "{hostname} still serves the Snapshot",
+        "reattachDomain": "{hostname} no longer serves the Snapshot",
+        "recreateWorker": "The Worker {script} was deleted and can't be restored"
+      },
+      "error": {
+        "outside": "{path} is outside the chosen folder, so it wasn't uploaded.",
+        "read": "Couldn't read {path}: {detail}",
+        "filesMissing": "Cloudflare no longer has every file of the live version. Publish again from the files.",
+        "unknownHash": "Cloudflare asked for a file that isn't in this version ({hash}). Try again.",
+        "tooLarge": "{path} is larger than 25 MB, the most Cloudflare accepts for one file. Remove it or make it smaller.",
+        "changed": "{path} changed since the preview. Review the change again.",
+        "notConfirmed": "Cloudflare didn't confirm the upload. Try again: files already sent aren't sent again.",
+        "notUploaded": "The files weren't uploaded.",
+        "exists": "A Snapshot named {name} already exists on Cloudflare. Choose another name.",
+        "gone": "The Snapshot {name} is no longer on Cloudflare. Delete it here, then publish it again.",
+        "hostnameRouted": "{hostname} is used by a route. Choose another hostname, or remove the route first.",
+        "hostnameServed": "{hostname} is already served by the Worker {worker}. Choose another hostname.",
+        "noWorkersSubdomain": "This account has no workers.dev subdomain yet. Choose one in the Cloudflare dashboard (Workers & Pages), or use a hostname on one of your domains.",
+        "loginNeedsDomain": "A login needs a hostname on one of your domains. Use a password instead, or choose a hostname.",
+        "invalidName_one": "Use {count} character or fewer: letters, digits, spaces, dots, - and _.",
+        "invalidName_other": "Use up to {count} characters: letters, digits, spaces, dots, - and _.",
+        "nameTaken": "You already have a Snapshot named {name}. Choose another name.",
+        "invalidHostname": "{hostname} isn't a hostname a Snapshot can use. Use one like preview.example.com.",
+        "notAFolder": "{path} isn't a folder.",
+        "empty": "There's nothing to publish in {path}.",
+        "tooManyFiles_one": "There are more files than Cloudflare accepts in one version ({count}).",
+        "tooManyFiles_other": "There are more files than Cloudflare accepts in one version ({count}).",
+        "noProject": "No web project or index.html was found in {path}.",
+        "build": "{command} failed:\n{output}",
+        "buildTimeout": "{command} was stopped after 15 minutes.",
+        "noOutput": "The build finished, but {path} wasn't created. Check the build's output folder.",
+        "invalidUrl": "{url} isn't an http:// or https:// address.",
+        "unreachable": "The site didn't answer ({detail}). Is it running?",
+        "crawl": "Couldn't capture the site: {detail}",
+        "passwordTooShort_one": "Use a password of at least {count} character.",
+        "passwordTooShort_other": "Use a password of at least {count} characters.",
+        "random": "No secure random numbers are available. Try again.",
+        "notPrepared": "The files were prepared too long ago. Choose them again.",
+        "notFound": "That Snapshot doesn't exist any more.",
+        "noSuchVersion": "Version {number} isn't kept any more.",
+        "unchanged": "The same files and settings are already live.",
+        "notLocal": "{url} isn't on this computer or its network. Capture a site you run, such as http://localhost:5173."
+      }
     }
   },
   "permissionFix": {
@@ -1659,7 +1877,11 @@
     "createToken": "Create Token",
     "lbPools": "Account · Load Balancing: Monitors and Pools · Edit",
     "lbBalancers": "Zone · Load Balancers · Edit",
-    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first."
+    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first.",
+    "workers": "Account · Workers Scripts · Edit",
+    "workersWhy": "To publish Snapshots as Workers on your account.",
+    "workersRoutes": "Zone · Workers Routes · Edit",
+    "workersRoutesWhy": "To give a Snapshot a hostname on {zone}. Include {zone} under Zone Resources."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",

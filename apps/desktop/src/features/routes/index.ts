@@ -1,3 +1,5 @@
+export { parseAllowed } from "./access";
+export { HostnameInput, joinHostname } from "./components/hostname-input";
 export { PlanSteps } from "./components/plan-steps";
 export { RouteSheet, type SheetMode } from "./components/route-sheet";
 export {

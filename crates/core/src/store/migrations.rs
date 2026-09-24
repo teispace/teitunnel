@@ -147,6 +147,42 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
+    // 12: Snapshots (static copies hosted as Workers on the user's account) and their
+    // recent versions' manifests (for change counts, rollback and settings-only updates)
+    M::up(
+        "CREATE TABLE snapshots (
+            id           TEXT PRIMARY KEY,
+            account_id   TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            script       TEXT NOT NULL,
+            hostname     TEXT,
+            source       TEXT NOT NULL,
+            spa          INTEGER NOT NULL DEFAULT 0,
+            password     INTEGER NOT NULL DEFAULT 0,
+            access       TEXT,
+            expires_at   INTEGER,
+            owner        TEXT NOT NULL,
+            live_version TEXT,
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL,
+            UNIQUE (account_id, name),
+            UNIQUE (account_id, script)
+        ) STRICT;
+        CREATE TABLE snapshot_versions (
+            snapshot_id TEXT NOT NULL REFERENCES snapshots (id) ON DELETE CASCADE,
+            number      INTEGER NOT NULL,
+            version_id  TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            files       INTEGER NOT NULL,
+            bytes       INTEGER NOT NULL,
+            manifest    TEXT NOT NULL,
+            headers     TEXT,
+            redirects   TEXT,
+            spa         INTEGER NOT NULL,
+            password    INTEGER NOT NULL,
+            PRIMARY KEY (snapshot_id, number)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

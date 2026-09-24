@@ -25,6 +25,8 @@ use crate::domain::{Hostname, PathRule};
 
 use crate::text::{Text, UserText, english_display, msg};
 
+mod sites;
+
 /// Why no plan could be made. Messages are shown to the user.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PlanError {
@@ -71,6 +73,23 @@ pub enum PlanError {
     BalancerExists(String),
     /// Teitunnel doesn't load balance the hostname.
     NotBalanced(String),
+    /// A Snapshot with this name already exists.
+    SnapshotExists(String),
+    /// The Snapshot's Worker is gone.
+    NoSuchSnapshot(String),
+    /// A route (Teitunnel's DNS record) already uses the hostname.
+    HostnameRouted(String),
+    /// Another Worker already answers on the hostname.
+    HostnameServed {
+        /// Hostname.
+        hostname: String,
+        /// That Worker.
+        worker: String,
+    },
+    /// The account has no workers.dev subdomain yet.
+    NoWorkersSubdomain,
+    /// A login (Access) needs a hostname on one of the account's domains.
+    SnapshotLoginNeedsDomain,
 }
 
 impl UserText for PlanError {
@@ -96,6 +115,14 @@ impl UserText for PlanError {
             Self::TunnelNameTaken(name) => msg::error::plan::tunnel_name_taken(name),
             Self::BalancerExists(hostname) => msg::error::plan::balancer_exists(hostname),
             Self::NotBalanced(hostname) => msg::error::plan::not_balanced(hostname),
+            Self::SnapshotExists(name) => msg::snapshot::error::exists(name),
+            Self::NoSuchSnapshot(name) => msg::snapshot::error::gone(name),
+            Self::HostnameRouted(hostname) => msg::snapshot::error::hostname_routed(hostname),
+            Self::HostnameServed { hostname, worker } => {
+                msg::snapshot::error::hostname_served(hostname, worker)
+            }
+            Self::NoWorkersSubdomain => msg::snapshot::error::no_workers_subdomain(),
+            Self::SnapshotLoginNeedsDomain => msg::snapshot::error::login_needs_domain(),
         }
     }
 }
@@ -907,6 +934,23 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 tunnel_id: tunnel.id.clone(),
             });
         }
+        Intent::PublishSnapshot {
+            site,
+            settings,
+            content,
+        } => sites::publish(&mut b, site, settings, content)?,
+        Intent::UpdateSnapshot {
+            site,
+            settings,
+            content,
+            previous,
+        } => sites::update(&mut b, site, settings, content, previous)?,
+        Intent::RollbackSnapshot {
+            site,
+            version_id,
+            number,
+        } => sites::rollback(&mut b, site, version_id, *number)?,
+        Intent::DeleteSnapshot { site } => sites::delete(&mut b, site),
     }
     Ok(b.finish())
 }

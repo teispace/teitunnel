@@ -1,4 +1,5 @@
-import { ExternalLink } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Camera, ExternalLink } from "lucide-react";
 import { m } from "motion/react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -7,6 +8,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
+import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
@@ -38,6 +40,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
   const live = share.status.status === "live";
   const { data: stats } = useShareStats(share.id, live);
   const stop = useStopShare();
+  const navigate = useNavigate();
   const { dot, label } = statusOf(share);
 
   return (
@@ -96,6 +99,18 @@ export function ShareCard({ share }: { share: QuickShare }) {
                 />
               </Tooltip>
               <QrButton url={share.url} />
+              <Tooltip content={t("quickShare.snapshot")}>
+                <IconButton
+                  icon={Camera}
+                  label={t("quickShare.snapshot")}
+                  variant="secondary"
+                  size="lg"
+                  disabled={!live}
+                  onClick={() =>
+                    void navigate({ to: "/snapshots", search: { capture: siteUrl(share.origin) } })
+                  }
+                />
+              </Tooltip>
             </>
           ) : null}
         </div>

@@ -44,6 +44,8 @@ const ACCOUNT_TABLES: &[&str] = &[
     "balanced_routes",
     "domain_shares",
     "activity",
+    // Their versions go with them (foreign key).
+    "snapshots",
 ];
 
 /// How an account was connected.

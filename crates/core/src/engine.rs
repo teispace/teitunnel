@@ -13,9 +13,11 @@ mod drift;
 mod executor;
 mod ingress;
 mod local;
+mod local_sites;
 mod networks;
 mod observe;
 mod planner;
+pub mod sites;
 mod tunnels;
 mod types;
 mod verify;
@@ -29,6 +31,8 @@ pub(crate) mod fake;
 mod planner_tests;
 #[cfg(test)]
 mod simulate;
+#[cfg(test)]
+mod snapshot_tests;
 
 pub use access::{
     AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, ObservedAccessApp,
@@ -40,9 +44,14 @@ pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
 pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
+pub use local_sites::{KEPT_VERSIONS, SiteRow, SiteVersionRow};
 pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
 pub use observe::{ObserveError, ObserveNeed, Want, observe};
 pub use planner::{PlanError, plan};
+pub use sites::{
+    MAX_FILE_SIZE, MAX_FILES, Password, SiteAddress, SiteContent, SiteFile, SiteSettings, SiteSpec,
+    Transfer, content_hash, format_bytes,
+};
 pub use tunnels::{ConnectionView, ConnectorView, TunnelSummary};
 pub use types::{
     Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,

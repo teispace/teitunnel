@@ -7,6 +7,8 @@
 /// "Cloudflare Tunnel: Edit" if it's missing, and capability probing catches it.
 /// `access` (Access: Apps and Policies) and `access_acct` (Access: Organizations,
 /// Identity Providers, and Groups) let routes require a login from the start (D-065).
+/// `workers_scripts` (account) and `workers_routes` (zone) publish Snapshots and give
+/// them a hostname (docs/research/cloudflare-snapshots.md).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -14,6 +16,8 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("account_settings", "read"),
     ("access", "edit"),
     ("access_acct", "edit"),
+    ("workers_scripts", "edit"),
+    ("workers_routes", "edit"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions
@@ -59,6 +63,9 @@ mod tests {
         let access_acct = "%7B%22key%22%3A%22access_acct%22%2C%22type%22%3A%22edit%22%7D";
         // Logins need both Access groups, asked for up front (D-065).
         assert!(url.contains(access) && url.contains(access_acct));
+        // Snapshots: Workers Scripts (account) and Workers Routes (zones).
+        assert!(url.contains("%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D"));
+        assert!(url.contains("%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D"));
         // Same encoding as Cloudflare's own example for `[{"key":"dns","type":"edit"}]`.
         assert_eq!(
             percent_encode(r#"[{"key":"dns","type":"edit"}]"#),

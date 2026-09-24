@@ -53,6 +53,10 @@ teitunnel always-on on                  # as a service (a system unit as root)
 teitunnel routes --check                # exit 1 unless every route is live
 teitunnel serve                         # tunnels + web dashboard and API
 teitunnel api-key create deploy         # a key for the API (shown once)
+teitunnel snapshot publish ./dist --on preview.example.com  # a copy online while you sleep
+teitunnel snapshot publish . --build     # build the project, then publish its output
+teitunnel snapshot ls                    # Snapshots, their addresses and versions
+teitunnel snapshot rollback preview.example.com
 ```
 
 | Option | Meaning |
@@ -66,6 +70,7 @@ teitunnel api-key create deploy         # a key for the API (shown once)
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
+| `--build`, `--crawl <url>`, `--password`, `--expires 7d` | `snapshot publish`: build the project first, capture a running site, ask visitors for a password, delete it later ([Snapshots](/docs/guides/snapshots)). |
 
 Routes are served by the app while it's open, all the time with
 [Always-on](/docs/concepts/run-modes) (`always-on on` from the CLI), or by

@@ -21,6 +21,7 @@ import type {
   Settings,
   SettingsPatch,
   ShareStats,
+  SnapshotView,
   TunnelSummary,
   UpdateStatus,
 } from "@/lib/ipc/bindings";
@@ -156,11 +157,84 @@ const capabilities: Capabilities = {
   tunnelsRead: "yes",
   tunnelsEdit: "yes",
   accessEdit: "no",
+  workersEdit: "yes",
   zones: domains.map((d) => ({
     zoneId: d.id,
     zoneName: d.name,
     dnsEdit: d.name === "yx.app" ? "no" : "yes",
+    workersRoutes: "yes",
   })),
+};
+
+const snapshots: SnapshotView[] = [
+  {
+    id: "s1",
+    accountId: "a1",
+    name: "Launch page",
+    url: "https://preview.xyz.com",
+    hostname: "preview.xyz.com",
+    workersDev: false,
+    script: "teitunnel-launch-page",
+    source: {
+      type: "build",
+      project: "/Users/me/Projects/launch",
+      command: "pnpm run build",
+      output: "/Users/me/Projects/launch/dist",
+    },
+    spa: true,
+    password: false,
+    access: null,
+    expiresAt: null,
+    createdAt: Date.now() - 3 * 86_400_000,
+    updatedAt: Date.now() - 20 * 60_000,
+    liveVersion: 3,
+    versions: 3,
+    files: 48,
+    bytes: 1_840_000,
+  },
+  {
+    id: "s2",
+    accountId: "a1",
+    name: "Design review",
+    url: "https://teitunnel-design-review.acme.workers.dev",
+    hostname: "teitunnel-design-review.acme.workers.dev",
+    workersDev: true,
+    script: "teitunnel-design-review",
+    source: { type: "crawl", url: "http://localhost:5173/" },
+    spa: false,
+    password: true,
+    access: null,
+    expiresAt: Date.now() + 6 * 86_400_000,
+    createdAt: Date.now() - 86_400_000,
+    updatedAt: Date.now() - 86_400_000,
+    liveVersion: 1,
+    versions: 1,
+    files: 12,
+    bytes: 312_000,
+  },
+];
+
+const snapshotPlan: PlanView = {
+  steps: [
+    {
+      kind: "snapshot",
+      description: core("snapshot.step.upload", { count: 48, total: 48, size: "1.8 MB" }),
+      command: null,
+    },
+    {
+      kind: "snapshot",
+      description: core("snapshot.step.createWorker", { script: "teitunnel-launch" }),
+      command: null,
+    },
+    {
+      kind: "snapshotAddress",
+      description: core("snapshot.step.attachDomain", { hostname: "preview.xyz.com" }),
+      command: null,
+    },
+  ],
+  warnings: [],
+  requiresConfirmation: false,
+  fingerprint: "snapshot",
 };
 
 const tunnelId = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
@@ -869,6 +943,62 @@ export function installMockIpc(): void {
             },
             { time: null, level: "info", message: "Registered tunnel connection", error: null },
           ];
+        case "snapshots_list":
+          return snapshots;
+        case "snapshots_versions":
+          return [
+            {
+              number: 3,
+              createdAt: Date.now() - 20 * 60_000,
+              files: 48,
+              bytes: 1_840_000,
+              live: true,
+              spa: true,
+              password: false,
+            },
+            {
+              number: 2,
+              createdAt: Date.now() - 26 * 3_600_000,
+              files: 47,
+              bytes: 1_790_000,
+              live: false,
+              spa: true,
+              password: false,
+            },
+            {
+              number: 1,
+              createdAt: Date.now() - 3 * 86_400_000,
+              files: 45,
+              bytes: 1_720_000,
+              live: false,
+              spa: true,
+              password: false,
+            },
+          ];
+        case "snapshots_choose_folder":
+          return "/Users/me/Projects/launch/dist";
+        case "snapshots_prepare_folder":
+        case "snapshots_prepare_crawl":
+        case "snapshots_prepare_build":
+          return {
+            id: "prepared-1",
+            source: { type: "folder", path: "/Users/me/Projects/launch/dist" },
+            suggestedName: "launch",
+            files: 48,
+            bytes: 1_840_000,
+            skipped: [{ path: ".env", reason: "secret" }],
+            singlePage: true,
+            crawl: null,
+          };
+        case "snapshots_preview":
+          return snapshotPlan;
+        case "snapshots_apply":
+          return new Promise<Outcome>((resolve) =>
+            setTimeout(
+              () => resolve({ type: "applied", tunnelId: null, verify: [], connectorError: null }),
+              600,
+            ),
+          );
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:

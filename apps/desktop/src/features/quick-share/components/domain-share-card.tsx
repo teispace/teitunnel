@@ -1,9 +1,11 @@
-import { ExternalLink, Globe } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Camera, ExternalLink, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { DomainShare } from "@/lib/ipc/bindings";
@@ -18,6 +20,7 @@ import { QrButton } from "./qr-button";
 export function DomainShareCard({ share }: { share: DomainShare }) {
   const now = useNow();
   const stop = useStopDomainShare();
+  const navigate = useNavigate();
   const url = `https://${share.hostname}`;
   const fromCli = share.owner !== "app";
   return (
@@ -51,6 +54,17 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           />
         </Tooltip>
         <QrButton url={url} />
+        <Tooltip content={t("quickShare.snapshot")}>
+          <IconButton
+            icon={Camera}
+            label={t("quickShare.snapshot")}
+            variant="secondary"
+            size="lg"
+            onClick={() =>
+              void navigate({ to: "/snapshots", search: { capture: siteUrl(share.origin) } })
+            }
+          />
+        </Tooltip>
       </div>
       <footer className="flex items-center gap-3 text-callout text-secondary">
         <span>{fromCli ? t("quickShare.domain.fromCli") : t("quickShare.domain.endsWithApp")}</span>

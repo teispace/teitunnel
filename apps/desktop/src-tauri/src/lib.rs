@@ -69,6 +69,7 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Open at login starts hidden, into the menu bar (`--hidden`).
         .plugin(tauri_plugin_autostart::init(

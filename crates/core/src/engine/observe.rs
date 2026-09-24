@@ -74,6 +74,8 @@ pub struct ObserveNeed {
     pub tunnel_names: bool,
     /// Load balancing for a hostname.
     pub balance: super::balance::BalanceNeed,
+    /// A Snapshot's Worker.
+    pub site: super::sites::SiteNeed,
 }
 
 impl ObserveNeed {
@@ -112,6 +114,18 @@ impl ObserveNeed {
                 },
                 _ => super::balance::BalanceNeed::default(),
             },
+            site: intent
+                .site()
+                .map(|site| super::sites::SiteNeed {
+                    script: Some(site.script.clone()),
+                    hostname: match intent {
+                        Intent::PublishSnapshot { .. } | Intent::UpdateSnapshot { .. } => {
+                            site.address.hostname().map(ToString::to_string)
+                        }
+                        _ => None,
+                    },
+                })
+                .unwrap_or_default(),
         }
     }
 }
@@ -189,11 +203,16 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
-    let (access, networks, balance) = tokio::try_join!(
+    let (access, networks, balance, site) = tokio::try_join!(
         observe_access(api, local, account, &need.access, &names),
         observe_networks(api, account, need.networks),
         async {
             super::balance::observe(api, account, &zones, &need.balance)
+                .await
+                .map_err(ObserveError::from)
+        },
+        async {
+            super::sites::observe(api, account, &need.site)
                 .await
                 .map_err(ObserveError::from)
         },
@@ -210,6 +229,7 @@ pub async fn observe<C: CloudApi>(
         access,
         networks,
         balance,
+        site,
     })
 }
 

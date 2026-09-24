@@ -52,6 +52,7 @@ const goMenu: readonly MenuCommand[] = [
   "goOverview",
   "goRoutes",
   "goQuickShare",
+  "goSnapshots",
   "goDomains",
   "goTunnels",
   "goActivity",

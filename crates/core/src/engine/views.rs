@@ -315,6 +315,10 @@ pub enum StepKind {
     LoadBalancer,
     /// Check the route works.
     Verify,
+    /// Upload, publish, roll back or delete a Snapshot.
+    Snapshot,
+    /// Give a Snapshot its address, or take it away.
+    SnapshotAddress,
 }
 
 /// One step of a plan, as shown in the preview.
@@ -372,6 +376,15 @@ impl Step {
                 | Self::DeleteLbPool { .. }
                 | Self::DeleteLbMonitor { .. } => StepKind::LoadBalancer,
                 Self::Verify { .. } => StepKind::Verify,
+                Self::UploadSnapshotFiles { .. }
+                | Self::CreateSnapshotWorker { .. }
+                | Self::PublishSnapshotVersion { .. }
+                | Self::RollBackSnapshot { .. }
+                | Self::DeleteSnapshotWorker { .. } => StepKind::Snapshot,
+                Self::EnableWorkersDev { .. }
+                | Self::DisableWorkersDev { .. }
+                | Self::AttachSnapshotDomain { .. }
+                | Self::DetachSnapshotDomain { .. } => StepKind::SnapshotAddress,
             },
             description: self.describe(tunnel_name),
             command: self.command(account_id, tunnel_name),

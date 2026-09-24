@@ -11,11 +11,13 @@ mod envelope;
 mod error;
 mod load_balancing;
 mod management;
+mod multipart;
 mod networks;
 mod probe;
 mod resources;
 mod token;
 mod tunnels;
+mod workers;
 
 pub use access::{
     AccessApp, AccessOrganization, AccessPolicy, IdentityProvider, NewAccessApp, TEITUNNEL_PREFIX,
@@ -36,6 +38,10 @@ pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
 pub use token::ApiToken;
 pub use tunnels::{Connection, IngressRule, Tunnel, TunnelConfig, VersionedConfig};
+pub use workers::{
+    AssetEntry, AssetFile, DeploymentVersion, MODULE_TYPE, UploadSession, WorkerDeployment,
+    WorkerDomain, WorkerModule, WorkerVersion,
+};
 
 pub(crate) use resources::encode;
 

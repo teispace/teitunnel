@@ -17,6 +17,7 @@ mod quick_share;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
 mod settings;
+mod snapshots;
 mod updates;
 
 use std::path::PathBuf;
@@ -109,7 +110,16 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             doctor::doctor_set_ignored,
             doctor::doctor_fix_safe,
             doctor::diagnostics_preview,
-            doctor::diagnostics_export
+            doctor::diagnostics_export,
+            snapshots::snapshots_list,
+            snapshots::snapshots_versions,
+            snapshots::snapshots_choose_folder,
+            snapshots::snapshots_detect_project,
+            snapshots::snapshots_prepare_folder,
+            snapshots::snapshots_prepare_build,
+            snapshots::snapshots_prepare_crawl,
+            snapshots::snapshots_preview,
+            snapshots::snapshots_apply
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

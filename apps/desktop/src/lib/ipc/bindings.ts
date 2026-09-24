@@ -270,6 +270,30 @@ export const commands = {
 	 *  added as it is (it can take a minute: it runs traceroutes).
 	 */
 	diagnosticsExport: (includeCloudflared: boolean) => __TAURI_INVOKE<string>("diagnostics_export", { includeCloudflared }),
+	/**  Snapshots in every account, by name. */
+	snapshotsList: () => __TAURI_INVOKE<SnapshotView[]>("snapshots_list"),
+	/**  A Snapshot's kept versions, newest first. */
+	snapshotsVersions: (snapshotId: string) => __TAURI_INVOKE<SnapshotVersionView[]>("snapshots_versions", { snapshotId }),
+	/**  Asks for a folder with the system's open panel. `None` when cancelled. */
+	snapshotsChooseFolder: () => __TAURI_INVOKE<string | null>("snapshots_choose_folder"),
+	/**  Recognises the web project in a folder: framework, build command, output folder. */
+	snapshotsDetectProject: (dir: string) => __TAURI_INVOKE<Project>("snapshots_detect_project", { dir }),
+	/**  Collects a folder's files for publishing (nothing is sent anywhere). */
+	snapshotsPrepareFolder: (path: string) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_folder", { path }),
+	/**
+	 *  Builds a project with its package manager (after the user confirmed the command),
+	 *  streaming its output, then collects the files it produced.
+	 */
+	snapshotsPrepareBuild: (dir: string, onOutput: Channel<string>) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_build", { dir, onOutput }),
+	/**  Captures a site running on this computer (e.g. a dev server) by crawling it. */
+	snapshotsPrepareCrawl: (url: string) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_crawl", { url }),
+	/**  Plans a Snapshot change for review. Nothing is changed. */
+	snapshotsPreview: (accountId: string, change: SnapshotChange) => __TAURI_INVOKE<PlanView>("snapshots_preview", { accountId, change }),
+	/**
+	 *  Applies a reviewed Snapshot change; step progress (and upload progress) streams on
+	 *  `on_progress`.
+	 */
+	snapshotsApply: (accountId: string, change: SnapshotChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("snapshots_apply", { accountId, change, fingerprint, confirmed, onProgress }),
 };
 
 /** Events */
@@ -345,7 +369,15 @@ export type ActivityKind =
 /**  A route started being load balanced. */
 "balanceRoute" | 
 /**  A route stopped being load balanced. */
-"unbalanceRoute";
+"unbalanceRoute" | 
+/**  A Snapshot was published. */
+"publishSnapshot" | 
+/**  A new version of a Snapshot was published. */
+"updateSnapshot" | 
+/**  A Snapshot was rolled back to an earlier version. */
+"rollbackSnapshot" | 
+/**  A Snapshot was deleted. */
+"deleteSnapshot";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -368,6 +400,15 @@ export type ActivityRecord = {
 	/**  The routes were applied but this Mac's connector couldn't be started. */
 	connectorError?: Text | null,
 };
+
+/**  Where a new Snapshot answers. */
+export type AddressInput = 
+/**  A hostname on one of the account's domains. */
+{ type: "domain"; 
+/**  E.g. `preview.example.com`. */
+hostname: string } | 
+/**  The account's `workers.dev` subdomain. */
+{ type: "workersDev" };
 
 /**  Whether this Mac's connector can run as a service, and whether it does. */
 export type AlwaysOn = {
@@ -436,6 +477,8 @@ export type Capabilities = {
 	tunnelsEdit: Grant,
 	/**  Access policies (optional feature). */
 	accessEdit: Grant,
+	/**  Workers (Snapshots, optional feature). */
+	workersEdit: Grant,
 	/**  DNS editing, per domain. */
 	zones: ZoneGrant[],
 };
@@ -672,6 +715,25 @@ export type ConnectorView = {
 	connections: ConnectionView[],
 };
 
+/**  What a crawl captured. */
+export type CrawlReport = {
+	/**  HTML pages saved. */
+	pages: number,
+	/**  Files saved (pages included). */
+	files: number,
+	/**  Bytes saved. */
+	bytes: number | null,
+	/**  Paths that answered with an error (first 50). */
+	failed: string[],
+	/**  A limit was reached: the capture is incomplete. */
+	truncated: boolean,
+	/**
+	 *  Only one page was found and it loads scripts: probably a single-page app (serve
+	 *  `index.html` for every path).
+	 */
+	singlePage: boolean,
+};
+
 /**  How an account was connected. */
 export type CredentialKind = 
 /**  A user API token. */
@@ -706,7 +768,9 @@ export type DeltaArea =
 /**  A route's login (Cloudflare Access). */
 "access" | 
 /**  A route's load balancing. */
-"loadBalancing";
+"loadBalancing" | 
+/**  A Snapshot's address. */
+"snapshot";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -814,7 +878,9 @@ export type EntityKind =
 /**  Routes and this Mac's tunnel (id: the account). */
 "routes" | 
 /**  App updates. */
-"updates";
+"updates" | 
+/**  Snapshots (id: the account). */
+"snapshots";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -1019,6 +1085,33 @@ export type FoundRoute_Serialize = {
 	unsupported: Text | null,
 };
 
+/**  Web frameworks Teitunnel knows the static output of. */
+export type Framework = 
+/**  Vite (React, Vue, Svelte, Solid…): `dist`. */
+"vite" | 
+/**  Next.js with `output: 'export'`: `out`. */
+"next" | 
+/**  Astro: `dist`. */
+"astro" | 
+/**  SvelteKit with the static adapter: `build`. */
+"svelteKit" | 
+/**  Nuxt `generate`: `.output/public`. */
+"nuxt" | 
+/**  Create React App: `build`. */
+"createReactApp" | 
+/**  Gatsby: `public`. */
+"gatsby" | 
+/**  Docusaurus: `build`. */
+"docusaurus" | 
+/**  VitePress: `docs/.vitepress/dist` (or `.vitepress/dist`). */
+"vitePress" | 
+/**  Angular: `dist/<project>/browser`. */
+"angular" | 
+/**  A project with a build script Teitunnel doesn't recognise: `dist`. */
+"other" | 
+/**  Plain HTML: the folder itself, no build. */
+"static";
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -1215,13 +1308,15 @@ export type MenuCommand =
 "goRoutes" | 
 /**  View ▸ Quick Share (⌘3). */
 "goQuickShare" | 
-/**  View ▸ Domains (⌘4). */
+/**  View ▸ Snapshots (⌘4). */
+"goSnapshots" | 
+/**  View ▸ Domains (⌘5). */
 "goDomains" | 
-/**  View ▸ Tunnels (⌘5). */
+/**  View ▸ Tunnels (⌘6). */
 "goTunnels" | 
-/**  View ▸ Activity (⌘6). */
+/**  View ▸ Activity (⌘7). */
 "goActivity" | 
-/**  View ▸ Doctor (⌘7). */
+/**  View ▸ Doctor (⌘8). */
 "goDoctor" | 
 /**  Quit was chosen while routes run through the app: ask what to do. */
 "confirmQuit" | 
@@ -1342,6 +1437,28 @@ error: Text;
 /**  What was left in place. */
 leftovers: Text[] };
 
+/**  Which package manager runs the build. */
+export type PackageManager = 
+/**  npm. */
+"npm" | 
+/**  pnpm. */
+"pnpm" | 
+/**  Yarn. */
+"yarn" | 
+/**  Bun. */
+"bun";
+
+/**  The password of a new version. */
+export type PasswordInput = 
+/**  Keep what the live version has (none for a new Snapshot). */
+{ type: "keep" } | 
+/**  No password. */
+{ type: "remove" } | 
+/**  Require this password (hashed at once; never stored or echoed). */
+{ type: "set"; 
+/**  The password. */
+password: string };
+
 /**  A plan, as shown in the preview. */
 export type PlanView = {
 	/**  Steps in order (empty: nothing to change). */
@@ -1354,6 +1471,26 @@ export type PlanView = {
 	fingerprint: string,
 };
 
+/**  Prepared files, for review. */
+export type PreparedView = {
+	/**  Pass back to preview and publish. */
+	id: string,
+	/**  Where they come from. */
+	source: SnapshotSource,
+	/**  A name to suggest. */
+	suggestedName: string,
+	/**  Files. */
+	files: number | null,
+	/**  Bytes. */
+	bytes: number | null,
+	/**  Left out (secrets, tooling). */
+	skipped: Skipped[],
+	/**  Probably a single-page app (only one HTML page). */
+	singlePage: boolean,
+	/**  A crawl's report. */
+	crawl: CrawlReport | null,
+};
+
 /**  A progress update for the step at `step` (index into the plan). */
 export type Progress = {
 	/**  Step index. */
@@ -1361,6 +1498,31 @@ export type Progress = {
 	/**  Its state. */
 	state: StepState,
 };
+
+/**  A recognised project. */
+export type Project = {
+	/**  The project folder. */
+	dir: string,
+	/**  Its name (`package.json`, else the folder's). */
+	name: string,
+	/**  The framework. */
+	framework: Framework,
+	/**  Package manager (none for plain HTML). */
+	manager: PackageManager | null,
+	/**  The script to run, e.g. `build` or `generate` (none for plain HTML). */
+	script: string | null,
+	/**  The folder the build writes the site to (the project folder for plain HTML). */
+	output: string,
+	/**  Something to fix first, e.g. Next.js without `output: 'export'`. */
+	warning: ProjectWarning | null,
+};
+
+/**  A problem with the project's setup the user can fix. */
+export type ProjectWarning = 
+/**  Next.js builds a server app unless `output: 'export'` is set. */
+"nextNeedsExport" | 
+/**  SvelteKit needs `@sveltejs/adapter-static` to produce files. */
+"svelteKitNeedsStaticAdapter";
 
 /**  A running Quick Share, as the UI sees it. */
 export type QuickShare = {
@@ -1676,6 +1838,151 @@ export type ShareStatus =
 /**  What went wrong, for the user. */
 message: Text };
 
+/**  Why a file was left out. */
+export type SkipReason = 
+/**  A hidden file or folder (name starting with `.`). */
+"hidden" | 
+/**  Looks like a secret: `.env` files, private keys. */
+"secret" | 
+/**  Version control data. */
+"versionControl" | 
+/**  Installed dependencies (`node_modules`). */
+"dependencies" | 
+/**  A link to something outside the folder, or to a folder. */
+"link" | 
+/**  Not a regular file (socket, device…). */
+"special" | 
+/**  Its name isn't valid text, so it has no URL. */
+"name";
+
+/**  A file left out, relative to the folder. */
+export type Skipped = {
+	/**  Path relative to the folder, e.g. `.env`. */
+	path: string,
+	/**  Why. */
+	reason: SkipReason,
+};
+
+/**  A change to Snapshots, as the UI and CLI ask for it. */
+export type SnapshotChange = 
+/**  Publish prepared files as a new Snapshot. */
+{ type: "publish"; 
+/**  From [`Preparations`]. */
+prepared: string; 
+/**  Its name. */
+name: string; 
+/**  Where it answers. */
+address: AddressInput; 
+/**  Settings. */
+options: SnapshotOptions } | 
+/**  Publish a new version: new files (`prepared`) and/or new settings. */
+{ type: "update"; 
+/**  The Snapshot. */
+snapshot: string; 
+/**  New files; `None` keeps the live version's. */
+prepared: string | null; 
+/**  Settings. */
+options: SnapshotOptions } | 
+/**  Make an earlier version live again. */
+{ type: "rollback"; 
+/**  The Snapshot. */
+snapshot: string; 
+/**  The version's number. */
+version: number } | 
+/**  Delete a Snapshot everywhere. */
+{ type: "delete"; 
+/**  The Snapshot. */
+snapshot: string };
+
+/**  Settings for a new Snapshot, or a new version of one. */
+export type SnapshotOptions = {
+	/**  Serve `index.html` for unknown paths (single-page apps). */
+	spa: boolean,
+	/**  A password checked by the Snapshot's Worker. */
+	password: PasswordInput,
+	/**  A Cloudflare Access login for these people (custom hostnames only). */
+	access: AccessRule | null,
+	/**  Delete it after this many days. */
+	expiresInDays: number | null,
+};
+
+/**  Where a Snapshot's files come from, so "Update" can get them again. */
+export type SnapshotSource = 
+/**  A folder, published as it is. */
+{ type: "folder"; 
+/**  The folder. */
+path: string } | 
+/**  A project, built first. */
+{ type: "build"; 
+/**  The project folder. */
+project: string; 
+/**  The build command shown, e.g. `pnpm run build`. */
+command: string; 
+/**  Its output folder. */
+output: string } | 
+/**  A running site, crawled. */
+{ type: "crawl"; 
+/**  Where it was captured from, e.g. `http://localhost:5173/`. */
+url: string };
+
+/**  A version, for the version list. */
+export type SnapshotVersionView = {
+	/**  1, 2, 3… */
+	number: number,
+	/**  Published (ms). */
+	createdAt: number | null,
+	/**  Files. */
+	files: number | null,
+	/**  Bytes. */
+	bytes: number | null,
+	/**  Serving now. */
+	live: boolean,
+	/**  Single-page app fallback. */
+	spa: boolean,
+	/**  Password protected. */
+	password: boolean,
+};
+
+/**  A Snapshot, for lists. */
+export type SnapshotView = {
+	/**  Local id. */
+	id: string,
+	/**  Account id. */
+	accountId: string,
+	/**  Name. */
+	name: string,
+	/**  The address people open, e.g. `https://preview.example.com`. */
+	url: string,
+	/**  The hostname. */
+	hostname: string,
+	/**  On workers.dev rather than one of the account's domains. */
+	workersDev: boolean,
+	/**  The Worker. */
+	script: string,
+	/**  Where its files come from. */
+	source: SnapshotSource | null,
+	/**  Single-page app fallback. */
+	spa: boolean,
+	/**  Password protected. */
+	password: boolean,
+	/**  Access login. */
+	access: AccessRule | null,
+	/**  When it deletes itself (ms since the epoch). */
+	expiresAt: number | null,
+	/**  Created (ms). */
+	createdAt: number | null,
+	/**  Last published (ms). */
+	updatedAt: number | null,
+	/**  The live version's number (`None`: publishing never finished). */
+	liveVersion: number | null,
+	/**  Versions kept. */
+	versions: number,
+	/**  Files in the live version. */
+	files: number | null,
+	/**  Its size. */
+	bytes: number | null,
+};
+
 /**  What a step does, for its icon. */
 export type StepKind = 
 /**  Create the tunnel. */
@@ -1701,7 +2008,11 @@ export type StepKind =
 /**  Load balance a route, or stop. */
 "loadBalancer" | 
 /**  Check the route works. */
-"verify";
+"verify" | 
+/**  Upload, publish, roll back or delete a Snapshot. */
+"snapshot" | 
+/**  Give a Snapshot its address, or take it away. */
+"snapshotAddress";
 
 /**  The state of one step while applying. */
 export type StepState = 
@@ -1722,7 +2033,17 @@ message: Text } |
 /**  Couldn't be undone; left in place. */
 { state: "undoFailed"; 
 /**  What went wrong. */
-message: Text };
+message: Text } | 
+/**  Sending a Snapshot's files: how far along. */
+{ state: "transferring"; 
+/**  Files sent. */
+files: number | null; 
+/**  Of this many. */
+totalFiles: number | null; 
+/**  Bytes sent. */
+bytes: number | null; 
+/**  Of this many. */
+totalBytes: number | null };
 
 /**  One step of a plan, as shown in the preview. */
 export type StepView = {
@@ -1964,6 +2285,8 @@ export type ZoneGrant = {
 	zoneName: string,
 	/**  Whether DNS records can be edited. */
 	dnsEdit: Grant,
+	/**  Whether Workers can answer on its hostnames (Snapshots' Custom Domains). */
+	workersRoutes: Grant,
 };
 
 /**  A zone the account can use. */

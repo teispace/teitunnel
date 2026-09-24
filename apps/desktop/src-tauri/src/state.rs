@@ -42,4 +42,8 @@ pub struct AppState {
     pub shutting_down: AtomicBool,
     /// Registries of `teitunnel` processes (their shares show in Quick Share).
     pub cli_runs: std::path::PathBuf,
+    /// Snapshot files prepared for review.
+    pub snapshots: teitunnel_core::snapshot::Preparations,
+    /// Where crawled sites are captured before publishing.
+    pub snapshot_dir: std::path::PathBuf,
 }

@@ -31,6 +31,7 @@ mod secret;
 pub mod secrets;
 pub mod service;
 pub mod settings;
+pub mod snapshot;
 pub mod store;
 pub mod text;
 pub mod traffic;

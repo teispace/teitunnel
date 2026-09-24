@@ -29,6 +29,7 @@ static EMPTY: Snapshot = Snapshot {
     access: None,
     networks: None,
     balance: None,
+    site: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -132,6 +133,23 @@ pub enum StepState {
     UndoFailed {
         /// What went wrong.
         message: Text,
+    },
+    /// Sending a Snapshot's files: how far along.
+    Transferring {
+        /// Files sent.
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        files: u64,
+        /// Of this many.
+        #[serde(rename = "totalFiles")]
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        total_files: u64,
+        /// Bytes sent.
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        bytes: u64,
+        /// Of this many.
+        #[serde(rename = "totalBytes")]
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        total_bytes: u64,
     },
 }
 
@@ -251,6 +269,28 @@ enum Undo {
     },
     RecreateLbPool(cf_api::Pool),
     RecreateLbMonitor(cf_api::Monitor),
+    DeleteSnapshotWorker {
+        snapshot: String,
+        script: String,
+    },
+    RedeploySnapshot {
+        snapshot: String,
+        script: String,
+        version: String,
+        /// The version the step made live, forgotten when it was new.
+        replaced: Option<String>,
+    },
+    SetWorkersDev {
+        script: String,
+        enabled: bool,
+    },
+    DetachSnapshotDomain {
+        id: String,
+        hostname: String,
+    },
+    ReattachSnapshotDomain(cf_api::WorkerDomain),
+    /// A deleted Worker can't come back.
+    RecreateSnapshotWorker(String),
 }
 
 impl Undo {
@@ -282,6 +322,26 @@ impl Undo {
             }
             Self::RecreateLbPool(pool) => m::recreate_lb_pool(&pool.name),
             Self::RecreateLbMonitor(_) => m::recreate_lb_monitor(),
+            Self::DeleteSnapshotWorker { script, .. } => {
+                msg::snapshot::leftover::delete_worker(script)
+            }
+            Self::RedeploySnapshot { script, .. } => msg::snapshot::leftover::redeploy(script),
+            Self::SetWorkersDev { script, enabled } => {
+                if *enabled {
+                    msg::snapshot::leftover::workers_dev_off(script)
+                } else {
+                    msg::snapshot::leftover::workers_dev_on(script)
+                }
+            }
+            Self::DetachSnapshotDomain { hostname, .. } => {
+                msg::snapshot::leftover::detach_domain(hostname)
+            }
+            Self::ReattachSnapshotDomain(domain) => {
+                msg::snapshot::leftover::reattach_domain(&domain.hostname)
+            }
+            Self::RecreateSnapshotWorker(script) => {
+                msg::snapshot::leftover::recreate_worker(script)
+            }
         }
     }
 }
@@ -346,13 +406,14 @@ impl Engine {
         );
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}",
+            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}",
             tunnel.unwrap_or_default(),
             u8::from(need.access.setup),
             u8::from(need.access.owned),
             need.access.domains.join(","),
             need.networks,
             u8::from(need.tunnel_names),
+            need.site.script.as_deref().unwrap_or_default(),
         )
     }
 
@@ -813,6 +874,7 @@ impl Engine {
             renamed: std::sync::Mutex::default(),
             done: Vec::new(),
             covered: Vec::new(),
+            uploaded: None,
         };
         let serve = matches!(
             intent,
@@ -904,6 +966,8 @@ struct Run<'a, C, K> {
     /// Completed steps with no undo of their own: another step's undo reverses them
     /// (e.g. a new tunnel's config goes with the tunnel).
     covered: Vec<u32>,
+    /// A Snapshot's files, once uploaded: the completion token and what was sent.
+    uploaded: Option<(String, super::sites::SiteContent)>,
 }
 
 /// What a tunnel created while applying is to this Mac.
@@ -1013,7 +1077,31 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 step: index,
                 state: StepState::Running,
             });
-            match self.step(step).await {
+            let result = match step {
+                Step::UploadSnapshotFiles {
+                    script, content, ..
+                } => {
+                    let step_index = index;
+                    super::sites::upload(self.api, self.account, script, content, |t| {
+                        progress(Progress {
+                            step: step_index,
+                            state: StepState::Transferring {
+                                files: t.files,
+                                total_files: t.total_files,
+                                bytes: t.bytes,
+                                total_bytes: t.total_bytes,
+                            },
+                        });
+                    })
+                    .await
+                    .map(|jwt| {
+                        self.uploaded = Some((jwt, content.clone()));
+                        None
+                    })
+                }
+                _ => self.step(step).await,
+            };
+            match result {
                 Ok(undo) => {
                     match undo {
                         Some(undo) => self.done.push((index, undo)),
@@ -1315,7 +1403,137 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateLbMonitor(monitor.clone())))
             }
-            Step::Verify { .. } => Ok(None),
+            Step::Verify { .. } | Step::UploadSnapshotFiles { .. } => Ok(None),
+            Step::CreateSnapshotWorker {
+                snapshot,
+                script,
+                settings,
+            } => {
+                let (jwt, content) = self
+                    .uploaded
+                    .clone()
+                    .ok_or_else(msg::snapshot::error::not_uploaded)?;
+                let metadata =
+                    super::sites::metadata(settings, &content, &jwt, "Teitunnel Snapshot");
+                api.put_worker_script(account, script, &metadata, &super::sites::modules())
+                    .await
+                    .map_err(|e| e.text())?;
+                let version = api
+                    .worker_deployments(account, script)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|d| d.first().and_then(|d| d.main_version().map(str::to_owned)));
+                if let Some(version) = &version {
+                    warn_local(
+                        self.local
+                            .record_site_version(
+                                snapshot,
+                                version,
+                                &content,
+                                settings.spa,
+                                settings.password != super::sites::Password::Off,
+                            )
+                            .await,
+                    );
+                }
+                Ok(Some(Undo::DeleteSnapshotWorker {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                }))
+            }
+            Step::PublishSnapshotVersion {
+                snapshot,
+                script,
+                settings,
+                previous,
+            } => {
+                let (jwt, content) = self
+                    .uploaded
+                    .clone()
+                    .ok_or_else(msg::snapshot::error::not_uploaded)?;
+                let metadata =
+                    super::sites::metadata(settings, &content, &jwt, "Teitunnel Snapshot");
+                let version = api
+                    .upload_worker_version(account, script, &metadata, &super::sites::modules())
+                    .await
+                    .map_err(|e| e.text())?;
+                api.deploy_worker_version(account, script, &version.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .record_site_version(
+                            snapshot,
+                            &version.id,
+                            &content,
+                            settings.spa,
+                            settings.password != super::sites::Password::Off,
+                        )
+                        .await
+                        .map(|_| ()),
+                );
+                Ok(previous.as_ref().map(|previous| Undo::RedeploySnapshot {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                    version: previous.clone(),
+                    replaced: Some(version.id),
+                }))
+            }
+            Step::RollBackSnapshot {
+                snapshot,
+                script,
+                version_id,
+                previous,
+                ..
+            } => {
+                api.deploy_worker_version(account, script, version_id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.set_site_live(snapshot, version_id).await);
+                Ok(previous.as_ref().map(|previous| Undo::RedeploySnapshot {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                    version: previous.clone(),
+                    replaced: None,
+                }))
+            }
+            Step::EnableWorkersDev { script, .. } | Step::DisableWorkersDev { script, .. } => {
+                let enabled = matches!(step, Step::EnableWorkersDev { .. });
+                api.set_worker_on_workers_dev(account, script, enabled)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::SetWorkersDev {
+                    script: script.clone(),
+                    enabled: !enabled,
+                }))
+            }
+            Step::AttachSnapshotDomain {
+                zone_id,
+                hostname,
+                script,
+            } => {
+                let domain = api
+                    .attach_worker_domain(account, hostname, zone_id, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::DetachSnapshotDomain {
+                    id: domain.id,
+                    hostname: hostname.clone(),
+                }))
+            }
+            Step::DetachSnapshotDomain { domain } => {
+                api.detach_worker_domain(account, &domain.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::ReattachSnapshotDomain(domain.clone())))
+            }
+            Step::DeleteSnapshotWorker { script, .. } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RecreateSnapshotWorker(script.clone())))
+            }
         }
     }
 
@@ -1499,6 +1717,56 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .insert(old, created.id);
+            }
+            Undo::DeleteSnapshotWorker { snapshot, script } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(err)?;
+                // The Worker and every version it had are gone.
+                if let Ok(versions) = self.local.site_versions(snapshot).await {
+                    for version in versions {
+                        warn_local(
+                            self.local
+                                .drop_site_version(snapshot, &version.version_id)
+                                .await,
+                        );
+                    }
+                }
+            }
+            Undo::RedeploySnapshot {
+                snapshot,
+                script,
+                version,
+                replaced,
+            } => {
+                api.deploy_worker_version(account, script, version)
+                    .await
+                    .map_err(err)?;
+                if let Some(replaced) = replaced {
+                    warn_local(self.local.drop_site_version(snapshot, replaced).await);
+                }
+                warn_local(self.local.set_site_live(snapshot, version).await);
+            }
+            Undo::SetWorkersDev { script, enabled } => {
+                api.set_worker_on_workers_dev(account, script, *enabled)
+                    .await
+                    .map_err(err)?;
+            }
+            Undo::DetachSnapshotDomain { id, .. } => {
+                api.detach_worker_domain(account, id).await.map_err(err)?;
+            }
+            Undo::ReattachSnapshotDomain(domain) => {
+                api.attach_worker_domain(
+                    account,
+                    &domain.hostname,
+                    &domain.zone_id,
+                    &domain.service,
+                )
+                .await
+                .map_err(err)?;
+            }
+            Undo::RecreateSnapshotWorker(script) => {
+                return Err(msg::snapshot::leftover::recreate_worker(script));
             }
             Undo::RecreateLoadBalancer { zone, balancer } => {
                 let mut balancer = balancer.clone();

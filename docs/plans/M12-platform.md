@@ -76,7 +76,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Pause/resume a share on your domain: the hostname stays reserved (route kept, connector paused, a friendly "paused" page served by Lens); resume with the same URL.
 - [ ] Stable names: `{project}.dev.example.com` from the detected project; `{branch}` from git (`teitunnel share 3000 --on {branch}.dev.example.com`); remember per folder.
 - [ ] Share a folder (static file server in Lens, directory listing optional, single-page-app fallback), from the app (drag and drop) and CLI.
-- [ ] Snapshot to the user's own Cloudflare (Pages or Workers static assets) so a preview stays online when the computer sleeps (decision Q5).
+- [x] Snapshot to the user's own Cloudflare (Workers static assets, [research](../research/cloudflare-snapshots.md)) so a preview stays online when the computer sleeps (decision Q5): from a folder, a build or a crawl of a running site; incremental uploads, versions and rollback, custom hostname or workers.dev, password or Access login, expiry; app, CLI and docs.
 - [ ] Feedback overlay/comments on shares (later; LocalCan's newest feature; decision Q6).
 
 ## M12-07 · Everywhere

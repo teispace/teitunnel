@@ -56,6 +56,20 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - **Repository:** secret scanning with push protection is on, so a commit containing a credential is refused. A ruleset on `main` (D-082) requires a pull request with passing CI (Rust on three systems, Web, IPC bindings, cargo-deny) and forbids force pushes and deleting the branch; only organization members can merge, so outside changes are always reviewed by one. Release signing keys live only in the protected `release` environment (D-074).
 - **Releases** are built only in GitHub Actions from tagged commits. macOS builds are signed with a Developer ID and notarized.
 
+### Snapshots
+- Only regular files inside the chosen folder are uploaded; links that resolve outside it
+  are skipped, and every file is re-checked against the folder when uploaded. Hidden files,
+  `.env*`, private keys, `.git` and `node_modules` are never uploaded; the review lists them.
+- Builds run the project's package manager with discrete arguments (`pnpm run build`),
+  never a shell, and only after the user confirmed the command. Script names are checked
+  to be plain words.
+- The crawler captures only sites on this computer or its network, stays on the starting
+  origin (redirects included), and writes only inside a fresh folder in the app data.
+- A Snapshot password is hashed at once (PBKDF2-HMAC-SHA256, random salt) and sent only as
+  a Worker secret; it's never stored locally or logged, and its `Debug` is redacted.
+  Sessions are HMAC-signed `__Host-` cookies (Secure, HttpOnly, SameSite=Lax) keyed to the
+  hash, so changing the password ends them.
+
 ### Logs & diagnostics
 - A `tracing` redaction layer scrubs bearer tokens, `TUNNEL_TOKEN`, `apiToken`, and JWT-like strings.
 - The diagnostics bundle is redacted, created locally, and shown to the user before they share it.

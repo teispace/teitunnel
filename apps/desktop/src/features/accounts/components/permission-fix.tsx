@@ -19,7 +19,11 @@ export type PermissionNeed =
   | { kind: "anyDns" }
   /** Cloudflare Load Balancing (a paid add-on); not probed, so shown only on refusal. */
   | { kind: "loadBalancing" }
-  | { kind: "access" };
+  | { kind: "access" }
+  /** Snapshots: Workers on the account. */
+  | { kind: "workers" }
+  /** Snapshots: a Custom Domain on a zone. */
+  | { kind: "workersRoutes"; zone: string };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -41,6 +45,10 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return false;
     case "access":
       return caps.accessEdit === "no";
+    case "workers":
+      return caps.workersEdit === "no";
+    case "workersRoutes":
+      return caps.zones.some((z) => z.zoneName === need.zone && z.workersRoutes === "no");
   }
 }
 
@@ -69,6 +77,15 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
       return [
         { name: t("permissionFix.accessApps"), why: t("permissionFix.accessAppsWhy") },
         { name: t("permissionFix.accessOrg"), why: t("permissionFix.accessOrgWhy") },
+      ];
+    case "workers":
+      return [{ name: t("permissionFix.workers"), why: t("permissionFix.workersWhy") }];
+    case "workersRoutes":
+      return [
+        {
+          name: t("permissionFix.workersRoutes"),
+          why: t("permissionFix.workersRoutesWhy", { zone: need.zone }),
+        },
       ];
   }
 }

@@ -60,24 +60,30 @@ const GO_ITEMS: &[WebviewItem] = &[
         MenuCommand::GoQuickShare,
     ),
     (
+        "go.snapshots",
+        m::snapshots,
+        "CmdOrCtrl+4",
+        MenuCommand::GoSnapshots,
+    ),
+    (
         "go.domains",
         m::domains,
-        "CmdOrCtrl+4",
+        "CmdOrCtrl+5",
         MenuCommand::GoDomains,
     ),
     (
         "go.tunnels",
         m::tunnels,
-        "CmdOrCtrl+5",
+        "CmdOrCtrl+6",
         MenuCommand::GoTunnels,
     ),
     (
         "go.activity",
         m::activity,
-        "CmdOrCtrl+6",
+        "CmdOrCtrl+7",
         MenuCommand::GoActivity,
     ),
-    ("go.doctor", m::doctor, "CmdOrCtrl+7", MenuCommand::GoDoctor),
+    ("go.doctor", m::doctor, "CmdOrCtrl+8", MenuCommand::GoDoctor),
 ];
 
 const VIEW_ITEMS: &[WebviewItem] = &[

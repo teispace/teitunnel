@@ -144,6 +144,8 @@ What the user asked for, in product terms:
 
 `AddRoute`, `UpdateRoute`, `RemoveRoute`, `ReorderRoutes`, `CreateTunnel`, `DeleteTunnel`, `SetRunMode`, `RepairDns{hostname}`, `Cleanup{items}`, `ImportLocalTunnel`, `AdoptProcess`, `ProtectRoute` (v1.x) …
 
+Snapshots add `PublishSnapshot`, `UpdateSnapshot`, `RollbackSnapshot` and `DeleteSnapshot` (§4.8).
+
 ### 4.2 Observed snapshot
 
 A consistent read of reality for the affected scope: tunnels + connections, the tunnel's current remote config **with its `version`**, the relevant DNS records (by name and by `*.cfargotunnel.com` content), the ownership index, local connector state and local listening ports. Each snapshot carries a **fingerprint** (a hash of the parts the plan depends on).
@@ -209,6 +211,29 @@ Teitunnel stores the remote config `version` it last applied for each tunnel. A 
 - Tunnels created by Teitunnel are recorded in SQLite, and their name uses the user-chosen name. Teitunnel doesn't claim tunnels it didn't create, but it can manage them after an explicit import.
 
 ---
+
+### 4.8 Snapshots (M12-06)
+
+A Snapshot is a static copy of a site hosted on the user's own account as a **Worker with
+static assets** (research: [cloudflare-snapshots.md](research/cloudflare-snapshots.md)).
+`core::snapshot` prepares the files (a folder, a project's build through a typed
+`<manager> run <script>` command, or a bounded same-origin crawl of a local site), hashes
+them, and keeps them in memory under an id while the plan is reviewed. The engine
+(`engine/sites.rs`, `engine/planner/sites.rs`) plans:
+
+- publish: `UploadSnapshotFiles` → `CreateSnapshotWorker` → login (Access) → `DeleteRecord`
+  (a foreign record, with confirmation) → `AttachSnapshotDomain` | `EnableWorkersDev`;
+- update: login → `UploadSnapshotFiles` → `PublishSnapshotVersion` (upload a version, then
+  deploy it: the atomic switch) → address repair → remove login;
+- rollback: `RollBackSnapshot` (deploy an older version id);
+- delete: `DisableWorkersDev` → `DetachSnapshotDomain` → remove login → `DeleteSnapshotWorker`
+  (last: it can't be undone).
+
+Uploads send only the hashes Cloudflare asks for, re-read and re-hash each file (a file
+changed since the preview fails the step), and stream `StepState::Transferring`. Undo:
+delete the new Worker, redeploy the previous version, re-attach or detach domains, toggle
+workers.dev back. The Worker (`engine/snapshot-worker.js`) runs only for a password or the
+comments overlay (`run_worker_first`); otherwise assets are served without it.
 
 ## 5. Runtime
 
@@ -309,6 +334,8 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `routes_meta` | route_id ↔ (tunnel_id, hostname, path): stable ids, since Cloudflare ingress rules have none |
 | `activity` | id, ts, plan_id, intent, step, status, error, before/after JSON |
 | `quick_shares` | history (origin, url, start/stop) |
+| `snapshots` | Snapshots Teitunnel published: account, name, Worker, hostname, source, settings flags (no password), expiry, live version |
+| `snapshot_versions` | the last 10 versions per Snapshot: Cloudflare version id, manifest (path → hash, size), `_headers`/`_redirects` |
 | `metrics_rollup` | tunnel_id, minute, requests, errors, status_2xx…5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples |
 | `settings` | key/value JSON |
 
