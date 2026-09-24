@@ -1,0 +1,18 @@
+---
+source: crates/core/src/engine/edge_tests.rs
+expression: view(&p)
+---
+- - Block AI crawlers on app.xyz.com
+  - Challenge automated clients on app.xyz.com
+  - Change 1 request header on app.xyz.com
+  - Change 1 response header on app.xyz.com
+- - type: edgeQuota
+    quota: custom
+    zone: xyz.com
+    used: 3
+    limit: 5
+  - type: edgeQuota
+    quota: transform
+    zone: xyz.com
+    used: 2
+    limit: 10

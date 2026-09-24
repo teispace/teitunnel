@@ -35,6 +35,10 @@ pub enum ObserveError {
     AccessPermission,
     /// The chosen tunnel isn't one of this Mac's (any more).
     UnknownTunnel,
+    /// Edge rules need Zone WAF and Transform Rules permissions the credential lacks.
+    EdgePermission,
+    /// Service tokens need the Access: Service Tokens permission the credential lacks.
+    ServiceTokenPermission,
 }
 
 impl UserText for ObserveError {
@@ -44,6 +48,8 @@ impl UserText for ObserveError {
             Self::Store(err) => err.text(),
             Self::AccessPermission => msg::error::observe::access_permission(),
             Self::UnknownTunnel => msg::error::observe::unknown_tunnel(),
+            Self::EdgePermission => msg::error::observe::edge_permission(),
+            Self::ServiceTokenPermission => msg::error::observe::service_token_permission(),
         }
     }
 }
@@ -76,6 +82,10 @@ pub struct ObserveNeed {
     pub balance: super::balance::BalanceNeed,
     /// A Snapshot's Worker.
     pub site: super::sites::SiteNeed,
+    /// A zone's edge rules.
+    pub edge: super::edge::EdgeNeed,
+    /// The account's service tokens.
+    pub service_tokens: bool,
 }
 
 impl ObserveNeed {
@@ -126,6 +136,18 @@ impl ObserveNeed {
                     },
                 })
                 .unwrap_or_default(),
+            edge: super::edge::EdgeNeed {
+                hostname: match intent {
+                    Intent::ProtectHostname { hostname, .. } => Some(hostname.to_string()),
+                    _ => None,
+                },
+            },
+            service_tokens: matches!(
+                intent,
+                Intent::CreateServiceToken { .. }
+                    | Intent::RevokeServiceToken { .. }
+                    | Intent::RotateServiceToken { .. }
+            ),
         }
     }
 }
@@ -218,6 +240,11 @@ pub async fn observe<C: CloudApi>(
         },
     )?;
 
+    let (edge, service_tokens) = tokio::try_join!(
+        observe_edge(api, local, account, &zones, &need.edge),
+        observe_service_tokens(api, local, account, need.service_tokens),
+    )?;
+
     Ok(Snapshot {
         account_id: account.to_owned(),
         machine_name: machine.map_or_else(|| machine_name.to_owned(), |m| m.name),
@@ -230,7 +257,73 @@ pub async fn observe<C: CloudApi>(
         networks,
         balance,
         site,
+        edge,
+        service_tokens,
     })
+}
+
+/// Reads the edge rules of the zone of `need.hostname`.
+async fn observe_edge<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    zones: &[super::types::ZoneRef],
+    need: &super::edge::EdgeNeed,
+) -> Result<Option<super::edge::EdgeState>, ObserveError> {
+    let Some(zone) = need
+        .hostname
+        .as_deref()
+        .and_then(|h| Hostname::parse(h).ok())
+        .and_then(|h| h.zone_in(zones).cloned())
+    else {
+        return Ok(None);
+    };
+    let owned: HashSet<String> = local
+        .owned_edge_rules(account)
+        .await?
+        .into_iter()
+        .map(|r| r.rule_id)
+        .collect();
+    match super::edge::observe(api, &zone, &owned).await {
+        Ok(state) => Ok(Some(state)),
+        Err(super::edge::EdgeReadError::Permission) => Err(ObserveError::EdgePermission),
+        Err(super::edge::EdgeReadError::Api(err)) => Err(err.into()),
+    }
+}
+
+/// Reads the account's service tokens, marking the ones Teitunnel created.
+async fn observe_service_tokens<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    want: bool,
+) -> Result<Option<Vec<super::edge::ObservedServiceToken>>, ObserveError> {
+    if !want {
+        return Ok(None);
+    }
+    let owned: HashSet<String> = local
+        .owned_service_tokens(account)
+        .await?
+        .into_iter()
+        .map(|t| t.token_id)
+        .collect();
+    let tokens = match api.service_tokens(account).await {
+        Ok(tokens) => tokens,
+        Err(err) if err.is_auth() => return Err(ObserveError::ServiceTokenPermission),
+        Err(err) => return Err(err.into()),
+    };
+    let mut tokens: Vec<super::edge::ObservedServiceToken> = tokens
+        .into_iter()
+        .map(|t| super::edge::ObservedServiceToken {
+            owned: owned.contains(&t.id),
+            id: t.id,
+            name: t.name,
+            client_id: t.client_id,
+            expires_at: t.expires_at,
+        })
+        .collect();
+    tokens.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
+    Ok(Some(tokens))
 }
 
 /// The routes Teitunnel last wrote to this Mac's other tunnels in `account`.

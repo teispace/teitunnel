@@ -218,8 +218,11 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     state.monitor = None;
                 }
             }
-            Step::StopConnector { .. } | Step::Verify { .. } | Step::UploadSnapshotFiles { .. } => {
-            }
+            // A new secret changes nothing the planner reads, like these.
+            Step::StopConnector { .. }
+            | Step::Verify { .. }
+            | Step::UploadSnapshotFiles { .. }
+            | Step::RotateServiceToken { .. } => {}
             Step::CreateSnapshotWorker { .. } | Step::PublishSnapshotVersion { .. } => {
                 if let Some(site) = next.site.as_mut() {
                     site.exists = true;
@@ -262,6 +265,81 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     site.active_version = None;
                     site.domains.clear();
                     site.workers_dev = false;
+                }
+            }
+            Step::CreateEdgeRule { phase, rule, .. } => {
+                record_ids += 1;
+                if let Some(ruleset) = next
+                    .edge
+                    .as_mut()
+                    .and_then(|e| e.rulesets.iter_mut().find(|r| r.phase == *phase))
+                {
+                    ruleset
+                        .id
+                        .get_or_insert_with(|| format!("sim-ruleset-{phase}"));
+                    ruleset.rules.push(super::edge::ObservedRule {
+                        id: format!("sim-rule-{record_ids}"),
+                        rule: rule.clone(),
+                        owned: true,
+                    });
+                }
+            }
+            Step::UpdateEdgeRule { rule_id, rule, .. } => {
+                if let Some(found) = next.edge.as_mut().and_then(|e| {
+                    e.rulesets
+                        .iter_mut()
+                        .flat_map(|r| &mut r.rules)
+                        .find(|r| r.id == *rule_id)
+                }) {
+                    found.rule = rule.clone();
+                }
+            }
+            Step::DeleteEdgeRule { rule_id, .. } => {
+                if let Some(edge) = next.edge.as_mut() {
+                    for ruleset in &mut edge.rulesets {
+                        ruleset.rules.retain(|r| r.id != *rule_id);
+                    }
+                }
+            }
+            Step::CreateServiceToken { name, .. } => {
+                next.service_tokens.get_or_insert_with(Vec::new).push(
+                    super::edge::ObservedServiceToken {
+                        id: "sim-token".into(),
+                        name: name.clone(),
+                        client_id: "sim-token.access".into(),
+                        expires_at: None,
+                        owned: true,
+                    },
+                );
+            }
+            Step::AllowServiceToken { domain, app, .. } => {
+                let definition = super::access::with_service_token(
+                    &app.as_ref().map_or_else(
+                        || super::access::machine_only_definition(domain),
+                        |(_, d)| d.clone(),
+                    ),
+                    "sim-token",
+                );
+                let access = next.access.get_or_insert_with(empty_access);
+                match app {
+                    Some((id, _)) => {
+                        if let Some(existing) = access.apps.iter_mut().find(|a| a.id == *id) {
+                            existing.rule = AccessRule::from_new(&definition);
+                            existing.definition = definition;
+                        }
+                    }
+                    None => access.apps.push(ObservedAccessApp {
+                        id: "sim-machines".into(),
+                        domain: domain.clone(),
+                        owned: true,
+                        rule: None,
+                        definition,
+                    }),
+                }
+            }
+            Step::DeleteServiceToken { token } => {
+                if let Some(tokens) = next.service_tokens.as_mut() {
+                    tokens.retain(|t| t.id != token.id);
                 }
             }
         }

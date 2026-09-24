@@ -340,6 +340,63 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// A zone's plan (`plan.legacy_id`: `free`, `pro`, …).
+    fn zone_plan(&self, zone: &str) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// A phase's entry point ruleset; `None` when the zone has none.
+    fn phase_entrypoint(
+        &self,
+        zone: &str,
+        phase: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<cf_api::Ruleset>>> + Send;
+    /// Adds a rule to a phase (creating its entry point when `ruleset` is `None`), at a
+    /// 1-based `index` or at the end; returns the ruleset id and the rule.
+    fn create_rule(
+        &self,
+        zone: &str,
+        phase: &str,
+        ruleset: Option<&str>,
+        rule: &cf_api::NewRule,
+        index: Option<u32>,
+    ) -> impl Future<Output = cf_api::Result<(String, cf_api::Rule)>> + Send;
+    /// Replaces one rule's definition.
+    fn update_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+        rule: &cf_api::NewRule,
+    ) -> impl Future<Output = cf_api::Result<cf_api::Rule>> + Send;
+    /// Deletes one rule.
+    fn delete_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's Access service tokens.
+    fn service_tokens(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::ServiceToken>>> + Send;
+    /// Creates a service token (its secret is in the answer, once).
+    fn create_service_token(
+        &self,
+        account: &str,
+        name: &str,
+        duration: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::IssuedServiceToken>> + Send;
+    /// Gives a service token a new secret.
+    fn rotate_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::IssuedServiceToken>> + Send;
+    /// Deletes a service token.
+    fn delete_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
 
 /// This Mac's side of a tunnel: the connector process and its token.
@@ -713,5 +770,70 @@ impl CloudApi for Client {
 
     async fn detach_worker_domain(&self, account: &str, id: &str) -> cf_api::Result<()> {
         Client::detach_worker_domain(self, account, id).await
+    }
+
+    async fn zone_plan(&self, zone: &str) -> cf_api::Result<Option<String>> {
+        Ok(Client::zone(self, zone)
+            .await?
+            .plan
+            .and_then(|p| p.legacy_id))
+    }
+
+    async fn phase_entrypoint(
+        &self,
+        zone: &str,
+        phase: &str,
+    ) -> cf_api::Result<Option<cf_api::Ruleset>> {
+        Client::phase_entrypoint(self, zone, phase).await
+    }
+
+    async fn create_rule(
+        &self,
+        zone: &str,
+        phase: &str,
+        ruleset: Option<&str>,
+        rule: &cf_api::NewRule,
+        index: Option<u32>,
+    ) -> cf_api::Result<(String, cf_api::Rule)> {
+        Client::create_rule(self, zone, phase, ruleset, rule, index).await
+    }
+
+    async fn update_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+        rule: &cf_api::NewRule,
+    ) -> cf_api::Result<cf_api::Rule> {
+        Client::update_rule(self, zone, ruleset, rule_id, rule).await
+    }
+
+    async fn delete_rule(&self, zone: &str, ruleset: &str, rule_id: &str) -> cf_api::Result<()> {
+        Client::delete_rule(self, zone, ruleset, rule_id).await
+    }
+
+    async fn service_tokens(&self, account: &str) -> cf_api::Result<Vec<cf_api::ServiceToken>> {
+        Client::service_tokens(self, account).await
+    }
+
+    async fn create_service_token(
+        &self,
+        account: &str,
+        name: &str,
+        duration: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        Client::create_service_token(self, account, name, duration).await
+    }
+
+    async fn rotate_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        Client::rotate_service_token(self, account, id).await
+    }
+
+    async fn delete_service_token(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_service_token(self, account, id).await
     }
 }

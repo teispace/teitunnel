@@ -455,6 +455,7 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
     ]
     .into_iter()
     .chain(snapshot_scenarios().await)
+    .chain(super::edge_executor_tests::edge_scenarios().await)
     .collect()
 }
 
@@ -552,6 +553,25 @@ async fn adopt(engine: &Engine, state: &CloudState) {
             engine
                 .local()
                 .own_access_app("acc", id, &app.domain)
+                .await
+                .unwrap();
+        }
+    }
+    for token in state.service_tokens.values() {
+        if token.name.starts_with("Teitunnel · ") {
+            engine
+                .local()
+                .own_service_token(
+                    "acc",
+                    super::local_edge::ServiceTokenRow {
+                        token_id: token.id.clone(),
+                        hostname: String::new(),
+                        name: token.name.clone(),
+                        client_id: token.client_id.clone(),
+                        expires_at: None,
+                        created_at: 0,
+                    },
+                )
                 .await
                 .unwrap();
         }

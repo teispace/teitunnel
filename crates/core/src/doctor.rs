@@ -1272,6 +1272,8 @@ mod tests {
                 elsewhere: Vec::new(),
                 balance: None,
                 site: None,
+                edge: None,
+                service_tokens: None,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

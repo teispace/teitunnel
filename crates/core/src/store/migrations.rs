@@ -218,6 +218,34 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (snapshot_id, number)
         ) STRICT;",
     ),
+    // 14: reserved for the Lens integration (M12-02), which lands on its own branch;
+    // when both are merged, its migration replaces this empty one.
+    M::up(""),
+    // 15: Edge protection (M12-04): the ownership index of the edge rules Teitunnel
+    // created (a backup for their `teitunnel:` description marker), and of its Access
+    // service tokens (never their secrets)
+    M::up(
+        "CREATE TABLE edge_rules (
+            rule_id    TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            zone_id    TEXT NOT NULL,
+            phase      TEXT NOT NULL,
+            hostname   TEXT,
+            kind       TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX edge_rules_account ON edge_rules (account_id, zone_id);
+        CREATE TABLE service_tokens (
+            token_id   TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            client_id  TEXT NOT NULL,
+            expires_at TEXT,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX service_tokens_account ON service_tokens (account_id, hostname);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

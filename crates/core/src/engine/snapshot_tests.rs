@@ -150,6 +150,8 @@ fn observed(state: SiteState, records: Vec<ObservedRecord>) -> Snapshot {
         networks: None,
         balance: None,
         site: Some(state),
+        edge: None,
+        service_tokens: None,
     }
 }
 

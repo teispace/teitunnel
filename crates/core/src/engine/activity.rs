@@ -57,6 +57,14 @@ pub enum ActivityKind {
     RollbackSnapshot,
     /// A Snapshot was deleted.
     DeleteSnapshot,
+    /// A hostname's edge protection changed (bots, rate limit, headers).
+    ProtectHostname,
+    /// A service token was created.
+    CreateServiceToken,
+    /// A service token was revoked.
+    RevokeServiceToken,
+    /// A service token got a new secret.
+    RotateServiceToken,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -79,6 +87,10 @@ impl From<&Intent> for ActivityKind {
             Intent::UpdateSnapshot { .. } => Self::UpdateSnapshot,
             Intent::RollbackSnapshot { .. } => Self::RollbackSnapshot,
             Intent::DeleteSnapshot { .. } => Self::DeleteSnapshot,
+            Intent::ProtectHostname { .. } => Self::ProtectHostname,
+            Intent::CreateServiceToken { .. } => Self::CreateServiceToken,
+            Intent::RevokeServiceToken { .. } => Self::RevokeServiceToken,
+            Intent::RotateServiceToken { .. } => Self::RotateServiceToken,
         }
     }
 }
@@ -100,6 +112,10 @@ pub enum DeltaArea {
     LoadBalancing,
     /// A Snapshot's address.
     Snapshot,
+    /// A rule at Cloudflare's edge (bots, rate limit, headers).
+    Protection,
+    /// A service token.
+    ServiceToken,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -291,12 +307,63 @@ pub(crate) struct EnglishDelta {
     after: Option<String>,
 }
 
+/// An edge rule as one line: what it does and when.
+fn edge_rule(rule: &cf_api::NewRule) -> Text {
+    msg::raw(format!("{} · {}", rule.action, rule.expression))
+}
+
 /// What `plan` changes, from its steps' before and after values.
 pub fn deltas(plan: &Plan) -> Vec<Delta> {
     let tunnel_target = delta::tunnel_target(&plan.tunnel_name);
     let mut out = Vec::new();
     for step in &plan.steps {
         match step {
+            Step::CreateEdgeRule {
+                hostnames, rule, ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: None,
+                after: Some(edge_rule(rule)),
+            }),
+            Step::UpdateEdgeRule {
+                hostnames,
+                rule,
+                previous,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: Some(edge_rule(previous)),
+                after: Some(edge_rule(rule)),
+            }),
+            Step::DeleteEdgeRule {
+                hostnames,
+                previous,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: Some(edge_rule(previous)),
+                after: None,
+            }),
+            Step::CreateServiceToken { hostname, name } => out.push(Delta {
+                area: DeltaArea::ServiceToken,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(name)),
+            }),
+            Step::DeleteServiceToken { token } => out.push(Delta {
+                area: DeltaArea::ServiceToken,
+                hostname: token.name.clone(),
+                path: None,
+                before: Some(msg::raw(&token.client_id)),
+                after: None,
+            }),
             Step::PutConfig {
                 ingress, previous, ..
             } => {
@@ -453,6 +520,8 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
             | Step::CreateTunnel { .. }
             | Step::StopConnector { .. }
             | Step::DeleteTunnel { .. }
+            | Step::AllowServiceToken { .. }
+            | Step::RotateServiceToken { .. }
             | Step::Verify { .. } => {}
         }
     }

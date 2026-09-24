@@ -47,6 +47,8 @@ const ACCOUNT_TABLES: &[&str] = &[
     "incidents",
     // Their versions go with them (foreign key).
     "snapshots",
+    "edge_rules",
+    "service_tokens",
 ];
 
 /// How an account was connected.

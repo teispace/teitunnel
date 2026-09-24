@@ -95,6 +95,8 @@ fn fresh() -> Snapshot {
         elsewhere: Vec::new(),
         balance: None,
         site: None,
+        edge: None,
+        service_tokens: None,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -547,6 +549,8 @@ fn scenarios() {
         elsewhere: Vec::new(),
         balance: None,
         site: None,
+        edge: None,
+        service_tokens: None,
         ..fresh()
     };
 
@@ -758,6 +762,13 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::AttachSnapshotDomain { .. } => "domain+",
             Step::DetachSnapshotDomain { .. } => "domain-",
             Step::DeleteSnapshotWorker { .. } => "worker-",
+            Step::CreateEdgeRule { .. } => "rule+",
+            Step::UpdateEdgeRule { .. } => "rule~",
+            Step::DeleteEdgeRule { .. } => "rule-",
+            Step::CreateServiceToken { .. } => "token+",
+            Step::AllowServiceToken { .. } => "token-app",
+            Step::DeleteServiceToken { .. } => "token-",
+            Step::RotateServiceToken { .. } => "token~",
         })
         .collect()
 }

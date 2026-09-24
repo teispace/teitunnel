@@ -91,10 +91,19 @@ impl Error {
                     | P::AccessDomain(_)
                     | P::InvalidTunnelName
                     | P::TunnelNameTaken(_)
-                    | P::SnapshotLoginNeedsDomain,
+                    | P::SnapshotLoginNeedsDomain
+                    | P::EdgeRateLimitPeriod { .. }
+                    | P::InvalidTokenLabel
+                    | P::ServiceTokenExists(_),
                 )
                 | E::Input(_) => ErrorKind::InvalidInput,
-                E::Plan(P::ZeroTrustNotSetUp | P::NoWorkersSubdomain) => ErrorKind::Unavailable,
+                E::Plan(
+                    P::ZeroTrustNotSetUp
+                    | P::NoWorkersSubdomain
+                    | P::EdgeRateLimitNeedsPro(_)
+                    | P::EdgeQuotaFull { .. }
+                    | P::ServiceTokenLimit(_),
+                ) => ErrorKind::Unavailable,
                 E::Plan(
                     P::NoSuchSnapshot(_)
                     | P::NoSuchRoute(_)
@@ -102,7 +111,8 @@ impl Error {
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
                     | P::NoSuchNetwork(_)
-                    | P::NotBalanced(_),
+                    | P::NotBalanced(_)
+                    | P::NoSuchServiceToken(_),
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
@@ -116,10 +126,14 @@ impl Error {
                     | P::BalancerExists(_)
                     | P::SnapshotExists(_)
                     | P::HostnameRouted(_)
-                    | P::HostnameServed { .. },
+                    | P::HostnameServed { .. }
+                    | P::EdgeRateLimitConflict { .. }
+                    | P::ServiceTokenNotOwned(_),
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
-                E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
+                E::Observe(O::AccessPermission | O::EdgePermission | O::ServiceTokenPermission) => {
+                    ErrorKind::PermissionDenied
+                }
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
             },

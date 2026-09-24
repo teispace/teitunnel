@@ -23,6 +23,11 @@ pub enum Permission {
     Analytics,
     /// Publish Snapshots as Workers (optional).
     WorkersEdit,
+    /// Edge rules: custom and rate limiting rules (Zone WAF) and header rules
+    /// (Transform Rules), optional.
+    EdgeRules,
+    /// Access service tokens (optional).
+    ServiceTokens,
 }
 
 /// The result of probing one permission.
@@ -80,6 +85,10 @@ pub struct Capabilities {
     pub analytics: Grant,
     /// Workers (Snapshots, optional feature).
     pub workers_edit: Grant,
+    /// Edge rules (optional feature), probed on the first domain.
+    pub edge_rules: Grant,
+    /// Access service tokens (optional feature).
+    pub service_tokens: Grant,
     /// DNS editing, per domain.
     pub zones: Vec<ZoneGrant>,
 }
@@ -105,12 +114,14 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     // Snapshots are Workers: PATCHing a missing Worker's settings is 404 when allowed.
     let worker_member =
         format!("{account}/workers/scripts/teitunnel-permission-check/script-settings");
-    let (tunnels_read, tunnels_edit, access_apps, access_methods, workers_edit) = tokio::join!(
+    let service_tokens = format!("{account}/access/service_tokens");
+    let (tunnels_read, tunnels_edit, access_apps, access_methods, workers_edit, tokens) = tokio::join!(
         client.probe_read(&tunnels),
         client.probe_write(&tunnel_member),
         client.probe_write(&access_member),
         client.probe_read(&login_methods),
         client.probe_write(&worker_member),
+        client.probe_read(&service_tokens),
     );
     let zones_result: Result<Vec<Zone>, _> = match only_zone {
         Some(zone_id) => client.zone(zone_id).await.map(|zone| vec![zone]),
@@ -126,6 +137,23 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     // (tokens are made for "all zones" from the template); one probe is enough.
     let analytics = match zones_list.first() {
         Some(zone) => client.probe_analytics(&zone.id).await.into(),
+        None => Grant::Unknown,
+    };
+    // Edge rules: reading a phase's entry point (404 when there's none) needs the
+    // same permission as writing it; custom rules (Zone WAF) and header rules
+    // (Transform Rules) are separate permissions, and both are needed.
+    let edge_rules = match zones_list.first() {
+        Some(zone) => {
+            let entrypoint =
+                |phase: &str| format!("/zones/{}/rulesets/phases/{phase}/entrypoint", zone.id);
+            let (custom, headers) = (
+                entrypoint(cf_api::PHASE_CUSTOM),
+                entrypoint(cf_api::PHASE_REQUEST_HEADERS),
+            );
+            let (waf, transform) =
+                tokio::join!(client.probe_read(&custom), client.probe_read(&headers));
+            both(waf, transform)
+        }
         None => Grant::Unknown,
     };
     let mut zones = Vec::new();
@@ -148,6 +176,8 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         access_edit: both(access_apps, access_methods),
         analytics,
         workers_edit: workers_edit.into(),
+        edge_rules,
+        service_tokens: tokens.into(),
         zones,
     }
 }
@@ -215,6 +245,25 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
+            .and(path(
+                "/zones/z1/rulesets/phases/http_request_firewall_custom/entrypoint",
+            ))
+            .respond_with(error(404, 10003))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/zones/z1/rulesets/phases/http_request_late_transform/entrypoint",
+            ))
+            .respond_with(error(403, 10000))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/access/service_tokens"))
+            .respond_with(list(serde_json::json!([])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
             .and(path("/zones/z1/workers/routes"))
             .respond_with(list(serde_json::json!([])))
             .mount(&server)
@@ -273,6 +322,8 @@ mod tests {
         assert_eq!(caps.access_edit, Grant::No);
         assert_eq!(caps.analytics, Grant::No);
         assert_eq!(caps.workers_edit, Grant::Yes);
+        assert_eq!(caps.edge_rules, Grant::No, "Transform Rules is missing");
+        assert_eq!(caps.service_tokens, Grant::Yes);
         assert_eq!(
             caps.zones
                 .iter()

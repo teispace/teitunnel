@@ -10,9 +10,11 @@ mod activity;
 pub mod balance;
 mod cloud;
 mod drift;
+pub mod edge;
 mod executor;
 mod ingress;
 mod local;
+mod local_edge;
 mod local_sites;
 mod networks;
 mod observe;
@@ -23,6 +25,10 @@ mod types;
 mod verify;
 mod views;
 
+#[cfg(test)]
+mod edge_executor_tests;
+#[cfg(test)]
+mod edge_tests;
 #[cfg(test)]
 mod executor_tests;
 #[cfg(test)]
@@ -47,6 +53,7 @@ pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
 pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
+pub use local_edge::{EdgeRuleRow, ServiceTokenRow};
 pub use local_sites::{KEPT_VERSIONS, SiteRow, SiteVersionRow};
 pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
 pub use observe::{ObserveError, ObserveNeed, Want, observe};
@@ -57,8 +64,8 @@ pub use sites::{
 };
 pub use tunnels::{ConnectionView, ConnectorView, TunnelSummary};
 pub use types::{
-    Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,
-    ZoneRef, ownership_comment, tunnel_target,
+    Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TokenRef, TunnelRef,
+    Warning, ZoneRef, ownership_comment, tunnel_target,
 };
 pub(crate) use verify::is_access_login;
 pub(crate) use verify::probe;
