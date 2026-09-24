@@ -72,7 +72,9 @@ if (-not (Test-Path $shortcut)) { Fail 'No Start menu shortcut' }
 
 Set-Theme $false
 Start-App $exe 'light' | Out-Null
-if (-not (Test-Path $trayKey)) {
+if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) {
+  Write-Host '::warning::No taskbar (Explorer isn''t running): the tray icon was not checked'
+} elseif (-not (Test-Path $trayKey)) {
   Write-Host '::warning::This Windows keeps no NotifyIconSettings; the tray icon was not checked'
 } elseif (-not ($tray = Find-Tray $exe)) {
   Fail 'Teitunnel has no notification-area icon'
