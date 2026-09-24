@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/teispace/teitunnel/compare/v0.1.0...v0.1.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **linux:** depend on the tray library; check every package on real systems before release ([#27](https://github.com/teispace/teitunnel/issues/27)) ([616ea35](https://github.com/teispace/teitunnel/commit/616ea355b70ad1b733e477eb269bc4c011b3ea63))
+
 ## [0.1.0](https://github.com/teispace/teitunnel/compare/v0.1.0...v0.1.0) (2026-09-23)
 
 
