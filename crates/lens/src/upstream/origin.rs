@@ -8,7 +8,9 @@
 use std::{
     io,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    pin::Pin,
     sync::{Arc, Mutex, PoisonError, Weak},
+    task::{Context, Poll},
     time::Instant,
 };
 
@@ -26,7 +28,11 @@ use tokio::{
 use tokio_rustls::TlsConnector;
 
 use super::tls;
-use crate::{LensBody, LensError, OriginConfig, capture::ErrorKind};
+use bytes::Bytes;
+use http_body::{Body, Frame, SizeHint};
+use http_body_util::BodyExt;
+
+use crate::{LensBody, LensError, OriginConfig, body::BoxError, capture::ErrorKind};
 
 /// A failure talking to the origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +110,7 @@ impl OriginClient {
         self: &Arc<Self>,
         request: Request<LensBody>,
         connected: impl FnOnce(),
-    ) -> Result<Response<Incoming>, UpstreamError> {
+    ) -> Result<Response<LensBody>, UpstreamError> {
         let work = async {
             if self.config.http2 {
                 self.send_h2(request, connected).await
@@ -127,35 +133,32 @@ impl OriginClient {
         }
     }
 
+    /// An idle connection that isn't closed or expired. It may still be finishing its
+    /// previous exchange for a moment; the caller awaits `ready()`.
     fn take_idle(&self) -> Option<http1::SendRequest<LensBody>> {
         let mut idle = self.idle.lock().unwrap_or_else(PoisonError::into_inner);
         let timeout = self.config.idle_timeout;
         idle.retain(|conn| !conn.sender.is_closed() && conn.since.elapsed() < timeout);
-        while let Some(conn) = idle.pop() {
-            if conn.sender.is_ready() {
-                return Some(conn.sender);
-            }
-        }
-        None
+        idle.pop().map(|conn| conn.sender)
     }
 
     async fn send_h1(
         self: &Arc<Self>,
         mut request: Request<LensBody>,
         connected: impl FnOnce(),
-    ) -> Result<Response<Incoming>, UpstreamError> {
+    ) -> Result<Response<LensBody>, UpstreamError> {
         let mut connected = Some(connected);
         // Pooled connections may have been closed by the origin since they were used;
         // hyper hands the request back when it wasn't sent, so try the next one.
         while let Some(mut sender) = self.take_idle() {
+            if sender.ready().await.is_err() {
+                continue;
+            }
             if let Some(ready) = connected.take() {
                 ready();
             }
             match sender.try_send_request(request).await {
-                Ok(response) => {
-                    self.recycle(sender);
-                    return Ok(response);
-                }
+                Ok(response) => return Ok(self.pooled(sender, response)),
                 Err(mut err) => match err.take_message() {
                     Some(unsent) => request = unsent,
                     None => return Err(map_hyper(err.error())),
@@ -179,38 +182,42 @@ impl OriginClient {
             .send_request(request)
             .await
             .map_err(|err| map_hyper(&err))?;
-        self.recycle(sender);
-        Ok(response)
+        Ok(self.pooled(sender, response))
     }
 
-    /// Returns the connection to the pool once its response has been fully read.
-    fn recycle(self: &Arc<Self>, mut sender: http1::SendRequest<LensBody>) {
-        if self.config.max_idle_connections == 0 {
-            return;
+    /// Wraps the response body so the connection returns to the pool the moment the
+    /// body has been read to the end (upgraded connections never return).
+    fn pooled(
+        self: &Arc<Self>,
+        sender: http1::SendRequest<LensBody>,
+        response: Response<Incoming>,
+    ) -> Response<LensBody> {
+        let reusable = self.config.max_idle_connections > 0
+            && response.status() != http::StatusCode::SWITCHING_PROTOCOLS;
+        response.map(|inner| {
+            PooledBody {
+                inner,
+                slot: reusable.then(|| (sender, Arc::downgrade(self))),
+            }
+            .boxed_unsync()
+        })
+    }
+
+    fn give_back(&self, sender: http1::SendRequest<LensBody>) {
+        let mut idle = self.idle.lock().unwrap_or_else(PoisonError::into_inner);
+        if idle.len() < self.config.max_idle_connections {
+            idle.push(Idle {
+                sender,
+                since: Instant::now(),
+            });
         }
-        let pool: Weak<Self> = Arc::downgrade(self);
-        tokio::spawn(async move {
-            if sender.ready().await.is_err() {
-                return; // closed or upgraded
-            }
-            let Some(client) = pool.upgrade() else {
-                return;
-            };
-            let mut idle = client.idle.lock().unwrap_or_else(PoisonError::into_inner);
-            if idle.len() < client.config.max_idle_connections {
-                idle.push(Idle {
-                    sender,
-                    since: Instant::now(),
-                });
-            }
-        });
     }
 
     async fn send_h2(
         &self,
         request: Request<LensBody>,
         connected: impl FnOnce(),
-    ) -> Result<Response<Incoming>, UpstreamError> {
+    ) -> Result<Response<LensBody>, UpstreamError> {
         let mut sender = {
             let mut slot = self.h2.lock().await;
             match slot.as_ref().filter(|sender| !sender.is_closed()) {
@@ -237,6 +244,7 @@ impl OriginClient {
         sender
             .send_request(request)
             .await
+            .map(|response| response.map(|body| body.map_err(BoxError::from).boxed_unsync()))
             .map_err(|err| map_hyper(&err))
     }
 
@@ -289,6 +297,60 @@ impl OriginClient {
                 ErrorKind::Timeout,
                 format!("TLS handshake with {} timed out", self.config.url),
             )),
+        }
+    }
+}
+
+/// A response body that hands its HTTP/1.1 connection back to the pool when it ends.
+struct PooledBody {
+    inner: Incoming,
+    slot: Option<(http1::SendRequest<LensBody>, Weak<OriginClient>)>,
+}
+
+impl PooledBody {
+    fn release(&mut self) {
+        if let Some((sender, pool)) = self.slot.take()
+            && let Some(client) = pool.upgrade()
+        {
+            client.give_back(sender);
+        }
+    }
+}
+
+impl Body for PooledBody {
+    type Data = Bytes;
+    type Error = BoxError;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Bytes>, BoxError>>> {
+        let this = &mut *self;
+        let polled = Pin::new(&mut this.inner).poll_frame(cx);
+        match &polled {
+            Poll::Ready(None) => this.release(),
+            Poll::Ready(Some(Ok(_))) if this.inner.is_end_stream() => this.release(),
+            // An error leaves the connection unusable: it's dropped, not pooled.
+            Poll::Ready(Some(Err(_))) => this.slot = None,
+            _ => {}
+        }
+        polled.map(|frame| frame.map(|result| result.map_err(BoxError::from)))
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+impl Drop for PooledBody {
+    fn drop(&mut self) {
+        // Empty bodies hyper never polled; a body dropped mid-way isn't reusable.
+        if self.inner.is_end_stream() {
+            self.release();
         }
     }
 }

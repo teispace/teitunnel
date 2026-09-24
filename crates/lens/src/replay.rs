@@ -299,7 +299,7 @@ async fn once(
                             &head.headers,
                             Responder::Upstream,
                         );
-                        Response::from_parts(head, body.map_err(BoxError::from).boxed_unsync())
+                        Response::from_parts(head, body)
                     }
                     Err(err) => {
                         recorder.fail(err.kind, err.message);

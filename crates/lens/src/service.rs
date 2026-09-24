@@ -13,7 +13,7 @@ use hyper::body::Incoming;
 use crate::{
     BodyRecord, ClientInfo, Exchange, ExchangeError, ExchangeId, ExchangeKind, ExchangeState,
     GateOutcome, LensBody, RequestRecord, Responder, Timings,
-    body::{BoxError, PrefixedBody, TeeBody, empty, read_limited, read_prefix},
+    body::{PrefixedBody, TeeBody, empty, read_limited, read_prefix},
     capture::ErrorKind,
     forward,
     gate::{self, LOGIN_PATH},
@@ -726,7 +726,7 @@ impl Pipeline {
 
         let (mut head, body) = response.into_parts();
         forward::response_headers(&mut head.headers, false);
-        let response = Response::from_parts(head, body.map_err(BoxError::from).boxed_unsync());
+        let response = Response::from_parts(head, body);
         self.finish(
             response,
             Responder::Upstream,

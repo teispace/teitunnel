@@ -2,7 +2,7 @@
 //! both ways as they arrive, with backpressure (a write completes before the next
 //! read), while WebSocket frames are observed for message counts and previews.
 
-use std::{io, sync::atomic::Ordering::Relaxed};
+use std::{io, sync::atomic::Ordering::Relaxed, time::Duration};
 
 use hyper::upgrade::{OnUpgrade, Upgraded};
 use hyper_util::rt::TokioIo;
@@ -18,6 +18,10 @@ use crate::{
 };
 
 const BUFFER: usize = 16 * 1024;
+/// How long a WebSocket's other direction may continue after one side closed.
+const WS_LINGER: Duration = Duration::from_secs(1);
+/// The same for other upgraded protocols, which may use TCP half-close deliberately.
+const UPGRADE_LINGER: Duration = Duration::from_secs(10);
 
 /// Waits for both sides to finish upgrading, then pumps until either side closes or
 /// Lens shuts down, and finishes the recording.
@@ -78,7 +82,25 @@ async fn pump(
         websocket.then(|| WsObserver::new(limits.bytes)),
         limits,
     );
-    tokio::try_join!(up, down).map(|_| ())
+    tokio::pin!(up, down);
+    // When one side closes, the other gets a short linger to finish (half-close), then
+    // the tunnel ends: WebSocket clients often keep their socket open after the close
+    // handshake, and nothing meaningful can follow it.
+    let linger = if websocket { WS_LINGER } else { UPGRADE_LINGER };
+    let rest = tokio::select! {
+        result = &mut up => {
+            result?;
+            tokio::time::timeout(linger, &mut down).await
+        }
+        result = &mut down => {
+            result?;
+            tokio::time::timeout(linger, &mut up).await
+        }
+    };
+    match rest {
+        Ok(result) => result.map(|_| ()),
+        Err(_) => Ok(()),
+    }
 }
 
 async fn copy<R, W>(
