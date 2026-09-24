@@ -18,6 +18,7 @@
 9. **M12-09 Robustness from others' bug trackers.**
 10. **M12-10 Reach** (listings, comparisons, launch).
 11. **M12-11 CI/CD and teams** (GitHub Action with PR previews, name reservations).
+12. **M12-12 More** (webhook inbox, project file, exposure check, idle stop, OpenAPI from traffic, move to a new computer).
 
 Each item ships behind tests (unit, E2E against fake-cloudflare/fake-cloudflared, UI tests), docs and a DECISIONS entry, like every milestone so far.
 
@@ -119,6 +120,14 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 ## M12-11 · CI/CD and teams
 - [ ] GitHub Action `teispace/teitunnel-action`: on a pull request, publish a preview at `pr-<n>.preview.example.com` either as a live share from the runner or as a snapshot (stays up after the job), comment the URL on the PR, update it on new commits, remove everything when the PR closes; account-owned tokens (D-095). GitLab CI template too.
 - [ ] Name reservations for teams sharing an account: the owner (person/machine) is written into the DNS record's comment, so every Teitunnel sees who holds a name; leases with expiry (`alice.dev.company.com` permanent, `pr-402…` until closed); conflicts shown before any change.
+
+## M12-12 · More (maintainer: "any other best features", 2026-09-24)
+- [ ] Webhook inbox: a Worker on the user's account (Queues/D1/KV within free limits) receives webhooks while this computer is off and delivers them in order when it's back, with the inspector showing both the arrival and the delivery.
+- [ ] Project file `teitunnel.yml` in a repo: its shares, routes, protection, local domains and snapshots; `teitunnel up` (or opening the folder in the app) applies it through plan → apply; checked into git so a team shares it.
+- [ ] Exposure check before a share goes public: probe the origin for common leaks (`/.env`, `/.git/`, directory listings, debug pages such as Django/Laravel/Rails error pages, open admin panels, framework dev tools) and warn with details; never blocks, one click to continue.
+- [ ] Auto-stop idle shares after N minutes without requests; notify when a request hits a watched path.
+- [ ] OpenAPI from traffic: infer an API description (paths, methods, parameters, JSON schemas from observed bodies) from captured exchanges; export for docs and agents.
+- [ ] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere.
 
 ## M12-10 · Reach
 - [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
