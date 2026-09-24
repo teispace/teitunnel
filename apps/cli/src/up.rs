@@ -127,6 +127,7 @@ pub(crate) async fn up(app: &App, args: &UpArgs) -> Result<ExitCode, String> {
                 .join(", ")
         ));
     }
+    let sweeper = crate::inspect::sweep_left_behind(app, machine.clone());
     let report = |machine: &MachineTunnels, last: &mut Vec<&'static str>| {
         for (index, (id, name)) in running.iter().enumerate() {
             let now = describe(machine.state(id).as_ref());
@@ -156,6 +157,7 @@ pub(crate) async fn up(app: &App, args: &UpArgs) -> Result<ExitCode, String> {
     if let Some(shares) = shares {
         shares.stop(app).await;
     }
+    sweeper.abort();
     monitor.release().await;
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)

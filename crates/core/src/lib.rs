@@ -28,6 +28,7 @@ pub mod export;
 pub mod exposure;
 pub mod health;
 pub mod import;
+pub mod inspect;
 pub mod machine;
 pub mod platform;
 pub mod project;

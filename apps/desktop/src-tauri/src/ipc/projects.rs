@@ -302,12 +302,13 @@ pub async fn projects_apply(
             None => match OriginUrl::parse(&share.origin) {
                 Ok(origin) => state
                     .quick_shares
-                    .start(
+                    .start_with(
                         origin,
                         share
                             .expires_after
                             .map(|s| Duration::from_secs(u64::from(s))),
                         &host_header(&share.host_header),
+                        Some(share.inspect),
                     )
                     .await
                     .map(|_| share.origin.clone())

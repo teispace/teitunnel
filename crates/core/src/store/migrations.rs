@@ -256,6 +256,49 @@ const MIGRATIONS: &[M<'static>] = &[
         ) STRICT;
         CREATE INDEX service_tokens_account ON service_tokens (account_id, hostname);",
     ),
+    // 16: The inspector (Lens): routes pointed at a local tap (reverted when inspection
+    // ends, swept after a crash), the taps this machine ran (so other processes can
+    // name them), and recent captures with credentials masked (history across restarts).
+    M::up(
+        "CREATE TABLE inspected_routes (
+            account_id      TEXT NOT NULL,
+            hostname        TEXT NOT NULL,
+            path            TEXT NOT NULL DEFAULT '',
+            tunnel_id       TEXT,
+            original_origin TEXT NOT NULL,
+            access          TEXT,
+            lens_url        TEXT NOT NULL,
+            owner           TEXT NOT NULL,
+            created_at      INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname, path)
+        ) STRICT;
+        CREATE TABLE lens_taps (
+            id         TEXT PRIMARY KEY,
+            scope      TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            origin     TEXT NOT NULL,
+            public_url TEXT,
+            owner      TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            stopped_at INTEGER
+        ) STRICT;
+        CREATE TABLE lens_exchanges (
+            id            TEXT PRIMARY KEY,
+            tap           TEXT NOT NULL,
+            seq           INTEGER NOT NULL,
+            started_at    INTEGER NOT NULL,
+            method        TEXT NOT NULL,
+            host          TEXT NOT NULL,
+            path          TEXT NOT NULL,
+            status        INTEGER,
+            kind          TEXT NOT NULL,
+            meta          TEXT NOT NULL,
+            request_body  BLOB,
+            response_body BLOB
+        ) STRICT;
+        CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
+        CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

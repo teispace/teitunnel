@@ -61,7 +61,8 @@ Any other MCP client works too: run `teitunnel mcp` as a stdio server.
 | `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |
 | `list_reservations`, `reserve_hostname`, `release_hostname` | Hostnames reserved on the account and who holds them; reserve one (optionally until a date) or give it up, with your approval. A teammate's name is taken only if you confirm ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). |
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
-| `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Captured requests: list, inspect, replay, wait for the next one (webhooks), numbers, cURL/HAR/Markdown. They work once the traffic inspector runs for a share or route. |
+| `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares (inspected by default) and its recent history: list, inspect, replay, wait for the next one (webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. Credentials are masked unless the server runs with `--allow-secrets`. |
+| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`) unless the server allows secrets. |
 
 It also offers **resources** your tool can attach as context (`teitunnel://routes`,
 `teitunnel://shares`, `teitunnel://domains`, `teitunnel://issues`, `teitunnel://activity`,

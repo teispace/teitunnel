@@ -1300,6 +1300,16 @@
         "rateLimited": "Cloudflare's analytics limit is used up for a few minutes. Try again shortly.",
         "notOnPlan": "This domain's Cloudflare plan doesn't include traffic analytics.",
         "noZone": "None of this account's domains holds {hostname}."
+      },
+      "inspect": {
+        "lens": "The inspector couldn't do that: {detail}",
+        "unknownTap": "That share or route isn't being inspected any more.",
+        "unknownExchange": "That request isn't captured any more. Only the most recent requests are kept.",
+        "notWeb": "Only web services (http:// or https://) can be inspected.",
+        "notRoute": "{hostname} isn't a route served by this computer.",
+        "notInspected": "{hostname} isn't being inspected.",
+        "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
+        "invalid": "{detail}"
       }
     },
     "raw": "{text}",
@@ -1585,7 +1595,14 @@
         "detail": "{detail}"
       },
       "record": "{name} {kind} {content}",
-      "recordProxied": "{name} {kind} {content} (proxied)"
+      "recordProxied": "{name} {kind} {content} (proxied)",
+      "inspectOrphan": {
+        "title": "{hostname} points at an inspector that isn't running",
+        "detail": "Teitunnel pointed this route at its inspector to show its requests. The inspector isn't running any more, so visitors get an error. Point the route back at its own service.",
+        "fix": "Restore the Route",
+        "address": "Inspector address: {address}",
+        "original": "Its own service: {origin}"
+      }
     },
     "notify": {
       "doctorMany": "Teitunnel found {count} problems",
@@ -1602,7 +1619,12 @@
       "shareLive": "Quick Share is live",
       "shareFailed": "Quick Share stopped working",
       "routesDown@windows": "Routes on this PC are down",
-      "routesDown@linux": "Routes on this computer are down"
+      "routesDown@linux": "Routes on this computer are down",
+      "watchedPath": "Request to {path}",
+      "watchedPathBody": "{method} {path} on {name}",
+      "idleStopped": "Share stopped",
+      "idleStoppedBody_one": "{name} had no requests for {count} minute, so it stopped.",
+      "idleStoppedBody_other": "{name} had no requests for {count} minutes, so it stopped."
     },
     "verify": {
       "noRecord": "There's no DNS record for this hostname.",

@@ -48,6 +48,18 @@ teitunnel share 3000 --here --for 30m   # in this terminal, until Ctrl-C or 30 m
 teitunnel share 3000 --on demo.example.com  # the same, on your own domain
 teitunnel shares                        # every share: the app's, terminals', your domains'
 teitunnel shares --stop demo.example.com
+teitunnel share 3000 --no-inspect       # skip the inspector (on by default)
+teitunnel share 8000 --mcp --on mcp.example.com  # an MCP server for remote AI clients
+teitunnel share 11434 --ai              # a local AI server behind a bearer token
+teitunnel token mcp.example.com         # the token a shared MCP or AI server expects
+teitunnel inspect app.example.com       # a route's requests, until Ctrl-C
+teitunnel inspect app.example.com --off # restore a route left inspected
+teitunnel traffic ls --status 5xx       # captured requests (see Inspector)
+teitunnel traffic get 7f3a9c1b --format curl
+teitunnel traffic watch --path /webhooks
+teitunnel traffic replay 7f3a9c1b --set-header 'X-Debug: 1'
+teitunnel traffic export --har requests.har
+teitunnel traffic clear
 teitunnel analytics                     # traffic of every route, from Cloudflare's edge
 teitunnel analytics app.example.com --range week
 teitunnel uptime                        # uptime of this machine's routes
@@ -108,6 +120,16 @@ commands in [Project files](/docs/guides/project-file/), `backup` in
 | `--no-qr` | `share`: don't print a QR code. |
 | `--host-header <host>` | `share`: send this Host header to the service, e.g. `localhost:5173` ([dev servers](/docs/tutorials/dev-servers)). By default Vite, webpack and Angular dev servers get their own address. |
 | `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
+| `--no-inspect` | `share`: send requests straight to the service instead of through the [inspector](/docs/guides/inspector). |
+| `-q, --quiet` | `share`: don't print a line for each request. |
+| `--idle <duration>` | `share`: stop after this long without a request. |
+| `--watch <path>` | `share`: say so when a request hits this path, e.g. `/webhooks/*` (repeatable). |
+| `--mcp`, `--mcp-path <path>` | `share`: put a local MCP server online on your domain (`--on` is required) behind a bearer token, with client configurations printed ([Inspector](/docs/guides/inspector)). |
+| `--ai` | `share`: share Ollama, LM Studio or vLLM behind a bearer token and print the OpenAI-compatible base URL. |
+| `--new-token` | `share --mcp`/`--ai --on`: make a new token instead of the one saved for the hostname. |
+| `--last <n>`, `--host`, `--method`, `--status`, `--path`, `--kind`, `--text` | `traffic ls`/`watch`/`export`: which captured requests. |
+| `--format <markdown\|curl\|httpie\|fetch\|http\|har\|json>` | `traffic get`: how to show a request. |
+| `--set-header`, `--method`, `--path`, `--body <text or @file>`, `--times <n>` | `traffic replay`: edits and repetitions. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
 | `--strict` | `share`, `route add`, `project apply`, `up`: stop when the [exposure check](/docs/guides/exposure-check/) finds a leak (by default it only warns). |
 | `-f, --file <path>` | `project …`, `up`: the project file, or a folder with one (default: this folder, or the nearest one above it in the repository). |
@@ -157,6 +179,14 @@ Exit status: 0 when it worked, 1 when it didn't, 2 for a mistyped command, and 3
 hostname is held by someone else (a share never takes one; other commands need
 `--take-over`). `share --on` runs the tunnel's connector itself when neither the app nor
 an Always-on service does (a server, a CI job; see [Previews in CI](/docs/guides/ci-previews)).
+
+Shares go through the [inspector](/docs/guides/inspector) unless you pass `--no-inspect`:
+each request is printed on standard error (`--quiet` stops that) and kept for
+`teitunnel traffic`. `teitunnel traffic` reads the inspector's history in the app's
+database, written by the app and by every `teitunnel` command with an inspector, with
+credentials masked; so `traffic get --reveal` can't show them, and a replay from history
+leaves masked headers out (set them again with `--set-header`). `teitunnel inspect` shows
+the plan that points a route at its inspector, and points it back when the command ends.
 
 `doctor` runs the app's checks and hides the issues you ignored there.
 

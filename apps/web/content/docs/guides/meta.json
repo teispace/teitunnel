@@ -15,6 +15,7 @@
     "servers",
     "ci-previews",
     "load-balancing",
+    "inspector",
     "observability",
     "analytics",
     "menu-bar",

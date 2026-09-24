@@ -102,12 +102,16 @@ export const commands = {
 	binaryReveal: () => __TAURI_INVOKE<null>("binary_reveal"),
 	/**  Services listening on this Mac and Docker containers' ports, likely dev servers first. */
 	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
-	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
-	quickShareStart: (origin: string, stopAfterMinutes: number | null, hostHeader: HostHeaderChoice) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes, hostHeader }),
 	/**
-	 *  Restarts a share sending `host_header` to its service (`null`: none), for a dev
-	 *  server that refuses the public address. The share gets a new URL and is checked
-	 *  again once it's live.
+	 *  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`.
+	 *  `inspect` chooses whether it goes through the inspector (`null`: the setting, on by
+	 *  default).
+	 */
+	quickShareStart: (origin: string, stopAfterMinutes: number | null, hostHeader: HostHeaderChoice, inspect: boolean | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes, hostHeader, inspect }),
+	/**
+	 *  Sends `host_header` to a share's service (`null`: none), for a dev server that
+	 *  refuses the public address. An inspected share changes at once and keeps its URL;
+	 *  otherwise it restarts with a new URL. Either way it's checked again once live.
 	 */
 	quickShareSetHostHeader: (id: string, hostHeader: string | null) => __TAURI_INVOKE<QuickShare>("quick_share_set_host_header", { id, hostHeader }),
 	/**
@@ -414,6 +418,117 @@ export const commands = {
 	backupInspect: (path: string, passphrase: string) => __TAURI_INVOKE<BackupPreview>("backup_inspect", { path, passphrase }),
 	/**  Restores the backup `backup_inspect` read (the one shown to the user). */
 	backupRestore: (id: string) => __TAURI_INVOKE<null>("backup_restore", { id }),
+	/**  The inspector's settings. */
+	inspectSettingsGet: () => __TAURI_INVOKE<InspectorSettings>("inspect_settings_get"),
+	/**  Changes the inspector's settings. */
+	inspectSettingsSet: (patch: InspectorSettingsPatch) => __TAURI_INVOKE<InspectorSettings>("inspect_settings_set", { patch }),
+	/**  Running taps (inspected shares and routes). */
+	inspectTaps: () => __TAURI_INVOKE<TapView[]>("inspect_taps"),
+	/**  Every tap captures refer to: running, stopped, or from the history. */
+	inspectKnownTaps: () => __TAURI_INVOKE<KnownTap[]>("inspect_known_taps"),
+	/**  A page of captured requests, newest first, masked. */
+	inspectExchanges: (query: ExchangeQuery) => __TAURI_INVOKE<ExchangePage>("inspect_exchanges", { query }),
+	/**
+	 *  One captured request in full: masked, or revealed (only when the person clicked to
+	 *  reveal secrets).
+	 */
+	inspectExchange: (id: ExchangeId, reveal: boolean) => __TAURI_INVOKE<ExchangeDetail>("inspect_exchange", { id, reveal }),
+	/**
+	 *  Streams changes to captured requests on `on_batch`, at most every 100 ms, until
+	 *  `inspect_unsubscribe` with the returned id (or the window goes away).
+	 */
+	inspectSubscribe: (onBatch: Channel<LiveBatch>) => __TAURI_INVOKE<number>("inspect_subscribe", { onBatch }),
+	/**  Stops a live subscription. */
+	inspectUnsubscribe: (id: number) => __TAURI_INVOKE<void>("inspect_unsubscribe", { id }),
+	/**  Sends a captured request to its service again: edited, repeated, re-signed. */
+	inspectReplay: (id: ExchangeId, input: ReplayInput) => __TAURI_INVOKE<ExchangeRow[]>("inspect_replay", { id, input }),
+	/**
+	 *  Captured requests as cURL, HTTPie, fetch, raw HTTP, HAR, JSON or Markdown; secrets
+	 *  are masked unless `redact` is false (an explicit choice).
+	 */
+	inspectExport: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export", { ids, format, redact }),
+	/**  Saves an export to Downloads and shows it in the file manager. Returns its path. */
+	inspectExportSave: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export_save", { ids, format, redact }),
+	/**  Forgets captured requests of one tap, or all (in memory and on disk). */
+	inspectClear: (tap: string | null) => __TAURI_INVOKE<null>("inspect_clear", { tap }),
+	/**
+	 *  Changes a tap's settings at once: capturing, the paused page, stubs, header rules,
+	 *  network simulation, faults, stream keep-alive, the Host header, watched paths, idle
+	 *  stop.
+	 */
+	inspectConfigure: (tap: TapId, patch: TapPatch) => __TAURI_INVOKE<TapView>("inspect_configure", { tap, patch }),
+	/**
+	 *  Changes a tap's protection. A generated secret link key or bearer token is in the
+	 *  answer once; passwords go in and never come back.
+	 */
+	inspectProtect: (tap: TapId, input: ProtectionInput) => __TAURI_INVOKE<ProtectionResult>("inspect_protect", { tap, input }),
+	/**  A tap's counters and latency percentiles. */
+	inspectMetrics: (tap: TapId) => __TAURI_INVOKE<MetricsSnapshot>("inspect_metrics", { tap }),
+	/**
+	 *  Webhook senders with a signing secret saved for a tap's share or route (never the
+	 *  secrets).
+	 */
+	inspectWebhookSecrets: (tap: TapId) => __TAURI_INVOKE<WebhookSender[]>("inspect_webhook_secrets", { tap }),
+	/**  Saves a webhook signing secret in the keychain for a tap's share or route. */
+	inspectWebhookSecretSet: (tap: TapId, provider: WebhookSender, secret: string) => __TAURI_INVOKE<null>("inspect_webhook_secret_set", { tap, provider, secret }),
+	/**  Removes a saved webhook signing secret. */
+	inspectWebhookSecretRemove: (tap: TapId, provider: WebhookSender) => __TAURI_INVOKE<null>("inspect_webhook_secret_remove", { tap, provider }),
+	/**  Checks a captured webhook's signature with the saved secret (`null`: not a webhook). */
+	inspectWebhookVerify: (id: ExchangeId) => __TAURI_INVOKE<{
+	/**  Who sent it. */
+	provider: WebhookSender,
+	/**  Whether a signing secret is saved for this share or route. */
+	hasSecret: boolean,
+	/**  The result, when a secret is saved. */
+	verification: WebhookVerdict | null,
+} | null>("inspect_webhook_verify", { id }),
+	/**  Routes pointed at an inspector, in every account. */
+	inspectRoutes: () => __TAURI_INVOKE<InspectedRoute[]>("inspect_routes"),
+	/**
+	 *  Plans inspecting a route (`on`: point it at the inspector) or ending it (back to its
+	 *  own service), for review. `null`: nothing to change (ending an inspection whose
+	 *  route is gone or was changed since).
+	 */
+	inspectRoutePreview: (accountId: string, hostname: string, path: string | null, on: boolean) => __TAURI_INVOKE<{
+	/**  The change (an edit of the route's service). */
+	change: Change_Serialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+} | null>("inspect_route_preview", { accountId, hostname, path, on }),
+	/**
+	 *  Applies a reviewed [`inspect_route_preview`] plan. Inspection lasts while the app
+	 *  runs: it's reverted on quit (and after a crash, at the next launch).
+	 */
+	inspectRouteApply: (accountId: string, hostname: string, path: string | null, on: boolean, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<
+/**  Every step succeeded. */
+{ type: "applied"; 
+/**  This Mac's tunnel afterwards (None once deleted). */
+tunnelId: string | null; 
+/**  Hostnames to verify next. */
+verify: string[]; 
+/**  The connector couldn't be started (the routes are configured, though). */
+connectorError: Text | null } | 
+/**  A step failed and everything done before it was undone. */
+{ type: "rolledBack"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: Text } | 
+/**  A step failed and some earlier changes couldn't be undone. */
+{ type: "partiallyApplied"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: Text; 
+/**  What was left in place. */
+leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, on, fingerprint, confirmed, onProgress }),
+	/**
+	 *  Turns inspection of a running share on or off. cloudflared restarts, so the share
+	 *  gets a new URL (the UI says so before).
+	 */
+	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
 };
 
 /** Events */
@@ -570,6 +685,15 @@ export type AddressInput =
 hostname: string } | 
 /**  The account's `workers.dev` subdomain. */
 { type: "workersDev" };
+
+/**  Built-in user-agent block lists. */
+export type AgentPreset = 
+/**  AI training and answer crawlers (GPTBot, ClaudeBot, CCBot, PerplexityBot…). */
+"aiCrawlers" | 
+/**  Search engine crawlers (Googlebot, Bingbot…). */
+"searchEngines" | 
+/**  SEO and marketing crawlers (AhrefsBot, SemrushBot…). */
+"seoCrawlers";
 
 /**  An AI client, as Settings shows it. */
 export type AiClientView = {
@@ -758,6 +882,30 @@ export type BinaryInfo = {
 	version: string | null,
 	/**  Whether it supports everything Teitunnel needs. */
 	supported: boolean,
+};
+
+/**  A body in a view. */
+export type BodyView = {
+	/**  Bytes on the wire. */
+	size: number,
+	/**  Bytes captured. */
+	captured: number,
+	/**  Whether the capture is shorter than the body. */
+	truncated: boolean,
+	/**  Whether the body has finished. */
+	complete: boolean,
+	/**  Classification of the decoded body. */
+	kind: ContentKind,
+	/**  `Content-Type`, if any. */
+	contentType: string | null,
+	/**  `Content-Encoding`, if any. */
+	encoding: string | null,
+	/**  Text bodies: decoded, lossy UTF-8, masked. */
+	text: string | null,
+	/**  Binary bodies: decoded, base64. Never masked (binary can't be masked reliably). */
+	base64: string | null,
+	/**  Why decompression failed, if it did (then `base64` holds the raw bytes). */
+	decodeError: string | null,
 };
 
 /**  What to do with automated clients. */
@@ -1035,6 +1183,18 @@ export type ClientAccess = {
 	sshConfig: string | null,
 };
 
+/**  Who sent the request. */
+export type ClientInfo = {
+	/**  The visitor's IP: `CF-Connecting-IP` when present and valid, else the peer. */
+	ip: string,
+	/**  The TCP peer (usually cloudflared on loopback). */
+	peer: string,
+	/**  Cloudflare's `CF-Ray` id, when present. */
+	cfRay: string | null,
+	/**  Cloudflare's `CF-IPCountry`, when present. */
+	country: string | null,
+};
+
 /**  The protocol a non-HTTP route carries. */
 export type ClientProtocol = 
 /**  SSH. */
@@ -1099,6 +1259,29 @@ export type ConnectorView = {
 	/**  Edge connections, by location. */
 	connections: ConnectionView[],
 };
+
+/**  A coarse classification of a body, for display and export choices. */
+export type ContentKind = 
+/**  No body. */
+"empty" | 
+/**  JSON (including `+json` types). */
+"json" | 
+/**  HTML. */
+"html" | 
+/**  XML (including `+xml` types). */
+"xml" | 
+/**  `application/x-www-form-urlencoded`. */
+"form" | 
+/**  `multipart/*`. */
+"multipart" | 
+/**  `text/event-stream`. */
+"eventStream" | 
+/**  JavaScript or CSS or other text. */
+"text" | 
+/**  An image. */
+"image" | 
+/**  Anything else. */
+"binary";
 
 /**  What a crawl captured. */
 export type CrawlReport = {
@@ -1211,6 +1394,13 @@ export type DiagnosticSeverity =
 /**  Applied anyway (e.g. a key this version doesn't know). */
 "warning";
 
+/**  Which way a stream message went. */
+export type Direction = 
+/**  From the visitor to the origin. */
+"clientToServer" | 
+/**  From the origin to the visitor. */
+"serverToClient";
+
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
 /**  A proxied CNAME to the tunnel. */
@@ -1284,6 +1474,15 @@ export type Drift = {
 	changes: RuleChange[],
 };
 
+/**  What a header rule does. */
+export type EdgeHeaderOp = 
+/**  Set the header to a value (replacing it). */
+"set" | 
+/**  Add a value (response headers only; keeps existing ones). */
+"add" | 
+/**  Remove the header. */
+"remove";
+
 /**
  *  Everything Teitunnel can enforce at Cloudflare's edge for one hostname. The default
  *  is nothing (no rules).
@@ -1343,7 +1542,9 @@ export type EntityKind =
 /**  Snapshots (id: the account). */
 "snapshots" | 
 /**  Projects (teitunnel.yml files opened in the app). */
-"projects";
+"projects" | 
+/**  The inspector's taps and settings (captures stream on `inspect_subscribe`). */
+"inspector";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -1364,6 +1565,194 @@ export type ErrorCode =
 "conflict" | 
 /**  The Cloudflare credential lacks a permission. */
 "permissionDenied";
+
+/**  Why an exchange failed. */
+export type ErrorKind = 
+/**  Nothing listens on the upstream port. */
+"connectionRefused" | 
+/**  Connecting or waiting for the response took too long. */
+"timeout" | 
+/**  The upstream closed or reset the connection mid-exchange. */
+"connectionReset" | 
+/**  The upstream's hostname didn't resolve. */
+"dns" | 
+/**  The TLS handshake with the upstream failed. */
+"tls" | 
+/**  The upstream sent something that isn't valid HTTP. */
+"protocol" | 
+/**  The client went away before the exchange finished. */
+"clientAborted" | 
+/**  A static file couldn't be read. */
+"io" | 
+/**  Anything else. */
+"other";
+
+/**  One exchange in full. */
+export type ExchangeDetail = {
+	/**  Everything captured (masked unless revealed). */
+	view: ExchangeView,
+	/**  The webhook sender and its signature check. */
+	webhook: WebhookCheck | null,
+	/**  Read back from the history kept on disk (credentials were masked when stored). */
+	restored: boolean,
+};
+
+/**  An error recorded on an exchange. */
+export type ExchangeError = {
+	/**  Category. */
+	kind: ErrorKind,
+	/**  Technical detail (English, for logs and developers). */
+	message: string,
+};
+
+/**
+ *  Identifies one captured exchange across all taps.
+ * 
+ *  A UUIDv7: unique, and ordered by creation time within the process, so it doubles as
+ *  a pagination cursor. Each exchange also has a per-tap sequence number for display.
+ */
+export type ExchangeId = string;
+
+/**  What kind of traffic an exchange carries. */
+export type ExchangeKind = 
+/**  A plain request and response. */
+"http" | 
+/**  An upgraded WebSocket connection. */
+"webSocket" | 
+/**  A server-sent event stream (`text/event-stream`). */
+"sse" | 
+/**  Another protocol upgrade (e.g. `h2c`, a custom `Upgrade:` token). */
+"upgrade";
+
+/**  A page of exchanges. */
+export type ExchangePage = {
+	/**  Newest first. */
+	items: ExchangeRow[],
+	/**  Pass as `before` for the next (older) page. */
+	next: ExchangeId | null,
+};
+
+/**  Which exchanges to list. */
+export type ExchangeQuery = {
+	/**  Only this tap. */
+	tap?: TapId | null,
+	/**  Any of these methods. */
+	methods?: string[],
+	/**  Status classes (`2` for 2xx…). */
+	statusClasses?: number[],
+	/**  Exact statuses. */
+	statuses?: number[],
+	/**  Text in the path. */
+	path?: string | null,
+	/**  Text in the host. */
+	host?: string | null,
+	/**  Text anywhere (URL, headers, bodies; secrets can't be searched). */
+	text?: string | null,
+	/**  At least this slow (milliseconds). */
+	minDurationMs?: number | null,
+	/**  Started at or after (milliseconds since the epoch). */
+	sinceMs?: number | null,
+	/**  Kinds. */
+	kinds?: ExchangeKind[],
+	/**  Only failed ones. */
+	errorsOnly?: boolean,
+	/**  Page size (default 100, at most 1,000). */
+	limit?: number | null,
+	/**  Older than this exchange (the previous page's `next`). */
+	before?: ExchangeId | null,
+};
+
+/**  A captured exchange in a list. */
+export type ExchangeRow = {
+	/**  Id. */
+	id: ExchangeId,
+	/**  Tap. */
+	tap: TapId,
+	/**  Number within the tap. */
+	seq: number,
+	/**  When the request arrived (milliseconds since the epoch). */
+	startedAt: number | null,
+	/**  Method. */
+	method: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Path and query, masked. */
+	path: string,
+	/**  Status, once answered. */
+	status: number | null,
+	/**  Duration in milliseconds, when known. */
+	durationMs: number | null,
+	/**  Request body bytes. */
+	requestBytes: number | null,
+	/**  Response body bytes. */
+	responseBytes: number | null,
+	/**  HTTP, WebSocket, SSE or another upgrade. */
+	kind: ExchangeKind,
+	/**  Where it is in its life. */
+	state: ExchangeState,
+	/**  `Content-Type` of the response. */
+	contentType: string | null,
+	/**  A recognised webhook sender. */
+	webhook: WebhookSender | null,
+	/**  Replays this exchange. */
+	replayOf: ExchangeId | null,
+	/**
+	 *  Answered by the inspector (a stub, a gate, the paused page, a fault) rather than
+	 *  the service.
+	 */
+	answeredLocally: boolean,
+	/**  An error reaching the service, in English (technical). */
+	error: string | null,
+};
+
+/**  Where an exchange is in its life. */
+export type ExchangeState = 
+/**  Received; waiting for the upstream's response head. */
+"pending" | 
+/**  The response head was sent; the body (or the upgraded stream) is flowing. */
+"streaming" | 
+/**  Finished normally. */
+"complete" | 
+/**  Ended with an error ([`Exchange::error`]). */
+"failed";
+
+/**  A serializable, redaction-aware copy of an [`Exchange`]. */
+export type ExchangeView = {
+	/**  Id. */
+	id: ExchangeId,
+	/**  Per-tap sequence number. */
+	seq: number,
+	/**  Tap. */
+	tap: TapId,
+	/**  Kind. */
+	kind: ExchangeKind,
+	/**  State. */
+	state: ExchangeState,
+	/**  Unix milliseconds. */
+	startedAtMs: number,
+	/**  Duration in milliseconds, when known. */
+	durationMs: number | null,
+	/**  Timings. */
+	timings: Timings,
+	/**  Client. */
+	client: ClientInfo,
+	/**  Request. */
+	request: RequestView,
+	/**  Response. */
+	response: ResponseView | null,
+	/**  Who answered. */
+	responder: Responder,
+	/**  Error. */
+	error: ExchangeError | null,
+	/**  Stream summary (previews masked). */
+	stream: StreamStats | null,
+	/**  Replayed exchange. */
+	replayOf: ExchangeId | null,
+	/**  The fault rule applied, if any. */
+	fault: FaultRecord | null,
+	/**  Whether secrets are masked in this view. */
+	redacted: boolean,
+};
 
 /**  A rendered export. */
 export type ExportFile = {
@@ -1501,6 +1890,45 @@ rejection: HostRejection } |
 { type: "bodyTooLarge" } | 
 /**  A Quick Share had 200 requests in flight, its limit (429). */
 { type: "tooManyRequests" };
+
+/**  What a fault rule does. */
+export type FaultAction = 
+/**  Answer with this status (e.g. 500, 502, 503, 504, 429) without forwarding. */
+{ type: "status"; 
+/**  Status code (400–599). */
+status: number; 
+/**  `Retry-After` in seconds. */
+retry_after_secs: number | null } | 
+/**  Close the connection without a response. */
+{ type: "reset" } | 
+/**  Forward normally, but only after this many milliseconds. */
+{ type: "delay"; 
+/**  Milliseconds. */
+ms: number } | 
+/**  Hold the request, then answer `504 Gateway Timeout` (as Cloudflare would). */
+{ type: "timeout"; 
+/**  How long to hold, in milliseconds. */
+after_ms: number };
+
+/**  The fault applied to a captured exchange. */
+export type FaultRecord = {
+	/**  Index of the rule in [`crate::TapConfig::faults`]. */
+	rule: number,
+	/**  What it did. */
+	action: FaultAction,
+};
+
+/**  A fault applied to a share of matching requests. */
+export type FaultRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  Share of matching requests affected, 0–100. */
+	percent: number,
+	/**  What happens to them. */
+	action: FaultAction,
+};
 
 /**  What the preview shows for a file. */
 export type FileSummary = {
@@ -1641,6 +2069,50 @@ export type FoundRoute_Serialize = {
 	unsupported: Text | null,
 };
 
+/**  A WebSocket frame opcode. */
+export type FrameOpcode = 
+/**  Continues a fragmented message. */
+"continuation" | 
+/**  Text. */
+"text" | 
+/**  Binary. */
+"binary" | 
+/**  Close. */
+"close" | 
+/**  Ping. */
+"ping" | 
+/**  Pong. */
+"pong";
+
+/**  One WebSocket frame, observed without altering it. */
+export type FrameRecord = {
+	/**  When the frame finished, relative to the request (microseconds). */
+	atUs: number,
+	/**  Direction. */
+	direction: Direction,
+	/**  Opcode. */
+	opcode: FrameOpcode,
+	/**  Final fragment of its message. */
+	fin: boolean,
+	/**  Masked on the wire (client frames are). */
+	masked: boolean,
+	/**  `RSV1` set: compressed with `permessage-deflate`. */
+	compressed: boolean,
+	/**  Payload size in bytes (compressed size for compressed frames). */
+	size: number,
+	/**
+	 *  The first payload bytes, unmasked: UTF-8 text for text data, hex otherwise.
+	 *  `None` when unavailable (compressed frames; see the message previews).
+	 */
+	preview: string | null,
+	/**  Whether `preview` is shorter than the payload. */
+	truncated: boolean,
+	/**  Close frames: the status code. */
+	closeCode: number | null,
+	/**  Close frames: the reason. */
+	closeReason: string | null,
+};
+
 /**  Web frameworks Teitunnel knows the static output of. */
 export type Framework = 
 /**  Vite (React, Vue, Svelte, Solid…): `dist`. */
@@ -1668,6 +2140,31 @@ export type Framework =
 /**  Plain HTML: the folder itself, no build. */
 "static";
 
+/**  Why a gate stopped a request. */
+export type GateOutcome = 
+/**  The client IP isn't on the allow list. */
+"ipNotAllowed" | 
+/**  The client IP is on the deny list. */
+"ipDenied" | 
+/**  The user agent is blocked. */
+"userAgentBlocked" | 
+/**  The password page was shown. */
+"passwordRequired" | 
+/**  A wrong password was submitted. */
+"passwordWrong" | 
+/**  Too many wrong passwords from this IP. */
+"rateLimited" | 
+/**  The visitor signed in; Lens set the session cookie. */
+"signedIn" | 
+/**  A secret link was used; Lens set the cookie and redirected without the key. */
+"linkAccepted" | 
+/**  A secret link is required and none (or a wrong one) was given. */
+"linkRequired" | 
+/**  HTTP basic credentials are missing or wrong. */
+"basicAuthRequired" | 
+/**  A bearer token is missing or wrong. */
+"bearerRequired";
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -1677,23 +2174,54 @@ export type Grant =
 /**  Couldn't be checked right now. */
 "unknown";
 
-/**  What a header rule does. */
+/**  One header change. */
 export type HeaderOp = 
-/**  Set the header to a value (replacing it). */
-"set" | 
-/**  Add a value (response headers only; keeps existing ones). */
-"add" | 
+/**  Replace every value of `name` with `value`. */
+{ op: "set"; 
+/**  Header name. */
+name: string; 
+/**  Value. */
+value: string } | 
+/**  Add a value, keeping existing ones. */
+{ op: "append"; 
+/**  Header name. */
+name: string; 
+/**  Value. */
+value: string } | 
 /**  Remove the header. */
-"remove";
+{ op: "remove"; 
+/**  Header name. */
+name: string };
 
 /**  One header change. */
 export type HeaderRule = {
 	/**  Header name, e.g. `X-Robots-Tag`. */
 	name: string,
 	/**  What to do. */
-	op: HeaderOp,
+	op: EdgeHeaderOp,
 	/**  The value, for `set` and `add`. */
 	value?: string | null,
+};
+
+/**  Header rewrites for a tap. */
+export type HeaderRules = {
+	/**  Applied to requests before they go upstream (after Lens's own headers). */
+	request?: HeaderOp[],
+	/**  Applied to responses before they go to the client. */
+	response?: HeaderOp[],
+	/**
+	 *  Permissive CORS for development: answer preflights and allow the caller's origin
+	 *  (with credentials).
+	 */
+	cors?: boolean,
+};
+
+/**  One header in a view. */
+export type HeaderView = {
+	/**  Name, lowercase. */
+	name: string,
+	/**  Value (lossy UTF-8), masked per the redaction. */
+	value: string,
 };
 
 /**  A page of help on the web. */
@@ -1823,6 +2351,82 @@ export type Incident = {
 	cause: Cause,
 };
 
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan = InspectPlan_Serialize | InspectPlan_Deserialize;
+
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan_Deserialize = {
+	/**  The change (an edit of the route's service). */
+	change: Change_Deserialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+};
+
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan_Serialize = {
+	/**  The change (an edit of the route's service). */
+	change: Change_Serialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+};
+
+/**  A route pointed at an inspector, as remembered. */
+export type InspectedRoute = {
+	/**  Account id. */
+	accountId: string,
+	/**  Public hostname. */
+	hostname: string,
+	/**  Path rule. */
+	path: string | null,
+	/**  This machine's tunnel carrying it (`None`: the default one). */
+	tunnelId: string | null,
+	/**  The service it had before, restored when inspection ends. */
+	originalOrigin: string,
+	/**  Its login when inspection started (kept as it is). */
+	access: AccessRule | null,
+	/**  The inspector's address the route points at. */
+	lensUrl: string,
+	/**  [`APP_OWNER`], or the CLI process running the inspector. */
+	owner: string,
+	/**  When inspection started (milliseconds since the epoch). */
+	createdAt: number | null,
+};
+
+/**  How the inspector behaves. */
+export type InspectorSettings = {
+	/**  Quick Shares go through the inspector (maintainer decision Q1: on by default). */
+	inspectQuickShares?: boolean,
+	/**  Keep recent captures on disk, credentials masked, so a restart keeps them. */
+	keepHistory?: boolean,
+	/**  Hours of history kept (1–168). */
+	retentionHours?: number,
+	/**  Stop shares after this many minutes without a request (`None`: never). */
+	idleStopMinutes?: number | null,
+	/**
+	 *  Paths that notify when requested, on every share and route (e.g.
+	 *  `/webhooks/*`).
+	 */
+	watchedPaths?: string[],
+};
+
+/**  A partial update: only the fields that are set change. */
+export type InspectorSettingsPatch = {
+	/**  Inspect new Quick Shares. */
+	inspectQuickShares?: boolean | null,
+	/**  Keep history on disk. */
+	keepHistory?: boolean | null,
+	/**  Hours of history (clamped to 1–168). */
+	retentionHours?: number | null,
+	/**  Minutes without a request before a share stops; 0 turns it off. */
+	idleStopMinutes?: number | null,
+	/**  Watched paths (replacing the list). */
+	watchedPaths?: string[] | null,
+};
+
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
 /**  Downloading: bytes received of total. */
@@ -1943,6 +2547,28 @@ export type ItemState =
 /**  This version can't apply it (see the note). */
 "unsupported";
 
+/**  A tap this process knows about, running or not (captures keep naming it). */
+export type KnownTap = {
+	/**  Id. */
+	id: TapId,
+	/**  What it inspected. */
+	scope: TapScope,
+	/**  Name. */
+	name: string,
+	/**  The local service. */
+	origin: string,
+	/**  Still running in this process. */
+	running: boolean,
+};
+
+/**  Added latency: `base_ms` plus a uniform jitter in `±jitter_ms`. */
+export type Latency = {
+	/**  Base delay in milliseconds. */
+	baseMs: number,
+	/**  Maximum deviation in milliseconds, either way. */
+	jitterMs: number,
+};
+
 /**  Response time over time (a check's time through the edge). */
 export type LatencySeries = {
 	/**  Time of each point, milliseconds since the epoch. */
@@ -1951,12 +2577,40 @@ export type LatencySeries = {
 	ms: (number | null)[],
 };
 
+/**  Latency percentiles (time to the response head), in milliseconds. */
+export type LatencySummary = {
+	/**  Samples. */
+	count: number,
+	/**  Median. */
+	p50Ms: number | null,
+	/**  95th percentile. */
+	p95Ms: number | null,
+	/**  99th percentile. */
+	p99Ms: number | null,
+	/**  Slowest. */
+	maxMs: number | null,
+	/**  Mean. */
+	meanMs: number | null,
+};
+
 /**  What happens to a visitor over the rate limit. */
 export type LimitAction = 
 /**  Refused until the period ends. */
 "block" | 
 /**  A managed challenge until the period ends. */
 "challenge";
+
+/**  What changed since the last batch. */
+export type LiveBatch = {
+	/**  New or changed exchanges (their latest state), oldest change first. */
+	exchanges: ExchangeRow[],
+	/**  Captures were cleared: for these taps, or all when `null` is in the list. */
+	cleared: (TapId | null)[],
+	/**  Taps started, stopped or changed. */
+	tapsChanged: boolean,
+	/**  Updates were missed (too many at once): read the list again. */
+	lagged: boolean,
+};
 
 /**  A TCP port something on this machine is listening on. */
 export type LocalService = {
@@ -2075,6 +2729,99 @@ export type MenuCommand =
 "confirmQuit" | 
 /**  Help ▸ Export Diagnostics… */
 "exportDiagnostics";
+
+/**  Counters for one direction of a stream. */
+export type MessageCounts = {
+	/**  Messages. */
+	count: number,
+	/**  Payload bytes. */
+	bytes: number,
+};
+
+/**  Kind of a stream message. */
+export type MessageKind = 
+/**  WebSocket text message. */
+"text" | 
+/**  WebSocket binary message. */
+"binary" | 
+/**  WebSocket ping. */
+"ping" | 
+/**  WebSocket pong. */
+"pong" | 
+/**  WebSocket close. */
+"close" | 
+/**  A server-sent event. */
+"event";
+
+/**  The beginning of one stream message. */
+export type MessagePreview = {
+	/**  When it finished, relative to the request (microseconds). */
+	atUs: number,
+	/**  Direction. */
+	direction: Direction,
+	/**  Kind. */
+	kind: MessageKind,
+	/**  Full size in bytes. */
+	size: number,
+	/**  The first bytes (text is lossy UTF-8). */
+	preview: string,
+	/**  Whether `preview` is shorter than the message. */
+	truncated: boolean,
+	/**  WebSocket `permessage-deflate`: the message was compressed on the wire. */
+	compressed: boolean,
+	/**
+	 *  For compressed messages: whether `preview` shows the inflated text (otherwise
+	 *  the preview is unavailable and empty).
+	 */
+	inflated: boolean,
+};
+
+/**  A point-in-time copy of a tap's metrics. */
+export type MetricsSnapshot = {
+	/**  Requests received. */
+	requests: number,
+	/**  Responses by status class. */
+	status: StatusCounts,
+	/**  Exchanges that failed (upstream unreachable, reset, client aborted…). */
+	errors: number,
+	/**  Requests stopped by a gate. */
+	blocked: number,
+	/**  Requests answered by a stub. */
+	stubbed: number,
+	/**  Request body bytes received from clients. */
+	bytesIn: number,
+	/**  Response body bytes sent to clients. */
+	bytesOut: number,
+	/**  Open client connections on listeners routing to this tap. */
+	activeConnections: number,
+	/**  Requests in flight. */
+	activeRequests: number,
+	/**  Open WebSocket/upgraded streams. */
+	activeStreams: number,
+	/**  Time to the response head. */
+	latency: LatencySummary,
+};
+
+/**  Network conditions for a tap. The default changes nothing. */
+export type NetworkConfig = {
+	/**  Delay before each request is handled. */
+	latency?: Latency | null,
+	/**  Request bodies (visitor → origin), bytes per second, shared by the tap. */
+	upBytesPerSec?: number | null,
+	/**  Response bodies (origin → visitor), bytes per second, shared by the tap. */
+	downBytesPerSec?: number | null,
+};
+
+/**  Network presets. */
+export type NetworkPreset = 
+/**  No simulation. */
+"off" | 
+/**  3G latency and bandwidth. */
+"threeG" | 
+/**  4G latency and bandwidth. */
+"fourG" | 
+/**  Satellite latency. */
+"satellite";
 
 /**  A private network shared through this Mac's tunnel. */
 export type NetworkView = {
@@ -2217,6 +2964,16 @@ export type PasswordInput =
 { type: "set"; 
 /**  The password. */
 password: string };
+
+/**  The page served while a tap is paused. */
+export type PausedPage = {
+	/**  Heading. */
+	title: string,
+	/**  Explanation below the heading. */
+	message: string,
+	/**  `Retry-After`, in seconds. */
+	retryAfterSecs: number,
+};
 
 /**  Percentiles in milliseconds. */
 export type Percentiles = {
@@ -2444,12 +3201,50 @@ hostname: string;
 /**  Token id. */
 tokenId: string };
 
+/**
+ *  Protection to set on a tap. Secrets go in, never out: the answer only says what's on
+ *  (and shows a generated secret link or token once).
+ */
+export type ProtectionInput = {
+	/**  A password page with this password; empty removes it; left out keeps it. */
+	password?: string | null,
+	/**  Create a new secret link (`true`) or remove it (`false`). */
+	secretLink?: boolean | null,
+	/**  HTTP basic authentication `[user, password]`; an empty user removes it. */
+	basic?: [string, string] | null,
+	/**
+	 *  Create a new bearer token (`true`, replacing the others) or remove them all
+	 *  (`false`).
+	 */
+	bearer?: boolean | null,
+	/**  Networks allowed (replacing the list). */
+	ipAllow?: string[] | null,
+	/**  Networks refused (replacing the list). */
+	ipDeny?: string[] | null,
+	/**  Blocked user-agent lists. */
+	agentPresets?: AgentPreset[] | null,
+	/**  Extra blocked user-agent text. */
+	agentPatterns?: string[] | null,
+	/**  Paths that skip sign-in. */
+	bypass?: string[] | null,
+};
+
 /**  How applying a protection change ended, with any new token (never its secret). */
 export type ProtectionOutcome = {
 	/**  How applying ended. */
 	outcome: Outcome,
 	/**  Tokens created or rotated; copy their secret with `protection_copy_secret`. */
 	issued: IssuedTokenView[],
+};
+
+/**  Protection after a change, and secrets generated by it (shown once). */
+export type ProtectionResult = {
+	/**  What's on now. */
+	protection: TapProtectionView,
+	/**  A new secret link's key (`?key=…`), shown once. */
+	secretLinkKey: string | null,
+	/**  A new bearer token, shown once. */
+	bearerToken: string | null,
 };
 
 /**  A hostname's edge protection as it is now. */
@@ -2495,6 +3290,8 @@ export type QuickShare = {
 	hostHeader: HostHeader | null,
 	/**  The check through Cloudflare once the share is live (`None` until then). */
 	check: Verification | null,
+	/**  Requests go through the inspector (its tap has the share's id). */
+	inspected: boolean,
 };
 
 /**
@@ -2574,6 +3371,44 @@ export type RemoteLogsView = {
 	lines: LogLine[],
 };
 
+/**  Changes to a request before replaying it. */
+export type ReplayInput = {
+	/**  Another method. */
+	method?: string | null,
+	/**  Another path and query (starting with `/`). */
+	path?: string | null,
+	/**  Headers to set. */
+	setHeaders?: ([string, string])[],
+	/**  Headers to remove. */
+	removeHeaders?: string[],
+	/**  Another body (text). */
+	body?: string | null,
+	/**  How many times, one after another (1–100). */
+	times?: number | null,
+	/**  Recompute the webhook signature with the saved secret (fresh timestamp). */
+	resign?: boolean,
+};
+
+/**  The request part of a view. */
+export type RequestView = {
+	/**  Method. */
+	method: string,
+	/**  Full URL, masked. */
+	url: string,
+	/**  Path, masked. */
+	path: string,
+	/**  Query string, masked. */
+	query: string | null,
+	/**  Host. */
+	host: string,
+	/**  `HTTP/1.1`, `HTTP/2`… */
+	httpVersion: string,
+	/**  Headers in order. */
+	headers: HeaderView[],
+	/**  Body. */
+	body: BodyView,
+};
+
 /**  One reserved hostname. */
 export type Reservation = {
 	/**  The hostname. */
@@ -2596,6 +3431,48 @@ export type Reservations = {
 	items: Reservation[],
 	/**  Read from the local cache because Cloudflare couldn't be reached. */
 	cached: boolean,
+};
+
+/**  Who produced the response. */
+export type Responder = 
+/**  The origin server. */
+{ type: "upstream" } | 
+/**  The static folder server. */
+{ type: "folder" } | 
+/**
+ *  A stub rule (`rule` is its index in the tap's stub list, `fallback` when it
+ *  answered because the upstream was unreachable).
+ */
+{ type: "stub"; 
+/**  Index of the rule in [`crate::TapConfig::stubs`]. */
+rule: number; 
+/**  Whether the rule answered only because the upstream was unreachable. */
+fallback: boolean } | 
+/**  A gate refused or challenged the request. */
+{ type: "gate"; 
+/**  Why. */
+reason: GateOutcome } | 
+/**  The tap is paused and served its paused page. */
+{ type: "paused" } | 
+/**  A fault rule answered (a status or a simulated timeout). */
+{ type: "fault"; 
+/**  Index of the rule in [`crate::TapConfig::faults`]. */
+rule: number } | 
+/**  Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages). */
+{ type: "lens" };
+
+/**  The response part of a view. */
+export type ResponseView = {
+	/**  Status code. */
+	status: number,
+	/**  Canonical reason phrase. */
+	statusText: string,
+	/**  `HTTP/1.1`, `HTTP/2`… */
+	httpVersion: string,
+	/**  Headers in order. */
+	headers: HeaderView[],
+	/**  Body. */
+	body: BodyView,
 };
 
 /**  A route change of the project, with its reviewed plan. */
@@ -3267,6 +4144,20 @@ export type StatusClasses = {
 	serverErrors: number,
 };
 
+/**  Responses by status class. */
+export type StatusCounts = {
+	/**  1xx (mostly `101 Switching Protocols`). */
+	informational: number,
+	/**  2xx. */
+	success: number,
+	/**  3xx. */
+	redirect: number,
+	/**  4xx. */
+	clientError: number,
+	/**  5xx. */
+	serverError: number,
+};
+
 /**  What a step does, for its icon. */
 export type StepKind = 
 /**  Create the tunnel. */
@@ -3345,6 +4236,167 @@ export type StepView = {
 	command: string | null,
 };
 
+/**  Summary of a WebSocket or SSE stream. */
+export type StreamStats = {
+	/**  Messages from the visitor. */
+	client: MessageCounts,
+	/**  Messages from the origin. */
+	server: MessageCounts,
+	/**  The first messages, up to the tap's preview limit. */
+	previews: MessagePreview[],
+	/**  WebSocket frames: the most recent ones, up to the tap's frame limit. */
+	frames: FrameRecord[],
+	/**  Older frames dropped from `frames` to respect the limit. */
+	framesDropped: number,
+	/**  Whether the stream has ended. */
+	closed: boolean,
+};
+
+/**  When a stub answers. */
+export type StubMode = 
+/**  Every matching request, without contacting the upstream. */
+"always" | 
+/**  Only when the upstream can't be reached (refused, timeout, DNS, TLS). */
+"whenUnreachable";
+
+/**  A canned response for requests matching a method and path. */
+export type StubRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  When to answer. */
+	mode: StubMode,
+	/**  Response status. */
+	status: number,
+	/**  Response headers. */
+	headers: ([string, string])[],
+	/**  Response body (text; use a `Content-Type` header to describe it). */
+	body: string,
+};
+
+/**
+ *  Identifies a tap (one inspected share, route or folder).
+ * 
+ *  The embedder chooses it (e.g. `share-3f2a` or `route-8c1d`) so captures persisted by
+ *  a [`crate::CaptureStore`] stay attributable across restarts, or lets Lens generate
+ *  one. 1–64 characters of `A–Z a–z 0–9 . _ : -`.
+ */
+export type TapId = string;
+
+/**  Changes to a tap; fields left out stay as they are. */
+export type TapPatch = {
+	/**  Record requests. */
+	capturing?: boolean | null,
+	/**  Serve the paused page (`true` uses the default page unless `pausedPage` is set). */
+	paused?: boolean | null,
+	/**  The paused page's text. */
+	pausedPage?: PausedPage | null,
+	/**  Canned responses (replacing the list). */
+	stubs?: StubRule[] | null,
+	/**  Header rewrites. */
+	headerRules?: HeaderRules | null,
+	/**  A network preset. */
+	networkPreset?: NetworkPreset | null,
+	/**  A custom simulated network (wins over the preset). */
+	network?: NetworkConfig | null,
+	/**  Injected faults (replacing the list). */
+	faults?: FaultRule[] | null,
+	/**
+	 *  Keep-alive for event streams after this many seconds of silence; 0 turns it
+	 *  off.
+	 */
+	sseKeepaliveSecs?: number | null,
+	/**  Host header for the service; empty sends the visitor's. */
+	hostHeader?: string | null,
+	/**  Paths that notify when requested (replacing the list). */
+	watchedPaths?: string[] | null,
+	/**  Minutes without a request before the share stops; 0 turns it off. */
+	idleStopMinutes?: number | null,
+};
+
+/**  Protection on a tap, without its secrets. */
+export type TapProtectionView = {
+	/**  A password page. */
+	password: boolean,
+	/**  A secret link. */
+	secretLink: boolean,
+	/**  HTTP basic authentication (the user name). */
+	basicUser: string | null,
+	/**  Bearer tokens accepted. */
+	bearerTokens: number,
+	/**  Networks allowed (empty: everyone). */
+	ipAllow: string[],
+	/**  Networks refused. */
+	ipDeny: string[],
+	/**  Blocked user-agent lists. */
+	agentPresets: AgentPreset[],
+	/**  Extra blocked user-agent text. */
+	agentPatterns: string[],
+	/**  Paths that skip sign-in (e.g. `/webhooks/*`). */
+	bypass: string[],
+};
+
+/**  What a tap inspects. */
+export type TapScope = 
+/**  A Quick Share. */
+{ kind: "quickShare"; 
+/**  The share's id. */
+shareId: string } | 
+/**  A route (or a share on your domain, which is a temporary route). */
+{ kind: "route"; 
+/**  Account id. */
+accountId: string; 
+/**  Public hostname. */
+hostname: string; 
+/**  Path rule. */
+path: string | null };
+
+/**  A tap: one inspected share or route. */
+export type TapView = {
+	/**  Id (captures refer to it). */
+	id: TapId,
+	/**  What it inspects. */
+	scope: TapScope,
+	/**  Display name (the public hostname or the share's URL, else the service). */
+	name: string,
+	/**  The local service behind it, e.g. `http://localhost:3000`. */
+	origin: string,
+	/**  The public URL, once known. */
+	publicUrl: string | null,
+	/**  Where cloudflared sends requests (the inspector's local address). */
+	address: string,
+	/**  When it started (milliseconds since the epoch). */
+	startedAt: number | null,
+	/**  Requests are recorded. */
+	capturing: boolean,
+	/**  The paused page is served instead of the service. */
+	paused: PausedPage | null,
+	/**  Protection. */
+	protection: TapProtectionView,
+	/**  The Host header the service gets (`None`: the visitor's). */
+	hostHeader: string | null,
+	/**
+	 *  Seconds of silence before an event stream gets a keep-alive comment (`None`:
+	 *  off).
+	 */
+	sseKeepaliveSecs: number | null,
+	/**  Canned responses. */
+	stubs: StubRule[],
+	/**  Header rewrites. */
+	headerRules: HeaderRules,
+	/**  Simulated network. */
+	network: NetworkConfig,
+	/**  Injected faults. */
+	faults: FaultRule[],
+	/**  Paths that notify when requested. */
+	watchedPaths: string[],
+	/**  Minutes without a request before the share stops (`None`: never). */
+	idleStopMinutes: number | null,
+	/**  Requests seen since it started. */
+	requests: number,
+};
+
 /**
  *  A message for the user: a catalog key and its arguments.
  * 
@@ -3366,6 +4418,18 @@ export type Theme =
 "light" | 
 /**  Always dark. */
 "dark";
+
+/**  Per-phase timings, relative to when Lens received the request head. */
+export type Timings = {
+	/**  A connection to the upstream was ready (new or reused), in microseconds. */
+	upstreamConnectedUs: number | null,
+	/**  The response head arrived (time to first byte), in microseconds. */
+	firstByteUs: number | null,
+	/**  The request body finished arriving, in microseconds. */
+	requestDoneUs: number | null,
+	/**  The exchange finished (response body or upgraded stream ended), in microseconds. */
+	completeUs: number | null,
+};
 
 /**  A page of Cloudflare's API token settings. */
 export type TokenPage = 
@@ -3389,6 +4453,23 @@ export type Traffic = {
 	/**  Edge locations, e.g. `AMS`. */
 	locations: string[],
 };
+
+/**  Export formats for captured requests (Lens's `export::ExportFormat`). */
+export type TrafficFormat = 
+/**  A `curl` command. */
+"curl" | 
+/**  An HTTPie command. */
+"httpie" | 
+/**  A JavaScript `fetch` call. */
+"fetch" | 
+/**  Raw HTTP/1.1. */
+"raw" | 
+/**  HAR 1.2. */
+"har" | 
+/**  JSON. */
+"json" | 
+/**  Markdown (issues, agents). */
+"markdown";
 
 /**  Samples as columns: entry `i` of every column belongs to the same interval. */
 export type TrafficSeries = {
@@ -3670,6 +4751,59 @@ limit: number } |
 { type: "machineOnly"; 
 /**  The Access domain. */
 domain: string };
+
+/**  A webhook signature check. */
+export type WebhookCheck = {
+	/**  Who sent it. */
+	provider: WebhookSender,
+	/**  Whether a signing secret is saved for this share or route. */
+	hasSecret: boolean,
+	/**  The result, when a secret is saved. */
+	verification: WebhookVerdict | null,
+};
+
+/**
+ *  Webhook senders the inspector recognises (Lens's [`webhook::Provider`], named for
+ *  the IPC types).
+ */
+export type WebhookSender = 
+/**  Stripe. */
+"stripe" | 
+/**  GitHub. */
+"gitHub" | 
+/**  Slack. */
+"slack" | 
+/**  Shopify. */
+"shopify" | 
+/**  Standard Webhooks / Svix (Clerk, Resend…). */
+"standardWebhooks" | 
+/**  Twilio. */
+"twilio" | 
+/**  Linear. */
+"linear" | 
+/**  Discord. */
+"discord";
+
+/**  A webhook signature check's result (Lens's [`webhook::Verification`]). */
+export type WebhookVerdict = 
+/**  The signature matches and the timestamp (if any) is recent. */
+{ result: "valid" } | 
+/**  The signature doesn't match, or headers are missing. */
+{ result: "invalid"; 
+/**  Why (English, technical). */
+reason: string } | 
+/**  The signature matches but the timestamp is too old (or in the future). */
+{ result: "expired"; 
+/**  The signed time (Unix seconds). */
+timestamp: number | null; 
+/**  Its age in seconds. */
+ageSecs: number | null } | 
+/**  Not a known signature. */
+{ result: "unknownProvider" } | 
+/**  The body wasn't captured in full. */
+{ result: "notEnoughData"; 
+/**  Why. */
+reason: string };
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {

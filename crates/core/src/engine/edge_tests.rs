@@ -7,7 +7,7 @@ use cf_api::NewRule;
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp, app_definition, with_service_token},
     edge::{
-        BotMode, EdgeProtection, EdgeState, HeaderOp, HeaderRule, LimitAction, ObservedRule,
+        BotMode, EdgeHeaderOp, EdgeProtection, EdgeState, HeaderRule, LimitAction, ObservedRule,
         ObservedRuleset, ObservedServiceToken, PHASES, QuotaKind, RateLimitSpec, ZonePlan,
         rate_limit_rule,
     },
@@ -133,12 +133,12 @@ fn everything() -> EdgeProtection {
         rate_limit: None,
         request_headers: vec![HeaderRule {
             name: "X-Env".into(),
-            op: HeaderOp::Set,
+            op: EdgeHeaderOp::Set,
             value: Some("preview".into()),
         }],
         response_headers: vec![HeaderRule {
             name: "X-Robots-Tag".into(),
-            op: HeaderOp::Set,
+            op: EdgeHeaderOp::Set,
             value: Some("noindex".into()),
         }],
     }

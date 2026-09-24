@@ -121,8 +121,12 @@ origin connection serves sequential requests).
 
 - TLS termination (local HTTPS domains): the `Acceptor` trait is the hook; a rustls
   acceptor with SNI → `Accepted::server_name` comes with M12-07.
-- Persistence: implement `CaptureStore` in core (e.g. wrap `MemoryStore` and write to
-  SQLite on a blocking thread); Lens has no SQLite.
+- Persistence lives in core (`core::inspect::history`: a `CaptureStore` over
+  `MemoryStore` that writes finished exchanges, masked, to SQLite from a writer task);
+  Lens has no SQLite.
+- IPC types: the optional `specta` feature derives `specta::Type` on the views and
+  configuration types the desktop app sends (`webhook::Provider`, `webhook::Verification`
+  and `export::ExportFormat` are mirrored in core, since their names clash with the app's).
 - HTML injection strips `Accept-Encoding` on page navigations and injects while streaming
   (holding back only bytes after the last `</body>`); origins that compress anyway are
   decompressed and injected only up to `max_html_bytes`. Pages with a strict CSP may

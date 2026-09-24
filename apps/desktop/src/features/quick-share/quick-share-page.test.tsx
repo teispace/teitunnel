@@ -113,6 +113,7 @@ beforeEach(() => {
           status: { status: "live" },
           startedAt: Date.now(),
           stopAt: null,
+          inspected: true,
           hostHeader: null,
           check: null,
         };
@@ -208,6 +209,7 @@ describe("QuickSharePage", () => {
         status: { status: "live" },
         startedAt: Date.now(),
         stopAt: null,
+        inspected: true,
         hostHeader: null,
         check: {
           hostname: "v-w-x.trycloudflare.com",
@@ -256,6 +258,7 @@ describe("QuickSharePage", () => {
         status: { status: "live" },
         startedAt: Date.now(),
         stopAt: null,
+        inspected: true,
         hostHeader: { value: "localhost:5173", autoFor: "vite" },
         check: {
           hostname: "s-t-u.trycloudflare.com",

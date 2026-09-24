@@ -460,12 +460,13 @@ async fn start_share<K: Connectors>(
             return Ok(());
         };
         let started = quick
-            .start(
+            .start_with(
                 origin,
                 share
                     .expires_after
                     .map(|s| Duration::from_secs(u64::from(s))),
                 &choice,
+                Some(share.inspect),
             )
             .await
             .map_err(crate::share::start_error)?;

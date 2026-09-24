@@ -57,6 +57,7 @@ impl Default for Redaction {
 /// One header in a view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct HeaderView {
     /// Name, lowercase.
     pub name: String,
@@ -67,10 +68,13 @@ pub struct HeaderView {
 /// A body in a view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct BodyView {
     /// Bytes on the wire.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub size: u64,
     /// Bytes captured.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub captured: u64,
     /// Whether the capture is shorter than the body.
     pub truncated: bool,
@@ -93,6 +97,7 @@ pub struct BodyView {
 /// The request part of a view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct RequestView {
     /// Method.
     pub method: String,
@@ -115,6 +120,7 @@ pub struct RequestView {
 /// The response part of a view.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ResponseView {
     /// Status code.
     pub status: u16,
@@ -131,10 +137,12 @@ pub struct ResponseView {
 /// A serializable, redaction-aware copy of an [`Exchange`].
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ExchangeView {
     /// Id.
     pub id: ExchangeId,
     /// Per-tap sequence number.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub seq: u64,
     /// Tap.
     pub tap: TapId,
@@ -143,6 +151,7 @@ pub struct ExchangeView {
     /// State.
     pub state: ExchangeState,
     /// Unix milliseconds.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub started_at_ms: u64,
     /// Duration in milliseconds, when known.
     pub duration_ms: Option<f64>,

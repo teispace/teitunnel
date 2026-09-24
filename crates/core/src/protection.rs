@@ -392,7 +392,7 @@ pub fn headers(token: &IssuedToken) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::edge::{BotMode, HeaderOp, HeaderRule};
+    use crate::engine::edge::{BotMode, EdgeHeaderOp, HeaderRule};
 
     fn issued(id: &str) -> IssuedToken {
         IssuedToken {
@@ -429,7 +429,7 @@ mod tests {
             protection: EdgeProtection {
                 request_headers: vec![HeaderRule {
                     name: "CF-Ray".into(),
-                    op: HeaderOp::Set,
+                    op: EdgeHeaderOp::Set,
                     value: Some("x".into()),
                 }],
                 ..EdgeProtection::default()

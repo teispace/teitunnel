@@ -20,7 +20,9 @@ pub mod backend;
 pub mod clients;
 pub mod config;
 mod core_backend;
+pub mod expose;
 pub mod http;
+mod inspector_traffic;
 pub mod limits;
 pub mod plans;
 mod prompts;
@@ -37,6 +39,8 @@ pub mod traffic;
 pub use backend::{Backend, BackendError, ChangeEvent, SharedBackend};
 pub use config::{Mode, Settings};
 pub use core_backend::{ConnectorSource, CoreBackend, CoreParts};
+pub use expose::ExposeTools;
+pub use inspector_traffic::InspectorTraffic;
 pub use registry::{
     Approval, ApprovalRequest, Approver, ToolClass, ToolContext, ToolError, ToolOutput,
     ToolProvider, ToolResult, ToolSpec,

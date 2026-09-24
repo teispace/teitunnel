@@ -59,4 +59,9 @@ pub struct AppState {
     pub secrets: teitunnel_core::secrets::Secrets,
     /// A backup read and shown to the user, waiting to be restored (its id, its contents).
     pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
+    /// The inspector (Lens) in front of Quick Shares and inspected routes.
+    pub inspector: teitunnel_core::inspect::Inspector,
+    /// Live inspector subscriptions of the webview, by id (cancelled to stop).
+    pub inspect_live:
+        std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,
 }

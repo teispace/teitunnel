@@ -11,6 +11,11 @@ publish.workspace = true
 [lib]
 name = "lens"
 
+[features]
+default = []
+# Derive `specta::Type` on the types that cross the desktop IPC boundary.
+specta = ["dep:specta"]
+
 [dependencies]
 argon2.workspace = true
 base64.workspace = true
@@ -33,6 +38,7 @@ rustls.workspace = true
 rustls-platform-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+specta = { workspace = true, optional = true }
 subtle.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["net", "io-util", "time", "sync", "rt", "macros", "fs"] }

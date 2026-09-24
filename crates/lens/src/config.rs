@@ -267,6 +267,7 @@ impl Default for CaptureConfig {
 /// The page served while a tap is paused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PausedPage {
     /// Heading.
     pub title: String,

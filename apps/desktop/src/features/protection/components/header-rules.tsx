@@ -4,9 +4,9 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { type MessageKey, t } from "@/lib/i18n";
-import type { HeaderOp, HeaderRule } from "@/lib/ipc/bindings";
+import type { EdgeHeaderOp, HeaderRule } from "@/lib/ipc/bindings";
 
-const opLabels: Record<HeaderOp, MessageKey> = {
+const opLabels: Record<EdgeHeaderOp, MessageKey> = {
   set: "protection.headers.op.set",
   add: "protection.headers.op.add",
   remove: "protection.headers.op.remove",
@@ -21,7 +21,7 @@ interface HeaderRulesProps {
 
 /** Header rules as rows: name, what to do, value; add and remove rows. */
 export function HeaderRules({ kind, value, onChange }: HeaderRulesProps) {
-  const ops: HeaderOp[] = kind === "request" ? ["set", "remove"] : ["set", "add", "remove"];
+  const ops: EdgeHeaderOp[] = kind === "request" ? ["set", "remove"] : ["set", "add", "remove"];
   const label =
     kind === "request" ? t("protection.headers.request") : t("protection.headers.response");
   const update = (index: number, rule: HeaderRule) =>

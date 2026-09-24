@@ -3,7 +3,7 @@
 //! and the scenarios the failure-at-every-step harness rolls back.
 
 use super::{
-    edge::{BotMode, EdgeProtection, HeaderOp, HeaderRule, LimitAction, RateLimitSpec},
+    edge::{BotMode, EdgeHeaderOp, EdgeProtection, HeaderRule, LimitAction, RateLimitSpec},
     executor::{Approval, Context, Engine, EngineError, Outcome},
     fake::{CloudState, FakeCloud, FakeConnectors},
     local::Local,
@@ -66,12 +66,12 @@ pub(super) fn everything(rate_limit: bool) -> EdgeProtection {
         }),
         request_headers: vec![HeaderRule {
             name: "X-Env".into(),
-            op: HeaderOp::Set,
+            op: EdgeHeaderOp::Set,
             value: Some("preview".into()),
         }],
         response_headers: vec![HeaderRule {
             name: "X-Robots-Tag".into(),
-            op: HeaderOp::Set,
+            op: EdgeHeaderOp::Set,
             value: Some("noindex".into()),
         }],
     }

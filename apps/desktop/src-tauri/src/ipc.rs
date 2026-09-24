@@ -17,6 +17,7 @@ mod doctor;
 mod domain_shares;
 mod events;
 mod exposure;
+mod inspect;
 mod integrations;
 mod projects;
 mod quick_share;
@@ -162,7 +163,30 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             backup::backup_choose_open,
             backup::backup_create,
             backup::backup_inspect,
-            backup::backup_restore
+            backup::backup_restore,
+            inspect::inspect_settings_get,
+            inspect::inspect_settings_set,
+            inspect::inspect_taps,
+            inspect::inspect_known_taps,
+            inspect::inspect_exchanges,
+            inspect::inspect_exchange,
+            inspect::inspect_subscribe,
+            inspect::inspect_unsubscribe,
+            inspect::inspect_replay,
+            inspect::inspect_export,
+            inspect::inspect_export_save,
+            inspect::inspect_clear,
+            inspect::inspect_configure,
+            inspect::inspect_protect,
+            inspect::inspect_metrics,
+            inspect::inspect_webhook_secrets,
+            inspect::inspect_webhook_secret_set,
+            inspect::inspect_webhook_secret_remove,
+            inspect::inspect_webhook_verify,
+            inspect::inspect_routes,
+            inspect::inspect_route_preview,
+            inspect::inspect_route_apply,
+            quick_share::quick_share_set_inspected
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

@@ -21,6 +21,7 @@ pub use view::{BodyView, ExchangeView, HeaderView, Redaction, RequestView, Respo
 /// What kind of traffic an exchange carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ExchangeKind {
     /// A plain request and response.
     Http,
@@ -35,6 +36,7 @@ pub enum ExchangeKind {
 /// Where an exchange is in its life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ExchangeState {
     /// Received; waiting for the upstream's response head.
     Pending,
@@ -49,6 +51,7 @@ pub enum ExchangeState {
 /// Who produced the response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Responder {
     /// The origin server.
     Upstream,
@@ -58,6 +61,7 @@ pub enum Responder {
     /// answered because the upstream was unreachable).
     Stub {
         /// Index of the rule in [`crate::TapConfig::stubs`].
+        #[cfg_attr(feature = "specta", specta(type = u32))]
         rule: usize,
         /// Whether the rule answered only because the upstream was unreachable.
         fallback: bool,
@@ -72,6 +76,7 @@ pub enum Responder {
     /// A fault rule answered (a status or a simulated timeout).
     Fault {
         /// Index of the rule in [`crate::TapConfig::faults`].
+        #[cfg_attr(feature = "specta", specta(type = u32))]
         rule: usize,
     },
     /// Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages).
@@ -81,6 +86,7 @@ pub enum Responder {
 /// Why a gate stopped a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum GateOutcome {
     /// The client IP isn't on the allow list.
     IpNotAllowed,
@@ -109,20 +115,26 @@ pub enum GateOutcome {
 /// Per-phase timings, relative to when Lens received the request head.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Timings {
     /// A connection to the upstream was ready (new or reused), in microseconds.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub upstream_connected_us: Option<u64>,
     /// The response head arrived (time to first byte), in microseconds.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub first_byte_us: Option<u64>,
     /// The request body finished arriving, in microseconds.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub request_done_us: Option<u64>,
     /// The exchange finished (response body or upgraded stream ended), in microseconds.
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub complete_us: Option<u64>,
 }
 
 /// Who sent the request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ClientInfo {
     /// The visitor's IP: `CF-Connecting-IP` when present and valid, else the peer.
     pub ip: IpAddr,
@@ -223,6 +235,7 @@ pub struct ResponseRecord {
 /// Why an exchange failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ErrorKind {
     /// Nothing listens on the upstream port.
     ConnectionRefused,
@@ -257,6 +270,7 @@ impl ErrorKind {
 /// An error recorded on an exchange.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ExchangeError {
     /// Category.
     pub kind: ErrorKind,
@@ -267,6 +281,7 @@ pub struct ExchangeError {
 /// Which way a stream message went.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Direction {
     /// From the visitor to the origin.
     ClientToServer,
@@ -277,6 +292,7 @@ pub enum Direction {
 /// Kind of a stream message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum MessageKind {
     /// WebSocket text message.
     Text,
@@ -295,14 +311,17 @@ pub enum MessageKind {
 /// The beginning of one stream message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct MessagePreview {
     /// When it finished, relative to the request (microseconds).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub at_us: u64,
     /// Direction.
     pub direction: Direction,
     /// Kind.
     pub kind: MessageKind,
     /// Full size in bytes.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub size: u64,
     /// The first bytes (text is lossy UTF-8).
     pub preview: String,
@@ -318,6 +337,7 @@ pub struct MessagePreview {
 /// A WebSocket frame opcode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum FrameOpcode {
     /// Continues a fragmented message.
     Continuation,
@@ -336,8 +356,10 @@ pub enum FrameOpcode {
 /// One WebSocket frame, observed without altering it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct FrameRecord {
     /// When the frame finished, relative to the request (microseconds).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub at_us: u64,
     /// Direction.
     pub direction: Direction,
@@ -350,6 +372,7 @@ pub struct FrameRecord {
     /// `RSV1` set: compressed with `permessage-deflate`.
     pub compressed: bool,
     /// Payload size in bytes (compressed size for compressed frames).
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub size: u64,
     /// The first payload bytes, unmasked: UTF-8 text for text data, hex otherwise.
     /// `None` when unavailable (compressed frames; see the message previews).
@@ -365,16 +388,20 @@ pub struct FrameRecord {
 /// Counters for one direction of a stream.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct MessageCounts {
     /// Messages.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub count: u64,
     /// Payload bytes.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes: u64,
 }
 
 /// Summary of a WebSocket or SSE stream.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct StreamStats {
     /// Messages from the visitor.
     pub client: MessageCounts,
@@ -385,6 +412,7 @@ pub struct StreamStats {
     /// WebSocket frames: the most recent ones, up to the tap's frame limit.
     pub frames: VecDeque<FrameRecord>,
     /// Older frames dropped from `frames` to respect the limit.
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub frames_dropped: u64,
     /// Whether the stream has ended.
     pub closed: bool,

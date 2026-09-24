@@ -12,9 +12,11 @@ use std::{
 };
 
 use teitunnel_core::{
+    Secret,
     dev_server::DevServer,
     domain::OriginUrl,
     engine::{Failure, Verification},
+    inspect::{Inspector, TapPatch, lens::TapId},
     quick_share::{
         HostHeader, HostHeaderChoice, QuickShare, QuickShares, ShareStatus, qr_terminal,
     },
@@ -161,6 +163,59 @@ pub(crate) fn explain(result: &Verification, via: Via, print: &mut dyn FnMut(&st
     }
 }
 
+/// How a share goes through the inspector.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ShareOptions {
+    /// Through the inspector (the default; `--no-inspect` turns it off).
+    pub(crate) inspect: bool,
+    /// Stop after this long without a request.
+    pub(crate) idle: Option<Duration>,
+    /// Paths that print a notice when requested, e.g. `/webhooks/*`.
+    pub(crate) watch: Vec<String>,
+    /// Print a line per request.
+    pub(crate) log: bool,
+    /// Require this bearer token (`Authorization: Bearer …`).
+    pub(crate) bearer: Option<Secret<String>>,
+}
+
+/// Configures an inspected share's tap: idle stop and watched paths.
+fn configure_tap(inspector: &Inspector, tap: &TapId, options: &ShareOptions) -> Result<(), String> {
+    inspector
+        .configure(
+            tap,
+            &TapPatch {
+                idle_stop_minutes: options
+                    .idle
+                    .map(|d| u32::try_from(d.as_secs().div_ceil(60)).unwrap_or(u32::MAX)),
+                watched_paths: (!options.watch.is_empty()).then(|| options.watch.clone()),
+                ..TapPatch::default()
+            },
+        )
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Prints watched-path hits and idle stops.
+fn announce_events(inspector: &Inspector) -> tokio::task::JoinHandle<()> {
+    use teitunnel_core::inspect::InspectEvent;
+    use tokio::sync::broadcast::error::RecvError;
+    let mut events = inspector.subscribe();
+    tokio::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(InspectEvent::Watched { method, path, .. }) => {
+                    status(&format!("→ {method} {path} (watched path)"));
+                }
+                Ok(InspectEvent::Idle { minutes, .. }) => {
+                    status(&format!("No requests for {minutes} min; stopping."));
+                }
+                Ok(InspectEvent::Taps) | Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => return,
+            }
+        }
+    })
+}
+
 /// Quick Shares run by this process (reaping what an earlier CLI left running), and the
 /// folder where this process records them for the app.
 pub(crate) async fn quick_shares(dir: &Path) -> Result<(QuickShares, std::path::PathBuf), String> {
@@ -177,16 +232,25 @@ pub(crate) async fn quick_shares(dir: &Path) -> Result<(QuickShares, std::path::
         PidRegistry::for_this_process(&runs),
         tokio::runtime::Handle::current(),
     );
+    let store = store(dir)?;
+    // Captures go to the app's history (when it's set up), for `teitunnel traffic`.
+    let inspector = Inspector::new(
+        Some(store.clone()),
+        None,
+        &teitunnel_core::runtime::this_process(),
+    );
     let shares = QuickShares::new(
         supervisor,
         context::binary(dir),
         // Spread by pid: the app, or another terminal, may be starting a share too.
         PortAllocator::new(QUICK_SHARE_PORTS).spread(std::process::id()),
-        store(dir)?,
+        store,
         dir.join("quick-share.yml"),
     )
-    .with_edge(context::edge());
+    .with_edge(context::edge())
+    .with_inspector(inspector.clone());
     tokio::spawn(shares.clone().watch_runtime());
+    tokio::spawn(shares.clone().watch_idle());
     Ok((shares, owner_dir))
 }
 
@@ -206,19 +270,44 @@ pub(crate) async fn run(
     qr: bool,
     json: bool,
     host_header: &HostHeaderChoice,
+    options: &ShareOptions,
     strict: bool,
 ) -> Result<ExitCode, String> {
     let origin = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
     let dir = context::data_dir()?;
     crate::exposure::check(origin.as_str(), Some(&store(&dir)?), strict).await?;
     let (shares, owner_dir) = quick_shares(&dir).await?;
+    let Some(inspector) = shares.inspector().cloned() else {
+        unreachable!("quick_shares sets up the inspector");
+    };
     let mut changes = shares.subscribe();
+    let inspect = options.inspect || options.bearer.is_some();
     let share = shares
-        .start(origin, stop_after, host_header)
+        .start_with(origin, stop_after, host_header, Some(inspect))
         .await
         .map_err(start_error)?;
     status(&format!("Sharing {}…", share.origin));
     announce_host_header(share.host_header.as_ref());
+    let tap = TapId::new(&share.id).ok();
+    let mut printer = None;
+    let mut events = None;
+    if share.inspected
+        && let Some(tap) = &tap
+    {
+        configure_tap(&inspector, tap, options)?;
+        if let Some(token) = &options.bearer {
+            inspector
+                .require_bearer(tap, token)
+                .map_err(|e| e.to_string())?;
+        }
+        if options.log {
+            printer = crate::traffic::print_requests(&inspector);
+        }
+        events = Some(announce_events(&inspector));
+        status(
+            "Requests go through Teitunnel's inspector (`teitunnel traffic`; --no-inspect turns it off).",
+        );
+    }
 
     let current = |shares: &QuickShares| -> Option<QuickShare> {
         shares.list().into_iter().find(|s| s.id == share.id)
@@ -230,7 +319,7 @@ pub(crate) async fn run(
     let mut reconnecting = false;
     let outcome = loop {
         match current(&shares) {
-            None => break Ok(ExitCode::SUCCESS), // `--for` elapsed.
+            None => break Ok(ExitCode::SUCCESS), // `--for` elapsed, or idle.
             Some(QuickShare {
                 status: ShareStatus::Failed { message },
                 ..
@@ -251,6 +340,11 @@ pub(crate) async fn run(
                 if !announced {
                     announced = true;
                     announce(&url, &share, stop_after, qr && !json, json)?;
+                    if options.bearer.is_some() {
+                        status(&format!(
+                            "Callers must send `Authorization: Bearer <token>`. Streaming answers need your own domain (--on): Quick Tunnels don't carry event streams. OpenAI-compatible base URL: {url}/v1"
+                        ));
+                    }
                     // So the app can list this share, and stop it.
                     let started_at = teitunnel_core::domain_shares::now_ms();
                     let record = teitunnel_core::cli_shares::CliShare {
@@ -290,6 +384,10 @@ pub(crate) async fn run(
     };
     teitunnel_core::cli_shares::forget(&owner_dir);
     shares.stop_all().await;
+    for task in [printer, events].into_iter().flatten() {
+        task.abort();
+    }
+    inspector.shutdown().await;
     status("Stopped sharing.");
     outcome
 }
@@ -349,6 +447,8 @@ pub(crate) struct DomainShareOptions {
     pub(crate) stop_after: Option<Duration>,
     /// Print `{"url", "hostname"}` on stdout instead of the bare URL.
     pub(crate) json: bool,
+    /// Don't share when the exposure check finds a leak.
+    pub(crate) strict: bool,
 }
 
 /// Exit code for a hostname someone else holds (or a DNS record Teitunnel didn't
@@ -399,19 +499,22 @@ async fn refusal(
 /// account's domains, through this machine's tunnel, for as long as the command runs
 /// (or `--for`). The app, or an Always-on connector, serves it; with neither running
 /// (a server, a CI job), this command runs the tunnel's connector itself until it ends.
-/// The app also removes the route if this command dies without doing so.
+/// The app also removes the route if this command dies without doing so. Inspected (the default), the route points at
+/// an inspector in this process, which forwards to the service.
 pub(crate) async fn run_on_domain(
     app: &crate::context::App,
     hostname: &str,
     origin: &str,
-    options: DomainShareOptions,
+    domain: DomainShareOptions,
     host_header: &HostHeaderChoice,
-    strict: bool,
+    options: &ShareOptions,
+    after_live: impl FnOnce(&str) -> Result<(), String>,
 ) -> Result<ExitCode, String> {
     use teitunnel_core::{
         domain::Hostname,
         domain_shares::{self, ShareRequest},
         engine::{Connectors as _, Outcome},
+        inspect::{TapScope, TapSpec},
         runtime,
     };
     let DomainShareOptions {
@@ -419,7 +522,8 @@ pub(crate) async fn run_on_domain(
         allow,
         stop_after,
         json,
-    } = options;
+        strict,
+    } = domain;
     crate::exposure::check(origin, Some(app.store()), strict).await?;
     let host_header = host_header
         .resolve(origin)
@@ -451,13 +555,41 @@ pub(crate) async fn run_on_domain(
     let expires_at = stop_after
         .map(|d| domain_shares::now_ms() + u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
     let owner = runtime::this_process();
+    let hostname = hostname.trim().to_ascii_lowercase();
+    let inspector = Inspector::new(
+        Some(app.store().clone()),
+        Some(app.secrets().clone()),
+        &owner,
+    );
+    let inspect = options.inspect || options.bearer.is_some();
+    // Inspected, the route's service is the tap, which sets the Host header itself.
+    let (service, route_host_header, tap) = if inspect {
+        let origin_url = OriginUrl::parse(origin).map_err(|e| e.to_string())?;
+        let mut spec = TapSpec::new(
+            TapScope::route(&account.id, &hostname, None),
+            &hostname,
+            origin_url.as_str(),
+        );
+        spec.public_url = Some(format!("https://{hostname}"));
+        spec.host_header = host_header.as_ref().map(|h| h.value.clone());
+        spec.bearer = options.bearer.iter().cloned().collect();
+        let tap = inspector.start(spec).await.map_err(|e| e.to_string())?;
+        configure_tap(&inspector, &tap.id, options)?;
+        (tap.address.clone(), None, Some(tap.id))
+    } else {
+        (
+            origin.to_owned(),
+            host_header.as_ref().map(|h| h.value.clone()),
+            None,
+        )
+    };
     let request = ShareRequest {
-        hostname,
-        origin,
+        hostname: &hostname,
+        origin: &service,
         access: allow,
         expires_at,
         owner: &owner,
-        host_header: host_header.as_ref().map(|h| h.value.clone()),
+        host_header: route_host_header,
     };
     let started = match &machine {
         Some(machine) => domain_shares::start(&app.engine, &api, machine, ctx, request).await,
@@ -465,12 +597,19 @@ pub(crate) async fn run_on_domain(
     };
     let outcome = match started {
         Ok(outcome) => outcome,
-        Err(teitunnel_core::engine::EngineError::NeedsConfirmation) => {
-            return Ok(held(&refusal(app, &api, &account.id, hostname).await));
+        Err(err) => {
+            inspector.shutdown().await;
+            if let Some(supervisor) = supervisor {
+                supervisor.stop_all().await;
+            }
+            return match err {
+                teitunnel_core::engine::EngineError::NeedsConfirmation => {
+                    Ok(held(&refusal(app, &api, &account.id, &hostname).await))
+                }
+                other => Err(other.to_string()),
+            };
         }
-        Err(other) => return Err(other.to_string()),
     };
-    let hostname = hostname.trim().to_ascii_lowercase();
     match outcome {
         Outcome::Applied {
             connector_error, ..
@@ -497,22 +636,55 @@ pub(crate) async fn run_on_domain(
             {
                 explain(&result, Via::Domain, &mut status);
             }
+            after_live(&hostname)?;
         }
         Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } => {
+            inspector.shutdown().await;
             if let Some(supervisor) = supervisor {
                 supervisor.stop_all().await;
             }
             return Err(error.english());
         }
     }
+    let mut tasks = Vec::new();
+    if tap.is_some() {
+        if options.log {
+            tasks.extend(crate::traffic::print_requests(&inspector));
+        }
+        tasks.push(announce_events(&inspector));
+    }
+    // An idle stop ends the command like Ctrl-C.
+    let idle = {
+        let mut events = inspector.subscribe();
+        async move {
+            loop {
+                match events.recv().await {
+                    Ok(teitunnel_core::inspect::InspectEvent::Idle { .. }) => return,
+                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        std::future::pending::<()>().await;
+                    }
+                }
+            }
+        }
+    };
     match stop_after {
         Some(after) => {
             tokio::select! {
                 () = interrupted() => {}
                 () = tokio::time::sleep(after) => {}
+                () = idle => {}
             }
         }
-        None => interrupted().await,
+        None => {
+            tokio::select! {
+                () = interrupted() => {}
+                () = idle => {}
+            }
+        }
+    }
+    for task in tasks {
+        task.abort();
     }
     let stopped = match &machine {
         Some(machine) => domain_shares::stop(&app.engine, &api, machine, ctx, &hostname).await,
@@ -521,6 +693,7 @@ pub(crate) async fn run_on_domain(
     if let Some(supervisor) = supervisor {
         supervisor.stop_all().await;
     }
+    inspector.shutdown().await;
     match stopped {
         Ok(()) => {
             status("Stopped sharing; the route and its DNS record are removed.");

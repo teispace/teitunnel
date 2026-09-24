@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use teitunnel_core::{
     engine::{
         Change, Outcome,
-        edge::{BotMode, EdgeProtection, HeaderOp, HeaderRule, LimitAction, RateLimitSpec},
+        edge::{BotMode, EdgeHeaderOp, EdgeProtection, HeaderRule, LimitAction, RateLimitSpec},
     },
     protection::{ProtectionChange, ProtectionView, ServiceTokenView},
 };
@@ -386,9 +386,9 @@ fn header_rules(list: Vec<HeaderArgs>) -> Result<Vec<HeaderRule>, ToolError> {
     list.into_iter()
         .map(|h| {
             let op = match h.op.trim() {
-                "set" => HeaderOp::Set,
-                "add" => HeaderOp::Add,
-                "remove" => HeaderOp::Remove,
+                "set" => EdgeHeaderOp::Set,
+                "add" => EdgeHeaderOp::Add,
+                "remove" => EdgeHeaderOp::Remove,
                 other => {
                     return Err(ToolError::new(format!(
                         "`{other}` isn't a header operation; use set, add or remove."

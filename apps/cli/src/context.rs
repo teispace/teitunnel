@@ -172,6 +172,11 @@ impl App {
         &self.dir
     }
 
+    /// The keychain (memory only with a token from the environment).
+    pub(crate) fn secrets(&self) -> &Secrets {
+        &self.secrets
+    }
+
     /// This machine's connectors, run by this process (`teitunnel up`), with the
     /// system's service manager for Always-on (`services`; systemd's system instance when
     /// running as root, for servers). The supervisor is returned too, to stop this
@@ -232,11 +237,6 @@ impl App {
     /// The database.
     pub(crate) fn store(&self) -> &Store {
         &self.store
-    }
-
-    /// The keychain (or, with a token from the environment, memory).
-    pub(crate) fn secrets(&self) -> &Secrets {
-        &self.secrets
     }
 
     /// Uptime checks and alerts for this machine's routes; `owner` names this process

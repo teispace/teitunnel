@@ -133,15 +133,16 @@ fn shares_a_port_and_lets_the_app_stop_it() {
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
-    // Teitunnel's 26, the protection provider's 5 (M12-04) and the reservation
-    // provider's 3 (M12-11).
-    assert_eq!(names.len(), 34, "{names:?}");
+    // Teitunnel's 26, the protection provider's 5 (M12-04), the reservation provider's
+    // 3 (M12-11) and expose_mcp_server (M12-02).
+    assert_eq!(names.len(), 35, "{names:?}");
     for tool in [
         "get_protection",
         "protect_hostname",
         "list_reservations",
         "reserve_hostname",
         "release_hostname",
+        "expose_mcp_server",
     ] {
         assert!(names.contains(&tool), "{tool}");
     }

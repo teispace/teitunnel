@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use teitunnel_core::{
     engine::{
         Change,
-        edge::{BotMode, EdgeProtection, HeaderOp, HeaderRule},
+        edge::{BotMode, EdgeHeaderOp, EdgeProtection, HeaderRule},
     },
     protection::ProtectionChange,
 };
@@ -150,7 +150,7 @@ async fn protect_hostname_changes_only_what_it_names_and_applies_through_apply_p
             protection.response_headers,
             [HeaderRule {
                 name: "X-Robots-Tag".into(),
-                op: HeaderOp::Set,
+                op: EdgeHeaderOp::Set,
                 value: Some("noindex".into()),
             }]
         );

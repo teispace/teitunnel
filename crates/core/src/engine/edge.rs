@@ -85,7 +85,7 @@ pub const PERIODS: [u32; 6] = [10, 60, 120, 300, 600, 3600];
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
-pub enum HeaderOp {
+pub enum EdgeHeaderOp {
     /// Set the header to a value (replacing it).
     Set,
     /// Add a value (response headers only; keeps existing ones).
@@ -94,7 +94,7 @@ pub enum HeaderOp {
     Remove,
 }
 
-impl HeaderOp {
+impl EdgeHeaderOp {
     fn cloudflare(self) -> &'static str {
         match self {
             Self::Set => "set",
@@ -112,7 +112,7 @@ pub struct HeaderRule {
     /// Header name, e.g. `X-Robots-Tag`.
     pub name: String,
     /// What to do.
-    pub op: HeaderOp,
+    pub op: EdgeHeaderOp,
     /// The value, for `set` and `add`.
     #[serde(default)]
     pub value: Option<String>,
@@ -235,20 +235,20 @@ fn normalize_headers(
         }
         if request {
             let cf = lower.starts_with("cf-") || lower.starts_with("x-cf-");
-            let removable_cf = lower == "cf-connecting-ip" && rule.op == HeaderOp::Remove;
+            let removable_cf = lower == "cf-connecting-ip" && rule.op == EdgeHeaderOp::Remove;
             if (cf && !removable_cf) || PROTECTED_REQUEST.contains(&lower.as_str()) {
                 return Err(EdgeInputError::ProtectedHeader(name));
             }
-            if lower == "cookie" && rule.op != HeaderOp::Remove {
+            if lower == "cookie" && rule.op != EdgeHeaderOp::Remove {
                 return Err(EdgeInputError::CookieRemoveOnly);
             }
-            if rule.op == HeaderOp::Add {
+            if rule.op == EdgeHeaderOp::Add {
                 return Err(EdgeInputError::AddOnRequest(name));
             }
         }
         let value = match rule.op {
-            HeaderOp::Remove => None,
-            HeaderOp::Set | HeaderOp::Add => {
+            EdgeHeaderOp::Remove => None,
+            EdgeHeaderOp::Set | EdgeHeaderOp::Add => {
                 let value = rule.value.as_deref().map(str::trim).unwrap_or_default();
                 if value.is_empty() {
                     return Err(EdgeInputError::MissingValue(name));
@@ -537,9 +537,9 @@ fn headers_of(parameters: Option<&Value>) -> Vec<HeaderRule> {
         .iter()
         .filter_map(|(name, op)| {
             let op_kind = match op.get("operation")?.as_str()? {
-                "set" => HeaderOp::Set,
-                "add" => HeaderOp::Add,
-                "remove" => HeaderOp::Remove,
+                "set" => EdgeHeaderOp::Set,
+                "add" => EdgeHeaderOp::Add,
+                "remove" => EdgeHeaderOp::Remove,
                 _ => return None,
             };
             Some(HeaderRule {
@@ -949,7 +949,7 @@ mod tests {
             ai_crawlers: true,
             request_headers: vec![HeaderRule {
                 name: "X-Env".into(),
-                op: HeaderOp::Set,
+                op: EdgeHeaderOp::Set,
                 value: Some("preview".into()),
             }],
             ..EdgeProtection::default()
@@ -999,7 +999,7 @@ mod tests {
 
     #[test]
     fn settings_are_checked() {
-        let header = |name: &str, op: HeaderOp, value: Option<&str>| HeaderRule {
+        let header = |name: &str, op: EdgeHeaderOp, value: Option<&str>| HeaderRule {
             name: name.into(),
             op,
             value: value.map(str::to_owned),
@@ -1010,35 +1010,47 @@ mod tests {
         };
         let err = |p: EdgeProtection| p.normalized().unwrap_err();
         assert_eq!(
-            err(request(vec![header("CF-Ray", HeaderOp::Set, Some("x"))])),
+            err(request(vec![header(
+                "CF-Ray",
+                EdgeHeaderOp::Set,
+                Some("x")
+            )])),
             EdgeInputError::ProtectedHeader("CF-Ray".into())
         );
         assert!(
-            request(vec![header("cf-connecting-ip", HeaderOp::Remove, None)])
+            request(vec![header("cf-connecting-ip", EdgeHeaderOp::Remove, None)])
                 .normalized()
                 .is_ok()
         );
         assert_eq!(
-            err(request(vec![header("Cookie", HeaderOp::Set, Some("a=b"))])),
+            err(request(vec![header(
+                "Cookie",
+                EdgeHeaderOp::Set,
+                Some("a=b")
+            )])),
             EdgeInputError::CookieRemoveOnly
         );
         assert_eq!(
-            err(request(vec![header("X-A", HeaderOp::Add, Some("1"))])),
+            err(request(vec![header("X-A", EdgeHeaderOp::Add, Some("1"))])),
             EdgeInputError::AddOnRequest("X-A".into())
         );
         assert_eq!(
-            err(request(vec![header("Bad Name", HeaderOp::Remove, None)])),
+            err(request(vec![header(
+                "Bad Name",
+                EdgeHeaderOp::Remove,
+                None
+            )])),
             EdgeInputError::HeaderName("Bad Name".into())
         );
         assert_eq!(
             err(request(vec![
-                header("X-A", HeaderOp::Remove, None),
-                header("x-a", HeaderOp::Remove, None)
+                header("X-A", EdgeHeaderOp::Remove, None),
+                header("x-a", EdgeHeaderOp::Remove, None)
             ])),
             EdgeInputError::DuplicateHeader("x-a".into())
         );
         assert_eq!(
-            err(request(vec![header("X-A", HeaderOp::Set, Some(" "))])),
+            err(request(vec![header("X-A", EdgeHeaderOp::Set, Some(" "))])),
             EdgeInputError::MissingValue("X-A".into())
         );
         let limit = |requests, period| EdgeProtection {
@@ -1053,8 +1065,8 @@ mod tests {
         assert_eq!(err(limit(10, 30)), EdgeInputError::Period(30));
         let sorted = EdgeProtection {
             response_headers: vec![
-                header("X-Z", HeaderOp::Remove, None),
-                header(" X-A ", HeaderOp::Add, Some("1")),
+                header("X-Z", EdgeHeaderOp::Remove, None),
+                header(" X-A ", EdgeHeaderOp::Add, Some("1")),
             ],
             ..EdgeProtection::default()
         }

@@ -22,6 +22,8 @@ pub enum EntityKind {
     Snapshots,
     /// Projects (teitunnel.yml files opened in the app).
     Projects,
+    /// The inspector's taps and settings (captures stream on `inspect_subscribe`).
+    Inspector,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

@@ -171,6 +171,8 @@ pub async fn services_list() -> Result<Vec<LocalService>, AppError> {
 }
 
 /// Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`.
+/// `inspect` chooses whether it goes through the inspector (`null`: the setting, on by
+/// default).
 #[tauri::command]
 #[specta::specta]
 pub async fn quick_share_start(
@@ -178,18 +180,31 @@ pub async fn quick_share_start(
     origin: String,
     stop_after_minutes: Option<u32>,
     host_header: HostHeaderChoice,
+    inspect: Option<bool>,
 ) -> Result<QuickShare, AppError> {
     let origin = OriginUrl::parse(&origin)?;
     let stop_after = stop_after_minutes.map(|m| Duration::from_secs(u64::from(m) * 60));
     Ok(state
         .quick_shares
-        .start(origin, stop_after, &host_header)
+        .start_with(origin, stop_after, &host_header, inspect)
         .await?)
 }
 
-/// Restarts a share sending `host_header` to its service (`null`: none), for a dev
-/// server that refuses the public address. The share gets a new URL and is checked
-/// again once it's live.
+/// Turns inspection of a running share on or off. cloudflared restarts, so the share
+/// gets a new URL (the UI says so before).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_inspected(
+    state: State<'_, AppState>,
+    id: String,
+    inspect: bool,
+) -> Result<QuickShare, AppError> {
+    Ok(state.quick_shares.set_inspected(&id, inspect).await?)
+}
+
+/// Sends `host_header` to a share's service (`null`: none), for a dev server that
+/// refuses the public address. An inspected share changes at once and keeps its URL;
+/// otherwise it restarts with a new URL. Either way it's checked again once live.
 #[tauri::command]
 #[specta::specta]
 pub async fn quick_share_set_host_header(

@@ -14,7 +14,7 @@ use teitunnel_core::{
     engine::{
         Approval, Outcome, StepState,
         edge::{
-            BotMode, EdgeProtection, HeaderOp, HeaderRule, IssuedToken, LimitAction, QuotaKind,
+            BotMode, EdgeHeaderOp, EdgeProtection, HeaderRule, IssuedToken, LimitAction, QuotaKind,
             RateLimitSpec,
         },
     },
@@ -189,7 +189,7 @@ pub(crate) fn parse_rate_limit(input: &str) -> Result<RateLimitSpec, String> {
     })
 }
 
-fn header(input: &str, op: HeaderOp) -> Result<HeaderRule, String> {
+fn header(input: &str, op: EdgeHeaderOp) -> Result<HeaderRule, String> {
     let (name, value) = input
         .split_once(':')
         .ok_or_else(|| format!("Give `Name:value`, not `{input}`."))?;
@@ -201,17 +201,17 @@ fn header(input: &str, op: HeaderOp) -> Result<HeaderRule, String> {
 }
 
 fn parse_set(input: &str) -> Result<HeaderRule, String> {
-    header(input, HeaderOp::Set)
+    header(input, EdgeHeaderOp::Set)
 }
 
 fn parse_add(input: &str) -> Result<HeaderRule, String> {
-    header(input, HeaderOp::Add)
+    header(input, EdgeHeaderOp::Add)
 }
 
 fn parse_remove(input: &str) -> Result<HeaderRule, String> {
     Ok(HeaderRule {
         name: input.trim().to_owned(),
-        op: HeaderOp::Remove,
+        op: EdgeHeaderOp::Remove,
         value: None,
     })
 }
@@ -335,9 +335,9 @@ fn describe(view: &ProtectionView) -> Vec<String> {
     ] {
         for rule in list {
             let action = match rule.op {
-                HeaderOp::Set => "set",
-                HeaderOp::Add => "add",
-                HeaderOp::Remove => "remove",
+                EdgeHeaderOp::Set => "set",
+                EdgeHeaderOp::Add => "add",
+                EdgeHeaderOp::Remove => "remove",
             };
             let value = rule
                 .value
@@ -674,7 +674,7 @@ mod tests {
             ai_crawlers: true,
             response_headers: vec![HeaderRule {
                 name: "X-Robots-Tag".into(),
-                op: HeaderOp::Set,
+                op: EdgeHeaderOp::Set,
                 value: Some("noindex".into()),
             }],
             ..EdgeProtection::default()
@@ -696,7 +696,7 @@ mod tests {
         assert_eq!(next.rate_limit.unwrap().requests, 30);
         assert_eq!(next.request_headers[0].value.as_deref(), Some("preview"));
         assert_eq!(next.response_headers.len(), 1, "replaced by name");
-        assert_eq!(next.response_headers[0].op, HeaderOp::Remove);
+        assert_eq!(next.response_headers[0].op, EdgeHeaderOp::Remove);
 
         assert_eq!(
             args(&["app.xyz.com", "--off"]).apply_to(&current),
