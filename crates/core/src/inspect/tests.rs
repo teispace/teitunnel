@@ -233,7 +233,7 @@ async fn tap_settings_change_at_once() {
     let view = inspector
         .configure(
             &tap.id,
-            TapPatch {
+            &TapPatch {
                 paused: Some(true),
                 network_preset: Some(NetworkPreset::FourG),
                 sse_keepalive_secs: Some(0),
@@ -254,7 +254,7 @@ async fn tap_settings_change_at_once() {
         inspector
             .configure(
                 &tap.id,
-                TapPatch {
+                &TapPatch {
                     watched_paths: Some(vec!["re:(".into()]),
                     ..TapPatch::default()
                 },
@@ -280,7 +280,7 @@ async fn tap_settings_change_at_once() {
     inspector
         .configure(
             &tap.id,
-            TapPatch {
+            &TapPatch {
                 paused: Some(false),
                 ..TapPatch::default()
             },
@@ -311,7 +311,7 @@ async fn reports_watched_paths() {
     inspector
         .configure(
             &tap.id,
-            TapPatch {
+            &TapPatch {
                 watched_paths: Some(vec!["/webhooks/*".into()]),
                 ..TapPatch::default()
             },
@@ -344,7 +344,7 @@ async fn reports_idle_taps() {
     inspector
         .configure(
             &tap.id,
-            TapPatch {
+            &TapPatch {
                 idle_stop_minutes: Some(10),
                 ..TapPatch::default()
             },
@@ -357,9 +357,8 @@ async fn reports_idle_taps() {
     );
     tokio::time::sleep(Duration::from_secs(2 * 60)).await;
     let idle = loop {
-        match events.recv().await.unwrap() {
-            InspectEvent::Idle { tap, minutes, .. } => break (tap, minutes),
-            _ => {}
+        if let InspectEvent::Idle { tap, minutes, .. } = events.recv().await.unwrap() {
+            break (tap, minutes);
         }
     };
     assert_eq!(idle, (tap.id.clone(), 10));

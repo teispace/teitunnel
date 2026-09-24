@@ -183,7 +183,7 @@ fn configure_tap(inspector: &Inspector, tap: &TapId, options: &ShareOptions) -> 
     inspector
         .configure(
             tap,
-            TapPatch {
+            &TapPatch {
                 idle_stop_minutes: options
                     .idle
                     .map(|d| u32::try_from(d.as_secs().div_ceil(60)).unwrap_or(u32::MAX)),

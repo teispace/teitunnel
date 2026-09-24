@@ -636,7 +636,7 @@ impl Inspector {
     pub fn set_host_header(&self, tap: &TapId, host: Option<String>) -> Result<(), InspectError> {
         self.configure(
             tap,
-            TapPatch {
+            &TapPatch {
                 host_header: Some(host.unwrap_or_default()),
                 ..TapPatch::default()
             },
@@ -731,7 +731,7 @@ impl Inspector {
     ///
     /// # Errors
     /// Unknown tap, or a rejected value (nothing changes then).
-    pub fn configure(&self, tap: &TapId, patch: TapPatch) -> Result<TapView, InspectError> {
+    pub fn configure(&self, tap: &TapId, patch: &TapPatch) -> Result<TapView, InspectError> {
         let lens = self.running().ok_or(InspectError::UnknownTap)?;
         if !lock(&self.inner.taps).contains_key(tap) {
             return Err(InspectError::UnknownTap);

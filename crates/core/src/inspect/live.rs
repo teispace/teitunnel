@@ -138,7 +138,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(250)).await;
         stop.cancel();
         follower.await.unwrap().unwrap();
-        let batches = batches.lock().unwrap();
+        let batches = batches.lock().unwrap().clone();
         assert!(batches.iter().any(|b| b.taps_changed));
         let rows: Vec<&ExchangeRow> = batches.iter().flat_map(|b| &b.exchanges).collect();
         let finished = rows

@@ -218,7 +218,7 @@ async fn idle_shares_stop() {
     inspector
         .configure(
             &tap.id,
-            teitunnel_core::inspect::TapPatch {
+            &teitunnel_core::inspect::TapPatch {
                 idle_stop_minutes: Some(1),
                 ..Default::default()
             },

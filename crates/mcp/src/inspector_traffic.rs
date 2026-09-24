@@ -504,7 +504,7 @@ mod tests {
 
         let mask = |_: &str, v: &str| v.to_owned();
         let har = source
-            .export(&[found.id.clone()], TrafficFormat::Har, &mask)
+            .export(std::slice::from_ref(&found.id), TrafficFormat::Har, &mask)
             .await
             .unwrap();
         assert!(har.contains("\"entries\"") && !har.contains("s3cr3t"));

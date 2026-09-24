@@ -212,7 +212,7 @@ pub fn inspect_configure(
     tap: TapId,
     patch: TapPatch,
 ) -> Result<TapView, AppError> {
-    state.inspector.configure(&tap, patch).map_err(err)
+    state.inspector.configure(&tap, &patch).map_err(err)
 }
 
 /// Changes a tap's protection. A generated secret link key or bearer token is in the

@@ -386,7 +386,7 @@ mod tests {
         port
     }
 
-    fn args(value: serde_json::Value) -> JsonObject {
+    fn args(value: &serde_json::Value) -> JsonObject {
         value.as_object().cloned().unwrap()
     }
 
@@ -401,7 +401,7 @@ mod tests {
         let out = tools
             .call(
                 "expose_mcp_server",
-                args(serde_json::json!({ "origin": port.to_string(), "hostname": "MCP.xyz.com" })),
+                args(&serde_json::json!({ "origin": port.to_string(), "hostname": "MCP.xyz.com" })),
                 &ctx,
             )
             .await
@@ -456,7 +456,7 @@ mod tests {
         let err = tools
             .call(
                 "expose_mcp_server",
-                args(serde_json::json!({ "origin": "1", "hostname": "mcp.xyz.com" })),
+                args(&serde_json::json!({ "origin": "1", "hostname": "mcp.xyz.com" })),
                 &ctx,
             )
             .await

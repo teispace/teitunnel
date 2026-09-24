@@ -171,7 +171,7 @@ pub(crate) async fn run_writer(
 }
 
 enum Prepared {
-    Put(Row),
+    Put(Box<Row>),
     Clear(Option<String>),
 }
 
@@ -185,7 +185,7 @@ async fn write_batch(
         batch
             .into_iter()
             .map(|write| match write {
-                Write::Put(exchange) => Prepared::Put(record::to_row(&exchange)),
+                Write::Put(exchange) => Prepared::Put(Box::new(record::to_row(&exchange))),
                 Write::Clear(tap) => Prepared::Clear(tap.map(|t| t.to_string())),
             })
             .collect::<Vec<_>>()
