@@ -52,8 +52,7 @@ against them.
 
 ## Signatures
 
-- **macOS:** the app is signed by Teispace and notarized: `spctl -a -vv /Applications/Teitunnel.app`
-  should say `source=Notarized Developer ID`.
-- **Windows:** this beta isn't code-signed yet (see the [code signing policy](/code-signing/)).
+- **macOS:** `spctl -a -vv /Applications/Teitunnel.app` should say
+  `source=Notarized Developer ID`.
 - **Updates** are verified by the app itself against the key built into it, before they're
   installed.

@@ -146,7 +146,6 @@ const footerColumns: { title: string; links: [string, string][] }[] = [
       ["Report an issue", site.issues],
       ["Security", "/docs/reference/security/"],
       ["Privacy", "/privacy/"],
-      ["Code signing policy", "/code-signing/"],
     ],
   },
 ];

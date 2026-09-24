@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Copy, Download as DownloadIcon, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Copy, Download as DownloadIcon } from "lucide-react";
 import Link from "next/link";
 import { type KeyboardEvent, useEffect, useState } from "react";
 import { detectPlatform, type Platform } from "@/lib/detect";
@@ -77,22 +77,6 @@ const guides: Record<PanelId, [string, string]> = {
 };
 
 function Note({ id }: { id: PanelId }) {
-  if (id === "macos")
-    return (
-      <p className="flex items-center gap-2 text-sm text-fd-muted-foreground">
-        <ShieldCheck className="size-4 shrink-0 text-[var(--tt-live)]" aria-hidden />
-        Signed by Teispace and notarized by Apple
-      </p>
-    );
-  if (id === "windows")
-    return (
-      <p className="text-sm text-fd-muted-foreground">
-        Not code-signed yet: signing through SignPath Foundation is on its way.{" "}
-        <Link href="/code-signing/" className="underline underline-offset-4">
-          Code signing policy
-        </Link>
-      </p>
-    );
   if (id === "cli")
     return (
       <p className="text-sm text-fd-muted-foreground">

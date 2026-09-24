@@ -10,7 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ["/download/", 0.9],
     ["/docs/", 0.9],
     ["/privacy/", 0.3],
-    ["/code-signing/", 0.3],
   ];
   const docs = source
     .getPages()
