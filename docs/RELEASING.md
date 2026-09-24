@@ -39,7 +39,7 @@ the next version from the commits since the last release: a `fix:` makes 0.1.1, 
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
-| SignPath Foundation for Windows | After 0.1.0: step 6 |
+| SignPath Foundation for Windows | Ready to apply 2026-09-24 (step 6): site and repository meet the conditions; the maintainer submits the form |
 
 ## One-time setup (maintainer)
 
@@ -117,7 +117,22 @@ xcrun notarytool log <submission id> --key AuthKey_<KeyID>.p8 --key-id <Key ID> 
 
 ### 6. Windows signing (after 0.1.0)
 
-Apply to SignPath Foundation (https://signpath.org) once 0.1.0 is public. The website already
-has the code signing policy and privacy pages it asks for. When accepted, add the SignPath
-step where `release.yml` marks it (before the updater signatures), and update the code
-signing policy page.
+The application (https://signpath.org/apply) needs a person: it creates a SignPath account in
+the applicant's name, has a CAPTCHA and asks to accept SignPath Foundation's code of conduct.
+What SignPath checks (https://signpath.org/terms), and where Teitunnel meets it:
+
+- OSI license, no proprietary code, released, documented: MIT, v0.1.0, the website and docs.
+- "Code signing policy" on the home and download pages, with SignPath's attribution line,
+  team roles with links, and the privacy statement: `/code-signing/` (footer and download page).
+- Uninstall instructions: docs, Install ▸ Uninstall.
+- MFA for every team member on GitHub and SignPath; turn on **Require two-factor
+  authentication** in the organization's Authentication security settings.
+- Reviews for outside changes: the `main` ruleset (D-082).
+- Signed artifacts built on CI from the repository, each release approved by hand.
+
+SignPath grants certificates only to projects with some verifiable reputation (downloads,
+stars, coverage); a very new project may be asked to come back later. When accepted: connect
+the repository in SignPath, add the signing step where `release.yml` marks it (before the
+updater signatures, so updates carry the signed installer), set product name and version
+restrictions in the artifact configuration, and change the Windows line on the code signing
+policy page from pending to signed.

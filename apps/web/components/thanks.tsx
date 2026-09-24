@@ -36,9 +36,9 @@ function steps(download: Download): ReactNode[] {
         </>,
         <>
           If Windows says it protected your PC, choose <strong>More info</strong>, then{" "}
-          <strong>Run anyway</strong>. This beta isn't code-signed yet (
+          <strong>Run anyway</strong>. Windows signing through SignPath Foundation is on its way (
           <Link className="underline underline-offset-4" href="/code-signing/">
-            why
+            code signing policy
           </Link>
           ).
         </>,

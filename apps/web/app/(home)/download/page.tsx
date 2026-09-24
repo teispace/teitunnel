@@ -110,6 +110,17 @@ export default async function DownloadPage() {
         ))}
       </section>
 
+      <p className="mt-10 text-center text-sm text-fd-muted-foreground">
+        <Link href="/code-signing/" className="underline underline-offset-4">
+          Code signing policy
+        </Link>{" "}
+        ·{" "}
+        <Link href="/privacy/" className="underline underline-offset-4">
+          Privacy
+        </Link>{" "}
+        · Windows code signing by SignPath Foundation (pending)
+      </p>
+
       {release ? (
         <details
           id="all"
