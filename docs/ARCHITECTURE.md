@@ -52,7 +52,13 @@ crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prom
                      redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
                      to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
                      come from `ToolProvider`s, traffic from a `TrafficSource`.
-apps/cli             `teitunnel`: commands only; hosts the MCP server (`teitunnel mcp`, `/mcp`).
+crates/control       The local control connection (M12-07): newline-delimited JSON-RPC 2.0 over a
+                     Unix socket / named pipe only the user can open, the server (auth, limits,
+                     approvals) over a `Host` trait, `ControlClient`, and `teitunnel://` links.
+                     Knows nothing about the core; `core::control::CoreHost` implements `Host`.
+apps/cli             `teitunnel`: commands only; hosts the MCP server (`teitunnel mcp`, `/mcp`);
+                     uses the running app through `ControlClient` (`share`, `shares`, `routes`,
+                     `status`, `top`).
 apps/desktop/src-tauri  Thin adapter: IPC commands, events bridge, tray, menus, windows, plugins.
 apps/desktop/src        React UI.
 tools/fake-cloudflared  Test double binary that behaves like cloudflared (endpoints, JSON logs, failure modes).
@@ -67,6 +73,7 @@ desktop ──▶ core ──▶ cf-api
 
 - `cf-api` and `cloudflared` never depend on each other, on `core`, or on Tauri.
 - `core` never depends on Tauri. It exposes a plain async Rust API, which keeps it unit-testable and lets a future CLI reuse it.
+- `control` depends on nothing of Teitunnel's (so extensions' protocol, the CLI's client and the Windows pipe code stay small and checkable alone); `core` depends on it to implement its `Host` (`core::control`), and the shell only supplies native dialogs, windows and change events through `core::control::Ui`.
 - `mcp` depends on `core` (and `cf-api`/`cloudflared` types), never on Tauri; `cli` hosts it, and the desktop app can host it later through the same `Backend`.
 - `src-tauri` contains **no business logic**. A command is: parse args → call `core` → map result.
 - The UI never talks to Cloudflare or the filesystem directly. Only IPC.
@@ -362,6 +369,41 @@ App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (
 - **Change notification:** one typed event, `EntityChanged { kind, id? }`, is emitted after anything changes. The UI maps `kind` to TanStack Query keys and invalidates them. No hand-written sync code.
 - **Streams:** logs, metrics and plan progress use `tauri::ipc::Channel<T>` per subscription, batched every ~100 ms, and cancelled when the subscriber drops.
 - **Long operations** (binary download, plan apply, verify) return immediately with an operation id, then report progress on a channel.
+
+### 10.1 Control connection (M12-07)
+
+The app listens (unless Settings ▸ Integrations turns it off) on `<data>/control/sock`
+(Unix socket, 0600, in a 0700 folder; peers must run as the same uid) or a named pipe with
+a random name recorded in `<data>/control/pipe` (DACL: the current user only; remote
+clients refused; first instance). `<data>/control/token` (0600, made once per install) is
+presented in `hello`. Messages are newline-delimited JSON-RPC 2.0, at most 1 MiB; `hello`
+must come within 5 s; requests are rate-limited per connection (token bucket 40/20 s⁻¹,
+12 changes a minute, 8 in flight, 32 connections) and time out (60 s, changes 180 s).
+
+| Method | Core call |
+|---|---|
+| `status`, `shares.list` | accounts, local tunnels + connector state, `QuickShares::list`, domain shares, `cli_shares::list` |
+| `shares.start` / `shares.stop` | `QuickShares::start` (waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
+| `routes.list` | `Engine::overview` |
+| `routes.preview` / `routes.apply` | `intent_for` → `preview` / `apply` by fingerprint, `with_actor(via: "control")` |
+| `open` | `Ui::open` → `OpenView` event → the webview navigates |
+| `doctor.run` | `doctor::run` minus ignored issues |
+| `events.subscribe` | notifications from `EntityChanged` (shares, routes) and `requestArrived` (inspector) |
+
+Changes (`shares.start`, `shares.stop`, `routes.apply`) go through the server's gate:
+unless the client's name is in `integrations.clients` ("Always Allow"), the host asks with a
+native dialog (`Ui::confirm`, a sheet on the main window); `confirmed: true` (records
+Teitunnel didn't create) is asked every time. `teitunnel://` links go through the same host
+(`deeplink::LinkHandler`): sharing always asks, never "always", one question at a time;
+opening a view doesn't ask. The `tauri-plugin-deep-link` scheme is registered by the
+bundles (Info.plist, NSIS registry, `.desktop` MimeType); single-instance forwards links to
+the running app on Windows and Linux. Settings keys `controlEnabled`, `deepLinksEnabled`,
+`controlClients` live in the `settings` table (no migration).
+
+The CLI connects with `ControlClient` (`apps/cli/src/app.rs`): `share` uses the app when it
+answers (`--app` requires it, `--here` never), `shares`/`routes`/`status`/`top` read
+through it. Shell completion (`teitunnel __complete`, scripts from `completions`) reads
+names from the database read-only (`core::completion`) and never the network.
 
 ---
 
