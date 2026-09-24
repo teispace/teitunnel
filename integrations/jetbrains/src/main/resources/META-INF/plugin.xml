@@ -1,0 +1,66 @@
+<idea-plugin>
+    <id>com.teispace.teitunnel</id>
+    <name>Teitunnel</name>
+    <vendor url="https://teitunnel.teispace.com">Teispace</vendor>
+    <description><![CDATA[
+    Share a local port at a public address, see your shares and routes, stop a share,
+    copy its address and open its request inspector, through the
+    <a href="https://teitunnel.teispace.com">Teitunnel</a> app on your computer (free, on
+    your own Cloudflare account).
+    <br><br>
+    Needs the Teitunnel app running with <b>Settings ▸ Integrations ▸ Allow connections</b>
+    on. The plugin talks to it over a local socket (a named pipe on Windows) that only you
+    can open; sharing and stopping ask in Teitunnel first.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Teitunnel" anchor="bottom" icon="AllIcons.General.Web"
+                    factoryClass="com.teispace.teitunnel.TeitunnelToolWindowFactory"/>
+        <statusBarWidgetFactory id="Teitunnel" implementation="com.teispace.teitunnel.TeitunnelStatusBarFactory"/>
+        <notificationGroup id="Teitunnel" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <group id="Teitunnel.Actions" text="Teitunnel" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Teitunnel.SharePort" class="com.teispace.teitunnel.SharePortAction"
+                    text="Share Port…" description="Share a local port at a public address" icon="AllIcons.General.Add"/>
+            <action id="Teitunnel.StopShare" class="com.teispace.teitunnel.StopShareAction"
+                    text="Stop Share" description="Stop the selected share" icon="AllIcons.Actions.Suspend"/>
+            <action id="Teitunnel.CopyAddress" class="com.teispace.teitunnel.CopyAddressAction"
+                    text="Copy Address" description="Copy the selected address" icon="AllIcons.Actions.Copy"/>
+            <action id="Teitunnel.OpenInBrowser" class="com.teispace.teitunnel.OpenInBrowserAction"
+                    text="Open in Browser" description="Open the selected address" icon="AllIcons.General.Web"/>
+            <action id="Teitunnel.OpenInspector" class="com.teispace.teitunnel.OpenInspectorAction"
+                    text="Open Inspector" description="See the share's requests in Teitunnel" icon="AllIcons.Actions.Preview"/>
+            <action id="Teitunnel.ShowInApp" class="com.teispace.teitunnel.ShowInTeitunnelAction"
+                    text="Show in Teitunnel" description="Show the selection in the Teitunnel app"/>
+            <action id="Teitunnel.RunDoctor" class="com.teispace.teitunnel.RunDoctorAction"
+                    text="Run Doctor" description="Check routes, shares and the connector for problems"/>
+            <action id="Teitunnel.Refresh" class="com.teispace.teitunnel.RefreshAction"
+                    text="Refresh" description="Read shares and routes again" icon="AllIcons.Actions.Refresh"/>
+            <action id="Teitunnel.OpenApp" class="com.teispace.teitunnel.OpenTeitunnelAction"
+                    text="Open Teitunnel" description="Bring the Teitunnel app to the front"/>
+        </group>
+
+        <group id="Teitunnel.ToolWindowToolbar">
+            <reference ref="Teitunnel.SharePort"/>
+            <reference ref="Teitunnel.StopShare"/>
+            <reference ref="Teitunnel.CopyAddress"/>
+            <reference ref="Teitunnel.OpenInspector"/>
+            <separator/>
+            <reference ref="Teitunnel.Refresh"/>
+        </group>
+
+        <group id="Teitunnel.RowPopup">
+            <reference ref="Teitunnel.CopyAddress"/>
+            <reference ref="Teitunnel.OpenInBrowser"/>
+            <reference ref="Teitunnel.OpenInspector"/>
+            <reference ref="Teitunnel.ShowInApp"/>
+            <separator/>
+            <reference ref="Teitunnel.StopShare"/>
+        </group>
+    </actions>
+</idea-plugin>
