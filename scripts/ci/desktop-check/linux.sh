@@ -23,14 +23,14 @@ case "$package" in
   *.deb)
     sudo apt-get update -qq
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-      xvfb openbox imagemagick dbus-x11 python3-gi x11-utils >/dev/null
+      xvfb openbox imagemagick dbus-x11 python3-gi >/dev/null
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$package" >/dev/null
     files=$(dpkg -L teitunnel)
     remove=(apt-get remove -y -qq teitunnel)
     ;;
   *.rpm)
     sudo dnf install -y -q xorg-x11-server-Xvfb openbox ImageMagick dbus-daemon dbus-x11 \
-      python3-gobject xorg-x11-utils procps-ng >/dev/null
+      python3-gobject procps-ng >/dev/null
     sudo dnf install -y -q "$package" >/dev/null
     files=$(rpm -ql teitunnel)
     remove=(dnf remove -y -q teitunnel)
