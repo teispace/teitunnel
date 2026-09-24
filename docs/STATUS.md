@@ -24,9 +24,10 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 6. **Maintainer:** OAuth client; test token.
 
 ## In progress
-- Nothing.
+- M12 wave 2 (agents in worktrees, merged by the integrator): Lens integration (Quick Shares inspected by default, route inspection, traffic CLI, MCP traffic tools and MCP exposure preset; migration 14), edge protection rules + Access service tokens (15), control connection + deep links + live completion + `teitunnel top` (16), project file + exposure check + backups (17), GitHub Action + name reservations (18). Next wave: inspector UI, local domains integration, comments, integrations (VS Code/JetBrains/Raycast), offline page + webhook inbox Workers, sharing power-ups.
 
 ## Recently completed
+- 2026-09-24 (local, not pushed): M12 wave 1 merged on `fix/pending-states`: dev servers fixed in place (D-096), MCP server (D-097), analytics/uptime/alerts (D-098), Snapshots (D-099), Lens crate (D-100), local domains crate (D-101); 833 Rust + 172 UI tests green. Workspace TLS provider unified on AWS-LC.
 - 2026-09-24 (branch, not merged): M12-03 agents/MCP (D-097): `crates/mcp`, `teitunnel mcp` (+ install/uninstall/config/status), `/mcp` on `teitunnel serve`, Settings ▸ AI Tools, Activity shows the agent, docs guide + Agent Skill + llms.txt. Left: the app hosting the server with a native approval dialog (`Approver` hook); traffic tools wait for the inspector (M12-02).
 - 2026-09-24 (local, not pushed): current Cloudflare API throughout (D-095): DNS type changes through the batch endpoint, account-owned tokens, Access with reusable policies and `destinations`, E2E fake in the new shapes.
 - 2026-09-24 (local, not pushed): import finds setups on Windows, by any file name and from running cloudflareds; disconnecting ends the account's temporary shares and clears all its rows (D-093).
