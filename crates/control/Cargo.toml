@@ -41,3 +41,7 @@ tokio = { workspace = true, features = ["rt", "macros", "test-util", "io-util", 
 
 [lints]
 workspace = true
+
+[[example]]
+name = "fake_app"
+required-features = ["testing"]

@@ -346,6 +346,33 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  integrations/control-client:
+    devDependencies:
+      '@types/node':
+        specifier: 26.6.2
+        version: 26.6.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  integrations/vscode:
+    devDependencies:
+      '@teitunnel/control-client':
+        specifier: workspace:*
+        version: link:../control-client
+      '@types/node':
+        specifier: 26.6.2
+        version: 26.6.2
+      '@types/vscode':
+        specifier: 1.90.0
+        version: 1.90.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@alloc/quick-lru@5.3.0':
@@ -2413,6 +2440,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/vscode@1.90.0':
+    resolution: {integrity: sha512-oT+ZJL7qHS9Z8bs0+WKf/kQ27qWYR3trsXpq46YDjFqBsMLG4ygGGjPaJ2tyrH0wJzjOEmDyg9PDJBBhWg9pkQ==}
 
   '@types/which@2.0.2':
     resolution: {integrity: sha512-113D3mDkZDjo+EeUEHCFy0qniNc1ZpecGiAU7WSo7YDoSzolZIQKpYFHrPpjkB2nuyahcKfrmLXeQlh7gqJYdw==}
@@ -7477,6 +7507,8 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/vscode@1.90.0': {}
 
   '@types/which@2.0.2': {}
 
