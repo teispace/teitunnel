@@ -16,6 +16,7 @@ import { Route as MainActivityRouteImport } from "./routes/_main/activity"
 import { Route as MainAnalyticsRouteImport } from "./routes/_main/analytics"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
+import { Route as MainProjectsRouteImport } from "./routes/_main/projects"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
 import { Route as MainRoutesRouteImport } from "./routes/_main/routes"
 import { Route as MainSnapshotsRouteImport } from "./routes/_main/snapshots"
@@ -57,6 +58,11 @@ const MainDomainsRoute = MainDomainsRouteImport.update({
   path: "/domains",
   getParentRoute: () => MainRoute,
 } as any)
+const MainProjectsRoute = MainProjectsRouteImport.update({
+  id: "/projects",
+  path: "/projects",
+  getParentRoute: () => MainRoute,
+} as any)
 const MainQuickShareRoute = MainQuickShareRouteImport.update({
   id: "/quick-share",
   path: "/quick-share",
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
   "/snapshots": typeof MainSnapshotsRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   "/analytics": typeof MainAnalyticsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
   "/snapshots": typeof MainSnapshotsRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   "/_main/analytics": typeof MainAnalyticsRoute
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
+  "/_main/projects": typeof MainProjectsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
   "/_main/routes": typeof MainRoutesRoute
   "/_main/snapshots": typeof MainSnapshotsRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/doctor"
     | "/domains"
+    | "/projects"
     | "/quick-share"
     | "/routes"
     | "/snapshots"
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | "/analytics"
     | "/doctor"
     | "/domains"
+    | "/projects"
     | "/quick-share"
     | "/routes"
     | "/snapshots"
@@ -169,6 +180,7 @@ export interface FileRouteTypes {
     | "/_main/analytics"
     | "/_main/doctor"
     | "/_main/domains"
+    | "/_main/projects"
     | "/_main/quick-share"
     | "/_main/routes"
     | "/_main/snapshots"
@@ -234,6 +246,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainDomainsRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/projects": {
+      id: "/_main/projects"
+      path: "/projects"
+      fullPath: "/projects"
+      preLoaderRoute: typeof MainProjectsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/quick-share": {
       id: "/_main/quick-share"
       path: "/quick-share"
@@ -284,6 +303,7 @@ interface MainRouteChildren {
   MainAnalyticsRoute: typeof MainAnalyticsRoute
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
+  MainProjectsRoute: typeof MainProjectsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
   MainRoutesRoute: typeof MainRoutesRoute
   MainSnapshotsRoute: typeof MainSnapshotsRoute
@@ -298,6 +318,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainAnalyticsRoute: MainAnalyticsRoute,
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
+  MainProjectsRoute: MainProjectsRoute,
   MainQuickShareRoute: MainQuickShareRoute,
   MainRoutesRoute: MainRoutesRoute,
   MainSnapshotsRoute: MainSnapshotsRoute,

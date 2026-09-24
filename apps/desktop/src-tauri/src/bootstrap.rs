@@ -82,7 +82,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         supervisor.clone(),
         binary.clone(),
         PortAllocator::new(TUNNEL_PORTS),
-        secrets,
+        secrets.clone(),
         local.clone(),
     );
     let machine = match service_manager(&data_dir) {
@@ -122,6 +122,8 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         snapshots: teitunnel_core::snapshot::Preparations::default(),
         snapshot_dir: data_dir.join("snapshots"),
         issued_secrets: teitunnel_core::protection::IssuedSecrets::default(),
+        secrets,
+        pending_restore: std::sync::Mutex::default(),
         accounts,
         engine,
         control,

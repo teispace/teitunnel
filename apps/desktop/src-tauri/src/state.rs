@@ -55,4 +55,8 @@ pub struct AppState {
     pub control: crate::shell::control::Control,
     /// New service token secrets, kept in memory briefly so they can be copied.
     pub issued_secrets: teitunnel_core::protection::IssuedSecrets,
+    /// The keychain (a project's secret references are read from it).
+    pub secrets: teitunnel_core::secrets::Secrets,
+    /// A backup read and shown to the user, waiting to be restored (its id, its contents).
+    pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
 }

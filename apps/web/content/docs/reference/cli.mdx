@@ -75,12 +75,22 @@ teitunnel protect app.example.com --off                 # remove Teitunnel's rul
 teitunnel service-token create api.example.com --name CI  # for machines; secret printed once
 teitunnel service-token ls api.example.com
 teitunnel service-token revoke api.example.com CI
+teitunnel project init                   # a starter teitunnel.yml for this folder
+teitunnel project check                  # every problem in it, with line and column
+teitunnel project diff                   # what applying it would change (nothing changes)
+teitunnel project apply                  # apply it; its shares run until Ctrl-C
+teitunnel up                             # in a folder with teitunnel.yml: apply it, then run
+teitunnel project down --remove-routes   # stop its shares, remove the routes it created
+teitunnel backup create                  # an encrypted copy of this setup (no tokens)
+teitunnel backup restore teitunnel-setup.teitunnel-backup
 teitunnel mcp install cursor            # connect an AI tool (see AI agents)
 teitunnel mcp status                    # which AI tools are connected
 teitunnel mcp                           # the MCP server itself (clients start it)
 ```
 
-The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
+The MCP commands are described in [AI agents](/docs/guides/ai-agents/), the project
+commands in [Project files](/docs/guides/project-file/), `backup` in
+[Move to a new computer](/docs/guides/move-computer/).
 
 | Option | Meaning |
 |---|---|
@@ -99,6 +109,11 @@ The MCP commands are described in [AI agents](/docs/guides/ai-agents/).
 | `--host-header <host>` | `share`: send this Host header to the service, e.g. `localhost:5173` ([dev servers](/docs/tutorials/dev-servers)). By default Vite, webpack and Angular dev servers get their own address. |
 | `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
+| `--strict` | `share`, `route add`, `project apply`, `up`: stop when the [exposure check](/docs/guides/exposure-check/) finds a leak (by default it only warns). |
+| `-f, --file <path>` | `project …`, `up`: the project file, or a folder with one (default: this folder, or the nearest one above it in the repository). |
+| `--no-project` | `up`: don't apply a teitunnel.yml, even if there is one. |
+| `--remove-routes` | `project down`: also remove the routes applying the project created (never ones that were there before). |
+| `--passphrase-stdin` | `backup create`, `backup restore`: read the passphrase from the first line of standard input. |
 | `--build`, `--crawl <url>`, `--password`, `--expires 7d` | `snapshot publish`: build the project first, capture a running site, ask visitors for a password, delete it later ([Snapshots](/docs/guides/snapshots)). |
 | `--bots <off\|challenge\|block>`, `--block-ai`, `--allow-ai` | `protect`: automated clients and AI crawlers on one hostname ([Edge protection](/docs/guides/protection)). |
 | `--rate-limit <n/period[:block\|challenge]>`, `--no-rate-limit` | `protect`: e.g. `30/1m` or `100/10s:challenge`; periods 10s, 1m, 2m, 5m, 10m, 1h, within the plan's limit. |
@@ -144,6 +159,11 @@ hostname is held by someone else (a share never takes one; other commands need
 an Always-on service does (a server, a CI job; see [Previews in CI](/docs/guides/ci-previews)).
 
 `doctor` runs the app's checks and hides the issues you ignored there.
+
+Before `share` and `route add` make a service public, the
+[exposure check](/docs/guides/exposure-check/) looks at it for leaks (a `.env` file, the git
+folder, debug pages…) and prints what it finds on standard error; `--strict` makes that an
+error (exit status 1) instead of a warning.
 
 ## Origin settings
 

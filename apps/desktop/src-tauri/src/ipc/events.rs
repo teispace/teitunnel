@@ -20,6 +20,8 @@ pub enum EntityKind {
     Updates,
     /// Snapshots (id: the account).
     Snapshots,
+    /// Projects (teitunnel.yml files opened in the app).
+    Projects,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.

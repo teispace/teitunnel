@@ -124,6 +124,39 @@ via_core!(
     teitunnel_core::snapshot::SnapshotError,
 );
 
+impl From<teitunnel_core::project::ProjectError> for AppError {
+    fn from(err: teitunnel_core::project::ProjectError) -> Self {
+        use teitunnel_core::project::ProjectError as P;
+        match err {
+            P::Engine(err) => err.into(),
+            P::Store(err) => err.into(),
+            P::Snapshot(err) => err.into(),
+            P::NotFound(_) => Self::new(ErrorCode::NotFound, err.text()),
+            P::Changed => Self::new(ErrorCode::Conflict, err.text()),
+            P::Io { .. } | P::TooLarge(_) | P::Invalid(_) | P::Unresolved(_) | P::Secret(_) => {
+                Self::invalid("file", err.text())
+            }
+        }
+    }
+}
+
+impl From<teitunnel_core::backup::BackupError> for AppError {
+    fn from(err: teitunnel_core::backup::BackupError) -> Self {
+        use teitunnel_core::backup::BackupError as B;
+        match err {
+            B::Store(err) => err.into(),
+            B::WeakPassphrase | B::WrongPassphrase => Self::invalid("passphrase", err.text()),
+            B::NotABackup | B::UnsupportedFormat(_) | B::NewerSchema | B::Io { .. } => {
+                Self::invalid("file", err.text())
+            }
+            B::Internal(_) => {
+                tracing::error!(error = %err, "backup failed");
+                Self::internal(err.text()).with_hint(m::internal_hint())
+            }
+        }
+    }
+}
+
 impl From<teitunnel_core::domain::OriginError> for AppError {
     fn from(err: teitunnel_core::domain::OriginError) -> Self {
         Self::invalid("origin", err.text())

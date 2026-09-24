@@ -22,6 +22,7 @@ beforeEach(() => {
     quietHours: { enabled: false, from: 1320, to: 420 },
     checkForUpdates: true,
     cliOfferDismissed: false,
+    exposureCheck: true,
     ignoredIssues: [],
   };
   cli = { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel", command: null };

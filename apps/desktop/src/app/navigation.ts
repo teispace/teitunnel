@@ -2,6 +2,7 @@ import {
   Activity,
   Camera,
   ChartNoAxesColumn,
+  FolderGit2,
   Globe,
   LayoutGrid,
   type LucideIcon,
@@ -18,6 +19,7 @@ export interface NavItem {
     | "/routes"
     | "/quick-share"
     | "/snapshots"
+    | "/projects"
     | "/domains"
     | "/tunnels"
     | "/activity"
@@ -32,7 +34,7 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘9 follow this order. */
+/** Sidebar information architecture. ⌘1–⌘9 follow this order (Projects has none). */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -41,6 +43,7 @@ export const navigation: readonly NavSection[] = [
       { to: "/routes", label: "nav.routes", icon: Waypoints },
       { to: "/quick-share", label: "nav.quickShare", icon: Share },
       { to: "/snapshots", label: "nav.snapshots", icon: Camera },
+      { to: "/projects", label: "nav.projects", icon: FolderGit2 },
     ],
   },
   {

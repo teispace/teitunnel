@@ -10,12 +10,15 @@ mod accounts;
 mod ai_clients;
 mod analytics;
 pub(crate) mod app;
+mod backup;
 pub(crate) mod cli;
 pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
 mod events;
+mod exposure;
 mod integrations;
+mod projects;
 mod quick_share;
 mod reservations;
 mod routes;
@@ -146,7 +149,20 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             protection::protection_preview,
             protection::protection_apply,
             protection::protection_copy_secret,
-            protection::protection_forget_secret
+            protection::protection_forget_secret,
+            projects::projects_list,
+            projects::projects_choose_folder,
+            projects::projects_add,
+            projects::projects_remove,
+            projects::projects_modified,
+            projects::projects_status,
+            projects::projects_apply,
+            exposure::exposure_check,
+            backup::backup_choose_save,
+            backup::backup_choose_open,
+            backup::backup_create,
+            backup::backup_inspect,
+            backup::backup_restore
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

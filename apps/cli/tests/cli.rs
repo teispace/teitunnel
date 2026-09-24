@@ -128,6 +128,60 @@ fn share_rejects_bad_input_before_starting_anything() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("isn't a duration"));
 }
 
+#[test]
+fn checks_a_project_file_with_positions_and_refuses_secrets() {
+    let data = tempfile::tempdir().unwrap();
+    let repo = tempfile::tempdir().unwrap();
+    std::fs::write(
+        repo.path().join("teitunnel.yml"),
+        "version: 1\nsnapshots:\n  - name: docs\n    source: { folder: dist }\n    password: hunter22\nshares:\n  - port: 70000\n",
+    )
+    .unwrap();
+    let check = || {
+        Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+            .current_dir(repo.path())
+            .args(["project", "check"])
+            .env("TEITUNNEL_DATA_DIR", data.path())
+            .output()
+            .unwrap()
+    };
+    let output = check();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("teitunnel.yml:5:15: error:"), "{stderr}");
+    assert!(stderr.contains("secret"), "{stderr}");
+    assert!(stderr.contains("teitunnel.yml:7:11: error:"), "{stderr}");
+
+    std::fs::write(
+        repo.path().join("teitunnel.yml"),
+        "version: 1\nshares:\n  - port: 5173\nprotection: {}\n",
+    )
+    .unwrap();
+    let output = check();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("warning: protection isn't known"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn project_and_backup_commands_need_their_file() {
+    let data = tempfile::tempdir().unwrap();
+    let empty = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+        .current_dir(empty.path())
+        .args(["project", "diff"])
+        .env("TEITUNNEL_DATA_DIR", data.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("No teitunnel.yml"));
+    let output = cli(data.path(), &["backup", "restore"]);
+    assert_eq!(output.status.code(), Some(2), "the file is required");
+}
+
 /// `share` against the fake cloudflared, as the process a terminal would run.
 #[cfg(unix)]
 mod share {

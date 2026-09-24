@@ -1,0 +1,140 @@
+---
+title: Project files
+description: "Declare a project's routes, shares, Snapshots and local domains in a teitunnel.yml checked into its repository, and bring them up with teitunnel up or one click in the app: previewed first, idempotent, never holding a secret."
+---
+
+A **project file** is a `teitunnel.yml` at the root of a repository. It says what the
+project needs from Teitunnel: its routes, the shares to start while you work on it, the
+Snapshots it publishes and its local domains. Check it into git and everyone on the team
+gets the same setup with one command.
+
+Applying it goes through the same plan as every other change: you see exactly what will
+change in Cloudflare and on this computer before anything happens. Applying it again
+changes nothing ("Nothing to change"), so it's safe to run every time you start work.
+
+## An example
+
+```yaml
+# yaml-language-server: $schema=https://teitunnel.teispace.com/schema/teitunnel.v1.json
+version: 1
+project: shop            # default: the name in package.json, Cargo.toml… or the folder's
+account: Acme            # only needed when several accounts are connected
+
+routes:
+  - hostname: shop.example.com
+    origin: 3000
+  - hostname: api.example.com
+    origin: http://localhost:4000
+    path: ^/v1
+    login: [me@example.com, "@example.com"]   # require a Cloudflare Access login
+    originRequest:
+      httpHostHeader: localhost:4000
+      connectTimeout: 10
+
+shares:
+  - port: 5173
+    hostname: "{branch}-{project}.example.com"  # feat-login-shop.example.com
+    expires: 2h
+    hostHeader: localhost:5173
+  - port: 8080                                # a random trycloudflare.com address
+
+snapshots:
+  - name: docs
+    source: { folder: dist }                  # or { build: . } to build first
+    hostname: docs.example.com                # without it: your workers.dev address
+    spa: true
+    password: { env: DOCS_PASSWORD }          # never the password itself
+    expires: 30d
+
+localDomains:
+  - name: shop.localhost
+    port: 3000
+    wildcard: true
+```
+
+## Apply it
+
+**From a terminal**, in the repository (or any folder below it):
+
+```sh
+teitunnel project init     # write a starter file from what this machine runs for the project
+teitunnel project check    # every problem, with its line and column (no account needed)
+teitunnel project diff     # what applying would change; nothing changes
+teitunnel up               # apply it (after showing the plan), then run the tunnels and shares
+teitunnel project apply    # the same, without running this machine's other tunnels
+teitunnel project down     # stop the project's shares
+teitunnel project down --remove-routes   # also remove the routes it created
+```
+
+`up` and `project apply` show one combined plan (each route's steps, the Snapshots to
+publish, the shares to start) and ask before applying; `--yes` applies without asking,
+for scripts. Shares run as long as the command does and stop with Ctrl-C. `--file`
+points at another project file, and `up --no-project` ignores the one in the folder.
+
+**In the app**, open **Projects** in the sidebar and choose **Open Project…** (the folder
+with the `teitunnel.yml`). Each declared item shows whether it's **Applied**, **Differs**
+from what's there, or is **Missing**, and the file's problems are listed with their lines.
+**Apply…** shows the plan sheet; nothing changes until you apply. The app watches the file:
+when you edit it, a banner offers to review the changes and apply them. Shares started from
+the app stop when you stop them or quit Teitunnel.
+
+`project down --remove-routes` removes only the routes applying the project created. A
+route that was already there before stays, and DNS records Teitunnel didn't create are
+never deleted.
+
+## Keys
+
+| Key | What it is |
+|---|---|
+| `version` | Always `1` for this format. |
+| `project` | The project's name, for the `{project}` placeholder. |
+| `account` | The Cloudflare account (name or id), when several are connected. |
+| `routes[]` | `hostname`, `origin` (a port, `host:port` or URL), optional `path` regex, `tunnel` (one of this machine's, by name), `login` (emails or `@domain`) and `originRequest` (cloudflared's origin settings: `httpHostHeader`, `noTLSVerify`, `connectTimeout`…). |
+| `shares[]` | `port` or `url`; `hostname` for a share on your own domain (without it, a random trycloudflare.com address); `expires` (`90s`, `30m`, `2h`, `7d`); `hostHeader` (`auto`, `false`, or a value); `login` (with a hostname); `inspect`. |
+| `snapshots[]` | `name`, `source` (`folder: PATH` or `build: PATH`, relative to the file), `hostname` (default: workers.dev), `spa`, `password` (a reference), `login`, `expires` (whole days). |
+| `localDomains[]` | `name` (`name.localhost`, `name.test` or `name.local`), `port`, `wildcard`. |
+
+Keys this version of Teitunnel doesn't know (such as `protection`, reserved for a later
+version) are reported as warnings and ignored, so a file written for a newer version still
+applies what this one understands.
+
+### Placeholders
+
+Hostnames can use `{branch}` (the git branch, read from `.git/HEAD`), `{user}` (your login
+name) and `{project}`. Each becomes a DNS label: `feature/Login_Fix` becomes
+`feature-login-fix`. Everyone on the team gets their own address from the same file.
+Outside a git repository, `{branch}` has no value and the file says so.
+
+### Editor autocompletion
+
+The first line, `# yaml-language-server: $schema=https://teitunnel.teispace.com/schema/teitunnel.v1.json`,
+gives editors with YAML language support (VS Code's YAML extension, JetBrains IDEs,
+Zed, Neovim with yaml-language-server) completion and checks for every key. The schema is
+published at [`/schema/teitunnel.v1.json`](/schema/teitunnel.v1.json).
+
+## Never a secret
+
+A project file is checked into git, so it can't hold a secret. A Snapshot's password is a
+reference:
+
+```yaml
+password: { env: DOCS_PASSWORD }         # an environment variable of whoever applies it
+password: { keychain: docs-preview }     # an entry in the OS keychain, Teitunnel's service
+```
+
+On macOS, store the keychain entry with
+`security add-generic-password -s com.teispace.teitunnel -a docs-preview -w`. Teitunnel
+refuses a file with a literal secret under a key like `password`, `token` or `apiKey`, and
+any value that looks like a credential wherever it is (a Cloudflare API token or key, a
+tunnel token, a JSON web token, a private key, GitHub, Stripe, Slack or AWS keys), with the
+line and column to fix. A Snapshot's password is set when it's first published; later
+applies keep it (to change it, use `teitunnel snapshot update --password`), and removing
+`password` from the file removes it.
+
+## Good to know
+
+- **Local domains** aren't applied by this version yet: they're listed as **Skipped**.
+- A share's `inspect` is kept for the inspector; shares start without it in this version.
+- An existing route stays on its tunnel; `tunnel` only picks where a new route goes.
+- Before a new route or share makes a service public, the
+  [exposure check](/docs/guides/exposure-check/) looks at it for leaks.

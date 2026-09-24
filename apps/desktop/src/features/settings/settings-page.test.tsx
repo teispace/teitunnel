@@ -22,6 +22,7 @@ beforeEach(() => {
     quietHours: { enabled: false, from: 1320, to: 420 },
     checkForUpdates: true,
     cliOfferDismissed: false,
+    exposureCheck: true,
     ignoredIssues: [],
   };
   update = {
@@ -49,6 +50,7 @@ beforeEach(() => {
         quietHours: patch.quietHours ?? stored.quietHours,
         checkForUpdates: patch.checkForUpdates ?? stored.checkForUpdates,
         cliOfferDismissed: patch.cliOfferDismissed ?? stored.cliOfferDismissed,
+        exposureCheck: patch.exposureCheck ?? stored.exposureCheck,
         ignoredIssues: stored.ignoredIssues,
       };
       return stored;
