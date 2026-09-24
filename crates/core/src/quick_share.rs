@@ -18,6 +18,7 @@ use crate::{
     dev_server::{self, DevServer},
     domain::{Hostname, OriginUrl, RouteOrigin},
     engine::{Edge, Failure, Verification},
+    inspect::{Inspector, TapScope, TapSpec},
     runtime::{
         ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, RuntimeEvent, Supervisor,
     },
@@ -56,11 +57,14 @@ pub enum QuickShareError {
     /// The supervisor refused.
     #[error(transparent)]
     Runtime(#[from] crate::runtime::SupervisorError),
+    /// The inspector couldn't put a tap in front of the service.
+    Inspector(Text),
 }
 
 impl UserText for QuickShareError {
     fn text(&self) -> Text {
         match self {
+            Self::Inspector(text) => text.clone(),
             Self::Binary(err) => err.text(),
             Self::Runtime(err) => err.text(),
             Self::NoFreePort => msg::error::quick_share::no_free_port(),
@@ -117,6 +121,8 @@ pub struct QuickShare {
     pub host_header: Option<HostHeader>,
     /// The check through Cloudflare once the share is live (`None` until then).
     pub check: Option<Verification>,
+    /// Requests go through the inspector (its tap has the share's id).
+    pub inspected: bool,
 }
 
 /// A Host header a share sends to its service.
@@ -195,6 +201,8 @@ pub struct ShareStats {
 struct Entry {
     share: QuickShare,
     port: u16,
+    /// The inspector's tap cloudflared sends requests to, when inspected.
+    tap: Option<lens::TapId>,
     /// Bumped when the share restarts with other settings, so work for the previous
     /// cloudflared (waiting for its URL, checking it) stops touching the share.
     generation: u64,
@@ -214,6 +222,8 @@ pub struct QuickShares {
     changes: broadcast::Sender<String>,
     url_timeout: Duration,
     dns_propagation: Duration,
+    /// This process's inspector; without one, shares go straight to their service.
+    inspector: Option<Inspector>,
 }
 
 impl std::fmt::Debug for QuickShares {
@@ -251,7 +261,21 @@ impl QuickShares {
             changes,
             url_timeout: URL_TIMEOUT,
             dns_propagation: DNS_PROPAGATION,
+            inspector: None,
         }
+    }
+
+    /// Sends new shares through `inspector` (as its settings say, unless a share asks
+    /// otherwise). Run [`QuickShares::watch_idle`] too, for idle stops.
+    #[must_use]
+    pub fn with_inspector(mut self, inspector: Inspector) -> Self {
+        self.inspector = Some(inspector);
+        self
+    }
+
+    /// The inspector shares go through, if any.
+    pub fn inspector(&self) -> Option<&Inspector> {
+        self.inspector.as_ref()
     }
 
     /// Where the check after going live connects (a test server standing in for
@@ -310,11 +334,12 @@ impl QuickShares {
     }
 
     /// The command for one share's cloudflared, after (re)writing the neutral config it
-    /// points at.
+    /// points at. `url` is the service, or the inspector's tap in front of it (which then
+    /// sends the Host header itself).
     async fn command(
         &self,
         binary: &Path,
-        origin: &OriginUrl,
+        url: &str,
         port: u16,
         host_header: Option<&HostHeader>,
     ) -> Result<cloudflared::CommandSpec, QuickShareError> {
@@ -327,7 +352,7 @@ impl QuickShares {
             .await
             .map_err(QuickShareError::Config)?;
         Ok(QuickTunnelCmd {
-            origin: origin.to_string(),
+            origin: url.to_owned(),
             metrics_port: port,
             config: self.config.clone(),
             host_header: host_header.map(|h| h.value.clone()),
@@ -335,7 +360,46 @@ impl QuickShares {
         .build(binary))
     }
 
+    /// Starts a tap in front of `share`'s service; returns its id and address.
+    async fn start_tap(
+        &self,
+        inspector: &Inspector,
+        share: &QuickShare,
+    ) -> Result<(lens::TapId, String), QuickShareError> {
+        let mut spec = TapSpec::new(
+            TapScope::QuickShare {
+                share_id: share.id.clone(),
+            },
+            share.url.as_deref().unwrap_or(share.origin.as_str()),
+            share.origin.as_str(),
+        );
+        spec.host_header = share.host_header.as_ref().map(|h| h.value.clone());
+        spec.public_url.clone_from(&share.url);
+        let tap = inspector
+            .start(spec)
+            .await
+            .map_err(|e| QuickShareError::Inspector(e.text()))?;
+        Ok((tap.id, tap.address))
+    }
+
+    /// Where cloudflared sends requests for `share` (a new tap when inspected), and the
+    /// Host header cloudflared itself sets (none when the tap sets it).
+    async fn target(
+        &self,
+        share: &QuickShare,
+        inspect: bool,
+    ) -> Result<(String, Option<HostHeader>, Option<lens::TapId>), QuickShareError> {
+        match (&self.inspector, inspect) {
+            (Some(inspector), true) => {
+                let (tap, url) = self.start_tap(inspector, share).await?;
+                Ok((url, None, Some(tap)))
+            }
+            _ => Ok((share.origin.to_string(), share.host_header.clone(), None)),
+        }
+    }
+
     /// Starts sharing `origin`. Returns at once; the URL arrives via [`Self::subscribe`].
+    /// It goes through the inspector when there is one and its settings say so.
     ///
     /// # Errors
     /// Fails if cloudflared isn't installed, no port is free, or the Host header isn't
@@ -346,12 +410,30 @@ impl QuickShares {
         stop_after: Option<Duration>,
         host_header: &HostHeaderChoice,
     ) -> Result<QuickShare, QuickShareError> {
+        self.start_with(origin, stop_after, host_header, None).await
+    }
+
+    /// Like [`Self::start`], choosing whether the share is inspected (`None`: the
+    /// inspector's setting).
+    ///
+    /// # Errors
+    /// As [`Self::start`], or the inspector couldn't start a tap.
+    pub async fn start_with(
+        &self,
+        origin: OriginUrl,
+        stop_after: Option<Duration>,
+        host_header: &HostHeaderChoice,
+        inspect: Option<bool>,
+    ) -> Result<QuickShare, QuickShareError> {
         let host_header = host_header.resolve(origin.as_str()).await?;
         let binary = self.binary.current().await?;
         let port = self.ports.allocate().ok_or(QuickShareError::NoFreePort)?;
         let id = format!("{ID_PREFIX}{}", Uuid::new_v4().simple());
         let started_at = now_ms();
-        let share = QuickShare {
+        let inspect = self.inspector.as_ref().is_some_and(|inspector| {
+            inspect.unwrap_or_else(|| inspector.settings().inspect_quick_shares)
+        });
+        let mut share = QuickShare {
             id: id.clone(),
             origin: origin.clone(),
             url: None,
@@ -361,29 +443,37 @@ impl QuickShares {
                 .map(|d| started_at + u64::try_from(d.as_millis()).unwrap_or(u64::MAX)),
             host_header,
             check: None,
+            inspected: inspect,
         };
-        let command = match self
-            .command(&binary.path, &origin, port, share.host_header.as_ref())
-            .await
-        {
-            Ok(command) => command,
+        let (url, cloudflared_host, tap) = match self.target(&share, inspect).await {
+            Ok(target) => target,
             Err(err) => {
                 self.ports.release(port);
                 return Err(err);
             }
         };
-        if let Err(err) =
-            self.supervisor
-                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+        let started = match self
+            .command(&binary.path, &url, port, cloudflared_host.as_ref())
+            .await
         {
+            Ok(command) => self
+                .supervisor
+                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .map_err(QuickShareError::from),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = started {
             self.ports.release(port);
-            return Err(err.into());
+            self.stop_tap(tap.as_ref()).await;
+            return Err(err);
         }
+        share.inspected = tap.is_some();
         self.lock().insert(
             id.clone(),
             Entry {
                 share: share.clone(),
                 port,
+                tap,
                 generation: 0,
             },
         );
@@ -401,9 +491,17 @@ impl QuickShares {
         Ok(share)
     }
 
-    /// Restarts a share sending `host_header` to its service (or none), the fix for a
-    /// dev server that refuses the public address. A Quick Share's address comes with
-    /// its cloudflared, so the share gets a new URL; it's checked again once live.
+    async fn stop_tap(&self, tap: Option<&lens::TapId>) {
+        if let (Some(inspector), Some(tap)) = (&self.inspector, tap) {
+            inspector.stop(tap).await;
+        }
+    }
+
+    /// Changes the Host header a share sends to its service (or none), the fix for a dev
+    /// server that refuses the public address. An inspected share changes at once and
+    /// keeps its address; otherwise cloudflared restarts with the header, and a Quick
+    /// Share's address comes with its cloudflared, so the share gets a new URL. Either
+    /// way it's checked again once live.
     ///
     /// # Errors
     /// [`QuickShareError::NotFound`], an invalid header, or cloudflared failing to start.
@@ -422,46 +520,149 @@ impl QuickShares {
                     .ok_or(QuickShareError::InvalidHostHeader)
             })
             .transpose()?;
+        let live_tap = {
+            let shares = self.lock();
+            let entry = shares.get(id).ok_or(QuickShareError::NotFound)?;
+            entry.tap.clone()
+        };
+        if let (Some(inspector), Some(tap)) = (&self.inspector, live_tap) {
+            inspector
+                .set_host_header(&tap, host_header.as_ref().map(|h| h.value.clone()))
+                .map_err(|e| QuickShareError::Inspector(e.text()))?;
+            let generation = self.generation(id).ok_or(QuickShareError::NotFound)?;
+            self.update(id, |share| {
+                share.host_header = host_header;
+                share.check = None;
+            });
+            let share = self
+                .lock()
+                .get(id)
+                .map(|entry| entry.share.clone())
+                .ok_or(QuickShareError::NotFound)?;
+            let this = self.clone();
+            let id = id.to_owned();
+            tokio::spawn(async move { this.check(&id, generation, CHECK_PATIENCE).await });
+            return Ok(share);
+        }
+        self.restart(id, |share| share.host_header = host_header, None)
+            .await
+    }
+
+    /// Turns inspection of a running share on or off. cloudflared restarts pointing at
+    /// the inspector or straight at the service, so the share gets a new URL.
+    ///
+    /// # Errors
+    /// [`QuickShareError::NotFound`], no inspector in this process (to turn it on), or
+    /// cloudflared failing to start.
+    pub async fn set_inspected(&self, id: &str, on: bool) -> Result<QuickShare, QuickShareError> {
+        let current = self
+            .lock()
+            .get(id)
+            .map(|entry| entry.share.clone())
+            .ok_or(QuickShareError::NotFound)?;
+        if current.inspected == on {
+            return Ok(current);
+        }
+        if on && self.inspector.is_none() {
+            return Err(QuickShareError::Inspector(
+                crate::text::msg::error::inspect::unknown_tap(),
+            ));
+        }
+        self.restart(id, |_| {}, Some(on)).await
+    }
+
+    /// Restarts a share's cloudflared after `change`, inspected or not (`None`: as it
+    /// was), with a new URL.
+    async fn restart(
+        &self,
+        id: &str,
+        change: impl FnOnce(&mut QuickShare),
+        inspect: Option<bool>,
+    ) -> Result<QuickShare, QuickShareError> {
         let binary = self.binary.current().await?;
-        let (share, port, generation) = {
+        let (share, port, generation, old_tap) = {
             let mut shares = self.lock();
             let entry = shares.get_mut(id).ok_or(QuickShareError::NotFound)?;
             entry.generation += 1;
             let share = &mut entry.share;
-            share.host_header = host_header;
+            change(share);
             share.url = None;
             share.check = None;
             share.status = ShareStatus::Starting;
-            (share.clone(), entry.port, entry.generation)
+            (
+                share.clone(),
+                entry.port,
+                entry.generation,
+                entry.tap.take(),
+            )
         };
         self.changed(id);
         let connector = ConnectorId(id.to_owned());
         let _ = self.supervisor.stop(&connector).await;
-        let started = match self
-            .command(
-                &binary.path,
-                &share.origin,
-                port,
-                share.host_header.as_ref(),
-            )
-            .await
-        {
-            Ok(command) => self
+        self.stop_tap(old_tap.as_ref()).await;
+        let inspect = inspect.unwrap_or(share.inspected);
+        let started = async {
+            let (url, cloudflared_host, tap) = self.target(&share, inspect).await?;
+            let command = self
+                .command(&binary.path, &url, port, cloudflared_host.as_ref())
+                .await;
+            let command = match command {
+                Ok(command) => command,
+                Err(err) => {
+                    self.stop_tap(tap.as_ref()).await;
+                    return Err(err);
+                }
+            };
+            if let Err(err) = self
                 .supervisor
                 .start(ConnectorSpec::new(connector, command, port))
-                .map_err(QuickShareError::from),
-            Err(err) => Err(err),
-        };
-        if let Err(err) = started {
-            self.update(id, |share| {
-                share.status = ShareStatus::Failed {
-                    message: err.text(),
-                };
-            });
-            return Err(err);
+            {
+                self.stop_tap(tap.as_ref()).await;
+                return Err(QuickShareError::from(err));
+            }
+            Ok(tap)
         }
+        .await;
+        let tap = match started {
+            Ok(tap) => tap,
+            Err(err) => {
+                self.update(id, |share| {
+                    share.status = ShareStatus::Failed {
+                        message: err.text(),
+                    };
+                });
+                return Err(err);
+            }
+        };
+        let inspected = tap.is_some();
+        if let Some(entry) = self.lock().get_mut(id) {
+            entry.tap = tap;
+            entry.share.inspected = inspected;
+        }
+        self.changed(id);
         tokio::spawn(self.clone().await_url(id.to_owned(), port, generation));
-        Ok(share)
+        Ok(QuickShare { inspected, ..share })
+    }
+
+    /// Stops shares whose inspector tap has been idle for its limit (the setting, or the
+    /// share's own). Run once for the app's lifetime.
+    pub async fn watch_idle(self) {
+        let Some(inspector) = self.inspector.clone() else {
+            return;
+        };
+        let mut events = inspector.subscribe();
+        loop {
+            match events.recv().await {
+                Ok(crate::inspect::InspectEvent::Idle {
+                    scope: TapScope::QuickShare { share_id },
+                    ..
+                }) => {
+                    let _ = self.stop(&share_id).await;
+                }
+                Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Err(broadcast::error::RecvError::Closed) => return,
+            }
+        }
     }
 
     /// Checks a live share through Cloudflare again (after the user fixed something)
@@ -520,6 +721,7 @@ impl QuickShares {
     pub async fn stop(&self, id: &str) -> Result<(), QuickShareError> {
         let entry = self.lock().remove(id).ok_or(QuickShareError::NotFound)?;
         let _ = self.supervisor.stop(&ConnectorId(id.to_owned())).await;
+        self.stop_tap(entry.tap.as_ref()).await;
         self.ports.release(entry.port);
         self.record_stop(id);
         self.changed(id);
@@ -583,6 +785,10 @@ impl QuickShares {
                         share.status = ShareStatus::Live;
                     });
                     self.record_url(&id, &url);
+                    let tap = self.lock().get(&id).and_then(|entry| entry.tap.clone());
+                    if let (Some(inspector), Some(tap)) = (&self.inspector, tap) {
+                        inspector.set_public_url(&tap, Some(url.clone()));
+                    }
                     self.check(&id, generation, CHECK_PATIENCE).await;
                     return;
                 }

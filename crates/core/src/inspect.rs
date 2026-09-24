@@ -12,6 +12,7 @@
 pub mod analytics;
 pub mod expose;
 mod history;
+pub mod live;
 mod record;
 pub mod routes;
 pub mod secrets;
@@ -38,6 +39,7 @@ use lens::{
     PathPattern, RandomSource, Redaction, ReplayOptions, RequestEdits, Resign, SecretLink,
     TapConfig, TapId, Upstream, export::ExportFormat, webhook,
 };
+pub use live::{LIVE_INTERVAL, LiveBatch, follow};
 pub use record::{PERSIST_BODY_BYTES, is_masked};
 use rusqlite::params;
 use serde::Serialize;
@@ -421,9 +423,12 @@ impl Inspector {
         self.inner.events.subscribe()
     }
 
-    /// Lens's own live events (every exchange change), once it runs.
-    pub fn lens_events(&self) -> Option<broadcast::Receiver<LensEvent>> {
-        lock(&self.inner.lens).as_ref().map(Lens::subscribe)
+    /// Every exchange change from now on (starting Lens if it isn't running).
+    ///
+    /// # Errors
+    /// Lens couldn't start.
+    pub fn live(&self) -> Result<broadcast::Receiver<LensEvent>, InspectError> {
+        Ok(self.lens()?.subscribe())
     }
 
     /// Lens, if it has started.
