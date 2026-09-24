@@ -58,7 +58,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             ))}
             {terminalShares.map((share) => (
               <m.div
-                key={share.owner}
+                key={`${share.owner}/${share.url}`}
                 layout
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}

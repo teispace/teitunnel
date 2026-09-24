@@ -54,6 +54,17 @@ pub(crate) struct Options {
     pub(crate) listen: SocketAddr,
     pub(crate) allow_remote: bool,
     pub(crate) secure_cookies: bool,
+    /// The MCP endpoint at `/mcp`, unless turned off.
+    pub(crate) mcp: Option<McpOptions>,
+}
+
+/// Options for the MCP endpoint.
+#[derive(Debug, Clone)]
+pub(crate) struct McpOptions {
+    /// Its mode (default: the settings file's, else ask).
+    pub(crate) mode: Option<teitunnel_mcp::Mode>,
+    /// Browser origins allowed to call it.
+    pub(crate) allowed_origins: Vec<String>,
 }
 
 struct Server {
@@ -558,6 +569,38 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         "Teitunnel dashboard on http://{}. Press Ctrl-C to stop.",
         listener.local_addr().map_err(|e| e.to_string())?
     ));
+    let stop_mcp = tokio_util::sync::CancellationToken::new();
+    let mut mcp_backend = None;
+    let mcp = match &options.mcp {
+        Some(mcp) => {
+            let settings = crate::mcp::settings(app.dir(), mcp.mode, false)?;
+            let backend =
+                crate::mcp::backend(&app, machine.clone(), machine.clone(), supervisor.clone());
+            mcp_backend = Some(Arc::clone(&backend));
+            let server = teitunnel_mcp::McpServer::builder(backend, settings.clone())
+                .via("mcp over HTTP")
+                .build();
+            let store = app.store().clone();
+            let verify: teitunnel_mcp::http::KeyVerifier = Arc::new(move |key: String| {
+                let store = store.clone();
+                Box::pin(async move { web_auth::verify_api_key(&store, &key).await.ok().flatten() })
+            });
+            crate::share::status(&format!(
+                "MCP endpoint for AI agents at /mcp ({} mode; authenticate with an API key).",
+                settings.mode
+            ));
+            Some(teitunnel_mcp::http::router(
+                server,
+                verify,
+                teitunnel_mcp::http::HttpOptions {
+                    allowed_origins: mcp.allowed_origins.clone(),
+                    any_host: options.allow_remote,
+                    cancel: stop_mcp.clone(),
+                },
+            ))
+        }
+        None => None,
+    };
     let server = Arc::new(Server {
         app,
         machine,
@@ -565,13 +608,25 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
         sessions: Mutex::default(),
         failures: Limiter::default(),
     });
+    let routes = match mcp {
+        Some(mcp) => router(server).merge(mcp),
+        None => router(server),
+    };
+    let stopping = stop_mcp.clone();
     axum::serve(
         listener,
-        router(server).into_make_service_with_connect_info::<SocketAddr>(),
+        routes.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(crate::share::interrupted())
+    .with_graceful_shutdown(async move {
+        crate::share::interrupted().await;
+        // End MCP sessions (their streams would keep the server open).
+        stopping.cancel();
+    })
     .await
     .map_err(|e| e.to_string())?;
+    if let Some(backend) = mcp_backend {
+        backend.stop_own_shares().await;
+    }
     supervisor.stop_all().await;
     Ok(ExitCode::SUCCESS)
 }

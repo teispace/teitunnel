@@ -2087,3 +2087,31 @@ async fn adopts_an_existing_tunnel_without_changing_cloudflare() {
         Err(EngineError::Adopt(_))
     ));
 }
+
+#[tokio::test]
+async fn records_who_made_a_change_on_their_behalf() {
+    let engine = engine();
+    let cloud = FakeCloud::new(zones());
+    let conns = FakeConnectors::default();
+    let agent = super::activity::Actor {
+        via: "mcp".into(),
+        client: "claude-code".into(),
+        version: Some("2.1.0".into()),
+    };
+    let outcome = super::activity::with_actor(
+        agent.clone(),
+        run(&engine, &cloud, &conns, &add("r1", "a.xyz.com", "3000")),
+    )
+    .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    run(&engine, &cloud, &conns, &remove("a.xyz.com")).await;
+
+    let log = engine.local().activity("acc", 10).await.unwrap();
+    let actors: Vec<_> = log
+        .iter()
+        .map(|e| e.record.as_ref().and_then(|r| r.actor.clone()))
+        .collect();
+    // Newest first: the removal was made by a person, the addition by the agent.
+    assert_eq!(actors, [None, Some(agent)]);
+    assert_eq!(super::activity::current_actor(), None, "scoped to the task");
+}

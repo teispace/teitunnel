@@ -91,7 +91,8 @@ pub(crate) async fn connect(token: Secret<String>) -> Result<Vec<Account>, Strin
 #[derive(Debug)]
 pub(crate) struct App {
     pub(crate) accounts: Accounts,
-    pub(crate) engine: Engine,
+    /// Shared with the MCP server when one runs in this process.
+    pub(crate) engine: Arc<Engine>,
     pub(crate) machine_name: String,
     /// The cloudflared the app uses (its managed copy, or one on the system).
     pub(crate) binary: BinaryManager,
@@ -136,13 +137,39 @@ impl App {
         }
         Ok(Self {
             accounts,
-            engine: Engine::new(Local::new(store.clone())),
+            engine: Arc::new(Engine::new(Local::new(store.clone()))),
             machine_name: teitunnel_core::machine::machine_name(),
             binary: binary(&dir),
             secrets,
             dir,
             store,
         })
+    }
+
+    /// Like [`App::open`], but on a machine where Teitunnel isn't set up yet it opens
+    /// with no accounts (in memory) instead of failing: `teitunnel mcp` still offers
+    /// Quick Shares, discovery and the rest that needs no account.
+    pub(crate) async fn open_or_empty() -> Result<Self, String> {
+        let dir = data_dir()?;
+        if env_token()?.is_some() || dir.join("teitunnel.db").exists() {
+            return Self::open().await;
+        }
+        let store = Store::open_in_memory().map_err(|e| e.to_string())?;
+        let secrets: Secrets = Arc::new(MemoryStore::default());
+        Ok(Self {
+            accounts: accounts(store.clone(), Arc::clone(&secrets)),
+            engine: Arc::new(Engine::new(Local::new(store.clone()))),
+            machine_name: teitunnel_core::machine::machine_name(),
+            binary: binary(&dir),
+            secrets,
+            dir,
+            store,
+        })
+    }
+
+    /// The app's data folder.
+    pub(crate) fn dir(&self) -> &std::path::Path {
+        &self.dir
     }
 
     /// This machine's connectors, run by this process (`teitunnel up`), with the

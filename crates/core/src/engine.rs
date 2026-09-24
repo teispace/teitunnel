@@ -34,7 +34,10 @@ pub use access::{
     AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, ObservedAccessApp,
     access_domain, app_definition,
 };
-pub use activity::{ActivityKind, ActivityRecord, Delta, DeltaArea, RecordedStep, deltas};
+pub use activity::{
+    ActivityKind, ActivityRecord, Actor, Delta, DeltaArea, RecordedStep, current_actor, deltas,
+    with_actor,
+};
 pub use cloud::{CloudApi, Connectors};
 pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
