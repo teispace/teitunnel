@@ -1,0 +1,65 @@
+---
+title: Exposure check
+description: "Before a share or route makes a local service public, Teitunnel looks at it for common leaks: .env files, the git folder, backups and database dumps, framework debug pages, open admin panels and database tools, Jupyter without a token, source maps."
+---
+
+Sharing a dev server shares everything it serves. Many serve more than the app: the
+project folder with its `.env` file, the git history, a database dump someone left there,
+or a framework's debug pages. Before a **Quick Share**, a **share on your domain** or a
+**new route** goes public, Teitunnel looks at the service for these leaks and tells you
+what it found. It never blocks: choose **Share Anyway** or **Cancel**.
+
+## What it looks for
+
+| Finding | How it's recognised |
+|---|---|
+| `.env` file | `/.env` answers with `NAME=value` lines. Only the variable names are shown, never the values. |
+| The git folder | `/.git/config` or `/.git/HEAD` can be downloaded (history, remotes, sometimes credentials). |
+| `.DS_Store` | macOS's Finder index is served, listing the folder's files. |
+| Directory listing | `/` lists files (nginx and Apache autoindex, Python's `http.server`, `http-server`, IIS). |
+| Backups and dumps | `/backup.zip`, `/dump.sql` or `/db.sqlite` is a zip archive, a MySQL/MariaDB/PostgreSQL dump or a SQLite database. |
+| Django debug | `DEBUG = True` error pages (URL patterns, settings). |
+| Laravel debug | Ignition's health check (`/_ignition/health-check`) or the Whoops error page. |
+| Rails development | The routing error page with `Rails.root`, `/rails/info/properties`, web-console or better_errors. |
+| Symfony profiler | `/_profiler`. |
+| Spring Boot actuator | `/actuator/env` shows the configuration and environment. |
+| phpinfo | `/phpinfo.php`. |
+| Stack traces | An error page with a Node/Express, Python or Java stack trace. |
+| Open admin panel | Django's admin answers without a login. |
+| Database tools | Adminer or phpMyAdmin is reachable. |
+| A database on the port | The port is MongoDB, Redis, PostgreSQL, MySQL, Elasticsearch or CouchDB, not a website. |
+| Jupyter without a token | Jupyter's API answers without authentication (anyone could run code). |
+| Source maps | A script's `.map` file includes the original source code (fine for most demos). |
+
+Each finding says how serious it is (high, medium or low) and what to do about it. Every
+check looks at the content of the answer, never only its status, so a single-page app that
+answers every path with its `index.html` doesn't count as a leak.
+
+## How it works
+
+Teitunnel talks to the service directly, the way it's reached on this computer, not
+through Cloudflare. It makes about twenty `GET` requests at once (plus one plain request on
+the port to recognise a database), reads at most 64 KB of each answer, never follows a
+redirect, and gives up after two seconds in all, so starting a share is barely slower.
+Nothing leaves this computer.
+
+## In the app
+
+The check runs when you choose **Share** on the Quick Share page. If it finds something,
+the findings appear under the form with **Share Anyway** and **Cancel**. When you add a
+route, the findings are shown next to the plan, and **Apply** is the "anyway". A project's
+plan shows them for each new route too.
+
+Turn it off in **Settings ▸ General ▸ Before Sharing**.
+
+## From a terminal
+
+`teitunnel share`, `teitunnel route add`, `teitunnel project apply` and `teitunnel up`
+print the findings on standard error and carry on. With `--strict`, a finding is an error:
+nothing is shared and the command exits with status 1, which is useful in scripts and CI.
+
+```sh
+teitunnel share 3000 --strict
+```
+
+The setting in the app applies to the command line too.

@@ -293,6 +293,12 @@ pub(crate) async fn apply(
     if plan.requires_confirmation && !options.replace {
         return Err("This needs a confirmation (see above). Pass --replace to allow it.".into());
     }
+    // New routes make a service public: look at it for leaks first.
+    for route in &plan.routes {
+        if let Change::AddRoute { route: input } = &route.change {
+            crate::exposure::check(&input.origin, Some(app.store()), options.strict).await?;
+        }
+    }
     if !options.yes && !crate::confirm("Apply?")? {
         out!("Nothing changed.")?;
         return Ok(None);

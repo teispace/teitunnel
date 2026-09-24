@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { ExposureNotice } from "@/features/exposure";
 import { PlanSteps } from "@/features/routes";
 import { t, translate } from "@/lib/i18n";
 import type { ProjectPlan, SnapshotSourceDecl } from "@/lib/ipc/bindings";
@@ -93,6 +94,9 @@ export function ApplySheet({ plan, onClose }: ApplySheetProps) {
                       {route.path ? ` ${route.path}` : ""}
                     </p>
                     <PlanSteps steps={route.plan.steps} warnings={route.plan.warnings} />
+                    {route.change.type === "addRoute" ? (
+                      <ExposureNotice origin={route.change.route.origin} />
+                    ) : null}
                   </div>
                 ))}
               </Section>
