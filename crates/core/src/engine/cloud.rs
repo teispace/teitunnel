@@ -252,6 +252,94 @@ pub trait CloudApi: Send + Sync {
         zone: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's workers.dev subdomain, if it has chosen one.
+    fn workers_subdomain(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// A Worker's deployments, newest first; `None` when it doesn't exist.
+    fn worker_deployments(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<Vec<cf_api::WorkerDeployment>>>> + Send;
+    /// Custom Domains, by Worker and/or hostname.
+    fn worker_domains(
+        &self,
+        account: &str,
+        service: Option<&str>,
+        hostname: Option<&str>,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::WorkerDomain>>> + Send;
+    /// Whether a Worker answers on workers.dev.
+    fn worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<bool>> + Send;
+    /// Starts an assets upload with the full manifest.
+    fn create_assets_upload_session(
+        &self,
+        account: &str,
+        script: &str,
+        manifest: &std::collections::BTreeMap<String, cf_api::AssetEntry>,
+    ) -> impl Future<Output = cf_api::Result<cf_api::UploadSession>> + Send;
+    /// Uploads one bucket; the completion token after the last.
+    fn upload_assets(
+        &self,
+        account: &str,
+        jwt: &str,
+        files: &[cf_api::AssetFile],
+    ) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// Creates or replaces a Worker, deployed at once.
+    fn put_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Uploads a version without deploying it.
+    fn upload_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerVersion>> + Send;
+    /// Sends all of a Worker's traffic to a version.
+    fn deploy_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        version_id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Turns a Worker's workers.dev address on or off.
+    fn set_worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+        enabled: bool,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Deletes a Worker.
+    fn delete_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Serves a hostname with a Worker (Cloudflare adds the DNS record).
+    fn attach_worker_domain(
+        &self,
+        account: &str,
+        hostname: &str,
+        zone_id: &str,
+        service: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerDomain>> + Send;
+    /// Detaches a Custom Domain.
+    fn detach_worker_domain(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
 
 /// This Mac's side of a tunnel: the connector process and its token.
@@ -524,5 +612,106 @@ impl CloudApi for Client {
 
     async fn delete_load_balancer(&self, zone: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_load_balancer(self, zone, id).await
+    }
+
+    async fn workers_subdomain(&self, account: &str) -> cf_api::Result<Option<String>> {
+        Client::workers_subdomain(self, account).await
+    }
+
+    async fn worker_deployments(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> cf_api::Result<Option<Vec<cf_api::WorkerDeployment>>> {
+        Client::worker_deployments(self, account, script).await
+    }
+
+    async fn worker_domains(
+        &self,
+        account: &str,
+        service: Option<&str>,
+        hostname: Option<&str>,
+    ) -> cf_api::Result<Vec<cf_api::WorkerDomain>> {
+        Client::worker_domains(self, account, service, hostname).await
+    }
+
+    async fn worker_on_workers_dev(&self, account: &str, script: &str) -> cf_api::Result<bool> {
+        Client::worker_on_workers_dev(self, account, script).await
+    }
+
+    async fn create_assets_upload_session(
+        &self,
+        account: &str,
+        script: &str,
+        manifest: &std::collections::BTreeMap<String, cf_api::AssetEntry>,
+    ) -> cf_api::Result<cf_api::UploadSession> {
+        Client::create_assets_upload_session(self, account, script, manifest).await
+    }
+
+    async fn upload_assets(
+        &self,
+        account: &str,
+        jwt: &str,
+        files: &[cf_api::AssetFile],
+    ) -> cf_api::Result<Option<String>> {
+        Client::upload_assets(self, account, jwt, files).await
+    }
+
+    async fn put_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<()> {
+        Client::put_worker_script(self, account, script, metadata, modules).await
+    }
+
+    async fn upload_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<cf_api::WorkerVersion> {
+        Client::upload_worker_version(self, account, script, metadata, modules).await
+    }
+
+    async fn deploy_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        version_id: &str,
+    ) -> cf_api::Result<()> {
+        Client::deploy_worker_version(self, account, script, version_id, "Teitunnel Snapshot")
+            .await
+            .map(|_| ())
+    }
+
+    async fn set_worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+        enabled: bool,
+    ) -> cf_api::Result<()> {
+        Client::set_worker_on_workers_dev(self, account, script, enabled).await
+    }
+
+    async fn delete_worker_script(&self, account: &str, script: &str) -> cf_api::Result<()> {
+        Client::delete_worker_script(self, account, script).await
+    }
+
+    async fn attach_worker_domain(
+        &self,
+        account: &str,
+        hostname: &str,
+        zone_id: &str,
+        service: &str,
+    ) -> cf_api::Result<cf_api::WorkerDomain> {
+        Client::attach_worker_domain(self, account, hostname, zone_id, service).await
+    }
+
+    async fn detach_worker_domain(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::detach_worker_domain(self, account, id).await
     }
 }

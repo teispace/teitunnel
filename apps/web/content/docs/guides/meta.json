@@ -5,6 +5,7 @@
     "import",
     "export",
     "require-login",
+    "snapshots",
     "private-networks",
     "several-tunnels",
     "servers",

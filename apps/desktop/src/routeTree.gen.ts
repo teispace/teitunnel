@@ -18,6 +18,7 @@ import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
 import { Route as MainRoutesRouteImport } from "./routes/_main/routes"
+import { Route as MainSnapshotsRouteImport } from "./routes/_main/snapshots"
 import { Route as MainTunnelsRouteImport } from "./routes/_main/tunnels"
 import { Route as MainDevGalleryRouteImport } from "./routes/_main/dev.gallery"
 import { Route as MainDevStressRouteImport } from "./routes/_main/dev.stress"
@@ -66,6 +67,11 @@ const MainRoutesRoute = MainRoutesRouteImport.update({
   path: "/routes",
   getParentRoute: () => MainRoute,
 } as any)
+const MainSnapshotsRoute = MainSnapshotsRouteImport.update({
+  id: "/snapshots",
+  path: "/snapshots",
+  getParentRoute: () => MainRoute,
+} as any)
 const MainTunnelsRoute = MainTunnelsRouteImport.update({
   id: "/tunnels",
   path: "/tunnels",
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   "/domains": typeof MainDomainsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
+  "/snapshots": typeof MainSnapshotsRoute
   "/tunnels": typeof MainTunnelsRoute
   "/dev/gallery": typeof MainDevGalleryRoute
   "/dev/stress": typeof MainDevStressRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   "/domains": typeof MainDomainsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
+  "/snapshots": typeof MainSnapshotsRoute
   "/tunnels": typeof MainTunnelsRoute
   "/": typeof MainIndexRoute
   "/dev/gallery": typeof MainDevGalleryRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   "/_main/domains": typeof MainDomainsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
   "/_main/routes": typeof MainRoutesRoute
+  "/_main/snapshots": typeof MainSnapshotsRoute
   "/_main/tunnels": typeof MainTunnelsRoute
   "/_main/": typeof MainIndexRoute
   "/_main/dev/gallery": typeof MainDevGalleryRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | "/domains"
     | "/quick-share"
     | "/routes"
+    | "/snapshots"
     | "/tunnels"
     | "/dev/gallery"
     | "/dev/stress"
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | "/domains"
     | "/quick-share"
     | "/routes"
+    | "/snapshots"
     | "/tunnels"
     | "/"
     | "/dev/gallery"
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | "/_main/domains"
     | "/_main/quick-share"
     | "/_main/routes"
+    | "/_main/snapshots"
     | "/_main/tunnels"
     | "/_main/"
     | "/_main/dev/gallery"
@@ -236,6 +248,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainRoutesRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/snapshots": {
+      id: "/_main/snapshots"
+      path: "/snapshots"
+      fullPath: "/snapshots"
+      preLoaderRoute: typeof MainSnapshotsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/tunnels": {
       id: "/_main/tunnels"
       path: "/tunnels"
@@ -267,6 +286,7 @@ interface MainRouteChildren {
   MainDomainsRoute: typeof MainDomainsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
   MainRoutesRoute: typeof MainRoutesRoute
+  MainSnapshotsRoute: typeof MainSnapshotsRoute
   MainTunnelsRoute: typeof MainTunnelsRoute
   MainIndexRoute: typeof MainIndexRoute
   MainDevGalleryRoute: typeof MainDevGalleryRoute
@@ -280,6 +300,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainDomainsRoute: MainDomainsRoute,
   MainQuickShareRoute: MainQuickShareRoute,
   MainRoutesRoute: MainRoutesRoute,
+  MainSnapshotsRoute: MainSnapshotsRoute,
   MainTunnelsRoute: MainTunnelsRoute,
   MainIndexRoute: MainIndexRoute,
   MainDevGalleryRoute: MainDevGalleryRoute,

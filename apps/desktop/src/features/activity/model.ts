@@ -19,6 +19,10 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   balanceRoute: "activity.kind.balanceRoute",
   unbalanceRoute: "activity.kind.unbalanceRoute",
   alert: "activity.kind.alert",
+  publishSnapshot: "activity.kind.publishSnapshot",
+  updateSnapshot: "activity.kind.updateSnapshot",
+  rollbackSnapshot: "activity.kind.rollbackSnapshot",
+  deleteSnapshot: "activity.kind.deleteSnapshot",
 };
 
 /** The Show menu (built on use: labels need the language). */

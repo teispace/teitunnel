@@ -46,4 +46,8 @@ pub struct AppState {
     pub analytics: teitunnel_core::analytics::Analytics,
     /// Uptime checks and alerts.
     pub monitor: teitunnel_core::uptime::Monitor,
+    /// Snapshot files prepared for review.
+    pub snapshots: teitunnel_core::snapshot::Preparations,
+    /// Where crawled sites are captured before publishing.
+    pub snapshot_dir: std::path::PathBuf,
 }

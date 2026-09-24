@@ -453,6 +453,76 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
             Intent::RemoveTunnel,
         ),
     ]
+    .into_iter()
+    .chain(snapshot_scenarios().await)
+    .collect()
+}
+
+/// Snapshots: publishing over someone's record with a login, a new version with a
+/// password, and deleting (with a domain and login, and on workers.dev).
+async fn snapshot_scenarios() -> Vec<(&'static str, CloudState, Intent)> {
+    use super::{
+        sites::Password,
+        snapshot_tests::{account, content, me, publish, site, update},
+    };
+    let protected_site = || {
+        let mut spec = site("demo", Some("preview.xyz.com"));
+        spec.access = Some(me());
+        spec
+    };
+    let mut with_foreign = account();
+    with_foreign
+        .records
+        .insert("z-xyz".into(), vec![foreign_a("a1", "preview.xyz.com")]);
+
+    let (engine, conns) = (self::engine(), FakeConnectors::default());
+    let cloud = FakeCloud::new(account());
+    let files = content(&[("index.html", "v1"), ("app.js", "same")]);
+    run(&engine, &cloud, &conns, &publish(protected_site(), files)).await;
+    let published = cloud.snapshot();
+
+    let cloud = FakeCloud::new(account());
+    let files = content(&[("index.html", "v1")]);
+    run(&engine, &cloud, &conns, &publish(site("dev", None), files)).await;
+    let on_workers_dev = cloud.snapshot();
+
+    vec![
+        (
+            "first snapshot over a foreign record, with a login",
+            with_foreign,
+            publish(protected_site(), content(&[("index.html", "hi")])),
+        ),
+        (
+            "first snapshot on workers.dev",
+            account(),
+            publish(site("dev", None), content(&[("index.html", "hi")])),
+        ),
+        (
+            "new snapshot version with a password",
+            published.clone(),
+            update(
+                protected_site(),
+                content(&[("index.html", "v2"), ("app.js", "same")]),
+                Password::Set {
+                    hash: crate::Secret::new("pbkdf2-sha256$1$c2FsdA$aGFzaA".into()),
+                },
+            ),
+        ),
+        (
+            "delete snapshot with a domain and a login",
+            published,
+            Intent::DeleteSnapshot {
+                site: protected_site(),
+            },
+        ),
+        (
+            "delete snapshot on workers.dev",
+            on_workers_dev,
+            Intent::DeleteSnapshot {
+                site: site("dev", None),
+            },
+        ),
+    ]
 }
 
 /// Copies the fake's machine tunnel into a fresh engine's local store.

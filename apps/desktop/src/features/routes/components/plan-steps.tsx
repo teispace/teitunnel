@@ -1,4 +1,5 @@
 import {
+  Camera,
   Check,
   CircleCheck,
   Copy,
@@ -34,6 +35,8 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   networkRoute: Network,
   loadBalancer: Split,
   verify: CircleCheck,
+  snapshot: Camera,
+  snapshotAddress: Globe,
 };
 
 function StateIcon({ state }: { state: StepState | undefined }) {
@@ -41,6 +44,7 @@ function StateIcon({ state }: { state: StepState | undefined }) {
   switch (state?.state) {
     case "running":
     case "undoing":
+    case "transferring":
       return <Spinner className={common} />;
     case "done":
       return <Check aria-hidden className={cn(common, "text-healthy")} strokeWidth={2.5} />;
@@ -69,6 +73,7 @@ const stateLabels: Record<StepState["state"], MessageKey> = {
   undoing: "plan.state.undoing",
   undone: "plan.state.undone",
   undoFailed: "plan.state.undoFailed",
+  transferring: "plan.state.transferring",
 };
 
 function warningText(warning: Warning): string {

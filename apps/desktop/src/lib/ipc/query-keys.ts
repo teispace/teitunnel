@@ -59,6 +59,11 @@ export const queryKeys = {
   alerts: {
     rules: () => ["alerts", "rules"] as const,
   },
+  snapshots: {
+    all: () => ["snapshots"] as const,
+    list: () => ["snapshots", "list"] as const,
+    versions: (snapshotId: string) => ["snapshots", "versions", snapshotId] as const,
+  },
   updates: {
     status: () => ["updates", "status"] as const,
   },
@@ -87,6 +92,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.routes.all(), queryKeys.doctor.all(), queryKeys.uptime.all()];
     case "updates":
       return [queryKeys.updates.status()];
+    case "snapshots":
+      return [queryKeys.snapshots.all()];
   }
 }
 

@@ -92,6 +92,11 @@ impl Local {
         Self { store }
     }
 
+    /// The database, for the tables other modules keep next to the engine's.
+    pub(crate) fn store(&self) -> &Store {
+        &self.store
+    }
+
     /// This Mac's default tunnel in `account` (the machine tunnel), if one was created.
     ///
     /// # Errors

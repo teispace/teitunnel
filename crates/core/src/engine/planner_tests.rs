@@ -94,6 +94,7 @@ fn fresh() -> Snapshot {
         tunnel_names: Vec::new(),
         elsewhere: Vec::new(),
         balance: None,
+        site: None,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -545,6 +546,7 @@ fn scenarios() {
         tunnel_names: vec!["Krishna's MacBook Pro".into()],
         elsewhere: Vec::new(),
         balance: None,
+        site: None,
         ..fresh()
     };
 
@@ -747,6 +749,15 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::DeleteLbMonitor { .. } => "monitor-",
             Step::DeleteNetworkRoute { .. } => "net-",
             Step::Verify { .. } => "verify",
+            Step::UploadSnapshotFiles { .. } => "upload",
+            Step::CreateSnapshotWorker { .. } => "worker+",
+            Step::PublishSnapshotVersion { .. } => "version+",
+            Step::RollBackSnapshot { .. } => "version<",
+            Step::EnableWorkersDev { .. } => "dev+",
+            Step::DisableWorkersDev { .. } => "dev-",
+            Step::AttachSnapshotDomain { .. } => "domain+",
+            Step::DetachSnapshotDomain { .. } => "domain-",
+            Step::DeleteSnapshotWorker { .. } => "worker-",
         })
         .collect()
 }

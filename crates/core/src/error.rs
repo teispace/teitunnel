@@ -28,6 +28,18 @@ pub enum Error {
     /// Analytics couldn't be read.
     #[error(transparent)]
     Analytics(#[from] crate::analytics::AnalyticsError),
+    /// A Snapshot couldn't be prepared or changed.
+    #[error(transparent)]
+    Snapshot(crate::snapshot::SnapshotError),
+}
+
+impl From<crate::snapshot::SnapshotError> for Error {
+    fn from(err: crate::snapshot::SnapshotError) -> Self {
+        match err {
+            crate::snapshot::SnapshotError::Engine(err) => Self::Engine(err),
+            other => Self::Snapshot(other),
+        }
+    }
 }
 
 /// A coarse classification of [`Error`] for user-facing handling.
@@ -78,12 +90,14 @@ impl Error {
                     | P::RouteExists(_)
                     | P::AccessDomain(_)
                     | P::InvalidTunnelName
-                    | P::TunnelNameTaken(_),
+                    | P::TunnelNameTaken(_)
+                    | P::SnapshotLoginNeedsDomain,
                 )
                 | E::Input(_) => ErrorKind::InvalidInput,
-                E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
+                E::Plan(P::ZeroTrustNotSetUp | P::NoWorkersSubdomain) => ErrorKind::Unavailable,
                 E::Plan(
-                    P::NoSuchRoute(_)
+                    P::NoSuchSnapshot(_)
+                    | P::NoSuchRoute(_)
                     | P::NoTunnel
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
@@ -99,13 +113,25 @@ impl Error {
                     P::AccessAppExists(_)
                     | P::NetworkRouted { .. }
                     | P::RoutedElsewhere { .. }
-                    | P::BalancerExists(_),
+                    | P::BalancerExists(_)
+                    | P::SnapshotExists(_)
+                    | P::HostnameRouted(_)
+                    | P::HostnameServed { .. },
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
                 E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
             },
+            Self::Snapshot(e) => {
+                use crate::snapshot::SnapshotError as N;
+                match e {
+                    N::NotFound | N::NoSuchVersion(_) | N::NotPrepared => ErrorKind::NotFound,
+                    N::Unchanged | N::NameTaken(_) => ErrorKind::Conflict,
+                    N::Io { .. } | N::Random | N::Crawl(_) | N::Engine(_) => ErrorKind::Internal,
+                    _ => ErrorKind::InvalidInput,
+                }
+            }
             Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
             Self::Analytics(err) => {
                 use crate::analytics::AnalyticsError as An;
@@ -132,7 +158,14 @@ impl Error {
             Self::QuickShare(crate::quick_share::QuickShareError::InvalidHostHeader) => {
                 Some("hostHeader")
             }
-            Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_) | P::RoutedElsewhere { .. })) => {
+            Self::Engine(E::Plan(
+                P::NoZone(_)
+                | P::RouteExists(_)
+                | P::RoutedElsewhere { .. }
+                | P::HostnameRouted(_)
+                | P::HostnameServed { .. },
+            ))
+            | Self::Snapshot(crate::snapshot::SnapshotError::InvalidHostname(_)) => {
                 Some("hostname")
             }
             Self::Engine(E::Plan(P::InvalidTunnelName | P::TunnelNameTaken(_))) => {
@@ -141,6 +174,11 @@ impl Error {
             Self::Engine(E::Plan(P::AccessDomain(_))) => Some("path"),
             Self::Engine(E::Plan(P::NetworkRouted { .. })) => Some("network"),
             Self::Accounts(_) => Some("credential"),
+            Self::Snapshot(
+                crate::snapshot::SnapshotError::InvalidName
+                | crate::snapshot::SnapshotError::NameTaken(_),
+            ) => Some("name"),
+            Self::Snapshot(crate::snapshot::SnapshotError::PasswordTooShort(_)) => Some("password"),
             _ => None,
         }
     }
@@ -157,6 +195,7 @@ impl crate::text::UserText for Error {
             Self::Store(err) => err.text(),
             Self::Engine(err) => err.text(),
             Self::Analytics(err) => err.text(),
+            Self::Snapshot(err) => err.text(),
         }
     }
 }

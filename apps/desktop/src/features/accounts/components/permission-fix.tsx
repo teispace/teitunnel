@@ -21,7 +21,11 @@ export type PermissionNeed =
   | { kind: "loadBalancing" }
   | { kind: "access" }
   /** Traffic analytics (Cloudflare's GraphQL Analytics; optional feature). */
-  | { kind: "analytics" };
+  | { kind: "analytics" }
+  /** Snapshots: Workers on the account. */
+  | { kind: "workers" }
+  /** Snapshots: a Custom Domain on a zone. */
+  | { kind: "workersRoutes"; zone: string };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -45,6 +49,10 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.accessEdit === "no";
     case "analytics":
       return caps.analytics === "no";
+    case "workers":
+      return caps.workersEdit === "no";
+    case "workersRoutes":
+      return caps.zones.some((z) => z.zoneName === need.zone && z.workersRoutes === "no");
   }
 }
 
@@ -80,6 +88,15 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
         {
           name: t("permissionFix.accountAnalytics"),
           why: t("permissionFix.accountAnalyticsWhy"),
+        },
+      ];
+    case "workers":
+      return [{ name: t("permissionFix.workers"), why: t("permissionFix.workersWhy") }];
+    case "workersRoutes":
+      return [
+        {
+          name: t("permissionFix.workersRoutes"),
+          why: t("permissionFix.workersRoutesWhy", { zone: need.zone }),
         },
       ];
   }

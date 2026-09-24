@@ -35,7 +35,8 @@ beforeEach(() => {
           tunnelsRead: "yes",
           tunnelsEdit,
           accessEdit,
-          zones: [{ zoneId: "z1", zoneName: "xyz.com", dnsEdit }],
+          workersEdit: "yes",
+          zones: [{ zoneId: "z1", zoneName: "xyz.com", dnsEdit, workersRoutes: "yes" }],
         };
       case "accounts_open_token_page":
         opened.push(String(payload["page"]));

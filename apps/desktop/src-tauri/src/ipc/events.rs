@@ -18,6 +18,8 @@ pub enum EntityKind {
     Routes,
     /// App updates.
     Updates,
+    /// Snapshots (id: the account).
+    Snapshots,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.
@@ -52,14 +54,18 @@ pub enum MenuCommand {
     GoRoutes,
     /// View ▸ Quick Share (⌘3).
     GoQuickShare,
-    /// View ▸ Domains (⌘4).
+    /// View ▸ Snapshots (⌘4).
+    GoSnapshots,
+    /// View ▸ Domains (⌘5).
     GoDomains,
-    /// View ▸ Tunnels (⌘5).
+    /// View ▸ Tunnels (⌘6).
     GoTunnels,
-    /// View ▸ Activity (⌘6).
+    /// View ▸ Activity (⌘7).
     GoActivity,
-    /// View ▸ Doctor (⌘7).
+    /// View ▸ Doctor (⌘8).
     GoDoctor,
+    /// View ▸ Analytics (⌘9).
+    GoAnalytics,
     /// Quit was chosen while routes run through the app: ask what to do.
     ConfirmQuit,
     /// Help ▸ Export Diagnostics…

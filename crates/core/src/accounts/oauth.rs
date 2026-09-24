@@ -34,6 +34,9 @@ const SCOPES: &[&str] = &[
     "zone:read",
     "dns:edit",
     "cloudflare_tunnel:edit",
+    // Snapshots; registered as optional scopes, so declining them only disables Snapshots.
+    "workers_scripts:edit",
+    "workers_routes:edit",
     "offline_access",
 ];
 

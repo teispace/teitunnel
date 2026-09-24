@@ -95,6 +95,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     watch_doctor(app.clone());
     watch_domain_shares(app.clone());
     watch_uptime(app.clone());
+    watch_snapshot_expiry(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
     let analytics = teitunnel_core::analytics::Analytics::default();
     let monitor = teitunnel_core::uptime::Monitor::new(
@@ -107,6 +108,8 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),
+        snapshots: teitunnel_core::snapshot::Preparations::default(),
+        snapshot_dir: data_dir.join("snapshots"),
         accounts,
         engine: Engine::new(local),
         machine,
@@ -542,6 +545,43 @@ fn watch_domain_shares<R: Runtime>(app: AppHandle<R>) {
                 .emit(&app);
                 refresh_tray_routes(&app);
             }
+        }
+    });
+}
+
+/// Deletes Snapshots whose expiry passed: at launch, then hourly.
+fn watch_snapshot_expiry<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60 * 60));
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let now = teitunnel_core::domain_shares::now_ms();
+            let due = state
+                .engine
+                .local()
+                .sites(None)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .any(|s| s.expires_at.is_some_and(|at| at <= now));
+            if !due {
+                continue;
+            }
+            teitunnel_core::snapshot::sweep_expired(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.machine_name,
+            )
+            .await;
+            let _ = crate::ipc::EntityChanged {
+                kind: crate::ipc::EntityKind::Snapshots,
+                id: None,
+            }
+            .emit(&app);
         }
     });
 }

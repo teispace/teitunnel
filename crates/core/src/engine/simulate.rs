@@ -218,7 +218,52 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     state.monitor = None;
                 }
             }
-            Step::StopConnector { .. } | Step::Verify { .. } => {}
+            Step::StopConnector { .. } | Step::Verify { .. } | Step::UploadSnapshotFiles { .. } => {
+            }
+            Step::CreateSnapshotWorker { .. } | Step::PublishSnapshotVersion { .. } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.exists = true;
+                    site.active_version = Some("new-version".into());
+                }
+            }
+            Step::RollBackSnapshot { version_id, .. } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.active_version = Some(version_id.clone());
+                }
+            }
+            Step::EnableWorkersDev { .. } | Step::DisableWorkersDev { .. } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.workers_dev = matches!(step, Step::EnableWorkersDev { .. });
+                }
+            }
+            Step::AttachSnapshotDomain {
+                zone_id,
+                hostname,
+                script,
+            } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.domains.push(cf_api::WorkerDomain {
+                        id: format!("domain-{hostname}"),
+                        hostname: hostname.clone(),
+                        service: script.clone(),
+                        zone_id: zone_id.clone(),
+                        zone_name: String::new(),
+                    });
+                }
+            }
+            Step::DetachSnapshotDomain { domain } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.domains.retain(|d| d.id != domain.id);
+                }
+            }
+            Step::DeleteSnapshotWorker { .. } => {
+                if let Some(site) = next.site.as_mut() {
+                    site.exists = false;
+                    site.active_version = None;
+                    site.domains.clear();
+                    site.workers_dev = false;
+                }
+            }
         }
     }
     next

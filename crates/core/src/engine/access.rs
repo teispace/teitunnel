@@ -298,7 +298,40 @@ impl AccessNeed {
                 domains: vec![domain.clone()],
                 ..Self::default()
             },
-            Intent::ImportRoutes { .. }
+            Intent::PublishSnapshot { site, .. } => {
+                let domains: Vec<String> = site
+                    .access
+                    .as_ref()
+                    .and(site.address.hostname())
+                    .map(ToString::to_string)
+                    .into_iter()
+                    .collect();
+                Self {
+                    setup: !domains.is_empty(),
+                    domains,
+                    owned: false,
+                }
+            }
+            Intent::UpdateSnapshot { site, .. } => {
+                let domains: Vec<String> = site
+                    .access
+                    .as_ref()
+                    .and(site.address.hostname())
+                    .map(ToString::to_string)
+                    .into_iter()
+                    .collect();
+                Self {
+                    setup: !domains.is_empty(),
+                    domains,
+                    owned: site.address.hostname().is_some(),
+                }
+            }
+            Intent::DeleteSnapshot { site } => Self {
+                owned: site.address.hostname().is_some(),
+                ..Self::default()
+            },
+            Intent::RollbackSnapshot { .. }
+            | Intent::ImportRoutes { .. }
             | Intent::DeleteRecord { .. }
             | Intent::RestoreConfig { .. }
             | Intent::AddNetwork { .. }

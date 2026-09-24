@@ -45,6 +45,8 @@ const ACCOUNT_TABLES: &[&str] = &[
     "domain_shares",
     "activity",
     "incidents",
+    // Their versions go with them (foreign key).
+    "snapshots",
 ];
 
 /// How an account was connected.

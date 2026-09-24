@@ -1,5 +1,6 @@
 import {
   Activity,
+  Camera,
   ChartNoAxesColumn,
   Globe,
   LayoutGrid,
@@ -16,6 +17,7 @@ export interface NavItem {
     | "/"
     | "/routes"
     | "/quick-share"
+    | "/snapshots"
     | "/domains"
     | "/tunnels"
     | "/activity"
@@ -30,7 +32,7 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘8 follow this order. */
+/** Sidebar information architecture. ⌘1–⌘9 follow this order. */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -38,6 +40,7 @@ export const navigation: readonly NavSection[] = [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/routes", label: "nav.routes", icon: Waypoints },
       { to: "/quick-share", label: "nav.quickShare", icon: Share },
+      { to: "/snapshots", label: "nav.snapshots", icon: Camera },
     ],
   },
   {

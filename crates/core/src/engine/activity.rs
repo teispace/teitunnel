@@ -49,6 +49,14 @@ pub enum ActivityKind {
     /// An alert: a route went down or came back, errors, slowness, a connector (not a
     /// change; recorded by the uptime monitor).
     Alert,
+    /// A Snapshot was published.
+    PublishSnapshot,
+    /// A new version of a Snapshot was published.
+    UpdateSnapshot,
+    /// A Snapshot was rolled back to an earlier version.
+    RollbackSnapshot,
+    /// A Snapshot was deleted.
+    DeleteSnapshot,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -67,6 +75,10 @@ impl From<&Intent> for ActivityKind {
             Intent::CreateTunnel { .. } => Self::CreateTunnel,
             Intent::BalanceRoute { .. } => Self::BalanceRoute,
             Intent::UnbalanceRoute { .. } => Self::UnbalanceRoute,
+            Intent::PublishSnapshot { .. } => Self::PublishSnapshot,
+            Intent::UpdateSnapshot { .. } => Self::UpdateSnapshot,
+            Intent::RollbackSnapshot { .. } => Self::RollbackSnapshot,
+            Intent::DeleteSnapshot { .. } => Self::DeleteSnapshot,
         }
     }
 }
@@ -86,6 +98,8 @@ pub enum DeltaArea {
     Access,
     /// A route's load balancing.
     LoadBalancing,
+    /// A Snapshot's address.
+    Snapshot,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -363,7 +377,42 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 before: Some(delta::endpoints(pool.origins.len() as u64)),
                 after: None,
             }),
-            Step::AddLoginMethod
+            Step::AttachSnapshotDomain {
+                hostname, script, ..
+            } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(script)),
+            }),
+            Step::DetachSnapshotDomain { domain } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: domain.hostname.clone(),
+                path: None,
+                before: Some(msg::raw(&domain.service)),
+                after: None,
+            }),
+            Step::EnableWorkersDev { address, script } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: address.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(script)),
+            }),
+            Step::DisableWorkersDev { address, script } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: address.clone(),
+                path: None,
+                before: Some(msg::raw(script)),
+                after: None,
+            }),
+            Step::UploadSnapshotFiles { .. }
+            | Step::CreateSnapshotWorker { .. }
+            | Step::PublishSnapshotVersion { .. }
+            | Step::RollBackSnapshot { .. }
+            | Step::DeleteSnapshotWorker { .. }
+            | Step::AddLoginMethod
             | Step::CreateLbMonitor { .. }
             | Step::CreateLoadBalancer { .. }
             | Step::DeleteLoadBalancer { .. }

@@ -10,6 +10,8 @@
 /// `analytics` (Zone ▸ Analytics ▸ Read) is what the zone-scoped GraphQL traffic
 /// datasets need; `account_analytics` (Account Analytics ▸ Read) covers the
 /// account-scoped ones (research/cloudflare-analytics.md).
+/// `workers_scripts` (account) and `workers_routes` (zone) publish Snapshots and give
+/// them a hostname (docs/research/cloudflare-snapshots.md).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -19,6 +21,8 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("access_acct", "edit"),
     ("analytics", "read"),
     ("account_analytics", "read"),
+    ("workers_scripts", "edit"),
+    ("workers_routes", "edit"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions
@@ -69,6 +73,9 @@ mod tests {
         assert!(
             url.contains("%7B%22key%22%3A%22account_analytics%22%2C%22type%22%3A%22read%22%7D")
         );
+        // Snapshots: Workers Scripts (account) and Workers Routes (zones).
+        assert!(url.contains("%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D"));
+        assert!(url.contains("%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D"));
         // Same encoding as Cloudflare's own example for `[{"key":"dns","type":"edit"}]`.
         assert_eq!(
             percent_encode(r#"[{"key":"dns","type":"edit"}]"#),

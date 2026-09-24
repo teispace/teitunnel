@@ -1,5 +1,6 @@
 import {
   Activity,
+  Camera,
   Copy,
   Globe,
   LockKeyhole,
@@ -301,6 +302,7 @@ const areas: Record<Delta["area"], { icon: LucideIcon; label: MessageKey }> = {
   network: { icon: Network, label: "activity.area.network" },
   access: { icon: LockKeyhole, label: "activity.area.access" },
   loadBalancing: { icon: Split, label: "activity.area.loadBalancing" },
+  snapshot: { icon: Camera, label: "activity.area.snapshot" },
 };
 
 /** Before/after, one block per route, record or login, like a diff. */

@@ -18,6 +18,7 @@ mod doctor;
 mod probe;
 mod serve;
 mod share;
+mod snapshot;
 mod up;
 
 use std::{
@@ -206,6 +207,10 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Publish static copies of a site to your Cloudflare account (online while this
+    /// computer sleeps), and list, update, roll back or delete them.
+    #[command(subcommand)]
+    Snapshot(snapshot::SnapshotCommand),
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
         /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
@@ -581,6 +586,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             .await
         }
         Command::Uptime { json } => analytics::uptime(&app, json).await,
+        Command::Snapshot(command) => snapshot::run(&app, command).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes {
             account,

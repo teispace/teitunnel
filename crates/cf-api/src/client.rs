@@ -24,6 +24,8 @@ const RATE_WINDOW: Duration = Duration::from_secs(300);
 /// Cloudflare's GraphQL Analytics API allows 300 queries per 5 minutes per user, counted
 /// apart from the REST limit; keep some room for the dashboard and other tools.
 const GRAPHQL_LIMIT: usize = 250;
+/// Uploads (Snapshot files, Worker scripts) may be large.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Retry {
@@ -142,13 +144,20 @@ impl Client {
         retry: Retry,
         build: impl Fn() -> reqwest::RequestBuilder,
     ) -> Result<(u16, Vec<u8>)> {
+        self.send_as(retry, &self.token.bearer(), build).await
+    }
+
+    /// [`Self::send_with`] with another `Authorization` value (the assets upload JWT).
+    async fn send_as(
+        &self,
+        retry: Retry,
+        authorization: &str,
+        build: impl Fn() -> reqwest::RequestBuilder,
+    ) -> Result<(u16, Vec<u8>)> {
         let mut attempt = 0;
         loop {
             self.throttle().await;
-            let result = build()
-                .header("Authorization", self.token.bearer())
-                .send()
-                .await;
+            let result = build().header("Authorization", authorization).send().await;
             let retry_after = match result {
                 Ok(response) => {
                     let status = response.status().as_u16();
@@ -248,6 +257,38 @@ impl Client {
     ) -> Result<T> {
         let url = self.url(path);
         let (status, bytes) = self.send(|| self.http.patch(&url).json(body)).await?;
+        Envelope::decode(status, &bytes)
+    }
+
+    /// Sends a prepared body (a multipart upload) with `method` → `result`. `bearer`
+    /// replaces the API token (asset uploads authenticate with their session's JWT).
+    /// Uploads may take minutes, so the usual 20 s timeout doesn't apply.
+    ///
+    /// # Errors
+    /// API errors, network failures or unexpected bodies.
+    pub(crate) async fn send_body<T: DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: crate::multipart::Body,
+        bearer: Option<&str>,
+    ) -> Result<T> {
+        let url = self.url(path);
+        let retry = if method == reqwest::Method::POST {
+            Retry::Once
+        } else {
+            Retry::Idempotent
+        };
+        let authorization = bearer.map_or_else(|| self.token.bearer(), |b| format!("Bearer {b}"));
+        let (status, bytes) = self
+            .send_as(retry, &authorization, || {
+                self.http
+                    .request(method.clone(), &url)
+                    .header("Content-Type", body.content_type())
+                    .body(body.bytes().to_vec())
+                    .timeout(UPLOAD_TIMEOUT)
+            })
+            .await?;
         Envelope::decode(status, &bytes)
     }
 
