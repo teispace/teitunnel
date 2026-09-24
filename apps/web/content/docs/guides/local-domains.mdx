@@ -1,0 +1,131 @@
+---
+title: Local domains
+description: "Open services on this computer at addresses like https://shop.test or https://app.localhost, with certificates your browsers trust, subdomains, request inspection and phone access over .local. Nothing leaves your computer."
+---
+
+A local domain gives a service on your computer a real HTTPS address: `https://shop.test`
+instead of `http://localhost:3000`. Secure cookies, service workers, OAuth redirects,
+`SameSite` rules and anything else that only works on HTTPS or needs a proper hostname
+behave as they will in production. Local domains never touch Cloudflare and aren't
+reachable from the internet.
+
+## Pick a name
+
+| Ends in | Works | Setup |
+|---|---|---|
+| `.localhost` | Browsers (Chrome, Firefox, Safari, Edge) | None: browsers send every `.localhost` name to this computer. |
+| `.test` | Browsers and every tool (curl, Node, Java, …) | A one-time resolver entry, which needs an administrator. Teitunnel shows the command. |
+| `.local` | This computer and phones on the same network | None on the computer. Phones need Teitunnel's certificate authority installed. |
+
+Turn on **Subdomains** to send `*.shop.test` (one level: `api.shop.test`, `admin.shop.test`)
+to the same service.
+
+## In the app
+
+1. Open **Local Domains** in the sidebar and choose **Add Local Domain**.
+2. Type a name (`shop` becomes `shop.localhost`) and pick a detected service or type a
+   port, `host:port` or URL. Leave **Use HTTPS** on.
+3. The first time, **Set Up Trust…** walks you through trusting Teitunnel's certificate
+   authority. It's done once for every local domain.
+
+Each domain shows whether it's served, trusted and reachable by name, with the fix in
+place when it isn't: the trust walkthrough, the resolver command for `.test` names (checked
+again every few seconds until it works), or **Try Again** when a port was busy. Local
+domains start with the app, keep working across sleep and network changes, and stop when
+you quit. **Open in Browser** and the copy button give you the address.
+
+Turn on **Record requests** to see a domain's traffic in the [inspector](/docs/guides/inspector/),
+with secrets masked as for shares.
+
+## Trust
+
+Teitunnel makes its own certificate authority the first time it's needed. Its private
+key stays in your keychain (Credential Manager on Windows, your keyring on Linux); it's
+never in Teitunnel's database, a [backup](/docs/guides/move-computer/) or the app's
+windows. Each local domain gets a short-lived certificate (30 days) that renews by itself.
+
+The authority is **name-constrained**: it can only sign `.localhost`, `.test` and `.local`
+names and loopback and private addresses. Browsers and TLS libraries enforce that, so even
+a stolen key couldn't be used to impersonate a real website.
+
+- **macOS:** it's added to your login keychain as trusted; macOS asks for your password.
+  Safari, Chrome, Edge and Firefox (120 and later) use it.
+- **Windows:** it's added to your user's trusted certificates; Windows asks you to confirm.
+- **Linux:** it's added to Chrome's and Firefox's certificate databases (needs NSS
+  `certutil`: `libnss3-tools`, `nss-tools` or `nss`). The system list, used by curl and
+  most tools, needs an administrator: Teitunnel shows the commands and can run them with
+  `pkexec`, which asks for your password.
+
+**Stop Trusting** in the trust sheet (or `teitunnel local-domain untrust --forget`) removes
+it again.
+
+## .test names
+
+`.test` names need a one-time entry that sends them to Teitunnel's small name server on
+`127.0.0.1` (port 53535; port 53 on Windows, which can't use another). It only answers for
+your `.test` domains:
+
+- **macOS:** `/etc/resolver/test` with `nameserver 127.0.0.1` and `port 53535`.
+- **Linux (systemd-resolved):** a drop-in with `DNS=127.0.0.1:53535` and `Domains=~test`.
+- **Windows:** a Name Resolution Policy Table rule for `.test`.
+
+The app and `teitunnel local-domain status` show the exact commands to paste.
+
+## Ports
+
+Local domains use ports 443 and 80, so addresses have no port number. Plain HTTP
+redirects to HTTPS (for domains with HTTPS off, it serves them). When 443 is taken by
+another app, or reserved for administrators (Linux), Teitunnel uses 8443 and 8080 and the
+addresses include the port; the Doctor says why, and **Try Again** picks 443 up once it's
+free. On Linux, lowering `net.ipv4.ip_unprivileged_port_start` to 80 lets Teitunnel use the
+usual ports.
+
+macOS only lets apps use port 443 on all network interfaces, so Teitunnel listens there
+and refuses every connection that doesn't come from this computer.
+
+## Phones
+
+Name a domain `something.local` and turn on **Allow devices on this network**. Phones on
+the same Wi-Fi then open `https://something.local`. Install the certificate authority on
+the phone first: **Save Profile for iPhone…** (then turn it on in Settings ▸ General ▸
+About ▸ Certificate Trust Settings) or **Save Certificate…** for Android. Other devices can
+only open `.local` names, over HTTPS; everything else still answers this computer alone.
+
+## From a terminal
+
+```sh
+teitunnel local-domain add shop.test 3000          # served by the app, or here until Ctrl-C
+teitunnel local-domain add api 4000 --wildcard     # api.localhost and *.api.localhost
+teitunnel local-domain add hooks.localhost 8000 --inspect
+teitunnel local-domain ls
+teitunnel local-domain trust                        # trust the certificate authority
+teitunnel local-domain status                       # CA, trust, ports, .test names, fixes
+teitunnel local-domain serve                        # serve them all without the app
+teitunnel local-domain rm shop.test
+teitunnel local-domain untrust --forget
+```
+
+When the app runs, the command saves the domain and the app serves it at once. Without
+the app, `add` and `serve` serve local domains from the terminal until you press Ctrl-C.
+
+## In a project file
+
+```yaml
+localDomains:
+  - name: shop.localhost
+    port: 3000
+    wildcard: true
+```
+
+Applying the [project file](/docs/guides/project-file/) adds them to this computer's local
+domains.
+
+## Good to know
+
+- Servers without a keychain can keep the key in a file with
+  `TEITUNNEL_LOCAL_CA_FILE=/path/to/ca.pem` (unencrypted, mode 0600). `TEITUNNEL_LOCAL_HTTPS_PORT`,
+  `TEITUNNEL_LOCAL_HTTP_PORT` and `TEITUNNEL_LOCAL_DNS_PORT` choose other ports.
+- Your service gets the original `Host` (`shop.test`) and `X-Forwarded-Proto: https`. A dev
+  server that only answers `localhost` may need the name in its allowed hosts.
+- Removing a domain leaves the certificate authority trusted; stop trusting it when you no
+  longer use local domains.

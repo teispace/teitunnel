@@ -77,6 +77,10 @@ teitunnel snapshot ls                    # Snapshots, their addresses and versio
 teitunnel snapshot rollback preview.example.com
 teitunnel snapshot publish dist --name web-pr-7 --on pr-7.example.com --or-update --yes --json  # CI
 teitunnel snapshot rm pr-7.example.com --missing-ok --yes
+teitunnel local-domain add shop.test 3000 # https://shop.test on this computer
+teitunnel local-domain trust             # browsers accept local domains
+teitunnel local-domain ls                # local domains and whether they're served
+teitunnel local-domain status            # CA, trust, ports, .test names, what to fix
 teitunnel reserve alice.dev.example.com --until 2026-12-31  # hold a name for yourself
 teitunnel reservations ls                # reserved names and who holds them
 teitunnel release alice.dev.example.com
@@ -140,6 +144,9 @@ commands in [Project files](/docs/guides/project-file/), `backup` in
 | `--bots <off\|challenge\|block>`, `--block-ai`, `--allow-ai` | `protect`: automated clients and AI crawlers on one hostname ([Edge protection](/docs/guides/protection)). |
 | `--rate-limit <n/period[:block\|challenge]>`, `--no-rate-limit` | `protect`: e.g. `30/1m` or `100/10s:challenge`; periods 10s, 1m, 2m, 5m, 10m, 1h, within the plan's limit. |
 | `--set-request-header K:V`, `--remove-request-header K`, `--set-response-header K:V`, `--add-response-header K:V`, `--remove-response-header K`, `--clear-headers` | `protect`: header rules (repeatable); `--off` removes every rule Teitunnel added. Without options, `protect` shows what the hostname has. |
+| `--wildcard`, `--no-https`, `--inspect` | `local-domain add`: subdomains too, plain HTTP only, record requests ([Local domains](/docs/guides/local-domains/)). |
+| `--no-serve`, `--here` | `local-domain add`/`serve`: only save it; serve from this terminal even when the app runs. Without the app, `add` and `serve` serve until Ctrl-C. |
+| `--browsers`, `--firefox` | `local-domain trust`: also Chrome's and Firefox's own certificate lists; Firefox's "trust the system" setting. `untrust --forget` also deletes the certificate authority. |
 | `--name <label>` | `service-token create`: what the token is for (default `CLI`). The headers are printed once on standard output. |
 
 Routes are served by the app while it's open, all the time with

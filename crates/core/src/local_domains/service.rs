@@ -516,6 +516,19 @@ impl LocalDomains {
         }
     }
 
+    /// Closes the listeners and serves again from scratch, so the preferred ports are
+    /// tried again (after another app freed 443, for example).
+    ///
+    /// # Errors
+    /// As [`LocalDomains::sync`].
+    pub async fn restart(&self) -> Result<(), LocalDomainError> {
+        {
+            let mut rt = self.inner.runtime.lock().await;
+            self.shut_down(&mut rt).await;
+        }
+        self.sync().await
+    }
+
     /// Stops serving (the domains stay in the database). Call when the process quits.
     pub async fn stop(&self) {
         self.inner.stop.cancel();

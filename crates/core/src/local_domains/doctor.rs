@@ -87,7 +87,7 @@ impl LocalDomains {
         match action {
             LocalDomainFix::Trust => self.trust(super::TrustOptions::default()).await.map(drop),
             LocalDomainFix::SetUpResolver => self.run_as_admin(super::AdminTask::Resolver).await,
-            LocalDomainFix::Restart => self.sync().await,
+            LocalDomainFix::Restart => self.restart().await,
             LocalDomainFix::RenewCertificates => self.renew().await.map(drop),
             LocalDomainFix::RenewCa => self.renew_ca().await.map(drop),
         }
@@ -136,7 +136,7 @@ fn port_issue(problem: &PortProblem) -> Issue {
             p::title_fallback(fallback, problem.port),
             detail,
             Vec::new(),
-            Vec::new(),
+            vec![LocalDomainFix::Restart],
         ),
         None => issue(
             "local.port",

@@ -446,7 +446,12 @@ async fn doctor_flags_untrusted_and_a_taken_port_then_clears() {
         .map(|i| i.check)
         .collect();
     assert!(!checks.iter().any(|c| c == "local.untrusted"), "{checks:?}");
+    // Once the other app lets go of the port, Restart moves back to it.
     drop(taken);
+    s.domains.fix(LocalDomainFix::Restart).await.unwrap();
+    let status = s.domains.status().await;
+    assert_eq!(status.https_port, Some(taken_port));
+    assert!(status.port_problems.is_empty());
 }
 
 #[tokio::test]

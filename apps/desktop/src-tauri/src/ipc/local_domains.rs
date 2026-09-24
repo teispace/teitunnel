@@ -113,7 +113,7 @@ pub async fn local_domains_restart(
     state: State<'_, AppState>,
 ) -> Result<LocalDomainsStatus, AppError> {
     // A failure to serve is shown in the status.
-    let _ = state.local_domains.sync().await;
+    let _ = state.local_domains.restart().await;
     changed(&app);
     Ok(state.local_domains.status().await)
 }
