@@ -23,18 +23,31 @@ pub const REDIRECT_PORTS: [u16; 3] = [53682, 53683, 53684];
 /// How long to wait for the browser to come back.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// The public client registered by teispace. `None` until the maintainer registers it
-/// (then OAuth is offered); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for testing.
-const CLIENT_ID: Option<&str> = None;
+/// The public client "Teitunnel" in the Teispace Cloudflare account (registered
+/// 2026-09-24, research/cloudflare.md); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for tests.
+/// A client id isn't a secret: PKCE protects the flow.
+const CLIENT_ID: Option<&str> = Some("57fe3059e8fc6db30d9e3e07e50e94ea");
 
-/// Scopes requested at sign-in. Cloudflare scope names mirror API-token permissions;
-/// the exact ids are confirmed when the client is registered (research doc TODO).
+/// Scopes requested at sign-in, as Cloudflare names them (the client's scope list). The
+/// first four are required by the client; the rest are optional, so people can decline
+/// them on Cloudflare's consent screen and capability probing shows what's missing.
 const SCOPES: &[&str] = &[
-    "account:read",
-    "zone:read",
-    "dns:edit",
-    "cloudflare_tunnel:edit",
+    // Required: tunnels, route DNS records, domains, and finding the accounts.
+    "argotunnel.write",
+    "dns.write",
+    "zone.read",
+    "account-settings.read",
+    // A refresh token, so the sign-in lasts.
     "offline_access",
+    // Optional: require a login (Access apps; login methods and team domain).
+    "zone-access.write",
+    "access-acct.write",
+    // Optional: private networks, and the Doctor's WARP checks (read only).
+    "teams-networks.write",
+    "teams.read",
+    // Optional: load balancing across machines.
+    "load-balancers.write",
+    "load-balancing-monitors-and-pools.write",
 ];
 
 /// Errors from the OAuth flow. Messages are shown to the user.
