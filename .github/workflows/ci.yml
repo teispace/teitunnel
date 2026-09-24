@@ -72,6 +72,9 @@ jobs:
       - name: Frontend dist placeholder
         shell: bash
         run: mkdir -p apps/desktop/dist
+      - name: One version everywhere (release-please config included)
+        if: runner.os == 'Linux'
+        run: node scripts/release/check-versions.mjs
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo nextest run --workspace --locked --no-fail-fast
