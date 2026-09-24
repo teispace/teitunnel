@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { inspectorMock, mockTaps } from "@/dev/mock-inspector";
@@ -11,6 +11,12 @@ import { InspectRouteSection } from "./components/inspect-route-section";
 import { InspectorSettingsPane } from "./components/inspector-settings";
 import { ShareInspectSwitch } from "./components/share-inspect";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
+
+const navigate = vi.fn();
+vi.mock("@tanstack/react-router", async (original) => ({
+  ...(await original<typeof import("@tanstack/react-router")>()),
+  useNavigate: () => navigate,
+}));
 
 let calls: { cmd: string; args: Record<string, unknown> }[];
 
@@ -117,6 +123,9 @@ describe("Inspect this route", () => {
         fingerprint: "fp-inspect",
         confirmed: false,
       }),
+    );
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ to: "/inspector" })),
     );
   });
 
