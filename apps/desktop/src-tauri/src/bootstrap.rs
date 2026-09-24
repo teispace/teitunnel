@@ -133,6 +133,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         &quick_shares,
         &binary,
     );
+    tauri::async_runtime::spawn(Arc::clone(&control.host).forward_requests(inspector.clone()));
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),

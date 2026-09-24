@@ -274,3 +274,73 @@ async fn serves_the_cli_over_the_control_connection() {
     assert!(f.ui.changes.lock().unwrap().is_empty());
     let _ = stop.send(());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn forwards_inspected_requests_bounded_and_masked() {
+    use crate::inspect::{
+        Inspector, TapScope, TapSpec,
+        tests::{origin, send},
+    };
+    let f = fixture();
+    let inspector = Inspector::new(None, None, "app");
+    tokio::spawn(Arc::clone(&f.host).forward_requests(inspector.clone()));
+    // It waits for Lens instead of starting it.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(inspector.running().is_none());
+
+    let mut events = f.host.subscribe();
+    let origin = origin().await;
+    let tap = inspector
+        .start(TapSpec::new(
+            TapScope::QuickShare {
+                share_id: "qs-ext".into(),
+            },
+            "demo",
+            &origin,
+        ))
+        .await
+        .unwrap();
+    send(&tap.address, "POST", "/hook?token=hunter2", &[]).await;
+    let event = tokio::time::timeout(Duration::from_secs(5), events.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let Event::RequestArrived {
+        share,
+        method,
+        path,
+        status,
+        duration_ms,
+    } = event
+    else {
+        panic!("expected requestArrived, got {event:?}");
+    };
+    assert_eq!((share.as_str(), method.as_str()), ("qs-ext", "POST"));
+    assert!(path.starts_with("/hook?token="), "{path}");
+    assert!(
+        !path.contains("hunter2"),
+        "masked like the inspector: {path}"
+    );
+    assert_eq!(status, Some(200));
+    assert!(duration_ms.is_some());
+
+    // A burst arrives in bounded batches, not one event per request.
+    let burst: Vec<_> = (0..40)
+        .map(|i| {
+            let address = tap.address.clone();
+            tokio::spawn(async move { send(&address, "GET", &format!("/burst/{i}"), &[]).await })
+        })
+        .collect();
+    for request in burst {
+        request.await.unwrap();
+    }
+    tokio::time::sleep(requests::REQUEST_TICK * 3).await;
+    let mut received = 0;
+    while let Ok(event) = events.try_recv() {
+        assert!(matches!(event, Event::RequestArrived { .. }));
+        received += 1;
+    }
+    assert!(received >= 1, "some of the burst arrives");
+    assert!(received < 40, "coalesced: {received}");
+    inspector.shutdown().await;
+}

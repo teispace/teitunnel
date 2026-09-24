@@ -8,6 +8,7 @@
 //! changed) comes through the [`Ui`] port.
 
 pub mod integrations;
+pub mod requests;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
