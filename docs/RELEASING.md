@@ -29,6 +29,10 @@ the next version from the commits since the last release: a `fix:` makes 0.1.1, 
 (`bump-minor-pre-major`). To force a version, set `release-as` for the package in
 `release-please-config.json` and remove it again after that release.
 
+Commits that only touch `apps/web/` or `docs/` never cause a release (`exclude-paths`): the
+website deploys on its own when it changes, and an app release with no app changes would only
+send users an update that does nothing.
+
 ## Setup status
 
 | Step | State |
@@ -39,7 +43,7 @@ the next version from the commits since the last release: a `fix:` makes 0.1.1, 
 | Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
 | Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
 | Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
-| SignPath Foundation for Windows | Ready to apply 2026-09-24 (step 6): site and repository meet the conditions; the maintainer submits the form |
+| SignPath Foundation for Windows | Applied 2026-09-24 (step 6); the review usually takes one to two weeks and the reply goes to info@teispace.com. Windows builds stay unsigned until accepted. |
 
 ## One-time setup (maintainer)
 

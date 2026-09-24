@@ -57,6 +57,7 @@
     ".": {
       "package-name": "teitunnel",
       "changelog-path": "CHANGELOG.md",
+      "exclude-paths": ["apps/web", "docs"],
       "extra-files": [
         {
           "type": "json",
