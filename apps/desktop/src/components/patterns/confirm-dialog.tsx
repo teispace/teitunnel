@@ -5,7 +5,11 @@ import { t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 
 interface ConfirmDialogProps {
-  trigger: ReactNode;
+  /** Opens it; leave it out and pass `open` to open it from elsewhere (e.g. a switch). */
+  trigger?: ReactNode;
+  /** Opens it without a trigger. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   description?: ReactNode;
   confirmLabel: string;
@@ -25,8 +29,15 @@ export function ConfirmDialog({
   confirmLabel,
   variant = "primary",
   onConfirm,
+  open: controlled,
+  onOpenChange,
 }: ConfirmDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolled, setUncontrolled] = useState(false);
+  const open = controlled ?? uncontrolled;
+  const setOpen = (next: boolean) => {
+    setUncontrolled(next);
+    onOpenChange?.(next);
+  };
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +64,7 @@ export function ConfirmDialog({
         setError(null);
       }}
     >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent
         title={title}
         description={description}

@@ -1,6 +1,7 @@
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { rawText } from "@/lib/i18n";
 import { analyticsMock } from "./mock-analytics";
+import { inspectorMock } from "./mock-inspector";
 import { projectsMock } from "./mock-projects";
 
 /** A message the Rust core would send (`core.*` in the catalog). */
@@ -690,6 +691,13 @@ export function installMockIpc(): void {
           shares = [share, ...shares];
           return share;
         }
+        case "quick_share_set_inspected": {
+          const id = payload["id"];
+          shares = shares.map((s) =>
+            s.id === id ? { ...s, inspected: payload["inspect"] === true } : s,
+          );
+          return shares.find((s) => s.id === id);
+        }
         case "quick_share_stop":
           shares = shares.filter((s) => s.id !== payload["id"]);
           return null;
@@ -1124,7 +1132,12 @@ export function installMockIpc(): void {
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:
-          return analyticsMock(cmd, payload) ?? projectsMock(cmd, payload) ?? null;
+          return (
+            analyticsMock(cmd, payload) ??
+            projectsMock(cmd, payload) ??
+            inspectorMock(cmd, payload) ??
+            null
+          );
       }
     },
     { shouldMockEvents: true },

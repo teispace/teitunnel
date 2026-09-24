@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useRoute, useSendHostOnRoute } from "@/features/dev-server";
+import { InspectDomainShareButton } from "@/features/inspector";
 import { ProtectionSheet, useProtection } from "@/features/protection";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
@@ -64,6 +65,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
           />
         </Tooltip>
         <QrButton url={url} />
+        <InspectDomainShareButton accountId={share.accountId} hostname={share.hostname} />
         <Tooltip content={t("protection.protectShare")}>
           <IconButton
             icon={Shield}

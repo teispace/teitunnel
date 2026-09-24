@@ -8,6 +8,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
+import { InspectShareButton, ShareInspectSwitch } from "@/features/inspector";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
@@ -102,6 +103,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
                 />
               </Tooltip>
               <QrButton url={share.url} />
+              <InspectShareButton share={share} />
               <Tooltip content={t("quickShare.snapshot")}>
                 <IconButton
                   icon={Camera}
@@ -143,10 +145,12 @@ export function ShareCard({ share }: { share: QuickShare }) {
             {t("quickShare.stopsIn", { duration: formatDuration(share.stopAt - now) })}
           </span>
         ) : null}
+        <span className="ml-auto">
+          <ShareInspectSwitch share={share} />
+        </span>
         <Button
           variant="destructive"
           size="sm"
-          className="ml-auto"
           pending={stop.isPending}
           onClick={() =>
             stop.mutate(share.id, {

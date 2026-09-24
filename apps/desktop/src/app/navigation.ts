@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   type LucideIcon,
   Network,
+  ScanSearch,
   Share,
   Stethoscope,
   Waypoints,
@@ -18,6 +19,7 @@ export interface NavItem {
     | "/"
     | "/routes"
     | "/quick-share"
+    | "/inspector"
     | "/snapshots"
     | "/projects"
     | "/domains"
@@ -34,7 +36,7 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘9 follow this order (Projects has none). */
+/** Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector and Projects have none). */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -42,6 +44,7 @@ export const navigation: readonly NavSection[] = [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/routes", label: "nav.routes", icon: Waypoints },
       { to: "/quick-share", label: "nav.quickShare", icon: Share },
+      { to: "/inspector", label: "nav.inspector", icon: ScanSearch },
       { to: "/snapshots", label: "nav.snapshots", icon: Camera },
       { to: "/projects", label: "nav.projects", icon: FolderGit2 },
     ],

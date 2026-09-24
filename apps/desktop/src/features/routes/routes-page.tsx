@@ -32,6 +32,7 @@ import { RouteAnalytics } from "@/features/analytics";
 import { CheckNotes, HostRejectionFix, useSendHostOnRoute } from "@/features/dev-server";
 import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
+import { InspectRouteSection } from "@/features/inspector";
 import {
   ProtectionSection,
   ProtectionSheet,
@@ -286,6 +287,14 @@ function RouteInspector({
           localTunnelIds={localTunnelIds}
         />
       ) : null}
+      {route.client ? null : (
+        <InspectRouteSection
+          accountId={accountId}
+          hostname={route.hostname}
+          path={route.path}
+          local={route.local}
+        />
+      )}
       {route.client ? null : <ProtectionSection accountId={accountId} hostname={route.hostname} />}
       {route.client ? null : <ServiceTokens accountId={accountId} hostname={route.hostname} />}
       {route.client ? null : <RouteAnalytics accountId={accountId} route={route} />}
