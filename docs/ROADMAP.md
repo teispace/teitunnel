@@ -76,7 +76,7 @@ Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/compet
 - [x] M12-03 MCP server (D-097), approvals in the app (D-121)
 - [ ] M12-04 protection: edge rules (D-105) and service tokens (D-106) done; Lens gates in the UI, login presets, webhook bypass left
 - [ ] M12-05 analytics: edge analytics, uptime and alerts (D-098) and the Lens source (D-110) done; live Overview left
-- [ ] M12-06 sharing: Snapshots (D-099), pause/resume (D-116), schedules (D-117), stable names (D-118), folder share (D-119) done; comments, offline page left
+- [x] M12-06 sharing: Snapshots (D-099), pause/resume (D-116), schedules (D-117), stable names (D-118), folder share (D-119), comments (D-122), offline page (D-123)
 - [x] M12-11 CI/CD and teams: PR previews (D-104), reservations (D-103)
-- [ ] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop, OpenAPI from traffic (D-120) done; webhook inbox left
+- [x] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop, OpenAPI from traffic (D-120), webhook inbox (D-123, D-124)
 - [ ] M12-07 everywhere: control connection, links, completion, `teitunnel top` (D-102), VS Code / Raycast / JetBrains, tray and global shortcut (D-112–D-114) done; local HTTPS domains (D-101, D-115) done; browser extension later
