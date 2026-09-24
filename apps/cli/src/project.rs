@@ -235,6 +235,14 @@ fn print_plan(plan: &ProjectPlan, account: &Account) -> Result<(), String> {
             )?;
         }
     }
+    for domain in &plan.local_domains {
+        n += 1;
+        out!(
+            "  {n:>2}. Serve https://{} from localhost:{} on this computer",
+            domain.name,
+            domain.port
+        )?;
+    }
     for share in &plan.shares {
         n += 1;
         match &share.hostname {
@@ -383,6 +391,12 @@ pub(crate) async fn apply(
                 return Err(format!("Snapshot {}: {}", action.name, error.english()));
             }
         }
+    }
+    if !plan.local_domains.is_empty() {
+        project::apply_local_domains(app.store(), &plan)
+            .await
+            .map_err(|e| e.to_string())?;
+        crate::local::announce_saved(app.dir(), &plan.local_domains).await?;
     }
     Ok(Some(Applied {
         account,

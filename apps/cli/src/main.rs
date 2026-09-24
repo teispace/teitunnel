@@ -21,6 +21,7 @@ mod doctor;
 mod expose;
 mod exposure;
 mod inspect;
+mod local;
 mod mcp;
 mod probe;
 mod project;
@@ -82,6 +83,9 @@ enum Command {
     /// Work with the project file (teitunnel.yml): check, diff, apply, init, down.
     #[command(subcommand)]
     Project(project::ProjectCommand),
+    /// Local HTTPS domains on this computer: https://shop.test with a trusted certificate.
+    #[command(subcommand, name = "local-domain", visible_alias = "local")]
+    LocalDomain(local::LocalCommand),
     /// Move to another computer: an encrypted backup of Teitunnel's setup (never a
     /// token or password), and restoring it.
     #[command(subcommand)]
@@ -842,6 +846,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Setup => return setup().await,
         Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Project(command) => return project::run(command).await,
+        Command::LocalDomain(command) => return local::run(command).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -981,6 +986,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         | Command::Routes { check: false, .. }
         | Command::Setup
         | Command::Project(_)
+        | Command::LocalDomain(_)
         | Command::Mcp { .. } => {
             unreachable!("handled above")
         }

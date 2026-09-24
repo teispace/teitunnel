@@ -104,6 +104,21 @@ pub fn parse_target(input: &str) -> Result<DomainTarget, LocalDomainError> {
     })
 }
 
+/// The name as typed, lowercased, with `.localhost` added when it has none of the three
+/// local suffixes (`shop` → `shop.localhost`). Validation happens when it's saved.
+pub fn complete_name(input: &str) -> String {
+    let name = input.trim().trim_end_matches('.').to_ascii_lowercase();
+    if name.is_empty()
+        || [".localhost", ".test", ".local"]
+            .iter()
+            .any(|s| name.ends_with(s))
+    {
+        name
+    } else {
+        format!("{name}.localhost")
+    }
+}
+
 /// A local domain to add (or the new settings of one).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -516,6 +531,15 @@ mod tests {
         for bad in ["", "0", "70000", "ftp://x", "http://a/path", "a b"] {
             assert!(parse_target(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn completes_names_without_a_local_suffix() {
+        assert_eq!(complete_name(" Shop "), "shop.localhost");
+        assert_eq!(complete_name("shop.test."), "shop.test");
+        assert_eq!(complete_name("a.local"), "a.local");
+        assert_eq!(complete_name("shop.com"), "shop.com.localhost");
+        assert_eq!(complete_name(""), "");
     }
 
     #[test]

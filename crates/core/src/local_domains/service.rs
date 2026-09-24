@@ -370,6 +370,20 @@ impl LocalDomains {
     /// An invalid name or target, a duplicate, or the database; serving problems show in
     /// the status instead.
     pub async fn add(&self, input: &LocalDomainInput) -> Result<LocalDomainView, LocalDomainError> {
+        let row = self.save_new(input).await?;
+        self.sync_logged().await;
+        self.view(&row.name).await
+    }
+
+    /// Checks and saves a new local domain without serving it here (the CLI hands it to
+    /// the running app, or serves it itself).
+    ///
+    /// # Errors
+    /// An invalid name or target, a duplicate, or the database.
+    pub async fn save_new(
+        &self,
+        input: &LocalDomainInput,
+    ) -> Result<LocalDomainRow, LocalDomainError> {
         let name = LocalName::parse_any(&input.name)?;
         if registry::get(&self.inner.store, &name).await?.is_some() {
             return Err(LocalDomainError::Duplicate(name.to_string()));
@@ -385,8 +399,7 @@ impl LocalDomains {
         };
         self.validate(&row).await?;
         registry::save(&self.inner.store, &row).await?;
-        self.sync_logged().await;
-        self.view(&name).await
+        Ok(row)
     }
 
     /// Changes a local domain (same name).
@@ -447,11 +460,21 @@ impl LocalDomains {
     /// # Errors
     /// Unknown name, or the database.
     pub async fn remove(&self, name: &str) -> Result<(), LocalDomainError> {
+        self.forget(name).await?;
+        self.sync_logged().await;
+        Ok(())
+    }
+
+    /// Deletes a local domain from the database without touching what this process
+    /// serves (the CLI, before asking the app to reload).
+    ///
+    /// # Errors
+    /// Unknown name, or the database.
+    pub async fn forget(&self, name: &str) -> Result<(), LocalDomainError> {
         let name = LocalName::parse_any(name)?;
         if !registry::remove(&self.inner.store, &name).await? {
             return Err(LocalDomainError::NotFound(name.to_string()));
         }
-        self.sync_logged().await;
         Ok(())
     }
 

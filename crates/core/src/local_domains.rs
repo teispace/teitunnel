@@ -39,7 +39,7 @@ pub use model::{
     CaView, LocalDomainInput, LocalDomainRow, LocalDomainSettings, LocalDomainView,
     LocalDomainsStatus, LocalTarget, NameResolution, PlatformKind, PortProblem, PortReason,
     PrivilegedStep, ResolverView, TrustOptions, TrustState, TrustStoreKind, TrustStoreView,
-    TrustView, origin_of, parse_target,
+    TrustView, complete_name, origin_of, parse_target,
 };
 pub use service::{AdminTask, LocalDomains, LocalDomainsConfig, LocalDomainsOptions};
 
