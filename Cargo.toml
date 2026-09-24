@@ -17,6 +17,7 @@ publish = false
 teitunnel-cf-api = { path = "crates/cf-api" }
 teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
+teitunnel-localdomains = { path = "crates/localdomains" }
 
 # Tauri (stay on 2.x, D-015)
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
@@ -72,6 +73,17 @@ keyring = "4.2.0"
 base64 = "0.23"
 getrandom = "0.4.3"
 argon2 = { version = "0.6", default-features = false, features = ["alloc", "password-hash"] }
+
+# Local HTTPS domains (crates/localdomains)
+rcgen = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem", "x509-parser"] }
+rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std", "tls12", "logging"] }
+time = "0.3.44"
+zeroize = "1.8"
+hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
+mdns-sd = "0.21.4"
+plist = "1.10"
+x509-parser = "0.18.1"
+sha1 = "0.11"
 
 # Web dashboard for servers (teitunnel-cli serve)
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
