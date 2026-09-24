@@ -11,6 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
+- **M12 plan drafted** ([plans/M12-platform.md](plans/M12-platform.md)): inspector, MCP/agents, protection, analytics, sharing power-ups; 8 open questions for the maintainer.
 - **Deadline 2026-10-05:** release 0.2.0 before then. Cloudflare stops returning tunnel `connections` in list/get that day; 0.2.0 reads them from the new endpoint (D-094), 0.1.x would show every tunnel without machines.
 0. **Next:** v0.1.0 is out (2026-09-24). SignPath Foundation declined 2026-09-24 (not popular enough yet; reapply later, RELEASING.md step 6). M6-04: ghcr.io image and Homebrew tap done; winget waits on the maintainer (first submission, `WINGET_TOKEN`, RELEASING.md step 7). Then: watch the issue tracker for beta reports; apt/dnf repository later.
    Earlier plan (D-074): ~~M6-02 updater~~ (D-075) → ~~M6-03 release workflow + release-please~~ → ~~M6-07 download pages~~ (D-076) → maintainer setup, step by step in [RELEASING.md](RELEASING.md) (Apple cert + API key, updater key, `release` environment, Pages) → dry run → v0.1.0 public beta (website only; Windows unsigned until SignPath) → M6-04 channels.
