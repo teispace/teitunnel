@@ -10,6 +10,7 @@ const core = (key: string, args: Record<string, string | number> = {}) => ({
 import type {
   Account,
   ActivityEntry,
+  AiClientView,
   AppInfo,
   Capabilities,
   Domain,
@@ -43,6 +44,24 @@ let settings: Settings = {
   cliOfferDismissed: true,
   ignoredIssues: [],
 };
+
+let aiClients: AiClientView[] = [
+  ["claude-code", "Claude Code", true, true],
+  ["claude-desktop", "Claude Desktop", false, false],
+  ["cursor", "Cursor", true, false],
+  ["vscode", "VS Code", true, false],
+  ["codex", "Codex", false, false],
+  ["windsurf", "Windsurf", false, false],
+  ["zed", "Zed", false, false],
+  ["gemini-cli", "Gemini CLI", false, false],
+].map(([id, name, detected, connected]) => ({
+  id: String(id),
+  name: String(name),
+  path: `~/.${String(id)}/mcp.json`,
+  detected: Boolean(detected),
+  connected: Boolean(connected),
+  problem: null,
+}));
 
 /** `?update` shows a downloaded update (sidebar notice, Settings). */
 function updateStatus(): UpdateStatus {
@@ -490,6 +509,20 @@ export function installMockIpc(): void {
           return { state: "notInstalled", path: "/opt/homebrew/bin/teitunnel", command: null };
         case "cli_install":
           return { state: "installed", path: "/opt/homebrew/bin/teitunnel" };
+        case "ai_clients_status":
+        case "ai_clients_connect":
+        case "ai_clients_disconnect": {
+          const id = payload["clientId"];
+          if (typeof id === "string") {
+            aiClients = aiClients.map((c) =>
+              c.id === id ? { ...c, connected: cmd === "ai_clients_connect" } : c,
+            );
+          }
+          return {
+            command: "/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli",
+            clients: aiClients,
+          };
+        }
         case "settings_set": {
           const patch = payload["patch"] as SettingsPatch;
           settings = {

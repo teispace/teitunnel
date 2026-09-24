@@ -70,4 +70,4 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 - [x] Landing page · [x] Fumadocs docs · [ ] Deploy (with release work)
 
 ## M12 · Inspector, agents, analytics (draft)
-Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Waiting on the maintainer's answers to its open questions.
+Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Waiting on the maintainer's answers to its open questions. M12-03 (agents/MCP) done except the app-hosted native approval (D-097).

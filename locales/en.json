@@ -565,7 +565,8 @@
       "notChecked": "Not checked",
       "check": "Check"
     },
-    "noDetails": "No details were recorded."
+    "noDetails": "No details were recorded.",
+    "byAgent": "By {client}"
   },
   "settings": {
     "theme": {
@@ -628,6 +629,19 @@
       "manual@windows": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
       "manual@linux": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
       "footer": "Puts the teitunnel command on your PATH. It updates with the app."
+    },
+    "aiTools": {
+      "title": "AI Tools",
+      "footer": "Connected tools can share your services and manage routes through Teitunnel. Every change waits for your approval and is recorded in Activity. Restart a tool after connecting it.",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "notFound": "Not found on this computer",
+      "problem": "Its settings file can't be read: {problem}",
+      "noCli": "AI tools run Teitunnel's command line tool, which isn't part of this copy of Teitunnel.",
+      "others": "Other tools: run this command as an MCP server.",
+      "command": "MCP server command"
     }
   },
   "cliOffer": {
@@ -1627,6 +1641,11 @@
       "seconds": "Enter a number of seconds from 1 to {max}",
       "connections": "Enter a number from 1 to {max}",
       "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
+    },
+    "aiClients": {
+      "unknown": "Teitunnel doesn't know that AI tool.",
+      "failed": "Couldn't change the AI tool's settings: {detail}",
+      "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel."
     }
   },
   "permissionFix": {

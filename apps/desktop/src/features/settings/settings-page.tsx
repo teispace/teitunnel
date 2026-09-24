@@ -11,6 +11,7 @@ import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
+import { AiTools } from "./ai-tools";
 import {
   useCliStatus,
   useOpenAtLogin,
@@ -172,6 +173,7 @@ function GeneralPane() {
       <UpdateSection />
       <OpenAtLogin />
       <CommandLine />
+      <AiTools />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}

@@ -49,6 +49,13 @@ function outcomeOf(entry: ActivityEntry) {
     : { dot: "idle" as const, label: entry.outcome };
 }
 
+/** "Applied · By Claude Code" for a change an AI agent made; the outcome otherwise. */
+function outcomeLine(entry: ActivityEntry) {
+  const actor = entry.record?.actor;
+  const outcome = outcomeOf(entry).label;
+  return actor ? `${outcome} · ${t("activity.byAgent", { client: actor.client })}` : outcome;
+}
+
 function day(at: number | null) {
   if (at === null) return t("time.earlier");
   const date = new Date(at);
@@ -170,7 +177,7 @@ export function ActivityPage() {
             renderRow={(entry) => (
               <ListRow
                 title={summaryOf(entry)}
-                subtitle={`${time(entry.at)} · ${outcomeOf(entry).label}`}
+                subtitle={`${time(entry.at)} · ${outcomeLine(entry)}`}
                 leading={<StatusDot status={outcomeOf(entry).dot} label={outcomeOf(entry).label} />}
               />
             )}
@@ -188,7 +195,7 @@ export function ActivityPage() {
         <div className="flex min-h-0 flex-1 flex-col">
           <Inspector
             title={summaryOf(selected)}
-            subtitle={`${t("time.dayAt", { day: day(selected.at), time: time(selected.at) })} · ${outcomeOf(selected).label}`}
+            subtitle={`${t("time.dayAt", { day: day(selected.at), time: time(selected.at) })} · ${outcomeLine(selected)}`}
           >
             {selected.record ? (
               <RecordDetails
