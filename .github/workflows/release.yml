@@ -40,6 +40,7 @@ jobs:
     name: Release PR
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
@@ -323,6 +324,7 @@ jobs:
       (github.event_name != 'push' || needs.release-please.outputs.created == 'true')
     environment: ${{ github.event_name != 'pull_request' && 'release' || '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       id-token: write
@@ -415,6 +417,7 @@ jobs:
     if: needs.release-please.outputs.created == 'true'
     environment: release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       TAG: ${{ needs.release-please.outputs.tag }}
       WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
