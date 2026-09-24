@@ -338,6 +338,57 @@ export const commands = {
 	 *  `on_progress`.
 	 */
 	snapshotsApply: (accountId: string, change: SnapshotChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("snapshots_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  Projects this Mac knows, by name. */
+	projectsList: () => __TAURI_INVOKE<ProjectEntry[]>("projects_list"),
+	/**  Asks for a project's folder with the system's open panel. `None` when cancelled. */
+	projectsChooseFolder: () => __TAURI_INVOKE<string | null>("projects_choose_folder"),
+	/**  Opens a project (a folder with a `teitunnel.yml`, or the file) and remembers it. */
+	projectsAdd: (path: string) => __TAURI_INVOKE<ProjectEntry>("projects_add", { path }),
+	/**  Forgets a project (nothing it applied is changed). */
+	projectsRemove: (path: string) => __TAURI_INVOKE<null>("projects_remove", { path }),
+	/**  When the project file last changed (a cheap check, polled to notice edits). */
+	projectsModified: (path: string) => __TAURI_INVOKE<number | null>("projects_modified", { path }),
+	/**
+	 *  Reads a project file and plans it: every declared item's state and what applying
+	 *  would change. Nothing is changed.
+	 */
+	projectsStatus: (path: string) => __TAURI_INVOKE<ProjectStatus_Serialize>("projects_status", { path }),
+	/**
+	 *  Applies a reviewed project plan (by fingerprint: a plan that changed since is
+	 *  refused): its routes, its Snapshots, then its shares, which run until stopped or
+	 *  Teitunnel quits. `confirmed` allows replacing DNS records Teitunnel didn't create.
+	 */
+	projectsApply: (path: string, fingerprint: string, confirmed: boolean) => __TAURI_INVOKE<ProjectApplied>("projects_apply", { path, fingerprint, confirmed }),
+	/**
+	 *  Checks a local service for common leaks (a `.env` file, the git folder, debug pages,
+	 *  open admin panels…), directly and within 2 seconds. `None` when the check is off in
+	 *  Settings.
+	 */
+	exposureCheck: (origin: string) => __TAURI_INVOKE<{
+	/**  The service checked. */
+	origin: string,
+	/**  What was found, worst first. */
+	findings: ExposureFinding[],
+	/**  Requests made. */
+	requests: number,
+	/**  Some requests didn't finish in time (their answers weren't checked). */
+	incomplete: boolean,
+	/**  How long it took. */
+	elapsedMs: number,
+} | null>("exposure_check", { origin }),
+	/**  Asks where to save a backup (the system's save panel). `None` when cancelled. */
+	backupChooseSave: () => __TAURI_INVOKE<string | null>("backup_choose_save"),
+	/**  Asks for a backup to restore (the system's open panel). `None` when cancelled. */
+	backupChooseOpen: () => __TAURI_INVOKE<string | null>("backup_choose_open"),
+	/**  Writes an encrypted backup of this Mac's setup to `path` (no tokens or passwords). */
+	backupCreate: (path: string, passphrase: string) => __TAURI_INVOKE<null>("backup_create", { path, passphrase }),
+	/**
+	 *  Reads and decrypts a backup and says what restoring it would bring and replace.
+	 *  Nothing changes until `backup_restore`.
+	 */
+	backupInspect: (path: string, passphrase: string) => __TAURI_INVOKE<BackupPreview>("backup_inspect", { path, passphrase }),
+	/**  Restores the backup `backup_inspect` read (the one shown to the user). */
+	backupRestore: (id: string) => __TAURI_INVOKE<null>("backup_restore", { id }),
 };
 
 /** Events */
@@ -365,6 +416,14 @@ export type Account = {
 	credential: CredentialKind,
 	/**  For cert.pem credentials: the only zone the credential works for. */
 	limitedZone: string | null,
+};
+
+/**  An account as the backup names it (reconnect it after restoring). */
+export type AccountRef = {
+	/**  Account id. */
+	id: string,
+	/**  Its name. */
+	name: string,
 };
 
 /**  One entry of the activity log. */
@@ -599,6 +658,32 @@ export type Arg =
 number | null | 
 /**  Anything else, already as text (hostnames, names, versions). */
 string;
+
+/**  A backup read and checked, waiting for the user to restore it. */
+export type BackupPreview = {
+	/**  Pass to `backup_restore`. */
+	id: string,
+	/**  What it holds and what it would replace. */
+	summary: BackupSummary,
+};
+
+/**  What restoring a backup would bring, for review. */
+export type BackupSummary = {
+	/**  When it was made (ms since the epoch). */
+	createdAt: number | null,
+	/**  The Teitunnel that made it. */
+	appVersion: string,
+	/**  The computer it was made on. */
+	machine: string,
+	/**  Accounts to connect again. */
+	accounts: AccountRef[],
+	/**  Projects it knows (their files come with the repositories). */
+	projects: string[],
+	/**  Each part and its size. */
+	sections: SectionCount[],
+	/**  Restoring replaces something here. */
+	overwrites: boolean,
+};
 
 /**  Where cloudflared comes from and whether it's new enough. */
 export type BinaryInfo = {
@@ -908,6 +993,16 @@ export type CrawlReport = {
 	singlePage: boolean,
 };
 
+/**  A route a project created (it wasn't there before the project was applied). */
+export type CreatedRoute = {
+	/**  Account id. */
+	accountId: string,
+	/**  Hostname. */
+	hostname: string,
+	/**  Path rule. */
+	path: string | null,
+};
+
 /**  How an account was connected. */
 export type CredentialKind = 
 /**  A user API token. */
@@ -966,6 +1061,25 @@ export type DevServer =
 "rails" | 
 /**  Django (`ALLOWED_HOSTS`). */
 "django";
+
+/**  A problem in the file, where it is. */
+export type Diagnostic = {
+	/**  1-based line (0: the whole file). */
+	line: number,
+	/**  1-based column. */
+	column: number,
+	/**  Error or warning. */
+	severity: DiagnosticSeverity,
+	/**  What's wrong. */
+	message: Text,
+};
+
+/**  How serious a problem is. */
+export type DiagnosticSeverity = 
+/**  The file can't be applied. */
+"error" | 
+/**  Applied anyway (e.g. a key this version doesn't know). */
+"warning";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -1075,7 +1189,9 @@ export type EntityKind =
 /**  App updates. */
 "updates" | 
 /**  Snapshots (id: the account). */
-"snapshots";
+"snapshots" | 
+/**  Projects (teitunnel.yml files opened in the app). */
+"projects";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -1113,6 +1229,86 @@ export type ExportFormat =
 "dockerCompose" | 
 /**  Terraform for the Cloudflare provider v5, with `import` blocks. */
 "terraform";
+
+/**  One finding. */
+export type ExposureFinding = {
+	/**  What. */
+	kind: ExposureKind,
+	/**  How bad. */
+	severity: ExposureSeverity,
+	/**  Where (a path on the service). */
+	path: string,
+	/**  One line for the user. */
+	title: Text,
+	/**  What to do. */
+	advice: Text,
+	/**  What it's based on, when that helps (variable names, never values; a product). */
+	detail: string | null,
+};
+
+/**  What was found. */
+export type ExposureKind = 
+/**  A `.env` file. */
+"envFile" | 
+/**  The `.git` folder. */
+"gitRepository" | 
+/**  A macOS `.DS_Store` file. */
+"dsStore" | 
+/**  A directory listing. */
+"directoryListing" | 
+/**  A zip archive (a backup). */
+"backupArchive" | 
+/**  A SQL dump. */
+"databaseDump" | 
+/**  A SQLite database file. */
+"databaseFile" | 
+/**  Django's debug pages (`DEBUG = True`). */
+"djangoDebug" | 
+/**  Laravel's Ignition or Whoops. */
+"laravelDebug" | 
+/**  Rails in development (error pages, web-console, better_errors, `/rails/info`). */
+"railsDevelopment" | 
+/**  Symfony's profiler. */
+"symfonyProfiler" | 
+/**  Spring Boot's actuator (`/actuator/env`). */
+"springActuator" | 
+/**  `phpinfo()`. */
+"phpInfo" | 
+/**  A stack trace in an error page. */
+"stackTrace" | 
+/**  An admin panel without a login. */
+"openAdmin" | 
+/**  Adminer or phpMyAdmin. */
+"databaseTool" | 
+/**  A database or search engine on the port itself. */
+"databasePort" | 
+/**  Jupyter without a token. */
+"jupyter" | 
+/**  Source maps with the original code. */
+"sourceMap";
+
+/**  The outcome of a check. */
+export type ExposureReport = {
+	/**  The service checked. */
+	origin: string,
+	/**  What was found, worst first. */
+	findings: ExposureFinding[],
+	/**  Requests made. */
+	requests: number,
+	/**  Some requests didn't finish in time (their answers weren't checked). */
+	incomplete: boolean,
+	/**  How long it took. */
+	elapsedMs: number,
+};
+
+/**  How bad it is. */
+export type ExposureSeverity = 
+/**  Secrets or data are readable. */
+"high" | 
+/**  Internals or tools are reachable. */
+"medium" | 
+/**  Worth knowing. */
+"low";
 
 /**  Why a route doesn't work. */
 export type Failure = 
@@ -1372,6 +1568,15 @@ export type HostHeaderChoice =
 /**  E.g. `localhost:5173`. */
 value: string };
 
+/**  The Host header a share sends. */
+export type HostHeaderDecl = 
+/**  Teitunnel decides (dev servers that need their own address get it). */
+{ mode: "auto" } | 
+/**  Pass the visitor's through. */
+{ mode: "off" } | 
+/**  Send this. */
+{ mode: "set"; value: string };
+
 /**  A dev server refused a request for the public address. */
 export type HostRejection = {
 	/**  Which server. */
@@ -1495,6 +1700,28 @@ export type Issue_Serialize = {
 	/**  The tunnel of this Mac's it's about, when not the default one (a fix applies there). */
 	tunnelId: string | null,
 };
+
+/**  What kind of item. */
+export type ItemKind = 
+/**  A route. */
+"route" | 
+/**  A share. */
+"share" | 
+/**  A Snapshot. */
+"snapshot" | 
+/**  A local domain. */
+"localDomain";
+
+/**  How a declared item compares with this machine. */
+export type ItemState = 
+/**  As declared. */
+"applied" | 
+/**  There, but not as declared. */
+"differs" | 
+/**  Not there. */
+"missing" | 
+/**  This version can't apply it (see the note). */
+"unsupported";
 
 /**  Response time over time (a check's time through the edge). */
 export type LatencySeries = {
@@ -1826,6 +2053,130 @@ export type Project = {
 	warning: ProjectWarning | null,
 };
 
+/**  What applying did. */
+export type ProjectApplied = {
+	/**  The routes. */
+	routes: RoutesApplied,
+	/**  Each Snapshot by name, and what happened. */
+	snapshots: ([string, SnapshotResult])[],
+	/**  Shares started (their addresses). */
+	shares: string[],
+	/**  Shares that couldn't start, and why. */
+	shareErrors: Text[],
+};
+
+/**  A known project. */
+export type ProjectEntry = {
+	/**  The project file's path. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  When it was added (ms since the epoch). */
+	addedAt: number | null,
+	/**  When it was last applied. */
+	appliedAt: number | null,
+	/**  Routes it created. */
+	createdRoutes?: CreatedRoute[],
+};
+
+/**  A declared item and its state. */
+export type ProjectItem = {
+	/**  Route, share, Snapshot or local domain. */
+	kind: ItemKind,
+	/**  Its address or name. */
+	name: string,
+	/**  Where it goes (the service, the source). */
+	target: string,
+	/**  Applied, differs, missing. */
+	state: ItemState,
+	/**  The line it's declared on. */
+	line: number,
+	/**  More to know. */
+	note: Text | null,
+};
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan = ProjectPlan_Serialize | ProjectPlan_Deserialize;
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan_Deserialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  The account it applies to. */
+	accountId: string,
+	/**  Each declared item and its state. */
+	items: ProjectItem[],
+	/**  Route changes, in order. */
+	routes: RouteAction_Deserialize[],
+	/**  Shares to start. */
+	shares: ShareAction[],
+	/**  Snapshots to publish. */
+	snapshots: SnapshotAction[],
+	/**  Some route change touches a DNS record Teitunnel didn't create. */
+	requiresConfirmation: boolean,
+	/**  Identifies this plan; applying checks it's still the same. */
+	fingerprint: string,
+};
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan_Serialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  The account it applies to. */
+	accountId: string,
+	/**  Each declared item and its state. */
+	items: ProjectItem[],
+	/**  Route changes, in order. */
+	routes: RouteAction_Serialize[],
+	/**  Shares to start. */
+	shares: ShareAction[],
+	/**  Snapshots to publish. */
+	snapshots: SnapshotAction[],
+	/**  Some route change touches a DNS record Teitunnel didn't create. */
+	requiresConfirmation: boolean,
+	/**  Identifies this plan; applying checks it's still the same. */
+	fingerprint: string,
+};
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus = ProjectStatus_Serialize | ProjectStatus_Deserialize;
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus_Deserialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  Errors and warnings in the file, with their lines. */
+	diagnostics: Diagnostic[],
+	/**  What applying would do (with each item's state), when the file has no errors. */
+	plan: ProjectPlan_Deserialize | null,
+	/**  Why there's no plan (an account to choose, a placeholder without a value…). */
+	problem: Text | null,
+	/**  When the file last changed (ms since the epoch), to notice edits. */
+	modifiedAt: number | null,
+};
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus_Serialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  Errors and warnings in the file, with their lines. */
+	diagnostics: Diagnostic[],
+	/**  What applying would do (with each item's state), when the file has no errors. */
+	plan: ProjectPlan_Serialize | null,
+	/**  Why there's no plan (an account to choose, a placeholder without a value…). */
+	problem: Text | null,
+	/**  When the file last changed (ms since the epoch), to notice edits. */
+	modifiedAt: number | null,
+};
+
 /**  A problem with the project's setup the user can fix. */
 export type ProjectWarning = 
 /**  Next.js builds a server app unless `output: 'export'` is set. */
@@ -1904,6 +2255,47 @@ export type RemoteLogsView = {
 	state: RemoteLogState,
 	/**  The newest lines, oldest first. */
 	lines: LogLine[],
+};
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction = RouteAction_Serialize | RouteAction_Deserialize;
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction_Deserialize = {
+	/**  The route's hostname. */
+	hostname: string,
+	/**  Its path rule. */
+	path: string | null,
+	/**  The change asked of the engine. */
+	change: Change_Deserialize,
+	/**  The tunnel (id) it's on; `None`: the default one. */
+	tunnelId: string | null,
+	/**  The engine's plan, as shown. */
+	plan: PlanView,
+};
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction_Serialize = {
+	/**  The route's hostname. */
+	hostname: string,
+	/**  Its path rule. */
+	path: string | null,
+	/**  The change asked of the engine. */
+	change: Change_Serialize,
+	/**  The tunnel (id) it's on; `None`: the default one. */
+	tunnelId: string | null,
+	/**  The engine's plan, as shown. */
+	plan: PlanView,
+};
+
+/**  A route change that failed. */
+export type RouteFailure = {
+	/**  The route. */
+	hostname: string,
+	/**  Why. */
+	error: Text,
+	/**  What couldn't be undone (empty: everything was). */
+	leftovers: Text[],
 };
 
 /**  A route as typed in the add/edit sheet. */
@@ -2053,6 +2445,16 @@ export type RouteView_Serialize = {
 	options: OriginOptions_Serialize,
 };
 
+/**  The routes applied. */
+export type RoutesApplied = {
+	/**  Routes the project created (recorded, for `down --remove-routes`). */
+	created: CreatedRoute[],
+	/**  Connectors that couldn't be started (the routes are configured). */
+	notes: Text[],
+	/**  The change that failed (the ones after it weren't applied). */
+	failure: RouteFailure | null,
+};
+
 /**  Everything the Routes view shows for an account. */
 export type RoutesOverview = RoutesOverview_Serialize | RoutesOverview_Deserialize;
 
@@ -2100,6 +2502,16 @@ export type RuleChange = {
 	before: string | null,
 	/**  The service now (None: removed elsewhere). */
 	after: string | null,
+};
+
+/**  One part of a backup and its size. */
+export type SectionCount = {
+	/**  `settings`, `local_tunnels`, `snapshots`… */
+	section: string,
+	/**  Entries in the backup. */
+	count: number,
+	/**  Entries here now, which restoring replaces. */
+	existing: number,
 };
 
 /**  What a listening process appears to be. */
@@ -2179,6 +2591,11 @@ export type Settings = {
 	 */
 	cliOfferDismissed: boolean,
 	/**
+	 *  Check a service for common leaks (`.env`, `.git`, debug pages…) before sharing it
+	 *  or adding a route to it.
+	 */
+	exposureCheck: boolean,
+	/**
 	 *  Doctor issues the user chose to ignore (stable issue ids). Changed with
 	 *  [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
 	 */
@@ -2205,6 +2622,8 @@ export type SettingsPatch = {
 	checkForUpdates?: boolean | null,
 	/**  The command line offer answered. */
 	cliOfferDismissed?: boolean | null,
+	/**  The exposure check on or off. */
+	exposureCheck?: boolean | null,
 };
 
 /**  How bad an issue is. */
@@ -2215,6 +2634,22 @@ export type Severity =
 "warning" | 
 /**  Worth knowing; nothing is broken. */
 "info";
+
+/**  A share the project starts. */
+export type ShareAction = {
+	/**  The service. */
+	origin: string,
+	/**  On a hostname of the account's (a temporary route); `None`: a Quick Share. */
+	hostname: string | null,
+	/**  Ends by itself after this many seconds. */
+	expiresAfter: number | null,
+	/**  Host header. */
+	hostHeader: HostHeaderDecl,
+	/**  Require a login. */
+	login: AccessRule | null,
+	/**  Inspect its traffic. */
+	inspect: boolean,
+};
 
 /**  Live traffic numbers for a share. */
 export type ShareStats = {
@@ -2262,6 +2697,18 @@ export type Skipped = {
 	reason: SkipReason,
 };
 
+/**  A Snapshot the project publishes (its files are collected when applied). */
+export type SnapshotAction = {
+	/**  Its name. */
+	name: string,
+	/**  The folder (absolute) its files come from, or the project to build. */
+	source: SnapshotSourceDecl,
+	/**  Its hostname; `None`: workers.dev. */
+	hostname: string | null,
+	/**  It exists already: a new version is published if its files or settings changed. */
+	exists: boolean,
+};
+
 /**  A change to Snapshots, as the UI and CLI ask for it. */
 export type SnapshotChange = 
 /**  Publish prepared files as a new Snapshot. */
@@ -2305,6 +2752,19 @@ export type SnapshotOptions = {
 	expiresInDays: number | null,
 };
 
+/**  What publishing a declared Snapshot did. */
+export type SnapshotResult = 
+/**  Published (a new Snapshot or a new version). */
+{ result: "published" } | 
+/**  Its files and settings are the live version's already. */
+{ result: "upToDate" } | 
+/**  It would replace a DNS record Teitunnel didn't create; not done. */
+{ result: "needsConfirmation" } | 
+/**  It failed (and was undone). */
+{ result: "failed"; 
+/**  Why. */
+error: Text };
+
 /**  Where a Snapshot's files come from, so "Update" can get them again. */
 export type SnapshotSource = 
 /**  A folder, published as it is. */
@@ -2323,6 +2783,13 @@ output: string } |
 { type: "crawl"; 
 /**  Where it was captured from, e.g. `http://localhost:5173/`. */
 url: string };
+
+/**  Where a Snapshot's files come from. */
+export type SnapshotSourceDecl = 
+/**  A folder, relative to the project file. */
+{ type: "folder"; path: string } | 
+/**  A project to build first, relative to the project file. */
+{ type: "build"; path: string };
 
 /**  A version, for the version list. */
 export type SnapshotVersionView = {

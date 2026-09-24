@@ -19,6 +19,7 @@ import {
   ZeroTrustFix,
 } from "@/features/accounts";
 import { CheckNotes, HostRejectionFix, useRoute, useSendHostOnRoute } from "@/features/dev-server";
+import { ExposureNotice } from "@/features/exposure";
 import { ServicePicker } from "@/features/quick-share";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
@@ -774,6 +775,9 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
               </div>
             )}
             {fixCard}
+            {change?.type === "addRoute" && plan && plan.steps.length > 0 ? (
+              <ExposureNotice origin={change.route.origin} />
+            ) : null}
             {plan?.requiresConfirmation && !preview.isPending ? (
               <label htmlFor="route-confirm" className="flex items-center gap-2 text-body">
                 <Checkbox

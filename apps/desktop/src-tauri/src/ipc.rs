@@ -10,11 +10,14 @@ mod accounts;
 mod ai_clients;
 mod analytics;
 pub(crate) mod app;
+mod backup;
 pub(crate) mod cli;
 pub(crate) use app::mark_launch;
 mod doctor;
 mod domain_shares;
 mod events;
+mod exposure;
+mod projects;
 mod quick_share;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
@@ -132,7 +135,20 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             snapshots::snapshots_prepare_build,
             snapshots::snapshots_prepare_crawl,
             snapshots::snapshots_preview,
-            snapshots::snapshots_apply
+            snapshots::snapshots_apply,
+            projects::projects_list,
+            projects::projects_choose_folder,
+            projects::projects_add,
+            projects::projects_remove,
+            projects::projects_modified,
+            projects::projects_status,
+            projects::projects_apply,
+            exposure::exposure_check,
+            backup::backup_choose_save,
+            backup::backup_choose_open,
+            backup::backup_create,
+            backup::backup_inspect,
+            backup::backup_restore
         ])
         .events(collect_events![EntityChanged, MenuAction])
 }

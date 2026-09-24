@@ -7,6 +7,7 @@
 //! is refused. Applying it goes through the same plan → apply engine as every other
 //! change, previewed first; a second apply of an applied file changes nothing.
 
+mod apply;
 pub mod init;
 mod plan;
 pub mod registry;
@@ -18,14 +19,18 @@ mod yaml;
 
 use std::path::{Path, PathBuf};
 
+pub use apply::{
+    RouteFailure, RoutesApplied, SnapshotResult, apply_routes, build_command, failure_text,
+    publish_snapshot,
+};
 pub use plan::{
     ProjectPlan, RouteAction, ShareAction, SnapshotAction, apply_route, plan, resolve_secret,
     snapshot_change,
 };
 pub use schema::{
-    Diagnostic, HostHeaderDecl, LocalDomainDecl, Parsed, ProjectFile, RouteDecl, SecretRef,
-    Severity, ShareDecl, SnapshotDecl, SnapshotSourceDecl, VERSION, parse, parse_duration,
-    valid_local_name,
+    Diagnostic, DiagnosticSeverity, HostHeaderDecl, LocalDomainDecl, Parsed, ProjectFile,
+    RouteDecl, SecretRef, ShareDecl, SnapshotDecl, SnapshotSourceDecl, VERSION, parse,
+    parse_duration, valid_local_name,
 };
 pub use state::{ItemKind, ItemState, ProjectItem, Resolved, ResolvedShare, resolve, status};
 pub use yaml::Pos;
@@ -114,7 +119,7 @@ impl Loaded {
                 self.parsed
                     .diagnostics
                     .iter()
-                    .filter(|d| d.severity == Severity::Error)
+                    .filter(|d| d.severity == DiagnosticSeverity::Error)
                     .count(),
             )
         })

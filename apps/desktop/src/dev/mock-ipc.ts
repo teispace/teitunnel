@@ -46,6 +46,7 @@ let settings: Settings = {
   checkForUpdates: true,
   // Screenshots and design review show the app as it looks after the one-time offer.
   cliOfferDismissed: true,
+  exposureCheck: true,
   ignoredIssues: [],
 };
 
@@ -651,6 +652,7 @@ export function installMockIpc(): void {
             quietHours: patch.quietHours ?? settings.quietHours,
             checkForUpdates: patch.checkForUpdates ?? settings.checkForUpdates,
             cliOfferDismissed: patch.cliOfferDismissed ?? settings.cliOfferDismissed,
+            exposureCheck: patch.exposureCheck ?? settings.exposureCheck,
             ignoredIssues: settings.ignoredIssues,
           };
           return settings;

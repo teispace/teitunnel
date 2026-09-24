@@ -22,7 +22,7 @@ pub const VERSION: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
-pub enum Severity {
+pub enum DiagnosticSeverity {
     /// The file can't be applied.
     Error,
     /// Applied anyway (e.g. a key this version doesn't know).
@@ -39,7 +39,7 @@ pub struct Diagnostic {
     /// 1-based column.
     pub column: u32,
     /// Error or warning.
-    pub severity: Severity,
+    pub severity: DiagnosticSeverity,
     /// What's wrong.
     pub message: Text,
 }
@@ -194,7 +194,7 @@ impl Reader {
         self.diagnostics.push(Diagnostic {
             line: at.line,
             column: at.column,
-            severity: Severity::Error,
+            severity: DiagnosticSeverity::Error,
             message,
         });
     }
@@ -203,7 +203,7 @@ impl Reader {
         self.diagnostics.push(Diagnostic {
             line: at.line,
             column: at.column,
-            severity: Severity::Warning,
+            severity: DiagnosticSeverity::Warning,
             message,
         });
     }
@@ -420,7 +420,7 @@ impl Parsed {
     pub fn has_errors(&self) -> bool {
         self.diagnostics
             .iter()
-            .any(|d| d.severity == Severity::Error)
+            .any(|d| d.severity == DiagnosticSeverity::Error)
     }
 }
 
@@ -441,12 +441,12 @@ pub fn parse(text: &str) -> Parsed {
     scan_secrets(&mut reader, &root);
     reader
         .diagnostics
-        .sort_by_key(|d| (d.line, d.column, d.severity == Severity::Warning));
+        .sort_by_key(|d| (d.line, d.column, d.severity == DiagnosticSeverity::Warning));
     reader.diagnostics.dedup();
     let errors = reader
         .diagnostics
         .iter()
-        .any(|d| d.severity == Severity::Error);
+        .any(|d| d.severity == DiagnosticSeverity::Error);
     Parsed {
         file: file.filter(|_| !errors),
         diagnostics: reader.diagnostics,

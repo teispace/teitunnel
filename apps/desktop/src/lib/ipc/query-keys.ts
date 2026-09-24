@@ -59,6 +59,14 @@ export const queryKeys = {
   alerts: {
     rules: () => ["alerts", "rules"] as const,
   },
+  projects: {
+    all: () => ["projects"] as const,
+    list: () => ["projects", "list"] as const,
+    status: (path: string) => ["projects", "status", path] as const,
+    modified: (path: string) => ["projects", "modified", path] as const,
+  },
+  /** The exposure check of a service (runs a few requests to it; cached briefly). */
+  exposure: (origin: string) => ["exposure", origin] as const,
   snapshots: {
     all: () => ["snapshots"] as const,
     list: () => ["snapshots", "list"] as const,
@@ -94,6 +102,8 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       return [queryKeys.updates.status()];
     case "snapshots":
       return [queryKeys.snapshots.all()];
+    case "projects":
+      return [queryKeys.projects.all()];
   }
 }
 

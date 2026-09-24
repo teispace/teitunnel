@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
 import { AiTools } from "./ai-tools";
+import { MoveComputer } from "./move-computer";
 import {
   useCliStatus,
   useOpenAtLogin,
@@ -226,6 +227,19 @@ function GeneralPane() {
         />
       </GroupedSection>
       <AlertSettings />
+      <GroupedSection title={t("settings.exposure.title")} footer={t("settings.exposure.footer")}>
+        <GroupedRow
+          label={t("settings.exposure.check")}
+          description={t("settings.exposure.checkDetail")}
+        >
+          <Switch
+            aria-label={t("settings.exposure.check")}
+            checked={settings.exposureCheck}
+            onCheckedChange={(exposureCheck) => update.mutate({ exposureCheck })}
+          />
+        </GroupedRow>
+      </GroupedSection>
+      <MoveComputer />
       <GroupedSection title={t("settings.menuBar.title")} footer={t("settings.menuBar.footer")}>
         <GroupedRow
           label={t("settings.menuBar.show")}

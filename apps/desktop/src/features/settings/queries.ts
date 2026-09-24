@@ -69,3 +69,40 @@ export function useSetCliInstalled() {
     onSuccess: (state) => queryClient.setQueryData(cliKey, state),
   });
 }
+
+/** Move to another computer: the system's save and open panels (`null` when cancelled). */
+export const chooseBackupSave = () => call(commands.backupChooseSave());
+export const chooseBackupOpen = () => call(commands.backupChooseOpen());
+
+/** Writes an encrypted backup of this computer's setup. */
+export function useCreateBackup() {
+  return useMutation({
+    mutationFn: ({ path, passphrase }: { path: string; passphrase: string }) =>
+      call(commands.backupCreate(path, passphrase)),
+  });
+}
+
+/** Reads a backup and says what restoring it would bring (nothing changes yet). */
+export function useInspectBackup() {
+  return useMutation({
+    mutationFn: ({ path, passphrase }: { path: string; passphrase: string }) =>
+      call(commands.backupInspect(path, passphrase)),
+  });
+}
+
+/** Restores the backup that was inspected; everything it touched is read again. */
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => call(commands.backupRestore(id)),
+    onSuccess: () =>
+      refresh(
+        queryClient,
+        queryKeys.settings.all(),
+        queryKeys.accounts.all(),
+        queryKeys.routes.all(),
+        queryKeys.projects.all(),
+        queryKeys.snapshots.all(),
+      ),
+  });
+}

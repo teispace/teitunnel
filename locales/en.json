@@ -658,6 +658,12 @@
       "noCli": "AI tools run Teitunnel's command line tool, which isn't part of this copy of Teitunnel.",
       "others": "Other tools: run this command as an MCP server.",
       "command": "MCP server command"
+    },
+    "exposure": {
+      "title": "Before Sharing",
+      "footer": "Teitunnel looks at the service itself (not through Cloudflare) with a few quick requests. It only warns; you can always share anyway.",
+      "check": "Check for exposed files and debug pages",
+      "checkDetail": "A .env file, the git folder, backups, framework debug pages, open admin panels"
     }
   },
   "cliOffer": {
@@ -996,7 +1002,8 @@
     "gallery": "Gallery",
     "settings": "Settings",
     "analytics": "Analytics",
-    "snapshots": "Snapshots"
+    "snapshots": "Snapshots",
+    "projects": "Projects"
   },
   "commands": {
     "group": {
@@ -1580,7 +1587,10 @@
       "finder@windows": "Couldn't open File Explorer: {detail}",
       "finder@linux": "Couldn't open the file manager: {detail}",
       "cloudflaredMissingHint@windows": "Install it from the Quick Share page, or run `winget install --id Cloudflare.cloudflared`.",
-      "cloudflaredMissingHint@linux": "Install it from the Quick Share page, or with your package manager."
+      "cloudflaredMissingHint@linux": "Install it from the Quick Share page, or with your package manager.",
+      "projectAccount": "No connected account is called {name}. Connect it, or change account in teitunnel.yml.",
+      "projectNoAccount": "Connect a Cloudflare account to apply this project.",
+      "projectChooseAccount": "Several accounts are connected: add account: NAME to teitunnel.yml to say which one this project uses."
     },
     "menu": {
       "about": "About {app}",
@@ -1829,11 +1839,11 @@
       "badHostHeader": "{value} isn't a host for the Host header, e.g. localhost:5173.",
       "badOriginRequest": "These origin settings have a value of the wrong type.",
       "literalSecret": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
-      "literalSecret@windows": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry (keychain: NAME) instead.",
-      "literalSecret@linux": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry (keychain: NAME) instead.",
+      "literalSecret@windows": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry instead (see Project files in the docs).",
+      "literalSecret@linux": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry instead (see Project files in the docs).",
       "secretValue": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
-      "secretValue@windows": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry (keychain: NAME) instead.",
-      "secretValue@linux": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry (keychain: NAME) instead.",
+      "secretValue@windows": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry instead (see Project files in the docs).",
+      "secretValue@linux": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry instead (see Project files in the docs).",
       "secretRef": "{key} must be a secret reference, env: NAME or keychain: NAME (letters, digits, -, _ and .).",
       "shareOrigin": "A share needs port or url.",
       "shareBoth": "Give port or url, not both.",
@@ -1857,7 +1867,9 @@
       "changed": "Cloudflare changed since the plan was shown. Review the plan again.",
       "noteTemporary": "A temporary share uses this hostname now.",
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
-      "noteLocalDomains": "Local domains aren't available in this version of Teitunnel yet, so this entry is skipped."
+      "noteLocalDomains": "Local domains aren't available in this version of Teitunnel yet, so this entry is skipped.",
+      "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
+      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
     },
     "exposure": {
       "envFile": {
@@ -1944,7 +1956,8 @@
       "wrongPassphrase": "The passphrase is wrong, or the file was changed or damaged.",
       "newerSchema": "This backup was made by a newer Teitunnel. Update Teitunnel to restore it.",
       "io": "Couldn't use {path}: {detail}",
-      "internal": "The backup couldn't be made: {detail}"
+      "internal": "The backup couldn't be made: {detail}",
+      "notPending": "Open the backup again to restore it."
     }
   },
   "permissionFix": {
@@ -2284,6 +2297,123 @@
       "partial": "Publishing failed: {error}. Left in place: {leftovers}",
       "updated": "A new version of {name} is live",
       "published": "{name} is online"
+    }
+  },
+  "project": {
+    "title": "Projects",
+    "open": "Open Project…",
+    "list": "Projects",
+    "refresh": "Refresh",
+    "remove": "Remove from List",
+    "noSelection": "Select a project",
+    "loadFailed": "Couldn't read the project",
+    "empty": {
+      "title": "No projects yet",
+      "description": "Open a folder with a teitunnel.yml to see its routes, shares and Snapshots and apply them in one step. Create one in a repository with teitunnel project init.",
+      "drop": "You can also drop the folder here."
+    },
+    "kind": {
+      "route": "Route",
+      "share": "Share",
+      "snapshot": "Snapshot",
+      "localDomain": "Local domain"
+    },
+    "state": {
+      "applied": "Applied",
+      "differs": "Differs",
+      "missing": "Missing",
+      "unsupported": "Skipped"
+    },
+    "declared": "Declared in teitunnel.yml",
+    "items": "What the project declares",
+    "randomAddress": "Random trycloudflare.com address",
+    "line": "Line {line}",
+    "position": "Line {line}, column {column}",
+    "problems_one": "{count} problem in teitunnel.yml",
+    "problems_other": "{count} problems in teitunnel.yml",
+    "warnings_one": "{count} warning",
+    "warnings_other": "{count} warnings",
+    "apply": "Apply…",
+    "upToDate": "Everything teitunnel.yml declares is applied.",
+    "changed": {
+      "title": "teitunnel.yml changed",
+      "description": "Review what's different, then apply it.",
+      "review": "Review Changes"
+    },
+    "sheet": {
+      "title": "Apply {name}",
+      "description": "Exactly what changes in Cloudflare and on this computer. Nothing happens until you apply.",
+      "routes": "Routes",
+      "snapshots": "Snapshots",
+      "shares": "Shares",
+      "snapshotNew": "Publish Snapshot {name} from {source} at {address}",
+      "snapshotUpdate": "Publish a new version of Snapshot {name} if its files changed",
+      "snapshotBuild": "Built first with {command}.",
+      "workersDev": "your workers.dev address",
+      "shareQuick": "Share {origin} at a random trycloudflare.com address",
+      "shareDomain": "Share {origin} at {hostname}",
+      "sharesNote": "Shares run until you stop them or quit Teitunnel.",
+      "confirm": "Replace DNS records Teitunnel didn't create",
+      "apply": "Apply",
+      "applying": "Applying…",
+      "nothing": "Nothing to change."
+    },
+    "applied": "Applied {name}",
+    "sharesStarted_one": "{count} share started.",
+    "sharesStarted_other": "{count} shares started.",
+    "failed": "Stopped at {hostname}. The changes after it weren't applied.",
+    "snapshotResult": {
+      "published": "Published",
+      "upToDate": "Up to date",
+      "needsConfirmation": "Needs a confirmation: it would replace a DNS record Teitunnel didn't create",
+      "failed": "Failed"
+    }
+  },
+  "exposure": {
+    "title": "{origin} may expose more than you mean to share",
+    "routeTitle": "{origin} may expose more than you mean to make public",
+    "checking": "Checking for exposed files…",
+    "shareAnyway": "Share Anyway",
+    "incomplete": "Some checks didn't finish in time.",
+    "path": "at {path}",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    }
+  },
+  "backup": {
+    "title": "Move to Another Computer",
+    "description": "Save Teitunnel's setup to an encrypted file and restore it on the other computer. It never holds tokens or passwords: connect your accounts again after restoring.",
+    "rowLabel": "Move to another computer",
+    "rowDescription": "Settings, this computer's tunnels, projects and alert rules, encrypted with a passphrase.",
+    "export": "Export…",
+    "import": "Import…",
+    "passphrase": "Passphrase",
+    "passphraseAgain": "Passphrase again",
+    "passphraseHelp": "At least 10 characters. You'll need it on the other computer; it can't be recovered.",
+    "mismatch": "The passphrases don't match.",
+    "tooShort": "Use at least 10 characters.",
+    "save": "Save Backup",
+    "saved": "Backup saved to {path}",
+    "read": "Read Backup",
+    "restore": "Restore",
+    "restoreReplace": "Replace and Restore",
+    "from": "Made on {machine} with Teitunnel {version}.",
+    "replaces_one": "replaces {count} here",
+    "replaces_other": "replaces {count} here",
+    "projects": "Projects: {names}",
+    "accounts": "Connect these accounts again after restoring: {names}",
+    "overwrites": "Restoring replaces this computer's tunnels and records of what Teitunnel created with the backup's.",
+    "restored": "Restored. Connect your accounts again to run the tunnels here.",
+    "section": {
+      "settings": "Settings",
+      "local_tunnels": "Tunnels",
+      "dns_ownership": "DNS records Teitunnel created",
+      "access_ownership": "Logins Teitunnel added",
+      "balanced_routes": "Load-balanced routes",
+      "snapshots": "Snapshots",
+      "snapshot_versions": "Snapshot versions"
     }
   }
 }

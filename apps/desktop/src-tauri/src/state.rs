@@ -50,4 +50,8 @@ pub struct AppState {
     pub snapshots: teitunnel_core::snapshot::Preparations,
     /// Where crawled sites are captured before publishing.
     pub snapshot_dir: std::path::PathBuf,
+    /// The keychain (a project's secret references are read from it).
+    pub secrets: teitunnel_core::secrets::Secrets,
+    /// A backup read and shown to the user, waiting to be restored (its id, its contents).
+    pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
 }

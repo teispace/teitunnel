@@ -4,6 +4,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useActiveAccount, useDomains } from "@/features/accounts";
+import { ExposureCallout, useExposureGate } from "@/features/exposure";
 import { t } from "@/lib/i18n";
 import type { HostHeaderChoice } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -45,8 +46,9 @@ export function ShareComposer({
   const domains = (useDomains(account?.id ?? null).data ?? []).filter((d) => d.status === "active");
   const start = useStartShare();
   const startOnDomain = useStartDomainShare();
+  const gate = useExposureGate();
   const onDomain = address !== RANDOM && account !== null;
-  const pending = start.isPending || startOnDomain.isPending;
+  const pending = start.isPending || startOnDomain.isPending || gate.checking;
   const errorId = useId();
   const failure = onDomain ? startOnDomain.error : start.error;
   const error = failure ? toIpcError(failure) : null;
@@ -57,11 +59,17 @@ export function ShareComposer({
   const reset = () => {
     if (start.error) start.reset();
     if (startOnDomain.error) startOnDomain.reset();
+    gate.cancel();
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (disabled || pending) return;
+    // Checked for leaks first; findings wait for "Share Anyway" (never blocks).
+    gate.run(origin, share);
+  };
+
+  const share = () => {
     if (onDomain && account) {
       const label = subdomain.trim().replace(/\.$/, "");
       startOnDomain.mutate(
@@ -185,6 +193,21 @@ export function ShareComposer({
           <p className="text-footnote text-secondary">{t("quickShare.hostHeader.help")}</p>
         </div>
       </Disclosure>
+      {gate.report ? (
+        <ExposureCallout
+          report={gate.report}
+          actions={
+            <>
+              <Button type="button" onClick={gate.cancel}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="button" variant="primary" onClick={gate.proceed}>
+                {t("exposure.shareAnyway")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
       {error && error.code !== "cloudflaredMissing" ? (
         <p id={errorId} role="alert" className="px-1 text-callout text-error">
           {error.message}

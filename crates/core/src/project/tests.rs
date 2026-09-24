@@ -8,6 +8,151 @@ use crate::{
     text::Text,
 };
 
+#[tokio::test]
+async fn applies_routes_and_snapshots_and_records_what_it_created() {
+    let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+    let (conns, keychain) = (
+        FakeConnectors::default(),
+        crate::secrets::MemoryStore::default(),
+    );
+    let cloud = FakeCloud::new(CloudState {
+        zones: vec![crate::engine::ZoneRef {
+            id: "z".into(),
+            name: "example.com".into(),
+        }],
+        workers_subdomain: Some("acme".into()),
+        ..CloudState::default()
+    });
+    let site = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(site.path().join("dist")).unwrap();
+    std::fs::write(site.path().join("dist/index.html"), "<h1>Docs</h1>").unwrap();
+    let mut project = loaded(
+        "version: 1\nroutes:\n  - hostname: app.example.com\n    origin: 3000\nsnapshots:\n  - name: docs\n    source: { folder: dist }\n",
+    );
+    project.dir = site.path().to_path_buf();
+    let store = engine.local().store().clone();
+
+    let first = plan(&engine, &cloud, &conns, CTX, &project, &[])
+        .await
+        .unwrap();
+    let applied = apply_routes(
+        &engine,
+        &cloud,
+        &conns,
+        CTX,
+        &store,
+        &first,
+        false,
+        |_, _| {},
+    )
+    .await
+    .unwrap();
+    assert!(applied.failure.is_none());
+    assert_eq!(applied.created.len(), 1);
+    let file = project.file().unwrap();
+    let resolved = resolve(file, &project.vars).unwrap();
+    let publish = || {
+        publish_snapshot(
+            &engine,
+            &cloud,
+            &conns,
+            CTX,
+            &keychain,
+            &first.snapshots[0],
+            &resolved.snapshots[0].0,
+            false,
+            |_| {},
+        )
+    };
+    assert_eq!(publish().await.unwrap(), SnapshotResult::Published);
+    assert_eq!(
+        publish().await.unwrap(),
+        SnapshotResult::UpToDate,
+        "idempotent"
+    );
+    let known = registry::list(&store).await.unwrap();
+    assert_eq!(known[0].created_routes[0].hostname, "app.example.com");
+
+    // Applied: a second plan changes no route; the Snapshot exists.
+    let again = plan(&engine, &cloud, &conns, CTX, &project, &[])
+        .await
+        .unwrap();
+    assert!(again.routes.is_empty());
+    assert!(again.snapshots[0].exists);
+    assert!(
+        again.items.iter().all(|i| i.state == ItemState::Applied),
+        "{:?}",
+        again.items
+    );
+}
+
+#[test]
+fn the_published_schema_knows_every_key() {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../apps/web/public/schema/teitunnel.v1.json"
+    ))
+    .unwrap();
+    let keys = |pointer: &str| -> Vec<String> {
+        let mut keys: Vec<String> = schema
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_object)
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(
+        keys("/properties"),
+        [
+            "$schema",
+            "account",
+            "localDomains",
+            "project",
+            "protection",
+            "routes",
+            "shares",
+            "snapshots",
+            "version"
+        ]
+    );
+    assert_eq!(
+        keys("/$defs/route/properties"),
+        [
+            "hostname",
+            "login",
+            "origin",
+            "originRequest",
+            "path",
+            "tunnel"
+        ]
+    );
+    assert_eq!(
+        keys("/$defs/share/properties"),
+        [
+            "expires",
+            "hostHeader",
+            "hostname",
+            "inspect",
+            "login",
+            "port",
+            "url"
+        ]
+    );
+    assert_eq!(
+        keys("/$defs/snapshot/properties"),
+        [
+            "expires", "hostname", "login", "name", "password", "source", "spa"
+        ]
+    );
+    let mut origin = crate::domain::ORIGIN_OPTION_KEYS.to_vec();
+    origin.sort_unstable();
+    assert_eq!(keys("/$defs/originRequest/properties"), origin);
+    // The example in the tests is valid against the parser.
+    assert!(!parse(FULL).has_errors());
+}
+
 const FULL: &str = r#"# yaml-language-server: $schema=https://teitunnel.teispace.com/schema/teitunnel.v1.json
 version: 1
 project: shop
@@ -49,7 +194,7 @@ fn errors(text: &str) -> Vec<(u32, u32, String)> {
     parse(text)
         .diagnostics
         .into_iter()
-        .filter(|d| d.severity == Severity::Error)
+        .filter(|d| d.severity == DiagnosticSeverity::Error)
         .map(|d| (d.line, d.column, d.message.english()))
         .collect()
 }
@@ -91,7 +236,7 @@ fn reads_every_section() {
     assert_eq!(file.unknown_keys, ["protection"]);
     assert_eq!(parsed.diagnostics.len(), 1, "{:?}", parsed.diagnostics);
     let warning = &parsed.diagnostics[0];
-    assert_eq!(warning.severity, Severity::Warning);
+    assert_eq!(warning.severity, DiagnosticSeverity::Warning);
     assert_eq!((warning.line, warning.column), (33, 1));
     assert!(warning.message.english().contains("protection"));
 }
@@ -140,7 +285,7 @@ fn refuses_secrets_anywhere() {
         let error = parsed
             .diagnostics
             .iter()
-            .find(|d| d.severity == Severity::Error)
+            .find(|d| d.severity == DiagnosticSeverity::Error)
             .unwrap();
         assert_eq!(error.line, line, "{text}: {:?}", parsed.diagnostics);
         let english = error.message.english();

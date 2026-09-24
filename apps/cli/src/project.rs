@@ -18,12 +18,10 @@ use teitunnel_core::{
     domain_shares::{self, ShareRequest},
     engine::{Change, Connectors, Context, Outcome, StepState},
     project::{
-        self, HostHeaderDecl, ItemKind, ItemState, Loaded, ProjectPlan, Severity, ShareAction,
-        SnapshotSourceDecl, registry,
+        self, DiagnosticSeverity, HostHeaderDecl, ItemKind, ItemState, Loaded, ProjectPlan,
+        ShareAction, SnapshotResult, SnapshotSourceDecl, registry,
     },
     quick_share::{HostHeaderChoice, QuickShares, ShareStatus},
-    snapshot::{self, Preparations, SnapshotError, build},
-    text::UserText as _,
 };
 
 use crate::{context::App, share::status};
@@ -136,8 +134,8 @@ fn print_diagnostics(loaded: &Loaded) {
     );
     for d in &loaded.parsed.diagnostics {
         let level = match d.severity {
-            Severity::Error => "error",
-            Severity::Warning => "warning",
+            DiagnosticSeverity::Error => "error",
+            DiagnosticSeverity::Warning => "warning",
         };
         status(&format!(
             "{name}:{}:{}: {level}: {}",
@@ -182,15 +180,6 @@ fn kind_word(kind: ItemKind) -> &'static str {
     }
 }
 
-/// The build command a Snapshot's project runs, for the plan.
-fn build_command(dir: &str) -> Option<String> {
-    let project = build::detect(Path::new(dir)).ok()?;
-    build::BuildCommand::for_project(&project)
-        .ok()
-        .flatten()
-        .map(|c| c.display())
-}
-
 fn print_plan(plan: &ProjectPlan, account: &Account) -> Result<(), String> {
     out!("Project {} ({}) in {}:", plan.name, plan.path, account.name)?;
     for item in &plan.items {
@@ -229,7 +218,7 @@ fn print_plan(plan: &ProjectPlan, account: &Account) -> Result<(), String> {
             .unwrap_or_else(|| "workers.dev".to_owned());
         let source = match &snapshot.source {
             SnapshotSourceDecl::Folder(path) => format!("the files in {path}"),
-            SnapshotSourceDecl::Build(path) => match build_command(path) {
+            SnapshotSourceDecl::Build(path) => match project::build_command(path) {
                 Some(command) => format!("{path}, built with `{command}`"),
                 None => path.clone(),
             },
@@ -309,175 +298,90 @@ pub(crate) async fn apply(
         return Ok(None);
     }
 
-    let mut created = Vec::new();
-    for action in &plan.routes {
-        let steps = action.plan.steps.clone();
-        let outcome = project::apply_route(
+    let steps: Vec<Vec<String>> = plan
+        .routes
+        .iter()
+        .map(|r| {
+            r.plan
+                .steps
+                .iter()
+                .map(|s| s.description.english())
+                .collect()
+        })
+        .collect();
+    let applied = project::apply_routes(
+        &app.engine,
+        &api,
+        &connectors,
+        ctx,
+        app.store(),
+        &plan,
+        options.replace,
+        |route, progress| {
+            let Some(step) = steps
+                .get(route)
+                .and_then(|s| s.get(usize::try_from(progress.step).unwrap_or(usize::MAX)))
+            else {
+                return;
+            };
+            let mark = match progress.state {
+                StepState::Done => "done",
+                StepState::Failed { .. } => "failed",
+                StepState::Undone => "undone",
+                StepState::UndoFailed { .. } => "couldn't undo",
+                _ => return,
+            };
+            let _ = writeln!(std::io::stdout().lock(), "    {mark}: {step}");
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    for note in &applied.notes {
+        out!("Note: {}", note.english())?;
+    }
+    if let Some(failure) = &applied.failure {
+        for leftover in &failure.leftovers {
+            out!("  - left in place: {}", leftover.english())?;
+        }
+        return Err(project::failure_text(failure));
+    }
+
+    let file = loaded.file().map_err(|e| e.to_string())?;
+    let resolved = project::resolve(file, &loaded.vars).map_err(|e| e.to_string())?;
+    for (action, (decl, _)) in plan.snapshots.iter().zip(&resolved.snapshots) {
+        let result = project::publish_snapshot(
             &app.engine,
             &api,
             &connectors,
             ctx,
+            app.secrets().as_ref(),
             action,
+            decl,
             options.replace,
-            |progress| {
-                let Some(step) = steps.get(usize::try_from(progress.step).unwrap_or(usize::MAX))
-                else {
-                    return;
-                };
-                let mark = match progress.state {
-                    StepState::Done => "done",
-                    StepState::Failed { .. } => "failed",
-                    StepState::Undone => "undone",
-                    StepState::UndoFailed { .. } => "couldn't undo",
-                    _ => return,
-                };
-                let _ = writeln!(
-                    std::io::stdout().lock(),
-                    "    {mark}: {}",
-                    step.description.english()
-                );
+            |line| {
+                let _ = writeln!(std::io::stdout().lock(), "  | {line}");
             },
         )
         .await
-        .map_err(|e| format!("{}: {e}", action.hostname))?;
-        match outcome {
-            Outcome::Applied {
-                connector_error, ..
-            } => {
-                if let Some(error) = connector_error {
-                    out!("Note: {}", error.english())?;
-                }
-                if matches!(action.change, Change::AddRoute { .. }) {
-                    created.push(registry::CreatedRoute {
-                        account_id: account.id.clone(),
-                        hostname: action.hostname.clone(),
-                        path: action.path.clone(),
-                    });
-                }
-            }
-            Outcome::RolledBack { error, .. } => {
+        .map_err(|e| format!("Snapshot {}: {e}", action.name))?;
+        match result {
+            SnapshotResult::Published => out!("Published Snapshot {}.", action.name)?,
+            SnapshotResult::UpToDate => out!("Snapshot {} is up to date.", action.name)?,
+            SnapshotResult::NeedsConfirmation => {
                 return Err(format!(
-                    "{}: {}. Its changes were undone.",
-                    action.hostname,
-                    error.english()
+                    "Snapshot {} would replace a DNS record Teitunnel didn't create. Pass --replace to allow it.",
+                    action.name
                 ));
             }
-            Outcome::PartiallyApplied {
-                error, leftovers, ..
-            } => {
-                for leftover in leftovers {
-                    out!("  - left in place: {}", leftover.english())?;
-                }
-                return Err(format!("{}: {}", action.hostname, error.english()));
+            SnapshotResult::Failed { error } => {
+                return Err(format!("Snapshot {}: {}", action.name, error.english()));
             }
         }
-    }
-    registry::applied(
-        app.store(),
-        &loaded.path.display().to_string(),
-        &loaded.name,
-        created,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
-
-    let file = loaded.file().map_err(|e| e.to_string())?;
-    let resolved = project::resolve(file, &loaded.vars).map_err(|e| e.to_string())?;
-    for (action, (decl, hostname)) in plan.snapshots.iter().zip(&resolved.snapshots) {
-        publish_snapshot(app, &account, action, decl, hostname.as_deref(), options).await?;
     }
     Ok(Some(Applied {
         account,
         shares: plan.shares,
     }))
-}
-
-async fn publish_snapshot(
-    app: &App,
-    account: &Account,
-    action: &project::SnapshotAction,
-    decl: &project::SnapshotDecl,
-    hostname: Option<&str>,
-    options: &ApplyOptions,
-) -> Result<(), String> {
-    let error = |e: SnapshotError| format!("Snapshot {}: {}", action.name, e.text().english());
-    let preparations = Preparations::default();
-    let prepared = match &action.source {
-        SnapshotSourceDecl::Folder(path) => {
-            preparations.folder(Path::new(path)).await.map_err(error)?
-        }
-        SnapshotSourceDecl::Build(path) => {
-            let project = build::detect(Path::new(path)).map_err(error)?;
-            preparations
-                .build(&project, |line| {
-                    let _ = writeln!(std::io::stdout().lock(), "  | {line}");
-                })
-                .await
-                .map_err(error)?
-        }
-    };
-    let existing = app
-        .engine
-        .local()
-        .sites(Some(&account.id))
-        .await
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|s| s.name.eq_ignore_ascii_case(&action.name));
-    let needs_password = existing.as_ref().is_none_or(|row| !row.password);
-    let password = match &decl.password {
-        Some(reference) if needs_password => Some(
-            project::resolve_secret(reference, app.secrets().as_ref())
-                .map_err(|e| e.to_string())?,
-        ),
-        _ => None,
-    };
-    let change = project::snapshot_change(decl, hostname, prepared.id, existing.as_ref(), password);
-    let api = app
-        .accounts
-        .client(&account.id)
-        .await
-        .map_err(|e| e.to_string())?;
-    let ctx = app.context(account);
-    let plan = match snapshot::preview(&app.engine, &api, &preparations, ctx, &change).await {
-        Err(SnapshotError::Unchanged) => {
-            out!("Snapshot {} is up to date.", action.name)?;
-            return Ok(());
-        }
-        other => other.map_err(error)?,
-    };
-    if plan.requires_confirmation && !options.replace {
-        return Err(format!(
-            "Snapshot {} would replace a DNS record Teitunnel didn't create. Pass --replace to allow it.",
-            action.name
-        ));
-    }
-    let connectors = app.connectors(account).await;
-    let outcome = snapshot::apply(
-        &app.engine,
-        &api,
-        &connectors,
-        &preparations,
-        ctx,
-        "cli",
-        &change,
-        teitunnel_core::engine::Approval {
-            fingerprint: &plan.fingerprint,
-            confirmed: options.replace,
-        },
-        |_| {},
-    )
-    .await
-    .map_err(error)?;
-    match outcome {
-        Outcome::Applied { .. } => {
-            out!("Published Snapshot {}.", action.name)?;
-            Ok(())
-        }
-        Outcome::RolledBack { error, .. } | Outcome::PartiallyApplied { error, .. } => {
-            Err(format!("Snapshot {}: {}", action.name, error.english()))
-        }
-    }
 }
 
 /// Shares a project runs while this process does.

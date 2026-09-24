@@ -296,15 +296,19 @@ pub fn status(resolved: &Resolved, observed: Observed<'_>) -> Vec<ProjectItem> {
             .find(|s| s.name.eq_ignore_ascii_case(&decl.name));
         let state = match existing {
             None => ItemState::Missing,
-            Some(row)
-                if row.hostname.is_some() != hostname.is_some()
-                    || hostname
-                        .as_ref()
-                        .is_some_and(|h| row.hostname.as_deref() != Some(h.as_str())) =>
-            {
-                ItemState::Differs
+            Some(row) => {
+                // No hostname declared: the account's workers.dev address.
+                let at = row.hostname.as_deref();
+                let same = match hostname {
+                    Some(h) => at == Some(h.as_str()),
+                    None => at.is_none_or(|a| a.ends_with(".workers.dev")),
+                };
+                if same {
+                    ItemState::Applied
+                } else {
+                    ItemState::Differs
+                }
             }
-            Some(_) => ItemState::Applied,
         };
         items.push(ProjectItem {
             kind: ItemKind::Snapshot,

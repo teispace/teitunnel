@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://teitunnel.teispace.com/schema/teitunnel.v1.json",
+  "title": "Teitunnel project file (teitunnel.yml)",
+  "description": "A project's routes, shares, Snapshots and local domains, applied with `teitunnel up` or by opening the folder in Teitunnel. Never put secrets here: refer to them with { env: NAME } or { keychain: NAME }.",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "description": "The schema version. This file follows version 1.",
+      "const": 1
+    },
+    "project": {
+      "description": "The project's name, used by the {project} placeholder. Default: the name in package.json, Cargo.toml, pyproject.toml, composer.json or go.mod, else the folder's name.",
+      "type": "string",
+      "minLength": 1
+    },
+    "account": {
+      "description": "The Cloudflare account (its name or id). Needed when several accounts are connected.",
+      "type": "string",
+      "minLength": 1
+    },
+    "routes": {
+      "description": "Permanent routes: public hostnames on your domains that reach services on this machine.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/route" }
+    },
+    "shares": {
+      "description": "Shares that run while `teitunnel up` (or the app, with the project open) runs.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/share" }
+    },
+    "snapshots": {
+      "description": "Static copies published to your Cloudflare account (online while this computer sleeps).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/snapshot" }
+    },
+    "localDomains": {
+      "description": "Local HTTPS names for ports on this machine, like shop.localhost.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/localDomain" }
+    },
+    "protection": {
+      "description": "Reserved for a later version (passwords and gates on shares). This version ignores it and warns."
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "hostname": {
+      "description": "A hostname on one of the account's domains. May use the placeholders {branch}, {user} and {project}, e.g. \"{branch}-{project}.example.com\".",
+      "type": "string",
+      "pattern": "^(\\*\\.)?([a-zA-Z0-9{}-]+\\.)+[a-zA-Z0-9-]+$"
+    },
+    "login": {
+      "description": "Require a Cloudflare Access login: email addresses, or @domain for everyone at a domain.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      ]
+    },
+    "secretRef": {
+      "description": "A secret, by reference: an environment variable of the process applying the file, or an entry in the OS keychain under Teitunnel's service. Never the secret itself.",
+      "type": "object",
+      "oneOf": [
+        {
+          "properties": { "env": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$" } },
+          "required": ["env"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "keychain": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$" }
+          },
+          "required": ["keychain"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "duration": {
+      "description": "90s, 30m, 2h or 7d (a bare number is minutes); at most 90 days.",
+      "oneOf": [
+        { "type": "string", "pattern": "^\\s*[0-9]+\\s*(s|m|min|h|d)?\\s*$" },
+        { "type": "integer", "minimum": 1 }
+      ]
+    },
+    "originRequest": {
+      "description": "Origin settings, as in cloudflared's originRequest.",
+      "type": "object",
+      "properties": {
+        "httpHostHeader": { "type": "string" },
+        "originServerName": { "type": "string" },
+        "matchSNItoHost": { "type": "boolean" },
+        "noTLSVerify": { "type": "boolean" },
+        "caPool": { "type": "string" },
+        "http2Origin": { "type": "boolean" },
+        "disableChunkedEncoding": { "type": "boolean" },
+        "connectTimeout": { "type": "integer", "minimum": 1 },
+        "tlsTimeout": { "type": "integer", "minimum": 1 },
+        "tcpKeepAlive": { "type": "integer", "minimum": 1 },
+        "keepAliveTimeout": { "type": "integer", "minimum": 1 },
+        "keepAliveConnections": { "type": "integer", "minimum": 1 },
+        "noHappyEyeballs": { "type": "boolean" },
+        "proxyType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "route": {
+      "type": "object",
+      "required": ["hostname", "origin"],
+      "properties": {
+        "hostname": { "$ref": "#/$defs/hostname" },
+        "origin": {
+          "description": "Where traffic goes: a port (3000), host:port, or a URL (http, https, tcp, ssh, rdp, smb).",
+          "oneOf": [{ "type": "string" }, { "type": "integer", "minimum": 1, "maximum": 65535 }]
+        },
+        "path": {
+          "description": "Only requests whose path matches this regex, e.g. ^/api.",
+          "type": "string"
+        },
+        "tunnel": {
+          "description": "One of this machine's tunnels, by name (default: the default tunnel).",
+          "type": "string"
+        },
+        "login": { "$ref": "#/$defs/login" },
+        "originRequest": { "$ref": "#/$defs/originRequest" }
+      },
+      "additionalProperties": false
+    },
+    "share": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "description": "A port on this machine (http://localhost:PORT).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "url": { "description": "The service's URL, instead of port.", "type": "string" },
+        "hostname": {
+          "$ref": "#/$defs/hostname",
+          "description": "A hostname on one of your domains (a temporary route, removed when the share stops). Without it: a Quick Share at a random trycloudflare.com address."
+        },
+        "expires": { "$ref": "#/$defs/duration" },
+        "inspect": {
+          "description": "Record its traffic in the inspector (default: true).",
+          "type": "boolean"
+        },
+        "hostHeader": {
+          "description": "The Host header sent to the service: \"auto\" (default: dev servers that need their own address get it), false to pass the visitor's through, or a value such as localhost:5173.",
+          "oneOf": [{ "type": "string" }, { "const": false }]
+        },
+        "login": { "$ref": "#/$defs/login" }
+      },
+      "oneOf": [{ "required": ["port"] }, { "required": ["url"] }],
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["name", "source"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "source": {
+          "description": "A folder published as it is, or a project built first; relative to teitunnel.yml.",
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": { "folder": { "type": "string" } },
+              "required": ["folder"],
+              "additionalProperties": false
+            },
+            {
+              "properties": { "build": { "type": "string" } },
+              "required": ["build"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "hostname": {
+          "$ref": "#/$defs/hostname",
+          "description": "A hostname on one of your domains; without it, the account's workers.dev address."
+        },
+        "spa": {
+          "description": "Serve index.html for unknown paths (single-page apps).",
+          "type": "boolean"
+        },
+        "password": { "$ref": "#/$defs/secretRef" },
+        "login": { "$ref": "#/$defs/login" },
+        "expires": {
+          "$ref": "#/$defs/duration",
+          "description": "Delete it after this long (whole days, e.g. 30d)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "localDomain": {
+      "type": "object",
+      "required": ["name", "port"],
+      "properties": {
+        "name": {
+          "description": "name.localhost, name.test or name.local.",
+          "type": "string",
+          "pattern": "^([a-z0-9-]+\\.)+(localhost|test|local)$"
+        },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "wildcard": {
+          "description": "Subdomains (*.name.localhost) go to the same port.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
