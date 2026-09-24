@@ -28,7 +28,10 @@ Scope and choices: D-074 (research in `docs/research/distribution.md`). Order: M
 - [x] Versioning: SemVer. v0.1.0 is the public beta.
 
 ### M6-04 · Channels (after v0.1.0)
-- [ ] Website only at first (D-074). Later: Homebrew tap (`teispace/homebrew-tap`), winget, ghcr.io multi-arch image, apt/dnf repository. ("Install command line tool" in the app: done, D-077.)
+- [x] ghcr.io multi-arch image from the release's own binaries (`image.yml`, D-084).
+- [x] Homebrew tap `teispace/homebrew-tap`: cask `teitunnel` and formula `teitunnel-cli`, following releases on its own (D-084).
+- [ ] winget `Teispace.Teitunnel`: manifests ready and release job in place; first submission and `WINGET_TOKEN` need the maintainer (RELEASING.md step 7).
+- [ ] Later: apt/dnf repository; homebrew/cask once Teitunnel meets its notability rules. ("Install command line tool" in the app: done, D-077.)
 
 ### M6-07 · Download experience (website)
 - [x] Hero button by detected OS (macOS universal; Windows x64/arm64 via User-Agent Client Hints; Linux menu of `.deb`/`.rpm`/AppImage per arch); fallback lists everything without JavaScript.

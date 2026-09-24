@@ -11,6 +11,12 @@ export interface Variant {
   files: { label: string; download: Download }[];
 }
 
+/** A command that installs this panel's software, with where it applies. */
+export interface InstallCommand {
+  label: string;
+  command: string;
+}
+
 export interface Panel {
   id: PanelId;
   title: string;
@@ -20,8 +26,8 @@ export interface Panel {
   /** "Universal · .dmg", shown under the button. */
   primaryDetail: string;
   variants: Variant[];
-  /** A command that installs or unpacks the primary file, or null. */
-  command: string | null;
+  /** Commands that install it from a terminal; none before a release. */
+  commands: InstallCommand[];
 }
 
 export const panelIds: PanelId[] = ["macos", "windows", "linux", "cli"];
@@ -45,6 +51,13 @@ const formats: Record<Kind, { label: string; hint: string }> = {
 };
 
 const archOrder: Arch[] = ["universal", "x64", "arm64"];
+
+/** Package managers and images that follow the releases (D-084). */
+const channels = {
+  cask: "brew install --cask teispace/tap/teitunnel",
+  formula: "brew install teispace/tap/teitunnel-cli",
+  docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel",
+};
 
 function byArch(a: Download, b: Download): number {
   return archOrder.indexOf(a.arch) - archOrder.indexOf(b.arch);
@@ -109,7 +122,7 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       primary: dmg,
       primaryDetail: detail(dmg),
       variants: [],
-      command: null,
+      commands: dmg ? [{ label: "Homebrew", command: channels.cask }] : [],
     },
     {
       id: "windows",
@@ -120,7 +133,7 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       variants: [variant(of("windows", "setup"), "Installer", "Windows 10 and 11")].filter(
         (v): v is Variant => v !== null,
       ),
-      command: null,
+      commands: [],
     },
     {
       id: "linux",
@@ -129,7 +142,9 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       primary: deb,
       primaryDetail: deb ? `${detail(deb)} · ${formats.deb.hint}` : "",
       variants: linuxVariants,
-      command: deb ? `sudo apt install ./${deb.name}` : null,
+      commands: deb
+        ? [{ label: "Ubuntu, Debian, Mint", command: `sudo apt install ./${deb.name}` }]
+        : [],
     },
     {
       id: "cli",
@@ -138,9 +153,16 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       primary: cliLinux,
       primaryDetail: cliLinux ? `Linux · ${archLabels[cliLinux.arch]} · .tar.gz` : "",
       variants: cliVariants,
-      command: cliLinux
-        ? `curl -L ${cliLinux.url} | sudo tar -xz -C /usr/local/bin teitunnel-cli`
-        : null,
+      commands: cliLinux
+        ? [
+            {
+              label: "Linux",
+              command: `curl -L ${cliLinux.url} | sudo tar -xz -C /usr/local/bin teitunnel-cli`,
+            },
+            { label: "Homebrew, on macOS or Linux", command: channels.formula },
+            { label: "Docker", command: channels.docker },
+          ]
+        : [],
     },
   ];
 }

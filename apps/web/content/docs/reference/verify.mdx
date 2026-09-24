@@ -39,6 +39,17 @@ gh attestation verify Teitunnel_0.1.0_universal.dmg --repo teispace/teitunnel
 
 It succeeds only for a file built by Teitunnel's release workflow from this repository.
 
+The Docker image is attested the same way, and is built from the release's own
+`teitunnel-cli` after its checksums and provenance are checked:
+
+```sh
+gh attestation verify oci://ghcr.io/teispace/teitunnel:0.1.0 --repo teispace/teitunnel
+```
+
+Homebrew installs the same files: the cask and formula take their checksums from the
+release's `SHA256SUMS.txt` after verifying its provenance, and Homebrew checks each download
+against them.
+
 ## Signatures
 
 - **macOS:** the app is signed by Teispace and notarized: `spctl -a -vv /Applications/Teitunnel.app`

@@ -67,14 +67,21 @@ describe("download panels", () => {
 
   it("gives install commands for the exact files", () => {
     const list = panels(release, { os: "linux", arch: "x64" });
-    assert.equal(get(list, "linux").command, "sudo apt install ./T_amd64.deb");
-    assert.match(get(list, "cli").command ?? "", /cli_linux-x64\.tar\.gz \| sudo tar -xz/);
+    assert.equal(get(list, "linux").commands[0]?.command, "sudo apt install ./T_amd64.deb");
+    const cli = get(list, "cli").commands.map((c) => c.command);
+    assert.match(cli[0] ?? "", /cli_linux-x64\.tar\.gz \| sudo tar -xz/);
+    assert.ok(cli.includes("brew install teispace/tap/teitunnel-cli"));
+    assert.ok(cli.some((c) => c.endsWith("ghcr.io/teispace/teitunnel")));
+    assert.deepEqual(
+      get(list, "macos").commands.map((c) => c.command),
+      ["brew install --cask teispace/tap/teitunnel"],
+    );
   });
 
   it("has no files and no commands before a release", () => {
     for (const panel of panels([], { os: "macos", arch: null })) {
       assert.equal(panel.primary, null);
-      assert.equal(panel.command, null);
+      assert.deepEqual(panel.commands, []);
       assert.deepEqual(panel.variants, []);
     }
   });
