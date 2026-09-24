@@ -12,7 +12,7 @@ describe("openView", () => {
     openView({ view: "overview" }, go);
     expect(navigate.mock.calls.map(([options]) => options)).toEqual([
       { to: "/routes", search: { route: "app.example.com" } },
-      { to: "/quick-share" },
+      { to: "/inspector", search: { tap: "qs-1" } },
       { to: "/quick-share" },
       { to: "/doctor" },
       { to: "/" },

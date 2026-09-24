@@ -14,6 +14,7 @@ const ROUTES = [
   "/",
   "/routes",
   "/quick-share",
+  "/inspector",
   "/domains",
   "/tunnels",
   "/activity",

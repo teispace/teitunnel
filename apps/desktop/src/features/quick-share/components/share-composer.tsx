@@ -1,10 +1,12 @@
 import { type FormEvent, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useActiveAccount, useDomains } from "@/features/accounts";
 import { ExposureCallout, useExposureGate } from "@/features/exposure";
+import { useInspectorSettings } from "@/features/inspector";
 import { t } from "@/lib/i18n";
 import type { HostHeaderChoice } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -42,6 +44,10 @@ export function ShareComposer({
   const [subdomain, setSubdomain] = useState("");
   const [hostMode, setHostMode] = useState<HostMode>("auto");
   const [customHost, setCustomHost] = useState("");
+  /** `null`: follow Settings ▸ Inspector until the box is changed. */
+  const [inspect, setInspect] = useState<boolean | null>(null);
+  const inspectDefault = useInspectorSettings().data?.inspectQuickShares !== false;
+  const inspectId = useId();
   const account = useActiveAccount();
   const domains = (useDomains(account?.id ?? null).data ?? []).filter((d) => d.status === "active");
   const start = useStartShare();
@@ -88,7 +94,10 @@ export function ShareComposer({
         },
       );
     } else {
-      start.mutate({ origin, stopAfterMinutes, hostHeader }, { onSuccess: () => setOrigin("") });
+      start.mutate(
+        { origin, stopAfterMinutes, hostHeader, inspect },
+        { onSuccess: () => setOrigin("") },
+      );
     }
   };
 
@@ -191,6 +200,19 @@ export function ShareComposer({
             ) : null}
           </div>
           <p className="text-footnote text-secondary">{t("quickShare.hostHeader.help")}</p>
+          {onDomain ? null : (
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              <label htmlFor={inspectId} className="flex items-center gap-2 text-callout">
+                <Checkbox
+                  id={inspectId}
+                  checked={inspect ?? inspectDefault}
+                  onCheckedChange={(checked) => setInspect(checked === true)}
+                />
+                {t("inspector.share.toggle")}
+              </label>
+              <p className="text-footnote text-secondary">{t("inspector.share.composerHelp")}</p>
+            </div>
+          )}
         </div>
       </Disclosure>
       {gate.report ? (

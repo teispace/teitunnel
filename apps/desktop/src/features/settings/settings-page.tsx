@@ -1,4 +1,4 @@
-import { Blocks, Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
+import { Blocks, Cable, CircleUser, type LucideIcon, ScanSearch, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
 import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
 import { AlertSettings } from "@/features/analytics";
 import { CloudflaredPane } from "@/features/binary";
+import { InspectorSettingsPane } from "@/features/inspector";
 import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
@@ -31,11 +32,12 @@ const themes = () =>
     label: t(`settings.theme.${value}`),
   }));
 
-type Tab = "general" | "accounts" | "cloudflared" | "integrations";
+type Tab = "general" | "accounts" | "inspector" | "cloudflared" | "integrations";
 
 const tabs: readonly { id: Tab; label: MessageKey; icon: LucideIcon }[] = [
   { id: "general", label: "settings.tab.general", icon: Settings2 },
   { id: "accounts", label: "settings.tab.accounts", icon: CircleUser },
+  { id: "inspector", label: "settings.tab.inspector", icon: ScanSearch },
   { id: "cloudflared", label: "settings.tab.cloudflared", icon: Cable },
   { id: "integrations", label: "settings.tab.integrations", icon: Blocks },
 ];
@@ -143,6 +145,8 @@ export function SettingsPage() {
           <GeneralPane />
         ) : tab === "accounts" ? (
           <AccountsPane />
+        ) : tab === "inspector" ? (
+          <InspectorSettingsPane />
         ) : tab === "integrations" ? (
           <IntegrationsPane />
         ) : (

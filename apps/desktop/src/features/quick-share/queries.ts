@@ -72,6 +72,8 @@ export interface StartShareInput {
   origin: string;
   stopAfterMinutes: number | null;
   hostHeader?: HostHeaderChoice;
+  /** Through the inspector (`null`: Settings ▸ Inspector decides). */
+  inspect?: boolean | null;
 }
 
 const AUTO: HostHeaderChoice = { mode: "auto" };
@@ -79,8 +81,13 @@ const AUTO: HostHeaderChoice = { mode: "auto" };
 export function useStartShare() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ origin, stopAfterMinutes, hostHeader = AUTO }: StartShareInput) =>
-      call(commands.quickShareStart(origin, stopAfterMinutes, hostHeader, null)),
+    mutationFn: ({
+      origin,
+      stopAfterMinutes,
+      hostHeader = AUTO,
+      inspect = null,
+    }: StartShareInput) =>
+      call(commands.quickShareStart(origin, stopAfterMinutes, hostHeader, inspect)),
     onSuccess: (share) =>
       queryClient.setQueryData<QuickShare[]>(quickSharesQuery.queryKey, (shares = []) => [
         share,
