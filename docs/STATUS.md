@@ -11,7 +11,7 @@
 The maintainer starts a session with "start" or "continue" and is then **away**. Work unattended, following [AUTONOMOUS.md](AUTONOMOUS.md): loop task by task through the roadmap, build, test, verify visually, fix and polish, commit, push, and keep this file current. Don't stop to ask. Decide, record the decision in DECISIONS.md, and continue.
 
 ## Next up
-0. **Next:** let the signed dry run from `main` finish (run 35885859016: Apple's first notarization for the team was still *In Progress* on 2026-09-24; later ones take minutes), check the notarized DMG, then merge release-please's "chore: release 0.1.0" PR (#8) to publish v0.1.0. Afterwards: the SignPath application (the site is live on HTTPS).
+0. **Next:** v0.1.0 is out (2026-09-24). Apply to SignPath Foundation for Windows signing (RELEASING.md step 6), then M6-04 channels (Homebrew cask, winget, ghcr.io image). Watch the issue tracker for beta reports.
    Earlier plan (D-074): ~~M6-02 updater~~ (D-075) → ~~M6-03 release workflow + release-please~~ → ~~M6-07 download pages~~ (D-076) → maintainer setup, step by step in [RELEASING.md](RELEASING.md) (Apple cert + API key, updater key, `release` environment, Pages) → dry run → v0.1.0 public beta (website only; Windows unsigned until SignPath) → M6-04 channels.
    Earlier: **M10/M11 done** ([plan](plans/M10-parity.md), Cloudify analysis in [research/cloudify.md](research/cloudify.md)). All follow-ups done. Next: release work (signing with the maintainer's Developer ID, updater, release automation, channels incl. ghcr.io image and winget/Homebrew, website deploy to teitunnel.teispace.com: GitHub Pages + Cloudflare DNS CNAME `teitunnel` → `teispace.github.io`, then point the app's Help link there), done last per the maintainer (2026-09-23).
 1. M7 Windows / M8 Linux: what's left needs a real Windows 11 machine or Linux desktop (see the plans: try Always-on, the look, tray, notifications; real Mica). Maintainer decision still open: Authenticode check (M7-02).
@@ -22,9 +22,10 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 6. **Maintainer:** OAuth client; test token.
 
 ## In progress
-- Signed release dry run (Actions run 35885859016): every platform built; macOS waits on Apple's first notarization of the team (submission a509fe81, *In Progress*).
+- Nothing.
 
 ## Recently completed
+- 2026-09-24: **v0.1.0 public beta released** (release run 35935922355): 26 files on GitHub Releases, macOS app, DMG and CLI notarized (Apple accepted in minutes after the team's first 3-hour review), updater `latest.json` for 16 platforms, SHA256SUMS and build provenance verified; the website links the real downloads. `release-as` removed; versions now follow the commits.
 - 2026-09-23: Website polish (D-081): download page rebuilt as system tiles + one panel (main file, format chips, install command); live Quick Share and Doctor demos; how-it-works and CLI sections moved under the hero; carousel removed.
 - 2026-09-23: Website polish (D-081): landing page motion (scroll reveal, hero, plan and CLI demos; static with Reduce Motion or no JS), header blended into the hero with section links, Teispace footer; SEO (canonical URLs, per-page social cards, sitemap, robots, llms.txt, JSON-LD); docs expanded: Use cases (7 guides), What is Cloudflare Tunnel, comparison, Troubleshooting, install with direct downloads and uninstall, FAQ rewritten, run modes for every platform; screenshots re-shot as WebP (3.3 MB → 1.3 MB for twice as many).
 - 2026-09-23: Apple signing ready: Developer ID Application certificate (G2, to 2031-09-17) and notarization API key F3NQ9BSCDM created and verified (test signature, notarytool auth); all eight release secrets stored. Dependabot PRs merged (#12 postcss, #11 Rust incl. argon2 0.6 port with a compatibility test); #10 closed (TypeScript 7 would break the website).

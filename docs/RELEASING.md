@@ -23,8 +23,11 @@ How releases work (D-074) and the one-time setup they need. The workflow is
 keeps it as a workflow artifact, without releasing. Pull requests that change the release
 setup get an unsigned dry run automatically.
 
-The first release is **0.1.0** (`release-as` in `release-please-config.json`; remove that line
-after it's out).
+The first release, **0.1.0**, was published on 2026-09-24. From then on release-please picks
+the next version from the commits since the last release: a `fix:` makes 0.1.1, a `feat:` makes
+0.2.0, and a breaking change also makes 0.2.0 while the version is below 1.0
+(`bump-minor-pre-major`). To force a version, set `release-as` for the package in
+`release-please-config.json` and remove it again after that release.
 
 ## Setup status
 
