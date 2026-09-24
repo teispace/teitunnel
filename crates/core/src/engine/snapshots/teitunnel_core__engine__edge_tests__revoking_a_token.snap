@@ -1,0 +1,7 @@
+---
+source: crates/core/src/engine/edge_tests.rs
+expression: view(&p)
+---
+- - Let only me@xyz.com into api.xyz.com
+  - Delete service token “Teitunnel · api.xyz.com · t1” (machines using it are refused)
+- []

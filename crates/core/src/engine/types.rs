@@ -140,6 +140,12 @@ pub struct Snapshot {
     /// When it was observed (milliseconds since the epoch; not part of the fingerprint).
     #[serde(skip)]
     pub now: u64,
+    /// A zone's edge rules; read only when a change protects a hostname.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edge: Option<super::edge::EdgeState>,
+    /// The account's Access service tokens; read only when a change involves one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tokens: Option<Vec<super::edge::ObservedServiceToken>>,
 }
 
 impl Snapshot {
@@ -302,6 +308,35 @@ pub enum Intent {
         /// The hostname.
         hostname: Hostname,
     },
+    /// Make Cloudflare's edge enforce `protection` for one hostname (bots, AI crawlers,
+    /// a rate limit, header rules); the default removes Teitunnel's rules.
+    ProtectHostname {
+        /// The hostname.
+        hostname: Hostname,
+        /// What to enforce.
+        protection: super::edge::EdgeProtection,
+    },
+    /// Create a service token that passes the hostname's login (for machines).
+    CreateServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// What it's for, e.g. `CI`.
+        label: String,
+    },
+    /// Stop a service token passing the hostname's login and delete it.
+    RevokeServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// Token id.
+        token_id: String,
+    },
+    /// Give a service token a new secret.
+    RotateServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// Token id.
+        token_id: String,
+    },
 }
 
 impl Intent {
@@ -317,7 +352,11 @@ impl Intent {
             | Self::BalanceRoute { hostname }
             | Self::UnbalanceRoute { hostname }
             | Self::Reserve { hostname, .. }
-            | Self::Release { hostname } => Some(vec![hostname]),
+            | Self::Release { hostname }
+            | Self::ProtectHostname { hostname, .. }
+            | Self::CreateServiceToken { hostname, .. }
+            | Self::RevokeServiceToken { hostname, .. }
+            | Self::RotateServiceToken { hostname, .. } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -408,6 +447,25 @@ impl Intent {
             Self::Release { hostname } => {
                 crate::text::msg::reservations::summary::release(hostname)
             }
+            Self::ProtectHostname {
+                hostname,
+                protection,
+            } => {
+                if protection.is_off() {
+                    crate::text::msg::protection::summary::unprotect(hostname)
+                } else {
+                    crate::text::msg::protection::summary::protect(hostname)
+                }
+            }
+            Self::CreateServiceToken { hostname, label } => {
+                crate::text::msg::protection::summary::create_token(label, hostname)
+            }
+            Self::RevokeServiceToken { hostname, .. } => {
+                crate::text::msg::protection::summary::revoke_token(hostname)
+            }
+            Self::RotateServiceToken { hostname, .. } => {
+                crate::text::msg::protection::summary::rotate_token(hostname)
+            }
         }
     }
 }
@@ -429,6 +487,16 @@ pub struct PoolEndpoint {
     pub tunnel: TunnelRef,
     /// Its name (the endpoint's name).
     pub name: String,
+}
+
+/// Which service token a step refers to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "id", rename_all = "camelCase")]
+pub enum TokenRef {
+    /// One that exists.
+    Existing(String),
+    /// The one created earlier in the same plan.
+    Created,
 }
 
 /// Which tunnel a step refers to.
@@ -702,6 +770,86 @@ pub enum Step {
         /// When the lease ends.
         until: Option<u64>,
     },
+    /// Add one of Teitunnel's rules to a phase (creating its entry point when the zone
+    /// has none).
+    CreateEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase.
+        phase: String,
+        /// Its entry point ruleset, if the zone has one.
+        ruleset_id: Option<String>,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covers.
+        hostnames: Vec<String>,
+        /// The rule.
+        rule: cf_api::NewRule,
+    },
+    /// Change one of Teitunnel's rules.
+    UpdateEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase's entry point ruleset.
+        ruleset_id: String,
+        /// Rule id.
+        rule_id: String,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covers afterwards.
+        hostnames: Vec<String>,
+        /// The new definition.
+        rule: cf_api::NewRule,
+        /// What it was, for rollback.
+        previous: cf_api::NewRule,
+    },
+    /// Remove one of Teitunnel's rules.
+    DeleteEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase.
+        phase: String,
+        /// The phase's entry point ruleset.
+        ruleset_id: String,
+        /// Rule id.
+        rule_id: String,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covered.
+        hostnames: Vec<String>,
+        /// What it was, for rollback.
+        previous: cf_api::NewRule,
+        /// Its 1-based position, to put it back there.
+        position: u32,
+    },
+    /// Create an Access service token (its secret is shown once).
+    CreateServiceToken {
+        /// The hostname it's for.
+        hostname: String,
+        /// Its name.
+        name: String,
+    },
+    /// Let a service token through the hostname's login: adds it to the "Machines"
+    /// (Service Auth) policy of Teitunnel's Access application, creating an application
+    /// only machines pass when there's none.
+    AllowServiceToken {
+        /// The Access domain.
+        domain: String,
+        /// Teitunnel's application for it, if there is one, and its definition.
+        app: Option<(String, NewAccessApp)>,
+        /// The token.
+        token: TokenRef,
+    },
+    /// Delete a service token (always after its policy stopped using it).
+    DeleteServiceToken {
+        /// The token.
+        token: super::edge::ObservedServiceToken,
+    },
+    /// Give a service token a new secret.
+    RotateServiceToken {
+        /// The token.
+        token: super::edge::ObservedServiceToken,
+    },
 }
 
 impl Step {
@@ -808,6 +956,40 @@ impl Step {
                     (false, _) => r::end(&record.name),
                 }
             }
+            Self::CreateEdgeRule {
+                kind,
+                hostnames,
+                rule,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Add, *kind, hostnames, rule),
+            Self::UpdateEdgeRule {
+                kind,
+                hostnames,
+                rule,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Change, *kind, hostnames, rule),
+            Self::DeleteEdgeRule {
+                kind,
+                hostnames,
+                previous,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Remove, *kind, hostnames, previous),
+            Self::CreateServiceToken { name, .. } => {
+                crate::text::msg::protection::step::create_token(name)
+            }
+            Self::AllowServiceToken { domain, app, .. } => {
+                if app.is_some() {
+                    crate::text::msg::protection::step::allow_token(domain)
+                } else {
+                    crate::text::msg::protection::step::machine_only(domain)
+                }
+            }
+            Self::DeleteServiceToken { token } => {
+                crate::text::msg::protection::step::delete_token(&token.name)
+            }
+            Self::RotateServiceToken { token } => {
+                crate::text::msg::protection::step::rotate_token(&token.name)
+            }
         }
     }
 
@@ -892,6 +1074,52 @@ impl Step {
             Self::DeleteSnapshotWorker { script, .. } => Some(format!(
                 "curl -X DELETE {auth} '{API}/accounts/{account_id}/workers/scripts/{script}?force=true'"
             )),
+            Self::CreateEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                rule,
+                ..
+            } => {
+                let body = serde_json::to_string(rule).unwrap_or_default();
+                Some(match ruleset_id {
+                    Some(id) => format!(
+                        "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets/{id}/rules --data '{body}'"
+                    ),
+                    None => {
+                        let ruleset = serde_json::json!({
+                            "name": "default", "kind": "zone", "phase": phase, "rules": [rule],
+                        });
+                        format!(
+                            "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets --data '{ruleset}'"
+                        )
+                    }
+                })
+            }
+            Self::UpdateEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                rule,
+                ..
+            } => {
+                let body = serde_json::to_string(rule).unwrap_or_default();
+                Some(format!(
+                    "curl -X PATCH {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id} --data '{body}'"
+                ))
+            }
+            Self::DeleteEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                ..
+            } => Some(format!(
+                "curl -X DELETE {auth} {API}/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+            )),
+            Self::DeleteServiceToken { token } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/access/service_tokens/{}",
+                token.id
+            )),
             _ => None,
         }
     }
@@ -974,6 +1202,23 @@ pub enum Warning {
         until: Option<u64>,
         /// Reserved or routed.
         kind: super::ownership::HoldKind,
+    },
+    /// How much of a plan quota the zone uses after the change.
+    EdgeQuota {
+        /// Which quota.
+        quota: super::edge::QuotaKind,
+        /// The zone.
+        zone: String,
+        /// Rules after the change (Teitunnel's and others').
+        used: u32,
+        /// What the zone's plan allows.
+        limit: u32,
+    },
+    /// The hostname has no login, so the new one lets in only service tokens: people
+    /// opening it in a browser are refused.
+    MachineOnly {
+        /// The Access domain.
+        domain: String,
     },
 }
 

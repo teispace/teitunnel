@@ -48,6 +48,8 @@ const ACCOUNT_TABLES: &[&str] = &[
     // Their versions go with them (foreign key).
     "snapshots",
     "reservations_cache",
+    "edge_rules",
+    "service_tokens",
 ];
 
 /// How an account was connected.

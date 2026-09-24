@@ -351,6 +351,18 @@ export const commands = {
 	reservationsList: (accountId: string) => __TAURI_INVOKE<Reservations>("reservations_list", { accountId }),
 	/**  Whether `hostname` is free, yours, or held by someone else (one DNS read). */
 	reservationsAvailability: (accountId: string, hostname: string) => __TAURI_INVOKE<Availability>("reservations_availability", { accountId, hostname }),
+	/**  What Teitunnel enforces for a hostname at the edge, with the zone's quotas. */
+	protectionGet: (accountId: string, hostname: string) => __TAURI_INVOKE<ProtectionView>("protection_get", { accountId, hostname }),
+	/**  Teitunnel's service tokens for a hostname, with their expiry. */
+	protectionTokens: (accountId: string, hostname: string) => __TAURI_INVOKE<ServiceTokenView[]>("protection_tokens", { accountId, hostname }),
+	/**  Plans a protection change for review. Nothing is changed. */
+	protectionPreview: (accountId: string, change: ProtectionChange) => __TAURI_INVOKE<PlanView>("protection_preview", { accountId, change }),
+	/**  Applies a reviewed protection change; step progress streams on `on_progress`. */
+	protectionApply: (accountId: string, change: ProtectionChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<ProtectionOutcome>("protection_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  Copies a new token's secret (or both headers) to the clipboard, from Rust. */
+	protectionCopySecret: (tokenId: string, what: SecretCopy) => __TAURI_INVOKE<null>("protection_copy_secret", { tokenId, what }),
+	/**  Forgets a new token's secret (its sheet was closed). */
+	protectionForgetSecret: (tokenId: string) => __TAURI_INVOKE<null>("protection_forget_secret", { tokenId }),
 };
 
 /** Events */
@@ -444,7 +456,15 @@ export type ActivityKind =
 /**  A hostname was reserved (or its reservation renewed). */
 "reserveHostname" | 
 /**  A reservation was released. */
-"releaseHostname";
+"releaseHostname" | 
+/**  A hostname's edge protection changed (bots, rate limit, headers). */
+"protectHostname" | 
+/**  A service token was created. */
+"createServiceToken" | 
+/**  A service token was revoked. */
+"revokeServiceToken" | 
+/**  A service token got a new secret. */
+"rotateServiceToken";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -655,6 +675,15 @@ export type BinaryInfo = {
 	supported: boolean,
 };
 
+/**  What to do with automated clients. */
+export type BotMode = 
+/**  Nothing. */
+"off" | 
+/**  A managed challenge (most people never see it; scripts can't pass it). */
+"challenge" | 
+/**  Refused. */
+"block";
+
 /**  Everything a credential can do in one account. */
 export type Capabilities = {
 	/**  List domains. */
@@ -669,6 +698,10 @@ export type Capabilities = {
 	analytics: Grant,
 	/**  Workers (Snapshots, optional feature). */
 	workersEdit: Grant,
+	/**  Edge rules (optional feature), probed on the first domain. */
+	edgeRules: Grant,
+	/**  Access service tokens (optional feature). */
+	serviceTokens: Grant,
 	/**  DNS editing, per domain. */
 	zones: ZoneGrant[],
 };
@@ -708,7 +741,7 @@ export type Change_Deserialize =
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -716,45 +749,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
+routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -762,7 +795,7 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never; until?: never } | 
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
 /**
  *  Reserve a hostname for this owner, so teammates sharing the account see it's
  *  taken (M12-11). Reserving it again changes the end date.
@@ -774,18 +807,27 @@ hostname: string;
  *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
  *  `2026-12-31T18:00Z`; `None` or empty: no end.
  */
-until?: string | null }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+until?: string | null }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Give up a hostname's reservation (a route there stays). */
 ({ type: "releaseHostname"; 
 /**  The hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**
+ *  Enforce protection at Cloudflare's edge for a hostname (the default removes
+ *  Teitunnel's rules).
+ */
+({ type: "protectHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A change the user asks for (or a Doctor fix proposes). */
 export type Change_Serialize = 
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -793,45 +835,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
+routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -839,7 +881,7 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never; until?: never } | 
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
 /**
  *  Reserve a hostname for this owner, so teammates sharing the account see it's
  *  taken (M12-11). Reserving it again changes the end date.
@@ -851,11 +893,20 @@ hostname: string;
  *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
  *  `2026-12-31T18:00Z`; `None` or empty: no end.
  */
-until: string | null }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+until: string | null }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
 /**  Give up a hostname's reservation (a route there stays). */
 ({ type: "releaseHostname"; 
 /**  The hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**
+ *  Enforce protection at Cloudflare's edge for a hostname (the default removes
+ *  Teitunnel's rules).
+ */
+({ type: "protectHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A terminal's live Quick Share. */
 export type CliShare = {
@@ -1019,7 +1070,11 @@ export type DeltaArea =
 /**  A route's load balancing. */
 "loadBalancing" | 
 /**  A Snapshot's address. */
-"snapshot";
+"snapshot" | 
+/**  A rule at Cloudflare's edge (bots, rate limit, headers). */
+"protection" | 
+/**  A service token. */
+"serviceToken";
 
 /**  A dev server that checks the Host header. */
 export type DevServer = 
@@ -1113,6 +1168,23 @@ export type Drift = {
 	currentVersion: number,
 	/**  Routes that differ. */
 	changes: RuleChange[],
+};
+
+/**
+ *  Everything Teitunnel can enforce at Cloudflare's edge for one hostname. The default
+ *  is nothing (no rules).
+ */
+export type EdgeProtection = {
+	/**  Automated clients (scripts, headless browsers) that aren't verified bots. */
+	bots?: BotMode,
+	/**  Block AI crawlers (Cloudflare's verified "AI Crawler" category). */
+	aiCrawlers?: boolean,
+	/**  Requests per period per visitor. */
+	rateLimit?: RateLimitSpec | null,
+	/**  Headers changed on requests before they reach the origin. */
+	requestHeaders?: HeaderRule[],
+	/**  Headers changed on responses before they reach visitors. */
+	responseHeaders?: HeaderRule[],
 };
 
 /**
@@ -1409,6 +1481,25 @@ export type Grant =
 /**  Couldn't be checked right now. */
 "unknown";
 
+/**  What a header rule does. */
+export type HeaderOp = 
+/**  Set the header to a value (replacing it). */
+"set" | 
+/**  Add a value (response headers only; keeps existing ones). */
+"add" | 
+/**  Remove the header. */
+"remove";
+
+/**  One header change. */
+export type HeaderRule = {
+	/**  Header name, e.g. `X-Robots-Tag`. */
+	name: string,
+	/**  What to do. */
+	op: HeaderOp,
+	/**  The value, for `set` and `add`. */
+	value?: string | null,
+};
+
 /**  A page of help on the web. */
 export type HelpLink = 
 /**  Teitunnel's documentation. */
@@ -1613,6 +1704,18 @@ export type Issue_Serialize = {
 	tunnelId: string | null,
 };
 
+/**  A token's credentials as the app shows them: everything but the secret. */
+export type IssuedTokenView = {
+	/**  Token id (to copy its secret while it's kept). */
+	tokenId: string,
+	/**  Its name. */
+	name: string,
+	/**  The `CF-Access-Client-Id` value. */
+	clientId: string,
+	/**  When it stops working (RFC 3339). */
+	expiresAt: string | null,
+};
+
 /**  Response time over time (a check's time through the edge). */
 export type LatencySeries = {
 	/**  Time of each point, milliseconds since the epoch. */
@@ -1620,6 +1723,13 @@ export type LatencySeries = {
 	/**  Response time (the mean for hourly points), milliseconds; None: the check failed. */
 	ms: (number | null)[],
 };
+
+/**  What happens to a visitor over the rate limit. */
+export type LimitAction = 
+/**  Refused until the period ends. */
+"block" | 
+/**  A managed challenge until the period ends. */
+"challenge";
 
 /**  A TCP port something on this machine is listening on. */
 export type LocalService = {
@@ -1956,6 +2066,61 @@ export type ProjectWarning =
 /**  SvelteKit needs `@sveltejs/adapter-static` to produce files. */
 "svelteKitNeedsStaticAdapter";
 
+/**  A change to a hostname's protection, as the app, the CLI and agents ask for it. */
+export type ProtectionChange = 
+/**  Enforce these settings at the edge (the default turns everything off). */
+{ type: "protect"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection } | 
+/**  Create a service token for machines. */
+{ type: "createToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  What it's for, e.g. `CI`. */
+label: string } | 
+/**  Revoke (delete) a service token. */
+{ type: "revokeToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  Token id. */
+tokenId: string } | 
+/**  Give a service token a new secret. */
+{ type: "rotateToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  Token id. */
+tokenId: string };
+
+/**  How applying a protection change ended, with any new token (never its secret). */
+export type ProtectionOutcome = {
+	/**  How applying ended. */
+	outcome: Outcome,
+	/**  Tokens created or rotated; copy their secret with `protection_copy_secret`. */
+	issued: IssuedTokenView[],
+};
+
+/**  A hostname's edge protection as it is now. */
+export type ProtectionView = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Its zone. */
+	zone: string,
+	/**  The zone's plan. */
+	plan: ZonePlan,
+	/**  What Teitunnel enforces for it now. */
+	protection: EdgeProtection,
+	/**  The zone's quotas. */
+	quotas: QuotaView[],
+	/**  Whether the plan's rate limits can match one hostname (Pro and up). */
+	rateLimitAvailable: boolean,
+	/**  The longest rate limit period the plan allows, in seconds. */
+	longestPeriod: number,
+	/**  Other hostnames sharing its rate limit. */
+	sharesRateLimitWith: string[],
+};
+
 /**  A running Quick Share, as the UI sees it. */
 export type QuickShare = {
 	/**  Identifier. */
@@ -1994,12 +2159,41 @@ export type QuietHours = {
 	to: number,
 };
 
+/**  A plan quota. */
+export type QuotaKind = 
+/**  Custom rules. */
+"custom" | 
+/**  Rate limiting rules. */
+"rateLimit" | 
+/**  Transform Rules. */
+"transform";
+
+/**  How much of a quota a zone uses. */
+export type QuotaView = {
+	/**  Which quota. */
+	quota: QuotaKind,
+	/**  Rules now (Teitunnel's and others'). */
+	used: number,
+	/**  What the plan allows. */
+	limit: number,
+};
+
 /**  A value of a breakdown and its requests. */
 export type Ranked = {
 	/**  The value: a path, a country, a status code, a browser, a cache status. */
 	key: string,
 	/**  Requests. */
 	requests: number,
+};
+
+/**  Requests per period per visitor (IP address). */
+export type RateLimitSpec = {
+	/**  Requests allowed per period. */
+	requests: number,
+	/**  The period, in seconds (10, 60, 120, 300, 600 or 3600). */
+	period: number,
+	/**  What happens above it. */
+	action: LimitAction,
 };
 
 /**  A step of the applied plan and how it ended. */
@@ -2249,6 +2443,13 @@ export type RuleChange = {
 	after: string | null,
 };
 
+/**  What to copy of a kept secret. */
+export type SecretCopy = 
+/**  The `CF-Access-Client-Secret` value alone. */
+"secret" | 
+/**  Both headers, as lines to paste into a request or a CI secret. */
+"headers";
+
 /**  What a listening process appears to be. */
 export type ServiceKind = 
 /**  Vite dev server. */
@@ -2301,6 +2502,20 @@ export type ServiceKind =
 "system" | 
 /**  Anything else. */
 "other";
+
+/**  One of Teitunnel's service tokens for a hostname (never its secret). */
+export type ServiceTokenView = {
+	/**  Token id. */
+	id: string,
+	/**  What it's for (the name without Teitunnel's prefix and the hostname). */
+	label: string,
+	/**  The `CF-Access-Client-Id` value (not a secret). */
+	clientId: string,
+	/**  When it stops working (RFC 3339). */
+	expiresAt: string | null,
+	/**  Deleted in the dashboard: only Teitunnel's note of it is left. */
+	gone: boolean,
+};
 
 /**  All preferences, with defaults applied. */
 export type Settings = {
@@ -2616,7 +2831,11 @@ export type StepKind =
 /**  Give a Snapshot its address, or take it away. */
 "snapshotAddress" | 
 /**  Reserve a hostname, renew or end a reservation. */
-"reservation";
+"reservation" | 
+/**  Add, change or remove an edge rule (bots, rate limit, headers). */
+"edgeRule" | 
+/**  Create, rotate or delete a service token, or let one through a login. */
+"serviceToken";
 
 /**  The state of one step while applying. */
 export type StepState = 
@@ -2966,7 +3185,24 @@ owner: string | null;
 /**  Until when (milliseconds since the epoch); `None`: no end. */
 until: number | null; 
 /**  Reserved or routed. */
-kind: HoldKind };
+kind: HoldKind } | 
+/**  How much of a plan quota the zone uses after the change. */
+{ type: "edgeQuota"; 
+/**  Which quota. */
+quota: QuotaKind; 
+/**  The zone. */
+zone: string; 
+/**  Rules after the change (Teitunnel's and others'). */
+used: number; 
+/**  What the zone's plan allows. */
+limit: number } | 
+/**
+ *  The hostname has no login, so the new one lets in only service tokens: people
+ *  opening it in a browser are refused.
+ */
+{ type: "machineOnly"; 
+/**  The Access domain. */
+domain: string };
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {
@@ -2979,6 +3215,17 @@ export type ZoneGrant = {
 	/**  Whether Workers can answer on its hostnames (Snapshots' Custom Domains). */
 	workersRoutes: Grant,
 };
+
+/**  A zone's Cloudflare plan, for its rule quotas. */
+export type ZonePlan = 
+/**  Free (also any plan Teitunnel doesn't know: the smallest limits). */
+"free" | 
+/**  Pro. */
+"pro" | 
+/**  Business. */
+"business" | 
+/**  Enterprise. */
+"enterprise";
 
 /**  A zone the account can use. */
 export type ZoneRef = {

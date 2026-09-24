@@ -121,6 +121,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         cli_runs: data_dir.join("run-cli"),
         snapshots: teitunnel_core::snapshot::Preparations::default(),
         snapshot_dir: data_dir.join("snapshots"),
+        issued_secrets: teitunnel_core::protection::IssuedSecrets::default(),
         accounts,
         engine,
         control,

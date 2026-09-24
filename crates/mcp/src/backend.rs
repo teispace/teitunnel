@@ -12,12 +12,14 @@ use serde::Serialize;
 use teitunnel_core::{
     accounts::Account,
     doctor::{Fix, Issue},
+    engine::edge::IssuedToken,
     engine::{
         AccessRule, ActivityEntry, Actor, Change, Outcome, PlanView, Progress, RoutesOverview,
         TunnelSummary, Verification,
     },
     export::{ExportFile, ExportFormat},
     import::LocalSetup,
+    protection::{ProtectionChange, ProtectionView, ServiceTokenView},
     remote_logs::RemoteLogState,
 };
 
@@ -339,6 +341,50 @@ pub trait Backend: Send + Sync + 'static {
             ))
         })
     }
+
+    /// What Teitunnel enforces for a hostname at Cloudflare's edge, with the zone's
+    /// quotas.
+    fn protection<'a>(
+        &'a self,
+        _account: &'a str,
+        _hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<ProtectionView>> {
+        Box::pin(async { Err(unsupported_protection()) })
+    }
+
+    /// Teitunnel's service tokens for a hostname (never their secrets).
+    fn service_tokens<'a>(
+        &'a self,
+        _account: &'a str,
+        _hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<ServiceTokenView>>> {
+        Box::pin(async { Err(unsupported_protection()) })
+    }
+
+    /// Plans a protection change (service tokens) for review. Nothing changes.
+    fn preview_protection<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a ProtectionChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async { Err(unsupported_protection()) })
+    }
+
+    /// Applies a reviewed protection change, on behalf of `actor`; a created or
+    /// rotated token's credentials come back once.
+    fn apply_protection<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a ProtectionChange,
+        _approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<(Outcome, Vec<IssuedToken>)>> {
+        Box::pin(async { Err(unsupported_protection()) })
+    }
+}
+
+fn unsupported_protection() -> BackendError {
+    BackendError::Unsupported("Edge protection isn't available from this host.".into())
 }
 
 /// A backend shared between sessions.

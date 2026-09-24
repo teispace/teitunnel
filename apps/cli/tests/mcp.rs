@@ -133,9 +133,16 @@ fn shares_a_port_and_lets_the_app_stop_it() {
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
-    // Teitunnel's 26 and the reservation provider's 3 (M12-11).
-    assert_eq!(names.len(), 29, "{names:?}");
-    for tool in ["list_reservations", "reserve_hostname", "release_hostname"] {
+    // Teitunnel's 26, the protection provider's 5 (M12-04) and the reservation
+    // provider's 3 (M12-11).
+    assert_eq!(names.len(), 34, "{names:?}");
+    for tool in [
+        "get_protection",
+        "protect_hostname",
+        "list_reservations",
+        "reserve_hostname",
+        "release_hostname",
+    ] {
         assert!(names.contains(&tool), "{tool}");
     }
 

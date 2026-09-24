@@ -45,7 +45,17 @@ const SCOPES: &[&str] = &[
 /// traffic per hostname (zone analytics) and per account. Cloudflare's documented scope
 /// format is `<permission-group>.<level>` (`zone.read`, `workers-scripts.write`); these
 /// ids are confirmed with the others when the client is registered.
-const OPTIONAL_SCOPES: &[&str] = &["analytics.read", "account-analytics.read"];
+///
+/// Edge protection (M12-04): Zone WAF (custom and rate limiting rules), Transform Rules
+/// (header rules) and Access service tokens. Unconfirmed names, like the others: see
+/// docs/research/cloudflare-edge-rules.md.
+const OPTIONAL_SCOPES: &[&str] = &[
+    "analytics.read",
+    "account-analytics.read",
+    "zone-waf.write",
+    "transform-rules.write",
+    "access-service-tokens.write",
+];
 
 /// Errors from the OAuth flow. Messages are shown to the user.
 #[derive(Debug, thiserror::Error)]

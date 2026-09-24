@@ -33,6 +33,8 @@ static EMPTY: Snapshot = Snapshot {
     held: Vec::new(),
     owner: String::new(),
     now: 0,
+    edge: None,
+    service_tokens: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -294,6 +296,33 @@ enum Undo {
     ReattachSnapshotDomain(cf_api::WorkerDomain),
     /// A deleted Worker can't come back.
     RecreateSnapshotWorker(String),
+    DeleteEdgeRule {
+        zone: String,
+        ruleset: String,
+        id: String,
+        hostnames: String,
+    },
+    RestoreEdgeRule {
+        zone: String,
+        ruleset: String,
+        id: String,
+        previous: cf_api::NewRule,
+        hostnames: String,
+    },
+    RecreateEdgeRule {
+        zone: String,
+        phase: String,
+        ruleset: String,
+        rule: cf_api::NewRule,
+        position: u32,
+        hostnames: String,
+    },
+    DeleteServiceToken {
+        id: String,
+        name: String,
+    },
+    /// A deleted token (or a replaced secret) can't come back.
+    RestoreServiceToken(String),
 }
 
 impl Undo {
@@ -345,6 +374,17 @@ impl Undo {
             Self::RecreateSnapshotWorker(script) => {
                 msg::snapshot::leftover::recreate_worker(script)
             }
+            Self::DeleteEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::delete_rule(hostnames)
+            }
+            Self::RestoreEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::restore_rule(hostnames)
+            }
+            Self::RecreateEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::recreate_rule(hostnames)
+            }
+            Self::DeleteServiceToken { name, .. } => msg::protection::leftover::delete_token(name),
+            Self::RestoreServiceToken(name) => msg::protection::leftover::restore_token(name),
         }
     }
 }
@@ -434,7 +474,7 @@ impl Engine {
         );
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}",
+            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}\n{}",
             tunnel.unwrap_or_default(),
             u8::from(need.access.setup),
             u8::from(need.access.owned),
@@ -442,6 +482,8 @@ impl Engine {
             need.networks,
             u8::from(need.tunnel_names),
             need.site.script.as_deref().unwrap_or_default(),
+            need.edge.hostname.as_deref().unwrap_or_default(),
+            u8::from(need.service_tokens),
         )
     }
 
@@ -693,6 +735,20 @@ impl Engine {
         Ok(())
     }
 
+    /// What planning `intent` would be based on (for views of the current state). May
+    /// reuse an observation up to 5 s old.
+    ///
+    /// # Errors
+    /// Observation errors.
+    pub async fn observation<C: CloudApi>(
+        &self,
+        api: &C,
+        ctx: Context<'_>,
+        intent: &Intent,
+    ) -> Result<Snapshot, EngineError> {
+        self.snapshot(api, ctx, intent, true).await
+    }
+
     /// Plans `intent` for review. May reuse an observation up to 5 s old.
     ///
     /// # Errors
@@ -869,8 +925,33 @@ impl Engine {
         ctx: Context<'_>,
         intent: &Intent,
         approval: Approval<'_>,
-        mut progress: P,
+        progress: P,
     ) -> Result<Outcome, EngineError>
+    where
+        C: CloudApi,
+        K: Connectors,
+        P: FnMut(Progress) + Send,
+    {
+        self.apply_issuing(api, connectors, ctx, intent, approval, progress)
+            .await
+            .map(|(outcome, _)| outcome)
+    }
+
+    /// [`Self::apply`], also returning the credentials of service tokens the change
+    /// created or rotated (only when it applied: a rolled-back token is deleted again).
+    /// This is the only time their secrets exist outside Cloudflare.
+    ///
+    /// # Errors
+    /// See [`Self::apply`].
+    pub async fn apply_issuing<C, K, P>(
+        &self,
+        api: &C,
+        connectors: &K,
+        ctx: Context<'_>,
+        intent: &Intent,
+        approval: Approval<'_>,
+        mut progress: P,
+    ) -> Result<(Outcome, Vec<super::edge::IssuedToken>), EngineError>
     where
         C: CloudApi,
         K: Connectors,
@@ -910,6 +991,9 @@ impl Engine {
             done: Vec::new(),
             covered: Vec::new(),
             uploaded: None,
+            created_token: None,
+            created_rulesets: HashMap::new(),
+            issued: Vec::new(),
         };
         let serve = matches!(
             intent,
@@ -978,7 +1062,12 @@ impl Engine {
         {
             tracing::warn!(%err, "couldn't write the activity log");
         }
-        Ok(outcome)
+        let issued = if matches!(outcome, Outcome::Applied { .. }) {
+            std::mem::take(&mut run.issued)
+        } else {
+            Vec::new()
+        };
+        Ok((outcome, issued))
     }
 }
 
@@ -1003,6 +1092,12 @@ struct Run<'a, C, K> {
     covered: Vec<u32>,
     /// A Snapshot's files, once uploaded: the completion token and what was sent.
     uploaded: Option<(String, super::sites::SiteContent)>,
+    /// The service token this run created (for steps referring to it).
+    created_token: Option<String>,
+    /// Entry point rulesets this run created, by zone and phase.
+    created_rulesets: HashMap<(String, String), String>,
+    /// Credentials of tokens created or rotated, handed to the caller once.
+    issued: Vec<super::edge::IssuedToken>,
 }
 
 /// What a tunnel created while applying is to this Mac.
@@ -1642,6 +1737,175 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateSnapshotWorker(script.clone())))
             }
+            Step::CreateEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                kind,
+                hostnames,
+                rule,
+            } => {
+                let key = (zone_id.clone(), phase.clone());
+                let ruleset = ruleset_id
+                    .clone()
+                    .or_else(|| self.created_rulesets.get(&key).cloned());
+                let (ruleset, created) = api
+                    .create_rule(zone_id, phase, ruleset.as_deref(), rule, None)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_rulesets.insert(key, ruleset.clone());
+                warn_local(
+                    self.local
+                        .own_edge_rule(
+                            account,
+                            super::local_edge::EdgeRuleRow {
+                                rule_id: created.id.clone(),
+                                zone_id: zone_id.clone(),
+                                phase: phase.clone(),
+                                hostname: (*kind != super::edge::RuleKind::RateLimit)
+                                    .then(|| hostnames.join(", ")),
+                                kind: serde_json::to_value(kind)
+                                    .ok()
+                                    .and_then(|v| v.as_str().map(str::to_owned))
+                                    .unwrap_or_default(),
+                            },
+                        )
+                        .await,
+                );
+                Ok(Some(Undo::DeleteEdgeRule {
+                    zone: zone_id.clone(),
+                    ruleset,
+                    id: created.id,
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::UpdateEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                hostnames,
+                rule,
+                previous,
+                ..
+            } => {
+                api.update_rule(zone_id, ruleset_id, rule_id, rule)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RestoreEdgeRule {
+                    zone: zone_id.clone(),
+                    ruleset: ruleset_id.clone(),
+                    id: rule_id.clone(),
+                    previous: previous.clone(),
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::DeleteEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                rule_id,
+                hostnames,
+                previous,
+                position,
+                ..
+            } => {
+                api.delete_rule(zone_id, ruleset_id, rule_id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.disown_edge_rule(rule_id).await);
+                Ok(Some(Undo::RecreateEdgeRule {
+                    zone: zone_id.clone(),
+                    phase: phase.clone(),
+                    ruleset: ruleset_id.clone(),
+                    rule: previous.clone(),
+                    position: *position,
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::CreateServiceToken { hostname, name } => {
+                let issued = api
+                    .create_service_token(account, name, super::edge::SERVICE_TOKEN_DURATION)
+                    .await
+                    .map_err(|e| e.text())?;
+                let token = super::edge::IssuedToken::from(issued);
+                warn_local(
+                    self.local
+                        .own_service_token(
+                            account,
+                            super::local_edge::ServiceTokenRow {
+                                token_id: token.token_id.clone(),
+                                hostname: hostname.clone(),
+                                name: token.name.clone(),
+                                client_id: token.client_id.clone(),
+                                expires_at: token.expires_at.clone(),
+                                created_at: 0,
+                            },
+                        )
+                        .await,
+                );
+                self.created_token = Some(token.token_id.clone());
+                let undo = Undo::DeleteServiceToken {
+                    id: token.token_id.clone(),
+                    name: token.name.clone(),
+                };
+                self.issued.push(token);
+                Ok(Some(undo))
+            }
+            Step::AllowServiceToken { domain, app, token } => {
+                let token = match token {
+                    super::types::TokenRef::Existing(id) => id.clone(),
+                    super::types::TokenRef::Created => self
+                        .created_token
+                        .clone()
+                        .ok_or_else(msg::protection::error::token_not_created)?,
+                };
+                match app {
+                    Some((id, previous)) => {
+                        let wanted = super::access::with_service_token(previous, &token);
+                        api.update_access_app(account, id, &wanted)
+                            .await
+                            .map_err(|e| e.text())?;
+                        Ok(Some(Undo::RestoreAccessApp {
+                            id: id.clone(),
+                            previous: previous.clone(),
+                        }))
+                    }
+                    None => {
+                        let wanted = super::access::with_service_token(
+                            &super::access::machine_only_definition(domain),
+                            &token,
+                        );
+                        let created = api
+                            .create_access_app(account, &wanted)
+                            .await
+                            .map_err(|e| e.text())?;
+                        warn_local(
+                            self.local
+                                .own_access_app(account, &created.id, domain)
+                                .await,
+                        );
+                        Ok(Some(Undo::DeleteAccessApp {
+                            id: created.id,
+                            domain: domain.clone(),
+                        }))
+                    }
+                }
+            }
+            Step::DeleteServiceToken { token } => {
+                api.delete_service_token(account, &token.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.disown_service_token(&token.id).await);
+                Ok(Some(Undo::RestoreServiceToken(token.name.clone())))
+            }
+            Step::RotateServiceToken { token } => {
+                let issued = api
+                    .rotate_service_token(account, &token.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.issued.push(super::edge::IssuedToken::from(issued));
+                Ok(Some(Undo::RestoreServiceToken(token.name.clone())))
+            }
         }
     }
 
@@ -1875,6 +2139,57 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             }
             Undo::RecreateSnapshotWorker(script) => {
                 return Err(msg::snapshot::leftover::recreate_worker(script));
+            }
+            Undo::DeleteEdgeRule {
+                zone, ruleset, id, ..
+            } => {
+                api.delete_rule(zone, ruleset, id).await.map_err(err)?;
+                warn_local(self.local.disown_edge_rule(id).await);
+            }
+            Undo::RestoreEdgeRule {
+                zone,
+                ruleset,
+                id,
+                previous,
+                ..
+            } => {
+                api.update_rule(zone, ruleset, id, previous)
+                    .await
+                    .map_err(err)?;
+            }
+            Undo::RecreateEdgeRule {
+                zone,
+                phase,
+                ruleset,
+                rule,
+                position,
+                ..
+            } => {
+                let (_, created) = api
+                    .create_rule(zone, phase, Some(ruleset), rule, Some(*position))
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .own_edge_rule(
+                            account,
+                            super::local_edge::EdgeRuleRow {
+                                rule_id: created.id,
+                                zone_id: zone.clone(),
+                                phase: phase.clone(),
+                                hostname: None,
+                                kind: String::new(),
+                            },
+                        )
+                        .await,
+                );
+            }
+            Undo::DeleteServiceToken { id, .. } => {
+                api.delete_service_token(account, id).await.map_err(err)?;
+                warn_local(self.local.disown_service_token(id).await);
+            }
+            Undo::RestoreServiceToken(name) => {
+                return Err(msg::protection::leftover::restore_token(name));
             }
             Undo::RecreateLoadBalancer { zone, balancer } => {
                 let mut balancer = balancer.clone();

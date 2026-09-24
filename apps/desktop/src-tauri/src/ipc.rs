@@ -20,6 +20,7 @@ mod quick_share;
 mod reservations;
 mod routes;
 pub(crate) use routes::{start_machine, stop_machine};
+mod protection;
 mod settings;
 mod snapshots;
 mod updates;
@@ -139,7 +140,13 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             integrations::integrations_set,
             integrations::integrations_revoke,
             reservations::reservations_list,
-            reservations::reservations_availability
+            reservations::reservations_availability,
+            protection::protection_get,
+            protection::protection_tokens,
+            protection::protection_preview,
+            protection::protection_apply,
+            protection::protection_copy_secret,
+            protection::protection_forget_secret
         ])
         .events(collect_events![EntityChanged, MenuAction, OpenView])
 }

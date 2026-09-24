@@ -3,6 +3,7 @@
 //! it (and when another tool fits better), and an example.
 
 mod diagnostics;
+mod protection;
 mod routes;
 mod setup;
 mod sharing;
@@ -18,7 +19,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use teitunnel_core::{
     accounts::Account,
-    engine::{AccessRule, PlanView, Warning},
+    engine::{AccessRule, PlanView, Warning, edge::QuotaKind},
 };
 
 use crate::{
@@ -27,6 +28,8 @@ use crate::{
     registry::{ToolClass, ToolContext, ToolError, ToolProvider, ToolResult, ToolSpec},
     traffic::TrafficSource,
 };
+
+pub use protection::ProtectionTools;
 
 /// The default time a tool may take.
 pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -348,6 +351,22 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
             })
             .english()
         ),
+        Warning::EdgeQuota {
+            quota,
+            zone,
+            used,
+            limit,
+        } => {
+            let what = match quota {
+                QuotaKind::Custom => "custom rules",
+                QuotaKind::RateLimit => "rate limiting rules",
+                QuotaKind::Transform => "Transform Rules",
+            };
+            format!("{zone} will use {used} of the {limit} {what} its plan allows.")
+        }
+        Warning::MachineOnly { domain } => format!(
+            "{domain} has no login yet: the new one lets in only service tokens, so people can't open it in a browser."
+        ),
     }
 }
 
@@ -370,5 +389,7 @@ pub(crate) fn plan_text(view: &PlanView) -> String {
     text
 }
 
+#[cfg(test)]
+mod protection_tests;
 #[cfg(test)]
 pub(crate) mod tests;

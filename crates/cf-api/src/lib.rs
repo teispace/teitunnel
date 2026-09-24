@@ -16,6 +16,8 @@ mod multipart;
 mod networks;
 mod probe;
 mod resources;
+mod rulesets;
+mod service_tokens;
 mod token;
 mod tunnels;
 mod workers;
@@ -41,6 +43,13 @@ pub use networks::{
 };
 pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};
+pub use rulesets::{
+    NewRule, PHASE_CUSTOM, PHASE_RATE_LIMIT, PHASE_REQUEST_HEADERS, PHASE_RESPONSE_HEADERS,
+    PHASE_URL_REWRITE, RateLimit, Rule, Ruleset,
+};
+pub use service_tokens::{
+    IssuedServiceToken, ServiceToken, rule_service_token, service_token_rule,
+};
 pub use token::ApiToken;
 pub use tunnels::{Connection, IngressRule, Tunnel, TunnelConfig, VersionedConfig};
 pub use workers::{

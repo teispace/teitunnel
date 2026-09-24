@@ -54,6 +54,8 @@ Any other MCP client works too: run `teitunnel mcp` as a stdio server.
 | `apply_plan` | Applies a reviewed plan by its id and fingerprint, with progress, then checks the routes. |
 | `verify_route` | Checks a hostname end to end and says where it breaks. |
 | `undo_last` | Plans the reverse of the latest change. |
+| `get_protection`, `protect_hostname` | A hostname's rules at Cloudflare's edge (bots, AI crawlers, rate limit, headers) and quotas; plan a change, applied with `apply_plan` ([Edge protection](/docs/guides/protection)). |
+| `service_token_list`, `service_token_create`, `service_token_revoke` | Service tokens that let machines through a login. A new token's secret is returned once, after your approval, marked sensitive. |
 | `doctor`, `fix_issue` | The Doctor's issues and their fixes. |
 | `logs_tail`, `remote_logs`, `connector_status` | This machine's connector logs (per route), another machine's live logs, connector health. |
 | `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |

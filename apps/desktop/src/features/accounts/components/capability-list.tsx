@@ -81,6 +81,8 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
           <>
             <Row grant={caps.accessEdit} label={t("capabilities.access")} />
             <Row grant={caps.workersEdit} label={t("capabilities.workers")} />
+            <Row grant={caps.edgeRules} label={t("capabilities.edgeRules")} />
+            <Row grant={caps.serviceTokens} label={t("capabilities.serviceTokens")} />
           </>
         ) : null}
       </ul>

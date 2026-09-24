@@ -128,6 +128,14 @@ pub enum Change {
         /// The hostname.
         hostname: String,
     },
+    /// Enforce protection at Cloudflare's edge for a hostname (the default removes
+    /// Teitunnel's rules).
+    ProtectHostname {
+        /// The hostname.
+        hostname: String,
+        /// What to enforce.
+        protection: super::edge::EdgeProtection,
+    },
 }
 
 /// Rejected input, pointing at the field to fix.
@@ -305,6 +313,15 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         Change::ReleaseHostname { hostname } => Intent::Release {
             hostname: parse_hostname(hostname)?,
         },
+        Change::ProtectHostname {
+            hostname,
+            protection,
+        } => Intent::ProtectHostname {
+            hostname: parse_hostname(hostname)?,
+            protection: protection
+                .normalized()
+                .map_err(|e| invalid("protection", &e))?,
+        },
     })
 }
 
@@ -366,6 +383,10 @@ pub enum StepKind {
     SnapshotAddress,
     /// Reserve a hostname, renew or end a reservation.
     Reservation,
+    /// Add, change or remove an edge rule (bots, rate limit, headers).
+    EdgeRule,
+    /// Create, rotate or delete a service token, or let one through a login.
+    ServiceToken,
 }
 
 /// One step of a plan, as shown in the preview.
@@ -433,6 +454,13 @@ impl Step {
                 | Self::AttachSnapshotDomain { .. }
                 | Self::DetachSnapshotDomain { .. } => StepKind::SnapshotAddress,
                 Self::CreateReservation { .. } | Self::SetLease { .. } => StepKind::Reservation,
+                Self::CreateEdgeRule { .. }
+                | Self::UpdateEdgeRule { .. }
+                | Self::DeleteEdgeRule { .. } => StepKind::EdgeRule,
+                Self::CreateServiceToken { .. }
+                | Self::AllowServiceToken { .. }
+                | Self::DeleteServiceToken { .. }
+                | Self::RotateServiceToken { .. } => StepKind::ServiceToken,
             },
             description: self.describe(tunnel_name),
             command: self.command(account_id, tunnel_name),

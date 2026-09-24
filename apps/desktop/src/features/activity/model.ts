@@ -25,6 +25,10 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   deleteSnapshot: "activity.kind.deleteSnapshot",
   reserveHostname: "activity.kind.reserveHostname",
   releaseHostname: "activity.kind.releaseHostname",
+  protectHostname: "activity.kind.protectHostname",
+  createServiceToken: "activity.kind.createServiceToken",
+  revokeServiceToken: "activity.kind.revokeServiceToken",
+  rotateServiceToken: "activity.kind.rotateServiceToken",
 };
 
 /** The Show menu (built on use: labels need the language). */

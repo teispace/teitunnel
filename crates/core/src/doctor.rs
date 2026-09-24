@@ -1276,6 +1276,8 @@ mod tests {
                 held: Vec::new(),
                 owner: String::new(),
                 now: 0,
+                edge: None,
+                service_tokens: None,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

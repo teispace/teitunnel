@@ -25,6 +25,7 @@ use crate::domain::{Hostname, PathRule};
 
 use crate::text::{Text, UserText, english_display, msg};
 
+mod edge;
 mod reservations;
 mod sites;
 
@@ -95,6 +96,45 @@ pub enum PlanError {
     HostnameInUse(String),
     /// The hostname isn't reserved.
     NotReserved(String),
+    /// A Free zone's rate limits can't match a hostname (only its whole domain).
+    EdgeRateLimitNeedsPro(String),
+    /// The zone's plan doesn't allow a period that long.
+    EdgeRateLimitPeriod {
+        /// The zone.
+        zone: String,
+        /// The longest it allows, in seconds.
+        longest: u32,
+    },
+    /// The zone's plan has no room for another rule of this kind.
+    EdgeQuotaFull {
+        /// Which quota.
+        quota: crate::engine::edge::QuotaKind,
+        /// The zone.
+        zone: String,
+        /// Its limit.
+        limit: u32,
+    },
+    /// The zone's only rate limit is Teitunnel's, with a different limit.
+    EdgeRateLimitConflict {
+        /// The zone.
+        zone: String,
+        /// The hostnames it covers.
+        hostnames: String,
+        /// Its requests.
+        requests: u32,
+        /// Its period, in seconds.
+        period: u32,
+    },
+    /// A service token's label must be 1–40 characters without control characters.
+    InvalidTokenLabel,
+    /// The account has as many service tokens as Cloudflare allows.
+    ServiceTokenLimit(u32),
+    /// Teitunnel already made a token with this label for the hostname.
+    ServiceTokenExists(String),
+    /// No such service token (any more).
+    NoSuchServiceToken(String),
+    /// The token wasn't made by Teitunnel.
+    ServiceTokenNotOwned(String),
 }
 
 impl UserText for PlanError {
@@ -130,6 +170,37 @@ impl UserText for PlanError {
             Self::SnapshotLoginNeedsDomain => msg::snapshot::error::login_needs_domain(),
             Self::HostnameInUse(hostname) => msg::reservations::error::hostname_in_use(hostname),
             Self::NotReserved(hostname) => msg::reservations::error::not_reserved(hostname),
+            Self::EdgeRateLimitNeedsPro(zone) => msg::protection::error::rate_limit_needs_pro(zone),
+            Self::EdgeRateLimitPeriod { zone, longest } => {
+                msg::protection::error::rate_limit_period(zone, u64::from(*longest))
+            }
+            Self::EdgeQuotaFull { quota, zone, limit } => {
+                use crate::engine::edge::QuotaKind;
+                let limit = u64::from(*limit);
+                match quota {
+                    QuotaKind::Custom => msg::protection::error::quota_custom(limit, zone),
+                    QuotaKind::RateLimit => msg::protection::error::quota_rate_limit(limit, zone),
+                    QuotaKind::Transform => msg::protection::error::quota_transform(limit, zone),
+                }
+            }
+            Self::EdgeRateLimitConflict {
+                zone,
+                hostnames,
+                requests,
+                period,
+            } => msg::protection::error::rate_limit_conflict(
+                zone,
+                hostnames,
+                u64::from(*requests),
+                u64::from(*period),
+            ),
+            Self::InvalidTokenLabel => msg::protection::error::token_label(),
+            Self::ServiceTokenLimit(limit) => {
+                msg::protection::error::token_limit(u64::from(*limit))
+            }
+            Self::ServiceTokenExists(label) => msg::protection::error::token_exists(label),
+            Self::NoSuchServiceToken(_) => msg::protection::error::no_such_token(),
+            Self::ServiceTokenNotOwned(name) => msg::protection::error::token_not_owned(name),
         }
     }
 }
@@ -459,7 +530,9 @@ impl<'a> Builder<'a> {
                 }
             }
             Some(app) => {
-                let wanted = app_definition(domain, rule);
+                // Service tokens keep passing when who may log in changes.
+                let wanted =
+                    super::access::keep_machines(&app_definition(domain, rule), &app.definition);
                 if app.rule.as_ref() != Some(rule) || app.definition.name != wanted.name {
                     self.steps.push(Step::UpdateAccessApp {
                         id: app.id.clone(),
@@ -482,6 +555,32 @@ impl<'a> Builder<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Removes the people's login from `domain` but keeps its service tokens passing
+    /// (an application only machines pass); without tokens, the application goes.
+    fn drop_login(&mut self, domain: &str) {
+        let Some(app) = self
+            .snapshot
+            .access
+            .as_ref()
+            .and_then(|a| a.app(domain))
+            .filter(|a| a.owned)
+        else {
+            return;
+        };
+        if super::access::service_tokens_of(&app.definition).is_empty() {
+            self.unprotect(domain);
+            return;
+        }
+        self.steps.push(Step::UpdateAccessApp {
+            id: app.id.clone(),
+            app: super::access::keep_machines(
+                &super::access::machine_only_definition(domain),
+                &app.definition,
+            ),
+            previous: app.definition.clone(),
+        });
     }
 
     /// Removes the login from `domain`, if Teitunnel put it there.
@@ -649,7 +748,11 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.release_dns(hostname.as_str(), &tunnel_id);
             }
             if let Some(old) = old_domain.filter(|old| new_domain.as_ref() != Some(old)) {
-                b.unprotect(&old);
+                if renamed || path != &route.path {
+                    b.unprotect(&old);
+                } else {
+                    b.drop_login(&old);
+                }
             }
             b.verify_route(route);
         }
@@ -962,6 +1065,17 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
         Intent::DeleteSnapshot { site } => sites::delete(&mut b, site),
         Intent::Reserve { hostname, until } => reservations::reserve(&mut b, hostname, *until)?,
         Intent::Release { hostname } => reservations::release(&mut b, hostname)?,
+        Intent::ProtectHostname {
+            hostname,
+            protection,
+        } => edge::protect(&mut b, hostname, protection)?,
+        Intent::CreateServiceToken { hostname, label } => {
+            edge::create_token(&mut b, hostname, label)?;
+        }
+        Intent::RevokeServiceToken { hostname, token_id } => {
+            edge::revoke_token(&mut b, hostname, token_id)?;
+        }
+        Intent::RotateServiceToken { token_id, .. } => edge::rotate_token(&mut b, token_id)?,
     }
     Ok(b.finish())
 }

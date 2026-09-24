@@ -1,0 +1,11 @@
+---
+source: crates/core/src/engine/edge_tests.rs
+expression: view(&p)
+---
+- - Change the bot rule on app.xyz.com to block automated clients and AI crawlers
+  - Remove the challenge rule from app.xyz.com
+- - type: edgeQuota
+    quota: custom
+    zone: xyz.com
+    used: 2
+    limit: 20

@@ -69,6 +69,16 @@ pub(crate) struct CloudState {
     pub(crate) assets: BTreeSet<String>,
     /// Upload and completion tokens → the manifest they're for.
     pub(crate) asset_tokens: BTreeMap<String, (bool, BTreeMap<String, String>)>,
+    /// Zone plans (`legacy_id`) by zone id; absent means Free.
+    pub(crate) zone_plans: BTreeMap<String, String>,
+    /// Entry point rulesets by `(zone id, phase)`: the ruleset id and its rules.
+    pub(crate) rulesets: BTreeMap<(String, String), (String, Vec<cf_api::Rule>)>,
+    /// The token can't read or write rulesets (403).
+    pub(crate) rulesets_forbidden: bool,
+    /// Access service tokens by id.
+    pub(crate) service_tokens: BTreeMap<String, cf_api::ServiceToken>,
+    /// The token can't manage service tokens (403).
+    pub(crate) service_tokens_forbidden: bool,
 }
 
 /// A Worker version as the fake stores it.
@@ -104,6 +114,7 @@ pub(crate) type Normalized = (
     Vec<(String, String, String, Option<String>)>,
     Vec<(String, Option<serde_json::Value>, bool)>,
     Vec<(String, String)>,
+    (Vec<(String, String, Vec<cf_api::NewRule>)>, Vec<String>),
 );
 
 impl CloudState {
@@ -173,6 +184,26 @@ impl CloudState {
             .map(|d| (d.hostname.clone(), d.service.clone()))
             .collect();
         domains.sort();
+        // Rules by definition and order (ids change when a rule is recreated); an
+        // empty entry point is the same as none.
+        let rulesets = self
+            .rulesets
+            .iter()
+            .filter(|(_, (_, rules))| !rules.is_empty())
+            .map(|((zone, phase), (_, rules))| {
+                (
+                    zone.clone(),
+                    phase.clone(),
+                    rules.iter().map(cf_api::Rule::to_new).collect(),
+                )
+            })
+            .collect();
+        let mut tokens: Vec<String> = self
+            .service_tokens
+            .values()
+            .map(|t| t.name.clone())
+            .collect();
+        tokens.sort();
         (
             tunnels,
             records,
@@ -181,6 +212,7 @@ impl CloudState {
             networks,
             workers,
             domains,
+            (rulesets, tokens),
         )
     }
 
@@ -1094,6 +1126,205 @@ impl CloudApi for FakeCloud {
     async fn detach_worker_domain(&self, _account: &str, id: &str) -> cf_api::Result<()> {
         self.mutate()?;
         self.state.lock().unwrap().worker_domains.remove(id);
+        Ok(())
+    }
+
+    async fn zone_plan(&self, zone: &str) -> cf_api::Result<Option<String>> {
+        let state = self.state.lock().unwrap();
+        if !state.zones.iter().any(|z| z.id == zone) {
+            return Err(not_found());
+        }
+        Ok(Some(
+            state
+                .zone_plans
+                .get(zone)
+                .cloned()
+                .unwrap_or_else(|| "free".into()),
+        ))
+    }
+
+    async fn phase_entrypoint(
+        &self,
+        zone: &str,
+        phase: &str,
+    ) -> cf_api::Result<Option<cf_api::Ruleset>> {
+        let state = self.state.lock().unwrap();
+        if state.rulesets_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state
+            .rulesets
+            .get(&(zone.to_owned(), phase.to_owned()))
+            .map(|(id, rules)| cf_api::Ruleset {
+                id: id.clone(),
+                phase: phase.to_owned(),
+                rules: rules.clone(),
+            }))
+    }
+
+    async fn create_rule(
+        &self,
+        zone: &str,
+        phase: &str,
+        ruleset: Option<&str>,
+        rule: &cf_api::NewRule,
+        index: Option<u32>,
+    ) -> cf_api::Result<(String, cf_api::Rule)> {
+        self.mutate()?;
+        let new_ruleset = self.next_id("ruleset");
+        let mut state = self.state.lock().unwrap();
+        // Unique among the rules a state made by another fake already has.
+        let rule_id = loop {
+            let id = self.next_id("rule");
+            if !state
+                .rulesets
+                .values()
+                .any(|(_, rules)| rules.iter().any(|r| r.id == id))
+            {
+                break id;
+            }
+        };
+        if state.rulesets_forbidden {
+            return Err(forbidden());
+        }
+        // Like Cloudflare: a Free zone's rate limits can't match a hostname.
+        let plan = state.zone_plans.get(zone).map_or("free", String::as_str);
+        if phase == cf_api::PHASE_RATE_LIMIT
+            && plan == "free"
+            && rule.expression.contains("http.host")
+        {
+            return Err(cf_api::Error::Api {
+                status: 400,
+                errors: vec![ApiMessage {
+                    code: 20120,
+                    message: "the field http.host is not available on this plan".into(),
+                }],
+            });
+        }
+        let key = (zone.to_owned(), phase.to_owned());
+        let created = cf_api::Rule {
+            id: rule_id,
+            action: rule.action.clone(),
+            expression: rule.expression.clone(),
+            description: rule.description.clone(),
+            enabled: rule.enabled,
+            action_parameters: rule.action_parameters.clone(),
+            ratelimit: rule.ratelimit.clone(),
+        };
+        let entry = match (ruleset, state.rulesets.get_mut(&key)) {
+            (Some(id), Some(entry)) if entry.0 == id => entry,
+            (None, None) => state
+                .rulesets
+                .entry(key)
+                .or_insert((new_ruleset, Vec::new())),
+            (None, Some(_)) => return Err(conflict()),
+            (Some(_), _) => return Err(not_found()),
+        };
+        let at = index
+            .and_then(|i| usize::try_from(i).ok())
+            .map_or(entry.1.len(), |i| i.saturating_sub(1).min(entry.1.len()));
+        entry.1.insert(at, created.clone());
+        Ok((entry.0.clone(), created))
+    }
+
+    async fn update_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+        rule: &cf_api::NewRule,
+    ) -> cf_api::Result<cf_api::Rule> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        let found = state
+            .rulesets
+            .iter_mut()
+            .find(|((z, _), (id, _))| z == zone && id == ruleset)
+            .and_then(|(_, (_, rules))| rules.iter_mut().find(|r| r.id == rule_id))
+            .ok_or_else(not_found)?;
+        found.action.clone_from(&rule.action);
+        found.expression.clone_from(&rule.expression);
+        found.description.clone_from(&rule.description);
+        found.enabled = rule.enabled;
+        found.action_parameters.clone_from(&rule.action_parameters);
+        found.ratelimit.clone_from(&rule.ratelimit);
+        Ok(found.clone())
+    }
+
+    async fn delete_rule(&self, zone: &str, ruleset: &str, rule_id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        let mut state = self.state.lock().unwrap();
+        if let Some((_, (_, rules))) = state
+            .rulesets
+            .iter_mut()
+            .find(|((z, _), (id, _))| z == zone && id == ruleset)
+        {
+            rules.retain(|r| r.id != rule_id);
+        }
+        Ok(())
+    }
+
+    async fn service_tokens(&self, _account: &str) -> cf_api::Result<Vec<cf_api::ServiceToken>> {
+        let state = self.state.lock().unwrap();
+        if state.service_tokens_forbidden {
+            return Err(forbidden());
+        }
+        Ok(state.service_tokens.values().cloned().collect())
+    }
+
+    async fn create_service_token(
+        &self,
+        _account: &str,
+        name: &str,
+        _duration: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        self.mutate()?;
+        let id = loop {
+            let id = self.next_id("token");
+            if !self.state.lock().unwrap().service_tokens.contains_key(&id) {
+                break id;
+            }
+        };
+        let token = cf_api::ServiceToken {
+            client_id: format!("{id}.access"),
+            id: id.clone(),
+            name: name.to_owned(),
+            expires_at: Some("2027-09-24T00:00:00Z".into()),
+            created_at: None,
+        };
+        self.state
+            .lock()
+            .unwrap()
+            .service_tokens
+            .insert(id.clone(), token.clone());
+        Ok(cf_api::IssuedServiceToken {
+            token,
+            client_secret: format!("secret-for-{id}"),
+        })
+    }
+
+    async fn rotate_service_token(
+        &self,
+        _account: &str,
+        id: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        self.mutate()?;
+        let n = self.next_id("rotation");
+        let state = self.state.lock().unwrap();
+        let token = state
+            .service_tokens
+            .get(id)
+            .cloned()
+            .ok_or_else(not_found)?;
+        Ok(cf_api::IssuedServiceToken {
+            token,
+            client_secret: format!("secret-for-{id}-{n}"),
+        })
+    }
+
+    async fn delete_service_token(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state.lock().unwrap().service_tokens.remove(id);
         Ok(())
     }
 }

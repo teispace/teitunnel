@@ -19,6 +19,7 @@ mod context;
 mod doctor;
 mod mcp;
 mod probe;
+mod protect;
 mod serve;
 mod share;
 mod snapshot;
@@ -305,6 +306,13 @@ enum Command {
     /// computer sleeps), and list, update, roll back or delete them.
     #[command(subcommand)]
     Snapshot(snapshot::SnapshotCommand),
+    /// Protect a hostname at Cloudflare's edge: challenge or block bots and AI
+    /// crawlers, rate limit visitors, set or remove headers. Without options, shows what
+    /// it has now.
+    Protect(protect::ProtectArgs),
+    /// Service tokens for machines (CI, scripts, servers) to pass a hostname's login.
+    #[command(subcommand)]
+    ServiceToken(protect::ServiceTokenCommand),
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
         /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
@@ -817,6 +825,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         }
         Command::Uptime { json } => analytics::uptime(&app, json).await,
         Command::Snapshot(command) => snapshot::run(&app, command).await,
+        Command::Protect(args) => protect::protect(&app, args).await,
+        Command::ServiceToken(command) => protect::service_token(&app, command).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes {
             account,
@@ -1422,6 +1432,18 @@ fn warning_text(warning: &Warning) -> String {
                 kind: *kind,
             })
             .english()
+        ),
+        Warning::EdgeQuota {
+            quota,
+            zone,
+            used,
+            limit,
+        } => format!(
+            "{zone} will use {used} of the {limit} {} its plan allows.",
+            protect::quota_name(*quota)
+        ),
+        Warning::MachineOnly { domain } => format!(
+            "{domain} has no login yet: the new one lets in only service tokens, so people can't open it in a browser."
         ),
     }
 }

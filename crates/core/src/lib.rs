@@ -28,6 +28,7 @@ pub mod health;
 pub mod import;
 pub mod machine;
 pub mod platform;
+pub mod protection;
 pub mod quick_share;
 pub mod redact;
 pub mod remote_logs;

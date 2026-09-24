@@ -393,7 +393,13 @@
       "heldByReservation": "{hostname} is reserved by {owner} until {until}. Going ahead takes it over.",
       "heldByReservationForever": "{hostname} is reserved by {owner}. Going ahead takes it over.",
       "heldByRoute": "{hostname} is routed by {owner} on another machine. Going ahead takes it over, and their route stops working.",
-      "heldBySomeone": "another Teitunnel"
+      "heldBySomeone": "another Teitunnel",
+      "edgeQuota": {
+        "custom": "{zone} will use {used} of the {limit} custom rules its plan allows.",
+        "rateLimit": "{zone} will use {used} of the {limit} rate limiting rules its plan allows.",
+        "transform": "{zone} will use {used} of the {limit} Transform Rules its plan allows."
+      },
+      "machineOnly": "{domain} has no login yet. The new one lets in only service tokens: people opening it in a browser are refused."
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -528,7 +534,11 @@
       "rollbackSnapshot": "Snapshot Rollbacks",
       "deleteSnapshot": "Snapshots Deleted",
       "reserveHostname": "Hostnames Reserved",
-      "releaseHostname": "Reservations Released"
+      "releaseHostname": "Reservations Released",
+      "protectHostname": "Edge protection",
+      "createServiceToken": "New service token",
+      "revokeServiceToken": "Revoked service token",
+      "rotateServiceToken": "Rotated service token"
     },
     "show": {
       "all": "All Changes",
@@ -571,7 +581,9 @@
       "network": "Private network",
       "access": "Login",
       "loadBalancing": "Load balancing",
-      "snapshot": "Snapshot"
+      "snapshot": "Snapshot",
+      "protection": "Edge rule",
+      "serviceToken": "Service token"
     },
     "before": "Before: ",
     "after": "After: ",
@@ -843,7 +855,9 @@
     "tunnels": "Create and manage tunnels",
     "dns": "Edit DNS for {zone}",
     "access": "Protect routes with Access (optional)",
-    "workers": "Publish Snapshots (optional)"
+    "workers": "Publish Snapshots (optional)",
+    "edgeRules": "Edge rules (bots, rate limits, headers)",
+    "serviceTokens": "Service tokens"
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -1207,7 +1221,9 @@
         "accessPermission": "This account's token can't manage logins. In Cloudflare, add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to it; the token itself stays the same.",
         "unknownTunnel": "This Mac doesn't have that tunnel any more.",
         "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
-        "unknownTunnel@linux": "This computer doesn't have that tunnel any more."
+        "unknownTunnel@linux": "This computer doesn't have that tunnel any more.",
+        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token.",
+        "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token."
       },
       "cloudflare": {
         "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
@@ -1918,6 +1934,92 @@
         "needsConfirmation": "This plan replaces or deletes DNS records Teitunnel didn't create; apply it with confirmed set."
       },
       "linkFailed": "Couldn't open the Teitunnel link"
+    },
+    "protection": {
+      "summary": {
+        "protect": "Protect {hostname} at Cloudflare's edge",
+        "unprotect": "Remove edge protection from {hostname}",
+        "createToken": "Create service token “{label}” for {hostname}",
+        "revokeToken": "Revoke a service token of {hostname}",
+        "rotateToken": "Give a service token of {hostname} a new secret"
+      },
+      "step": {
+        "add": {
+          "block": "Block automated clients on {hostname}",
+          "blockAi": "Block AI crawlers on {hostname}",
+          "blockBoth": "Block automated clients and AI crawlers on {hostname}",
+          "challenge": "Challenge automated clients on {hostname}",
+          "rateLimitBlock": "Block visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "rateLimitChallenge": "Challenge visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "requestHeaders_one": "Change {count} request header on {hostname}",
+          "requestHeaders_other": "Change {count} request headers on {hostname}",
+          "responseHeaders_one": "Change {count} response header on {hostname}",
+          "responseHeaders_other": "Change {count} response headers on {hostname}"
+        },
+        "change": {
+          "block": "Change the bot rule on {hostname} to block automated clients",
+          "blockAi": "Change the bot rule on {hostname} to block AI crawlers",
+          "blockBoth": "Change the bot rule on {hostname} to block automated clients and AI crawlers",
+          "challenge": "Change the bot rule on {hostname} to challenge automated clients",
+          "rateLimitBlock": "Change the rate limit: block visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "rateLimitChallenge": "Change the rate limit: challenge visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "requestHeaders_one": "Change the request header rule on {hostname} ({count} header)",
+          "requestHeaders_other": "Change the request header rule on {hostname} ({count} headers)",
+          "responseHeaders_one": "Change the response header rule on {hostname} ({count} header)",
+          "responseHeaders_other": "Change the response header rule on {hostname} ({count} headers)"
+        },
+        "remove": {
+          "block": "Remove the blocking rule from {hostname}",
+          "challenge": "Remove the challenge rule from {hostname}",
+          "rateLimit": "Remove the rate limit for {hostnames}",
+          "requestHeaders": "Remove the request header rule from {hostname}",
+          "responseHeaders": "Remove the response header rule from {hostname}"
+        },
+        "createToken": "Create service token “{name}” (valid for a year)",
+        "allowToken": "Let the service token through the login on {domain}",
+        "machineOnly": "Require a login on {domain} that only service tokens pass",
+        "deleteToken": "Delete service token “{name}” (machines using it are refused)",
+        "rotateToken": "Give service token “{name}” a new secret (the old one stops working)"
+      },
+      "leftover": {
+        "deleteRule": "Teitunnel's new rule for {hostnames} is still there",
+        "restoreRule": "Teitunnel's rule for {hostnames} wasn't changed back",
+        "recreateRule": "Teitunnel's rule for {hostnames} was removed and couldn't be put back",
+        "deleteToken": "The service token “{name}” was created and is still there",
+        "restoreToken": "The service token “{name}” can't be restored: its old secret is gone"
+      },
+      "error": {
+        "rateLimitNeedsPro": "{zone} is on Cloudflare's Free plan, whose rate limit can't be limited to one hostname: it would apply to the whole domain. Teitunnel only adds rules for one hostname; rate limiting per hostname needs Pro or higher.",
+        "rateLimitPeriod": "{zone}'s plan allows rate limit periods up to {longest} seconds.",
+        "quotaCustom_one": "{zone} already uses the {count} custom rule its plan allows. Remove one in the dashboard or turn off another hostname's bot rules first.",
+        "quotaCustom_other": "{zone} already uses all {count} custom rules its plan allows. Remove one in the dashboard or turn off another hostname's bot rules first.",
+        "quotaRateLimit_one": "{zone} already uses the {count} rate limiting rule its plan allows.",
+        "quotaRateLimit_other": "{zone} already uses all {count} rate limiting rules its plan allows.",
+        "quotaTransform_one": "{zone} already uses the {count} Transform Rule its plan allows.",
+        "quotaTransform_other": "{zone} already uses all {count} Transform Rules its plan allows. Remove header rules from another hostname first.",
+        "rateLimitConflict": "{zone}'s plan has room for no other rate limit, and Teitunnel's limit there (for {hostnames}) is {requests} requests per {period} seconds. Use the same limit, or remove it from those hostnames first.",
+        "tokenLabel": "Name the token in 1 to 40 characters, for example “CI”.",
+        "tokenLimit_one": "The account already has {count} service token, the most Cloudflare allows. Revoke one first.",
+        "tokenLimit_other": "The account already has {count} service tokens, the most Cloudflare allows. Revoke one first.",
+        "tokenExists": "This hostname already has a token called “{label}”. Choose another name.",
+        "noSuchToken": "That service token is gone. Refresh the list.",
+        "tokenNotOwned": "“{name}” wasn't made by Teitunnel, so it's left alone. Manage it in the Cloudflare dashboard.",
+        "tokenNotCreated": "The service token wasn't created.",
+        "secretGone": "The secret is no longer kept (Teitunnel keeps it for 10 minutes and never saves it). Rotate the token to get a new one."
+      },
+      "input": {
+        "headerName": "“{name}” isn't a header name: use letters, digits, dashes and underscores.",
+        "headerValue": "The value of {name} is too long or has control characters.",
+        "missingValue": "Give {name} a value.",
+        "duplicateHeader": "{name} is listed twice.",
+        "protectedHeader": "Cloudflare doesn't let rules change {name} on requests.",
+        "cookieRemoveOnly": "Cookies can only be removed from requests, not set.",
+        "addOnRequest": "{name}: request headers can be set or removed; adding is for response headers.",
+        "tooManyHeaders_one": "At most {count} header rule per list.",
+        "tooManyHeaders_other": "At most {count} header rules per list.",
+        "requests": "Allow between 1 and 1,000,000 requests.",
+        "period": "Cloudflare doesn't support a period of {period} seconds. Choose 10 s, 1, 2, 5 or 10 minutes, or an hour."
+      }
     }
   },
   "permissionFix": {
@@ -1958,7 +2060,13 @@
     "workers": "Account · Workers Scripts · Edit",
     "workersWhy": "To publish Snapshots as Workers on your account.",
     "workersRoutes": "Zone · Workers Routes · Edit",
-    "workersRoutesWhy": "To give a Snapshot a hostname on {zone}. Include {zone} under Zone Resources."
+    "workersRoutesWhy": "To give a Snapshot a hostname on {zone}. Include {zone} under Zone Resources.",
+    "zoneWaf": "Zone · Zone WAF · Edit",
+    "zoneWafWhy": "To add rules that challenge or block bots and rate limit visitors on one hostname.",
+    "transformRules": "Zone · Transform Rules · Edit",
+    "transformRulesWhy": "To set or remove request and response headers on one hostname.",
+    "serviceTokens": "Account · Access: Service Tokens · Edit",
+    "serviceTokensWhy": "To create and revoke tokens that let machines through a login."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",
@@ -2282,5 +2390,105 @@
       "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.example.com."
     },
     "error": "Couldn't save the change: {message}"
+  },
+  "protection": {
+    "title": "Edge Protection",
+    "where": "Enforced by Cloudflare for this hostname only, so it keeps working while this computer is off.",
+    "edit": "Edit Protection…",
+    "protectShare": "Protect at Cloudflare",
+    "routeSheetHelp": "Bots, AI crawlers, rate limit and header rules, enforced by Cloudflare.",
+    "sheetTitle": "Protect {hostname}",
+    "description": "Rules for this hostname at Cloudflare's edge. Rules others made on the domain are left alone.",
+    "apply": "Apply Rules",
+    "applyOff": "Remove Rules",
+    "applied": "Edge protection updated for {hostname}",
+    "bots": {
+      "label": "Automated clients",
+      "help": "Scripts, command-line tools and headless browsers. Verified bots such as search engines are let through.",
+      "off": "Allow",
+      "challenge": "Challenge",
+      "block": "Block"
+    },
+    "ai": {
+      "label": "Block AI crawlers",
+      "help": "Cloudflare's verified AI crawlers are refused on this hostname only.",
+      "short": "AI crawlers",
+      "blocked": "Blocked",
+      "allowed": "Allowed"
+    },
+    "rateLimit": {
+      "label": "Rate limit",
+      "toggle": "Limit requests per visitor",
+      "free": "Not on the Free plan: its one rate limit can't be limited to a hostname and would apply to the whole domain. Pro and higher plans can.",
+      "requests": "Requests",
+      "per": "per",
+      "periodLabel": "Period",
+      "actionLabel": "Above the limit",
+      "action": {
+        "block": "Block",
+        "challenge": "Challenge"
+      },
+      "none": "None",
+      "summaryBlock_one": "{count} request per {period} per visitor, then blocked",
+      "summaryBlock_other": "{count} requests per {period} per visitor, then blocked",
+      "summaryChallenge_one": "{count} request per {period} per visitor, then challenged",
+      "summaryChallenge_other": "{count} requests per {period} per visitor, then challenged",
+      "shared": "Shared with {hostnames}: hostnames with the same limit use one rule."
+    },
+    "headers": {
+      "label": "Header rules",
+      "none": "None",
+      "summary": "Request: {request} · Response: {response}",
+      "request": "Request headers (before they reach your service)",
+      "response": "Response headers (before they reach visitors)",
+      "empty": "No header rules.",
+      "addRow": "Add Header",
+      "name": "Header {index} name",
+      "action": "Header {index} action",
+      "value": "Header {index} value",
+      "removeRow": "Remove header {index}",
+      "op": {
+        "set": "Set",
+        "add": "Add",
+        "remove": "Remove"
+      }
+    },
+    "quota": {
+      "title": "Rules on {zone}",
+      "custom": "Custom rules",
+      "rateLimit": "Rate limiting",
+      "transform": "Transform Rules",
+      "count": "{used}/{limit}",
+      "used": "{label}: {used} of {limit} used"
+    }
+  },
+  "serviceTokens": {
+    "title": "Service Tokens",
+    "intro": "Let machines (CI, scripts, other servers) through this hostname's login with two headers.",
+    "empty": "No service tokens.",
+    "new": "New Service Token…",
+    "sheetTitle": "New Service Token",
+    "description": "A token machines send to pass the login on {hostname}. If it has no login yet, it gets one that only tokens pass.",
+    "name": {
+      "label": "Name",
+      "help": "What it's for, e.g. CI or Backup script."
+    },
+    "create": "Create Token",
+    "issuedTitle": "Save the Secret Now",
+    "issuedDescription": "Machines send these headers to reach {hostname}. Copy the secret now: Cloudflare won't show it again, and Teitunnel forgets it in 10 minutes.",
+    "clientId": "CF-Access-Client-Id",
+    "clientSecret": "CF-Access-Client-Secret",
+    "secretOnce": "Copy it into your CI's secrets. It's copied without being displayed.",
+    "copyHeaders": "Copy Both Headers",
+    "expires": "Expires {date}",
+    "noExpiry": "No expiry",
+    "gone": "Deleted",
+    "rotate": "Rotate",
+    "rotateTitle": "Give “{name}” a new secret?",
+    "rotateDescription": "The old secret stops working at once. Update every machine that uses it.",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke “{name}”?",
+    "revokeDescription": "Machines using it can no longer reach {hostname}. This can't be undone.",
+    "revoked": "Revoked “{name}”"
   }
 }

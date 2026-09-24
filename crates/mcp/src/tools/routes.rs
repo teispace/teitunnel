@@ -703,6 +703,13 @@ pub(crate) struct PlanResult {
     next: String,
 }
 
+impl PlanOut {
+    /// How many steps it has.
+    pub(crate) fn steps_len(&self) -> usize {
+        self.steps.len()
+    }
+}
+
 pub(crate) fn plan_out(plan: &PendingPlan, ctx: &ToolContext) -> PlanOut {
     let view = &plan.view;
     let approval = match ctx.mode() {
@@ -1017,7 +1024,7 @@ pub(crate) async fn plan_and_store(
     Ok(plan_out(&plan, ctx))
 }
 
-fn next_step(plan: &PlanOut, ctx: &ToolContext) -> String {
+pub(crate) fn next_step(plan: &PlanOut, ctx: &ToolContext) -> String {
     if plan.empty {
         return "Nothing to change: it's already like that.".into();
     }

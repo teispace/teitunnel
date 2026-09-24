@@ -98,6 +98,8 @@ fn fresh() -> Snapshot {
         held: Vec::new(),
         owner: "me@Mac".into(),
         now: 0,
+        edge: None,
+        service_tokens: None,
         records: Vec::new(),
         access: None,
         networks: None,
@@ -550,6 +552,8 @@ fn scenarios() {
         elsewhere: Vec::new(),
         balance: None,
         site: None,
+        edge: None,
+        service_tokens: None,
         ..fresh()
     };
 
@@ -763,6 +767,13 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::DeleteSnapshotWorker { .. } => "worker-",
             Step::CreateReservation { .. } => "reserve+",
             Step::SetLease { .. } => "lease~",
+            Step::CreateEdgeRule { .. } => "rule+",
+            Step::UpdateEdgeRule { .. } => "rule~",
+            Step::DeleteEdgeRule { .. } => "rule-",
+            Step::CreateServiceToken { .. } => "token+",
+            Step::AllowServiceToken { .. } => "token-app",
+            Step::DeleteServiceToken { .. } => "token-",
+            Step::RotateServiceToken { .. } => "token~",
         })
         .collect()
 }

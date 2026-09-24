@@ -372,6 +372,88 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         })
     }
 
+    fn protection<'a>(
+        &'a self,
+        account: &'a str,
+        hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::protection::ProtectionView>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            teitunnel_core::protection::view(
+                self.engine(),
+                &api,
+                self.context(account, None),
+                hostname,
+            )
+            .await
+            .map_err(|e| engine_error(e, account))
+        })
+    }
+
+    fn service_tokens<'a>(
+        &'a self,
+        account: &'a str,
+        hostname: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::protection::ServiceTokenView>>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            teitunnel_core::protection::tokens(self.engine(), &api, account, hostname)
+                .await
+                .map_err(|e| engine_error(e, account))
+        })
+    }
+
+    fn preview_protection<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::protection::ProtectionChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            teitunnel_core::protection::preview(
+                self.engine(),
+                &api,
+                self.context(account, None),
+                change,
+            )
+            .await
+            .map_err(|e| engine_error(e, account))
+        })
+    }
+
+    fn apply_protection<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::protection::ProtectionChange,
+        approval: ApplyApproval,
+        actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<(Outcome, Vec<teitunnel_core::engine::edge::IssuedToken>)>>
+    {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            let connectors = self.source.connectors(Some(account)).await;
+            let run = teitunnel_core::protection::apply(
+                self.engine(),
+                &api,
+                &connectors,
+                self.context(account, None),
+                change,
+                Approval {
+                    fingerprint: &approval.fingerprint,
+                    confirmed: approval.confirmed,
+                },
+                |_| {},
+            );
+            let result = match actor {
+                Some(actor) => with_actor(actor, run).await,
+                None => run.await,
+            }
+            .map_err(|e| engine_error(e, account))?;
+            let _ = self.changes.send(ChangeEvent::Routes);
+            Ok(result)
+        })
+    }
+
     fn verify<'a>(
         &'a self,
         account: &'a str,

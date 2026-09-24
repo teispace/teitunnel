@@ -53,4 +53,6 @@ pub struct AppState {
     pub snapshot_dir: std::path::PathBuf,
     /// The control connection and `teitunnel://` links.
     pub control: crate::shell::control::Control,
+    /// New service token secrets, kept in memory briefly so they can be copied.
+    pub issued_secrets: teitunnel_core::protection::IssuedSecrets,
 }

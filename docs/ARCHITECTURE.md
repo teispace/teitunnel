@@ -158,6 +158,7 @@ What the user asked for, in product terms:
 `AddRoute`, `UpdateRoute`, `RemoveRoute`, `ReorderRoutes`, `CreateTunnel`, `DeleteTunnel`, `SetRunMode`, `RepairDns{hostname}`, `Cleanup{items}`, `ImportLocalTunnel`, `AdoptProcess`, `ProtectRoute` (v1.x) …
 
 Snapshots add `PublishSnapshot`, `UpdateSnapshot`, `RollbackSnapshot` and `DeleteSnapshot` (§4.8).
+Edge protection adds `ProtectHostname`, `CreateServiceToken`, `RevokeServiceToken` and `RotateServiceToken` (§4.9).
 
 ### 4.2 Observed snapshot
 
@@ -247,6 +248,37 @@ changed since the preview fails the step), and stream `StepState::Transferring`.
 delete the new Worker, redeploy the previous version, re-attach or detach domains, toggle
 workers.dev back. The Worker (`engine/snapshot-worker.js`) runs only for a password or the
 comments overlay (`run_worker_first`); otherwise assets are served without it.
+
+### 4.9 Edge protection and service tokens (M12-04)
+
+Rules Cloudflare enforces for **one hostname** (research:
+[cloudflare-edge-rules.md](research/cloudflare-edge-rules.md)): a custom rule that blocks
+automated clients and/or AI crawlers, one that challenges them
+(`http_request_firewall_custom`), request and response header rules
+(`http_request_late_transform`, `http_response_headers_transform`), each
+`(http.host eq "<hostname>") and (…)` and described `teitunnel:<route-id>:<kind>`; and rate
+limits (`http_ratelimit`), which plans allow few of, **shared** by every hostname with the
+same limit in a zone: one rule per limit, `(http.host in {"a" "b"})`, described
+`teitunnel:ratelimit:<requests>-<period>-<action>`. `engine/edge.rs` builds the rules and
+reads settings back from them; `engine/planner/edge.rs` diffs them against the observed
+entry points (`EdgeState`: the zone's plan from `plan.legacy_id`, and five phases) and
+plans `CreateEdgeRule` → `UpdateEdgeRule` → `DeleteEdgeRule` (from the end of each phase,
+so undo re-inserts every rule at its old position), checks each quota and adds
+`Warning::EdgeQuota`. Free zones get no rate limit (it can't match a hostname there); a
+different limit on a full quota is `PlanError::EdgeRateLimitConflict`. Rules are changed
+one by one (`POST`/`PATCH`/`DELETE …/rules/{id}`), never a whole ruleset; a rule is
+Teitunnel's if its description has the marker or its id is in `edge_rules`.
+
+Service tokens: `CreateServiceToken` → `AllowServiceToken` (adds the new token to the
+Service Auth policy, decision `non_identity`, of Teitunnel's Access application for the
+hostname, or creates an application only tokens pass); revoke is `UpdateAccessApp` (or
+`DeleteAccessApp` when nothing is left) → `DeleteServiceToken` (last: irreversible).
+`Engine::apply_issuing` returns the credentials of tokens created or rotated, only when
+the plan applied; they're never stored or recorded. Route edits keep the Machines policy
+(`keep_machines`), and removing a route's login keeps a machine-only application while
+tokens use it. `core::protection` is the service layer the app, the CLI and agents share;
+the app keeps a new secret in `IssuedSecrets` (memory, 10 minutes) and copies it to the
+clipboard from Rust, so it never crosses IPC.
 
 ## 5. Runtime
 
@@ -349,6 +381,8 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `quick_shares` | history (origin, url, start/stop) |
 | `snapshots` | Snapshots Teitunnel published: account, name, Worker, hostname, source, settings flags (no password), expiry, live version |
 | `snapshot_versions` | the last 10 versions per Snapshot: Cloudflare version id, manifest (path → hash, size), `_headers`/`_redirects` |
+| `edge_rules` | ownership index of Teitunnel's edge rules: rule id, zone, phase, hostname (none for a shared rate limit), kind (migration 15) |
+| `service_tokens` | Teitunnel's Access service tokens: id, hostname, name, client id, expiry; never the secret (migration 15) |
 | `metrics_rollup` | tunnel_id, minute, requests, errors, status_2xx…5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples |
 | `settings` | key/value JSON |
 

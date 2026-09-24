@@ -69,6 +69,22 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   a Worker secret; it's never stored locally or logged, and its `Debug` is redacted.
   Sessions are HMAC-signed `__Host-` cookies (Secure, HttpOnly, SameSite=Lax) keyed to the
   hash, so changing the password ends them.
+### Edge protection and service tokens
+- Edge rules are written one at a time to a phase's entry point and scoped to one
+  hostname (`http.host`); Teitunnel never replaces a ruleset and never changes, moves or
+  deletes a rule it didn't create (description marker or its ownership index). Nothing is
+  ever applied to a whole domain: a Free zone's rate limit, which can't match a hostname,
+  is refused.
+- A service token's secret exists outside Cloudflare only right after it's created or
+  rotated. The app keeps it in memory for 10 minutes and copies it to the clipboard from
+  Rust, so it never crosses IPC and the window only shows a mask; the CLI prints it once;
+  an agent gets it once from `service_token_create`, after the person approved it, marked
+  sensitive. It's never stored, logged or recorded in Activity; only the token's id,
+  client id, name and expiry are kept. Revoking takes the token out of the login before
+  deleting it.
+- A new token on a hostname without a login creates an Access application only tokens
+  pass (people are refused), and the plan says so.
+
 ### AI agents (MCP server, `crates/mcp`)
 - Agents get the app's abilities through `teitunnel mcp` (stdio, started by the client) and `/mcp` on `teitunnel serve` (Streamable HTTP), never more: every Cloudflare change is a plan from the engine, applied by its fingerprint.
 - **Modes** per server: `read-only` (tools that change anything aren't listed and are refused), `ask` (default: each change needs the person's approval, asked through the client with MCP elicitation when it can, else the tool answers `needsApproval` and only a second call with `confirmed: true` proceeds; an agent's `confirmed` never overrides a person who can be asked or said no), `full`. Records Teitunnel didn't create need an explicit confirmation in every mode.

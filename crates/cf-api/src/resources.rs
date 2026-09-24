@@ -49,6 +49,9 @@ pub struct Plan {
     /// Plan name, e.g. "Free Website".
     #[serde(default)]
     pub name: String,
+    /// The plan's stable id: `free`, `pro`, `business` or `enterprise`.
+    #[serde(default)]
+    pub legacy_id: Option<String>,
 }
 
 /// Zone activation state.

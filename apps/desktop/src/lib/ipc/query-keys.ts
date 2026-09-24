@@ -63,6 +63,13 @@ export const queryKeys = {
   alerts: {
     rules: () => ["alerts", "rules"] as const,
   },
+  protection: {
+    all: () => ["protection"] as const,
+    hostname: (accountId: string, hostname: string) =>
+      ["protection", "hostname", accountId, hostname] as const,
+    tokens: (accountId: string, hostname: string) =>
+      ["protection", "tokens", accountId, hostname] as const,
+  },
   snapshots: {
     all: () => ["snapshots"] as const,
     list: () => ["snapshots", "list"] as const,
@@ -93,7 +100,12 @@ export function keysForEntity(kind: EntityKind): readonly (readonly string[])[] 
       ];
     case "routes":
       // Alerts also announce themselves as a routes change: uptime moved.
-      return [queryKeys.routes.all(), queryKeys.doctor.all(), queryKeys.uptime.all()];
+      return [
+        queryKeys.routes.all(),
+        queryKeys.doctor.all(),
+        queryKeys.uptime.all(),
+        queryKeys.protection.all(),
+      ];
     case "updates":
       return [queryKeys.updates.status()];
     case "snapshots":

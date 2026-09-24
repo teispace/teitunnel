@@ -153,6 +153,8 @@ fn observed(state: SiteState, records: Vec<ObservedRecord>) -> Snapshot {
         held: Vec::new(),
         owner: "me@Mac".into(),
         now: 0,
+        edge: None,
+        service_tokens: None,
     }
 }
 
