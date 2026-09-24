@@ -1,0 +1,43 @@
+[package]
+name = "teitunnel-control"
+description = "Teitunnel's local control connection: protocol, server, client and deep links"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "teitunnel_control"
+
+[features]
+default = []
+# `testing::FakeHost` and a server over it, for clients' tests.
+testing = []
+
+# Deliberately free of `teitunnel-core`: the protocol, transport and client are what the
+# CLI and extensions build on; the core implements `Host` (`teitunnel_core::control`).
+[dependencies]
+getrandom.workspace = true
+percent-encoding.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros", "io-util", "net"] }
+tracing.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# A named pipe with a security descriptor through a safe API (no `unsafe` here).
+interprocess = { version = "2.4.4", features = ["tokio"] }
+sysinfo = { workspace = true, features = ["system"] }
+widestring = "1.2"
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "test-util", "io-util", "net"] }
+
+[lints]
+workspace = true

@@ -19,6 +19,7 @@ specta = ["dep:specta"]
 [dependencies]
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
+teitunnel-control.workspace = true
 futures-util.workspace = true
 flate2.workspace = true
 tar.workspace = true

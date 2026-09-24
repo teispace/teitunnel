@@ -17,6 +17,7 @@ publish = false
 teitunnel-cf-api = { path = "crates/cf-api" }
 teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
+teitunnel-control = { path = "crates/control" }
 teitunnel-lens = { path = "crates/lens" }
 teitunnel-localdomains = { path = "crates/localdomains" }
 teitunnel-mcp = { path = "crates/mcp" }
@@ -32,6 +33,8 @@ tauri-plugin-notification = "2.4.0"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-updater = "2.12.0"
 tauri-plugin-dialog = "2.7.3"
+# `teitunnel://` links (M12-07)
+tauri-plugin-deep-link = "2.4.10"
 # E2E only (never in release builds): embedded WebDriver for @wdio/tauri-service.
 tauri-plugin-wdio-webdriver = "1.4.0"
 tauri-plugin-wdio = "1.4.0"
