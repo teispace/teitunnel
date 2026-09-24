@@ -15,7 +15,7 @@ use crate::LensError;
 /// The crypto provider Lens uses, chosen explicitly: the workspace compiles rustls
 /// with more than one provider, so relying on the process default would panic.
 fn provider() -> Arc<CryptoProvider> {
-    Arc::new(rustls::crypto::ring::default_provider())
+    Arc::new(rustls::crypto::aws_lc_rs::default_provider())
 }
 
 /// A client config for an origin: the platform's verifier (or none), and ALPN for the
