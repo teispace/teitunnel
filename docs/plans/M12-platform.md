@@ -2,7 +2,7 @@
 
 **Goal:** Teitunnel becomes the most capable way to put local work on the internet: everything ngrok, LocalCan, Pinggy and FlareDeck do, on the user's own Cloudflare account, free, native, with no caps. Evidence and sources: [research/competitors-2026.md](../research/competitors-2026.md).
 **Principles:** simple first (one click, sensible defaults, advanced behind disclosure); native (DESIGN.md); local-first and private (captured traffic never leaves the machine unless exported); every Cloudflare change through plan → apply; agents get the same power as people, behind the same previews and an approval the person controls.
-**Status:** DRAFT for discussion with the maintainer (2026-09-24). Nothing here is decided until the open questions at the end are answered.
+**Status:** Decided 2026-09-24 (answers at the end). In progress.
 
 ## Order of work
 
@@ -104,7 +104,28 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
 - [ ] Listings: awesome-tunneling, Raycast Store, VS Code Marketplace, Homebrew core, winget, Flathub; Show HN / Product Hunt when M12-02 and M12-03 ship.
 
-## Open questions for the maintainer
+## Decisions (maintainer, 2026-09-24)
+1. Quick Shares are inspected by default: in memory, last 1,000 exchanges per share, secrets masked, one switch off.
+2. Routes: the most robust design (below, "Inspecting a route").
+3. Analytics may add Account Analytics Read (token template, OAuth scope, asked in place).
+4. No built-in "Explain this" / LLM. Agents come through an extremely capable MCP server.
+5. Snapshots now: flexible and robust, on the user's own Cloudflare account.
+6. Comments/feedback on shares and snapshots now.
+7. Local HTTPS domains now.
+8. Order as listed.
+Work happens locally and reaches GitHub in batches (CI is slow). 0.2.0 still has to be out before 2026-10-05.
+
+## Inspecting a route (decision 2)
+Lens runs in the process that runs the route's connector: the app, `teitunnel up`, or `teitunnel serve`. Turning inspection on is a plan → apply change that points the rule's service at Lens's address and stores the original service in `inspected_routes` (store). It's reverted by: turning it off; the process stopping (on quit, and swept at next start after a crash, like domain shares, D-068); Always-on switching to a system service without Lens. The Doctor flags a rule pointing at a Lens address with no Lens listening (`inspect.orphan`) with a one-click restore. Routes on other machines use the log-based request feed only.
+
+## Module boundaries
+- `crates/lens` (new, no Tauri): listeners, taps, capture store, masking, replay, export, webhook verification, gates (protection), static upstream, HTML injection hook, host-based routing for local domains. Everything else calls its public API.
+- `crates/cf-api`: analytics (GraphQL), Workers static assets / snapshots, anything Cloudflare.
+- `crates/core`: orchestration (which share/route has a tap, persistence, schedules, uptime, alerts), no HTTP servers of its own.
+- `crates/mcp` (new): the MCP server (tools, resources, prompts, approvals) over core; `teitunnel mcp` (stdio) and `teitunnel serve` (Streamable HTTP) host it.
+- `apps/desktop`: UI only; `apps/cli`: commands only.
+
+## Questions asked (answered above)
 1. **Inspect Quick Shares by default?** Recommended: yes, in memory, last 1,000 requests, masked secrets, one switch to turn off.
 2. **Inspecting a route** changes its Cloudflare service to Lens while the app runs (reverted on quit). Acceptable, or Quick Shares only at first?
 3. **Analytics** needs the Account Analytics Read permission (new token permission and OAuth scope for existing users; the app asks in place). OK to add?
