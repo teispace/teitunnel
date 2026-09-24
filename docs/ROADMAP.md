@@ -73,10 +73,10 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Maintainer answered the open questions 2026-09-24.
 - [x] M12-01 dev servers fixed in place (D-096)
 - [x] M12-02 inspector: Lens core (D-100), integration (D-110) and screens (D-111); left: breakpoints, a measured perf budget
-- [x] M12-03 MCP server (D-097), except the app-hosted native approval
+- [x] M12-03 MCP server (D-097), approvals in the app (D-121)
 - [ ] M12-04 protection: edge rules (D-105) and service tokens (D-106) done; Lens gates in the UI, login presets, webhook bypass left
 - [ ] M12-05 analytics: edge analytics, uptime and alerts (D-098) and the Lens source (D-110) done; live Overview left
-- [ ] M12-06 sharing: Snapshots done (D-099); pause/resume, stable names, folder share, comments, offline page, schedules left
+- [ ] M12-06 sharing: Snapshots (D-099), pause/resume (D-116), schedules (D-117), stable names (D-118), folder share (D-119) done; comments, offline page left
 - [x] M12-11 CI/CD and teams: PR previews (D-104), reservations (D-103)
-- [ ] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop done; webhook inbox, OpenAPI from traffic left
+- [ ] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop, OpenAPI from traffic (D-120) done; webhook inbox left
 - [ ] M12-07 everywhere: control connection, links, completion, `teitunnel top` (D-102), VS Code / Raycast / JetBrains, tray and global shortcut (D-112–D-114) done; local HTTPS domains (D-101, D-115) done; browser extension later
