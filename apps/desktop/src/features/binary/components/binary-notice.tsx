@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { detectPlatform } from "@/app/platform";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -58,6 +58,7 @@ export function binaryReady(binary: BinaryInfo | null | undefined): boolean {
  */
 export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
   const queryClient = useQueryClient();
+  const checking = useIsFetching({ queryKey: queryKeys.binary.status() }) > 0;
   const install = useInstallBinary();
   const status = describeProgress(install.progress);
   const error = install.error ? toIpcError(install.error) : null;
@@ -97,6 +98,7 @@ export function BinaryNotice({ binary }: { binary: BinaryInfo | null }) {
             </Button>
             <Button
               variant="plain"
+              pending={checking}
               onClick={() =>
                 void queryClient.invalidateQueries({ queryKey: queryKeys.binary.status() })
               }

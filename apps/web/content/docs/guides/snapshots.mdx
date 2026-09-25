@@ -1,0 +1,98 @@
+---
+title: Snapshots
+description: "Publish a static copy of your site to your own Cloudflare account, so a preview stays online while your computer sleeps: from a folder, a build, or a running dev server, with versions, rollback, a password or a login."
+---
+
+A Quick Share or a route shows your site only while this computer is on. A **Snapshot** is
+a static copy of it, hosted on **your own Cloudflare account** as a Worker with static
+assets, so a preview, a demo or a design review stays online when you close the lid.
+It's free on Cloudflare's free plan: requests for the files are free and unlimited.
+
+## Publish one
+In **Snapshots**, choose **Publish a Snapshot**, then where the files come from:
+
+- **Folder:** a folder of files, published as it is (for example a `dist` or `out` folder).
+- **Build a Project:** Teitunnel recognises the project (Vite, Next.js with
+  `output: 'export'`, Astro, SvelteKit with the static adapter, Nuxt `generate`, Create
+  React App, Gatsby, Docusaurus, VitePress, Angular, or plain HTML), shows the command it
+  will run, such as `pnpm run build`, and runs it only when you choose **Build and
+  Continue**. It uses the project's own package manager (pnpm, npm, Yarn or Bun) and never
+  a shell.
+- **Running Site:** captures a site running on this computer, such as a dev server at
+  `http://localhost:5173`, for apps that have no static export. Teitunnel follows the
+  site's own links, stylesheets, scripts and sitemap, stays on that address, and stops at
+  500 pages or 5,000 files. On a Quick Share card, the camera button starts this with the
+  share's address filled in.
+
+Then give it a name and an address:
+
+- **My Domain:** a hostname on one of your domains, like `preview.example.com`. Cloudflare
+  creates its DNS record and certificate.
+- **workers.dev:** your account's free `…workers.dev` address (choose a workers.dev
+  subdomain in the Cloudflare dashboard once if you've never used Workers).
+
+Review the plan, and **Publish**.
+
+## What's left out
+Hidden files, `.env` files, private keys, `.git` and `node_modules` are never uploaded; the
+review lists what was left out. Nothing outside the chosen folder is uploaded either, links
+included. Cloudflare accepts up to 20,000 files per version and 25 MB per file (free
+plan); Teitunnel checks both before uploading. A `_headers` or `_redirects` file in the
+folder is applied as Cloudflare's headers and redirects rules.
+
+## Updates and versions
+**Publish New Version** takes the files from the same place again (or a new one), or keeps
+the files and changes only the settings. Files are identified by their content, so only new
+and changed files are uploaded; if an upload is interrupted, publishing again doesn't send
+what Cloudflare already has. The new version goes live only once every file is there, in
+one switch.
+
+The last 10 versions are listed with their size and date. **Roll Back** makes an earlier
+one live again at once, with the settings it had.
+
+## Who can open it
+- **Anyone with the address** (the default).
+- **Anyone with the password:** visitors see a small password page. The password is never
+  stored: only a salted hash (PBKDF2), kept as a secret of the Snapshot's Worker. A
+  password makes every visit run the Worker, which counts toward Cloudflare's free 100,000
+  Worker requests a day.
+- **People I choose:** a Cloudflare Access login, like [Require a login](/docs/guides/require-login)
+  for routes (hostnames on your domains only).
+
+**Delete after** removes the Snapshot by itself after 1, 7 or 30 days. The app checks
+every hour.
+
+## What Teitunnel changes
+Every change is a plan you review first, and it's undone step by step if something fails:
+
+1. **Upload** the new or changed files.
+2. **Create the Worker** `teitunnel-<name>` (or upload a new version and make it live).
+3. **Login**, if you chose one: before the Snapshot has an address.
+4. **Address:** attach the hostname, or turn on the workers.dev address.
+
+Teitunnel never takes a hostname in use: a route's hostname or one another Worker serves
+is refused. A DNS record Teitunnel didn't create is deleted only when you confirm it in the
+review (Cloudflare can't attach a hostname over it). **Delete** removes the address, then
+the login, then the Worker with every version.
+
+## Permissions
+Snapshots need **Account · Workers Scripts · Edit**, and for a hostname on your domains
+**Zone · Workers Routes · Edit** on that domain. Tokens created from Teitunnel's link
+include both. If yours doesn't, the sheet shows what to add, and continues when you're back.
+
+## From the terminal
+
+```sh
+teitunnel snapshot publish ./dist --on preview.example.com
+teitunnel snapshot publish . --build --name "Launch page" --expires 7d
+teitunnel snapshot publish --crawl http://localhost:5173 --password
+teitunnel snapshot ls
+teitunnel snapshot update "Launch page"          # same source again; only changes upload
+teitunnel snapshot versions "Launch page"
+teitunnel snapshot rollback "Launch page"        # the version before the live one
+teitunnel snapshot rm preview.example.com -y
+```
+
+`--password` reads the password from the terminal, or from `TEITUNNEL_SNAPSHOT_PASSWORD`.
+`--allow me@example.com` (repeatable) requires a login. Every command shows the plan and
+asks before applying; `-y` applies without asking, `--json` prints the result.

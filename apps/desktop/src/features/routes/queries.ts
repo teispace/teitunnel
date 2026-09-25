@@ -11,7 +11,7 @@ import {
   type Traffic,
 } from "@/lib/ipc/bindings";
 import { call, toIpcError } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 import { appendSeries } from "@/lib/traffic";
 
 export function useRoutesOverview(accountId: string | null) {
@@ -77,7 +77,7 @@ export function useApply(accountId: string) {
         commands.routesApply(accountId, tunnelId, change, fingerprint, confirmed, channel),
       );
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.routes.all()),
   });
   return { ...mutation, steps };
 }
@@ -93,7 +93,7 @@ export function useKeepTheirs(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => call(commands.routesKeepTheirs(accountId)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.routes.all()),
   });
 }
 
@@ -146,7 +146,7 @@ export function useTunnelAction(accountId: string) {
           return call(commands.tunnelsClean(accountId, tunnelId));
       }
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.routes.all()),
   });
 }
 
@@ -175,8 +175,9 @@ export function useStopForeign() {
   return useMutation({
     mutationFn: (pid: number) => call(commands.foreignStop(pid)),
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.routes.foreign() });
+      // The Doctor re-runs its checks in the background; the list is what this changed.
       void queryClient.invalidateQueries({ queryKey: queryKeys.doctor.all() });
+      return refresh(queryClient, queryKeys.routes.foreign());
     },
   });
 }
@@ -317,7 +318,7 @@ export function useSetAlwaysOn(accountId: string, tunnelId: string | null = null
   return useMutation({
     mutationFn: (enabled: boolean) =>
       call(commands.tunnelsSetAlwaysOn(accountId, tunnelId, enabled)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.routes.all()),
   });
 }
 
@@ -326,6 +327,6 @@ export function useAdoptTunnel(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (tunnelId: string) => call(commands.tunnelsAdopt(accountId, tunnelId)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.routes.all() }),
+    onSettled: () => refresh(queryClient, queryKeys.routes.all()),
   });
 }

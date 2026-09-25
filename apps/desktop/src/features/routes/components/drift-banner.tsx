@@ -50,7 +50,7 @@ export function DriftBanner({
           {changes.length > 3 ? <li>{t("drift.more", { count: changes.length - 3 })}</li> : null}
         </ul>
         <div className="mt-2 flex gap-2">
-          <Button size="sm" disabled={keep.isPending} onClick={() => keep.mutate()}>
+          <Button size="sm" pending={keep.isPending} onClick={() => keep.mutate()}>
             {t("drift.keep")}
           </Button>
           <Button size="sm" onClick={() => drift.data && onRestore(drift.data.tunnelId)}>

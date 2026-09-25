@@ -13,10 +13,16 @@ import { Route as MainRouteImport } from "./routes/_main"
 import { Route as SettingsRouteImport } from "./routes/settings"
 import { Route as MainIndexRouteImport } from "./routes/_main/index"
 import { Route as MainActivityRouteImport } from "./routes/_main/activity"
+import { Route as MainAnalyticsRouteImport } from "./routes/_main/analytics"
+import { Route as MainCommentsRouteImport } from "./routes/_main/comments"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
+import { Route as MainInspectorRouteImport } from "./routes/_main/inspector"
+import { Route as MainLocalDomainsRouteImport } from "./routes/_main/local-domains"
+import { Route as MainProjectsRouteImport } from "./routes/_main/projects"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
 import { Route as MainRoutesRouteImport } from "./routes/_main/routes"
+import { Route as MainSnapshotsRouteImport } from "./routes/_main/snapshots"
 import { Route as MainTunnelsRouteImport } from "./routes/_main/tunnels"
 import { Route as MainDevGalleryRouteImport } from "./routes/_main/dev.gallery"
 import { Route as MainDevStressRouteImport } from "./routes/_main/dev.stress"
@@ -40,6 +46,16 @@ const MainActivityRoute = MainActivityRouteImport.update({
   path: "/activity",
   getParentRoute: () => MainRoute,
 } as any)
+const MainAnalyticsRoute = MainAnalyticsRouteImport.update({
+  id: "/analytics",
+  path: "/analytics",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainCommentsRoute = MainCommentsRouteImport.update({
+  id: "/comments",
+  path: "/comments",
+  getParentRoute: () => MainRoute,
+} as any)
 const MainDoctorRoute = MainDoctorRouteImport.update({
   id: "/doctor",
   path: "/doctor",
@@ -50,6 +66,21 @@ const MainDomainsRoute = MainDomainsRouteImport.update({
   path: "/domains",
   getParentRoute: () => MainRoute,
 } as any)
+const MainInspectorRoute = MainInspectorRouteImport.update({
+  id: "/inspector",
+  path: "/inspector",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainLocalDomainsRoute = MainLocalDomainsRouteImport.update({
+  id: "/local-domains",
+  path: "/local-domains",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainProjectsRoute = MainProjectsRouteImport.update({
+  id: "/projects",
+  path: "/projects",
+  getParentRoute: () => MainRoute,
+} as any)
 const MainQuickShareRoute = MainQuickShareRouteImport.update({
   id: "/quick-share",
   path: "/quick-share",
@@ -58,6 +89,11 @@ const MainQuickShareRoute = MainQuickShareRouteImport.update({
 const MainRoutesRoute = MainRoutesRouteImport.update({
   id: "/routes",
   path: "/routes",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainSnapshotsRoute = MainSnapshotsRouteImport.update({
+  id: "/snapshots",
+  path: "/snapshots",
   getParentRoute: () => MainRoute,
 } as any)
 const MainTunnelsRoute = MainTunnelsRouteImport.update({
@@ -80,10 +116,16 @@ export interface FileRoutesByFullPath {
   "/": typeof MainIndexRoute
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
+  "/analytics": typeof MainAnalyticsRoute
+  "/comments": typeof MainCommentsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/inspector": typeof MainInspectorRoute
+  "/local-domains": typeof MainLocalDomainsRoute
+  "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
+  "/snapshots": typeof MainSnapshotsRoute
   "/tunnels": typeof MainTunnelsRoute
   "/dev/gallery": typeof MainDevGalleryRoute
   "/dev/stress": typeof MainDevStressRoute
@@ -91,10 +133,16 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/settings": typeof SettingsRoute
   "/activity": typeof MainActivityRoute
+  "/analytics": typeof MainAnalyticsRoute
+  "/comments": typeof MainCommentsRoute
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
+  "/inspector": typeof MainInspectorRoute
+  "/local-domains": typeof MainLocalDomainsRoute
+  "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
   "/routes": typeof MainRoutesRoute
+  "/snapshots": typeof MainSnapshotsRoute
   "/tunnels": typeof MainTunnelsRoute
   "/": typeof MainIndexRoute
   "/dev/gallery": typeof MainDevGalleryRoute
@@ -105,10 +153,16 @@ export interface FileRoutesById {
   "/_main": typeof MainRouteWithChildren
   "/settings": typeof SettingsRoute
   "/_main/activity": typeof MainActivityRoute
+  "/_main/analytics": typeof MainAnalyticsRoute
+  "/_main/comments": typeof MainCommentsRoute
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
+  "/_main/inspector": typeof MainInspectorRoute
+  "/_main/local-domains": typeof MainLocalDomainsRoute
+  "/_main/projects": typeof MainProjectsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
   "/_main/routes": typeof MainRoutesRoute
+  "/_main/snapshots": typeof MainSnapshotsRoute
   "/_main/tunnels": typeof MainTunnelsRoute
   "/_main/": typeof MainIndexRoute
   "/_main/dev/gallery": typeof MainDevGalleryRoute
@@ -120,10 +174,16 @@ export interface FileRouteTypes {
     | "/"
     | "/settings"
     | "/activity"
+    | "/analytics"
+    | "/comments"
     | "/doctor"
     | "/domains"
+    | "/inspector"
+    | "/local-domains"
+    | "/projects"
     | "/quick-share"
     | "/routes"
+    | "/snapshots"
     | "/tunnels"
     | "/dev/gallery"
     | "/dev/stress"
@@ -131,10 +191,16 @@ export interface FileRouteTypes {
   to:
     | "/settings"
     | "/activity"
+    | "/analytics"
+    | "/comments"
     | "/doctor"
     | "/domains"
+    | "/inspector"
+    | "/local-domains"
+    | "/projects"
     | "/quick-share"
     | "/routes"
+    | "/snapshots"
     | "/tunnels"
     | "/"
     | "/dev/gallery"
@@ -144,10 +210,16 @@ export interface FileRouteTypes {
     | "/_main"
     | "/settings"
     | "/_main/activity"
+    | "/_main/analytics"
+    | "/_main/comments"
     | "/_main/doctor"
     | "/_main/domains"
+    | "/_main/inspector"
+    | "/_main/local-domains"
+    | "/_main/projects"
     | "/_main/quick-share"
     | "/_main/routes"
+    | "/_main/snapshots"
     | "/_main/tunnels"
     | "/_main/"
     | "/_main/dev/gallery"
@@ -189,6 +261,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainActivityRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/analytics": {
+      id: "/_main/analytics"
+      path: "/analytics"
+      fullPath: "/analytics"
+      preLoaderRoute: typeof MainAnalyticsRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/comments": {
+      id: "/_main/comments"
+      path: "/comments"
+      fullPath: "/comments"
+      preLoaderRoute: typeof MainCommentsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/doctor": {
       id: "/_main/doctor"
       path: "/doctor"
@@ -203,6 +289,27 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainDomainsRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/inspector": {
+      id: "/_main/inspector"
+      path: "/inspector"
+      fullPath: "/inspector"
+      preLoaderRoute: typeof MainInspectorRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/local-domains": {
+      id: "/_main/local-domains"
+      path: "/local-domains"
+      fullPath: "/local-domains"
+      preLoaderRoute: typeof MainLocalDomainsRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/projects": {
+      id: "/_main/projects"
+      path: "/projects"
+      fullPath: "/projects"
+      preLoaderRoute: typeof MainProjectsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/quick-share": {
       id: "/_main/quick-share"
       path: "/quick-share"
@@ -215,6 +322,13 @@ declare module "@tanstack/react-router" {
       path: "/routes"
       fullPath: "/routes"
       preLoaderRoute: typeof MainRoutesRouteImport
+      parentRoute: typeof MainRoute
+    }
+    "/_main/snapshots": {
+      id: "/_main/snapshots"
+      path: "/snapshots"
+      fullPath: "/snapshots"
+      preLoaderRoute: typeof MainSnapshotsRouteImport
       parentRoute: typeof MainRoute
     }
     "/_main/tunnels": {
@@ -243,10 +357,16 @@ declare module "@tanstack/react-router" {
 
 interface MainRouteChildren {
   MainActivityRoute: typeof MainActivityRoute
+  MainAnalyticsRoute: typeof MainAnalyticsRoute
+  MainCommentsRoute: typeof MainCommentsRoute
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
+  MainInspectorRoute: typeof MainInspectorRoute
+  MainLocalDomainsRoute: typeof MainLocalDomainsRoute
+  MainProjectsRoute: typeof MainProjectsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
   MainRoutesRoute: typeof MainRoutesRoute
+  MainSnapshotsRoute: typeof MainSnapshotsRoute
   MainTunnelsRoute: typeof MainTunnelsRoute
   MainIndexRoute: typeof MainIndexRoute
   MainDevGalleryRoute: typeof MainDevGalleryRoute
@@ -255,10 +375,16 @@ interface MainRouteChildren {
 
 const MainRouteChildren: MainRouteChildren = {
   MainActivityRoute: MainActivityRoute,
+  MainAnalyticsRoute: MainAnalyticsRoute,
+  MainCommentsRoute: MainCommentsRoute,
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
+  MainInspectorRoute: MainInspectorRoute,
+  MainLocalDomainsRoute: MainLocalDomainsRoute,
+  MainProjectsRoute: MainProjectsRoute,
   MainQuickShareRoute: MainQuickShareRoute,
   MainRoutesRoute: MainRoutesRoute,
+  MainSnapshotsRoute: MainSnapshotsRoute,
   MainTunnelsRoute: MainTunnelsRoute,
   MainIndexRoute: MainIndexRoute,
   MainDevGalleryRoute: MainDevGalleryRoute,

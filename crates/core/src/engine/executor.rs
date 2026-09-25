@@ -29,6 +29,14 @@ static EMPTY: Snapshot = Snapshot {
     access: None,
     networks: None,
     balance: None,
+    site: None,
+    held: Vec::new(),
+    owner: String::new(),
+    now: 0,
+    edge: None,
+    service_tokens: None,
+    database: None,
+    front: None,
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -37,7 +45,7 @@ use super::{
     networks::NETWORK_COMMENT,
     observe::{ObserveError, observe},
     planner::{PlanError, plan},
-    types::{Intent, Plan, Snapshot, Step, TunnelRef, ownership_comment, tunnel_target},
+    types::{Intent, Plan, Snapshot, Step, TunnelRef, tunnel_target},
 };
 use crate::domain::{Hostname, RouteOrigin};
 
@@ -133,6 +141,23 @@ pub enum StepState {
         /// What went wrong.
         message: Text,
     },
+    /// Sending a Snapshot's files: how far along.
+    Transferring {
+        /// Files sent.
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        files: u64,
+        /// Of this many.
+        #[serde(rename = "totalFiles")]
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        total_files: u64,
+        /// Bytes sent.
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        bytes: u64,
+        /// Of this many.
+        #[serde(rename = "totalBytes")]
+        #[cfg_attr(feature = "specta", specta(type = f64))]
+        total_bytes: u64,
+    },
 }
 
 /// A progress update for the step at `step` (index into the plan).
@@ -208,6 +233,9 @@ enum Undo {
     RestoreRecord {
         zone: String,
         previous: DnsRecord,
+        /// The record's id now: `previous.id` if it was changed in place, else the
+        /// replacement's (a type change deletes and creates).
+        current: String,
         was_owned: bool,
     },
     RecreateRecord {
@@ -248,6 +276,84 @@ enum Undo {
     },
     RecreateLbPool(cf_api::Pool),
     RecreateLbMonitor(cf_api::Monitor),
+    DeleteSnapshotWorker {
+        snapshot: String,
+        script: String,
+    },
+    RedeploySnapshot {
+        snapshot: String,
+        script: String,
+        version: String,
+        /// The version the step made live, forgotten when it was new.
+        replaced: Option<String>,
+    },
+    SetWorkersDev {
+        script: String,
+        enabled: bool,
+    },
+    DetachSnapshotDomain {
+        id: String,
+        hostname: String,
+    },
+    ReattachSnapshotDomain(cf_api::WorkerDomain),
+    /// A deleted Worker can't come back.
+    RecreateSnapshotWorker(String),
+    DeleteEdgeRule {
+        zone: String,
+        ruleset: String,
+        id: String,
+        hostnames: String,
+    },
+    RestoreEdgeRule {
+        zone: String,
+        ruleset: String,
+        id: String,
+        previous: cf_api::NewRule,
+        hostnames: String,
+    },
+    RecreateEdgeRule {
+        zone: String,
+        phase: String,
+        ruleset: String,
+        rule: cf_api::NewRule,
+        position: u32,
+        hostnames: String,
+    },
+    DeleteServiceToken {
+        id: String,
+        name: String,
+    },
+    /// A deleted token (or a replaced secret) can't come back.
+    RestoreServiceToken(String),
+    DeleteDatabase(String),
+    DeleteFrontWorker {
+        hostname: String,
+        script: String,
+        config: super::front::FrontConfig,
+    },
+    /// Put a front Worker back as it was (after a replacement or a deletion).
+    RestoreFrontWorker {
+        hostname: String,
+        zone_id: String,
+        script: String,
+        config: super::front::FrontConfig,
+        database: Option<String>,
+    },
+    DeleteWorkerRoute {
+        zone: String,
+        id: String,
+        pattern: String,
+        hostname: String,
+        kind: super::front::FrontKind,
+        path: String,
+    },
+    RecreateWorkerRoute {
+        zone: String,
+        route: cf_api::WorkerRoute,
+        hostname: String,
+        kind: super::front::FrontKind,
+        path: String,
+    },
 }
 
 impl Undo {
@@ -279,24 +385,63 @@ impl Undo {
             }
             Self::RecreateLbPool(pool) => m::recreate_lb_pool(&pool.name),
             Self::RecreateLbMonitor(_) => m::recreate_lb_monitor(),
+            Self::DeleteSnapshotWorker { script, .. } => {
+                msg::snapshot::leftover::delete_worker(script)
+            }
+            Self::RedeploySnapshot { script, .. } => msg::snapshot::leftover::redeploy(script),
+            Self::SetWorkersDev { script, enabled } => {
+                if *enabled {
+                    msg::snapshot::leftover::workers_dev_off(script)
+                } else {
+                    msg::snapshot::leftover::workers_dev_on(script)
+                }
+            }
+            Self::DetachSnapshotDomain { hostname, .. } => {
+                msg::snapshot::leftover::detach_domain(hostname)
+            }
+            Self::ReattachSnapshotDomain(domain) => {
+                msg::snapshot::leftover::reattach_domain(&domain.hostname)
+            }
+            Self::RecreateSnapshotWorker(script) => {
+                msg::snapshot::leftover::recreate_worker(script)
+            }
+            Self::DeleteEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::delete_rule(hostnames)
+            }
+            Self::RestoreEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::restore_rule(hostnames)
+            }
+            Self::RecreateEdgeRule { hostnames, .. } => {
+                msg::protection::leftover::recreate_rule(hostnames)
+            }
+            Self::DeleteServiceToken { name, .. } => msg::protection::leftover::delete_token(name),
+            Self::RestoreServiceToken(name) => msg::protection::leftover::restore_token(name),
+            Self::DeleteDatabase(id) => msg::front::leftover::delete_database(id),
+            Self::DeleteFrontWorker { script, .. } => msg::front::leftover::delete_worker(script),
+            Self::RestoreFrontWorker { script, .. } => msg::front::leftover::restore_worker(script),
+            Self::DeleteWorkerRoute { pattern, .. } => msg::front::leftover::delete_route(pattern),
+            Self::RecreateWorkerRoute { route, .. } => {
+                msg::front::leftover::recreate_route(&route.pattern)
+            }
         }
     }
 }
 
-fn route_id_from(comment: Option<&str>) -> &str {
+fn route_id_from(comment: Option<&str>) -> String {
     comment
-        .and_then(|c| c.strip_prefix("teitunnel:route="))
+        .and_then(super::ownership::Ownership::parse)
+        .and_then(|o| o.route_id().map(str::to_owned))
         .unwrap_or_default()
 }
 
-fn tunnel_cname(hostname: &str, tunnel_id: &str, route_id: &str) -> NewDnsRecord {
+fn tunnel_cname(hostname: &str, tunnel_id: &str, comment: &str) -> NewDnsRecord {
     NewDnsRecord {
         name: hostname.to_owned(),
         kind: "CNAME".to_owned(),
         content: tunnel_target(tunnel_id),
         proxied: true,
         ttl: 1,
-        comment: Some(ownership_comment(route_id)),
+        comment: Some(comment.to_owned()),
     }
 }
 
@@ -306,6 +451,8 @@ type Locks = HashMap<String, Arc<tokio::sync::Mutex<()>>>;
 #[derive(Debug)]
 pub struct Engine {
     local: Local,
+    /// Who this is, for the DNS comments it writes (`person@machine`).
+    owner: String,
     locks: Mutex<Locks>,
     cache: Mutex<HashMap<String, (Instant, Snapshot)>>,
 }
@@ -315,8 +462,30 @@ impl Engine {
     pub fn new(local: Local) -> Self {
         Self {
             local,
+            owner: super::ownership::owner_label(),
             locks: Mutex::default(),
             cache: Mutex::default(),
+        }
+    }
+
+    /// The same engine writing `owner` (`person@machine`) into the DNS comments it makes
+    /// instead of this user and machine.
+    #[must_use]
+    pub fn with_owner(mut self, owner: &str) -> Self {
+        self.owner = super::ownership::sanitize_owner(owner);
+        self
+    }
+
+    /// Who this engine writes into DNS comments.
+    pub fn owner(&self) -> &str {
+        &self.owner
+    }
+
+    /// Who observes, now.
+    pub fn who(&self) -> super::observe::Who<'_> {
+        super::observe::Who {
+            owner: &self.owner,
+            now: crate::domain_shares::now_ms(),
         }
     }
 
@@ -343,13 +512,16 @@ impl Engine {
         );
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}",
+            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}\n{}",
             tunnel.unwrap_or_default(),
             u8::from(need.access.setup),
             u8::from(need.access.owned),
             need.access.domains.join(","),
             need.networks,
             u8::from(need.tunnel_names),
+            need.site.script.as_deref().unwrap_or_default(),
+            need.edge.hostname.as_deref().unwrap_or_default(),
+            u8::from(need.service_tokens),
         )
     }
 
@@ -387,6 +559,7 @@ impl Engine {
             ctx.machine_name,
             hostnames.as_deref(),
             &ObserveNeed::of(intent),
+            self.who(),
         )
         .await?;
         self.cache
@@ -600,6 +773,20 @@ impl Engine {
         Ok(())
     }
 
+    /// What planning `intent` would be based on (for views of the current state). May
+    /// reuse an observation up to 5 s old.
+    ///
+    /// # Errors
+    /// Observation errors.
+    pub async fn observation<C: CloudApi>(
+        &self,
+        api: &C,
+        ctx: Context<'_>,
+        intent: &Intent,
+    ) -> Result<Snapshot, EngineError> {
+        self.snapshot(api, ctx, intent, true).await
+    }
+
     /// Plans `intent` for review. May reuse an observation up to 5 s old.
     ///
     /// # Errors
@@ -735,19 +922,25 @@ impl Engine {
             ctx.machine_name,
             Some(&[hostname]),
             &ObserveNeed::none(),
+            self.who(),
         )
         .await?;
         if let Some(failure) = check_dns(&snapshot, hostname.as_str()) {
             return Ok(Verification::new(hostname.to_string(), None, Some(failure)));
         }
-        let origin = snapshot
+        let route = snapshot
             .routes()
             .into_iter()
-            .find(|r| r.hostname.as_deref() == Some(hostname.as_str()))
-            .and_then(|r| RouteOrigin::parse(&r.service).ok());
+            .find(|r| r.hostname.as_deref() == Some(hostname.as_str()));
+        let origin = route.and_then(|r| RouteOrigin::parse(&r.service).ok());
+        let sends_host = route.is_some_and(|r| r.origin_request.contains_key("httpHostHeader"));
         let deadline = Instant::now() + patience;
         loop {
-            let result = probe(edge, hostname, origin.as_ref()).await;
+            let mut result = probe(edge, hostname, origin.as_ref()).await;
+            // Sending the Host header again is no fix when the route already does.
+            if sends_host && let Some(Failure::HostRejected { rejection }) = &mut result.failure {
+                rejection.host_header = None;
+            }
             let transient = result.failure.as_ref().is_some_and(Failure::is_transient);
             if !transient || Instant::now() + VERIFY_RETRY > deadline {
                 return Ok(result);
@@ -770,8 +963,33 @@ impl Engine {
         ctx: Context<'_>,
         intent: &Intent,
         approval: Approval<'_>,
-        mut progress: P,
+        progress: P,
     ) -> Result<Outcome, EngineError>
+    where
+        C: CloudApi,
+        K: Connectors,
+        P: FnMut(Progress) + Send,
+    {
+        self.apply_issuing(api, connectors, ctx, intent, approval, progress)
+            .await
+            .map(|(outcome, _)| outcome)
+    }
+
+    /// [`Self::apply`], also returning the credentials of service tokens the change
+    /// created or rotated (only when it applied: a rolled-back token is deleted again).
+    /// This is the only time their secrets exist outside Cloudflare.
+    ///
+    /// # Errors
+    /// See [`Self::apply`].
+    pub async fn apply_issuing<C, K, P>(
+        &self,
+        api: &C,
+        connectors: &K,
+        ctx: Context<'_>,
+        intent: &Intent,
+        approval: Approval<'_>,
+        mut progress: P,
+    ) -> Result<(Outcome, Vec<super::edge::IssuedToken>), EngineError>
     where
         C: CloudApi,
         K: Connectors,
@@ -810,6 +1028,11 @@ impl Engine {
             renamed: std::sync::Mutex::default(),
             done: Vec::new(),
             covered: Vec::new(),
+            uploaded: None,
+            created_token: None,
+            created_rulesets: HashMap::new(),
+            issued: Vec::new(),
+            created_database: None,
         };
         let serve = matches!(
             intent,
@@ -878,7 +1101,12 @@ impl Engine {
         {
             tracing::warn!(%err, "couldn't write the activity log");
         }
-        Ok(outcome)
+        let issued = if matches!(outcome, Outcome::Applied { .. }) {
+            std::mem::take(&mut run.issued)
+        } else {
+            Vec::new()
+        };
+        Ok((outcome, issued))
     }
 }
 
@@ -901,6 +1129,16 @@ struct Run<'a, C, K> {
     /// Completed steps with no undo of their own: another step's undo reverses them
     /// (e.g. a new tunnel's config goes with the tunnel).
     covered: Vec<u32>,
+    /// A Snapshot's files, once uploaded: the completion token and what was sent.
+    uploaded: Option<(String, super::sites::SiteContent)>,
+    /// The service token this run created (for steps referring to it).
+    created_token: Option<String>,
+    /// Entry point rulesets this run created, by zone and phase.
+    created_rulesets: HashMap<(String, String), String>,
+    /// Credentials of tokens created or rotated, handed to the caller once.
+    issued: Vec<super::edge::IssuedToken>,
+    /// The D1 database this run created (for Workers binding to it).
+    created_database: Option<String>,
 }
 
 /// What a tunnel created while applying is to this Mac.
@@ -969,6 +1207,52 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         })
     }
 
+    fn resolve_database(&self, database: &super::front::DatabaseRef) -> Result<String, Text> {
+        match database {
+            super::front::DatabaseRef::Existing(id) => Ok(id.clone()),
+            super::front::DatabaseRef::Created => self
+                .created_database
+                .clone()
+                .ok_or_else(msg::front::error::no_database),
+        }
+    }
+
+    fn site_database(&self, settings: &super::sites::SiteSettings) -> Result<Option<String>, Text> {
+        settings
+            .comments
+            .as_ref()
+            .map(|c| self.resolve_database(&c.database))
+            .transpose()
+    }
+
+    /// Uploads a front Worker with `config` and records it in the local index.
+    async fn put_front(
+        &self,
+        hostname: &str,
+        zone_id: &str,
+        script: &str,
+        config: &super::front::FrontConfig,
+        database: Option<&str>,
+        secret: Option<&crate::Secret<String>>,
+    ) -> Result<(), Text> {
+        let metadata = super::front::metadata(script, config, database, secret);
+        self.api
+            .put_worker_script(
+                self.account,
+                script,
+                &metadata,
+                &super::front::modules(config.kind()),
+            )
+            .await
+            .map_err(|e| e.text())?;
+        warn_local(
+            self.local
+                .save_front(self.account, hostname, zone_id, script, config)
+                .await,
+        );
+        Ok(())
+    }
+
     fn renamed(&self, id: &str) -> String {
         self.renamed
             .lock()
@@ -976,6 +1260,12 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             .get(id)
             .cloned()
             .unwrap_or_else(|| id.to_owned())
+    }
+
+    /// The comment for a route's record: the route and this owner, keeping the lease the
+    /// record held for this owner.
+    fn comment(&self, route_id: &str, previous: Option<&str>) -> String {
+        super::ownership::route_comment(route_id, &self.snapshot.owner, previous, self.snapshot.now)
     }
 
     fn was_owned(&self, record_id: &str) -> bool {
@@ -1010,7 +1300,31 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 step: index,
                 state: StepState::Running,
             });
-            match self.step(step).await {
+            let result = match step {
+                Step::UploadSnapshotFiles {
+                    script, content, ..
+                } => {
+                    let step_index = index;
+                    super::sites::upload(self.api, self.account, script, content, |t| {
+                        progress(Progress {
+                            step: step_index,
+                            state: StepState::Transferring {
+                                files: t.files,
+                                total_files: t.total_files,
+                                bytes: t.bytes,
+                                total_bytes: t.total_bytes,
+                            },
+                        });
+                    })
+                    .await
+                    .map(|jwt| {
+                        self.uploaded = Some((jwt, content.clone()));
+                        None
+                    })
+                }
+                _ => self.step(step).await,
+            };
+            match result {
                 Ok(undo) => {
                     match undo {
                         Some(undo) => self.done.push((index, undo)),
@@ -1093,7 +1407,10 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             } => {
                 let target = self.resolve(tunnel)?;
                 let record = api
-                    .create_record(zone_id, &tunnel_cname(hostname, &target, route_id))
+                    .create_record(
+                        zone_id,
+                        &tunnel_cname(hostname, &target, &self.comment(route_id, None)),
+                    )
                     .await
                     .map_err(|e| e.text())?;
                 warn_local(
@@ -1116,22 +1433,34 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 previous,
             } => {
                 let target = self.resolve(tunnel)?;
-                api.update_record(
-                    zone_id,
-                    record_id,
-                    &tunnel_cname(hostname, &target, route_id),
-                )
-                .await
-                .map_err(|e| e.text())?;
+                let cname = tunnel_cname(
+                    hostname,
+                    &target,
+                    &self.comment(route_id, previous.comment.as_deref()),
+                );
+                let was_owned = self.was_owned(record_id);
+                let current = if previous.kind == cname.kind {
+                    api.update_record(zone_id, record_id, &cname)
+                        .await
+                        .map_err(|e| e.text())?
+                } else {
+                    let replaced = api
+                        .replace_record(zone_id, record_id, &cname)
+                        .await
+                        .map_err(|e| e.text())?;
+                    warn_local(self.local.disown_record(record_id).await);
+                    replaced
+                };
                 warn_local(
                     self.local
-                        .own_record(account, zone_id, record_id, hostname, route_id)
+                        .own_record(account, zone_id, &current.id, hostname, route_id)
                         .await,
                 );
                 Ok(Some(Undo::RestoreRecord {
                     zone: zone_id.clone(),
                     previous: previous.clone(),
-                    was_owned: self.was_owned(record_id),
+                    current: current.id,
+                    was_owned,
                 }))
             }
             Step::DeleteRecord { zone_id, record } => {
@@ -1142,6 +1471,66 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 Ok(Some(Undo::RecreateRecord {
                     zone: zone_id.clone(),
                     record: record.clone(),
+                    was_owned: self.was_owned(&record.id),
+                }))
+            }
+            Step::CreateReservation {
+                zone_id,
+                hostname,
+                until,
+            } => {
+                use super::ownership::{LEASE_ADDRESS, LEASE_KIND, Ownership};
+                let placeholder = NewDnsRecord {
+                    name: hostname.clone(),
+                    kind: LEASE_KIND.to_owned(),
+                    content: LEASE_ADDRESS.to_owned(),
+                    proxied: true,
+                    ttl: 1,
+                    comment: Some(Ownership::lease(&self.snapshot.owner, *until).render()),
+                };
+                let record = api
+                    .create_record(zone_id, &placeholder)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::DeleteRecord {
+                    zone: zone_id.clone(),
+                    id: record.id,
+                    name: hostname.clone(),
+                }))
+            }
+            Step::SetLease {
+                zone_id,
+                record,
+                lease,
+                until,
+            } => {
+                use super::ownership::{Marker, Ownership};
+                let mut ownership = record
+                    .comment
+                    .as_deref()
+                    .and_then(Ownership::parse)
+                    .unwrap_or(Ownership {
+                        marker: Marker::Lease,
+                        owner: None,
+                        lease: true,
+                        until: None,
+                    });
+                if ownership.owner.is_none() {
+                    ownership.owner = Some(self.snapshot.owner.clone());
+                }
+                ownership.lease = *lease || ownership.marker == Marker::Lease;
+                ownership.until = if *lease { *until } else { None };
+                let changed = NewDnsRecord {
+                    comment: Some(ownership.render()),
+                    ..record.to_new()
+                };
+                api.update_record(zone_id, &record.id, &changed)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RestoreRecord {
+                    zone: zone_id.clone(),
+                    previous: record.clone(),
+                    current: record.id.clone(),
                     was_owned: self.was_owned(&record.id),
                 }))
             }
@@ -1304,7 +1693,450 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateLbMonitor(monitor.clone())))
             }
-            Step::Verify { .. } => Ok(None),
+            Step::Verify { .. } | Step::UploadSnapshotFiles { .. } => Ok(None),
+            Step::CreateSnapshotWorker {
+                snapshot,
+                script,
+                settings,
+            } => {
+                let (jwt, content) = self
+                    .uploaded
+                    .clone()
+                    .ok_or_else(msg::snapshot::error::not_uploaded)?;
+                let database = self.site_database(settings)?;
+                let metadata = super::sites::metadata(
+                    settings,
+                    &content,
+                    &jwt,
+                    "Teitunnel Snapshot",
+                    script,
+                    database.as_deref(),
+                );
+                api.put_worker_script(account, script, &metadata, &super::sites::modules())
+                    .await
+                    .map_err(|e| e.text())?;
+                let version = api
+                    .worker_deployments(account, script)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|d| d.first().and_then(|d| d.main_version().map(str::to_owned)));
+                if let Some(version) = &version {
+                    warn_local(
+                        self.local
+                            .record_site_version(
+                                snapshot,
+                                version,
+                                &content,
+                                settings.spa,
+                                settings.password != super::sites::Password::Off,
+                            )
+                            .await,
+                    );
+                }
+                Ok(Some(Undo::DeleteSnapshotWorker {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                }))
+            }
+            Step::PublishSnapshotVersion {
+                snapshot,
+                script,
+                settings,
+                previous,
+            } => {
+                let (jwt, content) = self
+                    .uploaded
+                    .clone()
+                    .ok_or_else(msg::snapshot::error::not_uploaded)?;
+                let database = self.site_database(settings)?;
+                let metadata = super::sites::metadata(
+                    settings,
+                    &content,
+                    &jwt,
+                    "Teitunnel Snapshot",
+                    script,
+                    database.as_deref(),
+                );
+                let version = api
+                    .upload_worker_version(account, script, &metadata, &super::sites::modules())
+                    .await
+                    .map_err(|e| e.text())?;
+                api.deploy_worker_version(account, script, &version.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .record_site_version(
+                            snapshot,
+                            &version.id,
+                            &content,
+                            settings.spa,
+                            settings.password != super::sites::Password::Off,
+                        )
+                        .await
+                        .map(|_| ()),
+                );
+                Ok(previous.as_ref().map(|previous| Undo::RedeploySnapshot {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                    version: previous.clone(),
+                    replaced: Some(version.id),
+                }))
+            }
+            Step::RollBackSnapshot {
+                snapshot,
+                script,
+                version_id,
+                previous,
+                ..
+            } => {
+                api.deploy_worker_version(account, script, version_id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.set_site_live(snapshot, version_id).await);
+                Ok(previous.as_ref().map(|previous| Undo::RedeploySnapshot {
+                    snapshot: snapshot.clone(),
+                    script: script.clone(),
+                    version: previous.clone(),
+                    replaced: None,
+                }))
+            }
+            Step::EnableWorkersDev { script, .. } | Step::DisableWorkersDev { script, .. } => {
+                let enabled = matches!(step, Step::EnableWorkersDev { .. });
+                api.set_worker_on_workers_dev(account, script, enabled)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::SetWorkersDev {
+                    script: script.clone(),
+                    enabled: !enabled,
+                }))
+            }
+            Step::AttachSnapshotDomain {
+                zone_id,
+                hostname,
+                script,
+            } => {
+                let domain = api
+                    .attach_worker_domain(account, hostname, zone_id, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::DetachSnapshotDomain {
+                    id: domain.id,
+                    hostname: hostname.clone(),
+                }))
+            }
+            Step::DetachSnapshotDomain { domain } => {
+                api.detach_worker_domain(account, &domain.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::ReattachSnapshotDomain(domain.clone())))
+            }
+            Step::DeleteSnapshotWorker { script, .. } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RecreateSnapshotWorker(script.clone())))
+            }
+            Step::CreateEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                kind,
+                hostnames,
+                rule,
+            } => {
+                let key = (zone_id.clone(), phase.clone());
+                let ruleset = ruleset_id
+                    .clone()
+                    .or_else(|| self.created_rulesets.get(&key).cloned());
+                let (ruleset, created) = api
+                    .create_rule(zone_id, phase, ruleset.as_deref(), rule, None)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_rulesets.insert(key, ruleset.clone());
+                warn_local(
+                    self.local
+                        .own_edge_rule(
+                            account,
+                            super::local_edge::EdgeRuleRow {
+                                rule_id: created.id.clone(),
+                                zone_id: zone_id.clone(),
+                                phase: phase.clone(),
+                                hostname: (*kind != super::edge::RuleKind::RateLimit)
+                                    .then(|| hostnames.join(", ")),
+                                kind: serde_json::to_value(kind)
+                                    .ok()
+                                    .and_then(|v| v.as_str().map(str::to_owned))
+                                    .unwrap_or_default(),
+                            },
+                        )
+                        .await,
+                );
+                Ok(Some(Undo::DeleteEdgeRule {
+                    zone: zone_id.clone(),
+                    ruleset,
+                    id: created.id,
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::UpdateEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                hostnames,
+                rule,
+                previous,
+                ..
+            } => {
+                api.update_rule(zone_id, ruleset_id, rule_id, rule)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RestoreEdgeRule {
+                    zone: zone_id.clone(),
+                    ruleset: ruleset_id.clone(),
+                    id: rule_id.clone(),
+                    previous: previous.clone(),
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::DeleteEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                rule_id,
+                hostnames,
+                previous,
+                position,
+                ..
+            } => {
+                api.delete_rule(zone_id, ruleset_id, rule_id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.disown_edge_rule(rule_id).await);
+                Ok(Some(Undo::RecreateEdgeRule {
+                    zone: zone_id.clone(),
+                    phase: phase.clone(),
+                    ruleset: ruleset_id.clone(),
+                    rule: previous.clone(),
+                    position: *position,
+                    hostnames: hostnames.join(", "),
+                }))
+            }
+            Step::CreateServiceToken { hostname, name } => {
+                let issued = api
+                    .create_service_token(account, name, super::edge::SERVICE_TOKEN_DURATION)
+                    .await
+                    .map_err(|e| e.text())?;
+                let token = super::edge::IssuedToken::from(issued);
+                warn_local(
+                    self.local
+                        .own_service_token(
+                            account,
+                            super::local_edge::ServiceTokenRow {
+                                token_id: token.token_id.clone(),
+                                hostname: hostname.clone(),
+                                name: token.name.clone(),
+                                client_id: token.client_id.clone(),
+                                expires_at: token.expires_at.clone(),
+                                created_at: 0,
+                            },
+                        )
+                        .await,
+                );
+                self.created_token = Some(token.token_id.clone());
+                let undo = Undo::DeleteServiceToken {
+                    id: token.token_id.clone(),
+                    name: token.name.clone(),
+                };
+                self.issued.push(token);
+                Ok(Some(undo))
+            }
+            Step::AllowServiceToken { domain, app, token } => {
+                let token = match token {
+                    super::types::TokenRef::Existing(id) => id.clone(),
+                    super::types::TokenRef::Created => self
+                        .created_token
+                        .clone()
+                        .ok_or_else(msg::protection::error::token_not_created)?,
+                };
+                match app {
+                    Some((id, previous)) => {
+                        let wanted = super::access::with_service_token(previous, &token);
+                        api.update_access_app(account, id, &wanted)
+                            .await
+                            .map_err(|e| e.text())?;
+                        Ok(Some(Undo::RestoreAccessApp {
+                            id: id.clone(),
+                            previous: previous.clone(),
+                        }))
+                    }
+                    None => {
+                        let wanted = super::access::with_service_token(
+                            &super::access::machine_only_definition(domain),
+                            &token,
+                        );
+                        let created = api
+                            .create_access_app(account, &wanted)
+                            .await
+                            .map_err(|e| e.text())?;
+                        warn_local(
+                            self.local
+                                .own_access_app(account, &created.id, domain)
+                                .await,
+                        );
+                        Ok(Some(Undo::DeleteAccessApp {
+                            id: created.id,
+                            domain: domain.clone(),
+                        }))
+                    }
+                }
+            }
+            Step::DeleteServiceToken { token } => {
+                api.delete_service_token(account, &token.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(self.local.disown_service_token(&token.id).await);
+                Ok(Some(Undo::RestoreServiceToken(token.name.clone())))
+            }
+            Step::CreateDatabase { name } => {
+                let database = api
+                    .create_d1_database(account, name)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.created_database = Some(database.uuid.clone());
+                // The tables are made at once, so the first comment or webhook doesn't
+                // wait for them (the Workers create them too if they're missing). If
+                // that fails, the new database goes again.
+                if let Err(err) = super::front::create_tables(api, account, &database.uuid).await {
+                    let _ = api.delete_d1_database(account, &database.uuid).await;
+                    self.created_database = None;
+                    return Err(err.text());
+                }
+                warn_local(
+                    self.local
+                        .set_cloud_database(account, Some((&database.uuid, name)))
+                        .await,
+                );
+                Ok(Some(Undo::DeleteDatabase(database.uuid)))
+            }
+            Step::PutFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                config,
+                previous,
+                database,
+                secret,
+            } => {
+                let database = database
+                    .as_ref()
+                    .map(|d| self.resolve_database(d))
+                    .transpose()?;
+                self.put_front(
+                    hostname,
+                    zone_id,
+                    script,
+                    config,
+                    database.as_deref(),
+                    secret.as_ref(),
+                )
+                .await?;
+                Ok(Some(match previous {
+                    Some(previous) => Undo::RestoreFrontWorker {
+                        hostname: hostname.clone(),
+                        zone_id: zone_id.clone(),
+                        script: script.clone(),
+                        config: previous.clone(),
+                        database,
+                    },
+                    None => Undo::DeleteFrontWorker {
+                        hostname: hostname.clone(),
+                        script: script.clone(),
+                        config: config.clone(),
+                    },
+                }))
+            }
+            Step::CreateWorkerRoute {
+                hostname,
+                zone_id,
+                pattern,
+                script,
+                kind,
+                path,
+            } => {
+                let route = api
+                    .create_worker_route(zone_id, pattern, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, Some(&route.id))
+                        .await,
+                );
+                Ok(Some(Undo::DeleteWorkerRoute {
+                    zone: zone_id.clone(),
+                    id: route.id,
+                    pattern: pattern.clone(),
+                    hostname: hostname.clone(),
+                    kind: *kind,
+                    path: path.clone(),
+                }))
+            }
+            Step::DeleteWorkerRoute {
+                hostname,
+                zone_id,
+                route,
+                kind,
+                path,
+            } => {
+                api.delete_worker_route(zone_id, &route.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, None)
+                        .await,
+                );
+                Ok(Some(Undo::RecreateWorkerRoute {
+                    zone: zone_id.clone(),
+                    route: route.clone(),
+                    hostname: hostname.clone(),
+                    kind: *kind,
+                    path: path.clone(),
+                }))
+            }
+            Step::DeleteFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                previous,
+                database,
+            } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(|e| e.text())?;
+                warn_local(
+                    self.local
+                        .forget_front(account, hostname, previous.kind(), previous.path())
+                        .await,
+                );
+                Ok(Some(Undo::RestoreFrontWorker {
+                    hostname: hostname.clone(),
+                    zone_id: zone_id.clone(),
+                    script: script.clone(),
+                    config: previous.clone(),
+                    database: database.clone(),
+                }))
+            }
+            Step::RotateServiceToken { token } => {
+                let issued = api
+                    .rotate_service_token(account, &token.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                self.issued.push(super::edge::IssuedToken::from(issued));
+                Ok(Some(Undo::RestoreServiceToken(token.name.clone())))
+            }
         }
     }
 
@@ -1376,13 +2208,26 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             Undo::RestoreRecord {
                 zone,
                 previous,
+                current,
                 was_owned,
             } => {
-                api.update_record(zone, &previous.id, &previous.to_new())
-                    .await
-                    .map_err(err)?;
-                if !was_owned {
-                    warn_local(self.local.disown_record(&previous.id).await);
+                let restored = if *current == previous.id {
+                    api.update_record(zone, &previous.id, &previous.to_new())
+                        .await
+                        .map_err(err)?
+                } else {
+                    api.replace_record(zone, current, &previous.to_new())
+                        .await
+                        .map_err(err)?
+                };
+                warn_local(self.local.disown_record(current).await);
+                if *was_owned {
+                    let route = route_id_from(previous.comment.as_deref());
+                    warn_local(
+                        self.local
+                            .own_record(account, zone, &restored.id, &previous.name, &route)
+                            .await,
+                    );
                 }
             }
             Undo::RecreateRecord {
@@ -1398,7 +2243,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     let route = route_id_from(record.comment.as_deref());
                     warn_local(
                         self.local
-                            .own_record(account, zone, &created.id, &record.name, route)
+                            .own_record(account, zone, &created.id, &record.name, &route)
                             .await,
                     );
                 }
@@ -1475,6 +2320,168 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .insert(old, created.id);
+            }
+            Undo::DeleteSnapshotWorker { snapshot, script } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(err)?;
+                // The Worker and every version it had are gone.
+                if let Ok(versions) = self.local.site_versions(snapshot).await {
+                    for version in versions {
+                        warn_local(
+                            self.local
+                                .drop_site_version(snapshot, &version.version_id)
+                                .await,
+                        );
+                    }
+                }
+            }
+            Undo::RedeploySnapshot {
+                snapshot,
+                script,
+                version,
+                replaced,
+            } => {
+                api.deploy_worker_version(account, script, version)
+                    .await
+                    .map_err(err)?;
+                if let Some(replaced) = replaced {
+                    warn_local(self.local.drop_site_version(snapshot, replaced).await);
+                }
+                warn_local(self.local.set_site_live(snapshot, version).await);
+            }
+            Undo::SetWorkersDev { script, enabled } => {
+                api.set_worker_on_workers_dev(account, script, *enabled)
+                    .await
+                    .map_err(err)?;
+            }
+            Undo::DetachSnapshotDomain { id, .. } => {
+                api.detach_worker_domain(account, id).await.map_err(err)?;
+            }
+            Undo::ReattachSnapshotDomain(domain) => {
+                api.attach_worker_domain(
+                    account,
+                    &domain.hostname,
+                    &domain.zone_id,
+                    &domain.service,
+                )
+                .await
+                .map_err(err)?;
+            }
+            Undo::RecreateSnapshotWorker(script) => {
+                return Err(msg::snapshot::leftover::recreate_worker(script));
+            }
+            Undo::DeleteEdgeRule {
+                zone, ruleset, id, ..
+            } => {
+                api.delete_rule(zone, ruleset, id).await.map_err(err)?;
+                warn_local(self.local.disown_edge_rule(id).await);
+            }
+            Undo::RestoreEdgeRule {
+                zone,
+                ruleset,
+                id,
+                previous,
+                ..
+            } => {
+                api.update_rule(zone, ruleset, id, previous)
+                    .await
+                    .map_err(err)?;
+            }
+            Undo::RecreateEdgeRule {
+                zone,
+                phase,
+                ruleset,
+                rule,
+                position,
+                ..
+            } => {
+                let (_, created) = api
+                    .create_rule(zone, phase, Some(ruleset), rule, Some(*position))
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .own_edge_rule(
+                            account,
+                            super::local_edge::EdgeRuleRow {
+                                rule_id: created.id,
+                                zone_id: zone.clone(),
+                                phase: phase.clone(),
+                                hostname: None,
+                                kind: String::new(),
+                            },
+                        )
+                        .await,
+                );
+            }
+            Undo::DeleteServiceToken { id, .. } => {
+                api.delete_service_token(account, id).await.map_err(err)?;
+                warn_local(self.local.disown_service_token(id).await);
+            }
+            Undo::RestoreServiceToken(name) => {
+                return Err(msg::protection::leftover::restore_token(name));
+            }
+            Undo::DeleteDatabase(id) => {
+                api.delete_d1_database(account, id).await.map_err(err)?;
+                warn_local(self.local.set_cloud_database(account, None).await);
+            }
+            Undo::DeleteFrontWorker {
+                hostname,
+                script,
+                config,
+            } => {
+                api.delete_worker_script(account, script)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .forget_front(account, hostname, config.kind(), config.path())
+                        .await,
+                );
+            }
+            Undo::RestoreFrontWorker {
+                hostname,
+                zone_id,
+                script,
+                config,
+                database,
+            } => {
+                self.put_front(hostname, zone_id, script, config, database.as_deref(), None)
+                    .await?;
+            }
+            Undo::DeleteWorkerRoute {
+                zone,
+                id,
+                hostname,
+                kind,
+                path,
+                ..
+            } => {
+                api.delete_worker_route(zone, id).await.map_err(err)?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, None)
+                        .await,
+                );
+            }
+            Undo::RecreateWorkerRoute {
+                zone,
+                route,
+                hostname,
+                kind,
+                path,
+            } => {
+                let script = route.script.clone().unwrap_or_default();
+                let created = api
+                    .create_worker_route(zone, &route.pattern, &script)
+                    .await
+                    .map_err(err)?;
+                warn_local(
+                    self.local
+                        .set_front_route(account, hostname, *kind, path, Some(&created.id))
+                        .await,
+                );
             }
             Undo::RecreateLoadBalancer { zone, balancer } => {
                 let mut balancer = balancer.clone();

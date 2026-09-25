@@ -113,6 +113,29 @@ pub enum Change {
         /// Record id.
         record_id: String,
     },
+    /// Reserve a hostname for this owner, so teammates sharing the account see it's
+    /// taken (M12-11). Reserving it again changes the end date.
+    ReserveHostname {
+        /// The hostname.
+        hostname: String,
+        /// When the reservation ends: `2026-12-31` (end of that day, UTC) or
+        /// `2026-12-31T18:00Z`; `None` or empty: no end.
+        #[serde(default)]
+        until: Option<String>,
+    },
+    /// Give up a hostname's reservation (a route there stays).
+    ReleaseHostname {
+        /// The hostname.
+        hostname: String,
+    },
+    /// Enforce protection at Cloudflare's edge for a hostname (the default removes
+    /// Teitunnel's rules).
+    ProtectHostname {
+        /// The hostname.
+        hostname: String,
+        /// What to enforce.
+        protection: super::edge::EdgeProtection,
+    },
 }
 
 /// Rejected input, pointing at the field to fix.
@@ -283,7 +306,46 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         Change::RestoreConfig => Intent::RestoreConfig {
             ingress: Vec::new(),
         },
+        Change::ReserveHostname { hostname, until } => Intent::Reserve {
+            hostname: parse_hostname(hostname)?,
+            until: parse_lease_end(until.as_deref(), crate::domain_shares::now_ms())?,
+        },
+        Change::ReleaseHostname { hostname } => Intent::Release {
+            hostname: parse_hostname(hostname)?,
+        },
+        Change::ProtectHostname {
+            hostname,
+            protection,
+        } => Intent::ProtectHostname {
+            hostname: parse_hostname(hostname)?,
+            protection: protection
+                .normalized()
+                .map_err(|e| invalid("protection", &e))?,
+        },
     })
+}
+
+/// A reservation's end as typed (`2026-12-31`, `2026-12-31T18:00Z`; empty: none), which
+/// must be after `now`.
+///
+/// # Errors
+/// Not a date, or in the past (field `until`).
+pub fn parse_lease_end(input: Option<&str>, now: u64) -> Result<Option<u64>, InputError> {
+    use crate::text::msg::reservations::error as m;
+    let Some(input) = input.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let until = super::ownership::parse_until(input).ok_or_else(|| InputError {
+        field: "until",
+        message: m::invalid_until(),
+    })?;
+    if until <= now {
+        return Err(InputError {
+            field: "until",
+            message: m::until_past(),
+        });
+    }
+    Ok(Some(until))
 }
 
 /// What a step does, for its icon.
@@ -315,6 +377,20 @@ pub enum StepKind {
     LoadBalancer,
     /// Check the route works.
     Verify,
+    /// Upload, publish, roll back or delete a Snapshot.
+    Snapshot,
+    /// Give a Snapshot its address, or take it away.
+    SnapshotAddress,
+    /// Reserve a hostname, renew or end a reservation.
+    Reservation,
+    /// Add, change or remove an edge rule (bots, rate limit, headers).
+    EdgeRule,
+    /// Create, rotate or delete a service token, or let one through a login.
+    ServiceToken,
+    /// Create the account's D1 database (comments, webhook inboxes).
+    Database,
+    /// Add, change or remove a Worker in front of a route (offline page, webhook inbox).
+    FrontWorker,
 }
 
 /// One step of a plan, as shown in the preview.
@@ -372,6 +448,28 @@ impl Step {
                 | Self::DeleteLbPool { .. }
                 | Self::DeleteLbMonitor { .. } => StepKind::LoadBalancer,
                 Self::Verify { .. } => StepKind::Verify,
+                Self::UploadSnapshotFiles { .. }
+                | Self::CreateSnapshotWorker { .. }
+                | Self::PublishSnapshotVersion { .. }
+                | Self::RollBackSnapshot { .. }
+                | Self::DeleteSnapshotWorker { .. } => StepKind::Snapshot,
+                Self::EnableWorkersDev { .. }
+                | Self::DisableWorkersDev { .. }
+                | Self::AttachSnapshotDomain { .. }
+                | Self::DetachSnapshotDomain { .. } => StepKind::SnapshotAddress,
+                Self::CreateReservation { .. } | Self::SetLease { .. } => StepKind::Reservation,
+                Self::CreateEdgeRule { .. }
+                | Self::UpdateEdgeRule { .. }
+                | Self::DeleteEdgeRule { .. } => StepKind::EdgeRule,
+                Self::CreateServiceToken { .. }
+                | Self::AllowServiceToken { .. }
+                | Self::DeleteServiceToken { .. }
+                | Self::RotateServiceToken { .. } => StepKind::ServiceToken,
+                Self::CreateDatabase { .. } => StepKind::Database,
+                Self::PutFrontWorker { .. }
+                | Self::CreateWorkerRoute { .. }
+                | Self::DeleteWorkerRoute { .. }
+                | Self::DeleteFrontWorker { .. } => StepKind::FrontWorker,
             },
             description: self.describe(tunnel_name),
             command: self.command(account_id, tunnel_name),
@@ -408,6 +506,10 @@ pub enum DnsState {
     Elsewhere {
         /// What it points at.
         content: String,
+        /// Who holds the name now, when it's another Teitunnel (their route or
+        /// reservation).
+        #[serde(rename = "heldBy")]
+        held_by: Option<super::ownership::Hold>,
     },
 }
 
@@ -597,6 +699,11 @@ pub(crate) fn overview(
             } else if let Some(first) = records.first() {
                 DnsState::Elsewhere {
                     content: first.record.content.clone(),
+                    held_by: snapshot
+                        .held
+                        .iter()
+                        .find(|h| h.hostname.eq_ignore_ascii_case(&hostname))
+                        .cloned(),
                 }
             } else {
                 DnsState::Missing

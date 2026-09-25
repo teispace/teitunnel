@@ -24,7 +24,7 @@ const CTX: Context<'static> = Context {
 };
 
 fn engine() -> Engine {
-    Engine::new(Local::new(Store::open_in_memory().unwrap()))
+    Engine::new(Local::new(Store::open_in_memory().unwrap())).with_owner("me@Mac")
 }
 
 fn zones() -> CloudState {
@@ -169,7 +169,10 @@ async fn two_domains_from_zero_then_nothing_left() {
     let record = &state.records["z-yx"][0];
     assert_eq!(record.content, format!("{tunnel}.cfargotunnel.com"));
     assert!(record.proxied);
-    assert_eq!(record.comment.as_deref(), Some("teitunnel:route=r2"));
+    assert_eq!(
+        record.comment.as_deref(),
+        Some("teitunnel:route=r2;by=me@Mac")
+    );
     assert_eq!(engine.local().owned_records("acc").await.unwrap().len(), 2);
     let starts = conns
         .calls()
@@ -325,8 +328,13 @@ async fn a_change_after_review_is_caught() {
         .await
         .unwrap();
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    let record = &cloud.snapshot().records["z-xyz"][0];
-    assert_eq!((record.id.as_str(), record.kind.as_str()), ("a1", "CNAME"));
+    let records = &cloud.snapshot().records["z-xyz"];
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].kind, "CNAME");
+    assert_ne!(
+        records[0].id, "a1",
+        "an A record becomes a CNAME by replacement, not in place"
+    );
 }
 
 #[tokio::test]
@@ -448,6 +456,78 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
             Intent::RemoveTunnel,
         ),
     ]
+    .into_iter()
+    .chain(snapshot_scenarios().await)
+    .chain(super::edge_executor_tests::edge_scenarios().await)
+    .chain(super::front_tests::front_scenarios().await)
+    .collect()
+}
+
+/// Snapshots: publishing over someone's record with a login, a new version with a
+/// password, and deleting (with a domain and login, and on workers.dev).
+async fn snapshot_scenarios() -> Vec<(&'static str, CloudState, Intent)> {
+    use super::{
+        sites::Password,
+        snapshot_tests::{account, content, me, publish, site, update},
+    };
+    let protected_site = || {
+        let mut spec = site("demo", Some("preview.xyz.com"));
+        spec.access = Some(me());
+        spec
+    };
+    let mut with_foreign = account();
+    with_foreign
+        .records
+        .insert("z-xyz".into(), vec![foreign_a("a1", "preview.xyz.com")]);
+
+    let (engine, conns) = (self::engine(), FakeConnectors::default());
+    let cloud = FakeCloud::new(account());
+    let files = content(&[("index.html", "v1"), ("app.js", "same")]);
+    run(&engine, &cloud, &conns, &publish(protected_site(), files)).await;
+    let published = cloud.snapshot();
+
+    let cloud = FakeCloud::new(account());
+    let files = content(&[("index.html", "v1")]);
+    run(&engine, &cloud, &conns, &publish(site("dev", None), files)).await;
+    let on_workers_dev = cloud.snapshot();
+
+    vec![
+        (
+            "first snapshot over a foreign record, with a login",
+            with_foreign,
+            publish(protected_site(), content(&[("index.html", "hi")])),
+        ),
+        (
+            "first snapshot on workers.dev",
+            account(),
+            publish(site("dev", None), content(&[("index.html", "hi")])),
+        ),
+        (
+            "new snapshot version with a password",
+            published.clone(),
+            update(
+                protected_site(),
+                content(&[("index.html", "v2"), ("app.js", "same")]),
+                Password::Set {
+                    hash: crate::Secret::new("pbkdf2-sha256$1$c2FsdA$aGFzaA".into()),
+                },
+            ),
+        ),
+        (
+            "delete snapshot with a domain and a login",
+            published,
+            Intent::DeleteSnapshot {
+                site: protected_site(),
+            },
+        ),
+        (
+            "delete snapshot on workers.dev",
+            on_workers_dev,
+            Intent::DeleteSnapshot {
+                site: site("dev", None),
+            },
+        ),
+    ]
 }
 
 /// Copies the fake's machine tunnel into a fresh engine's local store.
@@ -481,6 +561,26 @@ async fn adopt(engine: &Engine, state: &CloudState) {
                 .unwrap();
         }
     }
+    for token in state.service_tokens.values() {
+        if token.name.starts_with("Teitunnel · ") {
+            engine
+                .local()
+                .own_service_token(
+                    "acc",
+                    super::local_edge::ServiceTokenRow {
+                        token_id: token.id.clone(),
+                        hostname: String::new(),
+                        name: token.name.clone(),
+                        client_id: token.client_id.clone(),
+                        expires_at: None,
+                        created_at: 0,
+                    },
+                )
+                .await
+                .unwrap();
+        }
+    }
+    super::front_tests::adopt_fronts(engine, state).await;
 }
 
 #[tokio::test]
@@ -831,6 +931,74 @@ async fn verifies_a_route_through_the_edge() {
         matches!(moved.failure, Some(Failure::RecordElsewhere { .. })),
         "{moved:?}"
     );
+}
+
+#[tokio::test]
+async fn a_route_refused_by_its_dev_server_offers_the_host_header_once() {
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::any};
+
+    use super::{
+        verify::{Edge, Failure},
+        views::{Change, RouteInput},
+    };
+    use crate::domain::OriginOptions;
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let edge = MockServer::start().await;
+    Mock::given(any())
+        .respond_with(
+            ResponseTemplate::new(403)
+                .set_body_string(include_str!("../dev_server/fixtures/vite-6.txt")),
+        )
+        .mount(&edge)
+        .await;
+    let host = Hostname::parse("app.xyz.com").unwrap();
+    let verify = async || {
+        engine.invalidate("acc");
+        engine
+            .verify(
+                &cloud,
+                CTX,
+                &host,
+                Edge::Test(*edge.address()),
+                std::time::Duration::ZERO,
+            )
+            .await
+            .unwrap()
+    };
+    run(&engine, &cloud, &conns, &add("r1", "app.xyz.com", "5173")).await;
+    let refused = verify().await;
+    let Some(Failure::HostRejected { rejection }) = &refused.failure else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(rejection.host_header.as_deref(), Some("localhost:5173"));
+    assert_eq!(
+        rejection.config_line,
+        "server: { allowedHosts: ['app.xyz.com'] }"
+    );
+
+    // Once the route sends it, only the config line is left to suggest.
+    let change = Change::UpdateRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        route: RouteInput {
+            hostname: "app.xyz.com".into(),
+            path: None,
+            origin: "5173".into(),
+            access: None,
+            options: Some(Box::new(OriginOptions {
+                http_host_header: Some("localhost:5173".into()),
+                ..OriginOptions::default()
+            })),
+        },
+    };
+    let intent = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+    run(&engine, &cloud, &conns, &intent).await;
+    let still = verify().await;
+    let Some(Failure::HostRejected { rejection }) = &still.failure else {
+        panic!("{still:?}");
+    };
+    assert_eq!(rejection.host_header, None);
 }
 
 #[tokio::test]
@@ -1393,8 +1561,8 @@ async fn exports_the_routes_and_records_as_they_are() {
     assert_eq!(
         records,
         [
-            ("xyz.com", Some("teitunnel:route=r1")),
-            ("yx.com", Some("teitunnel:route=r2"))
+            ("xyz.com", Some("teitunnel:route=r1;by=me@Mac")),
+            ("yx.com", Some("teitunnel:route=r2;by=me@Mac"))
         ]
     );
     let terraform = crate::export::render(&input, crate::export::ExportFormat::Terraform);
@@ -2081,4 +2249,32 @@ async fn adopts_an_existing_tunnel_without_changing_cloudflare() {
         engine.adopt(&cloud, "acc", "nope").await,
         Err(EngineError::Adopt(_))
     ));
+}
+
+#[tokio::test]
+async fn records_who_made_a_change_on_their_behalf() {
+    let engine = engine();
+    let cloud = FakeCloud::new(zones());
+    let conns = FakeConnectors::default();
+    let agent = super::activity::Actor {
+        via: "mcp".into(),
+        client: "claude-code".into(),
+        version: Some("2.1.0".into()),
+    };
+    let outcome = super::activity::with_actor(
+        agent.clone(),
+        run(&engine, &cloud, &conns, &add("r1", "a.xyz.com", "3000")),
+    )
+    .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    run(&engine, &cloud, &conns, &remove("a.xyz.com")).await;
+
+    let log = engine.local().activity("acc", 10).await.unwrap();
+    let actors: Vec<_> = log
+        .iter()
+        .map(|e| e.record.as_ref().and_then(|r| r.actor.clone()))
+        .collect();
+    // Newest first: the removal was made by a person, the addition by the agent.
+    assert_eq!(actors, [None, Some(agent)]);
+    assert_eq!(super::activity::current_actor(), None, "scoped to the task");
 }

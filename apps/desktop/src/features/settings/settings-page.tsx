@@ -1,16 +1,23 @@
-import { Cable, CircleUser, type LucideIcon, Settings2 } from "lucide-react";
+import { Blocks, Cable, CircleUser, type LucideIcon, ScanSearch, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
-import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { AccountsPane } from "@/features/accounts";
+import { AlertSettings } from "@/features/analytics";
 import { CloudflaredPane } from "@/features/binary";
+import { InspectorSettingsPane } from "@/features/inspector";
 import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
+import { AiAgents } from "./ai-agents";
+import { AiTools } from "./ai-tools";
+import { ApiDescription } from "./api-description";
+import { IntegrationsPane } from "./integrations";
+import { MoveComputer } from "./move-computer";
 import {
   useCliStatus,
   useOpenAtLogin,
@@ -19,6 +26,7 @@ import {
   useSettings,
   useUpdateSettings,
 } from "./queries";
+import { QuietHoursRow } from "./quiet-hours";
 
 const themes = () =>
   (["system", "light", "dark"] as const).map((value) => ({
@@ -26,12 +34,14 @@ const themes = () =>
     label: t(`settings.theme.${value}`),
   }));
 
-type Tab = "general" | "accounts" | "cloudflared";
+type Tab = "general" | "accounts" | "inspector" | "cloudflared" | "integrations";
 
 const tabs: readonly { id: Tab; label: MessageKey; icon: LucideIcon }[] = [
   { id: "general", label: "settings.tab.general", icon: Settings2 },
   { id: "accounts", label: "settings.tab.accounts", icon: CircleUser },
+  { id: "inspector", label: "settings.tab.inspector", icon: ScanSearch },
   { id: "cloudflared", label: "settings.tab.cloudflared", icon: Cable },
+  { id: "integrations", label: "settings.tab.integrations", icon: Blocks },
 ];
 
 function OpenAtLogin() {
@@ -51,7 +61,7 @@ function OpenAtLogin() {
   );
 }
 
-/** Settings ▸ General ▸ Command line: `teitunnel-cli` on the PATH (D-077). */
+/** Settings ▸ General ▸ Command line: `teitunnel` on the PATH (D-077). */
 function CommandLine() {
   const { data: state } = useCliStatus();
   const change = useSetCliInstalled();
@@ -70,13 +80,13 @@ function CommandLine() {
   })();
   return (
     <GroupedSection title={t("settings.cli.title")} footer={t("settings.cli.footer")}>
-      <GroupedRow label="teitunnel-cli" description={description}>
+      <GroupedRow label="teitunnel" description={description}>
         {state.state === "installed" ? (
-          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(false)}>
+          <Button size="sm" pending={change.isPending} onClick={() => change.mutate(false)}>
             {t("settings.cli.uninstall")}
           </Button>
         ) : state.state === "notInstalled" && !state.command ? (
-          <Button size="sm" disabled={change.isPending} onClick={() => change.mutate(true)}>
+          <Button size="sm" pending={change.isPending} onClick={() => change.mutate(true)}>
             {t("settings.cli.install")}
           </Button>
         ) : null}
@@ -137,6 +147,10 @@ export function SettingsPage() {
           <GeneralPane />
         ) : tab === "accounts" ? (
           <AccountsPane />
+        ) : tab === "inspector" ? (
+          <InspectorSettingsPane />
+        ) : tab === "integrations" ? (
+          <IntegrationsPane />
         ) : (
           <CloudflaredPane />
         )}
@@ -148,7 +162,15 @@ export function SettingsPage() {
 function GeneralPane() {
   const { data: settings } = useSettings();
   const update = useUpdateSettings();
-  if (!settings) return null;
+  if (!settings) {
+    return (
+      <>
+        <SkeletonSection />
+        <SkeletonSection rows={2} />
+        <SkeletonSection rows={3} />
+      </>
+    );
+  }
   return (
     <>
       <GroupedSection>
@@ -164,6 +186,8 @@ function GeneralPane() {
       <UpdateSection />
       <OpenAtLogin />
       <CommandLine />
+      <AiTools />
+      <AiAgents />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}
@@ -198,7 +222,36 @@ function GeneralPane() {
             onCheckedChange={(notifyQuickShares) => update.mutate({ notifyQuickShares })}
           />
         </GroupedRow>
+        <GroupedRow
+          label={t("settings.notifications.alerts")}
+          description={t("settings.notifications.alertsDetail")}
+        >
+          <Switch
+            aria-label={t("settings.notifications.alertsLabel")}
+            checked={settings.notifyAlerts}
+            onCheckedChange={(notifyAlerts) => update.mutate({ notifyAlerts })}
+          />
+        </GroupedRow>
+        <QuietHoursRow
+          value={settings.quietHours}
+          onChange={(quietHours) => update.mutate({ quietHours })}
+        />
       </GroupedSection>
+      <AlertSettings />
+      <GroupedSection title={t("settings.exposure.title")} footer={t("settings.exposure.footer")}>
+        <GroupedRow
+          label={t("settings.exposure.check")}
+          description={t("settings.exposure.checkDetail")}
+        >
+          <Switch
+            aria-label={t("settings.exposure.check")}
+            checked={settings.exposureCheck}
+            onCheckedChange={(exposureCheck) => update.mutate({ exposureCheck })}
+          />
+        </GroupedRow>
+      </GroupedSection>
+      <ApiDescription />
+      <MoveComputer />
       <GroupedSection title={t("settings.menuBar.title")} footer={t("settings.menuBar.footer")}>
         <GroupedRow
           label={t("settings.menuBar.show")}

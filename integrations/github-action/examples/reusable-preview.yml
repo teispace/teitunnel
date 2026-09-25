@@ -1,0 +1,85 @@
+# A reusable workflow (keep it in one repository's .github/workflows and call it from
+# the others): a live share of the app the job starts, for as long as the job runs,
+# e.g. for end-to-end tests or a quick review against real services.
+#
+#   jobs:
+#     preview:
+#       uses: acme/.github/.github/workflows/reusable-preview.yml@main
+#       with:
+#         zone: example.com
+#         start: npm run dev -- --port 3000
+#         port: "3000"
+#       secrets:
+#         cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+name: Reusable preview
+
+on:
+  workflow_call:
+    inputs:
+      zone:
+        description: One of the account's domains.
+        required: true
+        type: string
+      start:
+        description: The command that starts the app (it keeps running in the background).
+        required: true
+        type: string
+      port:
+        description: The port the app listens on.
+        required: true
+        type: string
+      hostname:
+        description: Hostname template.
+        required: false
+        type: string
+        default: pr-{number}.{repo}.{zone}
+      minutes:
+        description: How long to keep the preview up.
+        required: false
+        type: number
+        default: 30
+    secrets:
+      cloudflare-api-token:
+        required: true
+    outputs:
+      url:
+        description: The preview's URL.
+        value: ${{ jobs.preview.outputs.url }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      url: ${{ steps.share.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start the app
+        env:
+          START: ${{ inputs.start }}
+        run: |
+          nohup bash -c "$START" > "$RUNNER_TEMP/app.log" 2>&1 &
+      - name: Wait for it
+        env:
+          PORT: ${{ inputs.port }}
+        run: |
+          for _ in $(seq 60); do curl -fsS "http://127.0.0.1:$PORT" > /dev/null && exit 0; sleep 2; done
+          cat "$RUNNER_TEMP/app.log"; exit 1
+      - id: share
+        uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+          mode: share
+          port: ${{ inputs.port }}
+          hostname: ${{ inputs.hostname }}
+          zone: ${{ inputs.zone }}
+      - name: Keep it up
+        env:
+          MINUTES: ${{ inputs.minutes }}
+        run: sleep $(( MINUTES * 60 ))
+      # The action's post step stops the share, removes its DNS record and deletes the
+      # job's tunnel, even if a step failed.

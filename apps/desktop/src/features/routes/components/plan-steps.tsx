@@ -1,8 +1,13 @@
 import {
+  Bookmark,
+  Camera,
   Check,
   CircleCheck,
   Copy,
+  Database,
   Globe,
+  Inbox,
+  Key,
   KeyRound,
   LockKeyhole,
   type LucideIcon,
@@ -11,15 +16,17 @@ import {
   Power,
   RotateCcw,
   Route as RouteIcon,
+  Shield,
   Split,
   TriangleAlert,
   Waypoints,
   X,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { formatUntil } from "@/features/reservations/format";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t, translate } from "@/lib/i18n";
-import type { StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
+import type { QuotaKind, StepKind, StepState, StepView, Warning } from "@/lib/ipc/bindings";
 
 const kindIcons: Record<StepKind, LucideIcon> = {
   createTunnel: Waypoints,
@@ -34,6 +41,19 @@ const kindIcons: Record<StepKind, LucideIcon> = {
   networkRoute: Network,
   loadBalancer: Split,
   verify: CircleCheck,
+  snapshot: Camera,
+  snapshotAddress: Globe,
+  reservation: Bookmark,
+  edgeRule: Shield,
+  serviceToken: Key,
+  database: Database,
+  frontWorker: Inbox,
+};
+
+const quotaWarnings: Record<QuotaKind, MessageKey> = {
+  custom: "plan.warning.edgeQuota.custom",
+  rateLimit: "plan.warning.edgeQuota.rateLimit",
+  transform: "plan.warning.edgeQuota.transform",
 };
 
 function StateIcon({ state }: { state: StepState | undefined }) {
@@ -41,6 +61,7 @@ function StateIcon({ state }: { state: StepState | undefined }) {
   switch (state?.state) {
     case "running":
     case "undoing":
+    case "transferring":
       return <Spinner className={common} />;
     case "done":
       return <Check aria-hidden className={cn(common, "text-healthy")} strokeWidth={2.5} />;
@@ -69,6 +90,7 @@ const stateLabels: Record<StepState["state"], MessageKey> = {
   undoing: "plan.state.undoing",
   undone: "plan.state.undone",
   undoFailed: "plan.state.undoFailed",
+  transferring: "plan.state.transferring",
 };
 
 function warningText(warning: Warning): string {
@@ -89,6 +111,24 @@ function warningText(warning: Warning): string {
       return t("plan.warning.overlapsNetwork", warning);
     case "singleEndpoint":
       return t("plan.warning.singleEndpoint", warning);
+    case "heldBy": {
+      const owner = warning.owner ?? t("plan.warning.heldBySomeone");
+      if (warning.kind === "route")
+        return t("plan.warning.heldByRoute", { hostname: warning.hostname, owner });
+      if (warning.until === null)
+        return t("plan.warning.heldByReservationForever", { hostname: warning.hostname, owner });
+      return t("plan.warning.heldByReservation", {
+        hostname: warning.hostname,
+        owner,
+        until: formatUntil(warning.until),
+      });
+    }
+    case "edgeQuota":
+      return t(quotaWarnings[warning.quota], warning);
+    case "machineOnly":
+      return t("plan.warning.machineOnly", warning);
+    case "workerRequests":
+      return t("plan.warning.workerRequests", warning);
   }
 }
 

@@ -21,6 +21,11 @@ const MAX_PAGES: u32 = 200;
 /// Cloudflare's global limit is 1200 requests per 5 minutes per user; stay under it.
 const RATE_LIMIT: usize = 1100;
 const RATE_WINDOW: Duration = Duration::from_secs(300);
+/// Cloudflare's GraphQL Analytics API allows 300 queries per 5 minutes per user, counted
+/// apart from the REST limit; keep some room for the dashboard and other tools.
+const GRAPHQL_LIMIT: usize = 250;
+/// Uploads (Snapshot files, Worker scripts) may be large.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Retry {
@@ -38,6 +43,8 @@ pub struct Client {
     token: ApiToken,
     limiter: Arc<Mutex<VecDeque<Instant>>>,
     rate: (usize, Duration),
+    graphql_limiter: Arc<Mutex<VecDeque<Instant>>>,
+    graphql_rate: (usize, Duration),
     backoff: Duration,
 }
 
@@ -66,6 +73,8 @@ impl Client {
             token,
             limiter: Arc::default(),
             rate: (RATE_LIMIT, RATE_WINDOW),
+            graphql_limiter: Arc::default(),
+            graphql_rate: (GRAPHQL_LIMIT, RATE_WINDOW),
             backoff: Duration::from_millis(500),
         })
     }
@@ -92,6 +101,36 @@ impl Client {
         sent.push_back(Instant::now());
     }
 
+    /// Takes one query from the GraphQL budget, or reports that it's used up. Unlike the
+    /// REST budget this never waits: a chart can show "try again shortly" instead of
+    /// hanging for minutes.
+    async fn take_graphql_budget(&self) -> bool {
+        let (limit, window) = self.graphql_rate;
+        let mut sent = self.graphql_limiter.lock().await;
+        let now = Instant::now();
+        while sent
+            .front()
+            .is_some_and(|t| now.duration_since(*t) >= window)
+        {
+            sent.pop_front();
+        }
+        if sent.len() >= limit {
+            return false;
+        }
+        sent.push_back(now);
+        true
+    }
+
+    /// `POST /graphql` with a query (read-only, so retried like a GET). Returns the
+    /// status and body; `analytics` decodes the GraphQL envelope.
+    pub(crate) async fn post_graphql(&self, body: &serde_json::Value) -> Result<(u16, Vec<u8>)> {
+        if !self.take_graphql_budget().await {
+            return Ok((429, Vec::new()));
+        }
+        let url = self.url("/graphql");
+        self.send(|| self.http.post(&url).json(body)).await
+    }
+
     /// Sends an idempotent request (GET/PUT/PATCH/DELETE) with retries.
     async fn send(&self, build: impl Fn() -> reqwest::RequestBuilder) -> Result<(u16, Vec<u8>)> {
         self.send_with(Retry::Idempotent, build).await
@@ -105,13 +144,20 @@ impl Client {
         retry: Retry,
         build: impl Fn() -> reqwest::RequestBuilder,
     ) -> Result<(u16, Vec<u8>)> {
+        self.send_as(retry, &self.token.bearer(), build).await
+    }
+
+    /// [`Self::send_with`] with another `Authorization` value (the assets upload JWT).
+    async fn send_as(
+        &self,
+        retry: Retry,
+        authorization: &str,
+        build: impl Fn() -> reqwest::RequestBuilder,
+    ) -> Result<(u16, Vec<u8>)> {
         let mut attempt = 0;
         loop {
             self.throttle().await;
-            let result = build()
-                .header("Authorization", self.token.bearer())
-                .send()
-                .await;
+            let result = build().header("Authorization", authorization).send().await;
             let retry_after = match result {
                 Ok(response) => {
                     let status = response.status().as_u16();
@@ -154,7 +200,7 @@ impl Client {
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = self.url(path);
         let (status, body) = self.send(|| self.http.get(&url)).await?;
-        Envelope::decode(status, &body)
+        failed(path, Envelope::decode(status, &body))
     }
 
     /// `POST path` with a JSON body → `result`. Not retried on 5xx or network errors.
@@ -170,7 +216,7 @@ impl Client {
         let (status, bytes) = self
             .send_with(Retry::Once, || self.http.post(&url).json(body))
             .await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     /// `PUT path` with a JSON body → `result`.
@@ -184,7 +230,7 @@ impl Client {
     ) -> Result<T> {
         let url = self.url(path);
         let (status, bytes) = self.send(|| self.http.put(&url).json(body)).await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     /// `DELETE path`. A 404 counts as success (already gone), so retries are safe.
@@ -211,7 +257,39 @@ impl Client {
     ) -> Result<T> {
         let url = self.url(path);
         let (status, bytes) = self.send(|| self.http.patch(&url).json(body)).await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
+    }
+
+    /// Sends a prepared body (a multipart upload) with `method` → `result`. `bearer`
+    /// replaces the API token (asset uploads authenticate with their session's JWT).
+    /// Uploads may take minutes, so the usual 20 s timeout doesn't apply.
+    ///
+    /// # Errors
+    /// API errors, network failures or unexpected bodies.
+    pub(crate) async fn send_body<T: DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: crate::multipart::Body,
+        bearer: Option<&str>,
+    ) -> Result<T> {
+        let url = self.url(path);
+        let retry = if method == reqwest::Method::POST {
+            Retry::Once
+        } else {
+            Retry::Idempotent
+        };
+        let authorization = bearer.map_or_else(|| self.token.bearer(), |b| format!("Bearer {b}"));
+        let (status, bytes) = self
+            .send_as(retry, &authorization, || {
+                self.http
+                    .request(method.clone(), &url)
+                    .header("Content-Type", body.content_type())
+                    .body(body.bytes().to_vec())
+                    .timeout(UPLOAD_TIMEOUT)
+            })
+            .await?;
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     async fn get_page<T: DeserializeOwned>(
@@ -253,10 +331,25 @@ impl Client {
     }
 
     #[cfg(test)]
+    pub(crate) fn with_graphql_rate(mut self, limit: usize, window: Duration) -> Self {
+        self.graphql_rate = (limit, window);
+        self
+    }
+
+    #[cfg(test)]
     pub(crate) fn with_rate(mut self, limit: usize, window: Duration) -> Self {
         self.rate = (limit, window);
         self
     }
+}
+
+/// Logs a refused request's path and Cloudflare's reason at debug level (never the
+/// credential or the body), then passes the result on.
+fn failed<T>(path: &str, result: Result<T>) -> Result<T> {
+    if let Err(err) = &result {
+        tracing::debug!(path, %err, "Cloudflare API request failed");
+    }
+    result
 }
 
 #[cfg(test)]

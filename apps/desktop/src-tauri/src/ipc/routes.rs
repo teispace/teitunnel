@@ -310,7 +310,21 @@ pub async fn tunnels_clean(
 #[tauri::command]
 #[specta::specta]
 pub async fn import_scan() -> Result<Vec<teitunnel_core::import::LocalSetup>, AppError> {
-    tauri::async_runtime::spawn_blocking(teitunnel_core::import::scan)
+    use teitunnel_core::discovery::cloudflared::{ForeignMode, foreign};
+    // A cloudflared that's running names its config, wherever it is.
+    let running: Vec<std::path::PathBuf> = foreign()
+        .await
+        .into_iter()
+        .filter_map(|process| match process.mode {
+            ForeignMode::Named {
+                config: Some(config),
+                ..
+            } => Some(std::path::PathBuf::from(config)),
+            _ => None,
+        })
+        .filter(|path| path.is_absolute())
+        .collect();
+    tauri::async_runtime::spawn_blocking(move || teitunnel_core::import::scan(&running))
         .await
         .map_err(|err| {
             tracing::warn!(error = %err, "import scan failed");

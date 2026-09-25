@@ -61,16 +61,47 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     let runtime = tauri::async_runtime::handle().inner().clone();
     let supervisor = Supervisor::new(registry, runtime);
     let binary = BinaryManager::new(Locator::from_env(data_dir.join("bin")));
+    let (secrets, accounts, edge) = services(&store);
+    let inspector = teitunnel_core::inspect::Inspector::new(
+        Some(store.clone()),
+        Some(secrets.clone()),
+        teitunnel_core::domain_shares::APP_OWNER,
+    );
+    {
+        let inspector = inspector.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = inspector.load().await {
+                tracing::warn!(%err, "couldn't read the inspector's settings and history");
+            }
+        });
+    }
     let quick_shares = QuickShares::new(
         supervisor.clone(),
         binary.clone(),
         PortAllocator::new(QUICK_SHARE_PORTS),
         store.clone(),
-    );
+        data_dir.join("quick-share.yml"),
+    )
+    .with_edge(edge)
+    .with_inspector(inspector.clone());
     tauri::async_runtime::spawn(quick_shares.clone().watch_runtime());
+    tauri::async_runtime::spawn(quick_shares.clone().watch_idle());
+    watch_inspector(app.clone(), &inspector);
+    watch_comments(app.clone(), &inspector);
+    watch_snapshot_comments(app.clone());
+    watch_inboxes(app.clone());
+    watch_inspected_routes(app.clone());
+    let local_domains = teitunnel_core::local_domains::LocalDomains::new(
+        store.clone(),
+        inspector.clone(),
+        teitunnel_core::local_domains::LocalDomainsConfig::detect(&data_dir, Some(secrets.clone())),
+    );
+    start_local_domains(app.clone(), &local_domains);
+    let pauses = Arc::new(teitunnel_core::pause::Enforcer::new());
+    let schedules_changed = Arc::new(tokio::sync::Notify::new());
+    watch_pauses(app.clone());
     forward_quick_share_changes(app.clone(), &quick_shares);
 
-    let (secrets, accounts, edge) = services(&store);
     let local = Local::new(store.clone());
     let paths = teitunnel_core::machine::ServicePaths {
         tokens: data_dir.join("tokens"),
@@ -80,7 +111,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         supervisor.clone(),
         binary.clone(),
         PortAllocator::new(TUNNEL_PORTS),
-        secrets,
+        secrets.clone(),
         local.clone(),
     );
     let machine = match service_manager(&data_dir) {
@@ -92,12 +123,45 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     watch_connector_health(app.clone());
     watch_doctor(app.clone());
     watch_domain_shares(app.clone());
+    watch_uptime(app.clone());
+    watch_snapshot_expiry(app.clone());
     tauri::async_runtime::spawn(machine.clone().sample_forever());
+    let analytics = teitunnel_core::analytics::Analytics::default();
+    let monitor = teitunnel_core::uptime::Monitor::new(
+        store.clone(),
+        accounts.clone(),
+        analytics.clone(),
+        edge,
+        "app",
+    );
+    let engine = Arc::new(Engine::new(local));
+    let control = control(
+        app,
+        &data_dir,
+        ControlParts {
+            store: &store,
+            accounts: &accounts,
+            engine: &engine,
+            machine: &machine,
+            quick_shares: &quick_shares,
+            binary: &binary,
+            inspector: &inspector,
+            pauses: &pauses,
+            local_domains: &local_domains,
+        },
+    );
+    tauri::async_runtime::spawn(Arc::clone(&control.host).forward_requests(inspector.clone()));
 
     Ok(AppState {
         cli_runs: data_dir.join("run-cli"),
+        snapshots: teitunnel_core::snapshot::Preparations::default(),
+        snapshot_dir: data_dir.join("snapshots"),
+        issued_secrets: teitunnel_core::protection::IssuedSecrets::default(),
+        secrets,
+        pending_restore: std::sync::Mutex::default(),
         accounts,
-        engine: Engine::new(local),
+        engine,
+        control,
         machine,
         remote_logs: teitunnel_core::remote_logs::RemoteLogs::default(),
         machine_name: machine_name(),
@@ -111,7 +175,462 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         paused: std::sync::Mutex::default(),
         quit_confirmed: false.into(),
         shutting_down: false.into(),
+        analytics,
+        monitor,
+        inspector,
+        local_domains,
+        pauses,
+        schedules_changed,
+        inspect_live: std::sync::Mutex::default(),
     })
+}
+
+/// Serves the local domains saved earlier (nothing when there are none), keeps them
+/// healthy across sleep and network changes, and tells the webview when they change.
+fn start_local_domains<R: Runtime>(
+    app: AppHandle<R>,
+    local_domains: &teitunnel_core::local_domains::LocalDomains,
+) {
+    let local = local_domains.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(err) = local.sync().await {
+            tracing::warn!(%err, "local domains couldn't be served at launch");
+        }
+        local.run().await;
+    });
+    let mut changes = local_domains.subscribe();
+    tauri::async_runtime::spawn(async move {
+        use tokio::sync::broadcast::error::RecvError;
+        while let Ok(()) | Err(RecvError::Lagged(_)) = changes.recv().await {
+            let _ = EntityChanged {
+                kind: EntityKind::LocalDomains,
+                id: None,
+            }
+            .emit(&app);
+        }
+    });
+}
+
+/// What the control connection's host is made of.
+#[derive(Clone, Copy)]
+struct ControlParts<'a> {
+    store: &'a Store,
+    accounts: &'a Accounts,
+    engine: &'a Arc<Engine>,
+    machine: &'a MachineTunnels,
+    quick_shares: &'a QuickShares,
+    binary: &'a BinaryManager,
+    inspector: &'a teitunnel_core::inspect::Inspector,
+    pauses: &'a Arc<teitunnel_core::pause::Enforcer>,
+    local_domains: &'a teitunnel_core::local_domains::LocalDomains,
+}
+
+/// The control connection's host over the app's services, listening unless it's turned
+/// off in Settings ▸ Integrations.
+fn control<R: Runtime>(
+    app: &AppHandle<R>,
+    data_dir: &std::path::Path,
+    parts: ControlParts<'_>,
+) -> shell::control::Control {
+    use teitunnel_core::control::{CoreHost, HostParts, integrations};
+    let ControlParts {
+        store,
+        accounts,
+        engine,
+        machine,
+        quick_shares,
+        binary,
+        inspector,
+        pauses,
+        local_domains,
+    } = parts;
+    let host = CoreHost::new(
+        HostParts {
+            version: app.package_info().version.to_string(),
+            store: store.clone(),
+            accounts: accounts.clone(),
+            engine: Arc::clone(engine),
+            machine: machine.clone(),
+            quick_shares: quick_shares.clone(),
+            binary: binary.clone(),
+            runs: data_dir.join("run-cli"),
+            machine_name: machine_name(),
+            local_domains: Some(local_domains.clone()),
+            inspector: inspector.clone(),
+            pauses: Arc::clone(pauses),
+        },
+        shell::control::ui(app),
+    );
+    shell::control::forward_changes(app, Arc::clone(&host));
+    let control = shell::control::Control::new(host, data_dir);
+    let enabled = tauri::async_runtime::block_on(integrations::load(store))
+        .map_or(true, |s| s.control_enabled);
+    if enabled {
+        control.start();
+    }
+    control
+}
+
+/// Tells the webview when comments change and notifies about new ones on live shares
+/// (outside quiet hours, unless the window is in front).
+fn watch_comments<R: Runtime>(app: AppHandle<R>, inspector: &teitunnel_core::inspect::Inspector) {
+    use teitunnel_core::{comments::CommentsEvent, text::msg::comments::notify as c};
+    let Some(comments) = inspector.comments() else {
+        return;
+    };
+    let mut events = comments.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            };
+            let key = match &event {
+                CommentsEvent::New { subject, .. } => subject.key.clone(),
+                CommentsEvent::Changed { subject } => subject.clone(),
+            };
+            let _ = EntityChanged {
+                kind: EntityKind::Comments,
+                id: Some(key),
+            }
+            .emit(&app);
+            if let CommentsEvent::New {
+                subject,
+                author,
+                excerpt,
+                ..
+            } = event
+                && let Some(state) = app.try_state::<AppState>()
+            {
+                let prefs = settings::load(&state.store).await.unwrap_or_default();
+                if !quiet_now(&state, &prefs).await {
+                    notify(&app, &c::title(&subject.label), &c::body(&author, &excerpt));
+                }
+            }
+        }
+    });
+}
+
+/// Reads Snapshot comment counts from Cloudflare every two minutes (one D1 query per
+/// account with commented Snapshots) and notifies about new ones.
+fn watch_snapshot_comments<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{comments::SubjectKind, text::msg::comments::notify as c};
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        let mut tick = tokio::time::interval(Duration::from_secs(120));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let Some(comments) = state.inspector.comments().cloned() else {
+                return;
+            };
+            let subjects = comments.subjects().await.unwrap_or_default();
+            let mut accounts: Vec<String> = subjects
+                .iter()
+                .filter(|s| s.subject.kind == SubjectKind::Snapshot)
+                .filter_map(|s| s.subject.account_id.clone())
+                .collect();
+            accounts.sort();
+            accounts.dedup();
+            let prefs = settings::load(&state.store).await.unwrap_or_default();
+            let quiet = quiet_now(&state, &prefs).await;
+            for account in accounts {
+                let Ok(api) = state.accounts.client(&account).await else {
+                    continue;
+                };
+                match comments.poll_snapshots(&api, &account).await {
+                    Ok(news) => {
+                        for (subject, count) in news {
+                            let _ = EntityChanged {
+                                kind: EntityKind::Comments,
+                                id: Some(subject.key.clone()),
+                            }
+                            .emit(&app);
+                            if !quiet {
+                                notify(
+                                    &app,
+                                    &c::title(&subject.label),
+                                    &c::snapshot_body(u64::from(count)),
+                                );
+                            }
+                        }
+                    }
+                    Err(err) => tracing::debug!(%err, "couldn't read Snapshot comments"),
+                }
+            }
+        }
+    });
+}
+
+/// Delivers webhooks the inboxes kept while this computer was off, every 30 seconds
+/// (only accounts with an inbox on a route this computer serves; `core::inbox`).
+fn watch_inboxes<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(http) = teitunnel_core::inbox::client() else {
+            return;
+        };
+        // Connectors and local services take a moment at launch.
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let Ok(inboxes) = teitunnel_core::fronts::list(&state.engine, None).await else {
+                continue;
+            };
+            let mut accounts: Vec<String> = inboxes
+                .iter()
+                .filter(|f| f.kind == teitunnel_core::engine::front::FrontKind::Inbox && f.routed)
+                .map(|f| f.account_id.clone())
+                .collect();
+            accounts.sort();
+            accounts.dedup();
+            for account in accounts {
+                let Ok(api) = state.accounts.client(&account).await else {
+                    continue;
+                };
+                let Ok(reports) =
+                    teitunnel_core::inbox::drain_account(&state.engine, &api, &http, &account)
+                        .await
+                else {
+                    continue;
+                };
+                if reports.iter().any(|r| r.delivered > 0) {
+                    let _ = EntityChanged {
+                        kind: EntityKind::Fronts,
+                        id: Some(account.clone()),
+                    }
+                    .emit(&app);
+                }
+            }
+        }
+    });
+}
+
+/// Tells the person a `teitunnel://` link couldn't be followed.
+pub(crate) fn notify_link_failed<R: Runtime>(app: &AppHandle<R>, message: &str) {
+    notify(
+        app,
+        &teitunnel_core::text::msg::control::link_failed(),
+        &teitunnel_core::text::msg::raw(message),
+    );
+}
+
+/// Tells the webview when taps change, notifies about requests to watched paths, and
+/// stops shares on your domain that were idle for their limit (Quick Shares stop in
+/// `QuickShares::watch_idle`).
+fn watch_inspector<R: Runtime>(app: AppHandle<R>, inspector: &teitunnel_core::inspect::Inspector) {
+    use teitunnel_core::inspect::{InspectEvent, TapScope};
+    let mut events = inspector.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            };
+            match event {
+                InspectEvent::Taps => {
+                    let _ = EntityChanged {
+                        kind: EntityKind::Inspector,
+                        id: None,
+                    }
+                    .emit(&app);
+                }
+                InspectEvent::Watched {
+                    name, method, path, ..
+                } => notify(
+                    &app,
+                    &n::watched_path(&path),
+                    &n::watched_path_body(&method, &path, &name),
+                ),
+                InspectEvent::Idle {
+                    scope,
+                    name,
+                    minutes,
+                    ..
+                } => {
+                    if let TapScope::Route {
+                        account_id,
+                        hostname,
+                        path: None,
+                    } = &scope
+                        && let Some(state) = app.try_state::<AppState>()
+                    {
+                        let shared = state
+                            .engine
+                            .local()
+                            .shares(Some(account_id))
+                            .await
+                            .unwrap_or_default()
+                            .iter()
+                            .any(|s| s.hostname.eq_ignore_ascii_case(hostname));
+                        if !shared {
+                            continue;
+                        }
+                        if let Ok(api) = state.accounts.client(account_id).await {
+                            let ctx = teitunnel_core::engine::Context {
+                                account: account_id,
+                                machine_name: &state.machine_name,
+                                tunnel: None,
+                            };
+                            let _ = teitunnel_core::domain_shares::stop(
+                                &state.engine,
+                                &api,
+                                &state.machine,
+                                ctx,
+                                hostname,
+                            )
+                            .await;
+                            if let Some(tap) = state.inspector.tap_for(&scope) {
+                                state.inspector.stop(&tap).await;
+                            }
+                        }
+                        let _ = EntityChanged {
+                            kind: EntityKind::QuickShares,
+                            id: None,
+                        }
+                        .emit(&app);
+                    }
+                    notify(
+                        &app,
+                        &n::idle_stopped(),
+                        &n::idle_stopped_body(u64::from(minutes), &name),
+                    );
+                }
+            }
+        }
+    });
+}
+
+/// Ends inspections of routes that are over: on launch also the app's own from its last
+/// run (they end when it quits; this catches a crash), then every 30 s those of CLI
+/// processes that exited.
+fn watch_inspected_routes<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{domain_shares::APP_OWNER, inspect::routes};
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        let mut launch = true;
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let from_last_run = std::mem::take(&mut launch);
+            let before = routes::list(&state.store, None).await.unwrap_or_default();
+            if before.is_empty() {
+                continue;
+            }
+            routes::sweep(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.machine_name,
+                Some(&state.inspector),
+                // The app's own rows from before this launch point at a Lens that's gone.
+                |route| {
+                    route.is_over()
+                        || (from_last_run
+                            && route.owner == APP_OWNER
+                            && state
+                                .inspector
+                                .tap_for(&teitunnel_core::inspect::TapScope::route(
+                                    &route.account_id,
+                                    &route.hostname,
+                                    route.path.as_deref(),
+                                ))
+                                .is_none())
+                },
+            )
+            .await;
+            let after = routes::list(&state.store, None).await.unwrap_or_default();
+            if after.len() != before.len() {
+                for kind in [EntityKind::Routes, EntityKind::Inspector] {
+                    let _ = EntityChanged { kind, id: None }.emit(&app);
+                }
+            }
+        }
+    });
+}
+
+/// Serves paused pages and runs schedules (M12-06): the app holds the route host lease
+/// (renewed every 30 s), evaluates schedules every 30 s (or at once when one changes),
+/// and applies pauses to its inspector's taps every 3 s, so a pause asked for by
+/// another process (`teitunnel shares --pause`, an agent) shows within seconds. Starts
+/// after the first sweep of routes left inspected by a previous run.
+fn watch_pauses<R: Runtime>(app: AppHandle<R>) {
+    use teitunnel_core::{domain_shares::APP_OWNER, pause, schedule};
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        let scheduler = schedule::Scheduler::new();
+        let mut tick = tokio::time::interval(Duration::from_secs(3));
+        let mut count = 0u32;
+        let mut before: Vec<pause::PausedRoute> = Vec::new();
+        loop {
+            let Some(state) = app.try_state::<AppState>() else {
+                tick.tick().await;
+                continue;
+            };
+            let wake = Arc::clone(&state.schedules_changed);
+            let woken = tokio::select! {
+                _ = tick.tick() => false,
+                () = wake.notified() => true,
+            };
+            if woken || count.is_multiple_of(10) {
+                let _ = pause::claim_host(&state.store, APP_OWNER, true).await;
+                for failure in schedule::run_tick(
+                    &state.store,
+                    &scheduler,
+                    APP_OWNER,
+                    true,
+                    jiff::Timestamp::now(),
+                )
+                .await
+                {
+                    tracing::warn!("schedule: {}", failure.english());
+                }
+            }
+            count = count.wrapping_add(1);
+            let failures = state
+                .pauses
+                .sync(
+                    &state.accounts,
+                    &state.engine,
+                    &state.machine,
+                    &state.machine_name,
+                    &state.inspector,
+                )
+                .await;
+            for failure in failures {
+                tracing::warn!("pause: {}", failure.english());
+            }
+            let after = pause::list(&state.store, None).await.unwrap_or_default();
+            if after != before {
+                for kind in [
+                    EntityKind::QuickShares,
+                    EntityKind::Routes,
+                    EntityKind::Inspector,
+                ] {
+                    let _ = EntityChanged { kind, id: None }.emit(&app);
+                }
+                before = after;
+            }
+        }
+    });
+}
+
+/// Evaluates schedules now (one was set or removed).
+pub(crate) fn apply_schedules_soon<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.schedules_changed.notify_one();
+    }
 }
 
 /// Where Always-on connectors run: launchd on macOS, systemd user units on Linux (when
@@ -333,7 +852,7 @@ fn any_window_focused<R: Runtime>(app: &AppHandle<R>) -> bool {
 }
 
 /// Shows a notification in the user's language, unless a Teitunnel window is in front.
-fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
+pub(crate) fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     if any_window_focused(app) {
         return;
     }
@@ -346,6 +865,59 @@ fn notify<R: Runtime>(app: &AppHandle<R>, title: &Text, body: &Text) {
     {
         tracing::warn!(error = %err, "failed to show notification");
     }
+}
+
+/// Whether it's quiet hours now (alerts and connector notices are recorded, not shown).
+async fn quiet_now(state: &AppState, settings: &settings::Settings) -> bool {
+    settings.quiet_hours.enabled
+        && teitunnel_core::alerts::local_minute(&state.store)
+            .await
+            .is_ok_and(|minute| settings.quiet_hours.contains(minute))
+}
+
+/// Checks every route through the edge once a minute and delivers alerts (the checks,
+/// incidents and rules are `core::uptime` and `core::alerts`). Tunnels the user stopped
+/// aren't checked.
+fn watch_uptime<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        // Connectors take a moment to connect at launch.
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+        let mut tick = tokio::time::interval(teitunnel_core::uptime::INTERVAL);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let paused = state
+                .paused
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let now = teitunnel_core::domain_shares::now_ms();
+            let report = state
+                .monitor
+                .tick(i64::try_from(now).unwrap_or(i64::MAX), &paused)
+                .await;
+            if report.alerts.is_empty() {
+                continue;
+            }
+            let _ = EntityChanged {
+                kind: EntityKind::Routes,
+                id: None,
+            }
+            .emit(&app);
+            let settings = settings::load(&state.store).await.unwrap_or_default();
+            if !settings.notify_alerts || quiet_now(&state, &settings).await {
+                continue;
+            }
+            let shown: Vec<&teitunnel_core::alerts::Alert> =
+                report.alerts.iter().filter(|a| a.notify).collect();
+            if let Some((title, body)) = teitunnel_core::alerts::notice(&shown) {
+                notify(&app, &title, &body);
+            }
+        }
+    });
 }
 
 /// Notifies when this Mac's connector goes down, comes back, or crash-loops (the policy
@@ -363,9 +935,8 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let Some(state) = app.try_state::<AppState>() else {
                 continue;
             };
-            let enabled = settings::load(&state.store)
-                .await
-                .map_or(true, |s| s.notify_connectors);
+            let prefs = settings::load(&state.store).await.unwrap_or_default();
+            let enabled = prefs.notify_connectors && !quiet_now(&state, &prefs).await;
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
@@ -377,10 +948,12 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                         .local()
                         .tunnels(&account.id)
                         .await
-                        .unwrap_or_default(),
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|tunnel| (account.id.clone(), tunnel)),
                 );
             }
-            for tunnel in tunnels {
+            for (account, tunnel) in tunnels {
                 let id = tunnel.tunnel_id;
                 let paused = state
                     .paused
@@ -392,6 +965,18 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
                     continue;
                 }
                 let notice = watch.observe(&id, state.machine.state(&id).as_ref(), now);
+                // Recorded in Activity as an alert, whatever the notification settings.
+                if let Some(down) = match notice {
+                    Some(Notice::Down | Notice::CrashLoop) => Some(true),
+                    Some(Notice::Back) => Some(false),
+                    None => None,
+                } {
+                    let at = i64::try_from(now).unwrap_or(i64::MAX);
+                    state
+                        .monitor
+                        .connector_changed(&account, &tunnel.name, down, at)
+                        .await;
+                }
                 if !enabled {
                     continue;
                 }
@@ -467,6 +1052,43 @@ fn watch_domain_shares<R: Runtime>(app: AppHandle<R>) {
     });
 }
 
+/// Deletes Snapshots whose expiry passed: at launch, then hourly.
+fn watch_snapshot_expiry<R: Runtime>(app: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(60 * 60));
+        loop {
+            tick.tick().await;
+            let Some(state) = app.try_state::<AppState>() else {
+                continue;
+            };
+            let now = teitunnel_core::domain_shares::now_ms();
+            let due = state
+                .engine
+                .local()
+                .sites(None)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .any(|s| s.expires_at.is_some_and(|at| at <= now));
+            if !due {
+                continue;
+            }
+            teitunnel_core::snapshot::sweep_expired(
+                &state.accounts,
+                &state.engine,
+                &state.machine,
+                &state.machine_name,
+            )
+            .await;
+            let _ = crate::ipc::EntityChanged {
+                kind: crate::ipc::EntityKind::Snapshots,
+                id: None,
+            }
+            .emit(&app);
+        }
+    });
+}
+
 fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
@@ -478,7 +1100,7 @@ fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
             if !state.doctor.due(std::time::Instant::now()) {
                 continue;
             }
-            let issues = teitunnel_core::doctor::run(
+            let mut issues = teitunnel_core::doctor::run(
                 &state.accounts,
                 &state.engine,
                 &state.machine,
@@ -486,6 +1108,7 @@ fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
                 &state.machine_name,
             )
             .await;
+            issues.extend(state.local_domains.doctor().await);
             doctor_ran(&app, &state, &issues).await;
         }
     });
@@ -599,6 +1222,17 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
         let stop = async {
             if let Some(state) = app.try_state::<AppState>() {
                 use teitunnel_core::domain_shares::{self, APP_OWNER};
+                // Routes pointed at this app's inspector go back to their own service
+                // first (Lens ends with the app; an Always-on connector keeps running).
+                teitunnel_core::inspect::routes::sweep(
+                    &state.accounts,
+                    &state.engine,
+                    &state.machine,
+                    &state.machine_name,
+                    Some(&state.inspector),
+                    |route| route.owner == APP_OWNER,
+                )
+                .await;
                 domain_shares::sweep(
                     &state.accounts,
                     &state.engine,
@@ -610,6 +1244,16 @@ pub fn on_exit_requested<R: Runtime>(app: &AppHandle<R>, api: &tauri::ExitReques
             }
             quick_shares.stop_all().await;
             supervisor.stop_all().await;
+            if let Some(state) = app.try_state::<AppState>() {
+                state.monitor.release().await;
+                state.local_domains.stop().await;
+                let _ = teitunnel_core::pause::release_host(
+                    &state.store,
+                    teitunnel_core::domain_shares::APP_OWNER,
+                )
+                .await;
+                state.inspector.shutdown().await;
+            }
         };
         if tokio::time::timeout(SHUTDOWN_DEADLINE, stop).await.is_err() {
             tracing::warn!("connectors didn't stop in time; exiting anyway");

@@ -22,10 +22,10 @@ broadband and on networks where you can't change the router.
 One route per app, each on its own hostname:
 
 ```sh
-teitunnel-cli route add blog.example.com 8080
-teitunnel-cli route add photos.example.com http://192.168.1.10:2342
-teitunnel-cli route add status.example.com 3001
-sudo -E teitunnel-cli always-on on   # start at boot, restart if it stops
+teitunnel route add blog.example.com 8080
+teitunnel route add photos.example.com http://192.168.1.10:2342
+teitunnel route add status.example.com 3001
+sudo -E teitunnel always-on on   # start at boot, restart if it stops
 ```
 
 Routes can point at the machine itself (`8080`) or at any other device on your network
@@ -39,7 +39,7 @@ for a one-time code sent to an email address you allowed before the request reac
 server.
 
 ```sh
-teitunnel-cli route add admin.example.com 9000 --allow you@example.com
+teitunnel route add admin.example.com 9000 --allow you@example.com
 ```
 
 For whole networks (a NAS's SMB shares, a printer, SSH to every machine), share a

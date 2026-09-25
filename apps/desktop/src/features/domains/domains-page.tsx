@@ -23,9 +23,11 @@ import {
   useActiveAccount,
   useDomains,
 } from "@/features/accounts";
+import { ReservationsSection } from "@/features/reservations";
 import { t } from "@/lib/i18n";
 import type { Domain, DomainStatus } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 
 const dots: Record<DomainStatus, Status> = {
   active: "healthy",
@@ -72,6 +74,7 @@ function DomainInspector({ domain, accountId }: { domain: Domain; accountId: str
       <InspectorSection title={t("domains.permissions")}>
         <CapabilityList accountId={accountId} zoneId={domain.id} />
       </InspectorSection>
+      <ReservationsSection accountId={accountId} domain={domain} />
     </Inspector>
   );
 }
@@ -82,6 +85,7 @@ export function DomainsPage() {
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const domains = useDomains(active?.id ?? null);
+  const reload = useManualRefetch(domains.refetch);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const all = domains.data ?? [];
@@ -102,8 +106,8 @@ export function DomainsPage() {
         <IconButton
           icon={RefreshCw}
           label={t("domains.refresh")}
-          onClick={() => void domains.refetch()}
-          disabled={domains.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
       {active ? (

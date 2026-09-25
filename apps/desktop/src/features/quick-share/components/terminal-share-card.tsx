@@ -1,4 +1,5 @@
 import { ExternalLink, SquareTerminal } from "lucide-react";
+import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -6,19 +7,22 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { CliShare } from "@/lib/ipc/bindings";
+import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
 import { useStopTerminalShare } from "../queries";
+import { cardClass } from "./card";
 import { QrButton } from "./qr-button";
 
-/** A Quick Share running in a terminal (`teitunnel-cli share`). */
+/** A Quick Share running in a terminal (`teitunnel share`). */
 export function TerminalShareCard({ share }: { share: CliShare }) {
   const now = useNow();
   const stop = useStopTerminalShare();
   return (
     <article
       aria-label={t("quickShare.terminal.cardLabel", { origin: stripScheme(share.origin) })}
-      className="flex flex-col gap-3 rounded-card bg-surface-inset p-4"
+      aria-busy={stop.isPending || undefined}
+      className={cardClass}
     >
       <header className="flex items-center gap-2 text-callout">
         <SquareTerminal aria-hidden className="size-3.5 text-secondary" strokeWidth={2} />
@@ -56,8 +60,12 @@ export function TerminalShareCard({ share }: { share: CliShare }) {
           variant="destructive"
           size="sm"
           className="ml-auto"
-          disabled={stop.isPending}
-          onClick={() => stop.mutate(share.owner)}
+          pending={stop.isPending}
+          onClick={() =>
+            stop.mutate(share.owner, {
+              onError: (error) => toast.error(toIpcError(error).message),
+            })
+          }
         >
           {t("quickShare.stop")}
         </Button>

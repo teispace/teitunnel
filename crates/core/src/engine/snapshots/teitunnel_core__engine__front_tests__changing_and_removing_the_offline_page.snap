@@ -1,0 +1,7 @@
+---
+source: crates/core/src/engine/front_tests.rs
+expression: view(&off)
+---
+- - Stop running a Worker for app.xyz.com/*
+  - Delete the Worker tt-offline-a9edeaf71c
+- []

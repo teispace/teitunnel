@@ -23,18 +23,52 @@ pub const REDIRECT_PORTS: [u16; 3] = [53682, 53683, 53684];
 /// How long to wait for the browser to come back.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// The public client registered by teispace. `None` until the maintainer registers it
-/// (then OAuth is offered); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for testing.
-const CLIENT_ID: Option<&str> = None;
+/// The public client "Teitunnel" in the Teispace Cloudflare account (registered
+/// 2026-09-24, research/cloudflare.md); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for tests.
+/// A client id isn't a secret: PKCE protects the flow.
+const CLIENT_ID: Option<&str> = Some("57fe3059e8fc6db30d9e3e07e50e94ea");
 
-/// Scopes requested at sign-in. Cloudflare scope names mirror API-token permissions;
-/// the exact ids are confirmed when the client is registered (research doc TODO).
+/// Scopes requested at sign-in, as Cloudflare names them (the client's scope list,
+/// checked 2026-09-25). The first four are required by the client; the rest are
+/// optional, so one consent screen covers every feature, people can decline any of them,
+/// and capability probing shows what's missing with an in-place fix.
+///
+/// Only scopes registered on the client may be asked for: an unregistered one fails the
+/// sign-in.
 const SCOPES: &[&str] = &[
-    "account:read",
-    "zone:read",
-    "dns:edit",
-    "cloudflare_tunnel:edit",
+    // Required: tunnels, route DNS records, domains, and finding the accounts.
+    "argotunnel.write",
+    "dns.write",
+    "zone.read",
+    "account-settings.read",
+    // A refresh token, so the sign-in lasts.
     "offline_access",
+    // Optional: require a login. Access apps and policies live on the account
+    // (`access-app`, `access-policy`); login methods and the team domain are
+    // `access-acct`; `zone-access` covers zone-level apps.
+    "access-app.write",
+    "access-policy.write",
+    "access-acct.write",
+    "zone-access.write",
+    // Optional: edge protection (custom and rate limiting rules, header rules, service
+    // tokens).
+    "zone-waf.write",
+    "zone-transform-rules.write",
+    "access-service-token.write",
+    // Optional: Snapshots and offline pages (Workers and their routes), comments and
+    // webhook inboxes (D1).
+    "workers-scripts.write",
+    "workers-routes.write",
+    "d1.write",
+    // Optional: traffic charts.
+    "analytics.read",
+    "account-analytics.read",
+    // Optional: private networks, and the Doctor's WARP checks (read only).
+    "teams-networks.write",
+    "teams.read",
+    // Optional: load balancing across machines.
+    "load-balancers.write",
+    "load-balancing-monitors-and-pools.write",
 ];
 
 /// Errors from the OAuth flow. Messages are shown to the user.

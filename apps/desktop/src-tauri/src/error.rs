@@ -120,7 +120,79 @@ via_core!(
     teitunnel_core::engine::EngineError,
     teitunnel_core::store::StoreError,
     teitunnel_core::quick_share::QuickShareError,
+    teitunnel_core::analytics::AnalyticsError,
+    teitunnel_core::snapshot::SnapshotError,
+    teitunnel_core::comments::CommentsError,
 );
+
+impl From<teitunnel_core::project::ProjectError> for AppError {
+    fn from(err: teitunnel_core::project::ProjectError) -> Self {
+        use teitunnel_core::project::ProjectError as P;
+        match err {
+            P::Engine(err) => err.into(),
+            P::Store(err) => err.into(),
+            P::Snapshot(err) => err.into(),
+            P::NotFound(_) => Self::new(ErrorCode::NotFound, err.text()),
+            P::Changed => Self::new(ErrorCode::Conflict, err.text()),
+            P::Io { .. } | P::TooLarge(_) | P::Invalid(_) | P::Unresolved(_) | P::Secret(_) => {
+                Self::invalid("file", err.text())
+            }
+        }
+    }
+}
+
+impl From<teitunnel_core::backup::BackupError> for AppError {
+    fn from(err: teitunnel_core::backup::BackupError) -> Self {
+        use teitunnel_core::backup::BackupError as B;
+        match err {
+            B::Store(err) => err.into(),
+            B::WeakPassphrase | B::WrongPassphrase => Self::invalid("passphrase", err.text()),
+            B::NotABackup | B::UnsupportedFormat(_) | B::NewerSchema | B::Io { .. } => {
+                Self::invalid("file", err.text())
+            }
+            B::Internal(_) => {
+                tracing::error!(error = %err, "backup failed");
+                Self::internal(err.text()).with_hint(m::internal_hint())
+            }
+        }
+    }
+}
+
+impl From<teitunnel_core::control::integrations::ShortcutError> for AppError {
+    fn from(err: teitunnel_core::control::integrations::ShortcutError) -> Self {
+        Self::invalid("shortcut", err.text())
+    }
+}
+
+impl From<teitunnel_core::control::integrations::IntegrationsError> for AppError {
+    fn from(err: teitunnel_core::control::integrations::IntegrationsError) -> Self {
+        use teitunnel_core::control::integrations::IntegrationsError as I;
+        match err {
+            I::Shortcut(err) => err.into(),
+            I::Store(err) => err.into(),
+        }
+    }
+}
+
+impl From<teitunnel_core::local_domains::LocalDomainError> for AppError {
+    fn from(err: teitunnel_core::local_domains::LocalDomainError) -> Self {
+        use teitunnel_core::local_domains::LocalDomainError as L;
+        match err {
+            L::Store(err) => err.into(),
+            L::Inspect(err) => teitunnel_core::Error::from(err).into(),
+            L::Name(_) | L::Duplicate(_) => Self::invalid("name", err.text()),
+            L::BadTarget(_) | L::InvalidTarget(_) => Self::invalid("target", err.text()),
+            L::NotFound(_) => Self::new(ErrorCode::NotFound, err.text()),
+            L::NoPort { .. } | L::Keychain(_) | L::NoPkexec | L::NotSupported => {
+                Self::new(ErrorCode::Unavailable, err.text())
+            }
+            L::Ca(_) | L::Privileged(_) | L::Io(_) => {
+                tracing::warn!(error = %err, "local domains failed");
+                Self::internal(err.text())
+            }
+        }
+    }
+}
 
 impl From<teitunnel_core::domain::OriginError> for AppError {
     fn from(err: teitunnel_core::domain::OriginError) -> Self {
@@ -189,6 +261,19 @@ mod tests {
         );
         assert_eq!(
             AppError::from(EngineError::Plan(PlanError::NoTunnel)).code,
+            ErrorCode::NotFound
+        );
+    }
+
+    #[test]
+    fn local_domain_errors_point_at_their_field() {
+        use teitunnel_core::local_domains::LocalDomainError as L;
+        let err = AppError::from(L::Duplicate("shop.test".into()));
+        assert_eq!(err.field.as_deref(), Some("name"));
+        let err = AppError::from(L::BadTarget("x".into()));
+        assert_eq!(err.field.as_deref(), Some("target"));
+        assert_eq!(
+            AppError::from(L::NotFound("a.test".into())).code,
             ErrorCode::NotFound
         );
     }

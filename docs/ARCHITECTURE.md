@@ -48,6 +48,24 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
                      log/metrics parsing, local endpoints, config.yml + credentials files.
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
+crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
+                     replay, exports, webhooks, gates, stubs, simulation. Pure library, no Tauri,
+                     no core; an optional `specta` feature derives IPC types.
+crates/localdomains  Local HTTPS domains (D-101): the name-constrained CA, leaves issued per SNI
+                     name, trust installers per OS (privileged steps returned as data), the `.test`
+                     name server, mDNS, port checks. No Tauri, no SQLite, no proxying; `core`
+                     persists and serves through Lens.
+crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prompts, approvals,
+                     redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
+                     to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
+                     come from `ToolProvider`s, traffic from a `TrafficSource`.
+crates/control       The local control connection (M12-07): newline-delimited JSON-RPC 2.0 over a
+                     Unix socket / named pipe only the user can open, the server (auth, limits,
+                     approvals) over a `Host` trait, `ControlClient`, and `teitunnel://` links.
+                     Knows nothing about the core; `core::control::CoreHost` implements `Host`.
+apps/cli             `teitunnel`: commands only; hosts the MCP server (`teitunnel mcp`, `/mcp`);
+                     uses the running app through `ControlClient` (`share`, `shares`, `routes`,
+                     `status`, `top`, `local-domain`).
 apps/desktop/src-tauri  Thin adapter: IPC commands, events bridge, tray, menus, windows, plugins.
 apps/desktop/src        React UI.
 tools/fake-cloudflared  Test double binary that behaves like cloudflared (endpoints, JSON logs, failure modes).
@@ -62,6 +80,8 @@ desktop ──▶ core ──▶ cf-api
 
 - `cf-api` and `cloudflared` never depend on each other, on `core`, or on Tauri.
 - `core` never depends on Tauri. It exposes a plain async Rust API, which keeps it unit-testable and lets a future CLI reuse it.
+- `control` depends on nothing of Teitunnel's (so extensions' protocol, the CLI's client and the Windows pipe code stay small and checkable alone); `core` depends on it to implement its `Host` (`core::control`), and the shell only supplies native dialogs, windows and change events through `core::control::Ui`.
+- `mcp` depends on `core` (and `cf-api`/`cloudflared` types), never on Tauri; `cli` hosts it, and the desktop app can host it later through the same `Backend`.
 - `src-tauri` contains **no business logic**. A command is: parse args → call `core` → map result.
 - The UI never talks to Cloudflare or the filesystem directly. Only IPC.
 
@@ -144,6 +164,9 @@ What the user asked for, in product terms:
 
 `AddRoute`, `UpdateRoute`, `RemoveRoute`, `ReorderRoutes`, `CreateTunnel`, `DeleteTunnel`, `SetRunMode`, `RepairDns{hostname}`, `Cleanup{items}`, `ImportLocalTunnel`, `AdoptProcess`, `ProtectRoute` (v1.x) …
 
+Snapshots add `PublishSnapshot`, `UpdateSnapshot`, `RollbackSnapshot` and `DeleteSnapshot` (§4.8).
+Edge protection adds `ProtectHostname`, `CreateServiceToken`, `RevokeServiceToken` and `RotateServiceToken` (§4.9).
+
 ### 4.2 Observed snapshot
 
 A consistent read of reality for the affected scope: tunnels + connections, the tunnel's current remote config **with its `version`**, the relevant DNS records (by name and by `*.cfargotunnel.com` content), the ownership index, local connector state and local listening ports. Each snapshot carries a **fingerprint** (a hash of the parts the plan depends on).
@@ -192,8 +215,8 @@ End-to-end probe for a hostname, reported by stage so failures are actionable:
 
 1. **DNS:** read the record through the API and confirm it's a proxied CNAME to this Mac's tunnel. The verifier never resolves the hostname itself: a lookup made before the record propagated caches NXDOMAIN for up to 30 minutes in the Mac's and ISP's resolvers (D-037, D-040).
 2. **Edge → tunnel:** HTTPS GET sent straight to a Cloudflare edge address (from resolving `api.cloudflare.com`) with the hostname as SNI and Host. Cloudflare error 1033 means no connector; 530/1016 means DNS/tunnel mismatch; 1001 means not on Cloudflare yet; a certificate error on a multi-level subdomain means Universal SSL doesn't cover it.
-3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening.
-4. **Origin:** any other status is a success, and the status code is shown.
+3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening and names the port. Cloudflare's own 413 page means a body over the plan's limit; 429 on a Quick Share means its 200 in-flight requests are used up.
+4. **Origin:** any other status is a success, and the status code is shown, unless the answer is a dev server refusing the address (`dev_server::detect`: Vite, webpack-dev-server, Rails, Django from a bounded read of the body; Next.js by asking for a `/_next/` resource with the public `Origin`). That's a failure with its fix: the Host header the server expects (where sending it is safe) and the config line that allows the address. A `text/event-stream` answer is flagged (Quick Shares don't carry it).
 
 Transient failures (1033, 1016/530, 1001) are retried every 2 s for a short patience window after apply (`Engine::verify`).
 
@@ -209,6 +232,74 @@ Teitunnel stores the remote config `version` it last applied for each tunnel. A 
 - Tunnels created by Teitunnel are recorded in SQLite, and their name uses the user-chosen name. Teitunnel doesn't claim tunnels it didn't create, but it can manage them after an explicit import.
 
 ---
+
+### 4.8 Snapshots (M12-06)
+
+A Snapshot is a static copy of a site hosted on the user's own account as a **Worker with
+static assets** (research: [cloudflare-snapshots.md](research/cloudflare-snapshots.md)).
+`core::snapshot` prepares the files (a folder, a project's build through a typed
+`<manager> run <script>` command, or a bounded same-origin crawl of a local site), hashes
+them, and keeps them in memory under an id while the plan is reviewed. The engine
+(`engine/sites.rs`, `engine/planner/sites.rs`) plans:
+
+- publish: `UploadSnapshotFiles` → `CreateSnapshotWorker` → login (Access) → `DeleteRecord`
+  (a foreign record, with confirmation) → `AttachSnapshotDomain` | `EnableWorkersDev`;
+- update: login → `UploadSnapshotFiles` → `PublishSnapshotVersion` (upload a version, then
+  deploy it: the atomic switch) → address repair → remove login;
+- rollback: `RollBackSnapshot` (deploy an older version id);
+- delete: `DisableWorkersDev` → `DetachSnapshotDomain` → remove login → `DeleteSnapshotWorker`
+  (last: it can't be undone).
+
+Uploads send only the hashes Cloudflare asks for, re-read and re-hash each file (a file
+changed since the preview fails the step), and stream `StepState::Transferring`. Undo:
+delete the new Worker, redeploy the previous version, re-attach or detach domains, toggle
+workers.dev back. The Worker (`engine/snapshot-worker.js`) runs only for a password or the
+comments overlay (`run_worker_first`); otherwise assets are served without it.
+
+Comments (`core::comments`): the overlay script (`comments/overlay.js`) and one JSON API
+under `/__teitunnel/comments/`, answered by Lens's `ReservedHandler` for live shares and
+inspected routes (kept in the local store, migration 19) and by the Snapshot Worker for
+Snapshots (kept in the account's D1 database, bound as `DB`; a planned `CreateDatabase`
+step makes it the first time). The app reads Snapshot comments with the D1 query endpoint.
+
+Workers in front of a route (`engine/front.rs`, `engine/planner/front.rs`): the offline page
+and webhook inboxes are Worker scripts (`tt-offline-…`, `tt-inbox-…`) on Worker routes
+(`hostname/*`, `hostname/path*`) that proxy to the tunnel. Plans: `CreateDatabase` (an inbox's
+first) → `PutFrontWorker` → `CreateWorkerRoute`; removal `DeleteWorkerRoute` →
+`DeleteFrontWorker`, and removing a hostname's last route removes them. Ownership is the
+`front_workers` index (migration 20). `core::inbox` delivers kept webhooks to the route's
+own service.
+
+### 4.9 Edge protection and service tokens (M12-04)
+
+Rules Cloudflare enforces for **one hostname** (research:
+[cloudflare-edge-rules.md](research/cloudflare-edge-rules.md)): a custom rule that blocks
+automated clients and/or AI crawlers, one that challenges them
+(`http_request_firewall_custom`), request and response header rules
+(`http_request_late_transform`, `http_response_headers_transform`), each
+`(http.host eq "<hostname>") and (…)` and described `teitunnel:<route-id>:<kind>`; and rate
+limits (`http_ratelimit`), which plans allow few of, **shared** by every hostname with the
+same limit in a zone: one rule per limit, `(http.host in {"a" "b"})`, described
+`teitunnel:ratelimit:<requests>-<period>-<action>`. `engine/edge.rs` builds the rules and
+reads settings back from them; `engine/planner/edge.rs` diffs them against the observed
+entry points (`EdgeState`: the zone's plan from `plan.legacy_id`, and five phases) and
+plans `CreateEdgeRule` → `UpdateEdgeRule` → `DeleteEdgeRule` (from the end of each phase,
+so undo re-inserts every rule at its old position), checks each quota and adds
+`Warning::EdgeQuota`. Free zones get no rate limit (it can't match a hostname there); a
+different limit on a full quota is `PlanError::EdgeRateLimitConflict`. Rules are changed
+one by one (`POST`/`PATCH`/`DELETE …/rules/{id}`), never a whole ruleset; a rule is
+Teitunnel's if its description has the marker or its id is in `edge_rules`.
+
+Service tokens: `CreateServiceToken` → `AllowServiceToken` (adds the new token to the
+Service Auth policy, decision `non_identity`, of Teitunnel's Access application for the
+hostname, or creates an application only tokens pass); revoke is `UpdateAccessApp` (or
+`DeleteAccessApp` when nothing is left) → `DeleteServiceToken` (last: irreversible).
+`Engine::apply_issuing` returns the credentials of tokens created or rotated, only when
+the plan applied; they're never stored or recorded. Route edits keep the Machines policy
+(`keep_machines`), and removing a route's login keeps a machine-only application while
+tokens use it. `core::protection` is the service layer the app, the CLI and agents share;
+the app keeps a new secret in `IssuedSecrets` (memory, 10 minutes) and copies it to the
+clipboard from Rust, so it never crosses IPC.
 
 ## 5. Runtime
 
@@ -246,9 +337,26 @@ macOS always-on: `~/Library/LaunchAgents/com.teispace.teitunnel.connector.<tunne
 
 ### 5.3 Quick Share
 
-`cloudflared tunnel --no-autoupdate --output json --metrics 127.0.0.1:<port> --url <origin>`. The public URL comes from `GET /quicktunnel` → `{"hostname": "…trycloudflare.com"}`, polled until present, with a 20 s timeout. Several Quick Shares can run at once, one process each. Optional auto-stop timer.
+`cloudflared tunnel --config <data dir>/quick-share.yml --no-autoupdate --output json --metrics 127.0.0.1:<port> [--http-host-header <host>] --url <origin>`. The config file is Teitunnel's own, empty (`{}`), rewritten at every start, so a leftover `~/.cloudflared/config.yml` (whose ingress rules would win over `--url`) is never read. The public URL comes from `GET /quicktunnel` → `{"hostname": "…trycloudflare.com"}`, polled until present, with a 20 s timeout. Once live, the share is checked once through the edge like a route (§4.5) and the result is kept on the share. New shares of Vite, webpack-dev-server and Angular dev servers (from discovery) send the server's own address as the Host header unless told otherwise; changing the header restarts the share's cloudflared, which gives it a new URL. Several Quick Shares can run at once, one process each. Optional auto-stop timer.
 
-### 5.4 Adoption of foreign processes
+With the inspector (default, setting **Inspect Quick Shares**; per share `inspect`), `--url` is the share's Lens tap (`http://127.0.0.1:<random>`), which forwards to the origin and sets the Host header itself (Lens `HostHeader::Custom`), so changing the header updates the tap at once and keeps the URL. Turning inspection on or off restarts cloudflared (new URL).
+
+### 5.5 The inspector (`core::inspect`, M12-02)
+
+One `Inspector` per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`) owns a lazily started Lens. Taps have a scope: a Quick Share (tap id = share id) or a route (`rt-<digest>-<random>`, new each run). Captures live in Lens's ring (1,000 per tap) through `inspect::history::Captures`, which also sends finished exchanges, masked (`record.rs`: credential headers, secret query/form/JSON values, token-like strings; text bodies decoded and masked; 64 KiB per body), to a writer task that batches them into `lens_exchanges` (24 h by default, 5,000 per tap, 256 MB in all); `load()` restores recent history into memory at start. Other processes read that table (`history*` functions: `teitunnel traffic`). Settings are one JSON value (`inspector`) in `settings`.
+
+- **Routes** (`inspect::routes`): inspecting is an `UpdateRoute` through plan → apply pointing the service at the tap (access and origin options kept); the original service is stored first in `inspected_routes` with the owner (`app` or a CLI process). Reverted on off, on quit (the app sweeps its own rows before exiting), at the next launch (rows from the last run), and when a CLI owner exits (swept every 30 s). The Doctor's `inspect.orphan` reports a rule still pointing at a tap address nobody listens on, fixed by the stored restore change.
+- **Events**: taps changed, watched path hit, idle limit reached (the host stops the share: `QuickShares::watch_idle`, the app for domain shares, the CLI for its own).
+- **Live view**: `inspect::follow` coalesces Lens events into `LiveBatch`es every 100 ms (IPC `inspect_subscribe` Channel).
+- **Secrets**: webhook signing secrets per scope (`host:<hostname>` or `origin:<service>`) and provider, and bearer tokens per hostname, only in the keychain (`inspect::secrets`).
+- **Analytics**: `inspect::analytics::LensSource` answers first for routes a tap inspects.
+- **Presets** (`inspect::expose`): MCP server probe (Streamable HTTP `initialize`, SSE `endpoint`), local AI server probe (Ollama, LM Studio, vLLM), client configurations, and exposing a service on a domain share through a bearer-gated tap.
+
+### 5.5a Local HTTPS domains (`core::local_domains`, M12-07)
+
+`LocalDomains` (one per process that serves them: the app, `teitunnel local-domain add|serve`) serves the `local_domains` registry through the process's `Inspector`: each domain is a hosted tap (`TapScope::LocalDomain`, `ld-<digest>-<random>`, `Inspector::start_hosted`; capture on only with `inspect`), and two listeners route by host: HTTPS (443, else 8443) with `CheckedTls` (rustls through `tokio-rustls`, certificates from `localdomains::SniResolver` over a `DomainRegistry` of the HTTPS domains, so a handshake for any other name fails) and plain HTTP (80, else 8080) with Lens's `Routing::HttpsRedirect` (308 to HTTPS for HTTPS domains, served for HTTP-only ones). Both acceptors check the peer before anything is read: loopback and this computer's interface addresses (`if-addrs`) always; private-network peers only with LAN access on, and over TLS only for `.local` SNI. Listeners bind loopback (`127.0.0.1` plus `::1`), or the wildcard address when macOS refuses a low port on loopback, a `.local` domain exists or LAN access is on. `.test` names get a `DnsResponder` on `127.0.0.1:53535` (53 on Windows) and `.local` names an `MdnsAdvertiser`. The CA is loaded or made once (`LocalCa::load_or_create`, key through `KeychainCaStore` over `SecretStore`, account `localdomains:ca`; its public certificate at `<data>/localdomains/ca.pem` for the installers); leaves live only in memory (30 days, renewed 10 days before expiry). `run()` ticks every 30 s: restarts dead listeners, renews hourly and after a wake (a gap of more than 90 s), re-advertises mDNS and refreshes the peer check's addresses. Trust goes through a `TrustBackend` port (`SystemTrust` over `localdomains::TrustManager`; `FileTrust` when `TEITUNNEL_TEST_TRUST_FILE` is set). The `.test` resolver entry, the Linux system store and low-port fixes are `PrivilegedAction`s shown as copyable commands, run through `pkexec` on Linux with consent. The Doctor adds `local.*` checks (`local_domains::diagnose`) with `Fix::LocalDomains`. Project files' `localDomains` are applied by `project::apply_local_domains`; backups copy the table. The CLI saves to the registry and asks the running app to `localDomains.reload`, or serves from the terminal.
+
+### 5.6 Adoption of foreign processes
 
 At startup and on demand, `sysinfo` finds running `cloudflared` processes not started by Teitunnel. We probe candidate metrics ports (`20241..20245` plus any `--metrics` found in the process arguments) and show them as **Discovered** with Import / Adopt / Ignore. We never read secrets from other processes' arguments or environment.
 
@@ -309,7 +417,15 @@ SQLite (`rusqlite`, bundled) at `<app_data>/teitunnel.db`, WAL mode, file mode 0
 | `routes_meta` | route_id ↔ (tunnel_id, hostname, path): stable ids, since Cloudflare ingress rules have none |
 | `activity` | id, ts, plan_id, intent, step, status, error, before/after JSON |
 | `quick_shares` | history (origin, url, start/stop) |
+| `snapshots` | Snapshots Teitunnel published: account, name, Worker, hostname, source, settings flags (no password), expiry, live version |
+| `snapshot_versions` | the last 10 versions per Snapshot: Cloudflare version id, manifest (path → hash, size), `_headers`/`_redirects` |
+| `edge_rules` | ownership index of Teitunnel's edge rules: rule id, zone, phase, hostname (none for a shared rate limit), kind (migration 15) |
+| `service_tokens` | Teitunnel's Access service tokens: id, hostname, name, client id, expiry; never the secret (migration 15) |
 | `metrics_rollup` | tunnel_id, minute, requests, errors, status_2xx…5xx, concurrent_max, connections_min, rtt_sum_ms, rtt_samples |
+| `inspected_routes` | routes pointed at an inspector: account, hostname, path, tunnel, original service, login, tap address, owner (§5.5) |
+| `lens_taps` | taps this machine ran: id, scope, name, service, public URL, owner, start/stop |
+| `lens_exchanges` | the inspector's history, masked (§5.5): id, tap, seq, time, method, host, path, status, kind, meta JSON, bodies |
+| `local_domains` | local HTTPS domains: name, target JSON (port, URL), wildcard, https, inspect, project, created_at (migration 17; the CA key is in the keychain) |
 | `settings` | key/value JSON |
 
 App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (`bin/`, `tokens/` (0700), `teitunnel.db`). Logs go to `~/Library/Logs/com.teispace.teitunnel/`.
@@ -329,6 +445,42 @@ App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (
 - **Change notification:** one typed event, `EntityChanged { kind, id? }`, is emitted after anything changes. The UI maps `kind` to TanStack Query keys and invalidates them. No hand-written sync code.
 - **Streams:** logs, metrics and plan progress use `tauri::ipc::Channel<T>` per subscription, batched every ~100 ms, and cancelled when the subscriber drops.
 - **Long operations** (binary download, plan apply, verify) return immediately with an operation id, then report progress on a channel.
+
+### 10.1 Control connection (M12-07)
+
+The app listens (unless Settings ▸ Integrations turns it off) on `<data>/control/sock`
+(Unix socket, 0600, in a 0700 folder; peers must run as the same uid) or a named pipe with
+a random name recorded in `<data>/control/pipe` (DACL: the current user only; remote
+clients refused; first instance). `<data>/control/token` (0600, made once per install) is
+presented in `hello`. Messages are newline-delimited JSON-RPC 2.0, at most 1 MiB; `hello`
+must come within 5 s; requests are rate-limited per connection (token bucket 40/20 s⁻¹,
+12 changes a minute, 8 in flight, 32 connections) and time out (60 s, changes 180 s).
+
+| Method | Core call |
+|---|---|
+| `status`, `shares.list` | accounts, local tunnels + connector state, `QuickShares::list`, domain shares, `cli_shares::list` |
+| `shares.start` / `shares.stop` | `QuickShares::start` (waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
+| `routes.list` | `Engine::overview` |
+| `routes.preview` / `routes.apply` | `intent_for` → `preview` / `apply` by fingerprint, `with_actor(via: "control")` |
+| `open` | `Ui::open` → `OpenView` event → the webview navigates |
+| `doctor.run` | `doctor::run` plus local-domain issues, minus ignored issues |
+| `localDomains.list` / `localDomains.reload` | `LocalDomains::status` / `sync` then `status` (no approval: it only re-reads the app's own database) |
+| `events.subscribe` | notifications from `EntityChanged` (shares, routes) and `requestArrived` (inspector) |
+
+Changes (`shares.start`, `shares.stop`, `routes.apply`) go through the server's gate:
+unless the client's name is in `integrations.clients` ("Always Allow"), the host asks with a
+native dialog (`Ui::confirm`, a sheet on the main window); `confirmed: true` (records
+Teitunnel didn't create) is asked every time. `teitunnel://` links go through the same host
+(`deeplink::LinkHandler`): sharing always asks, never "always", one question at a time;
+opening a view doesn't ask. The `tauri-plugin-deep-link` scheme is registered by the
+bundles (Info.plist, NSIS registry, `.desktop` MimeType); single-instance forwards links to
+the running app on Windows and Linux. Settings keys `controlEnabled`, `deepLinksEnabled`,
+`controlClients` live in the `settings` table (no migration).
+
+The CLI connects with `ControlClient` (`apps/cli/src/app.rs`): `share` uses the app when it
+answers (`--app` requires it, `--here` never), `shares`/`routes`/`status`/`top` read
+through it. Shell completion (`teitunnel __complete`, scripts from `completions`) reads
+names from the database read-only (`core::completion`) and never the network.
 
 ---
 
@@ -384,3 +536,5 @@ Rules:
 | Installer (dmg) | < 15 MB. cloudflared is downloaded on demand. |
 
 Bundle size is checked in CI. Startup and memory are measured manually per release and recorded in the release notes.
+
+The desktop package declares `sideEffects` (only CSS and `main.tsx`), so importing one hook or badge through a feature's `index.ts` doesn't pull that feature's pages into the initial JS. A new module that must run only for its side effects has to be added there.

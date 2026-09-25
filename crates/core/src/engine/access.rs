@@ -113,7 +113,9 @@ impl AccessRule {
     }
 
     fn from_policies(policies: &[AccessPolicy]) -> Option<Self> {
-        let [policy] = policies else {
+        // The machines' (Service Auth) policy says nothing about people.
+        let people: Vec<&AccessPolicy> = policies.iter().filter(|p| !is_machines(p)).collect();
+        let [policy] = people.as_slice() else {
             return None;
         };
         if policy.decision != "allow" {
@@ -190,7 +192,7 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
         )
         .collect();
     NewAccessApp {
-        name: format!("Teitunnel · {domain}"),
+        name: format!("{}{domain}", cf_api::TEITUNNEL_PREFIX),
         domain: domain.to_owned(),
         kind: "self_hosted".into(),
         session_duration: "24h".into(),
@@ -201,7 +203,110 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
             decision: "allow".into(),
             include,
             precedence: Some(1),
+            reusable: false,
+            app_count: None,
         }],
+    }
+}
+
+/// The name of the Service Auth policy Teitunnel adds for service tokens.
+pub(crate) const MACHINES_POLICY: &str = "Machines";
+
+/// Whether a policy is a Service Auth policy of service tokens only (machines).
+pub(crate) fn is_machines(policy: &AccessPolicy) -> bool {
+    policy.decision == "non_identity"
+        && !policy.include.is_empty()
+        && policy
+            .include
+            .iter()
+            .all(|rule| cf_api::rule_service_token(rule).is_some())
+}
+
+/// The service tokens an application's definition lets through.
+pub(crate) fn service_tokens_of(app: &NewAccessApp) -> Vec<String> {
+    app.policies
+        .iter()
+        .filter(|p| is_machines(p))
+        .flat_map(|p| p.include.iter().filter_map(cf_api::rule_service_token))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// An application for `domain` that only service tokens pass (no login for people).
+pub(crate) fn machine_only_definition(domain: &str) -> NewAccessApp {
+    NewAccessApp {
+        name: format!("{}{domain}", cf_api::TEITUNNEL_PREFIX),
+        domain: domain.to_owned(),
+        kind: "self_hosted".into(),
+        session_duration: "24h".into(),
+        app_launcher_visible: false,
+        policies: Vec::new(),
+    }
+}
+
+/// `app` also letting in the service token `id` (added to its Machines policy, which
+/// comes first so machines never see a login page).
+pub(crate) fn with_service_token(app: &NewAccessApp, id: &str) -> NewAccessApp {
+    let mut app = app.clone();
+    let rule = cf_api::service_token_rule(id);
+    match app.policies.iter_mut().find(|p| is_machines(p)) {
+        Some(policy) => {
+            if !policy.include.contains(&rule) {
+                policy.include.push(rule);
+            }
+        }
+        None => app.policies.insert(
+            0,
+            AccessPolicy {
+                id: None,
+                name: MACHINES_POLICY.into(),
+                decision: "non_identity".into(),
+                include: vec![rule],
+                precedence: None,
+                reusable: false,
+                app_count: None,
+            },
+        ),
+    }
+    renumber(&mut app);
+    app
+}
+
+/// `app` no longer letting in the service token `id` (its Machines policy goes when
+/// it's empty).
+pub(crate) fn without_service_token(app: &NewAccessApp, id: &str) -> NewAccessApp {
+    let mut app = app.clone();
+    let rule = cf_api::service_token_rule(id);
+    for policy in app.policies.iter_mut().filter(|p| is_machines(p)) {
+        policy.include.retain(|r| *r != rule);
+    }
+    app.policies
+        .retain(|p| !(p.decision == "non_identity" && p.include.is_empty()));
+    renumber(&mut app);
+    app
+}
+
+/// Keeps `from`'s Machines policies in `to` (a change of who may log in mustn't lock
+/// machines out).
+pub(crate) fn keep_machines(to: &NewAccessApp, from: &NewAccessApp) -> NewAccessApp {
+    let mut app = to.clone();
+    let machines: Vec<AccessPolicy> = from
+        .policies
+        .iter()
+        .filter(|p| is_machines(p))
+        .cloned()
+        .collect();
+    app.policies.retain(|p| !is_machines(p));
+    for (i, policy) in machines.into_iter().enumerate() {
+        app.policies.insert(i, policy);
+    }
+    renumber(&mut app);
+    app
+}
+
+fn renumber(app: &mut NewAccessApp) {
+    for (policy, precedence) in app.policies.iter_mut().zip(1u32..) {
+        policy.precedence = Some(precedence);
     }
 }
 
@@ -296,14 +401,62 @@ impl AccessNeed {
                 domains: vec![domain.clone()],
                 ..Self::default()
             },
-            Intent::ImportRoutes { .. }
+            Intent::PublishSnapshot { site, .. } => {
+                let domains: Vec<String> = site
+                    .access
+                    .as_ref()
+                    .and(site.address.hostname())
+                    .map(ToString::to_string)
+                    .into_iter()
+                    .collect();
+                Self {
+                    setup: !domains.is_empty(),
+                    domains,
+                    owned: false,
+                }
+            }
+            Intent::UpdateSnapshot { site, .. } => {
+                let domains: Vec<String> = site
+                    .access
+                    .as_ref()
+                    .and(site.address.hostname())
+                    .map(ToString::to_string)
+                    .into_iter()
+                    .collect();
+                Self {
+                    setup: !domains.is_empty(),
+                    domains,
+                    owned: site.address.hostname().is_some(),
+                }
+            }
+            Intent::DeleteSnapshot { site } => Self {
+                owned: site.address.hostname().is_some(),
+                ..Self::default()
+            },
+            Intent::CreateServiceToken { hostname, .. } => Self {
+                setup: true,
+                domains: vec![hostname.to_string()],
+                owned: false,
+            },
+            Intent::RevokeServiceToken { hostname, .. } => Self {
+                domains: vec![hostname.to_string()],
+                ..Self::default()
+            },
+            Intent::ProtectHostname { .. }
+            | Intent::RotateServiceToken { .. }
+            | Intent::RollbackSnapshot { .. }
+            | Intent::ImportRoutes { .. }
             | Intent::DeleteRecord { .. }
             | Intent::RestoreConfig { .. }
             | Intent::AddNetwork { .. }
             | Intent::RemoveNetwork { .. }
             | Intent::CreateTunnel { .. }
             | Intent::BalanceRoute { .. }
-            | Intent::UnbalanceRoute { .. } => Self::default(),
+            | Intent::UnbalanceRoute { .. }
+            | Intent::Reserve { .. }
+            | Intent::Release { .. }
+            | Intent::SetOfflinePage { .. }
+            | Intent::SetInbox { .. } => Self::default(),
         }
     }
 
@@ -411,5 +564,36 @@ mod tests {
             .include
             .push(json!({"ip": {"ip": "10.0.0.0/8"}}));
         assert_eq!(AccessRule::from_app(&custom), None);
+    }
+
+    #[test]
+    fn service_tokens_join_and_leave_the_machines_policy() {
+        let people = app_definition("app.xyz.com", &rule(&["me@xyz.com"], &[]));
+        let one = with_service_token(&people, "tok1");
+        assert_eq!(one.policies.len(), 2);
+        assert_eq!(one.policies[0].decision, "non_identity", "machines first");
+        assert_eq!(one.policies[1].precedence, Some(2));
+        assert_eq!(
+            AccessRule::from_new(&one),
+            AccessRule::from_new(&people),
+            "the people allowed are still read"
+        );
+        let two = with_service_token(&one, "tok2");
+        assert_eq!(service_tokens_of(&two), ["tok1", "tok2"]);
+        assert_eq!(with_service_token(&two, "tok2"), two, "added once");
+        assert_eq!(without_service_token(&two, "tok1").policies.len(), 2);
+        assert_eq!(
+            without_service_token(&one, "tok1").policies,
+            people.policies
+        );
+        // Changing who may log in keeps the machines.
+        let others = app_definition("app.xyz.com", &rule(&[], &["team.io"]));
+        assert_eq!(
+            service_tokens_of(&keep_machines(&others, &two)),
+            ["tok1", "tok2"]
+        );
+        let machines = with_service_token(&machine_only_definition("api.xyz.com"), "tok9");
+        assert_eq!(AccessRule::from_new(&machines), None);
+        assert!(without_service_token(&machines, "tok9").policies.is_empty());
     }
 }

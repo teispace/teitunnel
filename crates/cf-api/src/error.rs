@@ -49,7 +49,19 @@ impl Error {
     /// Whether the credential was rejected or lacks permission (401/403, or code
     /// 10000 "Authentication error").
     pub fn is_auth(&self) -> bool {
-        matches!(self.status(), Some(401 | 403)) || self.codes().contains(&10000)
+        !self.is_not_enabled()
+            && (matches!(self.status(), Some(401 | 403)) || self.codes().contains(&10000))
+    }
+
+    /// Whether the product isn't turned on for the account (Zero Trust / Access:
+    /// `access.api.error.not_enabled`), which isn't a permission problem.
+    pub fn is_not_enabled(&self) -> bool {
+        match self {
+            Self::Api { errors, .. } => errors
+                .iter()
+                .any(|e| e.message.starts_with("access.api.error.not_enabled")),
+            _ => false,
+        }
     }
 }
 

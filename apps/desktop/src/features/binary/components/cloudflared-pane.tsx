@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
-import { GroupedRow, GroupedSection } from "@/components/patterns/grouped-list";
+import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -25,7 +25,7 @@ export function CloudflaredPane() {
   const reveal = useRevealBinary();
   const progress = describeProgress(install.progress);
 
-  if (!isSuccess) return null;
+  if (!isSuccess) return <SkeletonSection rows={3} />;
   if (!binary?.supported) return <BinaryNotice binary={binary ?? null} />;
 
   const managed = binary.source === "managed";
@@ -45,7 +45,7 @@ export function CloudflaredPane() {
         </GroupedRow>
         <GroupedRow label={t("binary.location")}>
           <CopyField label={t("binary.path")} value={binary.path} className="w-72" />
-          <Button size="sm" onClick={() => reveal.mutate()}>
+          <Button size="sm" pending={reveal.isPending} onClick={() => reveal.mutate()}>
             {t("binary.reveal")}
           </Button>
         </GroupedRow>
@@ -92,7 +92,7 @@ export function CloudflaredPane() {
           </GroupedRow>
         ) : (
           <GroupedRow label={t("binary.byInstaller")} description={t("binary.byInstallerDetail")}>
-            <Button size="sm" onClick={() => install.mutate()} disabled={install.isPending}>
+            <Button size="sm" onClick={() => install.mutate()} pending={install.isPending}>
               {t("binary.useOurs")}
             </Button>
           </GroupedRow>

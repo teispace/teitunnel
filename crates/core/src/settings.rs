@@ -22,6 +22,37 @@ pub enum Theme {
     Dark,
 }
 
+/// Hours when alerts are recorded but don't notify, in minutes after local midnight.
+/// `from` after `to` spans midnight (22:00–07:00).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct QuietHours {
+    /// Whether quiet hours apply.
+    pub enabled: bool,
+    /// Start, minutes after midnight.
+    pub from: u16,
+    /// End, minutes after midnight.
+    pub to: u16,
+}
+
+impl Default for QuietHours {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            from: 22 * 60,
+            to: 7 * 60,
+        }
+    }
+}
+
+impl QuietHours {
+    /// Whether `minute` (after local midnight) is quiet.
+    pub fn contains(&self, minute: u16) -> bool {
+        crate::alerts::is_quiet(self.enabled, self.from, self.to, minute)
+    }
+}
+
 /// All preferences, with defaults applied.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -37,8 +68,18 @@ pub struct Settings {
     pub notify_quick_shares: bool,
     /// Notify when the Doctor finds a new error.
     pub notify_doctor: bool,
+    /// Notify about alerts (routes down or back, errors, slowness).
+    pub notify_alerts: bool,
+    /// When alerts and connector notices stay quiet.
+    pub quiet_hours: QuietHours,
     /// Check for app updates by itself (at launch and daily).
     pub check_for_updates: bool,
+    /// The one-time "Install teitunnel?" offer was answered (Install or Not now), on
+    /// installs where the CLI isn't put on the PATH by the installer (D-090).
+    pub cli_offer_dismissed: bool,
+    /// Check a service for common leaks (`.env`, `.git`, debug pages…) before sharing it
+    /// or adding a route to it.
+    pub exposure_check: bool,
     /// Doctor issues the user chose to ignore (stable issue ids). Changed with
     /// [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
     pub ignored_issues: Vec<String>,
@@ -52,7 +93,11 @@ impl Default for Settings {
             notify_connectors: true,
             notify_quick_shares: true,
             notify_doctor: true,
+            notify_alerts: true,
+            quiet_hours: QuietHours::default(),
             check_for_updates: true,
+            cli_offer_dismissed: false,
+            exposure_check: true,
             ignored_issues: Vec::new(),
         }
     }
@@ -78,9 +123,21 @@ pub struct SettingsPatch {
     /// Doctor notifications on or off.
     #[serde(default)]
     pub notify_doctor: Option<bool>,
+    /// Alert notifications on or off.
+    #[serde(default)]
+    pub notify_alerts: Option<bool>,
+    /// New quiet hours.
+    #[serde(default)]
+    pub quiet_hours: Option<QuietHours>,
     /// Automatic update checks on or off.
     #[serde(default)]
     pub check_for_updates: Option<bool>,
+    /// The command line offer answered.
+    #[serde(default)]
+    pub cli_offer_dismissed: Option<bool>,
+    /// The exposure check on or off.
+    #[serde(default)]
+    pub exposure_check: Option<bool>,
 }
 
 const THEME: &str = "theme";
@@ -88,8 +145,12 @@ const SHOW_IN_MENU_BAR: &str = "showInMenuBar";
 const NOTIFY_CONNECTORS: &str = "notifyConnectors";
 const NOTIFY_QUICK_SHARES: &str = "notifyQuickShares";
 const NOTIFY_DOCTOR: &str = "notifyDoctor";
+const NOTIFY_ALERTS: &str = "notifyAlerts";
+const QUIET_HOURS: &str = "quietHours";
 const IGNORED_ISSUES: &str = "ignoredIssues";
 const CHECK_FOR_UPDATES: &str = "checkForUpdates";
+const CLI_OFFER_DISMISSED: &str = "cliOfferDismissed";
+const EXPOSURE_CHECK: &str = "exposureCheck";
 
 /// Loads all settings.
 ///
@@ -108,8 +169,15 @@ pub async fn load(store: &Store) -> Result<Settings, StoreError> {
                 notify_quick_shares: read(conn, NOTIFY_QUICK_SHARES)?
                     .unwrap_or(defaults.notify_quick_shares),
                 notify_doctor: read(conn, NOTIFY_DOCTOR)?.unwrap_or(defaults.notify_doctor),
+                notify_alerts: read(conn, NOTIFY_ALERTS)?.unwrap_or(defaults.notify_alerts),
+                quiet_hours: read::<QuietHours>(conn, QUIET_HOURS)?
+                    .filter(|q| q.from < 24 * 60 && q.to < 24 * 60)
+                    .unwrap_or(defaults.quiet_hours),
                 check_for_updates: read(conn, CHECK_FOR_UPDATES)?
                     .unwrap_or(defaults.check_for_updates),
+                cli_offer_dismissed: read(conn, CLI_OFFER_DISMISSED)?
+                    .unwrap_or(defaults.cli_offer_dismissed),
+                exposure_check: read(conn, EXPOSURE_CHECK)?.unwrap_or(defaults.exposure_check),
                 ignored_issues: read(conn, IGNORED_ISSUES)?.unwrap_or(defaults.ignored_issues),
             })
         })
@@ -139,8 +207,25 @@ pub async fn update(store: &Store, patch: SettingsPatch) -> Result<Settings, Sto
             if let Some(on) = patch.notify_doctor {
                 write(&tx, NOTIFY_DOCTOR, &on)?;
             }
+            if let Some(on) = patch.notify_alerts {
+                write(&tx, NOTIFY_ALERTS, &on)?;
+            }
+            if let Some(quiet) = patch.quiet_hours {
+                let quiet = QuietHours {
+                    from: quiet.from.min(24 * 60 - 1),
+                    to: quiet.to.min(24 * 60 - 1),
+                    ..quiet
+                };
+                write(&tx, QUIET_HOURS, &quiet)?;
+            }
             if let Some(on) = patch.check_for_updates {
                 write(&tx, CHECK_FOR_UPDATES, &on)?;
+            }
+            if let Some(done) = patch.cli_offer_dismissed {
+                write(&tx, CLI_OFFER_DISMISSED, &done)?;
+            }
+            if let Some(on) = patch.exposure_check {
+                write(&tx, EXPOSURE_CHECK, &on)?;
             }
             tx.commit()?;
             Ok(())
@@ -179,7 +264,7 @@ pub async fn set_ignored(
     load(store).await
 }
 
-fn read<T: DeserializeOwned>(
+pub(crate) fn read<T: DeserializeOwned>(
     conn: &rusqlite::Connection,
     key: &str,
 ) -> Result<Option<T>, StoreError> {
@@ -199,7 +284,7 @@ fn read<T: DeserializeOwned>(
     }))
 }
 
-fn write<T: Serialize>(
+pub(crate) fn write<T: Serialize>(
     conn: &rusqlite::Connection,
     key: &str,
     value: &T,
@@ -297,6 +382,41 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(load(&store).await.unwrap().theme, Theme::System);
+    }
+
+    #[tokio::test]
+    async fn remembers_the_answered_cli_offer() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(!load(&store).await.unwrap().cli_offer_dismissed);
+        let patch: SettingsPatch = serde_json::from_str(r#"{"cliOfferDismissed":true}"#).unwrap();
+        let after = update(&store, patch).await.unwrap();
+        assert!(after.cli_offer_dismissed);
+        assert!(after.show_in_menu_bar, "other settings keep their values");
+        assert!(load(&store).await.unwrap().cli_offer_dismissed);
+    }
+
+    #[tokio::test]
+    async fn stores_alert_notifications_and_quiet_hours() {
+        let store = Store::open_in_memory().unwrap();
+        let before = load(&store).await.unwrap();
+        assert!(before.notify_alerts);
+        assert!(!before.quiet_hours.enabled);
+        let patch: SettingsPatch = serde_json::from_str(
+            r#"{"notifyAlerts":false,"quietHours":{"enabled":true,"from":1380,"to":9999}}"#,
+        )
+        .unwrap();
+        let after = update(&store, patch).await.unwrap();
+        assert!(!after.notify_alerts);
+        assert_eq!(
+            after.quiet_hours,
+            QuietHours {
+                enabled: true,
+                from: 23 * 60,
+                to: 24 * 60 - 1
+            }
+        );
+        assert!(after.quiet_hours.contains(23 * 60 + 30));
+        assert!(!after.quiet_hours.contains(12 * 60));
     }
 
     #[test]

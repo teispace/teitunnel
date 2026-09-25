@@ -7,6 +7,17 @@
 /// "Cloudflare Tunnel: Edit" if it's missing, and capability probing catches it.
 /// `access` (Access: Apps and Policies) and `access_acct` (Access: Organizations,
 /// Identity Providers, and Groups) let routes require a login from the start (D-065).
+/// `analytics` (Zone ▸ Analytics ▸ Read) is what the zone-scoped GraphQL traffic
+/// datasets need; `account_analytics` (Account Analytics ▸ Read) covers the
+/// account-scoped ones (research/cloudflare-analytics.md).
+/// `workers_scripts` (account) and `workers_routes` (zone) publish Snapshots and give
+/// them a hostname (docs/research/cloudflare-snapshots.md).
+/// `zone_waf` (custom and rate limiting rules), `zone_transform_rules` (header rules;
+/// `transform_rules` is the account-level group) and `access_service_token` protect
+/// hostnames at the edge (M12-04). `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments
+/// and webhook inboxes. None of these is in Cloudflare's documented key table; all were
+/// checked against the dashboard's pre-filled form on 2026-09-25
+/// (docs/research/cloudflare-edge-rules.md).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -14,6 +25,14 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("account_settings", "read"),
     ("access", "edit"),
     ("access_acct", "edit"),
+    ("analytics", "read"),
+    ("account_analytics", "read"),
+    ("workers_scripts", "edit"),
+    ("workers_routes", "edit"),
+    ("zone_waf", "edit"),
+    ("zone_transform_rules", "edit"),
+    ("access_service_token", "edit"),
+    ("d1", "edit"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions
@@ -59,6 +78,25 @@ mod tests {
         let access_acct = "%7B%22key%22%3A%22access_acct%22%2C%22type%22%3A%22edit%22%7D";
         // Logins need both Access groups, asked for up front (D-065).
         assert!(url.contains(access) && url.contains(access_acct));
+        // Analytics reads traffic per hostname (zone) and per account.
+        assert!(url.contains("%7B%22key%22%3A%22analytics%22%2C%22type%22%3A%22read%22%7D"));
+        assert!(
+            url.contains("%7B%22key%22%3A%22account_analytics%22%2C%22type%22%3A%22read%22%7D")
+        );
+        // Snapshots: Workers Scripts (account) and Workers Routes (zones).
+        assert!(url.contains("%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D"));
+        assert!(url.contains("%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D"));
+        // Edge protection (rules, header rules, service tokens) and D1.
+        for key in [
+            "zone_waf",
+            "zone_transform_rules",
+            "access_service_token",
+            "d1",
+        ] {
+            assert!(url.contains(&format!(
+                "%7B%22key%22%3A%22{key}%22%2C%22type%22%3A%22edit%22%7D"
+            )));
+        }
         // Same encoding as Cloudflare's own example for `[{"key":"dns","type":"edit"}]`.
         assert_eq!(
             percent_encode(r#"[{"key":"dns","type":"edit"}]"#),

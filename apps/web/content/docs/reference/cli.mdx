@@ -1,55 +1,134 @@
 ---
 title: Command line
-description: "The teitunnel-cli reference: add routes, share ports and manage Cloudflare Tunnel from the terminal, with every command, option and origin setting."
+description: "The teitunnel reference: add routes, share ports and manage Cloudflare Tunnel from the terminal, with every command, option and origin setting."
 ---
 
-`teitunnel-cli` works with the accounts you connected in the app. Every change goes
+`teitunnel` works with the accounts you connected in the app. Every change goes
 through the same preview as the app: you see the plan before anything changes.
 
 ## Install it
 
-The app includes it. Turn it on in **Settings ▸ General ▸ Command line ▸ Install**:
+The app puts the `teitunnel` command on your PATH:
 
-- **macOS:** a link in Homebrew's `bin` (or `/usr/local/bin`). If Teitunnel can't write
-  there, Settings shows the one `sudo ln -s …` command to run instead.
-- **Windows:** a copy in your user's `WindowsApps` folder, which is already on your PATH.
-- **Linux:** the `.deb` and `.rpm` put it in `/usr/bin`; with the AppImage, it goes to
-  `~/.local/bin`.
+- **Windows:** the installer does it (a copy in your user's `WindowsApps` folder, which is
+  already on the PATH), and uninstalling removes it.
+- **Linux:** the `.deb` and `.rpm` install `/usr/bin/teitunnel`. With the AppImage,
+  Teitunnel offers once, after setup, to put it in `~/.local/bin`.
+- **macOS:** Teitunnel offers once, after setup, to link it into Homebrew's `bin` (or
+  `/usr/local/bin`; if it can't write there, it shows the one `sudo ln -s …` command to
+  run). Installed with Homebrew (`brew install --cask teispace/tap/teitunnel`), it's linked
+  for you.
 
-It updates with the app. For servers without the app, download it on its own from the
+You can add or remove it any time in **Settings ▸ General ▸ Command line**. It updates with
+the app. For servers without the app, download it on its own from the
 [download page](/download/#cli).
 
 ## Commands
 
 ```sh
-teitunnel-cli routes                         # this machine's routes and their status
-teitunnel-cli route add app.example.com 3000 # route a hostname to localhost:3000
-teitunnel-cli route add api.example.com 8000 --path '^/v1/'
-teitunnel-cli route add admin.example.com 3000 --allow me@example.com --allow @example.com
-teitunnel-cli route remove app.example.com
-teitunnel-cli route balance app.example.com  # load balance across machines (paid add-on)
-teitunnel-cli network add 192.168.1.0/24     # let WARP users reach a range
-teitunnel-cli networks                       # the ranges this machine shares
-teitunnel-cli network remove 192.168.1.0/24
-teitunnel-cli export terraform > teitunnel.tf
-teitunnel-cli tunnels                        # this machine's tunnels
-teitunnel-cli tunnel create staging          # another tunnel for this machine
-teitunnel-cli route add beta.example.com 4000 --tunnel staging
-teitunnel-cli tunnel delete staging
-teitunnel-cli accounts
-teitunnel-cli share 3000 --for 30m          # a temporary public URL, until Ctrl-C
-teitunnel-cli share 3000 --on demo.example.com  # the same, on your own domain
-teitunnel-cli shares                        # shares on your domains, from anywhere
-teitunnel-cli shares --stop demo.example.com
-teitunnel-cli doctor                        # check for problems; exits 1 on an error
-teitunnel-cli doctor --fix                  # apply the safe fixes
-teitunnel-cli setup                         # store an API token in the keychain
-teitunnel-cli up                            # run this machine's tunnels (servers, Docker)
-teitunnel-cli always-on on                  # as a service (a system unit as root)
-teitunnel-cli routes --check                # exit 1 unless every route is live
-teitunnel-cli serve                         # tunnels + web dashboard and API
-teitunnel-cli api-key create deploy         # a key for the API (shown once)
+teitunnel routes                         # this machine's routes and their status
+teitunnel route add app.example.com 3000 # route a hostname to localhost:3000
+teitunnel route add api.example.com 8000 --path '^/v1/'
+teitunnel route add admin.example.com 3000 --allow me@example.com --allow @example.com
+teitunnel route remove app.example.com
+teitunnel route balance app.example.com  # load balance across machines (paid add-on)
+teitunnel network add 192.168.1.0/24     # let WARP users reach a range
+teitunnel networks                       # the ranges this machine shares
+teitunnel network remove 192.168.1.0/24
+teitunnel export terraform > teitunnel.tf
+teitunnel tunnels                        # this machine's tunnels
+teitunnel tunnel create staging          # another tunnel for this machine
+teitunnel route add beta.example.com 4000 --tunnel staging
+teitunnel tunnel delete staging
+teitunnel accounts
+teitunnel status                        # is the app running, and what does it serve?
+teitunnel top                           # a live dashboard (q quits)
+teitunnel share 3000                    # a temporary public URL (in the app when it runs)
+teitunnel share 3000 --here --for 30m   # in this terminal, until Ctrl-C or 30 minutes
+teitunnel share 3000 --on demo.example.com  # the same, on your own domain
+teitunnel shares                        # every share: the app's, terminals', your domains'
+teitunnel shares --stop demo.example.com
+teitunnel shares --pause demo.example.com # a paused page; the address stays
+teitunnel shares --resume demo.example.com
+teitunnel share 3000 --on {branch}.dev.example.com  # named after the git branch
+teitunnel share 3000 --on               # the name used in this folder last time
+teitunnel share ./dist                  # share a folder of files
+teitunnel share ./dist --on docs.example.com --spa
+teitunnel schedule demo.example.com mon-fri 09:00-18:00  # on during office hours
+teitunnel schedules                     # every schedule, and when each changes next
+teitunnel schedule demo.example.com --off
+teitunnel share 3000 --no-inspect       # skip the inspector (on by default)
+teitunnel share 8000 --mcp --on mcp.example.com  # an MCP server for remote AI clients
+teitunnel share 11434 --ai              # a local AI server behind a bearer token
+teitunnel token mcp.example.com         # the token a shared MCP or AI server expects
+teitunnel inspect app.example.com       # a route's requests, until Ctrl-C
+teitunnel inspect app.example.com --off # restore a route left inspected
+teitunnel traffic ls --status 5xx       # captured requests (see Inspector)
+teitunnel traffic get 7f3a9c1b --format curl
+teitunnel traffic watch --path /webhooks
+teitunnel traffic replay 7f3a9c1b --set-header 'X-Debug: 1'
+teitunnel traffic export --har requests.har
+teitunnel traffic clear
+teitunnel traffic openapi --out api.yaml # an OpenAPI 3.1 file from captured requests
+teitunnel analytics                     # traffic of every route, from Cloudflare's edge
+teitunnel analytics app.example.com --range week
+teitunnel uptime                        # uptime of this machine's routes
+teitunnel doctor                        # check for problems; exits 1 on an error
+teitunnel doctor --fix                  # apply the safe fixes
+teitunnel setup                         # store an API token in the keychain
+teitunnel up                            # run this machine's tunnels (servers, Docker)
+teitunnel always-on on                  # as a service (a system unit as root)
+teitunnel routes --check                # exit 1 unless every route is live
+teitunnel serve                         # tunnels + web dashboard, API and /mcp
+teitunnel api-key create deploy         # a key for the API (shown once)
+teitunnel snapshot publish ./dist --on preview.example.com  # a copy online while you sleep
+teitunnel snapshot publish . --build     # build the project, then publish its output
+teitunnel snapshot ls                    # Snapshots, their addresses and versions
+teitunnel snapshot rollback preview.example.com
+teitunnel snapshot publish dist --name web-pr-7 --on pr-7.example.com --or-update --yes --json  # CI
+teitunnel snapshot rm pr-7.example.com --missing-ok --yes
+teitunnel local-domain add shop.test 3000 # https://shop.test on this computer
+teitunnel local-domain trust             # browsers accept local domains
+teitunnel local-domain ls                # local domains and whether they're served
+teitunnel local-domain status            # CA, trust, ports, .test names, what to fix
+teitunnel reserve alice.dev.example.com --until 2026-12-31  # hold a name for yourself
+teitunnel reservations ls                # reserved names and who holds them
+teitunnel release alice.dev.example.com
+teitunnel cloudflared install            # a verified cloudflared (servers, CI)
+teitunnel protect app.example.com --bots challenge --block-ai  # rules at Cloudflare's edge
+teitunnel protect app.example.com --rate-limit 30/1m    # Pro plans and up
+teitunnel protect app.example.com --off                 # remove Teitunnel's rules
+teitunnel service-token create api.example.com --name CI  # for machines; secret printed once
+teitunnel service-token ls api.example.com
+teitunnel service-token revoke api.example.com CI
+teitunnel comments ls                    # shares and Snapshots with review comments
+teitunnel comments ls preview.example.com --all  # its threads, resolved ones too
+teitunnel comments reply preview.example.com c1a2b3 "Fixed, thanks"
+teitunnel comments resolve preview.example.com c1a2b3   # --reopen to reopen
+teitunnel snapshot publish ./dist --on preview.example.com --comments  # reviewers can comment
+teitunnel offline app.example.com --title "Back soon"   # your page instead of error 1033
+teitunnel offline app.example.com --off
+teitunnel inbox add app.example.com /webhooks/ --days 7  # keep webhooks while you're away
+teitunnel inbox secret app.example.com stripe < secret.txt  # keychain; for --verify
+teitunnel inbox items app.example.com /webhooks/        # arrivals and deliveries
+teitunnel inbox deliver                  # deliver waiting webhooks now
+teitunnel inbox rm app.example.com /webhooks/
+teitunnel project init                   # a starter teitunnel.yml for this folder
+teitunnel project check                  # every problem in it, with line and column
+teitunnel project diff                   # what applying it would change (nothing changes)
+teitunnel project apply                  # apply it; its shares run until Ctrl-C
+teitunnel up                             # in a folder with teitunnel.yml: apply it, then run
+teitunnel project down --remove-routes   # stop its shares, remove the routes it created
+teitunnel backup create                  # an encrypted copy of this setup (no tokens)
+teitunnel backup restore teitunnel-setup.teitunnel-backup
+teitunnel mcp install cursor            # connect an AI tool (see AI agents)
+teitunnel mcp status                    # which AI tools are connected
+teitunnel mcp                           # the MCP server itself (clients start it)
 ```
+
+The MCP commands are described in [AI agents](/docs/guides/ai-agents/), the project
+commands in [Project files](/docs/guides/project-file/), `backup` in
+[Move to a new computer](/docs/guides/move-computer/).
 
 | Option | Meaning |
 |---|---|
@@ -57,25 +136,102 @@ teitunnel-cli api-key create deploy         # a key for the API (shown once)
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
 | `--allow <email or @domain>` | `route add`: require a login; repeat for more people ([Require a login](/docs/guides/require-login)). |
 | `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or sharing a public range ([Private networks](/docs/guides/private-networks)). |
+| `--take-over` | Take a hostname someone else holds (their reservation, or another machine's route) ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). Without it, the command exits with status 3. |
 | `--tunnel <name>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
-| `--json` | Machine-readable output for `accounts`, `routes`, `tunnels` and `doctor`. |
+| `--json` | Machine-readable output for `accounts`, `routes`, `shares`, `status`, `tunnels`, `doctor`, `analytics`, `uptime`, `reservations` and `snapshot`; `share --json` prints `{"url", "hostname"}` once it's live. |
+| `--app` | `share`, `shares`, `routes`, `top`: go through the running app, and fail if it isn't running. |
+| `--here` | `share`, `top`: don't use the app even when it runs (`share` then lasts as long as the command). |
+| `--range <hour\|day\|week\|month>` | `analytics`: how far back (default `day`); `--path` narrows it to a route's path ([Analytics](/docs/guides/analytics)). |
 | `--for <duration>` | `share`: stop by itself after `90s`, `30m` or `2h` (a bare number is minutes). |
 | `--no-qr` | `share`: don't print a QR code. |
+| `--host-header <host>` | `share`: send this Host header to the service, e.g. `localhost:5173` ([dev servers](/docs/tutorials/dev-servers)). By default Vite, webpack and Angular dev servers get their own address. |
+| `--no-host-header` | `share`: pass the visitor's Host header through unchanged, even to a dev server. |
+| `--no-inspect` | `share`: send requests straight to the service instead of through the [inspector](/docs/guides/inspector). |
+| `--on [hostname]` | `share`: a hostname on your domain. `{project}`, `{branch}` and `{user}` are filled in from this folder; `--on` alone uses the name last used here ([Sharing extras](/docs/guides/sharing/)). |
+| `--listing`, `--spa` | `share <folder>`: list the files of folders without an index page; serve `index.html` for every page (single-page apps). |
+| `--schedule "<days> HH:MM-HH:MM"`, `--tz <zone>` | `share --on`, `schedule`: on only during these hours, e.g. `mon-fri 09:00-18:00`, in this time zone (default: this computer's). |
+| `--pause <hostname>`, `--resume <hostname>` | `shares`: show a paused page at a share on your domain (or a route) and serve it again; through the app when it runs. |
+| `--out <file>`, `--yaml`, `--title` | `traffic openapi`: write the description to a file (YAML for `.yaml`), print YAML, name it ([OpenAPI from traffic](/docs/guides/openapi/)). |
+| `-q, --quiet` | `share`: don't print a line for each request. |
+| `--idle <duration>` | `share`: stop after this long without a request. |
+| `--watch <path>` | `share`: say so when a request hits this path, e.g. `/webhooks/*` (repeatable). |
+| `--mcp`, `--mcp-path <path>` | `share`: put a local MCP server online on your domain (`--on` is required) behind a bearer token, with client configurations printed ([Inspector](/docs/guides/inspector)). |
+| `--ai` | `share`: share Ollama, LM Studio or vLLM behind a bearer token and print the OpenAI-compatible base URL. |
+| `--new-token` | `share --mcp`/`--ai --on`: make a new token instead of the one saved for the hostname. |
+| `--last <n>`, `--host`, `--method`, `--status`, `--path`, `--kind`, `--text` | `traffic ls`/`watch`/`export`: which captured requests. |
+| `--format <markdown\|curl\|httpie\|fetch\|http\|har\|json>` | `traffic get`: how to show a request. |
+| `--set-header`, `--method`, `--path`, `--body <text or @file>`, `--times <n>` | `traffic replay`: edits and repetitions. |
 | `--fix` | `doctor`: apply the fixes that only touch what Teitunnel created, each through a plan. |
+| `--strict` | `share`, `route add`, `project apply`, `up`: stop when the [exposure check](/docs/guides/exposure-check/) finds a leak (by default it only warns). |
+| `-f, --file <path>` | `project …`, `up`: the project file, or a folder with one (default: this folder, or the nearest one above it in the repository). |
+| `--no-project` | `up`: don't apply a teitunnel.yml, even if there is one. |
+| `--remove-routes` | `project down`: also remove the routes applying the project created (never ones that were there before). |
+| `--passphrase-stdin` | `backup create`, `backup restore`: read the passphrase from the first line of standard input. |
+| `--build`, `--crawl <url>`, `--password`, `--expires 7d` | `snapshot publish`: build the project first, capture a running site, ask visitors for a password, delete it later ([Snapshots](/docs/guides/snapshots)). |
+| `--bots <off\|challenge\|block>`, `--block-ai`, `--allow-ai` | `protect`: automated clients and AI crawlers on one hostname ([Edge protection](/docs/guides/protection)). |
+| `--rate-limit <n/period[:block\|challenge]>`, `--no-rate-limit` | `protect`: e.g. `30/1m` or `100/10s:challenge`; periods 10s, 1m, 2m, 5m, 10m, 1h, within the plan's limit. |
+| `--set-request-header K:V`, `--remove-request-header K`, `--set-response-header K:V`, `--add-response-header K:V`, `--remove-response-header K`, `--clear-headers` | `protect`: header rules (repeatable); `--off` removes every rule Teitunnel added. Without options, `protect` shows what the hostname has. |
+| `--wildcard`, `--no-https`, `--inspect` | `local-domain add`: subdomains too, plain HTTP only, record requests ([Local domains](/docs/guides/local-domains/)). |
+| `--no-serve`, `--here` | `local-domain add`/`serve`: only save it; serve from this terminal even when the app runs. Without the app, `add` and `serve` serve until Ctrl-C. |
+| `--browsers`, `--firefox` | `local-domain trust`: also Chrome's and Firefox's own certificate lists; Firefox's "trust the system" setting. `untrust --forget` also deletes the certificate authority. |
+| `--name <label>` | `service-token create`: what the token is for (default `CLI`). The headers are printed once on standard output. |
+| `--comments`, `--no-comments` | `snapshot publish`/`update`: let reviewers pin comments to the pages ([Comments](/docs/guides/comments)). |
+| `--all` | `comments ls <subject>`: include resolved threads. |
+| `--title`, `--message`, `--when-app-down`, `--off` | `offline`: the page shown while this computer is off; without options, shows what the route has ([Offline page](/docs/guides/offline-page)). |
+| `--max <n>`, `--days <n>`, `--verify <github\|stripe\|standard>` | `inbox add`: how many webhooks are kept, for how long, and whether only signed ones are ([Webhook inbox](/docs/guides/webhook-inbox)). The signing secret is read by `inbox secret` from `TEITUNNEL_WEBHOOK_SECRET` or standard input, never the command line. |
 
 Routes are served by the app while it's open, all the time with
 [Always-on](/docs/concepts/run-modes) (`always-on on` from the CLI), or by
-`teitunnel-cli up` on a server or in a container. Without the app, give the API token in
+`teitunnel up` on a server or in a container. Without the app, give the API token in
 `CLOUDFLARE_API_TOKEN` or `CLOUDFLARE_API_TOKEN_FILE`; it's never stored
 ([Servers and containers](/docs/guides/servers)). After adding a
 route, the CLI checks it through Cloudflare and exits with status 1 if it doesn't work yet.
 
-`share` is the exception: it runs a Quick Share for exactly as long as the command. Ctrl-C,
-closing the terminal or `--for` stops it. The URL is the only line on standard output, so
-`URL=$(teitunnel-cli share 3000 | head -1)` works in scripts. `share` doesn't need an
-account, only cloudflared (the app's copy, or one on your system).
+## With the app running
+
+When the Teitunnel app is running, `teitunnel` uses it through its
+[control connection](/docs/guides/integrations/):
+
+- `teitunnel share 3000` asks the app to share the port. The share shows up in the app's
+  Quick Share and keeps running after the command ends; stop it there or with
+  `teitunnel shares --stop <url>`. The first time, the app asks you to allow the command
+  line (choose **Always Allow** to not be asked again). `--for` still works, and `--here`
+  shares from the terminal instead.
+- `teitunnel shares` lists the app's shares too, and `--stop` stops any of them.
+- `teitunnel routes` shows the status the app's connectors report.
+- `teitunnel status` says whether the app runs, its tunnels and what it shares.
+
+Without the app every command works on its own, as below.
+
+## Sharing from the terminal
+
+Without the app (or with `--here`), `share` runs a Quick Share for exactly as long as the
+command. Ctrl-C, closing the terminal or `--for` stops it. The URL is the only line on standard output, so
+`URL=$(teitunnel share 3000 | head -1)` works in scripts. `share` doesn't need an
+account, only cloudflared (the app's copy, or one on your system). Once the URL is live,
+`share` checks it through Cloudflare and, if your dev server refuses the address or the
+service streams events a Quick Share can't carry, says what to do on standard error; it keeps
+sharing either way.
+
+Exit status: 0 when it worked, 1 when it didn't, 2 for a mistyped command, and 3 when a
+hostname is held by someone else (a share never takes one; other commands need
+`--take-over`). `share --on` runs the tunnel's connector itself when neither the app nor
+an Always-on service does (a server, a CI job; see [Previews in CI](/docs/guides/ci-previews)).
+
+Shares go through the [inspector](/docs/guides/inspector) unless you pass `--no-inspect`:
+each request is printed on standard error (`--quiet` stops that) and kept for
+`teitunnel traffic`. `teitunnel traffic` reads the inspector's history in the app's
+database, written by the app and by every `teitunnel` command with an inspector, with
+credentials masked; so `traffic get --reveal` can't show them, and a replay from history
+leaves masked headers out (set them again with `--set-header`). `teitunnel inspect` shows
+the plan that points a route at its inspector, and points it back when the command ends.
 
 `doctor` runs the app's checks and hides the issues you ignored there.
+
+Before `share` and `route add` make a service public, the
+[exposure check](/docs/guides/exposure-check/) looks at it for leaks (a `.env` file, the git
+folder, debug pages…) and prints what it finds on standard error; `--strict` makes that an
+error (exit status 1) instead of a warning.
 
 ## Origin settings
 
@@ -83,9 +239,9 @@ account, only cloudflared (the app's copy, or one on your system).
 defaults):
 
 ```sh
-teitunnel-cli route add secure.example.com https://localhost:8443 --no-tls-verify
-teitunnel-cli route add app.example.com 5173 --host-header localhost
-teitunnel-cli route add slow.example.com 8000 --connect-timeout 60 --keep-alive-timeout 300
+teitunnel route add secure.example.com https://localhost:8443 --no-tls-verify
+teitunnel route add app.example.com 5173 --host-header localhost
+teitunnel route add slow.example.com 8000 --connect-timeout 60 --keep-alive-timeout 300
 ```
 
 | Flag | Setting |
@@ -102,15 +258,42 @@ teitunnel-cli route add slow.example.com 8000 --connect-timeout 60 --keep-alive-
 | `--no-happy-eyeballs` | `noHappyEyeballs` |
 | `--proxy-type socks` | `proxyType` |
 
+## teitunnel top
+
+`teitunnel top` is a live view of your shares (address, service, age, requests per
+second), routes (a status dot, where they go, uptime over 24 hours), traffic, and the
+requests of a share the app inspects. It reads from the app when it runs; otherwise from
+this machine's records (then you can see and stop terminals' shares, but not start new
+ones).
+
+| Key | Does |
+|---|---|
+| `q`, `Esc` | quit (`Esc` first clears a filter) |
+| `Tab` | next pane |
+| `↑` `↓`, `j` `k` | select |
+| `s` | share a port (through the app) |
+| `x` `x` | stop the selected share (press twice) |
+| `c` | copy the selected URL (through the terminal, so it works over SSH too) |
+| `/` | filter everything by text |
+| `?` | the keys |
+
+It follows the terminal's size and uses no colour when `NO_COLOR` is set.
+
 ## Shell completions
 
+Completions include your own names: hostnames of your routes, tunnels, domains, shares and
+accounts, read from this machine's records without going online.
+
 ```sh
-teitunnel-cli completions zsh > ~/.zfunc/_teitunnel-cli   # zsh (with ~/.zfunc in fpath)
-teitunnel-cli completions bash > ~/.local/share/bash-completion/completions/teitunnel-cli
-teitunnel-cli completions fish > ~/.config/fish/completions/teitunnel-cli.fish
+source <(teitunnel completions zsh)                  # zsh, in ~/.zshrc
+eval "$(teitunnel completions bash)"                 # bash, in ~/.bashrc
+teitunnel completions fish > ~/.config/fish/completions/teitunnel.fish
+teitunnel completions powershell | Out-String | Invoke-Expression  # in $PROFILE
 ```
 
-PowerShell and Elvish are supported too.
+For zsh you can also save the script as `_teitunnel` in a folder on your `fpath`. The
+script asks `teitunnel` for suggestions on every Tab. `--static` prints a script with only
+commands and flags that never runs `teitunnel`; Elvish gets that one.
 
-The first time it reads your Cloudflare token, macOS asks whether `teitunnel-cli` may use
+The first time it reads your Cloudflare token, macOS asks whether `teitunnel` may use
 the keychain item Teitunnel created. Choose **Always Allow** to not be asked again.

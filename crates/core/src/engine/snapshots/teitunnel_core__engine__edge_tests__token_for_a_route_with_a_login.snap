@@ -1,0 +1,7 @@
+---
+source: crates/core/src/engine/edge_tests.rs
+expression: view(&p)
+---
+- - Create service token “Teitunnel · api.xyz.com · CI” (valid for a year)
+  - Let the service token through the login on api.xyz.com
+- []

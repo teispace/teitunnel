@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
+use super::sites::{SiteContent, SiteFile, SiteSettings, SiteSpec};
 use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
 use crate::text::Text;
 
@@ -125,6 +126,34 @@ pub struct Snapshot {
     /// Load balancing for the hostname involved; read only when a change involves it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<super::balance::BalanceState>,
+    /// A Snapshot's Worker; read only when a change involves one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub site: Option<super::sites::SiteState>,
+    /// The hostnames involved that someone else holds (another machine's route, or a
+    /// reservation that hasn't ended).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub held: Vec<super::ownership::Hold>,
+    /// Who this is, written into the DNS comments Teitunnel makes (not part of the
+    /// fingerprint).
+    #[serde(skip)]
+    pub owner: String,
+    /// When it was observed (milliseconds since the epoch; not part of the fingerprint).
+    #[serde(skip)]
+    pub now: u64,
+    /// A zone's edge rules; read only when a change protects a hostname.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edge: Option<super::edge::EdgeState>,
+    /// The account's Access service tokens; read only when a change involves one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tokens: Option<Vec<super::edge::ObservedServiceToken>>,
+    /// The account's D1 database for comments and inboxes; read only when a change
+    /// needs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<super::front::DatabaseState>,
+    /// Worker routes on the hostname (offline page, webhook inbox); read only when a
+    /// change involves them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub front: Option<super::front::FrontState>,
 }
 
 impl Snapshot {
@@ -240,6 +269,104 @@ pub enum Intent {
         /// The ingress Teitunnel last applied.
         ingress: Vec<IngressRule>,
     },
+    /// Publish a new Snapshot.
+    PublishSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+        /// How it answers.
+        settings: SiteSettings,
+        /// Its files.
+        content: SiteContent,
+    },
+    /// Publish a new version of a Snapshot (new files and/or settings), and bring its
+    /// login in line with `site.access`.
+    UpdateSnapshot {
+        /// The Snapshot, with the login it should have.
+        site: SiteSpec,
+        /// How the new version answers.
+        settings: SiteSettings,
+        /// Its files.
+        content: SiteContent,
+        /// The live version's files (to count what changed).
+        previous: Vec<SiteFile>,
+    },
+    /// Make an earlier version of a Snapshot live again.
+    RollbackSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+        /// Cloudflare's id of the version.
+        version_id: String,
+        /// Its number, for messages.
+        number: u32,
+    },
+    /// Delete a Snapshot: its address, login and Worker.
+    DeleteSnapshot {
+        /// The Snapshot.
+        site: SiteSpec,
+    },
+    /// Reserve a hostname for this owner (a lease in DNS, M12-11).
+    Reserve {
+        /// The hostname.
+        hostname: Hostname,
+        /// When the lease ends (milliseconds since the epoch); `None`: never.
+        until: Option<u64>,
+    },
+    /// Give up the reservation of a hostname.
+    Release {
+        /// The hostname.
+        hostname: Hostname,
+    },
+    /// Make Cloudflare's edge enforce `protection` for one hostname (bots, AI crawlers,
+    /// a rate limit, header rules); the default removes Teitunnel's rules.
+    ProtectHostname {
+        /// The hostname.
+        hostname: Hostname,
+        /// What to enforce.
+        protection: super::edge::EdgeProtection,
+    },
+    /// Create a service token that passes the hostname's login (for machines).
+    CreateServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// What it's for, e.g. `CI`.
+        label: String,
+    },
+    /// Stop a service token passing the hostname's login and delete it.
+    RevokeServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// Token id.
+        token_id: String,
+    },
+    /// Give a service token a new secret.
+    RotateServiceToken {
+        /// The hostname.
+        hostname: Hostname,
+        /// Token id.
+        token_id: String,
+    },
+    /// Show a page of the person's own instead of Cloudflare's error while this computer
+    /// is off (`None` removes it).
+    SetOfflinePage {
+        /// The hostname.
+        hostname: Hostname,
+        /// The page.
+        page: Option<super::front::OfflinePage>,
+    },
+    /// Keep webhooks to a path while this computer is off and deliver them later
+    /// (`None` removes the inbox; waiting webhooks stay until their retention ends).
+    SetInbox {
+        /// The hostname.
+        hostname: Hostname,
+        /// The path, e.g. `/webhooks/`.
+        path: String,
+        /// Its settings.
+        inbox: Option<super::front::InboxSettings>,
+        /// A new signing secret to send (from the keychain; never serialized). `None`
+        /// keeps the one the Worker has.
+        #[serde(skip)]
+        secret: Option<crate::Secret<String>>,
+    },
 }
 
 impl Intent {
@@ -253,7 +380,15 @@ impl Intent {
             Self::RemoveRoute { hostname, .. }
             | Self::DeleteRecord { hostname, .. }
             | Self::BalanceRoute { hostname }
-            | Self::UnbalanceRoute { hostname } => Some(vec![hostname]),
+            | Self::UnbalanceRoute { hostname }
+            | Self::Reserve { hostname, .. }
+            | Self::Release { hostname }
+            | Self::ProtectHostname { hostname, .. }
+            | Self::CreateServiceToken { hostname, .. }
+            | Self::RevokeServiceToken { hostname, .. }
+            | Self::RotateServiceToken { hostname, .. }
+            | Self::SetOfflinePage { hostname, .. }
+            | Self::SetInbox { hostname, .. } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -261,6 +396,21 @@ impl Intent {
             | Self::RemoveNetwork { .. }
             | Self::CreateTunnel { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
+            Self::PublishSnapshot { site, .. }
+            | Self::UpdateSnapshot { site, .. }
+            | Self::RollbackSnapshot { site, .. }
+            | Self::DeleteSnapshot { site } => Some(site.address.hostname().into_iter().collect()),
+        }
+    }
+
+    /// The Snapshot a change is about.
+    pub fn site(&self) -> Option<&SiteSpec> {
+        match self {
+            Self::PublishSnapshot { site, .. }
+            | Self::UpdateSnapshot { site, .. }
+            | Self::RollbackSnapshot { site, .. }
+            | Self::DeleteSnapshot { site } => Some(site),
+            _ => None,
         }
     }
 
@@ -303,6 +453,64 @@ impl Intent {
             Self::CreateTunnel { name } => m::create_tunnel(name),
             Self::BalanceRoute { hostname } => m::balance_route(hostname),
             Self::UnbalanceRoute { hostname } => m::unbalance_route(hostname),
+            Self::PublishSnapshot { site, content, .. } => {
+                crate::text::msg::snapshot::summary::publish(
+                    content.files.len() as u64,
+                    &site.name,
+                    site.label(),
+                )
+            }
+            Self::UpdateSnapshot { site, .. } => {
+                crate::text::msg::snapshot::summary::update(&site.name)
+            }
+            Self::RollbackSnapshot { site, number, .. } => {
+                crate::text::msg::snapshot::summary::rollback(&site.name, u64::from(*number))
+            }
+            Self::DeleteSnapshot { site } => {
+                crate::text::msg::snapshot::summary::delete(&site.name)
+            }
+            Self::Reserve { hostname, until } => match until {
+                Some(until) => crate::text::msg::reservations::summary::reserve_until(
+                    hostname,
+                    super::ownership::format_until(*until),
+                ),
+                None => crate::text::msg::reservations::summary::reserve(hostname),
+            },
+            Self::Release { hostname } => {
+                crate::text::msg::reservations::summary::release(hostname)
+            }
+            Self::ProtectHostname {
+                hostname,
+                protection,
+            } => {
+                if protection.is_off() {
+                    crate::text::msg::protection::summary::unprotect(hostname)
+                } else {
+                    crate::text::msg::protection::summary::protect(hostname)
+                }
+            }
+            Self::CreateServiceToken { hostname, label } => {
+                crate::text::msg::protection::summary::create_token(label, hostname)
+            }
+            Self::RevokeServiceToken { hostname, .. } => {
+                crate::text::msg::protection::summary::revoke_token(hostname)
+            }
+            Self::RotateServiceToken { hostname, .. } => {
+                crate::text::msg::protection::summary::rotate_token(hostname)
+            }
+            Self::SetOfflinePage { hostname, page } => match page {
+                Some(_) => crate::text::msg::front::summary::offline_on(hostname),
+                None => crate::text::msg::front::summary::offline_off(hostname),
+            },
+            Self::SetInbox {
+                hostname,
+                path,
+                inbox,
+                ..
+            } => match inbox {
+                Some(_) => crate::text::msg::front::summary::inbox_on(format!("{hostname}{path}")),
+                None => crate::text::msg::front::summary::inbox_off(format!("{hostname}{path}")),
+            },
         }
     }
 }
@@ -324,6 +532,16 @@ pub struct PoolEndpoint {
     pub tunnel: TunnelRef,
     /// Its name (the endpoint's name).
     pub name: String,
+}
+
+/// Which service token a step refers to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "id", rename_all = "camelCase")]
+pub enum TokenRef {
+    /// One that exists.
+    Existing(String),
+    /// The one created earlier in the same plan.
+    Created,
 }
 
 /// Which tunnel a step refers to.
@@ -496,6 +714,253 @@ pub enum Step {
         /// Hostname.
         hostname: String,
     },
+    /// Upload the files of a Snapshot version that Cloudflare doesn't have yet.
+    UploadSnapshotFiles {
+        /// The Worker.
+        script: String,
+        /// The files.
+        content: SiteContent,
+        /// Files new or changed since the live version.
+        changed_files: u64,
+        /// Their size.
+        changed_bytes: u64,
+    },
+    /// Create the Snapshot's Worker with the uploaded files (live at once; it has no
+    /// address yet).
+    CreateSnapshotWorker {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// How it answers.
+        settings: SiteSettings,
+    },
+    /// Upload a new version with the uploaded files, then make it live.
+    PublishSnapshotVersion {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// How it answers.
+        settings: SiteSettings,
+        /// The version live before, for rollback.
+        previous: Option<String>,
+    },
+    /// Make an earlier version live again.
+    RollBackSnapshot {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+        /// The version to make live.
+        version_id: String,
+        /// Its number.
+        number: u32,
+        /// The version live before, for rollback.
+        previous: Option<String>,
+    },
+    /// Answer on the account's workers.dev subdomain.
+    EnableWorkersDev {
+        /// The Worker.
+        script: String,
+        /// The address, for review.
+        address: String,
+    },
+    /// Stop answering on workers.dev.
+    DisableWorkersDev {
+        /// The Worker.
+        script: String,
+        /// The address, for review.
+        address: String,
+    },
+    /// Serve a hostname with the Snapshot (Cloudflare adds the DNS record).
+    AttachSnapshotDomain {
+        /// Zone id.
+        zone_id: String,
+        /// The hostname.
+        hostname: String,
+        /// The Worker.
+        script: String,
+    },
+    /// Stop serving a hostname with the Snapshot.
+    DetachSnapshotDomain {
+        /// The Custom Domain, for rollback.
+        domain: cf_api::WorkerDomain,
+    },
+    /// Delete the Snapshot's Worker with every version (always the last step).
+    DeleteSnapshotWorker {
+        /// Local Snapshot id.
+        snapshot: String,
+        /// The Worker.
+        script: String,
+    },
+    /// Hold a hostname nobody routes with a placeholder record (a proxied `AAAA 100::`
+    /// carrying the lease in its comment).
+    CreateReservation {
+        /// Zone id.
+        zone_id: String,
+        /// The hostname.
+        hostname: String,
+        /// When the lease ends (milliseconds since the epoch); `None`: never.
+        until: Option<u64>,
+    },
+    /// Change the lease a Teitunnel record carries (only its comment changes).
+    SetLease {
+        /// Zone id.
+        zone_id: String,
+        /// The record as it is (for rollback and review).
+        record: DnsRecord,
+        /// Whether it holds a reservation afterwards.
+        lease: bool,
+        /// When the lease ends.
+        until: Option<u64>,
+    },
+    /// Add one of Teitunnel's rules to a phase (creating its entry point when the zone
+    /// has none).
+    CreateEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase.
+        phase: String,
+        /// Its entry point ruleset, if the zone has one.
+        ruleset_id: Option<String>,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covers.
+        hostnames: Vec<String>,
+        /// The rule.
+        rule: cf_api::NewRule,
+    },
+    /// Change one of Teitunnel's rules.
+    UpdateEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase's entry point ruleset.
+        ruleset_id: String,
+        /// Rule id.
+        rule_id: String,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covers afterwards.
+        hostnames: Vec<String>,
+        /// The new definition.
+        rule: cf_api::NewRule,
+        /// What it was, for rollback.
+        previous: cf_api::NewRule,
+    },
+    /// Remove one of Teitunnel's rules.
+    DeleteEdgeRule {
+        /// Zone id.
+        zone_id: String,
+        /// The phase.
+        phase: String,
+        /// The phase's entry point ruleset.
+        ruleset_id: String,
+        /// Rule id.
+        rule_id: String,
+        /// Which rule.
+        kind: super::edge::RuleKind,
+        /// The hostnames it covered.
+        hostnames: Vec<String>,
+        /// What it was, for rollback.
+        previous: cf_api::NewRule,
+        /// Its 1-based position, to put it back there.
+        position: u32,
+    },
+    /// Create an Access service token (its secret is shown once).
+    CreateServiceToken {
+        /// The hostname it's for.
+        hostname: String,
+        /// Its name.
+        name: String,
+    },
+    /// Let a service token through the hostname's login: adds it to the "Machines"
+    /// (Service Auth) policy of Teitunnel's Access application, creating an application
+    /// only machines pass when there's none.
+    AllowServiceToken {
+        /// The Access domain.
+        domain: String,
+        /// Teitunnel's application for it, if there is one, and its definition.
+        app: Option<(String, NewAccessApp)>,
+        /// The token.
+        token: TokenRef,
+    },
+    /// Delete a service token (always after its policy stopped using it).
+    DeleteServiceToken {
+        /// The token.
+        token: super::edge::ObservedServiceToken,
+    },
+    /// Give a service token a new secret.
+    RotateServiceToken {
+        /// The token.
+        token: super::edge::ObservedServiceToken,
+    },
+    /// Create the account's D1 database for comments and webhook inboxes, with its
+    /// tables.
+    CreateDatabase {
+        /// Its name.
+        name: String,
+    },
+    /// Upload (or replace) a Worker in front of a route: the offline page or a webhook
+    /// inbox. It serves nothing until its route exists.
+    PutFrontWorker {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The Worker.
+        script: String,
+        /// What it's deployed with.
+        config: super::front::FrontConfig,
+        /// What it had before, when it's replaced (for rollback).
+        previous: Option<super::front::FrontConfig>,
+        /// The D1 database (inboxes).
+        database: Option<super::front::DatabaseRef>,
+        /// A new signing secret (never serialized).
+        #[serde(skip)]
+        secret: Option<crate::Secret<String>>,
+    },
+    /// Run a front Worker for requests matching a pattern (fails open).
+    CreateWorkerRoute {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// E.g. `app.example.com/*`.
+        pattern: String,
+        /// The Worker.
+        script: String,
+        /// Which Worker.
+        kind: super::front::FrontKind,
+        /// The inbox path (`""` for the offline page).
+        path: String,
+    },
+    /// Stop running a front Worker for a pattern.
+    DeleteWorkerRoute {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The route (for rollback and review).
+        route: cf_api::WorkerRoute,
+        /// Which Worker.
+        kind: super::front::FrontKind,
+        /// The inbox path.
+        path: String,
+    },
+    /// Delete a front Worker (after its route).
+    DeleteFrontWorker {
+        /// The hostname.
+        hostname: String,
+        /// Its zone.
+        zone_id: String,
+        /// The Worker.
+        script: String,
+        /// What it was deployed with (to put it back on rollback).
+        previous: super::front::FrontConfig,
+        /// The D1 database it used.
+        database: Option<String>,
+    },
 }
 
 impl Step {
@@ -544,6 +1009,128 @@ impl Step {
             Self::DeleteLbPool { pool } => m::delete_lb_pool(&pool.name),
             Self::DeleteLbMonitor { .. } => m::delete_lb_monitor(),
             Self::Verify { hostname } => m::verify(hostname),
+            Self::UploadSnapshotFiles {
+                content,
+                changed_files,
+                changed_bytes,
+                ..
+            } => crate::text::msg::snapshot::step::upload(
+                *changed_files,
+                content.files.len() as u64,
+                crate::text::msg::raw(super::sites::format_bytes(*changed_bytes)),
+            ),
+            Self::CreateSnapshotWorker { script, .. } => {
+                crate::text::msg::snapshot::step::create_worker(script)
+            }
+            Self::PublishSnapshotVersion { .. } => crate::text::msg::snapshot::step::publish(),
+            Self::RollBackSnapshot { number, .. } => {
+                crate::text::msg::snapshot::step::roll_back(u64::from(*number))
+            }
+            Self::EnableWorkersDev { address, .. } => {
+                crate::text::msg::snapshot::step::enable_workers_dev(address)
+            }
+            Self::DisableWorkersDev { address, .. } => {
+                crate::text::msg::snapshot::step::disable_workers_dev(address)
+            }
+            Self::AttachSnapshotDomain { hostname, .. } => {
+                crate::text::msg::snapshot::step::attach_domain(hostname)
+            }
+            Self::DetachSnapshotDomain { domain } => {
+                crate::text::msg::snapshot::step::detach_domain(&domain.hostname)
+            }
+            Self::DeleteSnapshotWorker { script, .. } => {
+                crate::text::msg::snapshot::step::delete_worker(script)
+            }
+            Self::CreateReservation {
+                hostname, until, ..
+            } => {
+                use crate::text::msg::reservations::step as r;
+                match until {
+                    Some(until) => {
+                        r::create_until(hostname, super::ownership::format_until(*until))
+                    }
+                    None => r::create(hostname),
+                }
+            }
+            Self::SetLease {
+                record,
+                lease,
+                until,
+                ..
+            } => {
+                use crate::text::msg::reservations::step as r;
+                match (lease, until) {
+                    (true, Some(until)) => {
+                        r::keep_until(&record.name, super::ownership::format_until(*until))
+                    }
+                    (true, None) => r::keep(&record.name),
+                    (false, _) => r::end(&record.name),
+                }
+            }
+            Self::CreateEdgeRule {
+                kind,
+                hostnames,
+                rule,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Add, *kind, hostnames, rule),
+            Self::UpdateEdgeRule {
+                kind,
+                hostnames,
+                rule,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Change, *kind, hostnames, rule),
+            Self::DeleteEdgeRule {
+                kind,
+                hostnames,
+                previous,
+                ..
+            } => super::edge::describe_rule(super::edge::Verb::Remove, *kind, hostnames, previous),
+            Self::CreateServiceToken { name, .. } => {
+                crate::text::msg::protection::step::create_token(name)
+            }
+            Self::AllowServiceToken { domain, app, .. } => {
+                if app.is_some() {
+                    crate::text::msg::protection::step::allow_token(domain)
+                } else {
+                    crate::text::msg::protection::step::machine_only(domain)
+                }
+            }
+            Self::DeleteServiceToken { token } => {
+                crate::text::msg::protection::step::delete_token(&token.name)
+            }
+            Self::RotateServiceToken { token } => {
+                crate::text::msg::protection::step::rotate_token(&token.name)
+            }
+            Self::CreateDatabase { name } => crate::text::msg::front::step::create_database(name),
+            Self::PutFrontWorker {
+                hostname,
+                config,
+                previous,
+                ..
+            } => {
+                use crate::text::msg::front::step as f;
+                match (config, previous.is_some()) {
+                    (super::front::FrontConfig::Offline { .. }, false) => f::put_offline(hostname),
+                    (super::front::FrontConfig::Offline { .. }, true) => {
+                        f::update_offline(hostname)
+                    }
+                    (super::front::FrontConfig::Inbox { path, .. }, false) => {
+                        f::put_inbox(format!("{hostname}{path}"))
+                    }
+                    (super::front::FrontConfig::Inbox { path, .. }, true) => {
+                        f::update_inbox(format!("{hostname}{path}"))
+                    }
+                }
+            }
+            Self::CreateWorkerRoute { pattern, .. } => {
+                crate::text::msg::front::step::create_route(pattern)
+            }
+            Self::DeleteWorkerRoute { route, .. } => {
+                crate::text::msg::front::step::delete_route(&route.pattern)
+            }
+            Self::DeleteFrontWorker { script, .. } => {
+                crate::text::msg::front::step::delete_worker(script)
+            }
         }
     }
 
@@ -594,6 +1181,111 @@ impl Step {
                 route.network
             )),
             Self::Verify { hostname } => Some(format!("curl -I https://{hostname}")),
+            Self::RollBackSnapshot {
+                script, version_id, ..
+            } => {
+                let body = serde_json::json!({
+                    "strategy": "percentage",
+                    "versions": [{ "version_id": version_id, "percentage": 100 }],
+                });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/scripts/{script}/deployments --data '{body}'"
+                ))
+            }
+            Self::EnableWorkersDev { script, .. } | Self::DisableWorkersDev { script, .. } => {
+                let enabled = matches!(self, Self::EnableWorkersDev { .. });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/scripts/{script}/subdomain --data '{{\"enabled\":{enabled}}}'"
+                ))
+            }
+            Self::AttachSnapshotDomain {
+                zone_id,
+                hostname,
+                script,
+            } => {
+                let body = serde_json::json!({ "hostname": hostname, "zone_id": zone_id, "service": script });
+                Some(format!(
+                    "curl -X PUT {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/workers/domains --data '{body}'"
+                ))
+            }
+            Self::DetachSnapshotDomain { domain } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/workers/domains/{}",
+                domain.id
+            )),
+            Self::DeleteSnapshotWorker { script, .. } | Self::DeleteFrontWorker { script, .. } => {
+                Some(format!(
+                    "curl -X DELETE {auth} '{API}/accounts/{account_id}/workers/scripts/{script}?force=true'"
+                ))
+            }
+            Self::CreateEdgeRule {
+                zone_id,
+                phase,
+                ruleset_id,
+                rule,
+                ..
+            } => {
+                let body = serde_json::to_string(rule).unwrap_or_default();
+                Some(match ruleset_id {
+                    Some(id) => format!(
+                        "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets/{id}/rules --data '{body}'"
+                    ),
+                    None => {
+                        let ruleset = serde_json::json!({
+                            "name": "default", "kind": "zone", "phase": phase, "rules": [rule],
+                        });
+                        format!(
+                            "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets --data '{ruleset}'"
+                        )
+                    }
+                })
+            }
+            Self::UpdateEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                rule,
+                ..
+            } => {
+                let body = serde_json::to_string(rule).unwrap_or_default();
+                Some(format!(
+                    "curl -X PATCH {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id} --data '{body}'"
+                ))
+            }
+            Self::DeleteEdgeRule {
+                zone_id,
+                ruleset_id,
+                rule_id,
+                ..
+            } => Some(format!(
+                "curl -X DELETE {auth} {API}/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+            )),
+            Self::DeleteServiceToken { token } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/access/service_tokens/{}",
+                token.id
+            )),
+            Self::CreateDatabase { name } => {
+                let body = serde_json::json!({ "name": name });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/d1/database --data '{body}'"
+                ))
+            }
+            Self::CreateWorkerRoute {
+                zone_id,
+                pattern,
+                script,
+                ..
+            } => {
+                let body = serde_json::json!({
+                    "pattern": pattern, "script": script, "request_limit_fail_open": true,
+                });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/zones/{zone_id}/workers/routes --data '{body}'"
+                ))
+            }
+            Self::DeleteWorkerRoute { zone_id, route, .. } => Some(format!(
+                "curl -X DELETE {auth} {API}/zones/{zone_id}/workers/routes/{}",
+                route.id
+            )),
             _ => None,
         }
     }
@@ -663,6 +1355,42 @@ pub enum Warning {
         other: String,
         /// The other route's tunnel.
         tunnel: String,
+    },
+    /// Someone else holds the hostname (another machine's route, or a reservation that
+    /// hasn't ended): going ahead takes it over, which needs a confirmation.
+    HeldBy {
+        /// Hostname.
+        hostname: String,
+        /// Who (`person@machine`); `None` when an older Teitunnel made it.
+        owner: Option<String>,
+        /// Until when (milliseconds since the epoch); `None`: no end.
+        #[cfg_attr(feature = "specta", specta(type = Option<f64>))]
+        until: Option<u64>,
+        /// Reserved or routed.
+        kind: super::ownership::HoldKind,
+    },
+    /// How much of a plan quota the zone uses after the change.
+    EdgeQuota {
+        /// Which quota.
+        quota: super::edge::QuotaKind,
+        /// The zone.
+        zone: String,
+        /// Rules after the change (Teitunnel's and others').
+        used: u32,
+        /// What the zone's plan allows.
+        limit: u32,
+    },
+    /// The hostname has no login, so the new one lets in only service tokens: people
+    /// opening it in a browser are refused.
+    MachineOnly {
+        /// The Access domain.
+        domain: String,
+    },
+    /// Every request matching the pattern runs a Worker, counted against the account's
+    /// 100,000 free Worker requests a day (past it the site keeps working without it).
+    WorkerRequests {
+        /// The route pattern.
+        pattern: String,
     },
 }
 

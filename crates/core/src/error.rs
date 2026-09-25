@@ -25,6 +25,46 @@ pub enum Error {
     /// A routes change failed before anything was applied.
     #[error(transparent)]
     Engine(#[from] crate::engine::EngineError),
+    /// Analytics couldn't be read.
+    #[error(transparent)]
+    Analytics(#[from] crate::analytics::AnalyticsError),
+    /// A Snapshot couldn't be prepared or changed.
+    #[error(transparent)]
+    Snapshot(crate::snapshot::SnapshotError),
+    /// The inspector refused or failed.
+    #[error(transparent)]
+    Inspect(crate::inspect::InspectError),
+    /// Comments couldn't be read or written.
+    #[error(transparent)]
+    Comments(crate::comments::CommentsError),
+}
+
+impl From<crate::comments::CommentsError> for Error {
+    fn from(err: crate::comments::CommentsError) -> Self {
+        match err {
+            crate::comments::CommentsError::Store(err) => Self::Store(err),
+            other => Self::Comments(other),
+        }
+    }
+}
+
+impl From<crate::inspect::InspectError> for Error {
+    fn from(err: crate::inspect::InspectError) -> Self {
+        match err {
+            crate::inspect::InspectError::Engine(err) => Self::Engine(err),
+            crate::inspect::InspectError::Store(err) => Self::Store(err),
+            other => Self::Inspect(other),
+        }
+    }
+}
+
+impl From<crate::snapshot::SnapshotError> for Error {
+    fn from(err: crate::snapshot::SnapshotError) -> Self {
+        match err {
+            crate::snapshot::SnapshotError::Engine(err) => Self::Engine(err),
+            other => Self::Snapshot(other),
+        }
+    }
 }
 
 /// A coarse classification of [`Error`] for user-facing handling.
@@ -64,9 +104,8 @@ impl Error {
             Self::QuickShare(Q::NotFound)
             | Self::Runtime(S::NotFound(_))
             | Self::Accounts(A::NotFound) => ErrorKind::NotFound,
-            Self::Accounts(A::InvalidToken | A::NoAccess | A::InvalidCert) => {
-                ErrorKind::InvalidInput
-            }
+            Self::Accounts(A::InvalidToken | A::NoAccess | A::InvalidCert)
+            | Self::QuickShare(Q::InvalidHostHeader) => ErrorKind::InvalidInput,
             Self::QuickShare(Q::NoFreePort) | Self::Runtime(S::AlreadyRunning(_)) => {
                 ErrorKind::Unavailable
             }
@@ -76,17 +115,34 @@ impl Error {
                     | P::RouteExists(_)
                     | P::AccessDomain(_)
                     | P::InvalidTunnelName
-                    | P::TunnelNameTaken(_),
+                    | P::TunnelNameTaken(_)
+                    | P::SnapshotLoginNeedsDomain
+                    | P::EdgeRateLimitPeriod { .. }
+                    | P::InvalidTokenLabel
+                    | P::ServiceTokenExists(_)
+                    | P::FrontNeedsRoute(_)
+                    | P::Front(_)
+                    | P::InboxNeedsSecret,
                 )
                 | E::Input(_) => ErrorKind::InvalidInput,
-                E::Plan(P::ZeroTrustNotSetUp) => ErrorKind::Unavailable,
                 E::Plan(
-                    P::NoSuchRoute(_)
+                    P::ZeroTrustNotSetUp
+                    | P::NoWorkersSubdomain
+                    | P::EdgeRateLimitNeedsPro(_)
+                    | P::EdgeQuotaFull { .. }
+                    | P::ServiceTokenLimit(_),
+                ) => ErrorKind::Unavailable,
+                E::Plan(
+                    P::NoSuchSnapshot(_)
+                    | P::NoSuchRoute(_)
                     | P::NoTunnel
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
                     | P::NoSuchNetwork(_)
-                    | P::NotBalanced(_),
+                    | P::NotBalanced(_)
+                    | P::NotReserved(_)
+                    | P::NoSuchServiceToken(_)
+                    | P::NoFront(_),
                 )
                 | E::Observe(O::UnknownTunnel) => ErrorKind::NotFound,
                 E::Stale(_)
@@ -97,14 +153,75 @@ impl Error {
                     P::AccessAppExists(_)
                     | P::NetworkRouted { .. }
                     | P::RoutedElsewhere { .. }
-                    | P::BalancerExists(_),
+                    | P::BalancerExists(_)
+                    | P::SnapshotExists(_)
+                    | P::HostnameRouted(_)
+                    | P::HostnameServed { .. }
+                    | P::HostnameInUse(_)
+                    | P::EdgeRateLimitConflict { .. }
+                    | P::ServiceTokenNotOwned(_)
+                    | P::WorkerRouteTaken { .. },
                 ) => ErrorKind::Conflict,
                 E::Observe(O::Api(api)) if api.is_auth() => ErrorKind::PermissionDenied,
-                E::Observe(O::AccessPermission) => ErrorKind::PermissionDenied,
+                E::Observe(
+                    O::AccessPermission
+                    | O::EdgePermission
+                    | O::ServiceTokenPermission
+                    | O::WorkersPermission,
+                ) => ErrorKind::PermissionDenied,
                 E::Observe(O::Api(api)) if api.status().is_none() => ErrorKind::Unavailable,
                 E::Observe(_) => ErrorKind::Internal,
             },
+            Self::Snapshot(e) => {
+                use crate::snapshot::SnapshotError as N;
+                match e {
+                    N::NotFound | N::NoSuchVersion(_) | N::NotPrepared => ErrorKind::NotFound,
+                    N::Unchanged | N::NameTaken(_) => ErrorKind::Conflict,
+                    N::Io { .. } | N::Random | N::Crawl(_) | N::Engine(_) => ErrorKind::Internal,
+                    _ => ErrorKind::InvalidInput,
+                }
+            }
+            Self::Inspect(err) => {
+                use crate::inspect::InspectError as I;
+                match err {
+                    I::UnknownTap | I::UnknownExchange | I::NotRoute(_) | I::NotInspected(_) => {
+                        ErrorKind::NotFound
+                    }
+                    I::NotWeb
+                    | I::Invalid(_)
+                    | I::Lens(
+                        lens::LensError::InvalidConfig(_) | lens::LensError::BodyTruncated { .. },
+                    ) => ErrorKind::InvalidInput,
+                    I::TapGone => ErrorKind::Conflict,
+                    _ => ErrorKind::Internal,
+                }
+            }
             Self::CloudApi(api) if api.is_auth() => ErrorKind::PermissionDenied,
+            Self::Comments(err) => {
+                use crate::comments::CommentsError as C;
+                match err {
+                    C::InvalidBody | C::InvalidName | C::InvalidPath | C::InvalidAnchor => {
+                        ErrorKind::InvalidInput
+                    }
+                    C::NotFound => ErrorKind::NotFound,
+                    C::TooMany | C::RateLimited => ErrorKind::Unavailable,
+                    C::NoDatabase | C::Disabled | C::NoAccount => ErrorKind::Conflict,
+                    C::Api(api) if api.is_auth() => ErrorKind::PermissionDenied,
+                    C::Api(api) if api.status().is_none() => ErrorKind::Unavailable,
+                    C::Api(_) | C::Store(_) => ErrorKind::Internal,
+                }
+            }
+            Self::Analytics(err) => {
+                use crate::analytics::AnalyticsError as An;
+                match err {
+                    An::Permission => ErrorKind::PermissionDenied,
+                    An::RateLimited | An::NotOnPlan => ErrorKind::Unavailable,
+                    An::NoZone(_) | An::Account(A::NotFound) => ErrorKind::NotFound,
+                    An::Api(api) if api.is_auth() => ErrorKind::PermissionDenied,
+                    An::Api(api) if api.status().is_none() => ErrorKind::Unavailable,
+                    _ => ErrorKind::Internal,
+                }
+            }
             _ => ErrorKind::Internal,
         }
     }
@@ -116,7 +233,17 @@ impl Error {
         use crate::engine::{EngineError as E, PlanError as P};
         match self {
             Self::Engine(E::Input(input)) => Some(input.field),
-            Self::Engine(E::Plan(P::NoZone(_) | P::RouteExists(_) | P::RoutedElsewhere { .. })) => {
+            Self::QuickShare(crate::quick_share::QuickShareError::InvalidHostHeader) => {
+                Some("hostHeader")
+            }
+            Self::Engine(E::Plan(
+                P::NoZone(_)
+                | P::RouteExists(_)
+                | P::RoutedElsewhere { .. }
+                | P::HostnameRouted(_)
+                | P::HostnameServed { .. },
+            ))
+            | Self::Snapshot(crate::snapshot::SnapshotError::InvalidHostname(_)) => {
                 Some("hostname")
             }
             Self::Engine(E::Plan(P::InvalidTunnelName | P::TunnelNameTaken(_))) => {
@@ -125,6 +252,11 @@ impl Error {
             Self::Engine(E::Plan(P::AccessDomain(_))) => Some("path"),
             Self::Engine(E::Plan(P::NetworkRouted { .. })) => Some("network"),
             Self::Accounts(_) => Some("credential"),
+            Self::Snapshot(
+                crate::snapshot::SnapshotError::InvalidName
+                | crate::snapshot::SnapshotError::NameTaken(_),
+            ) => Some("name"),
+            Self::Snapshot(crate::snapshot::SnapshotError::PasswordTooShort(_)) => Some("password"),
             _ => None,
         }
     }
@@ -140,6 +272,10 @@ impl crate::text::UserText for Error {
             Self::Runtime(err) => err.text(),
             Self::Store(err) => err.text(),
             Self::Engine(err) => err.text(),
+            Self::Analytics(err) => err.text(),
+            Self::Snapshot(err) => err.text(),
+            Self::Inspect(err) => err.text(),
+            Self::Comments(err) => err.text(),
         }
     }
 }

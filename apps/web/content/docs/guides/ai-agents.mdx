@@ -1,0 +1,169 @@
+---
+title: AI agents (MCP)
+description: Let Claude Code, Cursor, VS Code, Codex, Windsurf, Zed, Claude Desktop or Gemini CLI share your dev server, manage Cloudflare Tunnel routes, debug webhooks and fix problems through Teitunnel's MCP server, with your approval for every change.
+---
+
+Teitunnel has a built-in [MCP](https://modelcontextprotocol.io) server. Your AI tool
+brings the model; Teitunnel gives it the same abilities you have in the app: put a local
+service online, add routes on your domains, find out why a route is down, read connector
+logs, wait for a webhook and replay it. Every change goes through the same reviewed plans
+as the app, needs your approval unless you say otherwise, and shows up in **Activity** with
+the tool's name.
+
+## Connect your AI tool
+
+```sh
+teitunnel mcp install claude-code     # or: claude-desktop, cursor, vscode, codex,
+                                      #     windsurf, zed, gemini-cli
+```
+
+That adds a `teitunnel` entry to the tool's MCP configuration and leaves everything else
+in the file as it was (comments included). The previous file is kept next to it as
+`….teitunnel-backup`. Restart the tool, or reload its MCP servers, and ask it something like
+*"Share my dev server"*.
+
+```sh
+teitunnel mcp status                  # which tools are installed and connected
+teitunnel mcp config cursor           # print the entry to add by hand
+teitunnel mcp uninstall cursor        # remove it again (only Teitunnel's entry)
+teitunnel mcp install cursor --mode read-only
+```
+
+| Tool | File Teitunnel edits |
+|---|---|
+| Claude Code | `~/.claude.json` (user scope, `mcpServers`) |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` · Windows: `%APPDATA%\Claude\claude_desktop_config.json` |
+| Cursor | `~/.cursor/mcp.json` |
+| VS Code (Copilot) | the user `mcp.json` next to `settings.json` (`servers`) |
+| Codex | `~/.codex/config.toml` (`[mcp_servers.teitunnel]`) |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| Zed | `~/.config/zed/settings.json` (`context_servers`) · Windows: `%APPDATA%\Zed\settings.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
+
+Any other MCP client works too: run `teitunnel mcp` as a stdio server.
+
+## What it can do
+
+| Tool | Does |
+|---|---|
+| `share_port` | Puts a local service online: a random `trycloudflare.com` link, or a hostname on your domain, optionally behind a login. Ends when stopped, when it expires, or when the session ends. |
+| `stop_share`, `list_shares` | Every share, whoever started it (the app, a terminal, an agent). |
+| `list_local_services` | Listening ports with what they are (Vite, Next.js, Django, Docker…) and their project. |
+| `list_routes`, `list_domains`, `list_tunnels` | Routes with their live status, domains, tunnels and the machines running them. |
+| `plan_change` | Plans any change: add, edit or remove a route, require a login, load balance, private networks, create or delete a tunnel, import routes. Nothing changes. |
+| `apply_plan` | Applies a reviewed plan by its id and fingerprint, with progress, then checks the routes. |
+| `verify_route` | Checks a hostname end to end and says where it breaks. |
+| `undo_last` | Plans the reverse of the latest change. |
+| `get_protection`, `protect_hostname` | A hostname's rules at Cloudflare's edge (bots, AI crawlers, rate limit, headers) and quotas; plan a change, applied with `apply_plan` ([Edge protection](/docs/guides/protection)). |
+| `service_token_list`, `service_token_create`, `service_token_revoke` | Service tokens that let machines through a login. A new token's secret is returned once, after your approval, marked sensitive. |
+| `doctor`, `fix_issue` | The Doctor's issues and their fixes. |
+| `logs_tail`, `remote_logs`, `connector_status` | This machine's connector logs (per route), another machine's live logs, connector health. |
+| `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |
+| `list_reservations`, `reserve_hostname`, `release_hostname` | Hostnames reserved on the account and who holds them; reserve one (optionally until a date) or give it up, with your approval. A teammate's name is taken only if you confirm ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). |
+| `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
+| `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares (inspected by default) and its recent history: list, inspect, replay, wait for the next one (webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. Credentials are masked unless the server runs with `--allow-secrets`. |
+| `pause_share`, `resume_share`, `schedule_share` | Pause a share on your domain (the address stays, visitors see a paused page), serve it again, or run it only during set hours ([Pause, schedule, name and share folders](/docs/guides/sharing/)). |
+| `share_folder` | Puts a folder of files online (a random link or a hostname on your domain), served by the inspector without hidden files, `.env` files, keys, `.git` or `node_modules`. |
+| `traffic_openapi` | An OpenAPI 3.1 description of the API the captured requests show ([OpenAPI from traffic](/docs/guides/openapi/)). |
+| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`) unless the server allows secrets. |
+
+It also offers **resources** your tool can attach as context (`teitunnel://routes`,
+`teitunnel://shares`, `teitunnel://domains`, `teitunnel://issues`, `teitunnel://activity`,
+`teitunnel://route/{hostname}`, `teitunnel://logs/{tunnel}`) and **prompts**: *Put my dev
+server online*, *Debug a failing webhook*, *Why is my route down?* and *Move my routes to a
+server*.
+
+## Your approval
+
+The server runs in one of three modes:
+
+| Mode | What the agent can do |
+|---|---|
+| `ask` (default) | Everything, but every change waits for your yes. While the Teitunnel app is open, it asks you in a dialog with the plan. Otherwise, if your tool can show a question (MCP elicitation), Teitunnel asks you there; if it can't, the agent gets `needsApproval`, has to show you the plan, and can only go ahead by calling again after you agree. |
+| `read-only` | Look only. Tools that change something aren't offered at all. |
+| `full` | Changes apply without asking, still only through plans. Records Teitunnel didn't create are never replaced or deleted without an explicit confirmation. |
+
+While the app runs, the agents connected to it are listed in Settings ▸ General ▸
+**Connected Agents** with their mode, and a change waiting for your answer shows there
+too. The agent's `teitunnel mcp` asks through the app's local
+[control connection](/docs/guides/integrations/); nothing listens on a network port, and
+an agent's "confirmed" never counts while you can be asked. If you don't answer within
+about three minutes, the answer is no.
+
+Set it per tool with `teitunnel mcp install <tool> --mode read-only`, for every tool in
+`mcp.json` in Teitunnel's data folder (`{ "mode": "read-only" }`), or with
+`TEITUNNEL_MCP_MODE`.
+
+What the agent never sees: API tokens, OAuth tokens, tunnel tokens, anything in the
+keychain, and credentials in captured requests (`Authorization`, `Cookie`, `Set-Cookie`,
+webhook signatures and other secret headers are masked; tokens in logs are redacted). Only
+`teitunnel mcp --allow-secrets` shows captured credentials, and only to that server.
+
+Every Cloudflare change an agent makes is in **Activity**, marked with its name, and `undo_last` (or
+you, in the app) can reverse it. Calls are rate limited, answers are bounded and paged,
+and long waits can be cancelled.
+
+## Examples
+
+**Share a dev server.** *"Put my Vite app online for my phone."* The agent finds the port
+with `list_local_services`, calls `share_port`, you approve, and it gives you the link.
+
+**On your domain, with a login.** *"Share port 8080 at demo.example.com, only for
+@example.com."* A temporary route with a Cloudflare Access login, removed when the session
+ends. For a permanent route the agent plans an `addRoute` change instead.
+
+**Debug a webhook.** *"Stripe webhooks to my app fail."* The agent shares the port, asks
+you to send a test event, waits for it with `wait_for_request`, reads the request and your
+app's answer, fixes the handler, and replays the request until it answers `200`.
+
+**Why is my route down?** The agent runs `verify_route` (DNS, edge, tunnel, service),
+`doctor`, and the route's logs, then fixes it with `fix_issue` or a plan.
+
+**Move to a server.** `export_config` as Docker Compose, with instructions for the token.
+
+## A server over HTTP
+
+`teitunnel serve` also serves MCP at `/mcp` (Streamable HTTP) for agents elsewhere. It uses
+the server's API keys:
+
+```sh
+teitunnel api-key create my-agent
+teitunnel serve --mcp-mode ask        # read-only, ask (default) or full; --no-mcp turns it off
+```
+
+Configure the client with the URL `http://127.0.0.1:8765/mcp` (or your HTTPS address in
+front of it) and the header `Authorization: Bearer ttk_…`. Requests from browsers (with an
+`Origin` header) are refused unless you allow that origin with `--mcp-allow-origin`, and
+changes are recorded with the key's name.
+
+## Agent Skill
+
+Tools that support [Agent Skills](https://docs.claude.com/en/docs/agents-and-tools/agent-skills)
+can load Teitunnel's: [`/skills/teitunnel/SKILL.md`](/skills/teitunnel/SKILL.md). It tells
+the agent when to reach for Teitunnel and how to work with it safely.
+
+## Tell your project's agent
+
+Add this to your repository's `AGENTS.md` (or `CLAUDE.md`) so agents working on it use
+Teitunnel for anything that needs a public URL:
+
+```md
+## Sharing and tunnels
+This project uses Teitunnel (MCP server `teitunnel`) for public URLs.
+- To show the dev server or receive webhooks: `share_port` (port 3000); for webhooks,
+  `wait_for_request` then `traffic_get`/`traffic_replay`.
+- Routes on our domain change only through `plan_change` → show me the plan → `apply_plan`.
+- Never ask for or paste Cloudflare tokens.
+```
+
+## When something's off
+
+- **The tool doesn't list Teitunnel:** restart it; check `teitunnel mcp status`. Tools
+  start `teitunnel mcp` themselves, so the path in their configuration must exist (reinstall
+  after moving the app).
+- **"No Cloudflare account is connected":** connect one in the app. Quick Shares work
+  without one.
+- **A share on your domain doesn't answer:** the route is set up, but a connector must run
+  on this machine: the app, Always-on, or `teitunnel up`.
+- **Stopping an agent's Quick Share in the app** stops the shares that agent started; its
+  session carries on.

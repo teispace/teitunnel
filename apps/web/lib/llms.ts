@@ -23,6 +23,7 @@ export function llmsIndex(): string {
     `# ${site.name}`,
     `> ${site.description}`,
     `Teitunnel is made by ${site.org.name} and is not affiliated with Cloudflare. Downloads: ${absolute("/download/")}. Source: ${site.github}. The full docs as one file: ${absolute("/llms-full.txt")}.`,
+    `For AI agents: Teitunnel has an MCP server (\`teitunnel mcp\`, connect a client with \`teitunnel mcp install <client>\`; see ${absolute("/docs/guides/ai-agents/")}) and an Agent Skill at ${absolute("/skills/teitunnel/SKILL.md")}.`,
     ...sections,
   ].join("\n\n");
 }

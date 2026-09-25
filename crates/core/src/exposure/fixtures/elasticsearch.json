@@ -1,0 +1,6 @@
+{
+  "name" : "search-1",
+  "cluster_name" : "docker-cluster",
+  "version" : { "number" : "8.13.0" },
+  "tagline" : "You Know, for Search"
+}

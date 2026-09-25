@@ -69,7 +69,8 @@ export function ExportSheet({ accountId, tunnelId = null, open, onClose }: Expor
             </Button>
             <Button
               variant="primary"
-              disabled={contents === null || save.isPending}
+              disabled={contents === null}
+              pending={save.isPending}
               onClick={() => save.mutate()}
             >
               {t("export.save")}

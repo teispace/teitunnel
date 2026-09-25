@@ -46,6 +46,33 @@ pub enum ActivityKind {
     BalanceRoute,
     /// A route stopped being load balanced.
     UnbalanceRoute,
+    /// An alert: a route went down or came back, errors, slowness, a connector (not a
+    /// change; recorded by the uptime monitor).
+    Alert,
+    /// A Snapshot was published.
+    PublishSnapshot,
+    /// A new version of a Snapshot was published.
+    UpdateSnapshot,
+    /// A Snapshot was rolled back to an earlier version.
+    RollbackSnapshot,
+    /// A Snapshot was deleted.
+    DeleteSnapshot,
+    /// A hostname was reserved (or its reservation renewed).
+    ReserveHostname,
+    /// A reservation was released.
+    ReleaseHostname,
+    /// A hostname's edge protection changed (bots, rate limit, headers).
+    ProtectHostname,
+    /// A service token was created.
+    CreateServiceToken,
+    /// A service token was revoked.
+    RevokeServiceToken,
+    /// A service token got a new secret.
+    RotateServiceToken,
+    /// A route's offline page was added, changed or removed.
+    OfflinePage,
+    /// A webhook inbox was added, changed or removed.
+    WebhookInbox,
 }
 
 impl From<&Intent> for ActivityKind {
@@ -64,6 +91,18 @@ impl From<&Intent> for ActivityKind {
             Intent::CreateTunnel { .. } => Self::CreateTunnel,
             Intent::BalanceRoute { .. } => Self::BalanceRoute,
             Intent::UnbalanceRoute { .. } => Self::UnbalanceRoute,
+            Intent::PublishSnapshot { .. } => Self::PublishSnapshot,
+            Intent::UpdateSnapshot { .. } => Self::UpdateSnapshot,
+            Intent::RollbackSnapshot { .. } => Self::RollbackSnapshot,
+            Intent::DeleteSnapshot { .. } => Self::DeleteSnapshot,
+            Intent::Reserve { .. } => Self::ReserveHostname,
+            Intent::Release { .. } => Self::ReleaseHostname,
+            Intent::ProtectHostname { .. } => Self::ProtectHostname,
+            Intent::CreateServiceToken { .. } => Self::CreateServiceToken,
+            Intent::RevokeServiceToken { .. } => Self::RevokeServiceToken,
+            Intent::RotateServiceToken { .. } => Self::RotateServiceToken,
+            Intent::SetOfflinePage { .. } => Self::OfflinePage,
+            Intent::SetInbox { .. } => Self::WebhookInbox,
         }
     }
 }
@@ -83,6 +122,14 @@ pub enum DeltaArea {
     Access,
     /// A route's load balancing.
     LoadBalancing,
+    /// A Snapshot's address.
+    Snapshot,
+    /// A rule at Cloudflare's edge (bots, rate limit, headers).
+    Protection,
+    /// A service token.
+    ServiceToken,
+    /// A Worker in front of a route (offline page, webhook inbox).
+    Worker,
 }
 
 /// One thing that changed: absent `before` means added, absent `after` removed.
@@ -140,6 +187,38 @@ pub struct ActivityRecord {
     /// The routes were applied but this Mac's connector couldn't be started.
     #[serde(default)]
     pub connector_error: Option<Text>,
+    /// Who asked for it, when it wasn't a person in the app or the terminal (an AI agent
+    /// through Teitunnel's MCP server). Absent in older entries.
+    #[serde(default)]
+    pub actor: Option<Actor>,
+}
+
+/// Who made a change, when it wasn't a person using the app or the CLI directly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct Actor {
+    /// How it reached Teitunnel, e.g. `mcp`.
+    pub via: String,
+    /// The client's name as it introduced itself, e.g. `claude-code`.
+    pub client: String,
+    /// The client's version, if it said.
+    pub version: Option<String>,
+}
+
+tokio::task_local! {
+    static CURRENT_ACTOR: Actor;
+}
+
+/// Runs `future` on behalf of `actor`: every change it applies through the engine is
+/// recorded in the activity log with that actor.
+pub async fn with_actor<F: std::future::Future>(actor: Actor, future: F) -> F::Output {
+    CURRENT_ACTOR.scope(actor, future).await
+}
+
+/// The actor set by [`with_actor`] for the running task, if any.
+pub fn current_actor() -> Option<Actor> {
+    CURRENT_ACTOR.try_with(Clone::clone).ok()
 }
 
 impl ActivityRecord {
@@ -180,6 +259,7 @@ impl ActivityRecord {
             error: None,
             leftovers: Vec::new(),
             connector_error: None,
+            actor: current_actor(),
         }
     }
 }
@@ -191,6 +271,15 @@ fn describe_rule(rule: &IngressRule) -> Text {
     }
     let settings: Vec<&str> = rule.origin_request.keys().map(String::as_str).collect();
     msg::raw(format!("{} · {}", rule.service, settings.join(", ")))
+}
+
+/// A reservation, e.g. `Reserved until 2026-12-31T00:00Z`.
+fn reserved(until: Option<u64>) -> Text {
+    use crate::text::msg::reservations::delta as m;
+    match until {
+        Some(until) => m::reserved_until(super::ownership::format_until(until)),
+        None => m::reserved(),
+    }
 }
 
 /// A DNS record's value, e.g. `A 192.0.2.1`.
@@ -241,12 +330,63 @@ pub(crate) struct EnglishDelta {
     after: Option<String>,
 }
 
+/// An edge rule as one line: what it does and when.
+fn edge_rule(rule: &cf_api::NewRule) -> Text {
+    msg::raw(format!("{} · {}", rule.action, rule.expression))
+}
+
 /// What `plan` changes, from its steps' before and after values.
 pub fn deltas(plan: &Plan) -> Vec<Delta> {
     let tunnel_target = delta::tunnel_target(&plan.tunnel_name);
     let mut out = Vec::new();
     for step in &plan.steps {
         match step {
+            Step::CreateEdgeRule {
+                hostnames, rule, ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: None,
+                after: Some(edge_rule(rule)),
+            }),
+            Step::UpdateEdgeRule {
+                hostnames,
+                rule,
+                previous,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: Some(edge_rule(previous)),
+                after: Some(edge_rule(rule)),
+            }),
+            Step::DeleteEdgeRule {
+                hostnames,
+                previous,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Protection,
+                hostname: hostnames.join(", "),
+                path: None,
+                before: Some(edge_rule(previous)),
+                after: None,
+            }),
+            Step::CreateServiceToken { hostname, name } => out.push(Delta {
+                area: DeltaArea::ServiceToken,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(name)),
+            }),
+            Step::DeleteServiceToken { token } => out.push(Delta {
+                area: DeltaArea::ServiceToken,
+                hostname: token.name.clone(),
+                path: None,
+                before: Some(msg::raw(&token.client_id)),
+                after: None,
+            }),
             Step::PutConfig {
                 ingress, previous, ..
             } => {
@@ -266,6 +406,31 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                     });
                 }
             }
+            Step::CreateWorkerRoute {
+                hostname,
+                pattern,
+                script,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Worker,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(format!("{pattern} → {script}"))),
+            }),
+            Step::DeleteWorkerRoute {
+                hostname, route, ..
+            } => out.push(Delta {
+                area: DeltaArea::Worker,
+                hostname: hostname.clone(),
+                path: None,
+                before: Some(msg::raw(format!(
+                    "{} → {}",
+                    route.pattern,
+                    route.script.as_deref().unwrap_or_default()
+                ))),
+                after: None,
+            }),
             Step::CreateRecord { hostname, .. } => out.push(Delta {
                 area: DeltaArea::Dns,
                 hostname: hostname.clone(),
@@ -360,7 +525,65 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
                 before: Some(delta::endpoints(pool.origins.len() as u64)),
                 after: None,
             }),
-            Step::AddLoginMethod
+            Step::CreateReservation {
+                hostname, until, ..
+            } => out.push(Delta {
+                area: DeltaArea::Dns,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(reserved(*until)),
+            }),
+            Step::SetLease {
+                record,
+                lease,
+                until,
+                ..
+            } => out.push(Delta {
+                area: DeltaArea::Dns,
+                hostname: record.name.clone(),
+                path: None,
+                before: super::ownership::Ownership::parse(record.comment.as_deref().unwrap_or(""))
+                    .filter(|o| o.lease)
+                    .map(|o| reserved(o.until)),
+                after: lease.then(|| reserved(*until)),
+            }),
+            Step::AttachSnapshotDomain {
+                hostname, script, ..
+            } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: hostname.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(script)),
+            }),
+            Step::DetachSnapshotDomain { domain } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: domain.hostname.clone(),
+                path: None,
+                before: Some(msg::raw(&domain.service)),
+                after: None,
+            }),
+            Step::EnableWorkersDev { address, script } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: address.clone(),
+                path: None,
+                before: None,
+                after: Some(msg::raw(script)),
+            }),
+            Step::DisableWorkersDev { address, script } => out.push(Delta {
+                area: DeltaArea::Snapshot,
+                hostname: address.clone(),
+                path: None,
+                before: Some(msg::raw(script)),
+                after: None,
+            }),
+            Step::UploadSnapshotFiles { .. }
+            | Step::CreateSnapshotWorker { .. }
+            | Step::PublishSnapshotVersion { .. }
+            | Step::RollBackSnapshot { .. }
+            | Step::DeleteSnapshotWorker { .. }
+            | Step::AddLoginMethod
             | Step::CreateLbMonitor { .. }
             | Step::CreateLoadBalancer { .. }
             | Step::DeleteLoadBalancer { .. }
@@ -368,6 +591,11 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
             | Step::CreateTunnel { .. }
             | Step::StopConnector { .. }
             | Step::DeleteTunnel { .. }
+            | Step::AllowServiceToken { .. }
+            | Step::RotateServiceToken { .. }
+            | Step::CreateDatabase { .. }
+            | Step::PutFrontWorker { .. }
+            | Step::DeleteFrontWorker { .. }
             | Step::Verify { .. } => {}
         }
     }

@@ -26,10 +26,19 @@ export function QuitDialog() {
             <DialogClose asChild>
               <Button disabled={quit.isPending}>{t("common.cancel")}</Button>
             </DialogClose>
-            <Button disabled={quit.isPending} onClick={() => quit.mutate(false)}>
+            <Button
+              disabled={quit.isPending}
+              pending={quit.isPending && quit.variables === false}
+              onClick={() => quit.mutate(false)}
+            >
               {t("quit.anyway")}
             </Button>
-            <Button variant="primary" disabled={quit.isPending} onClick={() => quit.mutate(true)}>
+            <Button
+              variant="primary"
+              disabled={quit.isPending}
+              pending={quit.isPending && quit.variables === true}
+              onClick={() => quit.mutate(true)}
+            >
               {quit.isPending && quit.variables ? t("quit.switching") : t("quit.keep")}
             </Button>
           </>

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { events } from "@/lib/ipc/bindings";
 import { type AppCommand, type CommandContext, commandsFor, runMenuCommand } from "./commands";
+import { openView } from "./open-view";
 import { detectPlatform, isTauri, type Platform } from "./platform";
 import { matchesShortcut } from "./shortcuts";
 import { useUiStore } from "./ui-store";
@@ -50,9 +51,13 @@ export function MenuBridge() {
       }
       runMenuCommand(payload.command, { navigate, queryClient });
     });
+    const unlistenViews = events.openView.listen(({ payload }) => {
+      void openView(payload.target, navigate);
+    });
     return () => {
       stopKeys();
       void unlisten.then((stop) => stop());
+      void unlistenViews.then((stop) => stop());
     };
   }, [navigate, queryClient]);
   return null;

@@ -1,4 +1,4 @@
-//! `teitunnel-cli doctor`: the app's checks, from the terminal. Issues ignored in the
+//! `teitunnel doctor`: the app's checks, from the terminal. Issues ignored in the
 //! app stay hidden; `--fix` applies only the fixes the app's "Fix Safe Issues" would
 //! (each through a fresh plan that touches nothing Teitunnel doesn't own).
 
@@ -89,17 +89,16 @@ pub(crate) fn exit_code(issues: &[Issue]) -> ExitCode {
 pub(crate) async fn run(app: &App, json: bool, fix: bool, yes: bool) -> Result<ExitCode, String> {
     let connectors = app.all_connectors().await;
     let ignored: HashSet<String> = app.ignored_issues().await.into_iter().collect();
-    let issues: Vec<Issue> = doctor::run(
+    let mut issues: Vec<Issue> = doctor::run(
         &app.accounts,
         &app.engine,
         &connectors,
         &app.binary,
         &app.machine_name,
     )
-    .await
-    .into_iter()
-    .filter(|i| !ignored.contains(&i.id))
-    .collect();
+    .await;
+    issues.extend(crate::local::issues(app.dir()).await);
+    issues.retain(|i| !ignored.contains(&i.id));
 
     if json {
         let list: Vec<_> = issues.iter().map(issue_json).collect();

@@ -44,8 +44,14 @@ fn token_key(tunnel_id: &str) -> String {
     format!("tunnel:{tunnel_id}")
 }
 
-/// This Mac's name for a new tunnel: the host name without `.local`.
+/// This Mac's name for a new tunnel: `TEITUNNEL_MACHINE_NAME` when set (a CI job names
+/// its tunnel after the run), otherwise the host name without `.local`.
 pub fn machine_name() -> String {
+    if let Ok(name) = std::env::var("TEITUNNEL_MACHINE_NAME")
+        && !name.trim().is_empty()
+    {
+        return name.trim().to_owned();
+    }
     sysinfo::System::host_name()
         .map(|host| host.trim_end_matches(".local").to_owned())
         .filter(|host| !host.is_empty())
@@ -419,7 +425,7 @@ impl MachineTunnels {
         account: &str,
         tunnel: &crate::engine::LocalTunnel,
     ) -> Result<(), Text> {
-        // Without a service manager (`teitunnel-cli up`), an Always-on tunnel is its
+        // Without a service manager (`teitunnel up`), an Always-on tunnel is its
         // service's to run: starting it here too would run it twice.
         if tunnel.always_on && self.manager.is_none() {
             return Ok(());
@@ -599,7 +605,7 @@ impl MachineTunnels {
 
     /// Turns Always-on off for one of `account`'s tunnels without starting a connector in
     /// this process: the service is removed and its routes stop until the app (or
-    /// `teitunnel-cli up`) runs it. For the command line.
+    /// `teitunnel up`) runs it. For the command line.
     ///
     /// # Errors
     /// A message.

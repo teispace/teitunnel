@@ -72,6 +72,20 @@ if (-not (Test-Path (Join-Path $dir 'teitunnel-cli.exe'))) { Fail 'teitunnel-cli
 $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Teitunnel.lnk'
 if (-not (Test-Path $shortcut)) { Fail 'No Start menu shortcut' }
 
+# The installer puts the `teitunnel` command on the PATH (installer-hooks.nsh, D-090, D-091).
+$cliDir = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps'
+$cli = Join-Path $cliDir 'teitunnel.exe'
+$cliMarker = Join-Path $cliDir 'teitunnel.teitunnel'
+if (-not (Test-Path $cli)) { Fail "The installer didn't put teitunnel on the PATH ($cli)" }
+elseif (-not (Test-Path $cliMarker)) { Fail "teitunnel has no Teitunnel marker ($cliMarker)" }
+else {
+  $cliVersion = & $cli --version
+  Write-Host "On the PATH: $cliVersion"
+  if ($cliVersion -notmatch "^teitunnel $([regex]::Escape($entry.DisplayVersion))$") {
+    Fail "teitunnel on the PATH says '$cliVersion', the app is $($entry.DisplayVersion)"
+  }
+}
+
 Set-Theme $false
 Start-App $exe 'light' | Out-Null
 if ($SkipTray) {
@@ -98,6 +112,16 @@ Start-Sleep -Seconds 5
 if (Test-Path $exe) { Fail "Still installed after uninstall: $exe" }
 if (Test-Path $uninstallKey) { Fail 'The Apps entry is still there after uninstall' }
 if (Test-Path $shortcut) { Fail 'The Start menu shortcut is still there after uninstall' }
+if ((Test-Path $cli) -or (Test-Path $cliMarker)) { Fail 'teitunnel is still on the PATH after uninstall' }
+
+# A teitunnel.exe that isn't Teitunnel's is never replaced or removed.
+Set-Content -Path $cli -Value 'not teitunnel' -NoNewline
+Start-Process -FilePath $Installer -ArgumentList '/S' -Wait | Out-Null
+if ((Get-Content $cli -Raw) -ne 'not teitunnel') { Fail "The installer replaced someone else's teitunnel.exe" }
+Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait | Out-Null
+Start-Sleep -Seconds 5
+if (-not (Test-Path $cli)) { Fail "The uninstaller removed someone else's teitunnel.exe" }
+Remove-Item $cli -Force
 
 if ($failures.Count -gt 0) { exit 1 }
 Write-Host 'Windows desktop check passed'

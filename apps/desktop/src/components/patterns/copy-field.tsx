@@ -9,18 +9,24 @@ interface CopyFieldProps {
   className?: string;
   /** Show every line (e.g. a config snippet) instead of one truncated line. */
   multiline?: boolean;
+  /**
+   * Copies instead of the shown value (e.g. a secret copied from Rust while the field
+   * shows a mask, so it never reaches the webview).
+   */
+  onCopy?: () => Promise<unknown>;
 }
 
 const CONFIRM_MS = 1400;
 
 /** A selectable monospace value with a copy button that confirms with a tick. */
-export function CopyField({ value, label, className, multiline = false }: CopyFieldProps) {
+export function CopyField({ value, label, className, multiline = false, onCopy }: CopyFieldProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const copy = async () => {
-    await navigator.clipboard.writeText(value);
+    if (onCopy) await onCopy();
+    else await navigator.clipboard.writeText(value);
     setCopied(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), CONFIRM_MS);

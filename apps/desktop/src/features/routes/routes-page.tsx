@@ -28,13 +28,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
+import { RouteAnalytics } from "@/features/analytics";
+import { CheckNotes, HostRejectionFix, useSendHostOnRoute } from "@/features/dev-server";
 import { IssueCallout, routeIssues } from "@/features/doctor";
 import { useIssues } from "@/features/doctor/queries";
+import { FrontsSection } from "@/features/fronts";
+import { InspectRouteSection } from "@/features/inspector";
+import {
+  ProtectionSection,
+  ProtectionSheet,
+  ServiceTokens,
+  useProtection,
+} from "@/features/protection";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
+import { useManualRefetch } from "@/lib/use-manual-refetch";
 import { describeAllowed } from "./access";
 import { BalanceHealth } from "./components/balance-health";
 import { DriftBanner } from "./components/drift-banner";
@@ -97,11 +108,40 @@ function ConnectSection({ client }: { client: ClientAccess }) {
   );
 }
 
-function TestResult({ result }: { result: Verification }) {
+function TestResult({
+  result,
+  route,
+  accountId,
+  onTest,
+  testing,
+}: {
+  result: Verification;
+  route: RouteView;
+  accountId: string;
+  /** Tests again (waiting for the change to reach the connector). */
+  onTest: () => void;
+  testing: boolean;
+}) {
+  const sendHost = useSendHostOnRoute(accountId);
+  if (result.failure?.type === "hostRejected") {
+    return (
+      <HostRejectionFix
+        rejection={result.failure.rejection}
+        via="route"
+        onSendHost={(host) => sendHost.mutate({ route, host }, { onSuccess: onTest })}
+        sending={sendHost.isPending}
+        onCheck={onTest}
+        checking={testing}
+      />
+    );
+  }
   return result.failure ? (
-    <p role="status" className="text-callout text-warning">
-      {result.message ? translate(result.message) : null}
-    </p>
+    <>
+      <p role="status" className="text-callout text-warning">
+        {result.message ? translate(result.message) : null}
+      </p>
+      <CheckNotes check={result} showMessage={false} onCheck={onTest} checking={testing} />
+    </>
   ) : (
     <p role="status" className="text-callout text-healthy">
       {result.protected
@@ -186,7 +226,15 @@ function RouteInspector({
       {routeIssues(issues, route.hostname).map((issue) => (
         <IssueCallout key={issue.id} issue={issue} />
       ))}
-      {test.data ? <TestResult result={test.data} /> : null}
+      {test.data ? (
+        <TestResult
+          result={test.data}
+          route={route}
+          accountId={accountId}
+          onTest={() => test.mutate({ hostname: route.hostname, wait: true })}
+          testing={test.isPending}
+        />
+      ) : null}
       {test.error ? (
         <p role="alert" className="text-callout text-error">
           {toIpcError(test.error).message}
@@ -240,6 +288,18 @@ function RouteInspector({
           localTunnelIds={localTunnelIds}
         />
       ) : null}
+      {route.client ? null : (
+        <InspectRouteSection
+          accountId={accountId}
+          hostname={route.hostname}
+          path={route.path}
+          local={route.local}
+        />
+      )}
+      {route.client ? null : <ProtectionSection accountId={accountId} hostname={route.hostname} />}
+      {route.client ? null : <ServiceTokens accountId={accountId} hostname={route.hostname} />}
+      {route.client ? null : <FrontsSection accountId={accountId} hostname={route.hostname} />}
+      {route.client ? null : <RouteAnalytics accountId={accountId} route={route} />}
       {route.local && tunnel ? (
         <RouteLogs accountId={accountId} hostname={route.hostname} path={route.path} />
       ) : null}
@@ -248,12 +308,20 @@ function RouteInspector({
           <ul className="flex flex-col gap-1.5">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="flex flex-col text-callout">
-                <span className={entry.outcome === "applied" ? "" : "text-warning"}>
+                <span
+                  className={
+                    entry.outcome === "applied" || entry.outcome === "resolved"
+                      ? ""
+                      : "text-warning"
+                  }
+                >
                   {summaryOf(entry)}
                 </span>
                 <span className="text-secondary">
                   {relativeTime(entry.at)}
-                  {entry.outcome === "applied" ? "" : t("routes.activity.undone")}
+                  {entry.outcome === "applied" || entry.record?.kind === "alert"
+                    ? ""
+                    : t("routes.activity.undone")}
                 </span>
               </li>
             ))}
@@ -265,15 +333,26 @@ function RouteInspector({
 }
 
 /** Routes of this Mac's tunnel in the active Cloudflare account. */
-export function RoutesPage({ adding = false }: { adding?: boolean }) {
+export function RoutesPage({
+  adding = false,
+  focus,
+}: {
+  adding?: boolean;
+  /** A hostname to select first (links and the control connection). */
+  focus?: string | undefined;
+}) {
   const { isSuccess } = useAccounts();
   const { data: accounts = [] } = useAccounts();
   const active = useActiveAccount();
   const setActive = useUiStore((state) => state.setActiveAccountId);
   const overview = useRoutesOverview(active?.id ?? null);
+  const reload = useManualRefetch(overview.refetch);
   const { issues } = useIssues();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
+  /** The hostname whose edge protection is being edited from the route sheet. */
+  const [protecting, setProtecting] = useState<string | null>(null);
+  const protection = useProtection(active?.id ?? "", protecting ?? "", protecting !== null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const setups = useLocalSetups(active !== null);
@@ -284,7 +363,11 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
   /** The tunnel carrying a route (its connector decides whether it's live). */
   const carrier = (route: RouteView) => tunnels.find((t) => t.id === route.tunnelId) ?? tunnel;
   const zones = overview.data?.zones ?? [];
-  const selected = routes.find((r) => routeKey(r) === selectedKey) ?? routes[0] ?? null;
+  const selected =
+    routes.find((r) => routeKey(r) === selectedKey) ??
+    routes.find((r) => r.hostname === focus?.toLowerCase()) ??
+    routes[0] ??
+    null;
 
   // ⌘N / "New route" opens the sheet once the account's domains are known.
   useEffect(() => {
@@ -305,8 +388,8 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
         <IconButton
           icon={RefreshCw}
           label={t("routes.refresh")}
-          onClick={() => void overview.refetch()}
-          disabled={overview.isFetching}
+          onClick={reload.refresh}
+          pending={reload.refreshing}
         />
       ) : null}
       {active && overview.isSuccess && importable ? (
@@ -476,6 +559,19 @@ export function RoutesPage({ adding = false }: { adding?: boolean }) {
           tunnels={tunnels}
           mode={sheet}
           onClose={() => setSheet(null)}
+          onEditProtection={(hostname) => {
+            setSheet(null);
+            setProtecting(hostname);
+          }}
+        />
+      ) : null}
+      {active && protecting ? (
+        <ProtectionSheet
+          accountId={active.id}
+          hostname={protecting}
+          current={protection.data}
+          open={protection.isSuccess}
+          onClose={() => setProtecting(null)}
         />
       ) : null}
       {active ? (

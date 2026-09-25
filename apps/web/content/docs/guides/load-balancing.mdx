@@ -12,14 +12,14 @@ one that goes down.
   under **Traffic ▸ Load Balancing**.
 - The token permissions **Account · Load Balancing: Monitors and Pools · Edit** and
   **Zone · Load Balancers · Edit**. If they're missing, Teitunnel shows how to add them.
-- The same route on each machine: run Teitunnel (or `teitunnel-cli` on a server) on every
+- The same route on each machine: run Teitunnel (or `teitunnel` on a server) on every
   machine, and add the route with the same hostname on each.
 
 ## Turn it on
 Select the route in **Routes** and choose **Load Balance…**, or from the terminal:
 
 ```sh
-teitunnel-cli route balance app.example.com
+teitunnel route balance app.example.com
 ```
 
 The plan shows what's created before anything is:
@@ -47,7 +47,7 @@ record over. Removing the route on a machine takes it out of the pool; when the 
 goes, the load balancer, pool and health check go too.
 
 ## Turn it off
-**Stop Load Balancing…** (or `teitunnel-cli route unbalance app.example.com`) deletes the
+**Stop Load Balancing…** (or `teitunnel route unbalance app.example.com`) deletes the
 load balancer, pool and health check. The hostname's DNS record serves it again.
 
 Teitunnel marks what it creates (`teitunnel:lb=<hostname>` in the description) and only

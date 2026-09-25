@@ -2,12 +2,23 @@ import { cn } from "@/lib/cn";
 
 const SPOKES = 8;
 
-/** The macOS progress spinner: eight fading spokes rotating in steps. */
-export function Spinner({ className, label = "Loading" }: { className?: string; label?: string }) {
+/**
+ * The macOS progress spinner: eight fading spokes rotating in steps. `label: null` makes
+ * it decorative, for places that already say they're busy (a button with `aria-busy`).
+ */
+export function Spinner({
+  className,
+  label = "Loading",
+}: {
+  className?: string;
+  label?: string | null;
+}) {
   return (
     <svg
-      role="img"
-      aria-label={label}
+      data-spinner
+      role={label === null ? "presentation" : "img"}
+      aria-hidden={label === null || undefined}
+      aria-label={label ?? undefined}
       viewBox="0 0 16 16"
       className={cn("size-4 animate-spinner text-secondary", className)}
     >

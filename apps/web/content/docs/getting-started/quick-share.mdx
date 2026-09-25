@@ -54,10 +54,10 @@ create. It shows in **Routes** with a *Temporary* badge.
 ## From the terminal
 
 ```sh
-teitunnel-cli share 3000                          # a random trycloudflare.com URL
-teitunnel-cli share 3000 --for 30m                # stops by itself after 30 minutes
-teitunnel-cli share 3000 --on demo.example.com    # on your own domain
-URL=$(teitunnel-cli share 3000 --no-qr | head -1) # the URL alone, for scripts
+teitunnel share 3000                          # a random trycloudflare.com URL
+teitunnel share 3000 --for 30m                # stops by itself after 30 minutes
+teitunnel share 3000 --on demo.example.com    # on your own domain
+URL=$(teitunnel share 3000 --no-qr | head -1) # the URL alone, for scripts
 ```
 
 It runs for as long as the command does; Ctrl-C stops it. `share` needs no account, only

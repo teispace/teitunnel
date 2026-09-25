@@ -1,0 +1,57 @@
+---
+title: Move to a new computer
+description: "Take Teitunnel's setup to another computer in one encrypted file: settings, tunnels, what Teitunnel created, projects and alert rules. Never tokens or passwords; accounts are connected again after restoring."
+---
+
+A backup is one file, encrypted with a passphrase you choose, holding Teitunnel's setup
+on this computer. Restore it on the new computer and your tunnels run there, Teitunnel
+still knows which DNS records and logins it created (so it keeps changing only its own),
+and your projects, settings and alert rules are back.
+
+## What's in it, and what's not
+
+**In it:** settings (alert rules and the list of projects included), this computer's
+tunnels (their ids and names), the records of the DNS records and Access logins Teitunnel
+created, load-balanced routes, Snapshots with their recent versions, and your
+[local domains](/docs/guides/local-domains/) (the new computer makes and trusts its own
+certificate authority). Accounts are listed by name only.
+
+**Never in it:** API tokens, OAuth sign-ins, tunnel run tokens, webhook secrets, the local
+HTTPS certificate authority's key, and the dashboard password or API keys of `teitunnel
+serve`. Those stay in this computer's keychain. After restoring, connect your accounts
+again; each tunnel's run token is then fetched from Cloudflare when it starts.
+
+Always-on is a service of the old computer: tunnels restore as running with the app; turn
+Always-on on again where you want it. Project files come with their repositories.
+
+## In the app
+
+**Settings ▸ General ▸ Move to another computer**:
+
+1. **Export…** asks where to save the file, then for a passphrase (at least 10
+   characters, typed twice). You'll need it on the other computer; it can't be recovered.
+2. On the new computer, **Import…** asks for the file and its passphrase, then shows what
+   the backup holds and what it replaces here. Nothing changes until you choose
+   **Restore** (or **Replace and Restore** when this computer already has a setup).
+3. Connect your accounts in **Settings ▸ Accounts**.
+
+## From a terminal
+
+```sh
+teitunnel backup create --file teitunnel-setup.teitunnel-backup
+teitunnel backup restore teitunnel-setup.teitunnel-backup
+```
+
+Both ask for the passphrase; `--passphrase-stdin` reads it from standard input instead,
+for scripts. `restore` prints what the backup holds and asks before replacing anything
+(`--yes` doesn't ask).
+
+## The file
+
+The file starts with a small header (a format version, the key derivation's parameters, a
+random salt and nonce), followed by the setup as compressed JSON, encrypted with
+**XChaCha20-Poly1305**. The key is derived from your passphrase with **argon2id** (64 MB of
+memory, 3 passes), which makes guessing passphrases slow. The header is authenticated with
+the contents, so any change to the file, even one byte, is detected: a wrong passphrase
+and a damaged or altered file give the same error. The file is written readable only by
+you. A backup made by a newer Teitunnel asks you to update before restoring it.

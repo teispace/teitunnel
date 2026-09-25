@@ -92,6 +92,11 @@ impl Local {
         Self { store }
     }
 
+    /// The database, for the tables other modules keep next to the engine's.
+    pub(crate) fn store(&self) -> &Store {
+        &self.store
+    }
+
     /// This Mac's default tunnel in `account` (the machine tunnel), if one was created.
     ///
     /// # Errors
@@ -403,10 +408,11 @@ impl Local {
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "INSERT INTO domain_shares (account_id, hostname, origin, owner, expires_at, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                    "INSERT INTO domain_shares (account_id, hostname, origin, owner, expires_at,
+                        created_at, source, folder)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                      ON CONFLICT (account_id, hostname) DO UPDATE SET origin = ?3, owner = ?4,
-                       expires_at = ?5, created_at = ?6",
+                       expires_at = ?5, created_at = ?6, source = ?7, folder = ?8",
                     params![
                         share.account_id,
                         share.hostname,
@@ -414,6 +420,8 @@ impl Local {
                         share.owner,
                         share.expires_at.and_then(|t| i64::try_from(t).ok()),
                         i64::try_from(share.created_at).unwrap_or(i64::MAX),
+                        share.source,
+                        i64::from(share.folder),
                     ],
                 )?;
                 Ok(())
@@ -450,9 +458,15 @@ impl Local {
         self.store
             .call(move |conn| {
                 let mut stmt = conn.prepare(
-                    "SELECT account_id, hostname, origin, owner, expires_at, created_at
-                     FROM domain_shares WHERE ?1 IS NULL OR account_id = ?1
-                     ORDER BY created_at, hostname",
+                    "SELECT d.account_id, d.hostname, d.origin, d.owner, d.expires_at,
+                        d.created_at, d.source, d.folder, p.hostname IS NOT NULL, s.schedule
+                     FROM domain_shares d
+                     LEFT JOIN paused_routes p
+                       ON p.account_id = d.account_id AND p.hostname = d.hostname
+                     LEFT JOIN route_schedules s
+                       ON s.account_id = d.account_id AND s.hostname = d.hostname
+                     WHERE ?1 IS NULL OR d.account_id = ?1
+                     ORDER BY d.created_at, d.hostname",
                 )?;
                 let rows = stmt.query_map(params![account], |row| {
                     Ok(crate::domain_shares::DomainShare {
@@ -464,6 +478,12 @@ impl Local {
                             .get::<_, Option<i64>>(4)?
                             .and_then(|t| u64::try_from(t).ok()),
                         created_at: u64::try_from(row.get::<_, i64>(5)?).unwrap_or_default(),
+                        source: row.get(6)?,
+                        folder: row.get::<_, i64>(7)? != 0,
+                        paused: row.get(8)?,
+                        schedule: row
+                            .get::<_, Option<String>>(9)?
+                            .and_then(|raw| serde_json::from_str(&raw).ok()),
                     })
                 })?;
                 Ok(rows.collect::<Result<Vec<_>, _>>()?)

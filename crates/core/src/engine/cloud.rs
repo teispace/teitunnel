@@ -84,6 +84,12 @@ pub trait CloudApi: Send + Sync {
         &self,
         zone: &str,
     ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
+    /// Records in a zone whose comment contains `needle` (e.g. Teitunnel's marker).
+    fn records_with_comment(
+        &self,
+        zone: &str,
+        needle: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
     /// Creates a record.
     fn create_record(
         &self,
@@ -92,6 +98,14 @@ pub trait CloudApi: Send + Sync {
     ) -> impl Future<Output = cf_api::Result<DnsRecord>> + Send;
     /// Updates a record.
     fn update_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> impl Future<Output = cf_api::Result<DnsRecord>> + Send;
+    /// Replaces a record with one of another type, in one batch (Cloudflare doesn't
+    /// change a record's type in place).
+    fn replace_record(
         &self,
         zone: &str,
         id: &str,
@@ -244,6 +258,194 @@ pub trait CloudApi: Send + Sync {
         zone: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's workers.dev subdomain, if it has chosen one.
+    fn workers_subdomain(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// A Worker's deployments, newest first; `None` when it doesn't exist.
+    fn worker_deployments(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<Vec<cf_api::WorkerDeployment>>>> + Send;
+    /// Custom Domains, by Worker and/or hostname.
+    fn worker_domains(
+        &self,
+        account: &str,
+        service: Option<&str>,
+        hostname: Option<&str>,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::WorkerDomain>>> + Send;
+    /// Whether a Worker answers on workers.dev.
+    fn worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<bool>> + Send;
+    /// Starts an assets upload with the full manifest.
+    fn create_assets_upload_session(
+        &self,
+        account: &str,
+        script: &str,
+        manifest: &std::collections::BTreeMap<String, cf_api::AssetEntry>,
+    ) -> impl Future<Output = cf_api::Result<cf_api::UploadSession>> + Send;
+    /// Uploads one bucket; the completion token after the last.
+    fn upload_assets(
+        &self,
+        account: &str,
+        jwt: &str,
+        files: &[cf_api::AssetFile],
+    ) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// Creates or replaces a Worker, deployed at once.
+    fn put_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Uploads a version without deploying it.
+    fn upload_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerVersion>> + Send;
+    /// Sends all of a Worker's traffic to a version.
+    fn deploy_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        version_id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Turns a Worker's workers.dev address on or off.
+    fn set_worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+        enabled: bool,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Deletes a Worker.
+    fn delete_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Serves a hostname with a Worker (Cloudflare adds the DNS record).
+    fn attach_worker_domain(
+        &self,
+        account: &str,
+        hostname: &str,
+        zone_id: &str,
+        service: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerDomain>> + Send;
+    /// Detaches a Custom Domain.
+    fn detach_worker_domain(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// A zone's plan (`plan.legacy_id`: `free`, `pro`, …).
+    fn zone_plan(&self, zone: &str) -> impl Future<Output = cf_api::Result<Option<String>>> + Send;
+    /// A phase's entry point ruleset; `None` when the zone has none.
+    fn phase_entrypoint(
+        &self,
+        zone: &str,
+        phase: &str,
+    ) -> impl Future<Output = cf_api::Result<Option<cf_api::Ruleset>>> + Send;
+    /// Adds a rule to a phase (creating its entry point when `ruleset` is `None`), at a
+    /// 1-based `index` or at the end; returns the ruleset id and the rule.
+    fn create_rule(
+        &self,
+        zone: &str,
+        phase: &str,
+        ruleset: Option<&str>,
+        rule: &cf_api::NewRule,
+        index: Option<u32>,
+    ) -> impl Future<Output = cf_api::Result<(String, cf_api::Rule)>> + Send;
+    /// Replaces one rule's definition.
+    fn update_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+        rule: &cf_api::NewRule,
+    ) -> impl Future<Output = cf_api::Result<cf_api::Rule>> + Send;
+    /// Deletes one rule.
+    fn delete_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// The account's Access service tokens.
+    fn service_tokens(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::ServiceToken>>> + Send;
+    /// Creates a service token (its secret is in the answer, once).
+    fn create_service_token(
+        &self,
+        account: &str,
+        name: &str,
+        duration: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::IssuedServiceToken>> + Send;
+    /// Gives a service token a new secret.
+    fn rotate_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::IssuedServiceToken>> + Send;
+    /// Deletes a service token.
+    fn delete_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// D1 databases named exactly `name`.
+    fn d1_databases(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::D1Database>>> + Send;
+    /// Creates a D1 database.
+    fn create_d1_database(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::D1Database>> + Send;
+    /// Deletes a D1 database with everything in it.
+    fn delete_d1_database(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Runs statements against a D1 database (a batch is one transaction).
+    fn d1_query(
+        &self,
+        account: &str,
+        database: &str,
+        statements: &[cf_api::D1Statement],
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::D1Result>>> + Send;
+    /// A zone's Worker routes.
+    fn worker_routes(
+        &self,
+        zone: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::WorkerRoute>>> + Send;
+    /// Runs a Worker for a pattern on a zone (failing open).
+    fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::WorkerRoute>> + Send;
+    /// Deletes a Worker route.
+    fn delete_worker_route(
+        &self,
+        zone: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
 }
 
 /// This Mac's side of a tunnel: the connector process and its token.
@@ -353,6 +555,14 @@ impl CloudApi for Client {
         self.dns_records_of_type(zone, "CNAME").await
     }
 
+    async fn records_with_comment(
+        &self,
+        zone: &str,
+        needle: &str,
+    ) -> cf_api::Result<Vec<DnsRecord>> {
+        self.dns_records_with_comment(zone, needle).await
+    }
+
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {
         self.create_dns_record(zone, record).await
     }
@@ -364,6 +574,15 @@ impl CloudApi for Client {
         record: &NewDnsRecord,
     ) -> cf_api::Result<DnsRecord> {
         self.update_dns_record(zone, id, record).await
+    }
+
+    async fn replace_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> cf_api::Result<DnsRecord> {
+        self.replace_dns_record(zone, id, record).await
     }
 
     async fn delete_record(&self, zone: &str, id: &str) -> cf_api::Result<()> {
@@ -507,5 +726,217 @@ impl CloudApi for Client {
 
     async fn delete_load_balancer(&self, zone: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_load_balancer(self, zone, id).await
+    }
+
+    async fn workers_subdomain(&self, account: &str) -> cf_api::Result<Option<String>> {
+        Client::workers_subdomain(self, account).await
+    }
+
+    async fn worker_deployments(
+        &self,
+        account: &str,
+        script: &str,
+    ) -> cf_api::Result<Option<Vec<cf_api::WorkerDeployment>>> {
+        Client::worker_deployments(self, account, script).await
+    }
+
+    async fn worker_domains(
+        &self,
+        account: &str,
+        service: Option<&str>,
+        hostname: Option<&str>,
+    ) -> cf_api::Result<Vec<cf_api::WorkerDomain>> {
+        Client::worker_domains(self, account, service, hostname).await
+    }
+
+    async fn worker_on_workers_dev(&self, account: &str, script: &str) -> cf_api::Result<bool> {
+        Client::worker_on_workers_dev(self, account, script).await
+    }
+
+    async fn create_assets_upload_session(
+        &self,
+        account: &str,
+        script: &str,
+        manifest: &std::collections::BTreeMap<String, cf_api::AssetEntry>,
+    ) -> cf_api::Result<cf_api::UploadSession> {
+        Client::create_assets_upload_session(self, account, script, manifest).await
+    }
+
+    async fn upload_assets(
+        &self,
+        account: &str,
+        jwt: &str,
+        files: &[cf_api::AssetFile],
+    ) -> cf_api::Result<Option<String>> {
+        Client::upload_assets(self, account, jwt, files).await
+    }
+
+    async fn put_worker_script(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<()> {
+        Client::put_worker_script(self, account, script, metadata, modules).await
+    }
+
+    async fn upload_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        metadata: &serde_json::Value,
+        modules: &[cf_api::WorkerModule],
+    ) -> cf_api::Result<cf_api::WorkerVersion> {
+        Client::upload_worker_version(self, account, script, metadata, modules).await
+    }
+
+    async fn deploy_worker_version(
+        &self,
+        account: &str,
+        script: &str,
+        version_id: &str,
+    ) -> cf_api::Result<()> {
+        Client::deploy_worker_version(self, account, script, version_id, "Teitunnel Snapshot")
+            .await
+            .map(|_| ())
+    }
+
+    async fn set_worker_on_workers_dev(
+        &self,
+        account: &str,
+        script: &str,
+        enabled: bool,
+    ) -> cf_api::Result<()> {
+        Client::set_worker_on_workers_dev(self, account, script, enabled).await
+    }
+
+    async fn delete_worker_script(&self, account: &str, script: &str) -> cf_api::Result<()> {
+        Client::delete_worker_script(self, account, script).await
+    }
+
+    async fn attach_worker_domain(
+        &self,
+        account: &str,
+        hostname: &str,
+        zone_id: &str,
+        service: &str,
+    ) -> cf_api::Result<cf_api::WorkerDomain> {
+        Client::attach_worker_domain(self, account, hostname, zone_id, service).await
+    }
+
+    async fn detach_worker_domain(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::detach_worker_domain(self, account, id).await
+    }
+
+    async fn zone_plan(&self, zone: &str) -> cf_api::Result<Option<String>> {
+        Ok(Client::zone(self, zone)
+            .await?
+            .plan
+            .and_then(|p| p.legacy_id))
+    }
+
+    async fn phase_entrypoint(
+        &self,
+        zone: &str,
+        phase: &str,
+    ) -> cf_api::Result<Option<cf_api::Ruleset>> {
+        Client::phase_entrypoint(self, zone, phase).await
+    }
+
+    async fn create_rule(
+        &self,
+        zone: &str,
+        phase: &str,
+        ruleset: Option<&str>,
+        rule: &cf_api::NewRule,
+        index: Option<u32>,
+    ) -> cf_api::Result<(String, cf_api::Rule)> {
+        Client::create_rule(self, zone, phase, ruleset, rule, index).await
+    }
+
+    async fn update_rule(
+        &self,
+        zone: &str,
+        ruleset: &str,
+        rule_id: &str,
+        rule: &cf_api::NewRule,
+    ) -> cf_api::Result<cf_api::Rule> {
+        Client::update_rule(self, zone, ruleset, rule_id, rule).await
+    }
+
+    async fn delete_rule(&self, zone: &str, ruleset: &str, rule_id: &str) -> cf_api::Result<()> {
+        Client::delete_rule(self, zone, ruleset, rule_id).await
+    }
+
+    async fn service_tokens(&self, account: &str) -> cf_api::Result<Vec<cf_api::ServiceToken>> {
+        Client::service_tokens(self, account).await
+    }
+
+    async fn create_service_token(
+        &self,
+        account: &str,
+        name: &str,
+        duration: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        Client::create_service_token(self, account, name, duration).await
+    }
+
+    async fn rotate_service_token(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> cf_api::Result<cf_api::IssuedServiceToken> {
+        Client::rotate_service_token(self, account, id).await
+    }
+
+    async fn delete_service_token(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_service_token(self, account, id).await
+    }
+
+    async fn d1_databases(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> cf_api::Result<Vec<cf_api::D1Database>> {
+        Client::d1_databases(self, account, name).await
+    }
+
+    async fn create_d1_database(
+        &self,
+        account: &str,
+        name: &str,
+    ) -> cf_api::Result<cf_api::D1Database> {
+        Client::create_d1_database(self, account, name).await
+    }
+
+    async fn delete_d1_database(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_d1_database(self, account, id).await
+    }
+
+    async fn d1_query(
+        &self,
+        account: &str,
+        database: &str,
+        statements: &[cf_api::D1Statement],
+    ) -> cf_api::Result<Vec<cf_api::D1Result>> {
+        Client::d1_query(self, account, database, statements).await
+    }
+
+    async fn worker_routes(&self, zone: &str) -> cf_api::Result<Vec<cf_api::WorkerRoute>> {
+        Client::worker_routes(self, zone).await
+    }
+
+    async fn create_worker_route(
+        &self,
+        zone: &str,
+        pattern: &str,
+        script: &str,
+    ) -> cf_api::Result<cf_api::WorkerRoute> {
+        Client::create_worker_route(self, zone, pattern, script).await
+    }
+
+    async fn delete_worker_route(&self, zone: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_worker_route(self, zone, id).await
     }
 }

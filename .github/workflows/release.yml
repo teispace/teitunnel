@@ -179,7 +179,8 @@ jobs:
       - name: Build the app
         run: >-
           pnpm --filter @teitunnel/desktop tauri build --target ${{ matrix.target }}
-          --bundles ${{ matrix.bundles }} --config src-tauri/tauri.cli.conf.json
+          --bundles ${{ matrix.bundles }}
+          --config src-tauri/${{ runner.os == 'Linux' && 'tauri.cli.linux.conf.json' || 'tauri.cli.conf.json' }}
 
       - name: Collect (macOS)
         if: runner.os == 'macOS'
@@ -191,12 +192,13 @@ jobs:
           cp "$bundle/dmg/Teitunnel_${v}_universal.dmg" dist/
           # The updater's archive of the (signed, notarized, stapled) app.
           COPYFILE_DISABLE=1 tar -czf "dist/Teitunnel_${v}_universal.app.tar.gz" -C "$bundle/macos" Teitunnel.app
-          cli="$RUNNER_TEMP/teitunnel-cli"
+          # The command is `teitunnel` (D-091); inside the app bundle it's teitunnel-cli.
+          cli="$RUNNER_TEMP/teitunnel"
           cp "$out/teitunnel-cli" "$cli"
           if [ "${SIGNED:-}" = 1 ]; then
             codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$cli"
           fi
-          (cd "$RUNNER_TEMP" && ditto -c -k teitunnel-cli "$GITHUB_WORKSPACE/dist/teitunnel-cli_${v}_macos-universal.zip")
+          (cd "$RUNNER_TEMP" && ditto -c -k teitunnel "$GITHUB_WORKSPACE/dist/teitunnel-cli_${v}_macos-universal.zip")
           if [ "${SIGNED:-}" = 1 ]; then
             # The DMG and the CLI are notarized too; the DMG gets the ticket stapled.
             # Apple's first submissions for a new team can take hours; later ones minutes. A
@@ -224,7 +226,8 @@ jobs:
           arch=$([ "${{ matrix.target }}" = aarch64-pc-windows-msvc ] && echo arm64 || echo x64)
           mkdir -p dist
           cp "$out/bundle/nsis/Teitunnel_${v}_${arch}-setup.exe" dist/
-          7z a -tzip "dist/teitunnel-cli_${v}_windows-${arch}.zip" "./$out/teitunnel-cli.exe"
+          mkdir -p "$RUNNER_TEMP/cli" && cp "$out/teitunnel-cli.exe" "$RUNNER_TEMP/cli/teitunnel.exe"
+          7z a -tzip "dist/teitunnel-cli_${v}_windows-${arch}.zip" "$RUNNER_TEMP/cli/teitunnel.exe"
 
       - name: Collect (Linux)
         if: runner.os == 'Linux'
@@ -234,7 +237,8 @@ jobs:
           arch=$([ "${{ matrix.target }}" = aarch64-unknown-linux-gnu ] && echo arm64 || echo x64)
           mkdir -p dist
           cp "$out"/bundle/deb/*.deb "$out"/bundle/rpm/*.rpm "$out"/bundle/appimage/*.AppImage dist/
-          tar -czf "dist/teitunnel-cli_${v}_linux-${arch}.tar.gz" -C "$out" teitunnel-cli
+          mkdir -p "$RUNNER_TEMP/cli" && cp "$out/teitunnel-cli" "$RUNNER_TEMP/cli/teitunnel"
+          tar -czf "dist/teitunnel-cli_${v}_linux-${arch}.tar.gz" -C "$RUNNER_TEMP/cli" teitunnel
 
       - run: ls -la dist
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -48,6 +48,48 @@ pub struct AccessPolicy {
     /// Order among the application's policies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub precedence: Option<u32>,
+    /// An account-level policy that applications refer to by id (as read).
+    #[serde(default, skip_serializing)]
+    pub reusable: bool,
+    /// How many applications use it (reusable policies, as read).
+    #[serde(default, skip_serializing)]
+    pub app_count: Option<u32>,
+}
+
+/// Prefix of the names Teitunnel gives its applications and their policies; a reusable
+/// policy with it is Teitunnel's to delete once no application uses it.
+pub const TEITUNNEL_PREFIX: &str = "Teitunnel · ";
+
+/// An application as sent: `destinations` (Cloudflare's replacement for
+/// `self_hosted_domains`) alongside `domain`, and its policies by reference.
+#[derive(Serialize)]
+struct AppBody<'a> {
+    name: &'a str,
+    domain: &'a str,
+    destinations: [Value; 1],
+    #[serde(rename = "type")]
+    kind: &'a str,
+    session_duration: &'a str,
+    app_launcher_visible: bool,
+    policies: Vec<Value>,
+}
+
+impl<'a> AppBody<'a> {
+    fn new(app: &'a NewAccessApp, policies: &[String]) -> Self {
+        Self {
+            name: &app.name,
+            domain: &app.domain,
+            destinations: [json!({ "type": "public", "uri": app.domain })],
+            kind: &app.kind,
+            session_duration: &app.session_duration,
+            app_launcher_visible: app.app_launcher_visible,
+            policies: policies
+                .iter()
+                .zip(1u32..)
+                .map(|(id, precedence)| json!({ "id": id, "precedence": precedence }))
+                .collect(),
+        }
+    }
 }
 
 /// A rule matching one email address.
@@ -112,6 +154,21 @@ pub struct IdentityProvider {
     pub kind: String,
 }
 
+fn policies_path(account: &str) -> String {
+    format!("/accounts/{}/access/policies", crate::encode(account))
+}
+
+/// Teitunnel's reusable policies on `app` that nothing else uses, except `keep`.
+fn unused_ours(app: &AccessApp, keep: &[String]) -> Vec<String> {
+    app.policies
+        .iter()
+        .filter(|p| p.reusable && p.name.starts_with(TEITUNNEL_PREFIX))
+        .filter(|p| p.app_count.is_none_or(|count| count <= 1))
+        .filter_map(|p| p.id.clone())
+        .filter(|id| !keep.contains(id))
+        .collect()
+}
+
 fn apps_path(account: &str) -> String {
     format!("/accounts/{}/access/apps", crate::encode(account))
 }
@@ -130,39 +187,124 @@ impl Client {
         .await
     }
 
-    /// Creates an application. Not retried on server errors (no duplicates).
+    /// One application.
+    ///
+    /// # Errors
+    /// API or network errors (404 when it's gone).
+    pub async fn access_app(&self, account: &str, id: &str) -> Result<AccessApp> {
+        self.get(&format!("{}/{}", apps_path(account), crate::encode(id)))
+            .await
+    }
+
+    /// Creates an application with its policies as reusable policies (Cloudflare's model;
+    /// the dashboard no longer makes application-scoped ones). If the application can't
+    /// be created, the policies made for it are deleted again.
     ///
     /// # Errors
     /// API errors, e.g. when the account has no Zero Trust organization.
     pub async fn create_access_app(&self, account: &str, app: &NewAccessApp) -> Result<AccessApp> {
-        self.post(&apps_path(account), &serde_json::to_value(app)?)
-            .await
+        let policies = self.create_policies(account, app).await?;
+        let created = self
+            .post(
+                &apps_path(account),
+                &serde_json::to_value(AppBody::new(app, &policies))?,
+            )
+            .await;
+        if created.is_err() {
+            self.delete_policies(account, &policies).await;
+        }
+        created
     }
 
-    /// Replaces an application.
+    /// Replaces an application: new reusable policies, then the application pointing at
+    /// them, then Teitunnel's policies it no longer uses are deleted.
     ///
     /// # Errors
-    /// API or network errors.
+    /// API or network errors; the application is unchanged then.
     pub async fn update_access_app(
         &self,
         account: &str,
         id: &str,
         app: &NewAccessApp,
     ) -> Result<AccessApp> {
-        self.put(
-            &format!("{}/{}", apps_path(account), crate::encode(id)),
-            &serde_json::to_value(app)?,
-        )
-        .await
+        let before = self.access_app(account, id).await?;
+        let policies = self.create_policies(account, app).await?;
+        let updated: Result<AccessApp> = self
+            .put(
+                &format!("{}/{}", apps_path(account), crate::encode(id)),
+                &serde_json::to_value(AppBody::new(app, &policies))?,
+            )
+            .await;
+        match updated {
+            Ok(updated) => {
+                self.delete_policies(account, &unused_ours(&before, &policies))
+                    .await;
+                Ok(updated)
+            }
+            Err(err) => {
+                self.delete_policies(account, &policies).await;
+                Err(err)
+            }
+        }
     }
 
-    /// Deletes an application (a missing one counts as deleted).
+    /// Deletes an application (a missing one counts as deleted), then Teitunnel's
+    /// reusable policies that only it used.
     ///
     /// # Errors
     /// API or network errors.
     pub async fn delete_access_app(&self, account: &str, id: &str) -> Result<()> {
+        let before = match self.access_app(account, id).await {
+            Ok(app) => Some(app),
+            Err(err) if err.status() == Some(404) => None,
+            Err(err) => return Err(err),
+        };
         self.delete(&format!("{}/{}", apps_path(account), crate::encode(id)))
-            .await
+            .await?;
+        if let Some(before) = before {
+            self.delete_policies(account, &unused_ours(&before, &[]))
+                .await;
+        }
+        Ok(())
+    }
+
+    /// Creates `app`'s policies as reusable ones named after it, in order. On a failure
+    /// the ones already made are deleted.
+    async fn create_policies(&self, account: &str, app: &NewAccessApp) -> Result<Vec<String>> {
+        let mut ids = Vec::new();
+        for policy in &app.policies {
+            let body = json!({
+                "name": format!("{} · {}", app.name, policy.name),
+                "decision": policy.decision,
+                "include": policy.include,
+            });
+            match self
+                .post::<AccessPolicy>(&policies_path(account), &body)
+                .await
+                .and_then(|created| {
+                    created
+                        .id
+                        .ok_or_else(|| serde::de::Error::custom("the policy has no id"))
+                        .map_err(crate::Error::Decode)
+                }) {
+                Ok(id) => ids.push(id),
+                Err(err) => {
+                    self.delete_policies(account, &ids).await;
+                    return Err(err);
+                }
+            }
+        }
+        Ok(ids)
+    }
+
+    /// Best effort: a policy left behind is harmless (and named after its application).
+    async fn delete_policies(&self, account: &str, ids: &[String]) {
+        for id in ids {
+            let path = format!("{}/{}", policies_path(account), crate::encode(id));
+            if let Err(err) = self.delete(&path).await {
+                tracing::warn!(error = %err, "couldn't delete an Access policy");
+            }
+        }
     }
 
     /// The account's Zero Trust organization; `None` when Zero Trust isn't set up.
@@ -178,7 +320,7 @@ impl Client {
             .await
         {
             Ok(org) => Ok(Some(org)),
-            Err(err) if err.status() == Some(404) => Ok(None),
+            Err(err) if err.status() == Some(404) || err.is_not_enabled() => Ok(None),
             Err(err) => Err(err),
         }
     }
@@ -268,22 +410,73 @@ mod tests {
         );
 
         Mock::given(method("POST"))
+            .and(path("/accounts/a1/access/policies"))
+            .respond_with(|req: &Request| {
+                let body: Value = serde_json::from_slice(&req.body).unwrap();
+                assert_eq!(body["name"], "Teitunnel · api.xyz.com · Allowed");
+                assert_eq!(body["decision"], "allow");
+                assert_eq!(
+                    body["include"][1],
+                    json!({"email_domain": {"domain": "xyz.com"}})
+                );
+                ok(&json!({"id": "pol2", "name": body["name"], "decision": "allow", "reusable": true}))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
             .and(path("/accounts/a1/access/apps"))
             .respond_with(|req: &Request| {
                 let body: Value = serde_json::from_slice(&req.body).unwrap();
                 assert_eq!(body["type"], "self_hosted");
                 assert_eq!(body["app_launcher_visible"], false);
-                assert_eq!(body["policies"][0]["decision"], "allow");
                 assert_eq!(
-                    body["policies"][0]["include"][1],
-                    json!({"email_domain": {"domain": "xyz.com"}})
+                    body["destinations"],
+                    json!([{"type": "public", "uri": "api.xyz.com"}])
                 );
-                assert!(body["policies"][0].get("id").is_none());
+                assert_eq!(body["policies"], json!([{"id": "pol2", "precedence": 1}]));
                 ok(&json!({"id": "app2", "domain": body["domain"], "type": "self_hosted"}))
             })
             .mount(&server)
             .await;
-        let app = NewAccessApp {
+        assert_eq!(
+            client.create_access_app("a1", &new_app()).await.unwrap().id,
+            "app2"
+        );
+
+        // Deleting takes Teitunnel's policy along, not someone else's or a shared one.
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/access/apps/app2"))
+            .respond_with(ok(&json!({
+                "id": "app2", "name": "Teitunnel · api.xyz.com", "domain": "api.xyz.com",
+                "policies": [
+                    {"id": "pol2", "name": "Teitunnel · api.xyz.com · Allowed", "decision": "allow",
+                     "reusable": true, "app_count": 1},
+                    {"id": "shared", "name": "Teitunnel · team", "decision": "allow",
+                     "reusable": true, "app_count": 3},
+                    {"id": "theirs", "name": "Admins", "decision": "allow",
+                     "reusable": true, "app_count": 1}
+                ]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/accounts/a1/access/apps/app2"))
+            .respond_with(ok(&json!({"id": "app2"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/accounts/a1/access/policies/pol2"))
+            .respond_with(ok(&json!({"id": "pol2"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        client.delete_access_app("a1", "app2").await.unwrap();
+    }
+
+    fn new_app() -> NewAccessApp {
+        NewAccessApp {
             name: "Teitunnel · api.xyz.com".into(),
             domain: "api.xyz.com".into(),
             kind: "self_hosted".into(),
@@ -295,19 +488,80 @@ mod tests {
                 decision: "allow".into(),
                 include: vec![email_rule("me@xyz.com"), email_domain_rule("xyz.com")],
                 precedence: Some(1),
+                reusable: false,
+                app_count: None,
             }],
-        };
-        assert_eq!(
-            client.create_access_app("a1", &app).await.unwrap().id,
-            "app2"
-        );
+        }
+    }
 
-        Mock::given(method("DELETE"))
-            .and(path("/accounts/a1/access/apps/app2"))
-            .respond_with(ResponseTemplate::new(404))
+    #[tokio::test]
+    async fn a_failed_create_leaves_no_policy_behind() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/accounts/a1/access/policies"))
+            .respond_with(ok(&json!({"id": "pol9", "name": "x", "decision": "allow"})))
             .mount(&server)
             .await;
-        client.delete_access_app("a1", "app2").await.unwrap();
+        Mock::given(method("POST"))
+            .and(path("/accounts/a1/access/apps"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "success": false, "errors": [{"code": 12130, "message": "domain taken"}],
+                "messages": [], "result": null
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/accounts/a1/access/policies/pol9"))
+            .respond_with(ok(&json!({"id": "pol9"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        assert!(client.create_access_app("a1", &new_app()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn an_update_swaps_in_new_policies_and_drops_the_old_ones() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        // An application made by 0.1 (policy inside the app) or by this version.
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/access/apps/app2"))
+            .respond_with(ok(&json!({
+                "id": "app2", "name": "Teitunnel · api.xyz.com", "domain": "api.xyz.com",
+                "policies": [
+                    {"id": "old", "name": "Teitunnel · api.xyz.com · Allowed", "decision": "allow",
+                     "reusable": true, "app_count": 1},
+                    {"id": "inline", "name": "Allowed people", "decision": "allow"}
+                ]
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/accounts/a1/access/policies"))
+            .respond_with(ok(&json!({"id": "new", "name": "x", "decision": "allow"})))
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/accounts/a1/access/apps/app2"))
+            .respond_with(|req: &Request| {
+                let body: Value = serde_json::from_slice(&req.body).unwrap();
+                assert_eq!(body["policies"], json!([{"id": "new", "precedence": 1}]));
+                ok(&json!({"id": "app2", "domain": "api.xyz.com"}))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/accounts/a1/access/policies/old"))
+            .respond_with(ok(&json!({"id": "old"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        client
+            .update_access_app("a1", "app2", &new_app())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

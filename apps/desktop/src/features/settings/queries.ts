@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { commands, type SettingsPatch } from "@/lib/ipc/bindings";
+import { commands, type IntegrationsPatch, type SettingsPatch } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 export const settingsQuery = queryOptions({
   queryKey: queryKeys.settings.all(),
@@ -32,15 +32,72 @@ export function useSetOpenAtLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (enabled: boolean) => call(commands.appSetOpenAtLogin(enabled)),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: loginKey }),
+    onSettled: () => refresh(queryClient, loginKey),
   });
 }
 
 const cliKey = ["settings", "cli"] as const;
 
-/** Whether `teitunnel-cli` is on the PATH (D-077). */
+/** Whether `teitunnel` is on the PATH (D-077). */
 export function useCliStatus() {
   return useQuery({ queryKey: cliKey, queryFn: () => call(commands.cliStatus()) });
+}
+
+const aiClientsKey = ["settings", "aiClients"] as const;
+
+/** AI tools on this computer and whether each is connected to Teitunnel's MCP server. */
+export function useAiClients() {
+  return useQuery({ queryKey: aiClientsKey, queryFn: () => call(commands.aiClientsStatus()) });
+}
+
+/** AI agents connected through `teitunnel mcp` now, and their approvals waiting. */
+export function useAiAgents() {
+  return useQuery({
+    queryKey: queryKeys.agents.all(),
+    queryFn: () => call(commands.aiAgents()),
+  });
+}
+
+/** Saves an OpenAPI description of the captured requests to Downloads. */
+export function useSaveOpenApi() {
+  return useMutation({
+    mutationFn: () => call(commands.inspectOpenapiSave(null)),
+  });
+}
+
+/** Connects or disconnects an AI tool (edits only Teitunnel's entry in its settings). */
+export function useSetAiClientConnected() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, connect }: { id: string; connect: boolean }) =>
+      call(connect ? commands.aiClientsConnect(id) : commands.aiClientsDisconnect(id)),
+    onSuccess: (view) => queryClient.setQueryData(aiClientsKey, view),
+  });
+}
+
+const integrationsKey = ["settings", "integrations"] as const;
+
+/** Settings ▸ Integrations: the control connection, links and always-allowed programs. */
+export function useIntegrations() {
+  return useQuery({ queryKey: integrationsKey, queryFn: () => call(commands.integrationsGet()) });
+}
+
+/** Turns the control connection or links on or off. */
+export function useUpdateIntegrations() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: IntegrationsPatch) => call(commands.integrationsSet(patch)),
+    onSuccess: (value) => queryClient.setQueryData(integrationsKey, value),
+  });
+}
+
+/** Stops always allowing a program; stays busy until the list no longer has it. */
+export function useRevokeClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => call(commands.integrationsRevoke(name)),
+    onSuccess: (value) => queryClient.setQueryData(integrationsKey, value),
+  });
 }
 
 /** Installs or removes the command line tool. */
@@ -50,5 +107,42 @@ export function useSetCliInstalled() {
     mutationFn: (install: boolean) =>
       call(install ? commands.cliInstall() : commands.cliUninstall()),
     onSuccess: (state) => queryClient.setQueryData(cliKey, state),
+  });
+}
+
+/** Move to another computer: the system's save and open panels (`null` when cancelled). */
+export const chooseBackupSave = () => call(commands.backupChooseSave());
+export const chooseBackupOpen = () => call(commands.backupChooseOpen());
+
+/** Writes an encrypted backup of this computer's setup. */
+export function useCreateBackup() {
+  return useMutation({
+    mutationFn: ({ path, passphrase }: { path: string; passphrase: string }) =>
+      call(commands.backupCreate(path, passphrase)),
+  });
+}
+
+/** Reads a backup and says what restoring it would bring (nothing changes yet). */
+export function useInspectBackup() {
+  return useMutation({
+    mutationFn: ({ path, passphrase }: { path: string; passphrase: string }) =>
+      call(commands.backupInspect(path, passphrase)),
+  });
+}
+
+/** Restores the backup that was inspected; everything it touched is read again. */
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => call(commands.backupRestore(id)),
+    onSuccess: () =>
+      refresh(
+        queryClient,
+        queryKeys.settings.all(),
+        queryKeys.accounts.all(),
+        queryKeys.routes.all(),
+        queryKeys.projects.all(),
+        queryKeys.snapshots.all(),
+      ),
   });
 }

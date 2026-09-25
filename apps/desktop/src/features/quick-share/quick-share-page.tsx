@@ -1,40 +1,66 @@
 import { AnimatePresence, LazyMotion, m } from "motion/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
+import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
+import type { FolderShare } from "@/lib/ipc/bindings";
+import { toIpcError } from "@/lib/ipc/client";
 import { spring } from "@/lib/motion-tokens";
 import { usePageVisible } from "@/lib/use-page-visible";
 import { DomainShareCard } from "./components/domain-share-card";
 import { ShareCard } from "./components/share-card";
 import { ShareComposer } from "./components/share-composer";
 import { TerminalShareCard } from "./components/terminal-share-card";
-import { useDomainShares, useQuickShares, useTerminalShares } from "./queries";
+import { resolveFolder, useDomainShares, useQuickShares, useTerminalShares } from "./queries";
+import { useFolderDrop } from "./use-folder-drop";
 
 const loadFeatures = () => import("motion/react").then((mod) => mod.domMax);
 
 /** Quick Share: a public URL for a local service, no account needed. */
 export function QuickSharePage({ compose = false }: { compose?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
-  const { data: shares = [] } = useQuickShares();
-  const domainShares = useDomainShares().data ?? [];
-  const terminalShares = useTerminalShares().data ?? [];
+  const sharesQuery = useQuickShares();
+  const domainQuery = useDomainShares();
+  const terminalQuery = useTerminalShares();
+  const shares = sharesQuery.data ?? [];
+  const domainShares = domainQuery.data ?? [];
+  const terminalShares = terminalQuery.data ?? [];
+  const loaded = sharesQuery.isSuccess && domainQuery.isSuccess && terminalQuery.isSuccess;
   const binary = useBinaryStatus();
   const visible = usePageVisible();
   const missing = binary.isSuccess && !binaryReady(binary.data);
+  const [folder, setFolder] = useState<FolderShare | null>(null);
+  // A folder dropped anywhere on the window is ready to share (a file isn't).
+  const dragging = useFolderDrop((path) => {
+    resolveFolder(path).then(setFolder, (error) => toast.error(toIpcError(error).message));
+  });
 
   return (
     <LazyMotion features={loadFeatures} strict>
       <TitlebarToolbar title={t("quickShare.title")} separator={scrolled} />
       <ScrollArea onScrolledChange={setScrolled}>
         <div className="mx-auto flex max-w-[680px] flex-col gap-4 px-5 pt-2 pb-8">
-          <section className="flex flex-col gap-3 rounded-card bg-surface-inset p-4">
+          <section
+            className={cn(
+              "flex flex-col gap-3 rounded-card bg-surface-inset p-4 outline-offset-2 transition-[outline-color] transition-snappy",
+              dragging ? "outline-2 outline-accent" : "outline-2 outline-transparent",
+            )}
+          >
             <div>
               <h2 className="text-headline">{t("quickShare.heading")}</h2>
-              <p className="mt-0.5 text-callout text-secondary">{t("quickShare.headingDetail")}</p>
+              <p className="mt-0.5 text-callout text-secondary" aria-live="polite">
+                {dragging ? t("quickShare.folder.drop") : t("quickShare.headingDetail")}
+              </p>
             </div>
-            <ShareComposer disabled={missing} autoFocus={compose} />
+            <ShareComposer
+              disabled={missing}
+              autoFocus={compose}
+              folder={folder}
+              onFolderChange={setFolder}
+            />
           </section>
 
           {missing ? <BinaryNotice binary={binary.data ?? null} /> : null}
@@ -54,7 +80,7 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             ))}
             {terminalShares.map((share) => (
               <m.div
-                key={share.owner}
+                key={`${share.owner}/${share.url}`}
                 layout
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -78,7 +104,8 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
             ))}
           </AnimatePresence>
 
-          {shares.length === 0 &&
+          {loaded &&
+          shares.length === 0 &&
           domainShares.length === 0 &&
           terminalShares.length === 0 &&
           !missing ? (

@@ -8,11 +8,7 @@ mod classify;
 pub mod cloudflared;
 pub mod docker;
 
-use std::{
-    collections::BTreeMap,
-    net::IpAddr,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, net::IpAddr, path::Path};
 
 use serde::Serialize;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -36,6 +32,8 @@ pub struct LocalService {
     pub kind: ServiceKind,
     /// Project the process runs in (from its working directory), e.g. `my-app`.
     pub project: Option<String>,
+    /// The folder the process runs in, when known (for names like `{branch}`).
+    pub folder: Option<String>,
     /// Suggested origin URL, e.g. `http://localhost:5173`.
     pub origin: String,
 }
@@ -87,6 +85,7 @@ pub(crate) fn merge(
                 process: "docker".to_owned(),
                 kind,
                 project: Some(container.label()),
+                folder: None,
                 origin: kind.origin(port),
             };
             match services.iter_mut().find(|s| s.port == port) {
@@ -101,6 +100,17 @@ pub(crate) fn merge(
     }
     services.sort_by_key(|s| (s.kind.rank(), s.port));
     services
+}
+
+/// What listens on a local `port`, if anything we recognise (one scan, off the async
+/// threads).
+pub async fn kind_on_port(port: u16) -> Option<ServiceKind> {
+    tokio::task::spawn_blocking(list_services)
+        .await
+        .ok()?
+        .into_iter()
+        .find(|service| service.port == port)
+        .map(|service| service.kind)
 }
 
 /// Ports used by cloudflared metrics servers (ours and cloudflared's defaults).
@@ -160,8 +170,13 @@ pub fn list_services() -> Vec<LocalService> {
                         .collect()
                 })
                 .unwrap_or_default();
-            let kind = classify::classify(&listener.process.name, &cmd, port);
-            let project = process.and_then(|p| p.cwd()).and_then(project_name);
+            let cwd = process.and_then(|p| p.cwd());
+            let kind =
+                classify::refine(classify::classify(&listener.process.name, &cmd, port), cwd);
+            let project = cwd.and_then(project_name);
+            let folder = cwd
+                .filter(|dir| project.is_some() && dir.is_absolute())
+                .map(|dir| dir.display().to_string());
             LocalService {
                 port,
                 all_interfaces,
@@ -169,6 +184,7 @@ pub fn list_services() -> Vec<LocalService> {
                 process: listener.process.name,
                 kind,
                 project,
+                folder,
                 origin: kind.origin(port),
             }
         })
@@ -179,15 +195,11 @@ pub fn list_services() -> Vec<LocalService> {
 
 /// Names the project a process runs in: `package.json` or `Cargo.toml` name, else the
 /// directory name. Home and root directories aren't projects.
-fn project_name(cwd: &Path) -> Option<String> {
-    if cwd.parent().is_none() || Some(cwd.to_path_buf()) == home_dir() {
+pub fn project_name(cwd: &Path) -> Option<String> {
+    if cwd.parent().is_none() || Some(cwd.to_path_buf()) == std::env::home_dir() {
         return None;
     }
     manifest_name(cwd).or_else(|| cwd.file_name().map(|n| n.to_string_lossy().into_owned()))
-}
-
-fn home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
 }
 
 /// The `name` in `[section]` of a TOML manifest (a tiny reader: we only need one key).
@@ -287,6 +299,7 @@ mod tests {
             process: "com.docker.backend".into(),
             kind: ServiceKind::Docker,
             project: None,
+            folder: None,
             origin: "http://localhost:8088".into(),
         }];
         let containers = [

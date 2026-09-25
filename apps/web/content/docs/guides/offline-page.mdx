@@ -1,0 +1,48 @@
+---
+title: Offline page
+description: "Show your own page instead of Cloudflare's error 1033 when the computer serving a route is off or asleep, with a small Worker on your own Cloudflare account."
+---
+
+When the computer that serves a route is off, asleep or offline, Cloudflare can't reach
+its tunnel and shows visitors **error 1033**. An **offline page** replaces that with a page
+of your own ("Back soon…"), served by a small Worker on your Cloudflare account, so it
+works while your computer is off.
+
+## Turn it on
+Open the route in **Routes**, and under **While This Computer Is Off**, choose **Turn On…**
+next to **Offline page**. Give it a title and a message, review the plan and apply it. The
+plan uploads the Worker, then adds a Worker route for `app.example.com/*`. Undo takes it
+off again.
+
+Turn on **Also when the app doesn't answer** to show the page too when the tunnel is up but
+the local service answers 502 or 504 (the app on this computer stopped).
+
+From the terminal:
+
+```sh
+teitunnel offline app.example.com --title "Back soon" --message "I'm away until Monday."
+teitunnel offline app.example.com            # what it has now
+teitunnel offline app.example.com --off
+```
+
+## How it works
+The Worker passes every request on to your tunnel unchanged (bodies stream, WebSockets
+work). Only when Cloudflare answers **530** (error 1033: no connector) does it show your
+page, with status 503 and `Retry-After`, so browsers and search engines know it's
+temporary. API calls get a short JSON answer instead of HTML.
+
+## What it costs
+Every request to the hostname runs the Worker, even while your computer is on, and counts
+toward Cloudflare's free **100,000 Worker requests a day** (for the whole account). The
+Worker route is created to **fail open**: once the day's free requests are used up, the
+site keeps working normally without it, and only the offline page is missing until the
+next day (00:00 UTC). That's why it's off by default and chosen per route.
+
+## Ownership
+Teitunnel only changes the Workers and Worker routes it created (named `tt-offline-…`). If
+another Worker already has a route on the same pattern, it says so and changes nothing.
+Removing the route in Teitunnel removes its offline page too.
+
+## Permissions
+**Account · Workers Scripts · Edit** and **Zone · Workers Routes · Edit** on the route's
+domain. If one is missing, Teitunnel shows how to add it to the same token.

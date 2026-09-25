@@ -14,12 +14,16 @@ use crate::{
     engine::RouteInput,
 };
 
-/// Where cloudflared looks for its configuration.
+/// Where cloudflared itself looks for `config.yml` (its default search directories), plus
+/// Homebrew's and, on Windows, the folder its service runs from.
 fn directories() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-        dirs.push(home.join(".cloudflared"));
+    if let Some(home) = std::env::home_dir() {
+        for name in [".cloudflared", ".cloudflare-warp", "cloudflare-warp"] {
+            dirs.push(home.join(name));
+        }
     }
+    #[cfg(unix)]
     dirs.extend(
         [
             "/etc/cloudflared",
@@ -28,7 +32,26 @@ fn directories() -> Vec<PathBuf> {
         ]
         .map(PathBuf::from),
     );
+    #[cfg(windows)]
+    if let Some(root) = std::env::var_os("SystemRoot") {
+        dirs.push(PathBuf::from(root).join(r"System32\config\systemprofile\.cloudflared"));
+    }
     dirs
+}
+
+/// Config files are small; anything bigger isn't one (and isn't read into memory).
+const MAX_FILE: u64 = 1024 * 1024;
+
+fn read_small(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut text = String::new();
+    std::fs::File::open(path)?
+        .take(MAX_FILE + 1)
+        .read_to_string(&mut text)?;
+    if text.len() as u64 > MAX_FILE {
+        return Err(std::io::Error::other("larger than 1 MB"));
+    }
+    Ok(text)
 }
 
 /// One route found in a config file.
@@ -106,9 +129,9 @@ struct Credentials {
 
 fn expand(path: &str, base: &Path) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/")
-        && let Some(home) = std::env::var_os("HOME")
+        && let Some(home) = std::env::home_dir()
     {
-        return PathBuf::from(home).join(rest);
+        return home.join(rest);
     }
     let path = PathBuf::from(path);
     if path.is_absolute() {
@@ -153,7 +176,7 @@ pub fn read_setup(path: &Path) -> LocalSetup {
         has_global_options: false,
         problem: None,
     };
-    let text = match std::fs::read_to_string(path) {
+    let text = match read_small(path) {
         Ok(text) => text,
         Err(err) => {
             setup.problem = Some(msg::import::unreadable(err));
@@ -186,7 +209,7 @@ pub fn read_setup(path: &Path) -> LocalSetup {
             Some(base.join(format!("{id}.json")))
         });
     if let Some(file) = credentials
-        && let Ok(text) = std::fs::read_to_string(&file)
+        && let Ok(text) = read_small(&file)
         && let Ok(creds) = serde_json::from_str::<Credentials>(&text)
     {
         setup.account_id = creds.account_tag;
@@ -195,17 +218,50 @@ pub fn read_setup(path: &Path) -> LocalSetup {
     setup
 }
 
-/// Every cloudflared configuration in the usual places (blocking file reads).
-pub fn scan() -> Vec<LocalSetup> {
-    scan_in(&directories())
+/// Every cloudflared configuration in the usual places, and the files `extra` names (the
+/// `--config` of cloudflared processes that are running). Blocking file reads.
+pub fn scan(extra: &[PathBuf]) -> Vec<LocalSetup> {
+    scan_in(&directories(), extra)
 }
 
-pub(crate) fn scan_in(dirs: &[PathBuf]) -> Vec<LocalSetup> {
-    dirs.iter()
-        .flat_map(|dir| ["config.yml", "config.yaml"].map(|name| dir.join(name)))
-        .filter(|path| path.is_file())
-        .map(|path| read_setup(&path))
-        .collect()
+pub(crate) fn scan_in(dirs: &[PathBuf], extra: &[PathBuf]) -> Vec<LocalSetup> {
+    let mut seen = std::collections::HashSet::new();
+    let mut setups = Vec::new();
+    let mut add = |path: &Path, known: bool| {
+        let key = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if !path.is_file() || !seen.insert(key) {
+            return;
+        }
+        let setup = read_setup(path);
+        // `config.yml` and a running cloudflared's file are configs, so their problems are
+        // worth showing; any other YAML file in the folder counts only if it has routes.
+        if known || (setup.problem.is_none() && !setup.routes.is_empty()) {
+            setups.push(setup);
+        }
+    };
+    for path in extra {
+        add(path, true);
+    }
+    for dir in dirs {
+        for name in ["config.yml", "config.yaml"] {
+            add(&dir.join(name), true);
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        let mut others: Vec<PathBuf> = entries
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|ext| ext == "yml" || ext == "yaml")
+            })
+            .collect();
+        others.sort();
+        for path in others {
+            add(&path, false);
+        }
+    }
+    setups
 }
 
 #[cfg(test)]
@@ -248,7 +304,7 @@ ingress:
             r#"{"AccountTag":"acc123","TunnelSecret":"c2VjcmV0","TunnelID":"2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f"}"#,
         )
         .unwrap();
-        let setups = scan_in(&[dir.path().to_path_buf()]);
+        let setups = scan_in(&[dir.path().to_path_buf()], &[]);
         assert_eq!(setups.len(), 1);
         let setup = &setups[0];
         assert_eq!(setup.problem, None);
@@ -307,7 +363,7 @@ ingress:
             "tunnel: t\noriginRequest:\n  connectTimeout: 30s\n  noTLSVerify: true\ningress:\n  - hostname: a.xyz.com\n    service: https://localhost:1\n  - hostname: b.xyz.com\n    service: https://localhost:2\n    originRequest:\n      noTLSVerify: false\n  - service: http_status:404\n",
         )
         .unwrap();
-        let setup = &scan_in(&[dir.path().to_path_buf()])[0];
+        let setup = &scan_in(&[dir.path().to_path_buf()], &[])[0];
         assert!(!setup.has_global_options, "everything in it carries over");
         assert_eq!(setup.routes[0].options.connect_timeout, Some(30));
         assert!(setup.routes[0].options.no_tls_verify);
@@ -322,7 +378,7 @@ ingress:
     fn reports_unreadable_configs() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("config.yaml"), "ingress: [ {").unwrap();
-        let setups = scan_in(&[dir.path().to_path_buf()]);
+        let setups = scan_in(&[dir.path().to_path_buf()], &[]);
         assert!(
             setups[0]
                 .problem
@@ -331,6 +387,43 @@ ingress:
                 .english()
                 .starts_with("It isn't valid YAML")
         );
-        assert!(scan_in(&[dir.path().join("missing")]).is_empty());
+        assert!(scan_in(&[dir.path().join("missing")], &[]).is_empty());
+    }
+
+    #[test]
+    fn finds_configs_by_any_name_and_those_of_running_cloudflareds() {
+        let dir = tempfile::tempdir().unwrap();
+        let routes = "tunnel: t\ningress:\n  - hostname: a.xyz.com\n    service: http://localhost:1\n  - service: http_status:404\n";
+        std::fs::write(dir.path().join("staging.yml"), routes).unwrap();
+        std::fs::write(
+            dir.path().join("docker-compose.yaml"),
+            "services:\n  web: {}\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("broken.yml"), "ingress: [ {").unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let running = elsewhere.path().join("tunnel.yml");
+        std::fs::write(&running, routes).unwrap();
+
+        let setups = scan_in(&[dir.path().to_path_buf()], &[running.clone(), running]);
+        let files: Vec<_> = setups
+            .iter()
+            .map(|s| Path::new(&s.config_path).file_name().unwrap().to_owned())
+            .collect();
+        assert_eq!(
+            files,
+            ["tunnel.yml", "staging.yml"],
+            "other YAML files only count when they are configs with routes; each file once"
+        );
+    }
+
+    #[test]
+    fn refuses_files_too_big_to_be_a_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config.yml");
+        std::fs::write(&config, "#".repeat(MAX_FILE as usize + 1)).unwrap();
+        let setup = read_setup(&config);
+        assert!(setup.problem.is_some());
+        assert!(setup.routes.is_empty());
     }
 }

@@ -5,11 +5,27 @@
     "import",
     "export",
     "require-login",
+    "protection",
+    "sharing",
+    "snapshots",
+    "comments",
+    "offline-page",
+    "webhook-inbox",
+    "project-file",
+    "local-domains",
+    "exposure-check",
+    "move-computer",
     "private-networks",
     "several-tunnels",
     "servers",
+    "ci-previews",
     "load-balancing",
+    "inspector",
+    "openapi",
     "observability",
-    "menu-bar"
+    "analytics",
+    "menu-bar",
+    "integrations",
+    "ai-agents"
   ]
 }

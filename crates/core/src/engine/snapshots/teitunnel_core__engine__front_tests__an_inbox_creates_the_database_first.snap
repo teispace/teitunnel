@@ -1,0 +1,9 @@
+---
+source: crates/core/src/engine/front_tests.rs
+expression: view(&first)
+---
+- - Create the D1 database teitunnel-data for comments and webhooks
+  - Upload the webhook inbox Worker for app.xyz.com/webhooks/
+  - Run it for app.xyz.com/webhooks/* (fails open past the free daily requests)
+- - type: workerRequests
+    pattern: app.xyz.com/webhooks/*

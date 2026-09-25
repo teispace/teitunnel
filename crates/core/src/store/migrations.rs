@@ -147,6 +147,258 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
+    // 12: uptime checks through the edge (raw for 2 days, hourly for 30) and incidents
+    M::up(
+        "CREATE TABLE uptime_checks (
+            route      TEXT NOT NULL,
+            at         INTEGER NOT NULL,
+            ok         INTEGER NOT NULL,
+            status     INTEGER,
+            latency_ms INTEGER,
+            cause      TEXT,
+            PRIMARY KEY (route, at)
+        ) STRICT, WITHOUT ROWID;
+        CREATE INDEX uptime_checks_at ON uptime_checks (at);
+        CREATE TABLE uptime_hourly (
+            route           TEXT NOT NULL,
+            hour            INTEGER NOT NULL,
+            checks          INTEGER NOT NULL,
+            up              INTEGER NOT NULL,
+            latency_sum_ms  INTEGER NOT NULL,
+            latency_samples INTEGER NOT NULL,
+            PRIMARY KEY (route, hour)
+        ) STRICT, WITHOUT ROWID;
+        CREATE INDEX uptime_hourly_hour ON uptime_hourly (hour);
+        CREATE TABLE incidents (
+            id         INTEGER PRIMARY KEY,
+            route      TEXT NOT NULL,
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            path       TEXT,
+            started_at INTEGER NOT NULL,
+            ended_at   INTEGER,
+            cause      TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX incidents_route ON incidents (route, started_at DESC);
+        CREATE UNIQUE INDEX incidents_open ON incidents (route) WHERE ended_at IS NULL;",
+    ),
+    // 13: Snapshots (static copies hosted as Workers on the user's account) and their
+    // recent versions' manifests (for change counts, rollback and settings-only updates)
+    M::up(
+        "CREATE TABLE snapshots (
+            id           TEXT PRIMARY KEY,
+            account_id   TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            script       TEXT NOT NULL,
+            hostname     TEXT,
+            source       TEXT NOT NULL,
+            spa          INTEGER NOT NULL DEFAULT 0,
+            password     INTEGER NOT NULL DEFAULT 0,
+            access       TEXT,
+            expires_at   INTEGER,
+            owner        TEXT NOT NULL,
+            live_version TEXT,
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL,
+            UNIQUE (account_id, name),
+            UNIQUE (account_id, script)
+        ) STRICT;
+        CREATE TABLE snapshot_versions (
+            snapshot_id TEXT NOT NULL REFERENCES snapshots (id) ON DELETE CASCADE,
+            number      INTEGER NOT NULL,
+            version_id  TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            files       INTEGER NOT NULL,
+            bytes       INTEGER NOT NULL,
+            manifest    TEXT NOT NULL,
+            headers     TEXT,
+            redirects   TEXT,
+            spa         INTEGER NOT NULL,
+            password    INTEGER NOT NULL,
+            PRIMARY KEY (snapshot_id, number)
+        ) STRICT;",
+    ),
+    // 14: a cache of the account's reservations (the truth is in DNS comments, M12-11)
+    M::up(
+        "CREATE TABLE IF NOT EXISTS reservations_cache (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            owner      TEXT,
+            until      INTEGER,
+            routed     INTEGER NOT NULL DEFAULT 0,
+            mine       INTEGER NOT NULL DEFAULT 0,
+            seen_at    INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
+    // 15: Edge protection (M12-04): the ownership index of the edge rules Teitunnel
+    // created (a backup for their `teitunnel:` description marker), and of its Access
+    // service tokens (never their secrets)
+    M::up(
+        "CREATE TABLE edge_rules (
+            rule_id    TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            zone_id    TEXT NOT NULL,
+            phase      TEXT NOT NULL,
+            hostname   TEXT,
+            kind       TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX edge_rules_account ON edge_rules (account_id, zone_id);
+        CREATE TABLE service_tokens (
+            token_id   TEXT PRIMARY KEY NOT NULL,
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            client_id  TEXT NOT NULL,
+            expires_at TEXT,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX service_tokens_account ON service_tokens (account_id, hostname);",
+    ),
+    // 16: The inspector (Lens): routes pointed at a local tap (reverted when inspection
+    // ends, swept after a crash), the taps this machine ran (so other processes can
+    // name them), and recent captures with credentials masked (history across restarts).
+    M::up(
+        "CREATE TABLE inspected_routes (
+            account_id      TEXT NOT NULL,
+            hostname        TEXT NOT NULL,
+            path            TEXT NOT NULL DEFAULT '',
+            tunnel_id       TEXT,
+            original_origin TEXT NOT NULL,
+            access          TEXT,
+            lens_url        TEXT NOT NULL,
+            owner           TEXT NOT NULL,
+            created_at      INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname, path)
+        ) STRICT;
+        CREATE TABLE lens_taps (
+            id         TEXT PRIMARY KEY,
+            scope      TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            origin     TEXT NOT NULL,
+            public_url TEXT,
+            owner      TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            stopped_at INTEGER
+        ) STRICT;
+        CREATE TABLE lens_exchanges (
+            id            TEXT PRIMARY KEY,
+            tap           TEXT NOT NULL,
+            seq           INTEGER NOT NULL,
+            started_at    INTEGER NOT NULL,
+            method        TEXT NOT NULL,
+            host          TEXT NOT NULL,
+            path          TEXT NOT NULL,
+            status        INTEGER,
+            kind          TEXT NOT NULL,
+            meta          TEXT NOT NULL,
+            request_body  BLOB,
+            response_body BLOB
+        ) STRICT;
+        CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
+        CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
+    ),
+    // 17: local HTTPS domains (M12-07): the registry Lens routes by. `target` is the
+    // JSON of `localdomains::DomainTarget`; `project` is the project file that declared
+    // it, if any. The CA's key lives in the keychain, never here.
+    M::up(
+        "CREATE TABLE local_domains (
+            name       TEXT PRIMARY KEY NOT NULL,
+            target     TEXT NOT NULL,
+            wildcard   INTEGER NOT NULL DEFAULT 0,
+            https      INTEGER NOT NULL DEFAULT 1,
+            inspect    INTEGER NOT NULL DEFAULT 0,
+            project    TEXT,
+            created_at INTEGER NOT NULL
+        ) STRICT;",
+    ),
+    // 18: Sharing power-ups (M12-06): what a share on your domain serves when its route
+    // points at an inspector (a service or a folder), routes paused behind a "paused"
+    // page (who enforces it, and whether inspection started only for the pause), and
+    // schedules (on during set hours, paused otherwise).
+    M::up(
+        "ALTER TABLE domain_shares ADD COLUMN source TEXT;
+        ALTER TABLE domain_shares ADD COLUMN folder INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE paused_routes (
+            account_id  TEXT NOT NULL,
+            hostname    TEXT NOT NULL,
+            owner       TEXT NOT NULL,
+            via_inspect INTEGER NOT NULL,
+            by_schedule INTEGER NOT NULL,
+            paused_at   INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;
+        CREATE TABLE route_schedules (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            schedule   TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname)
+        ) STRICT;",
+    ),
+    // 19: Comments (M12-06): comments on live shares and routes (kept here), the
+    // subjects the app lists with Snapshot counts read from Cloudflare, whether a
+    // Snapshot's live version takes comments, and the D1 database Teitunnel created on
+    // an account (ownership index: only this one is ever deleted).
+    M::up(
+        "CREATE TABLE comments (
+            id          TEXT PRIMARY KEY,
+            subject     TEXT NOT NULL,
+            account_id  TEXT,
+            thread      TEXT NOT NULL,
+            path        TEXT NOT NULL,
+            anchor      TEXT,
+            author      TEXT NOT NULL,
+            email       TEXT,
+            verified    INTEGER NOT NULL DEFAULT 0,
+            by_owner    INTEGER NOT NULL DEFAULT 0,
+            body        TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            resolved_at INTEGER,
+            resolved_by TEXT
+        ) STRICT;
+        CREATE INDEX comments_subject ON comments (subject, created_at);
+        CREATE INDEX comments_thread ON comments (subject, thread);
+        CREATE TABLE comment_subjects (
+            subject         TEXT PRIMARY KEY,
+            account_id      TEXT,
+            kind            TEXT NOT NULL,
+            label           TEXT NOT NULL,
+            url             TEXT,
+            latest_at       INTEGER NOT NULL DEFAULT 0,
+            seen_at         INTEGER NOT NULL DEFAULT 0,
+            notified_at     INTEGER NOT NULL DEFAULT 0,
+            remote_comments INTEGER NOT NULL DEFAULT 0,
+            remote_open     INTEGER NOT NULL DEFAULT 0,
+            remote_unread   INTEGER NOT NULL DEFAULT 0,
+            updated_at      INTEGER NOT NULL
+        ) STRICT;
+        ALTER TABLE snapshots ADD COLUMN comments INTEGER NOT NULL DEFAULT 0;
+        CREATE TABLE cloud_databases (
+            account_id  TEXT PRIMARY KEY NOT NULL,
+            database_id TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            created_at  INTEGER NOT NULL
+        ) STRICT;",
+    ),
+    // 20: Workers in front of a route (M12-06 offline page, M12-12 webhook inbox): the
+    // ownership index of the Worker scripts and Worker routes Teitunnel created, with
+    // the settings each was deployed with (to put them back on undo).
+    M::up(
+        "CREATE TABLE front_workers (
+            account_id TEXT NOT NULL,
+            hostname   TEXT NOT NULL,
+            kind       TEXT NOT NULL,
+            path       TEXT NOT NULL DEFAULT '',
+            script     TEXT NOT NULL,
+            zone_id    TEXT NOT NULL,
+            route_id   TEXT,
+            config     TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (account_id, hostname, kind, path)
+        ) STRICT;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

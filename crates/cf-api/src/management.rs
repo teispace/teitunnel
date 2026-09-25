@@ -63,6 +63,9 @@ pub struct ConnectorConnection {
     /// When it connected (RFC 3339).
     #[serde(default)]
     pub opened_at: String,
+    /// Whether it's reconnecting.
+    #[serde(default)]
+    pub is_pending_reconnect: bool,
 }
 
 impl Client {

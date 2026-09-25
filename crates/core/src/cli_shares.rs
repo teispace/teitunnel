@@ -1,4 +1,4 @@
-//! Quick Shares started by `teitunnel-cli share` in a terminal, as the app sees them: the
+//! Quick Shares started by `teitunnel share` in a terminal, as the app sees them: the
 //! CLI records its live share next to its process registry (`run-cli/<pid>-<start>/`),
 //! and the app lists the ones whose CLI is still running and can stop them (M10-03).
 
@@ -48,6 +48,55 @@ pub fn forget(owner_dir: &Path) {
     let _ = std::fs::remove_file(owner_dir.join(FILE));
 }
 
+/// The file of one of several shares of a process, if `key` is a safe file name part.
+fn keyed_file(owner_dir: &Path, key: &str) -> std::io::Result<std::path::PathBuf> {
+    if key.is_empty()
+        || key.len() > 64
+        || !key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return Err(std::io::Error::other("invalid share key"));
+    }
+    Ok(owner_dir.join(format!("share-{key}.json")))
+}
+
+/// Records one of several live shares of this process under `key` (a process such as
+/// `teitunnel mcp` can run many at once), atomically.
+///
+/// # Errors
+/// File system errors, or a `key` that isn't letters, digits, `-` and `_`.
+pub fn record_as(owner_dir: &Path, key: &str, share: &CliShare) -> std::io::Result<()> {
+    let file = keyed_file(owner_dir, key)?;
+    std::fs::create_dir_all(owner_dir)?;
+    let partial = owner_dir.join(format!("share-{key}.json.partial"));
+    std::fs::write(&partial, serde_json::to_vec(share)?)?;
+    std::fs::rename(partial, file)
+}
+
+/// Forgets the share recorded under `key`.
+pub fn forget_as(owner_dir: &Path, key: &str) {
+    if let Ok(file) = keyed_file(owner_dir, key) {
+        let _ = std::fs::remove_file(file);
+    }
+}
+
+/// The shares recorded in one process's directory: `share.json` and `share-*.json`.
+fn shares_in(dir: &Path) -> Vec<CliShare> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|entry| {
+            entry.file_name().to_str().is_some_and(|name| {
+                name == FILE || (name.starts_with("share-") && name.ends_with(".json"))
+            })
+        })
+        .filter_map(|entry| serde_json::from_slice(&std::fs::read(entry.path()).ok()?).ok())
+        .collect()
+}
+
 /// The live shares of CLI processes still running, oldest first.
 pub fn list(runs: &Path) -> Vec<CliShare> {
     let Ok(entries) = std::fs::read_dir(runs) else {
@@ -60,18 +109,23 @@ pub fn list(runs: &Path) -> Vec<CliShare> {
             if !runtime::is_running(&owner) {
                 return None;
             }
-            let share: CliShare =
-                serde_json::from_slice(&std::fs::read(entry.path().join(FILE)).ok()?).ok()?;
-            (share.owner == owner).then_some(share)
+            let shares: Vec<CliShare> = shares_in(&entry.path())
+                .into_iter()
+                .filter(|share| share.owner == owner)
+                .collect();
+            Some(shares)
         })
+        .flatten()
         .collect();
-    shares.sort_by(|a, b| (a.started_at, &a.owner).cmp(&(b.started_at, &b.owner)));
+    shares.sort_by(|a, b| (a.started_at, &a.owner, &a.url).cmp(&(b.started_at, &b.owner, &b.url)));
     shares
 }
 
 /// Stops a terminal's share: asks its CLI to end (it removes the route and its
 /// connector), then stops whatever a CLI that didn't end cleanly left behind. Returns
-/// whether it was running.
+/// whether it was running. A process that keeps running after stopping its shares
+/// (`teitunnel mcp` stops its shares and carries on serving its agent) is waited for
+/// only until its shares are gone.
 pub async fn stop(runs: &Path, owner: &str) -> bool {
     // Only a CLI that's running and has a share: never a reused pid.
     if !list(runs).iter().any(|s| s.owner == owner) {
@@ -85,7 +139,10 @@ pub async fn stop(runs: &Path, owner: &str) -> bool {
     };
     runtime::interrupt(pid);
     let deadline = Instant::now() + Duration::from_secs(5);
-    while runtime::is_running(owner) && Instant::now() < deadline {
+    while runtime::is_running(owner)
+        && list(runs).iter().any(|s| s.owner == owner)
+        && Instant::now() < deadline
+    {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     runtime::PidRegistry::reap_abandoned(runs).await;
@@ -113,6 +170,32 @@ mod tests {
         let listed = list(runs.path());
         assert_eq!(listed, [share(&me)]);
         forget(&runs.path().join(&me));
+        assert!(list(runs.path()).is_empty());
+    }
+
+    #[test]
+    fn lists_every_share_of_a_process() {
+        let runs = tempfile::tempdir().unwrap();
+        let me = runtime::this_process();
+        let dir = runs.path().join(&me);
+        let share = |url: &str| CliShare {
+            owner: me.clone(),
+            origin: "http://localhost:3000".into(),
+            url: url.into(),
+            started_at: 1,
+            stop_at: None,
+        };
+        record_as(&dir, "qs-a", &share("https://a.trycloudflare.com")).unwrap();
+        record_as(&dir, "qs-b", &share("https://b.trycloudflare.com")).unwrap();
+        assert!(record_as(&dir, "../x", &share("https://c.trycloudflare.com")).is_err());
+        let urls: Vec<String> = list(runs.path()).into_iter().map(|s| s.url).collect();
+        assert_eq!(
+            urls,
+            ["https://a.trycloudflare.com", "https://b.trycloudflare.com"]
+        );
+        forget_as(&dir, "qs-a");
+        assert_eq!(list(runs.path()).len(), 1);
+        forget_as(&dir, "qs-b");
         assert!(list(runs.path()).is_empty());
     }
 }

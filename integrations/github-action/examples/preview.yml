@@ -1,0 +1,47 @@
+# .github/workflows/preview.yml: a Snapshot preview per pull request at
+# pr-<number>.preview.example.com, commented on the PR and removed when it closes.
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write # the comment
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - id: preview
+        uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          mode: snapshot
+          build: true
+          zone: example.com
+          expires: 14d
+      - run: echo "Preview at ${{ steps.preview.outputs.url }}"
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          mode: cleanup
+          zone: example.com

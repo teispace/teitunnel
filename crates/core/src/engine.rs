@@ -10,46 +10,75 @@ mod activity;
 pub mod balance;
 mod cloud;
 mod drift;
+pub mod edge;
 mod executor;
+pub mod front;
 mod ingress;
 mod local;
+mod local_edge;
+mod local_front;
+mod local_sites;
 mod networks;
 mod observe;
+pub mod ownership;
 mod planner;
+pub mod sites;
 mod tunnels;
 mod types;
 mod verify;
 mod views;
 
 #[cfg(test)]
+mod edge_executor_tests;
+#[cfg(test)]
+mod edge_tests;
+#[cfg(test)]
 mod executor_tests;
 #[cfg(test)]
 pub(crate) mod fake;
 #[cfg(test)]
+mod front_tests;
+#[cfg(test)]
 mod planner_tests;
 #[cfg(test)]
+mod reservation_tests;
+#[cfg(test)]
 mod simulate;
+#[cfg(test)]
+mod snapshot_tests;
 
 pub use access::{
     AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, ObservedAccessApp,
     access_domain, app_definition,
 };
-pub use activity::{ActivityKind, ActivityRecord, Delta, DeltaArea, RecordedStep, deltas};
+pub use activity::{
+    ActivityKind, ActivityRecord, Actor, Delta, DeltaArea, RecordedStep, current_actor, deltas,
+    with_actor,
+};
 pub use cloud::{CloudApi, Connectors};
 pub use drift::{Drift, RuleChange, diff};
 pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
 pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
+pub use local_edge::{EdgeRuleRow, ServiceTokenRow};
+pub use local_sites::{KEPT_VERSIONS, SiteRow, SiteVersionRow};
 pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
-pub use observe::{ObserveError, ObserveNeed, Want, observe};
+pub use observe::{ObserveError, ObserveNeed, Want, Who, observe};
+pub use ownership::{Hold, HoldKind, Ownership};
 pub use planner::{PlanError, plan};
+pub use sites::{
+    MAX_FILE_SIZE, MAX_FILES, Password, SiteAddress, SiteComments, SiteContent, SiteFile,
+    SiteSettings, SiteSpec, Transfer, content_hash, format_bytes,
+};
 pub use tunnels::{ConnectionView, ConnectorView, TunnelSummary};
 pub use types::{
-    Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning,
-    ZoneRef, ownership_comment, tunnel_target,
+    Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, TokenRef, TunnelRef,
+    Warning, ZoneRef, ownership_comment, tunnel_target,
 };
+pub(crate) use verify::is_access_login;
+pub(crate) use verify::probe;
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{
     Change, DnsState, InputError, NetworkView, PlanView, RouteHealth, RouteInput, RouteView,
-    RoutesOverview, StepKind, StepView, TunnelView, route_id,
+    RoutesOverview, StepKind, StepView, TunnelView, parse_lease_end, route_id,
 };

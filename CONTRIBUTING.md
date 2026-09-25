@@ -44,7 +44,7 @@ crates/core          everything the app does, with no Tauri dependency:
   doctor.rs            problem checks (pure) and their fixes
   machine.rs           this Mac's connectors (Session and Always-on)
   traffic.rs, …        metrics history, logs, discovery, import, settings, store
-apps/cli               teitunnel-cli: the same engine from the terminal
+apps/cli               teitunnel: the same engine from the terminal
 apps/desktop/src-tauri the Tauri shell: IPC commands, menus, tray, windows. No business logic.
 apps/desktop/src       the React UI: features/<name>/ with queries.ts for data
 apps/web               the website: landing page and docs (Next.js + Fumadocs)

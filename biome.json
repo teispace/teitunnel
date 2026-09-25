@@ -13,7 +13,10 @@
       "!**/styles/motion.css",
       "!**/.next",
       "!**/out",
-      "!**/.source"
+      "!**/.source",
+      "!**/.claude",
+      "!**/integrations/raycast",
+      "!**/integrations/jetbrains"
     ]
   },
   "formatter": {

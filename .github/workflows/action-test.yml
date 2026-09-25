@@ -1,0 +1,156 @@
+name: Action
+
+# The GitHub Action in integrations/github-action (published as teispace/teitunnel-action):
+# its unit and flow tests, and a run of the action itself against the E2E fakes (a debug
+# CLI pointed at fake-cloudflare, with fake-cloudflared as the connector).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: action-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # Only changes that can affect the action run it: the action, the CLI and what the CLI
+  # builds on, the fakes, and this workflow. (A skipped job counts as passed.)
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      action: ${{ steps.filter.outputs.action }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            action:
+              - "integrations/**"
+              - "apps/cli/**"
+              - "crates/**"
+              - "tools/fake-cloudflare/**"
+              - "tools/fake-cloudflared/**"
+              - "Cargo.lock"
+              - ".github/workflows/action-test.yml"
+
+  unit:
+    name: Unit and flow tests (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.action == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: node --test integrations/github-action/test/
+
+  e2e:
+    name: Action against the fakes
+    needs: changes
+    if: needs.changes.outputs.action == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build the CLI (debug, so it can be pointed at the fake) and the fakes
+        run: cargo build --locked -p teitunnel-cli -p fake-cloudflare -p fake-cloudflared
+      - name: Start the fake Cloudflare and a server to share
+        run: |
+          target/debug/fake-cloudflare > "$RUNNER_TEMP/fake.out" &
+          for _ in $(seq 50); do grep -q listening "$RUNNER_TEMP/fake.out" && break; sleep 0.2; done
+          addr=$(sed -n 's/^listening on //p' "$RUNNER_TEMP/fake.out")
+          test -n "$addr"
+          {
+            echo "TEITUNNEL_API_BASE=http://$addr"
+            echo "TEITUNNEL_EDGE=$addr"
+            echo "TEITUNNEL_CLOUDFLARED=$GITHUB_WORKSPACE/target/debug/fake-cloudflared"
+          } >> "$GITHUB_ENV"
+          python3 -m http.server 3000 --bind 127.0.0.1 > /dev/null 2>&1 &
+
+      - name: Share mode
+        id: share
+        uses: ./integrations/github-action
+        with:
+          cloudflare-api-token: e2e-token
+          mode: share
+          port: "3000"
+          hostname: ci-{sha}.{zone}
+          zone: xyz.com
+          comment: "false"
+          cli-path: target/debug/teitunnel-cli
+          wait: "60"
+      - name: The share is live while the job runs
+        env:
+          URL: ${{ steps.share.outputs.url }}
+          HOST: ${{ steps.share.outputs.hostname }}
+        run: |
+          test "$URL" = "https://$HOST"
+          case "$HOST" in ci-*.xyz.com) ;; *) echo "unexpected hostname $HOST"; exit 1 ;; esac
+          TEITUNNEL_DATA_DIR="$RUNNER_TEMP/teitunnel-data" CLOUDFLARE_API_TOKEN=e2e-token \
+            target/debug/teitunnel-cli shares --json | grep -q "\"$HOST\""
+
+      - name: A teammate reserves a hostname
+        run: |
+          TEITUNNEL_DATA_DIR="$RUNNER_TEMP/teammate" CLOUDFLARE_API_TOKEN=e2e-token \
+            TEITUNNEL_OWNER=alice@Alice-MacBook \
+            target/debug/teitunnel-cli reserve held-ci.xyz.com --until 2099-12-31 --yes
+      - name: Sharing on it fails the step
+        id: held
+        continue-on-error: true
+        uses: ./integrations/github-action
+        with:
+          cloudflare-api-token: e2e-token
+          mode: share
+          port: "3000"
+          hostname: held-ci.xyz.com
+          comment: "false"
+          cli-path: target/debug/teitunnel-cli
+      - name: It did fail
+        if: steps.held.outcome != 'failure'
+        run: exit 1
+
+      - name: Cleanup mode (no Snapshot there is fine)
+        uses: ./integrations/github-action
+        with:
+          cloudflare-api-token: e2e-token
+          mode: cleanup
+          hostname: ${{ steps.share.outputs.hostname }}
+          comment: "false"
+          cli-path: target/debug/teitunnel-cli
+      # The share's post step stops it, removes its route and deletes the job's tunnel.
+
+  ok:
+    name: Action
+    if: always()
+    needs: [changes, unit, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" >/dev/null

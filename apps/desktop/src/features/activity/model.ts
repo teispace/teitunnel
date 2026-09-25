@@ -18,6 +18,19 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   createTunnel: "activity.kind.createTunnel",
   balanceRoute: "activity.kind.balanceRoute",
   unbalanceRoute: "activity.kind.unbalanceRoute",
+  alert: "activity.kind.alert",
+  publishSnapshot: "activity.kind.publishSnapshot",
+  updateSnapshot: "activity.kind.updateSnapshot",
+  rollbackSnapshot: "activity.kind.rollbackSnapshot",
+  deleteSnapshot: "activity.kind.deleteSnapshot",
+  reserveHostname: "activity.kind.reserveHostname",
+  releaseHostname: "activity.kind.releaseHostname",
+  protectHostname: "activity.kind.protectHostname",
+  createServiceToken: "activity.kind.createServiceToken",
+  revokeServiceToken: "activity.kind.revokeServiceToken",
+  rotateServiceToken: "activity.kind.rotateServiceToken",
+  offlinePage: "activity.kind.offlinePage",
+  webhookInbox: "activity.kind.webhookInbox",
 };
 
 /** The Show menu (built on use: labels need the language). */
@@ -61,7 +74,10 @@ function hostnamesOf(entry: ActivityEntry): readonly string[] {
 }
 
 export function matches(entry: ActivityEntry, { show, zone, query }: Filter): boolean {
-  if (show === "problems" && entry.outcome === "applied") return false;
+  // Problems: changes that failed, and alerts (not their resolutions).
+  if (show === "problems" && (entry.outcome === "applied" || entry.outcome === "resolved")) {
+    return false;
+  }
   if (show !== "all" && show !== "problems" && entry.record?.kind !== show) return false;
   if (zone !== null) {
     const hostnames = hostnamesOf(entry);

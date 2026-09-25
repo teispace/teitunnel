@@ -8,7 +8,8 @@
     "open": "Open",
     "url": "URL",
     "undo": "Undo",
-    "account": "Account"
+    "account": "Account",
+    "loading": "Loading…"
   },
   "routeSheet": {
     "undoFailed": "Couldn't undo",
@@ -58,6 +59,7 @@
     "confirm": {
       "publicNetwork": "Send these public addresses through this Mac",
       "records": "Replace the existing records",
+      "takeOver": "Take this hostname from whoever holds it",
       "publicNetwork@windows": "Send these public addresses through this PC",
       "publicNetwork@linux": "Send these public addresses through this computer"
     },
@@ -373,7 +375,8 @@
       "failed": "Failed",
       "undoing": "Undoing",
       "undone": "Undone",
-      "undoFailed": "Couldn't undo"
+      "undoFailed": "Couldn't undo",
+      "transferring": "Uploading"
     },
     "warning": {
       "replacesForeignRecord": "{hostname} already has a DNS record ({kind} {content}) that Teitunnel didn't create. It will be replaced.",
@@ -387,7 +390,18 @@
       "remoteOrigin@linux": "{origin} isn't on this computer. It must be reachable from here.",
       "publicNetwork@windows": "{network} isn't a private range. WARP clients would reach those addresses through this PC instead of the internet.",
       "publicNetwork@linux": "{network} isn't a private range. WARP clients would reach those addresses through this computer instead of the internet.",
-      "singleEndpoint": "Only this tunnel serves {hostname} so far. Add the same route on another machine so the load balancer has somewhere to fail over to."
+      "singleEndpoint": "Only this tunnel serves {hostname} so far. Add the same route on another machine so the load balancer has somewhere to fail over to.",
+      "heldByReservation": "{hostname} is reserved by {owner} until {until}. Going ahead takes it over.",
+      "heldByReservationForever": "{hostname} is reserved by {owner}. Going ahead takes it over.",
+      "heldByRoute": "{hostname} is routed by {owner} on another machine. Going ahead takes it over, and their route stops working.",
+      "heldBySomeone": "another Teitunnel",
+      "edgeQuota": {
+        "custom": "{zone} will use {used} of the {limit} custom rules its plan allows.",
+        "rateLimit": "{zone} will use {used} of the {limit} rate limiting rules its plan allows.",
+        "transform": "{zone} will use {used} of the {limit} Transform Rules its plan allows."
+      },
+      "machineOnly": "{domain} has no login yet. The new one lets in only service tokens: people opening it in a browser are refused.",
+      "workerRequests": "Every request to {pattern} runs a Worker and counts against your account's 100,000 free Worker requests a day. Past that, the site keeps working without it."
     },
     "steps": "Steps",
     "copyCommand": "Copy as command"
@@ -488,6 +502,7 @@
     "stopped": "Connector stopped",
     "noDns": "No DNS record",
     "dnsElsewhere": "DNS points elsewhere",
+    "dnsHeldBy": "Routed by {owner} now",
     "live": "Live",
     "dot": {
       "healthy": "Healthy",
@@ -514,7 +529,20 @@
       "removeNetwork": "Networks Unshared",
       "createTunnel": "Tunnels Created",
       "balanceRoute": "Load Balancing Started",
-      "unbalanceRoute": "Load Balancing Stopped"
+      "unbalanceRoute": "Load Balancing Stopped",
+      "alert": "Alerts",
+      "publishSnapshot": "Snapshots Published",
+      "updateSnapshot": "Snapshot Versions",
+      "rollbackSnapshot": "Snapshot Rollbacks",
+      "deleteSnapshot": "Snapshots Deleted",
+      "reserveHostname": "Hostnames Reserved",
+      "releaseHostname": "Reservations Released",
+      "protectHostname": "Edge protection",
+      "createServiceToken": "New service token",
+      "revokeServiceToken": "Revoked service token",
+      "rotateServiceToken": "Rotated service token",
+      "offlinePage": "Offline page",
+      "webhookInbox": "Webhook inbox"
     },
     "show": {
       "all": "All Changes",
@@ -523,7 +551,9 @@
     "outcome": {
       "applied": "Applied",
       "rolledBack": "Failed and undone",
-      "partiallyApplied": "Failed, partly undone"
+      "partiallyApplied": "Failed, partly undone",
+      "alert": "Alert",
+      "resolved": "Resolved"
     },
     "title": "Activity",
     "refresh": "Refresh activity",
@@ -554,7 +584,11 @@
       "dns": "DNS record",
       "network": "Private network",
       "access": "Login",
-      "loadBalancing": "Load balancing"
+      "loadBalancing": "Load balancing",
+      "snapshot": "Snapshot",
+      "protection": "Edge rule",
+      "serviceToken": "Service token",
+      "worker": "Worker route"
     },
     "before": "Before: ",
     "after": "After: ",
@@ -565,7 +599,8 @@
       "notChecked": "Not checked",
       "check": "Check"
     },
-    "noDetails": "No details were recorded."
+    "noDetails": "No details were recorded.",
+    "byAgent": "By {client}"
   },
   "settings": {
     "theme": {
@@ -576,7 +611,9 @@
     "tab": {
       "general": "General",
       "accounts": "Accounts",
-      "cloudflared": "cloudflared"
+      "cloudflared": "cloudflared",
+      "integrations": "Integrations",
+      "inspector": "Inspector"
     },
     "startup": {
       "title": "Startup",
@@ -601,7 +638,14 @@
       "footer@windows": "Only when no Teitunnel window is in front. Windows decides how they look in Settings ▸ System ▸ Notifications.",
       "footer@linux": "Only when no Teitunnel window is in front. Your desktop's notification settings decide how they look.",
       "routesDetail@windows": "When this PC's connector loses its connection for more than 20 seconds.",
-      "routesDetail@linux": "When this computer's connector loses its connection for more than 20 seconds."
+      "routesDetail@linux": "When this computer's connector loses its connection for more than 20 seconds.",
+      "alerts": "Alerts",
+      "alertsDetail": "When a route goes down or comes back, answers with errors, or gets slow. Set the rules below.",
+      "alertsLabel": "Alert notifications",
+      "quiet": "Quiet hours",
+      "quietDetail": "Alerts are still recorded in Activity, without a notification.",
+      "quietFrom": "Quiet from",
+      "quietTo": "Quiet until"
     },
     "menuBar": {
       "title": "Menu bar",
@@ -623,12 +667,63 @@
       "notInstalled": "Manage routes from a terminal, a script or over SSH.",
       "installed": "Installed at {path}.",
       "packaged": "Installed with the app at {path}.",
-      "taken": "Another teitunnel-cli is at {path}. Teitunnel leaves it alone.",
+      "taken": "Another program named teitunnel is at {path}. Teitunnel leaves it alone.",
       "manual": "Teitunnel can't write to that folder by itself. Run this in Terminal:",
       "manual@windows": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
       "manual@linux": "Teitunnel can't write to that folder by itself. Run this in a terminal:",
-      "footer": "Puts teitunnel-cli on your PATH. It updates with the app."
+      "footer": "Puts the teitunnel command on your PATH. It updates with the app."
+    },
+    "aiTools": {
+      "title": "AI Tools",
+      "footer": "Connected tools can share your services and manage routes through Teitunnel. Every change waits for your approval and is recorded in Activity. Restart a tool after connecting it.",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "notFound": "Not found on this computer",
+      "problem": "Its settings file can't be read: {problem}",
+      "noCli": "AI tools run Teitunnel's command line tool, which isn't part of this copy of Teitunnel.",
+      "others": "Other tools: run this command as an MCP server.",
+      "command": "MCP server command"
+    },
+    "exposure": {
+      "title": "Before Sharing",
+      "footer": "Teitunnel looks at the service itself (not through Cloudflare) with a few quick requests. It only warns; you can always share anyway.",
+      "check": "Check for exposed files and debug pages",
+      "checkDetail": "A .env file, the git folder, backups, framework debug pages, open admin panels"
+    },
+    "aiAgents": {
+      "title": "Connected Agents",
+      "footer": "Agents using Teitunnel right now. When one wants to change something, Teitunnel asks you here with the plan.",
+      "none": "No agent is connected.",
+      "since": "Connected {when}",
+      "waiting": "{agent} is waiting for your answer",
+      "pending": "Waiting",
+      "mode": {
+        "readOnly": "Read only",
+        "ask": "Asks first",
+        "full": "Full access"
+      }
+    },
+    "openapi": {
+      "title": "Captured Requests",
+      "footer": "Only what the inspector saw is described, with no captured values. Review it before you publish it.",
+      "label": "API description",
+      "detail": "An OpenAPI 3.1 file inferred from the requests the inspector captured.",
+      "save": "Save to Downloads",
+      "saved_one": "Saved {paths} paths from {count} request to Downloads.",
+      "saved_other": "Saved {paths} paths from {count} requests to Downloads.",
+      "empty": "No API requests captured yet. Use the API through a share, then save again."
     }
+  },
+  "cliOffer": {
+    "title": "Use Teitunnel from the terminal too?",
+    "detail": "Adds the teitunnel command: routes, shares and the Doctor from a terminal, a script or over SSH. It updates with the app.",
+    "manual": "Adds the teitunnel command. Teitunnel can't write to that folder by itself, so run this in Terminal:",
+    "manual@linux": "Adds the teitunnel command. Teitunnel can't write to that folder by itself, so run this in a terminal:",
+    "install": "Install",
+    "notNow": "Not Now",
+    "done": "Done"
   },
   "updates": {
     "title": "Updates",
@@ -703,7 +798,14 @@
       "startConnector": "Start Connector",
       "keepTheirs": "Keep Changes",
       "reconnect": "Connect Again…",
-      "cleanConnections": "Clean Up Connections"
+      "cleanConnections": "Clean Up Connections",
+      "local": {
+        "trust": "Trust Local Domains",
+        "setUpResolver": "Set Up .test Names…",
+        "restart": "Restart Local Domains",
+        "renewCertificates": "Renew Certificates",
+        "renewCa": "Replace Certificate Authority"
+      }
     },
     "installing": "Installing…",
     "ignore": "Ignore",
@@ -763,7 +865,10 @@
     "welcomeDetail@windows": "Share anything running on this PC at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
     "welcomeDetail@linux": "Share anything running on this computer at a public URL, and connect your own domains through Cloudflare. First, Teitunnel needs Cloudflare's connector.",
     "traffic@windows": "Traffic on this PC",
-    "traffic@linux": "Traffic on this computer"
+    "traffic@linux": "Traffic on this computer",
+    "loading": "Loading what's running",
+    "checkingRoutes": "Checking your routes on Cloudflare…",
+    "routesFailed": "Couldn't load your routes."
   },
   "accounts": {
     "credential": {
@@ -773,13 +878,13 @@
     },
     "disconnect": "Disconnect",
     "disconnectTitle": "Disconnect {name}?",
-    "disconnectDetail": "Teitunnel deletes this account's credentials from your keychain. Nothing changes in Cloudflare; running routes keep working until you stop them.",
+    "disconnectDetail": "Teitunnel stops this Mac's connectors for the account, ends shares on its domains, and deletes its credentials from your keychain. Its tunnels and routes stay in Cloudflare, offline until a connector runs them again.",
     "title": "Cloudflare accounts",
     "footer": "Credentials are stored in your Mac's keychain and only sent to Cloudflare.",
     "none": "No accounts connected",
     "noneDetail": "Connect one to use your own domains.",
-    "disconnectDetail@windows": "Teitunnel deletes this account's credentials from Windows Credential Manager. Nothing changes in Cloudflare; running routes keep working until you stop them.",
-    "disconnectDetail@linux": "Teitunnel deletes this account's credentials from your keyring. Nothing changes in Cloudflare; running routes keep working until you stop them.",
+    "disconnectDetail@windows": "Teitunnel stops this PC's connectors for the account, ends shares on its domains, and deletes its credentials from Windows Credential Manager. Its tunnels and routes stay in Cloudflare, offline until a connector runs them again.",
+    "disconnectDetail@linux": "Teitunnel stops this computer's connectors for the account, ends shares on its domains, and deletes its credentials from your keyring. Its tunnels and routes stay in Cloudflare, offline until a connector runs them again.",
     "footer@windows": "Credentials are stored in Windows Credential Manager and only sent to Cloudflare.",
     "footer@linux": "Credentials are stored in your keyring and only sent to Cloudflare."
   },
@@ -787,12 +892,17 @@
     "allowed": "Allowed",
     "notAllowed": "Not allowed",
     "unknown": "Unknown",
+    "notSetUp": "Needs Cloudflare Zero Trust, which isn’t set up yet",
     "checking": "Checking permissions…",
     "failed": "Couldn't check permissions.",
     "zones": "See your domains",
     "tunnels": "Create and manage tunnels",
     "dns": "Edit DNS for {zone}",
-    "access": "Protect routes with Access (optional)"
+    "access": "Protect routes with Access (optional)",
+    "workers": "Publish Snapshots (optional)",
+    "edgeRules": "Edge rules (bots, rate limits, headers)",
+    "serviceTokens": "Service tokens",
+    "d1": "Comments and webhook inboxes (optional)"
   },
   "connect": {
     "connectedOne": "Connected {name}",
@@ -927,12 +1037,521 @@
     "terminal": {
       "title": "From a terminal",
       "cardLabel": "Quick Share of {origin} from a terminal"
+    },
+    "hostHeader": {
+      "label": "Host header",
+      "auto": "Automatic",
+      "off": "As the browser sends it",
+      "custom": "Custom",
+      "value": "Host header value",
+      "placeholder": "localhost:5173",
+      "help": "Automatic sends the service's own address to dev servers that only answer it (Vite, webpack, Angular)."
+    },
+    "advanced": "Advanced",
+    "snapshot": "Publish a Snapshot",
+    "pause": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "badge": "Paused",
+      "detail": "Visitors see a paused page. The address stays; resume to serve it again."
+    },
+    "schedule": {
+      "button": "Schedule",
+      "title": "On a Schedule",
+      "detail": "Serve it only during these hours. The rest of the time visitors see a paused page.",
+      "days": "Days",
+      "from": "From",
+      "to": "to",
+      "timeZone": "Times in {zone}.",
+      "save": "Save",
+      "remove": "Remove Schedule",
+      "everyDay": "Every day",
+      "range": "{from}–{to}",
+      "allDay": "all day",
+      "hours": "{from}–{to}",
+      "summary": "{days}, {hours}",
+      "onUntil": "on until {when}",
+      "offUntil": "paused until {when}",
+      "line": "On a schedule: {schedule}"
+    },
+    "names": {
+      "suggested": "Suggested:",
+      "lastTime": "{name} (last time)",
+      "becomes": "It's {hostname} here.",
+      "invalid": "Use letters, digits and hyphens, and project, branch or user in braces."
+    },
+    "folder": {
+      "choose": "Share a Folder…",
+      "clear": "Share a service instead",
+      "listing": "List the files of folders without an index page",
+      "spa": "Single-page app (every page opens index.html)",
+      "safety": "Hidden files, .env files, keys, .git and node_modules are never shared.",
+      "drop": "Drop a folder to share it."
+    }
+  },
+  "inspector": {
+    "title": "Inspector",
+    "allTraffic": "All traffic",
+    "tapLabel": "Show requests from",
+    "stopped": "{name} (stopped)",
+    "pause": "Pause",
+    "resume": "Resume",
+    "clear": "Clear Requests",
+    "clearAllTitle": "Clear every captured request?",
+    "clearTapTitle": "Clear this share's or route's requests?",
+    "clearDetail": "They're removed from this computer, including the history kept on disk.",
+    "clearConfirm": "Clear",
+    "compareButton": "Compare Two Requests",
+    "exportButton": "Export Requests…",
+    "loadOlder": "Load Earlier Requests",
+    "count_one": "{count} request",
+    "count_other": "{count} requests",
+    "shownOf": "{shown} of {count}",
+    "p95": "95% within {duration}",
+    "pausedWaiting_one": "Paused · {count} new request",
+    "pausedWaiting_other": "Paused · {count} new requests",
+    "waiting": "Waiting for requests.",
+    "noMatch": "No requests match these filters.",
+    "noResults": "No requests contain that text. Masked values can't be found by searching.",
+    "error": "Couldn't read the requests",
+    "orphan": "{hostname} points at an inspector that isn't running, so visitors get an error.",
+    "empty": {
+      "title": "No requests yet",
+      "description": "Requests to inspected shares and routes appear here as they arrive. Quick Shares are inspected by default; routes when you choose Inspect this route.",
+      "action": "Open Quick Share"
+    },
+    "list": {
+      "label": "Requests",
+      "method": "Method",
+      "path": "Path",
+      "status": "Status",
+      "duration": "Duration",
+      "size": "Size",
+      "time": "Time",
+      "pending": "Waiting",
+      "failed": "Failed",
+      "replay": "Replay",
+      "webhook": "Webhook",
+      "newAbove_one": "{count} newer request",
+      "newAbove_other": "{count} newer requests"
+    },
+    "state": {
+      "pending": "Waiting for the service",
+      "streaming": "Streaming",
+      "complete": "Complete",
+      "failed": "Failed"
+    },
+    "filter": {
+      "search": "Search requests",
+      "searchPlaceholder": "Search headers and bodies",
+      "text": "Filter by path or host",
+      "textPlaceholder": "Path or host",
+      "status": "Status",
+      "statusAll": "All",
+      "errors": "Errors",
+      "method": "Method",
+      "anyMethod": "Any method",
+      "duration": "Duration",
+      "anyDuration": "Any duration",
+      "slower": "Over {duration}"
+    },
+    "detail": {
+      "label": "Request details",
+      "select": "Select a request to see its headers, body and timing.",
+      "several_one": "{count} request selected. Export them, or pick one more to compare.",
+      "several_other": "{count} requests selected. Export them, or compare two.",
+      "summary": "Summary",
+      "url": "URL",
+      "tap": "Share or route",
+      "answeredBy": "Answered by",
+      "visitor": "Visitor",
+      "protocol": "Protocol",
+      "ray": "Ray ID",
+      "error": "Error",
+      "fault": "Simulated fault",
+      "part": "Show",
+      "request": "Request",
+      "response": "Response",
+      "messages": "Messages",
+      "headers": "Headers",
+      "body": "Body",
+      "noHeaders": "No headers.",
+      "noResponse": "No response yet.",
+      "replay": "Replay",
+      "edit": "Edit and Replay…",
+      "export": "Export…",
+      "reveal": "Show Secrets",
+      "hide": "Hide Secrets",
+      "revealHelp": "Credentials are masked. Show them for this request; they're not kept.",
+      "revealed": "Secrets are shown for this request until you hide them or select another.",
+      "restored": "Kept in history with credentials masked when it was saved, so they can't be shown."
+    },
+    "responder": {
+      "upstream": "Your service",
+      "folder": "The shared folder",
+      "stub": "A stub",
+      "stubFallback": "A stub (your service couldn't be reached)",
+      "gate": "Protection on this computer: {reason}",
+      "paused": "The paused page",
+      "fault": "A simulated fault",
+      "lens": "The inspector"
+    },
+    "gate": {
+      "ipNotAllowed": "address not allowed",
+      "ipDenied": "address refused",
+      "userAgentBlocked": "user agent blocked",
+      "passwordRequired": "asked for the password",
+      "passwordWrong": "wrong password",
+      "rateLimited": "too many wrong passwords",
+      "signedIn": "signed in",
+      "linkAccepted": "secret link used",
+      "linkRequired": "secret link missing",
+      "basicAuthRequired": "asked for basic authentication",
+      "bearerRequired": "bearer token missing or wrong"
+    },
+    "errorKind": {
+      "connectionRefused": "Nothing is listening on the service's port",
+      "timeout": "The service took too long",
+      "connectionReset": "The service closed the connection",
+      "dns": "The service's host name didn't resolve",
+      "tls": "The secure connection to the service failed",
+      "protocol": "The service's answer wasn't valid HTTP",
+      "clientAborted": "The visitor went away",
+      "io": "A file couldn't be read",
+      "other": "Something went wrong"
+    },
+    "fault": {
+      "status": "Answered {status}",
+      "reset": "Connection dropped",
+      "delay": "Delayed by {duration}",
+      "timeout": "Held {duration}, then timed out"
+    },
+    "timing": {
+      "title": "Timing",
+      "connect": "Connect",
+      "wait": "Waiting",
+      "receive": "Receive",
+      "unavailable": "No timings for this request yet."
+    },
+    "body": {
+      "none": "No body.",
+      "viewAs": "Show the {label} body as",
+      "mode": {
+        "pretty": "Pretty",
+        "form": "Form",
+        "parts": "Parts",
+        "preview": "Preview",
+        "raw": "Text",
+        "hex": "Hex"
+      },
+      "image": "The captured image",
+      "part": "Part {number}",
+      "file": "{name} · {file}",
+      "truncated": "Captured the first {captured} of {size}.",
+      "shortened": "Showing the first {count} characters. Export the request for all of it.",
+      "hexShortened": "Showing the first {size}.",
+      "decodeError": "Couldn't decompress the body ({detail}); showing the bytes as they arrived."
+    },
+    "messages": {
+      "label": "Messages",
+      "frames": "WebSocket frames",
+      "counts": "{visitor} from the visitor · {service} from the service",
+      "closed": "closed",
+      "fromVisitor": "From the visitor",
+      "fromService": "From the service",
+      "compressed": "(compressed)",
+      "none": "No messages yet.",
+      "dropped_one": "{count} older frame isn't kept.",
+      "dropped_other": "{count} older frames aren't kept."
+    },
+    "webhook": {
+      "title": "Webhook",
+      "from": "From {provider}",
+      "valid": "Signature valid",
+      "invalid": "Signature invalid",
+      "expired": "Signature expired",
+      "unknown": "Signature not recognised",
+      "notEnoughData": "Can't be checked",
+      "unchecked": "Not checked",
+      "age": "Signed {minutes} min before it arrived.",
+      "noSecret": "Add the signing secret to check signatures.",
+      "add": "Add Signing Secret…",
+      "secretLabel": "{provider} signing secret",
+      "save": "Save Secret",
+      "remove": "Remove Secret",
+      "saved": "A signing secret is saved in your keychain for this share or route. It's never shown again.",
+      "saved@windows": "A signing secret is saved in Windows Credential Manager for this share or route. It's never shown again.",
+      "saved@linux": "A signing secret is saved in your system's secret store for this share or route. It's never shown again."
+    },
+    "replay": {
+      "title": "Edit and Replay",
+      "description": "Send this request to your service again, changed as you like.",
+      "method": "Method",
+      "path": "Path",
+      "headers": "Headers",
+      "headersHelp": "One per line, as Name: value. Headers you leave alone keep their captured values, masked ones included.",
+      "body": "Body",
+      "binaryBody": "The body isn't text, so it's sent as it was captured.",
+      "times": "Send",
+      "resign": "Re-sign",
+      "resignHelp": "Gives each replay a fresh, valid {provider} signature with the saved secret.",
+      "resignNeedsSecret": "Save the {provider} signing secret to re-sign replays.",
+      "resignNotWebhook": "Re-sign applies to recognised webhooks.",
+      "restored": "From history: masked headers are left out of the replay.",
+      "send": "Send",
+      "sendTimes": "Send {count} Times",
+      "sent_one": "Sent the request again",
+      "sent_other": "Sent the request {count} times"
+    },
+    "compare": {
+      "title": "Compare Requests",
+      "description": "#{a} and #{b}",
+      "summary": "Summary",
+      "requestHeaders": "Request headers",
+      "responseHeaders": "Response headers",
+      "requestBody": "Request body",
+      "responseBody": "Response body",
+      "changed_one": "{count} difference",
+      "changed_other": "{count} differences",
+      "differs": "{label} differs",
+      "same": "The same.",
+      "tooLarge": "Too long to compare line by line.",
+      "added": "Added: ",
+      "removed": "Removed: "
+    },
+    "export": {
+      "title": "Export Requests",
+      "description_one": "{count} request",
+      "description_other": "{count} requests",
+      "format": "Format",
+      "formats": {
+        "curl": "cURL",
+        "httpie": "HTTPie",
+        "fetch": "fetch",
+        "raw": "Raw HTTP",
+        "har": "HAR",
+        "json": "JSON",
+        "markdown": "Markdown"
+      },
+      "redact": "Redact",
+      "redactHelp": "Credentials are masked: Authorization, cookies, API keys, signatures and token-like values.",
+      "unredacted": "This export includes credentials. Share it only where they're safe.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "save": "Save to Downloads",
+      "saved": "Saved to {path}"
+    },
+    "route": {
+      "section": "Requests",
+      "help": "See this route's requests as they arrive: the route points at the inspector on this computer until you stop.",
+      "notLocal": "Only routes this computer serves can be inspected.",
+      "inspecting": "Its requests go through the inspector on this computer until you stop, or Teitunnel quits.",
+      "orphan": "It points at an inspector that isn't running, so visitors get an error.",
+      "inspect": "Inspect this route",
+      "show": "Show Requests",
+      "stop": "Stop Inspecting",
+      "restore": "Restore the Route",
+      "sheetOn": "Inspect {hostname}",
+      "sheetOff": "Stop inspecting {hostname}",
+      "sheetRestore": "Restore {hostname}",
+      "descriptionOn": "The route points at the inspector on this computer. Its own service is remembered and restored when inspection ends.",
+      "descriptionOff": "The route points back at its own service.",
+      "applyOn": "Start Inspecting",
+      "lasts": "Inspection lasts while Teitunnel runs: the route goes back to its own service when you stop or quit, or at the next launch.",
+      "nothing": "Nothing to change: the route was changed or removed since it was inspected.",
+      "started": "{hostname} is inspected",
+      "stopped": "{hostname} points at its own service again"
+    },
+    "share": {
+      "inspect": "Inspect requests",
+      "toggle": "Inspect requests",
+      "composerHelp": "Requests go through the inspector on this computer, so you can see and replay them.",
+      "onTitle": "Inspect this share's requests?",
+      "offTitle": "Stop inspecting this share?",
+      "newAddress": "The share restarts, so it gets a new address. Anyone using the old one needs the new one.",
+      "confirmOn": "Restart with Inspector",
+      "confirmOff": "Restart Without Inspector"
+    },
+    "tap": {
+      "open": "Inspection Settings…",
+      "title": "Inspection settings for {name}",
+      "description": "Done by the inspector on this computer, so they apply only while Teitunnel runs.",
+      "sections": "Settings",
+      "tab": {
+        "responses": "Responses",
+        "headers": "Headers",
+        "network": "Network",
+        "protection": "Protection",
+        "more": "More"
+      },
+      "save": "Save",
+      "saved": "Saved settings for {name}",
+      "method": "Method",
+      "anyMethod": "Any",
+      "path": "Path",
+      "stubs": {
+        "title": "Stubs",
+        "help": "Answer a path with a saved response: always, or only while your service is down (webhook senders stay happy while you restart).",
+        "add": "Add Stub",
+        "empty": "No stubs.",
+        "status": "Status",
+        "when": "When",
+        "mode": {
+          "always": "Always",
+          "whenUnreachable": "When the service is down"
+        },
+        "contentType": "Content-Type",
+        "body": "Response body",
+        "remove": "Remove stub"
+      },
+      "paused": {
+        "title": "Paused page",
+        "toggle": "Show a paused page",
+        "help": "Keeps the address and shows a \"back soon\" page instead of your service.",
+        "heading": "Heading",
+        "message": "Message"
+      },
+      "host": {
+        "title": "Host header",
+        "help": "Sent to your service. Leave it empty to send the visitor's.",
+        "placeholder": "localhost:3000"
+      },
+      "headers": {
+        "request": "Request headers",
+        "response": "Response headers",
+        "add": "Add Rule",
+        "empty": "No rules.",
+        "op": "Change",
+        "ops": {
+          "set": "Set",
+          "append": "Add",
+          "remove": "Remove"
+        },
+        "name": "Header",
+        "value": "Value",
+        "remove": "Remove rule",
+        "cors": "Allow requests from any site (CORS)",
+        "corsHelp": "Answers preflight requests and allows the caller's origin. For development only."
+      },
+      "network": {
+        "title": "Simulated network",
+        "help": "Adds latency and limits bandwidth for every request.",
+        "preset": {
+          "off": "Off",
+          "threeG": "3G",
+          "fourG": "4G",
+          "satellite": "Satellite",
+          "custom": "Custom"
+        }
+      },
+      "faults": {
+        "title": "Faults",
+        "help": "Make a share of matching requests fail, to test how clients cope.",
+        "add": "Add Fault",
+        "empty": "No faults.",
+        "percent": "Share of requests (%)",
+        "action": "What happens",
+        "actions": {
+          "status": "Answer with",
+          "reset": "Drop connection",
+          "delay": "Delay (ms)",
+          "timeout": "Time out after (ms)"
+        },
+        "statusCode": "Status code",
+        "ms": "Milliseconds",
+        "remove": "Remove fault"
+      },
+      "keepAlive": {
+        "title": "Keep event streams alive",
+        "help": "Sends a comment line after this many seconds of silence, so Cloudflare's 100-second limit doesn't cut long streams. 0 turns it off.",
+        "seconds": "seconds"
+      },
+      "capturing": "Record requests",
+      "capturingHelp": "Turn off to pass requests through without keeping them.",
+      "watched": {
+        "title": "Watched paths",
+        "help": "A notification when a request hits one of these. One per line."
+      },
+      "idle": {
+        "title": "Stop after no requests for",
+        "help": "The share stops by itself after this long without a request."
+      }
+    },
+    "protection": {
+      "where": "Enforced by the inspector on this computer. It works on Quick Shares too, but only while Teitunnel runs.",
+      "edge": "Protection at Cloudflare's edge keeps working while this computer is off. It's on the route.",
+      "openRoute": "Open the Route",
+      "quickShare": "Quick Shares can only be protected here.",
+      "on": "On",
+      "off": "Off",
+      "remove": "Remove",
+      "set": "Set",
+      "password": "Password page",
+      "passwordField": "Password",
+      "setPassword": "Set Password",
+      "link": "Secret link",
+      "linkHelp": "Visitors need the link once; a cookie lets them back in.",
+      "createLink": "Create Link",
+      "newLink": "New Link",
+      "basic": "Basic authentication",
+      "basicUser": "As {user}",
+      "user": "User name",
+      "basicPassword": "Password",
+      "bearer": "Bearer token",
+      "bearerHelp": "For API clients and AI tools that send Authorization: Bearer.",
+      "tokens_one": "{count} token",
+      "tokens_other": "{count} tokens",
+      "createToken": "Create Token",
+      "removeTokens": "Remove Tokens",
+      "shownOnce": "Copy it now: it isn't shown again.",
+      "allow": "Allow only these networks",
+      "deny": "Refuse these networks",
+      "ipHelp": "IP addresses or ranges, one per line. Empty allows everyone.",
+      "agents": "Block user agents",
+      "preset": {
+        "aiCrawlers": "AI crawlers (GPTBot, ClaudeBot, CCBot…)",
+        "searchEngines": "Search engines (Googlebot, Bingbot…)",
+        "seoCrawlers": "SEO crawlers (AhrefsBot, SemrushBot…)"
+      },
+      "patterns": "Other user agents to block (one per line)",
+      "bypass": "Paths that skip protection",
+      "bypassHelp": "For example /webhooks/*, so webhook senders still get through.",
+      "saveLists": "Save Lists"
+    },
+    "settings": {
+      "shares": "Quick Shares",
+      "sharesFooter": "Inspected shares go through the inspector on this computer. Nothing is sent anywhere.",
+      "inspectShares": "Inspect Quick Shares",
+      "inspectSharesDetail": "New Quick Shares show their requests in the Inspector.",
+      "idle": "Stop idle shares",
+      "idleDetail": "Stop a share after this long without a request.",
+      "never": "Never",
+      "minutes_one": "{count} min",
+      "minutes_other": "{count} min",
+      "hours_one": "{count} hour",
+      "hours_other": "{count} hours",
+      "days_one": "{count} day",
+      "days_other": "{count} days",
+      "history": "History",
+      "historyFooter": "Kept on this computer with credentials masked, so a restart keeps recent requests and the terminal can read them.",
+      "keepHistory": "Keep recent requests",
+      "keepHistoryDetail": "At most 5,000 per share or route, 256 MB in all.",
+      "retention": "Keep for",
+      "clear": "Clear history",
+      "clearButton": "Clear…",
+      "clearTitle": "Clear every captured request?",
+      "clearDetail": "Removes captured requests from memory and from the history on disk.",
+      "clearConfirm": "Clear History",
+      "watched": "Watched paths",
+      "watchedFooter": "A notification when a request to any share or route hits one of these paths, e.g. /webhooks/*. One per line.",
+      "save": "Save"
     }
   },
   "nav": {
     "overview": "Overview",
     "routes": "Routes",
     "quickShare": "Quick Share",
+    "inspector": "Inspector",
     "cloudflare": "Cloudflare",
     "domains": "Domains",
     "tunnels": "Tunnels",
@@ -940,7 +1559,13 @@
     "activity": "Activity",
     "doctor": "Doctor",
     "developer": "Developer",
-    "gallery": "Gallery"
+    "gallery": "Gallery",
+    "settings": "Settings",
+    "analytics": "Analytics",
+    "snapshots": "Snapshots",
+    "projects": "Projects",
+    "localDomains": "Local Domains",
+    "comments": "Comments"
   },
   "commands": {
     "group": {
@@ -1004,7 +1629,75 @@
     "label": "Log",
     "noMatch": "No lines match."
   },
+  "reservations": {
+    "title": "Reservations",
+    "detail": "Reserved names are kept in your DNS, so everyone sharing this account sees who holds them.",
+    "list": "Reservations",
+    "loadFailed": "Couldn't load reservations",
+    "none": "No reservations",
+    "noneDetail": "Reserve a hostname so teammates sharing this account see it's taken.",
+    "reserve": "Reserve",
+    "reserveTitle": "Reserve a hostname",
+    "reserveDetail": "Teitunnel adds a placeholder DNS record that answers nothing, with your name on it. A route you add there later keeps the reservation.",
+    "hostname": "Hostname",
+    "until": "Until",
+    "untilHint": "Leave empty to keep it until you release it.",
+    "release": "Release",
+    "releaseLabel": "Release {hostname}",
+    "owner": "Owner",
+    "yours": "You",
+    "noEnd": "No end date",
+    "endsOn": "Until {date}",
+    "ended": "Ended {date}",
+    "routed": "Also routed",
+    "takeOver": "Take Over",
+    "reserved": "{hostname} is reserved.",
+    "released": "{hostname} is free again.",
+    "failed": "Couldn't change the reservation",
+    "cachedNote": "Cloudflare can't be reached; these are the reservations seen last.",
+    "untilLabel": "Until (optional)",
+    "availability": {
+      "checking": "Checking…",
+      "free": "Available",
+      "yours": "Reserved by you",
+      "reserved": "Reserved by {owner} until {until}",
+      "reservedForever": "Reserved by {owner}",
+      "routed": "Routed by {owner} on another machine",
+      "foreign": "Has a DNS record Teitunnel didn't create",
+      "someone": "another Teitunnel"
+    }
+  },
   "core": {
+    "reservations": {
+      "summary": {
+        "reserve": "Reserve {hostname}",
+        "reserveUntil": "Reserve {hostname} until {until}",
+        "release": "Release the reservation of {hostname}"
+      },
+      "step": {
+        "create": "Reserve {hostname} with a placeholder DNS record (no end date)",
+        "createUntil": "Reserve {hostname} with a placeholder DNS record until {until}",
+        "keep": "Keep {hostname} reserved (no end date)",
+        "keepUntil": "Keep {hostname} reserved until {until}",
+        "end": "End the reservation of {hostname} (a route there stays)"
+      },
+      "delta": {
+        "reserved": "Reserved",
+        "reservedUntil": "Reserved until {until}"
+      },
+      "error": {
+        "hostnameInUse": "{hostname} has a DNS record Teitunnel didn't create, so it can't be reserved. Choose another name.",
+        "notReserved": "{hostname} isn't reserved.",
+        "invalidUntil": "Enter an end date like 2026-12-31, or leave it empty for no end date.",
+        "untilPast": "The end date has already passed. Choose a later one."
+      },
+      "held": {
+        "reserved": "{hostname} is reserved by {owner} until {until}.",
+        "reservedForever": "{hostname} is reserved by {owner}.",
+        "routed": "{hostname} is routed by {owner}.",
+        "someone": "another Teitunnel"
+      }
+    },
     "error": {
       "hostname": {
         "empty": "Enter a hostname, like app.example.com.",
@@ -1074,7 +1767,10 @@
         "accessPermission": "This account's token can't manage logins. In Cloudflare, add Access: Apps and Policies · Edit and Access: Organizations, Identity Providers, and Groups · Edit to it; the token itself stays the same.",
         "unknownTunnel": "This Mac doesn't have that tunnel any more.",
         "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
-        "unknownTunnel@linux": "This computer doesn't have that tunnel any more."
+        "unknownTunnel@linux": "This computer doesn't have that tunnel any more.",
+        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token.",
+        "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token.",
+        "workersPermission": "This needs the Workers Routes and D1 permissions. Add Zone › Workers Routes · Edit and Account › D1 · Edit to the account's API token; the token itself stays the same."
       },
       "cloudflare": {
         "permission": "Cloudflare refused: this account's token lacks a permission ({detail}).",
@@ -1118,7 +1814,10 @@
       },
       "quickShare": {
         "noFreePort": "Too many Quick Shares are running.",
-        "notFound": "That Quick Share isn't running."
+        "notFound": "That Quick Share isn't running.",
+        "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
+        "config": "Couldn't prepare cloudflared's settings: {detail}",
+        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share."
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",
@@ -1136,6 +1835,48 @@
         "alreadyHere@linux": "This computer already runs that tunnel.",
         "gone": "That tunnel doesn't exist any more.",
         "locallyConfigured": "“{name}” is configured with a local config file, so Teitunnel can't manage its routes. Import its routes instead."
+      },
+      "analytics": {
+        "permission": "This account's token can't read analytics. Add the Analytics permission to see traffic.",
+        "rateLimited": "Cloudflare's analytics limit is used up for a few minutes. Try again shortly.",
+        "notOnPlan": "This domain's Cloudflare plan doesn't include traffic analytics.",
+        "noZone": "None of this account's domains holds {hostname}."
+      },
+      "inspect": {
+        "lens": "The inspector couldn't do that: {detail}",
+        "unknownTap": "That share or route isn't being inspected any more.",
+        "unknownExchange": "That request isn't captured any more. Only the most recent requests are kept.",
+        "notWeb": "Only web services (http:// or https://) can be inspected.",
+        "notRoute": "{hostname} isn't a route served by this computer.",
+        "notInspected": "{hostname} isn't being inspected.",
+        "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
+        "invalid": "{detail}"
+      },
+      "shortcut": {
+        "invalid": "{keys} isn't a shortcut Teitunnel can use. Use modifier keys with one letter, digit, function key or Space.",
+        "needsModifier": "Add a modifier key other than Shift, so the shortcut doesn't get in the way of typing.",
+        "taken": "Another app already uses this shortcut. Choose a different one.",
+        "unsupported": "This system doesn't let apps use global shortcuts."
+      },
+      "schedule": {
+        "days": "\"{days}\" isn't a list of days. Use names like mon-fri, sat,sun, weekdays, weekends or daily.",
+        "time": "\"{time}\" isn't a time. Use 24-hour HH:MM, like 09:00 or 18:30.",
+        "timeZone": "\"{zone}\" isn't a time zone this computer knows. Use a name like Europe/Berlin or America/New_York.",
+        "spec": "\"{spec}\" isn't a schedule. Write the days and hours, like mon-fri 09:00-18:00."
+      },
+      "pause": {
+        "ownerGone": "The terminal that shared {hostname} has stopped, so there's nothing to pause.",
+        "notInspected": "{hostname} runs in a terminal without Teitunnel's inspector (--no-inspect), which is what shows the paused page. Stop it and share it again without --no-inspect.",
+        "noHost": "Pausing {hostname} needs Teitunnel running on this computer to show the paused page: open the app, or run teitunnel up or teitunnel serve."
+      },
+      "shareName": {
+        "placeholder": "{name} isn't a placeholder Teitunnel knows. Use one of project, branch or user in braces.",
+        "noValue": "{name} has no value here (the branch comes from the git repository the share starts in).",
+        "invalid": "{hostname} isn't a hostname Teitunnel can share at. Each part may use letters, digits and hyphens."
+      },
+      "folder": {
+        "notFolder": "{path} isn't a folder on this computer.",
+        "tooBroad": "{path} holds far more than a site. Share the folder with the files you want people to see, like dist or public."
       }
     },
     "raw": "{text}",
@@ -1421,7 +2162,48 @@
         "detail": "{detail}"
       },
       "record": "{name} {kind} {content}",
-      "recordProxied": "{name} {kind} {content} (proxied)"
+      "recordProxied": "{name} {kind} {content} (proxied)",
+      "inspectOrphan": {
+        "title": "{hostname} points at an inspector that isn't running",
+        "detail": "Teitunnel pointed this route at its inspector to show its requests. The inspector isn't running any more, so visitors get an error. Point the route back at its own service.",
+        "fix": "Restore the Route",
+        "address": "Inspector address: {address}",
+        "original": "Its own service: {origin}"
+      },
+      "localStopped": {
+        "title": "Local domains aren't being served"
+      },
+      "localPort": {
+        "titleFallback": "Local domains use port {fallback} instead of {port}",
+        "titleNone": "Local domains can't start: port {port} isn't available",
+        "inUse": "Another app is using port {port}. Quit it and restart local domains to use the usual address without a port number.",
+        "denied": "This system only lets administrators use port {port}. Addresses include the other port number until that changes.",
+        "other": "Port {port} couldn't be used."
+      },
+      "localUntrusted": {
+        "title": "Browsers don't trust your local domains yet",
+        "detail": "Teitunnel signs certificates for your local domains with its own certificate authority, which only works for .localhost, .test and .local names. Trust it once so browsers open them without a warning.",
+        "authority": "Certificate authority: {name}"
+      },
+      "localDns": {
+        "title": "The name server for .test names isn't running"
+      },
+      "localResolver": {
+        "title": "{name} doesn't reach this computer yet",
+        "detail": "Names ending in .test need a one-time entry that sends them to Teitunnel's name server. It needs administrator rights, so Teitunnel shows the command to run."
+      },
+      "localElsewhere": {
+        "title": "{name} points at another computer",
+        "detail": "The system resolves this name to an address that isn't this computer, so browsers won't reach Teitunnel. Check your hosts file or DNS settings, or use a .localhost name."
+      },
+      "localCaExpiry": {
+        "title": "The local certificate authority expires soon",
+        "detail": "Replace it with a new one and trust that instead. Your local domains stay as they are."
+      },
+      "localCertificate": {
+        "title": "The certificate for {name} expires soon",
+        "detail": "Teitunnel renews certificates by itself, but this one wasn't renewed. Renew it now."
+      }
     },
     "notify": {
       "doctorMany": "Teitunnel found {count} problems",
@@ -1438,7 +2220,17 @@
       "shareLive": "Quick Share is live",
       "shareFailed": "Quick Share stopped working",
       "routesDown@windows": "Routes on this PC are down",
-      "routesDown@linux": "Routes on this computer are down"
+      "routesDown@linux": "Routes on this computer are down",
+      "watchedPath": "Request to {path}",
+      "watchedPathBody": "{method} {path} on {name}",
+      "idleStopped": "Share stopped",
+      "idleStoppedBody_one": "{name} had no requests for {count} minute, so it stopped.",
+      "idleStoppedBody_other": "{name} had no requests for {count} minutes, so it stopped.",
+      "shared": "{origin} is shared",
+      "sharedBody": "Its address is copied: {url}",
+      "addressCopied": "Address copied",
+      "addressCopiedBody": "{url}",
+      "shareNowFailed": "Couldn't share {origin}"
     },
     "verify": {
       "noRecord": "There's no DNS record for this hostname.",
@@ -1454,7 +2246,12 @@
       "recordElsewhere@windows": "The DNS record points at {content}, not at this PC's tunnel.",
       "recordElsewhere@linux": "The DNS record points at {content}, not at this computer's tunnel.",
       "noConnector@windows": "Cloudflare can't reach this PC: the connector isn't connected.",
-      "noConnector@linux": "Cloudflare can't reach this computer: the connector isn't connected."
+      "noConnector@linux": "Cloudflare can't reach this computer: the connector isn't connected.",
+      "originNotListeningOn": "Nothing is listening on port {port}. Is your server running? Start it and test again.",
+      "originUnreachableOn": "The tunnel works, but the connector couldn't connect to port {port}. Is your server running?",
+      "hostRejected": "{server} refuses requests for this address.",
+      "bodyTooLarge": "Cloudflare refused a request body over 100 MB, the limit on the Free and Pro plans. Send large files in parts, or upload them another way.",
+      "tooManyRequests": "This Quick Share hit its limit of 200 requests at once. Share on your own domain for more."
     },
     "remoteLogs": {
       "noPermission": "This account's token can't read connector logs. It needs Cloudflare Tunnel: Edit.",
@@ -1511,7 +2308,10 @@
       "finder@windows": "Couldn't open File Explorer: {detail}",
       "finder@linux": "Couldn't open the file manager: {detail}",
       "cloudflaredMissingHint@windows": "Install it from the Quick Share page, or run `winget install --id Cloudflare.cloudflared`.",
-      "cloudflaredMissingHint@linux": "Install it from the Quick Share page, or with your package manager."
+      "cloudflaredMissingHint@linux": "Install it from the Quick Share page, or with your package manager.",
+      "projectAccount": "No connected account is called {name}. Connect it, or change account in teitunnel.yml.",
+      "projectNoAccount": "Connect a Cloudflare account to apply this project.",
+      "projectChooseAccount": "Several accounts are connected: add account: NAME to teitunnel.yml to say which one this project uses."
     },
     "menu": {
       "about": "About {app}",
@@ -1558,7 +2358,9 @@
       "reportIssue": "Report an Issue…",
       "credits": "Routes and Quick Shares run on cloudflared by Cloudflare (Apache-2.0), downloaded from its GitHub releases and verified before use.",
       "settingsWindow": "Settings",
-      "checkUpdates": "Check for Updates…"
+      "checkUpdates": "Check for Updates…",
+      "snapshots": "Snapshots",
+      "analytics": "Analytics"
     },
     "tray": {
       "stopRoutes": "Stop Routes on This Mac",
@@ -1586,7 +2388,12 @@
       "startRoutes@windows": "Start Routes on This PC",
       "startRoutes@linux": "Start Routes on This Computer",
       "routesStopped@windows": "Routes stopped on this PC",
-      "routesStopped@linux": "Routes stopped on this computer"
+      "routesStopped@linux": "Routes stopped on this computer",
+      "shareService": "Share a Running Service",
+      "copyRecent": "Copy {url}",
+      "pauseAll": "Pause All Shares",
+      "resumeAll": "Resume All Shares",
+      "stopAll": "Stop All Shares"
     },
     "route": {
       "status": {
@@ -1615,6 +2422,468 @@
       "seconds": "Enter a number of seconds from 1 to {max}",
       "connections": "Enter a number from 1 to {max}",
       "proxyType": "Leave it empty, or enter socks for a SOCKS5 proxy"
+    },
+    "devServer": {
+      "autoHostHeader": "Sending Host: {host} so {server} accepts the public address. Use --no-host-header to turn this off.",
+      "sendingHostHeader": "Sending Host: {host} to the service.",
+      "rejected": "{server} refuses requests for {address}: it only answers addresses it knows.",
+      "configLine": "Fix: add this to {file} and restart the dev server:",
+      "shareHostHeader": "Or share with --host-header {host}, which {server} accepts.",
+      "routeHostHeader": "Or have the route send Host: {host} (--host-header {host}), which {server} accepts.",
+      "hostHeaderUnsafe": "Sending Host: {host} would also work, but {server} compares it with the browser's address for forms, redirects and sign-in, so allowing the address is better.",
+      "nextOrigin": "Next.js checks where requests come from, not the Host header, so only the config change helps.",
+      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead."
+    },
+    "uptime": {
+      "cause": {
+        "noConnector": "No connector is connected to the tunnel.",
+        "tunnelMismatch": "The hostname points at a tunnel that doesn't serve it.",
+        "notOnCloudflare": "Cloudflare doesn't know this hostname yet.",
+        "originUnreachable": "The connector can't reach the local service.",
+        "originTimeout": "The local service didn't answer in time.",
+        "serverError": "The local service answered with a server error.",
+        "edgeUnreachable": "Cloudflare's edge couldn't be reached for this hostname.",
+        "certificate": "The certificate doesn't cover this hostname.",
+        "timeout": "The check took too long.",
+        "noRecord": "The hostname's DNS record is missing or points elsewhere.",
+        "hostRejected": "The local service refuses the public address.",
+        "limited": "Cloudflare refused the request because a limit was reached."
+      }
+    },
+    "alerts": {
+      "down": "{route} is down",
+      "downBody": "It stopped answering through Cloudflare.",
+      "recovered": "{route} is back up",
+      "recoveredBody_one": "It was down for {count} minute.",
+      "recoveredBody_other": "It was down for {count} minutes.",
+      "errors": "{route} answers with errors",
+      "errorsTunnel": "Routes through {tunnel} answer with errors",
+      "errorsBody": "{percent}% of requests failed with a server error in the last {minutes} minutes.",
+      "errorsResolved": "{route}: errors are back to normal",
+      "errorsResolvedBody": "Fewer than {percent}% of requests fail now.",
+      "slow": "{route} is slow",
+      "slowBody": "Responses took {ms} ms (95th percentile) over the last {minutes} minutes.",
+      "fast": "{route} is fast again",
+      "fastBody": "Responses take {ms} ms (95th percentile) now.",
+      "connectorDown": "{tunnel} lost its connection to Cloudflare",
+      "connectorDownBody": "Its routes don't answer until it reconnects. Teitunnel keeps retrying.",
+      "connectorBack": "{tunnel} is connected again",
+      "connectorBackBody": "Its routes answer again.",
+      "many_one": "{count} alert",
+      "many_other": "{count} alerts",
+      "manyBody_one": "{first}, and {count} more.",
+      "manyBody_other": "{first}, and {count} more."
+    },
+    "snapshot": {
+      "summary": {
+        "publish_one": "Publish {name} ({count} file) at {address}",
+        "publish_other": "Publish {name} ({count} files) at {address}",
+        "update": "Publish a new version of {name}",
+        "rollback": "Roll {name} back to version {number}",
+        "delete": "Delete Snapshot {name}"
+      },
+      "step": {
+        "upload_one": "Upload {count} new or changed file of {total} ({size}); files Cloudflare already has aren't sent again",
+        "upload_other": "Upload {count} new or changed files of {total} ({size}); files Cloudflare already has aren't sent again",
+        "createWorker": "Create the Worker {script} with these files",
+        "publish": "Make the new version live once every file is uploaded",
+        "rollBack": "Make version {number} live again",
+        "enableWorkersDev": "Answer at {address}",
+        "disableWorkersDev": "Stop answering at {address}",
+        "attachDomain": "Serve {hostname} with the Snapshot (Cloudflare adds its DNS record and certificate)",
+        "detachDomain": "Stop serving {hostname} (its DNS record goes too)",
+        "deleteWorker": "Delete the Worker {script} with every version"
+      },
+      "leftover": {
+        "deleteWorker": "The Worker {script} was created and is still there",
+        "redeploy": "{script} wasn't switched back to the version it had",
+        "workersDevOff": "{script} still answers on workers.dev",
+        "workersDevOn": "{script} no longer answers on workers.dev",
+        "detachDomain": "{hostname} still serves the Snapshot",
+        "reattachDomain": "{hostname} no longer serves the Snapshot",
+        "recreateWorker": "The Worker {script} was deleted and can't be restored"
+      },
+      "error": {
+        "outside": "{path} is outside the chosen folder, so it wasn't uploaded.",
+        "read": "Couldn't read {path}: {detail}",
+        "filesMissing": "Cloudflare no longer has every file of the live version. Publish again from the files.",
+        "unknownHash": "Cloudflare asked for a file that isn't in this version ({hash}). Try again.",
+        "tooLarge": "{path} is larger than 25 MB, the most Cloudflare accepts for one file. Remove it or make it smaller.",
+        "changed": "{path} changed since the preview. Review the change again.",
+        "notConfirmed": "Cloudflare didn't confirm the upload. Try again: files already sent aren't sent again.",
+        "notUploaded": "The files weren't uploaded.",
+        "exists": "A Snapshot named {name} already exists on Cloudflare. Choose another name.",
+        "gone": "The Snapshot {name} is no longer on Cloudflare. Delete it here, then publish it again.",
+        "hostnameRouted": "{hostname} is used by a route. Choose another hostname, or remove the route first.",
+        "hostnameServed": "{hostname} is already served by the Worker {worker}. Choose another hostname.",
+        "noWorkersSubdomain": "This account has no workers.dev subdomain yet. Choose one in the Cloudflare dashboard (Workers & Pages), or use a hostname on one of your domains.",
+        "loginNeedsDomain": "A login needs a hostname on one of your domains. Use a password instead, or choose a hostname.",
+        "invalidName_one": "Use {count} character or fewer: letters, digits, spaces, dots, - and _.",
+        "invalidName_other": "Use up to {count} characters: letters, digits, spaces, dots, - and _.",
+        "nameTaken": "You already have a Snapshot named {name}. Choose another name.",
+        "invalidHostname": "{hostname} isn't a hostname a Snapshot can use. Use one like preview.example.com.",
+        "notAFolder": "{path} isn't a folder.",
+        "empty": "There's nothing to publish in {path}.",
+        "tooManyFiles_one": "There are more files than Cloudflare accepts in one version ({count}).",
+        "tooManyFiles_other": "There are more files than Cloudflare accepts in one version ({count}).",
+        "noProject": "No web project or index.html was found in {path}.",
+        "build": "{command} failed:\n{output}",
+        "buildTimeout": "{command} was stopped after 15 minutes.",
+        "noOutput": "The build finished, but {path} wasn't created. Check the build's output folder.",
+        "invalidUrl": "{url} isn't an http:// or https:// address.",
+        "unreachable": "The site didn't answer ({detail}). Is it running?",
+        "crawl": "Couldn't capture the site: {detail}",
+        "passwordTooShort_one": "Use a password of at least {count} character.",
+        "passwordTooShort_other": "Use a password of at least {count} characters.",
+        "random": "No secure random numbers are available. Try again.",
+        "notPrepared": "The files were prepared too long ago. Choose them again.",
+        "notFound": "That Snapshot doesn't exist any more.",
+        "noSuchVersion": "Version {number} isn't kept any more.",
+        "unchanged": "The same files and settings are already live.",
+        "notLocal": "{url} isn't on this computer or its network. Capture a site you run, such as http://localhost:5173."
+      }
+    },
+    "aiClients": {
+      "unknown": "Teitunnel doesn't know that AI tool.",
+      "failed": "Couldn't change the AI tool's settings: {detail}",
+      "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel."
+    },
+    "control": {
+      "clientTitle": "Allow {client} to make this change?",
+      "linkTitle": "Share from a link?",
+      "share": "{client} wants to share {origin} at a public address. Anyone with the address can open it.",
+      "linkShare": "A link opened in another app wants to share {origin} at a public address. Anyone with the address can open it. Only allow it if you opened the link on purpose.",
+      "stop": "{client} wants to stop the share {share}.",
+      "apply_one": "{client} wants to change your routes in Cloudflare ({count} step):\n{steps}",
+      "apply_other": "{client} wants to change your routes in Cloudflare ({count} steps):\n{steps}",
+      "applyForeign": "This replaces or deletes DNS records Teitunnel didn't create.",
+      "applyUnknown": "{client} wants to change your routes in Cloudflare.",
+      "allow": "Allow",
+      "allowAlways": "Always Allow",
+      "deny": "Don't Allow",
+      "shareButton": "Share",
+      "cancel": "Cancel",
+      "error": {
+        "noAccount": "No Cloudflare account is connected.",
+        "chooseAccount": "Several accounts are connected; choose one ({accounts}).",
+        "unknownAccount": "No connected account called {account}.",
+        "unknownTunnel": "This machine has no tunnel called {tunnel}.",
+        "unknownShare": "No share called {share} is running.",
+        "noUrl": "The share stopped before it got an address.",
+        "urlTimeout": "Cloudflare didn't hand out an address within 45 seconds. Check the internet connection and try again.",
+        "noBinary": "cloudflared isn't installed. Open Teitunnel to install it.",
+        "invalidChange": "That isn't a change Teitunnel knows: {error}",
+        "stale": "Something changed in Cloudflare since this plan was made. Review the new plan.",
+        "needsConfirmation": "This plan replaces or deletes DNS records Teitunnel didn't create; apply it with confirmed set."
+      },
+      "linkFailed": "Couldn't open the Teitunnel link",
+      "pause": "{client} wants to pause {share}. Its address stays, and visitors see a paused page until it's resumed.",
+      "resume": "{client} wants to serve {share} again.",
+      "agentTitle": "Allow {agent} to make this change?",
+      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}"
+    },
+    "protection": {
+      "summary": {
+        "protect": "Protect {hostname} at Cloudflare's edge",
+        "unprotect": "Remove edge protection from {hostname}",
+        "createToken": "Create service token “{label}” for {hostname}",
+        "revokeToken": "Revoke a service token of {hostname}",
+        "rotateToken": "Give a service token of {hostname} a new secret"
+      },
+      "step": {
+        "add": {
+          "block": "Block automated clients on {hostname}",
+          "blockAi": "Block AI crawlers on {hostname}",
+          "blockBoth": "Block automated clients and AI crawlers on {hostname}",
+          "challenge": "Challenge automated clients on {hostname}",
+          "rateLimitBlock": "Block visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "rateLimitChallenge": "Challenge visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "requestHeaders_one": "Change {count} request header on {hostname}",
+          "requestHeaders_other": "Change {count} request headers on {hostname}",
+          "responseHeaders_one": "Change {count} response header on {hostname}",
+          "responseHeaders_other": "Change {count} response headers on {hostname}"
+        },
+        "change": {
+          "block": "Change the bot rule on {hostname} to block automated clients",
+          "blockAi": "Change the bot rule on {hostname} to block AI crawlers",
+          "blockBoth": "Change the bot rule on {hostname} to block automated clients and AI crawlers",
+          "challenge": "Change the bot rule on {hostname} to challenge automated clients",
+          "rateLimitBlock": "Change the rate limit: block visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "rateLimitChallenge": "Change the rate limit: challenge visitors who send {hostnames} more than {requests} requests in {seconds} seconds",
+          "requestHeaders_one": "Change the request header rule on {hostname} ({count} header)",
+          "requestHeaders_other": "Change the request header rule on {hostname} ({count} headers)",
+          "responseHeaders_one": "Change the response header rule on {hostname} ({count} header)",
+          "responseHeaders_other": "Change the response header rule on {hostname} ({count} headers)"
+        },
+        "remove": {
+          "block": "Remove the blocking rule from {hostname}",
+          "challenge": "Remove the challenge rule from {hostname}",
+          "rateLimit": "Remove the rate limit for {hostnames}",
+          "requestHeaders": "Remove the request header rule from {hostname}",
+          "responseHeaders": "Remove the response header rule from {hostname}"
+        },
+        "createToken": "Create service token “{name}” (valid for a year)",
+        "allowToken": "Let the service token through the login on {domain}",
+        "machineOnly": "Require a login on {domain} that only service tokens pass",
+        "deleteToken": "Delete service token “{name}” (machines using it are refused)",
+        "rotateToken": "Give service token “{name}” a new secret (the old one stops working)"
+      },
+      "leftover": {
+        "deleteRule": "Teitunnel's new rule for {hostnames} is still there",
+        "restoreRule": "Teitunnel's rule for {hostnames} wasn't changed back",
+        "recreateRule": "Teitunnel's rule for {hostnames} was removed and couldn't be put back",
+        "deleteToken": "The service token “{name}” was created and is still there",
+        "restoreToken": "The service token “{name}” can't be restored: its old secret is gone"
+      },
+      "error": {
+        "rateLimitNeedsPro": "{zone} is on Cloudflare's Free plan, whose rate limit can't be limited to one hostname: it would apply to the whole domain. Teitunnel only adds rules for one hostname; rate limiting per hostname needs Pro or higher.",
+        "rateLimitPeriod": "{zone}'s plan allows rate limit periods up to {longest} seconds.",
+        "quotaCustom_one": "{zone} already uses the {count} custom rule its plan allows. Remove one in the dashboard or turn off another hostname's bot rules first.",
+        "quotaCustom_other": "{zone} already uses all {count} custom rules its plan allows. Remove one in the dashboard or turn off another hostname's bot rules first.",
+        "quotaRateLimit_one": "{zone} already uses the {count} rate limiting rule its plan allows.",
+        "quotaRateLimit_other": "{zone} already uses all {count} rate limiting rules its plan allows.",
+        "quotaTransform_one": "{zone} already uses the {count} Transform Rule its plan allows.",
+        "quotaTransform_other": "{zone} already uses all {count} Transform Rules its plan allows. Remove header rules from another hostname first.",
+        "rateLimitConflict": "{zone}'s plan has room for no other rate limit, and Teitunnel's limit there (for {hostnames}) is {requests} requests per {period} seconds. Use the same limit, or remove it from those hostnames first.",
+        "tokenLabel": "Name the token in 1 to 40 characters, for example “CI”.",
+        "tokenLimit_one": "The account already has {count} service token, the most Cloudflare allows. Revoke one first.",
+        "tokenLimit_other": "The account already has {count} service tokens, the most Cloudflare allows. Revoke one first.",
+        "tokenExists": "This hostname already has a token called “{label}”. Choose another name.",
+        "noSuchToken": "That service token is gone. Refresh the list.",
+        "tokenNotOwned": "“{name}” wasn't made by Teitunnel, so it's left alone. Manage it in the Cloudflare dashboard.",
+        "tokenNotCreated": "The service token wasn't created.",
+        "secretGone": "The secret is no longer kept (Teitunnel keeps it for 10 minutes and never saves it). Rotate the token to get a new one."
+      },
+      "input": {
+        "headerName": "“{name}” isn't a header name: use letters, digits, dashes and underscores.",
+        "headerValue": "The value of {name} is too long or has control characters.",
+        "missingValue": "Give {name} a value.",
+        "duplicateHeader": "{name} is listed twice.",
+        "protectedHeader": "Cloudflare doesn't let rules change {name} on requests.",
+        "cookieRemoveOnly": "Cookies can only be removed from requests, not set.",
+        "addOnRequest": "{name}: request headers can be set or removed; adding is for response headers.",
+        "tooManyHeaders_one": "At most {count} header rule per list.",
+        "tooManyHeaders_other": "At most {count} header rules per list.",
+        "requests": "Allow between 1 and 1,000,000 requests.",
+        "period": "Cloudflare doesn't support a period of {period} seconds. Choose 10 s, 1, 2, 5 or 10 minutes, or an hour."
+      }
+    },
+    "project": {
+      "syntax": "The file isn't valid YAML: {message}",
+      "notAMapping": "The file must be a mapping of keys, starting with version: 1.",
+      "versionMissing": "Add version: 1 at the top of the file.",
+      "versionUnsupported": "Version {version} needs a newer Teitunnel; this one reads version 1.",
+      "expectedText": "{key} should be text here.",
+      "expectedBool": "{key} should be true or false.",
+      "expectedList": "{key} should be a list.",
+      "expectedMapping": "Each entry of {key} should be a mapping of keys.",
+      "unknownKey": "{key} isn't known to this version of Teitunnel, so it's ignored.",
+      "missing": "Add {key} here.",
+      "duplicate": "{name} is declared twice.",
+      "badPort": "{value} isn't a port (1 to 65535).",
+      "badDuration": "{value} isn't a duration. Try 90s, 30m, 2h or 7d (at most 90 days; whole days for Snapshots).",
+      "badHostHeader": "{value} isn't a host for the Host header, e.g. localhost:5173.",
+      "badOriginRequest": "These origin settings have a value of the wrong type.",
+      "literalSecret": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
+      "literalSecret@windows": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry instead (see Project files in the docs).",
+      "literalSecret@linux": "{key} holds a secret. Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry instead (see Project files in the docs).",
+      "secretValue": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keychain entry (keychain: NAME) instead.",
+      "secretValue@windows": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a Credential Manager entry instead (see Project files in the docs).",
+      "secretValue@linux": "This looks like a secret ({kind}). Never put secrets in teitunnel.yml: refer to an environment variable (env: NAME) or a keyring entry instead (see Project files in the docs).",
+      "secretRef": "{key} must be a secret reference, env: NAME or keychain: NAME (letters, digits, -, _ and .).",
+      "shareOrigin": "A share needs port or url.",
+      "shareBoth": "Give port or url, not both.",
+      "loginNeedsHostname": "A login needs a hostname on one of your domains.",
+      "localName": "{value} isn't a local name. Use name.localhost, name.test or name.local.",
+      "relativePath": "{value} must be a folder inside the project, relative to teitunnel.yml.",
+      "snapshotSource": "source must be folder: PATH or build: PATH.",
+      "unknownPlaceholder": "Unknown placeholder {name}. The placeholders are branch, user and project, in braces.",
+      "unclosedPlaceholder": "A placeholder is missing its closing brace.",
+      "noValue": "The {name} placeholder has no value here (the branch needs a git repository).",
+      "noTunnel": "This machine has no tunnel named {name}. Create it first with teitunnel tunnel create {name}.",
+      "missingEnv": "The environment variable {name} isn't set.",
+      "missingKeychain": "The keychain has no entry named {name} for Teitunnel.",
+      "missingKeychain@windows": "Windows Credential Manager has no entry named {name} for Teitunnel.",
+      "missingKeychain@linux": "The keyring has no entry named {name} for Teitunnel.",
+      "notFound": "No teitunnel.yml in {dir} or the folders above it (up to the repository's root).",
+      "io": "Couldn't read {path}: {detail}",
+      "tooLarge": "{path} is over 256 KB; a project file is much smaller.",
+      "invalid_one": "The project file has {count} error. Fix it and try again.",
+      "invalid_other": "The project file has {count} errors. Fix them and try again.",
+      "changed": "Cloudflare changed since the plan was shown. Review the plan again.",
+      "noteTemporary": "A temporary share uses this hostname now.",
+      "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
+      "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
+      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
+    },
+    "exposure": {
+      "envFile": {
+        "title": "Its .env file can be downloaded",
+        "advice": "Anyone could read the secrets in it. Serve a build folder instead of the project folder, or block dotfiles in the server's settings."
+      },
+      "gitRepository": {
+        "title": "Its .git folder can be downloaded",
+        "advice": "The repository's history and remotes can be downloaded. Serve a build folder instead of the project folder, or block dotfiles."
+      },
+      "dsStore": {
+        "title": "A .DS_Store file lists the folder's files",
+        "advice": "It reveals file names that aren't linked anywhere. Delete it, or block dotfiles in the server's settings."
+      },
+      "directoryListing": {
+        "title": "It lists the files in its folder",
+        "advice": "Visitors can browse and download every file there. Turn off directory listings, or serve only a build folder."
+      },
+      "backupArchive": {
+        "title": "A backup archive can be downloaded",
+        "advice": "Move backups out of the folder being served."
+      },
+      "databaseDump": {
+        "title": "A database dump can be downloaded",
+        "advice": "Move dumps out of the folder being served; they hold your data."
+      },
+      "databaseFile": {
+        "title": "A SQLite database can be downloaded",
+        "advice": "Move the database file out of the folder being served."
+      },
+      "djangoDebug": {
+        "title": "Django runs with DEBUG = True",
+        "advice": "Error pages show settings, code and URL patterns. Set DEBUG = False for anything public."
+      },
+      "laravelDebug": {
+        "title": "Laravel's debug tools are on",
+        "advice": "Ignition and Whoops show code and environment details, and old Ignition versions allow running code. Set APP_DEBUG=false."
+      },
+      "railsDevelopment": {
+        "title": "Rails runs in development mode",
+        "advice": "Error pages, web-console or better_errors show code and can run commands. Run it in production mode to share it."
+      },
+      "symfonyProfiler": {
+        "title": "Symfony's profiler is reachable",
+        "advice": "It shows requests, configuration and environment variables. Turn off the web profiler (APP_ENV=prod)."
+      },
+      "springActuator": {
+        "title": "Spring Boot's actuator shows the environment",
+        "advice": "/actuator/env lists configuration and environment. Don't expose the env endpoint, or require a login for actuator."
+      },
+      "phpInfo": {
+        "title": "phpinfo() is reachable",
+        "advice": "It shows the server's configuration and environment. Delete the file."
+      },
+      "stackTrace": {
+        "title": "Error pages show stack traces",
+        "advice": "Traces reveal code paths and libraries. Run the app in production mode, or show a plain error page."
+      },
+      "openAdmin": {
+        "title": "An admin panel opens without a login",
+        "advice": "Anyone could change your data. Log out of it, or require a login on the share."
+      },
+      "databaseTool": {
+        "title": "A database tool (Adminer or phpMyAdmin) is reachable",
+        "advice": "Anyone could try to sign in to your databases. Remove it from what you share, or require a login on the share."
+      },
+      "databasePort": {
+        "title": "This port is a database, not a website",
+        "advice": "Sharing it over HTTP won't work, and a database shouldn't be public. For a database, use a TCP route with a login instead."
+      },
+      "jupyter": {
+        "title": "Jupyter runs without a token",
+        "advice": "Anyone could run code on this computer. Start Jupyter with a token or password."
+      },
+      "sourceMap": {
+        "title": "Source maps include your source code",
+        "advice": "Visitors can read the original code. That's usually fine for a demo; turn off source maps in the build otherwise."
+      }
+    },
+    "backup": {
+      "weakPassphrase": "Use a passphrase of at least {min} characters.",
+      "notABackup": "This file isn't a Teitunnel backup, or it's damaged.",
+      "unsupported": "This backup was made by a newer Teitunnel (format {version}). Update Teitunnel to restore it.",
+      "wrongPassphrase": "The passphrase is wrong, or the file was changed or damaged.",
+      "newerSchema": "This backup was made by a newer Teitunnel. Update Teitunnel to restore it.",
+      "io": "Couldn't use {path}: {detail}",
+      "internal": "The backup couldn't be made: {detail}",
+      "notPending": "Open the backup again to restore it."
+    },
+    "localDomains": {
+      "error": {
+        "nameEmpty": "Enter a name, e.g. shop.localhost.",
+        "nameTooLong": "The name is longer than 253 characters.",
+        "nameLabel": "{label} can't be part of a name. Use letters, digits and hyphens (not at the start or end), at most 63 characters between dots.",
+        "nameWildcard": "Leave out the *. To include subdomains, turn on Subdomains instead.",
+        "nameSuffix": "Local domains end in .localhost, .test or .local.",
+        "nameBare": "Add a name in front of .{suffix}, e.g. shop.{suffix}.",
+        "duplicate": "{name} is already a local domain.",
+        "notFound": "{name} isn't a local domain.",
+        "badTarget": "{value} isn't a local service. Enter a port (3000), host:port, or a URL such as http://localhost:3000.",
+        "invalidTarget": "That service can't be used: {detail}.",
+        "ca": "The local certificate authority couldn't be used: {detail}",
+        "keychain": "Teitunnel couldn't use your keychain for the local certificate authority: {detail}",
+        "keychain@windows": "Teitunnel couldn't use Credential Manager for the local certificate authority: {detail}",
+        "keychain@linux": "Teitunnel couldn't use your keyring for the local certificate authority: {detail}",
+        "noPort": "Local domains can't start: ports {port} and {fallback} are both taken or not allowed. Quit the app using them, then try again.",
+        "notSupported": "This step runs from Teitunnel only on Linux. Run the commands shown instead.",
+        "noPkexec": "pkexec isn't installed, so Teitunnel can't ask for administrator rights. Run the commands shown in a terminal instead.",
+        "privileged": "The step that needs administrator rights didn't finish: {detail}",
+        "io": "A file for local domains couldn't be written: {detail}",
+        "dns": "The name server for .test names couldn't start: {detail}"
+      }
+    },
+    "comments": {
+      "error": {
+        "invalidBody": "A comment needs text, at most {max} characters.",
+        "invalidName": "Add your name, at most {max} characters.",
+        "invalidPath": "That page address isn't valid.",
+        "invalidAnchor": "That spot on the page isn't valid.",
+        "tooMany": "There are too many comments here. Resolve and clear some first.",
+        "notFound": "That comment isn't there any more.",
+        "rateLimited": "Too many comments at once. Try again in a minute.",
+        "noDatabase": "Comments aren't on for this Snapshot. Publish a new version with comments on.",
+        "disabled": "Comments are off for this share.",
+        "cloudflare": "Couldn't reach the comments on Cloudflare: {detail}",
+        "noAccount": "Connect the Snapshot's Cloudflare account to read its comments."
+      },
+      "notify": {
+        "title": "New comment on {label}",
+        "body": "{author}: {excerpt}",
+        "snapshotBody_one": "{count} new comment. Open Comments to read it.",
+        "snapshotBody_other": "{count} new comments. Open Comments to read them."
+      }
+    },
+    "front": {
+      "summary": {
+        "offlineOn": "Show an offline page on {hostname}",
+        "offlineOff": "Remove the offline page from {hostname}",
+        "inboxOn": "Keep webhooks to {target} while this computer is off",
+        "inboxOff": "Remove the webhook inbox at {target}"
+      },
+      "step": {
+        "createDatabase": "Create the D1 database {name} for comments and webhooks",
+        "putOffline": "Upload the offline page Worker for {hostname}",
+        "updateOffline": "Update the offline page of {hostname}",
+        "putInbox": "Upload the webhook inbox Worker for {target}",
+        "updateInbox": "Update the webhook inbox at {target}",
+        "createRoute": "Run it for {pattern} (fails open past the free daily requests)",
+        "deleteRoute": "Stop running a Worker for {pattern}",
+        "deleteWorker": "Delete the Worker {script}"
+      },
+      "leftover": {
+        "deleteDatabase": "The D1 database {id} was created and is still there",
+        "deleteWorker": "The Worker {script} was uploaded and is still there",
+        "restoreWorker": "The Worker {script} wasn't put back as it was",
+        "deleteRoute": "The Worker route {pattern} was created and is still there",
+        "recreateRoute": "The Worker route {pattern} was removed and couldn't be put back"
+      },
+      "error": {
+        "title": "Give the page a title of at most {max} characters.",
+        "message": "Keep the message to at most {max} characters.",
+        "path": "The webhook path must start with / and have no *, ? or spaces, e.g. /webhooks/.",
+        "limits": "An inbox holds 1 to {items} webhooks for 1 to {days} days.",
+        "needsRoute": "{hostname} has no route through Cloudflare. Add a route for it first.",
+        "routeTaken": "Another Worker ({worker}) already runs for {pattern}. Teitunnel doesn't change Workers it didn't add.",
+        "none": "There's nothing of Teitunnel's to remove at {target}.",
+        "needsSecret": "Verifying signatures needs the webhook's signing secret.",
+        "noDatabase": "The D1 database wasn't created."
+      }
     }
   },
   "permissionFix": {
@@ -1647,7 +2916,23 @@
     "createToken": "Create Token",
     "lbPools": "Account · Load Balancing: Monitors and Pools · Edit",
     "lbBalancers": "Zone · Load Balancers · Edit",
-    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first."
+    "lbWhy": "To load balance a route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first.",
+    "analytics": "Zone · Analytics · Read",
+    "analyticsWhy": "To show each route's traffic as Cloudflare sees it. Include your domains under Zone Resources.",
+    "accountAnalytics": "Account · Account Analytics · Read",
+    "accountAnalyticsWhy": "For traffic numbers Cloudflare keeps per account.",
+    "workers": "Account · Workers Scripts · Edit",
+    "workersWhy": "To publish Snapshots as Workers on your account.",
+    "workersRoutes": "Zone · Workers Routes · Edit",
+    "workersRoutesWhy": "To give a Snapshot a hostname on {zone}. Include {zone} under Zone Resources.",
+    "zoneWaf": "Zone · Zone WAF · Edit",
+    "zoneWafWhy": "To add rules that challenge or block bots and rate limit visitors on one hostname.",
+    "transformRules": "Zone · Transform Rules · Edit",
+    "transformRulesWhy": "To set or remove request and response headers on one hostname.",
+    "serviceTokens": "Account · Access: Service Tokens · Edit",
+    "serviceTokensWhy": "To create and revoke tokens that let machines through a login.",
+    "d1": "Account · D1 · Edit",
+    "d1Why": "To keep Snapshot comments and webhooks in a database on your account."
   },
   "zeroTrustFix": {
     "title": "Set up Cloudflare Zero Trust",
@@ -1661,5 +2946,809 @@
     "addDomain": "Add a Domain to Cloudflare",
     "openAccessApps": "Open Access Applications",
     "openLoadBalancing": "Open Load Balancing"
+  },
+  "devServer": {
+    "rejected": "Your dev server rejects this address.",
+    "rejectedDetail": "{server} only answers addresses it knows, and {host} isn't one of them.",
+    "sendHost": "Send Host: {host}",
+    "sendHostShare": "Restarts the share with a new address and sends Host: {host}, which {server} accepts.",
+    "sendHostRoute": "Changes the route to send Host: {host}, which {server} accepts.",
+    "unsafe": "{server} also compares the Host header with the browser's address for forms, server actions and sign-in callbacks, so sending another one can break them. Allowing the address is the better fix.",
+    "nextOnly": "Next.js checks where requests come from, not the Host header, so the address has to be allowed in its config.",
+    "showConfig": "Show the Config Line",
+    "configHelp": "Add this to {file}, then restart the dev server:",
+    "configLabel": "Config line",
+    "checkAgain": "Check Again",
+    "checking": "Checking…",
+    "fixed": "{server} accepts the address now.",
+    "stillRejected": "{server} still refuses the address. Check that the dev server restarted with the new config.",
+    "sendsHostAuto": "Sends Host: {host} so {server} accepts the public address.",
+    "sendsHost": "Sends Host: {host} to the service.",
+    "stopSending": "Stop Sending",
+    "eventStream": "This service streams events (Server-Sent Events), which Quick Shares don't carry. Share it on your own domain instead, where streams work.",
+    "openDoctor": "Open Doctor",
+    "fixFailed": "Couldn't change the Host header"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "range": {
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "rangeLabel": "Time range",
+    "noun": {
+      "hour": "the last hour",
+      "day": "the last 24 hours",
+      "week": "the last 7 days",
+      "month": "the last 30 days"
+    },
+    "refresh": "Refresh analytics",
+    "list": "Routes",
+    "column": {
+      "route": "Route",
+      "requests": "Requests",
+      "errors": "Server errors",
+      "p95": "P95",
+      "uptime": "Uptime"
+    },
+    "sortBy": "Sort by {column}",
+    "sparkline": "Requests to {route} over {period}",
+    "empty": {
+      "title": "No routes yet",
+      "description": "Add a route on one of your domains to see its traffic, errors and uptime here."
+    },
+    "loadFailed": "Couldn't load traffic from Cloudflare.",
+    "edgeNote": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this Mac every minute.",
+    "edgeNote@windows": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this PC every minute.",
+    "edgeNote@linux": "Traffic as Cloudflare's edge sees it, from every connector. Uptime is checked from this computer every minute.",
+    "shortHistory": "This domain's plan keeps traffic since {date}.",
+    "notOnPlan": "Not on this domain's plan: {parts}.",
+    "part": {
+      "errors": "errors over time",
+      "statuses": "status codes",
+      "paths": "paths",
+      "countries": "countries",
+      "browsers": "browsers",
+      "bots": "bots",
+      "cache": "cache status",
+      "latency": "response times"
+    },
+    "notHere": "Not on this Mac",
+    "notHere@windows": "Not on this PC",
+    "notHere@linux": "Not on this computer",
+    "section": "Analytics",
+    "requestsChart": "Requests over {period}",
+    "requests": "Requests",
+    "serverErrors": "5xx",
+    "sent": "Sent",
+    "responses": "Responses",
+    "originTime": "Origin time",
+    "originTimeValue": "P50 {p50} · P95 {p95} · P99 {p99}",
+    "edgeTime": "Time to first byte",
+    "topPaths": "Top paths",
+    "countries": "Countries",
+    "browsers": "Browsers",
+    "bots": "Verified bots",
+    "cache": "Cache",
+    "people": "People and other clients",
+    "noTraffic": "No requests in {period}.",
+    "permissionTitle": "Traffic needs one more permission",
+    "rateLimited": "Cloudflare's analytics limit is used up for a moment.",
+    "source": {
+      "edge": "From Cloudflare's edge",
+      "connector": "From this Mac's connector",
+      "connector@windows": "From this PC's connector",
+      "connector@linux": "From this computer's connector",
+      "proxy": "From the local inspector"
+    }
+  },
+  "uptime": {
+    "title": "Uptime",
+    "strip": "Uptime over {period}, {count} slices",
+    "bar": "{from}: {percent} up",
+    "barEmpty": "{from}: not checked",
+    "value": "{percent} over {period}",
+    "notChecked": "Not checked yet. Routes are checked through Cloudflare every minute while Teitunnel runs.",
+    "responseTime": "Response time",
+    "responseChart": "Response time through Cloudflare over {period}",
+    "incidents": "Incidents",
+    "noIncidents": "No incidents in {period}.",
+    "ongoing": "Ongoing, since {time}",
+    "lasted": "{time}, for {duration}",
+    "up": "Up",
+    "down": "Down",
+    "unknown": "Not checked",
+    "cause": {
+      "noConnector": "No connector",
+      "tunnelMismatch": "Wrong tunnel",
+      "notOnCloudflare": "Not on Cloudflare yet",
+      "originUnreachable": "Service unreachable",
+      "originTimeout": "Service timed out",
+      "serverError": "Server error",
+      "edgeUnreachable": "Edge unreachable",
+      "certificate": "Certificate",
+      "timeout": "Timed out",
+      "noRecord": "DNS record",
+      "hostRejected": "Address refused",
+      "limited": "Limit reached"
+    }
+  },
+  "alerts": {
+    "title": "Alerts",
+    "footer": "Alerts are recorded in Activity. Checks run through Cloudflare every minute while Teitunnel, teitunnel up or teitunnel serve runs.",
+    "routeDown": "A route is down",
+    "routeDownDetail": "After it fails this many checks in a row.",
+    "downAfter_one": "{count} check",
+    "downAfter_other": "{count} checks",
+    "recovered": "A route is back up",
+    "errorRate": "Too many server errors",
+    "errorRateDetail": "Share of 5xx answers over 10 minutes, with at least 20 requests.",
+    "latency": "Slow responses",
+    "latencyDetail": "Response time through Cloudflare (95th percentile) over 10 minutes.",
+    "connectorDown": "A connector loses Cloudflare",
+    "percent": "{value}%",
+    "ms": "{value} ms",
+    "downAfterLabel": "Checks before a route counts as down",
+    "percentLabel": "Error rate that alerts",
+    "latencyLabel": "Response time that alerts"
+  },
+  "snapshots": {
+    "title": "Snapshots",
+    "list": "Snapshots",
+    "refresh": "Refresh Snapshots",
+    "publish": "Publish a Snapshot",
+    "loadFailed": "Couldn't load Snapshots",
+    "noSelection": "No Snapshot selected",
+    "connectDescription": "Snapshots are hosted on your own Cloudflare account. Connect it to publish one.",
+    "empty": {
+      "title": "No Snapshots yet",
+      "description": "A Snapshot is a copy of your site on your own Cloudflare account. It stays online while this computer sleeps."
+    },
+    "bytes_one": "{count} byte",
+    "bytes_other": "{count} bytes",
+    "files_one": "{count} file",
+    "files_other": "{count} files",
+    "status": {
+      "live": "Online",
+      "incomplete": "Publishing didn't finish"
+    },
+    "open": "Open in Browser",
+    "update": "Publish New Version",
+    "delete": {
+      "action": "Delete",
+      "title": "Delete {name}?",
+      "description": "Its address stops working and every version is deleted from Cloudflare. This can't be undone.",
+      "confirm": "Delete Snapshot",
+      "done": "{name} was deleted"
+    },
+    "rollback": {
+      "action": "Roll Back",
+      "title": "Make version {number} live?",
+      "description": "Visitors get version {number} right away. The version live now stays available.",
+      "confirm": "Make Live",
+      "done": "Version {number} is live"
+    },
+    "version": {
+      "label": "Version {number}",
+      "live": "Live",
+      "meta": "{files} · {size} · {when}",
+      "kept": "The last 10 versions are kept here."
+    },
+    "detail": {
+      "address": "Address",
+      "title": "Details",
+      "source": "Files from",
+      "size": "Size",
+      "sizeValue": "{files}, {size}",
+      "protection": "Who can open it",
+      "pages": "Pages",
+      "spa": "Single-page app",
+      "static": "As published",
+      "published": "Last published",
+      "expires": "Deletes itself",
+      "never": "Never",
+      "worker": "Worker",
+      "versions": "Versions",
+      "comments": "Comments",
+      "commentsOn": "On",
+      "commentsOff": "Off"
+    },
+    "protection": {
+      "none": "Anyone with the address",
+      "password": "Anyone with the password",
+      "loginFor": "People who sign in: {people}"
+    },
+    "source": {
+      "label": "Files",
+      "keep": "Current Files",
+      "keepHelp": "The files stay as they are; only the settings change.",
+      "folder": "Folder",
+      "project": "Build a Project",
+      "site": "Running Site",
+      "chooseFolder": "Choose Folder…",
+      "noFolder": "No folder chosen",
+      "folderHelp": "Published as it is. Hidden files, .env files, keys, .git and node_modules are left out.",
+      "projectHelp": "Choose the project folder. Its build runs only after you confirm.",
+      "staticSite": "Plain HTML: there is nothing to build.",
+      "detected": "{framework} project. Building runs {command} in the project folder, then publishes {output}.",
+      "detectedOther": "Building runs {command} in the project folder, then publishes {output}.",
+      "nextNeedsExport": "Next.js builds a server app unless next.config sets output: 'export'. Add it, or capture the running app instead.",
+      "svelteKitNeedsStaticAdapter": "SvelteKit needs @sveltejs/adapter-static to produce files. Add it, or capture the running app instead.",
+      "url": "Address",
+      "urlHelp": "A site running on this computer, such as http://localhost:5173. Its pages and files are captured.",
+      "buildOutput": "Build output",
+      "build": "{command} in {project}",
+      "crawl": "Captured from {url}"
+    },
+    "prepared": {
+      "summary": "Ready: {files}, {size}.",
+      "skipped_one": "Left out: {names}",
+      "skipped_other": "Left out ({count}): {names}",
+      "truncated": "Stopped at the limit: some pages weren't captured.",
+      "failed_one": "{count} link answered with an error.",
+      "failed_other": "{count} links answered with an error."
+    },
+    "details": {
+      "name": "Name",
+      "nameHelp": "Also names its Worker in your Cloudflare dashboard.",
+      "address": "Address",
+      "myDomain": "My Domain",
+      "workersDev": "workers.dev",
+      "hostname": "Hostname",
+      "workersDevHelp": "Your account's free workers.dev address.",
+      "protection": "Who can open it",
+      "protectionNone": "Anyone with the address",
+      "protectionPassword": "Anyone with the password",
+      "protectionLogin": "People I choose (Cloudflare login)",
+      "password": "Password",
+      "passwordHelp": "At least 6 characters. Only a salted hash is stored, on Cloudflare.",
+      "passwordKeep": "Leave empty to keep the current password.",
+      "passwordLimit": "With a password, every visit runs the Snapshot's Worker, which counts toward Cloudflare's free 100,000 Worker requests a day.",
+      "allowed": "People who can sign in",
+      "allowedHelp": "Email addresses, or @domain for everyone at a domain.",
+      "spa": "Single-page app",
+      "spaHelp": "Paths without a file show index.html, for apps that route in the browser.",
+      "expires": "Delete after",
+      "expiresNever": "Never",
+      "expiresDays_one": "{count} day",
+      "expiresDays_other": "{count} days",
+      "comments": "Comments",
+      "commentsHelp": "Reviewers can pin comments to any spot on the pages. They're kept in a D1 database on your account, and every request then runs the Snapshot's Worker (100,000 a day on the free plan)."
+    },
+    "sheet": {
+      "title": "Publish a Snapshot",
+      "updateTitle": "Publish a New Version of {name}",
+      "description": "A copy of your site on your own Cloudflare account, online while this computer sleeps.",
+      "continue": "Continue",
+      "back": "Back",
+      "buildAndContinue": "Build and Continue",
+      "capture": "Capture",
+      "review": "Review",
+      "publish": "Publish",
+      "publishVersion": "Publish Version",
+      "confirmReplace": "Delete the DNS records above",
+      "nothing": "Nothing to change.",
+      "uploading": "Uploading",
+      "uploadProgress": "Uploading {files} of {total} files ({size})",
+      "rolledBack": "Publishing failed and everything was undone: {error}",
+      "partial": "Publishing failed: {error}. Left in place: {leftovers}",
+      "updated": "A new version of {name} is live",
+      "published": "{name} is online"
+    },
+    "comments": "Comments"
+  },
+  "integrations": {
+    "title": "Integrations",
+    "control": {
+      "title": "Command line and extensions",
+      "footer": "Lets the teitunnel command, editor extensions and launchers on this computer use the running app. Only programs running as you can connect, and every change needs your approval unless you always allow the program.",
+      "enabled": "Allow connections",
+      "enabledDetail": "teitunnel share, shares and routes use the app while it runs."
+    },
+    "clients": {
+      "title": "Always allowed",
+      "footer": "These programs make changes without asking each time. Remove one to be asked again.",
+      "empty": "No program is always allowed. When one asks to make a change, choose Always Allow to add it here.",
+      "approved": "Always allowed since {date}",
+      "revoke": "Remove",
+      "revokeLabel": "Stop always allowing {name}"
+    },
+    "links": {
+      "title": "Links",
+      "footer": "teitunnel:// links let launchers, scripts and web pages open a route or a share in Teitunnel. Sharing from a link always asks first.",
+      "enabled": "Open teitunnel:// links",
+      "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.example.com."
+    },
+    "shortcut": {
+      "title": "Global shortcut",
+      "footer": "Works while Teitunnel runs, from any app. Off until you turn it on.",
+      "enabled": "Use a global shortcut",
+      "enabledDetail": "Share your dev server without switching to Teitunnel.",
+      "keys": "Shortcut",
+      "record": "Change",
+      "recording": "Type the shortcut…",
+      "recordLabel": "Change the global shortcut",
+      "cancelRecord": "Cancel",
+      "action": "When pressed",
+      "shareDevServer": "Share the running dev server",
+      "shareDevServerDetail": "Shares the one dev server that's running and copies its address. With none or several, Quick Share opens so you can choose.",
+      "openQuickShare": "Open Quick Share",
+      "openQuickShareDetail": "Brings Teitunnel to the front, ready to share a port."
+    },
+    "error": "Couldn't save the change: {message}"
+  },
+  "protection": {
+    "title": "Edge Protection",
+    "where": "Enforced by Cloudflare for this hostname only, so it keeps working while this computer is off.",
+    "edit": "Edit Protection…",
+    "protectShare": "Protect at Cloudflare",
+    "routeSheetHelp": "Bots, AI crawlers, rate limit and header rules, enforced by Cloudflare.",
+    "sheetTitle": "Protect {hostname}",
+    "description": "Rules for this hostname at Cloudflare's edge. Rules others made on the domain are left alone.",
+    "apply": "Apply Rules",
+    "applyOff": "Remove Rules",
+    "applied": "Edge protection updated for {hostname}",
+    "bots": {
+      "label": "Automated clients",
+      "help": "Scripts, command-line tools and headless browsers. Verified bots such as search engines are let through.",
+      "off": "Allow",
+      "challenge": "Challenge",
+      "block": "Block"
+    },
+    "ai": {
+      "label": "Block AI crawlers",
+      "help": "Cloudflare's verified AI crawlers are refused on this hostname only.",
+      "short": "AI crawlers",
+      "blocked": "Blocked",
+      "allowed": "Allowed"
+    },
+    "rateLimit": {
+      "label": "Rate limit",
+      "toggle": "Limit requests per visitor",
+      "free": "Not on the Free plan: its one rate limit can't be limited to a hostname and would apply to the whole domain. Pro and higher plans can.",
+      "requests": "Requests",
+      "per": "per",
+      "periodLabel": "Period",
+      "actionLabel": "Above the limit",
+      "action": {
+        "block": "Block",
+        "challenge": "Challenge"
+      },
+      "none": "None",
+      "summaryBlock_one": "{count} request per {period} per visitor, then blocked",
+      "summaryBlock_other": "{count} requests per {period} per visitor, then blocked",
+      "summaryChallenge_one": "{count} request per {period} per visitor, then challenged",
+      "summaryChallenge_other": "{count} requests per {period} per visitor, then challenged",
+      "shared": "Shared with {hostnames}: hostnames with the same limit use one rule."
+    },
+    "headers": {
+      "label": "Header rules",
+      "none": "None",
+      "summary": "Request: {request} · Response: {response}",
+      "request": "Request headers (before they reach your service)",
+      "response": "Response headers (before they reach visitors)",
+      "empty": "No header rules.",
+      "addRow": "Add Header",
+      "name": "Header {index} name",
+      "action": "Header {index} action",
+      "value": "Header {index} value",
+      "removeRow": "Remove header {index}",
+      "op": {
+        "set": "Set",
+        "add": "Add",
+        "remove": "Remove"
+      }
+    },
+    "quota": {
+      "title": "Rules on {zone}",
+      "custom": "Custom rules",
+      "rateLimit": "Rate limiting",
+      "transform": "Transform Rules",
+      "count": "{used}/{limit}",
+      "used": "{label}: {used} of {limit} used"
+    }
+  },
+  "serviceTokens": {
+    "title": "Service Tokens",
+    "intro": "Let machines (CI, scripts, other servers) through this hostname's login with two headers.",
+    "empty": "No service tokens.",
+    "new": "New Service Token…",
+    "sheetTitle": "New Service Token",
+    "description": "A token machines send to pass the login on {hostname}. If it has no login yet, it gets one that only tokens pass.",
+    "name": {
+      "label": "Name",
+      "help": "What it's for, e.g. CI or Backup script."
+    },
+    "create": "Create Token",
+    "issuedTitle": "Save the Secret Now",
+    "issuedDescription": "Machines send these headers to reach {hostname}. Copy the secret now: Cloudflare won't show it again, and Teitunnel forgets it in 10 minutes.",
+    "clientId": "CF-Access-Client-Id",
+    "clientSecret": "CF-Access-Client-Secret",
+    "secretOnce": "Copy it into your CI's secrets. It's copied without being displayed.",
+    "copyHeaders": "Copy Both Headers",
+    "expires": "Expires {date}",
+    "noExpiry": "No expiry",
+    "gone": "Deleted",
+    "rotate": "Rotate",
+    "rotateTitle": "Give “{name}” a new secret?",
+    "rotateDescription": "The old secret stops working at once. Update every machine that uses it.",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke “{name}”?",
+    "revokeDescription": "Machines using it can no longer reach {hostname}. This can't be undone.",
+    "revoked": "Revoked “{name}”"
+  },
+  "project": {
+    "title": "Projects",
+    "open": "Open Project…",
+    "list": "Projects",
+    "refresh": "Refresh",
+    "remove": "Remove from List",
+    "noSelection": "Select a project",
+    "loadFailed": "Couldn't read the project",
+    "empty": {
+      "title": "No projects yet",
+      "description": "Open a folder with a teitunnel.yml to see its routes, shares and Snapshots and apply them in one step. Create one in a repository with teitunnel project init.",
+      "drop": "You can also drop the folder here."
+    },
+    "kind": {
+      "route": "Route",
+      "share": "Share",
+      "snapshot": "Snapshot",
+      "localDomain": "Local domain"
+    },
+    "state": {
+      "applied": "Applied",
+      "differs": "Differs",
+      "missing": "Missing",
+      "unsupported": "Skipped"
+    },
+    "declared": "Declared in teitunnel.yml",
+    "items": "What the project declares",
+    "randomAddress": "Random trycloudflare.com address",
+    "line": "Line {line}",
+    "position": "Line {line}, column {column}",
+    "problems_one": "{count} problem in teitunnel.yml",
+    "problems_other": "{count} problems in teitunnel.yml",
+    "warnings_one": "{count} warning",
+    "warnings_other": "{count} warnings",
+    "apply": "Apply…",
+    "upToDate": "Everything teitunnel.yml declares is applied.",
+    "changed": {
+      "title": "teitunnel.yml changed",
+      "description": "Review what's different, then apply it.",
+      "review": "Review Changes"
+    },
+    "sheet": {
+      "title": "Apply {name}",
+      "description": "Exactly what changes in Cloudflare and on this computer. Nothing happens until you apply.",
+      "routes": "Routes",
+      "snapshots": "Snapshots",
+      "shares": "Shares",
+      "snapshotNew": "Publish Snapshot {name} from {source} at {address}",
+      "snapshotUpdate": "Publish a new version of Snapshot {name} if its files changed",
+      "snapshotBuild": "Built first with {command}.",
+      "workersDev": "your workers.dev address",
+      "shareQuick": "Share {origin} at a random trycloudflare.com address",
+      "shareDomain": "Share {origin} at {hostname}",
+      "sharesNote": "Shares run until you stop them or quit Teitunnel.",
+      "confirm": "Replace DNS records Teitunnel didn't create",
+      "apply": "Apply",
+      "applying": "Applying…",
+      "nothing": "Nothing to change.",
+      "localDomains": "Local domains",
+      "localDomainNew": "Serve https://{name} from localhost:{port} on this computer",
+      "localDomainChange": "Point https://{name} at localhost:{port}",
+      "localDomainsNote": "Local domains stay on this computer; nothing changes in Cloudflare."
+    },
+    "applied": "Applied {name}",
+    "sharesStarted_one": "{count} share started.",
+    "sharesStarted_other": "{count} shares started.",
+    "failed": "Stopped at {hostname}. The changes after it weren't applied.",
+    "snapshotResult": {
+      "published": "Published",
+      "upToDate": "Up to date",
+      "needsConfirmation": "Needs a confirmation: it would replace a DNS record Teitunnel didn't create",
+      "failed": "Failed"
+    }
+  },
+  "exposure": {
+    "title": "{origin} may expose more than you mean to share",
+    "routeTitle": "{origin} may expose more than you mean to make public",
+    "checking": "Checking for exposed files…",
+    "shareAnyway": "Share Anyway",
+    "incomplete": "Some checks didn't finish in time.",
+    "path": "at {path}",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    }
+  },
+  "backup": {
+    "title": "Move to Another Computer",
+    "description": "Save Teitunnel's setup to an encrypted file and restore it on the other computer. It never holds tokens or passwords: connect your accounts again after restoring.",
+    "rowLabel": "Move to another computer",
+    "rowDescription": "Settings, this computer's tunnels, projects and alert rules, encrypted with a passphrase.",
+    "export": "Export…",
+    "import": "Import…",
+    "passphrase": "Passphrase",
+    "passphraseAgain": "Passphrase again",
+    "passphraseHelp": "At least 10 characters. You'll need it on the other computer; it can't be recovered.",
+    "mismatch": "The passphrases don't match.",
+    "tooShort": "Use at least 10 characters.",
+    "save": "Save Backup",
+    "saved": "Backup saved to {path}",
+    "read": "Read Backup",
+    "restore": "Restore",
+    "restoreReplace": "Replace and Restore",
+    "from": "Made on {machine} with Teitunnel {version}.",
+    "replaces_one": "replaces {count} here",
+    "replaces_other": "replaces {count} here",
+    "projects": "Projects: {names}",
+    "accounts": "Connect these accounts again after restoring: {names}",
+    "overwrites": "Restoring replaces this computer's tunnels and records of what Teitunnel created with the backup's.",
+    "restored": "Restored. Connect your accounts again to run the tunnels here.",
+    "section": {
+      "settings": "Settings",
+      "local_tunnels": "Tunnels",
+      "dns_ownership": "DNS records Teitunnel created",
+      "access_ownership": "Logins Teitunnel added",
+      "balanced_routes": "Load-balanced routes",
+      "snapshots": "Snapshots",
+      "snapshot_versions": "Snapshot versions",
+      "local_domains": "Local domains"
+    }
+  },
+  "localDomains": {
+    "title": "Local Domains",
+    "list": "Local domains",
+    "add": "Add Local Domain",
+    "refresh": "Refresh",
+    "trustButton": "Certificate Trust",
+    "loadFailed": "Couldn't read local domains",
+    "tryAgain": "Try Again",
+    "runAsAdmin": "Run as Administrator…",
+    "http": "HTTP",
+    "inspected": "Inspected",
+    "empty": {
+      "title": "No local domains",
+      "description": "Give a service on this computer an address like https://shop.test, with a certificate your browsers trust. Nothing leaves this computer.",
+      "add": "Add Local Domain"
+    },
+    "state": {
+      "serving": "Serving",
+      "stopped": "Not served",
+      "needsResolver": ".test names need setting up",
+      "elsewhere": "Points at another computer",
+      "untrusted": "Not trusted by browsers yet"
+    },
+    "sheet": {
+      "title": "Add Local Domain",
+      "editTitle": "Edit Local Domain",
+      "description": "Only this computer can open it, and phones on your network for .local names.",
+      "name": "Name",
+      "namePlaceholder": "shop.test",
+      "nameHelp": "Ends in .localhost, .test or .local. Browsers open .localhost names with no setup.",
+      "nameCompleted": "It will be {name}.",
+      "nameTest": ".test names work in every tool after a one-time setup that Teitunnel walks you through.",
+      "nameLocal": ".local names can also be opened from phones on your network.",
+      "target": "Service",
+      "targetHelp": "A port (3000), host:port, or a URL such as https://localhost:5173.",
+      "https": "Use HTTPS",
+      "httpsDetail": "With a certificate from Teitunnel's local certificate authority; plain HTTP redirects to it.",
+      "wildcard": "Include subdomains",
+      "wildcardDetail": "*.{name} opens the same service.",
+      "inspect": "Record requests in the inspector",
+      "inspectDetail": "See each request and response while you work; secrets are masked.",
+      "add": "Add",
+      "save": "Save",
+      "added": "{url} is ready",
+      "changed": "Saved {name}"
+    },
+    "detail": {
+      "open": "Open in Browser",
+      "edit": "Edit…",
+      "address": "Address",
+      "copyUrl": "Copy address",
+      "wildcardNote": "Subdomains such as www.{name} open the same service.",
+      "details": "Details",
+      "service": "Service",
+      "https": "HTTPS",
+      "wildcard": "Subdomains",
+      "project": "Project",
+      "yes": "Yes",
+      "no": "No",
+      "inspector": "Inspector",
+      "inspect": "Record requests",
+      "requests_one": "{count} request since it started",
+      "requests_other": "{count} requests since it started",
+      "phones": "Phones and other devices",
+      "remove": "Remove Local Domain…",
+      "removeTitle": "Remove {name}?",
+      "removeDetail": "Teitunnel stops answering for it. The service itself isn't touched.",
+      "removeConfirm": "Remove"
+    },
+    "phone": {
+      "useLocal": "Phones can't reach .localhost or .test names. Add a .local name to open this service from a phone on the same Wi-Fi.",
+      "lan": "Allow devices on this network",
+      "lanFooter": "Other devices can open .local names over HTTPS only while this is on. Everything else answers this computer alone.",
+      "addresses": "This computer: {addresses}",
+      "noNetwork": "Not connected to a network.",
+      "install": "Install Teitunnel's certificate authority on the phone first. On an iPhone or iPad, open the profile, then turn it on in Settings ▸ General ▸ About ▸ Certificate Trust Settings. On Android, install it as a CA certificate.",
+      "saveProfile": "Save Profile for iPhone…",
+      "saveCertificate": "Save Certificate…",
+      "saved": "Saved {path}"
+    },
+    "callout": {
+      "untrusted": "Browsers don't trust your local domains yet",
+      "untrustedDetail": "Trust Teitunnel's certificate authority once, and every local domain opens without a warning.",
+      "setUpTrust": "Set Up Trust…",
+      "resolver": "Set up .test names once",
+      "resolverDetail": "Browsers and tools ask the system for .test names. Run this once as an administrator so they reach Teitunnel's name server on port {port}.",
+      "copyCommand": "Copy command",
+      "waiting": "Checking again every few seconds…",
+      "dnsStopped": "The name server for .test names isn't running",
+      "stopped": "Local domains aren't being served",
+      "otherPort": "Local domains use another port"
+    },
+    "port": {
+      "inUse": "Another app is using port {port}.",
+      "permissionDenied": "This system only lets administrators use port {port}.",
+      "other": "Port {port} couldn't be used.",
+      "fallback": "{reason} Addresses include port {fallback} instead.",
+      "none": "{reason} No other port could be used either."
+    },
+    "trust": {
+      "title": "Trust Local Domains",
+      "description": "Browsers open your local domains without a warning once this computer trusts Teitunnel's certificate authority.",
+      "step1": "Teitunnel makes its own certificate authority. Its private key stays in your keychain.",
+      "step1@windows": "Teitunnel makes its own certificate authority. Its private key stays in Credential Manager.",
+      "step1@linux": "Teitunnel makes its own certificate authority. Its private key stays in your keyring.",
+      "step2": "It's added to your login keychain as trusted. macOS asks for your password.",
+      "step2@windows": "It's added to your trusted certificates. Windows asks you to confirm.",
+      "step2@linux": "It's added to Chrome's and Firefox's certificate lists. The system's list needs an administrator.",
+      "step3": "Each local domain gets a short-lived certificate that renews by itself.",
+      "safety": "The authority can only sign .localhost, .test and .local names and local addresses, so even a stolen key couldn't impersonate a real website.",
+      "browsers": "Also add it to Chrome's and Firefox's own certificate lists (uses NSS tools when installed)",
+      "firefox": "Let Firefox trust it",
+      "firefoxDetail": "Firefox trusts the system's certificates by default since version 120; this turns that back on in profiles where it was switched off.",
+      "trust": "Trust",
+      "done": "Done",
+      "stores": "Where it's trusted",
+      "admin": "One step needs an administrator",
+      "adminDetail": "Only an administrator can change the system's certificate list. Run these commands in a terminal, or let Teitunnel ask for your password.",
+      "copyCommands": "Copy commands",
+      "trusted": "Browsers trust your local domains.",
+      "checking": "Checking again every few seconds…",
+      "stop": "Stop Trusting…",
+      "stopTitle": "Stop trusting local domains?",
+      "stopDetail": "Browsers warn about every local domain again until you trust it again.",
+      "stopConfirm": "Stop Trusting",
+      "state": {
+        "trusted": "Trusted",
+        "notTrusted": "Added, not trusted",
+        "absent": "Not added",
+        "followsSystem": "Uses the system's trust",
+        "disabled": "Doesn't use the system's trust",
+        "unsupported": "No supported certificate list found",
+        "toolMissing": "Needs {tool}",
+        "toolMissingPackage": "Needs {tool} (install {package})",
+        "error": "Couldn't check: {message}"
+      }
+    },
+    "store": {
+      "macosKeychain": "Login keychain",
+      "macosKeychain@windows": "Your certificates",
+      "macosKeychain@linux": "Your certificates",
+      "windowsUser": "Your certificates",
+      "linuxSystem": "System certificates",
+      "chrome": "Chrome and Chromium",
+      "firefox": "Firefox profile",
+      "firefoxSystemRoots": "Firefox setting"
+    }
+  },
+  "comments": {
+    "title": "Comments",
+    "refresh": "Refresh Comments",
+    "list": "Shares with comments",
+    "loadFailed": "Couldn't load the comments",
+    "noSelection": "Select a share",
+    "empty": {
+      "title": "No comments yet",
+      "description": "Turn on Comments on a share or a Snapshot. Reviewers can then pin comments to any spot on its pages, and they show up here."
+    },
+    "kind": {
+      "quickShare": "Quick Share",
+      "route": "Route",
+      "snapshot": "Snapshot"
+    },
+    "none": "No comments yet",
+    "counts": "{open} · {comments}",
+    "openCount_one": "{count} open",
+    "openCount_other": "{count} open",
+    "commentCount_one": "{count} comment",
+    "commentCount_other": "{count} comments",
+    "unread_one": "{count} unread comment",
+    "unread_other": "{count} unread comments",
+    "threadLabel": "Comments on {path}",
+    "open": "Open",
+    "resolved": "Resolved",
+    "owner": "You",
+    "signedIn": "Signed in",
+    "replyLabel": "Reply",
+    "replyPlaceholder": "Reply…",
+    "reply": "Reply",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "openAtSpot": "Show on Page",
+    "openPage": "Open Page",
+    "filter": "Show",
+    "filterOpen_one": "Open ({count})",
+    "filterOpen_other": "Open ({count})",
+    "filterResolved_one": "Resolved ({count})",
+    "filterResolved_other": "Resolved ({count})",
+    "noneOpen": "Nothing open. Resolved comments are under Resolved.",
+    "noneResolved": "No resolved comments.",
+    "toggle": {
+      "label": "Comments",
+      "on": "Reviewers can now comment on this share's pages",
+      "off": "Comments are off for this share",
+      "open": "Show Comments"
+    }
+  },
+  "fronts": {
+    "title": "While This Computer Is Off",
+    "where": "Workers on your Cloudflare account keep answering when this computer is off or asleep.",
+    "off": "Off",
+    "edit": "Edit…",
+    "turnOn": "Turn On…",
+    "remove": "Remove",
+    "apply": "Apply",
+    "applyRemove": "Remove",
+    "applied": "{hostname} is updated",
+    "cost": "Every request it covers runs a Worker and counts against your account's 100,000 free Worker requests a day. Past that, the site keeps working without it.",
+    "offline": {
+      "label": "Offline page",
+      "sheetTitle": "Offline Page for {hostname}",
+      "description": "When this computer is off, visitors see your page instead of Cloudflare's error 1033.",
+      "title": "Title",
+      "message": "Message",
+      "whenAppDown": "Also when the app doesn't answer",
+      "whenAppDownHelp": "Shows the page when the tunnel is up but the local service returns 502 or 504."
+    },
+    "inbox": {
+      "label": "Webhook inbox",
+      "add": "Add Webhook Inbox…",
+      "sheetTitle": "Webhook Inbox for {hostname}",
+      "description": "Webhooks sent while this computer is off are kept on Cloudflare and delivered in order when it's back. Senders get 202 Accepted.",
+      "path": "Path",
+      "pathHelp": "Webhooks to this path and below, e.g. /webhooks/ or /api/stripe.",
+      "keep": "Keep up to",
+      "maxItems": "Webhooks kept",
+      "webhooksFor": "webhooks for",
+      "retention": "Days kept",
+      "days": "days",
+      "verify": {
+        "label": "Keep only signed webhooks",
+        "help": "Uses the signing secret saved for this hostname in the keychain (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
+        "none": "Keep every webhook",
+        "github": "GitHub",
+        "stripe": "Stripe",
+        "standard": "Standard Webhooks (Svix, Clerk, Resend…)",
+        "help@windows": "Uses the signing secret saved for this hostname in Windows Credential Manager (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
+        "help@linux": "Uses the signing secret saved for this hostname in your keyring (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown."
+      },
+      "activity": "Webhooks to {path}",
+      "empty": "No webhooks kept yet.",
+      "arrived": "Arrived {when}",
+      "waiting": "Waiting",
+      "retrying": "Waiting: {error}",
+      "delivered": "Delivered {when} ({status})",
+      "deliverNow": "Deliver Now",
+      "deliveredNow_one": "{count} webhook delivered",
+      "deliveredNow_other": "{count} webhooks delivered"
+    }
   }
 }

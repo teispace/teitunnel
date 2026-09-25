@@ -33,7 +33,7 @@ Get the app for macOS, Windows or Linux from the [download page](https://teitunn
 ```sh
 brew install --cask teispace/tap/teitunnel         # macOS app (signed and notarized)
 brew install teispace/tap/teitunnel-cli            # the CLI only, macOS or Linux
-docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel
+docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel
 ```
 
 Every file is also on [GitHub Releases](https://github.com/teispace/teitunnel/releases), with checksums and build provenance ([verify a download](https://teitunnel.teispace.com/docs/reference/verify/)).

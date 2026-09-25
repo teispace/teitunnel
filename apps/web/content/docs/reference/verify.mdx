@@ -39,8 +39,9 @@ gh attestation verify Teitunnel_0.1.0_universal.dmg --repo teispace/teitunnel
 
 It succeeds only for a file built by Teitunnel's release workflow from this repository.
 
-The Docker image is attested the same way, and is built from the release's own
-`teitunnel-cli` after its checksums and provenance are checked:
+The Docker image (`teispace/teitunnel` on Docker Hub and `ghcr.io/teispace/teitunnel`, the
+same digest) is attested the same way, and is built from the release's own `teitunnel`
+after its checksums and provenance are checked:
 
 ```sh
 gh attestation verify oci://ghcr.io/teispace/teitunnel:0.1.0 --repo teispace/teitunnel

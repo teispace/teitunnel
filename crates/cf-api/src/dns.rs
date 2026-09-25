@@ -155,6 +155,34 @@ impl Client {
         .await
     }
 
+    /// Replaces a record with another in one batch (the delete runs first, and neither
+    /// applies unless both do). Cloudflare doesn't change a record's type in place
+    /// (since 2026-06-30), so an A or AAAA record becomes a CNAME this way.
+    ///
+    /// # Errors
+    /// API or network errors; nothing changed then.
+    pub async fn replace_dns_record(
+        &self,
+        zone: &str,
+        id: &str,
+        record: &NewDnsRecord,
+    ) -> Result<DnsRecord> {
+        #[derive(serde::Deserialize)]
+        struct Batch {
+            #[serde(default)]
+            posts: Vec<DnsRecord>,
+        }
+        let batch: Batch = self
+            .post(
+                &format!("{}/batch", records_path(zone)),
+                &serde_json::json!({ "deletes": [{ "id": id }], "posts": [record] }),
+            )
+            .await?;
+        batch.posts.into_iter().next().ok_or_else(|| {
+            crate::Error::Decode(serde::de::Error::custom("the batch created no record"))
+        })
+    }
+
     /// Deletes a record (already-gone counts as success).
     ///
     /// # Errors
@@ -262,6 +290,44 @@ mod tests {
                 .unwrap()
                 .version,
             8
+        );
+    }
+
+    #[tokio::test]
+    async fn replaces_a_record_in_one_batch() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/zones/z1/dns_records/batch"))
+            .respond_with(|req: &Request| {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+                assert_eq!(body["deletes"], serde_json::json!([{"id": "old"}]));
+                assert_eq!(body["posts"][0]["type"], "CNAME");
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "success": true, "errors": [], "messages": [],
+                    "result": {"deletes": [{"id": "old", "name": "app.xyz.com", "type": "A", "content": "192.0.2.1"}],
+                               "posts": [{"id": "new", "name": "app.xyz.com", "type": "CNAME",
+                                          "content": "t1.cfargotunnel.com", "proxied": true}]}
+                }))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+        let record = NewDnsRecord {
+            name: "app.xyz.com".into(),
+            kind: "CNAME".into(),
+            content: "t1.cfargotunnel.com".into(),
+            proxied: true,
+            ttl: 1,
+            comment: None,
+        };
+        let created = client
+            .replace_dns_record("z1", "old", &record)
+            .await
+            .unwrap();
+        assert_eq!(
+            (created.id.as_str(), created.kind.as_str()),
+            ("new", "CNAME")
         );
     }
 }

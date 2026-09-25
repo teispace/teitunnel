@@ -100,7 +100,7 @@ fn sockets() -> Vec<PathBuf> {
     {
         list.push(host);
     }
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+    if let Some(home) = std::env::home_dir() {
         for rel in [
             ".docker/run/docker.sock",
             ".orbstack/run/docker.sock",

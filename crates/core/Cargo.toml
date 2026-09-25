@@ -14,11 +14,19 @@ name = "teitunnel_core"
 [features]
 default = []
 # Derive `specta::Type` on types that cross the desktop IPC boundary.
-specta = ["dep:specta"]
+specta = ["dep:specta", "teitunnel-lens/specta"]
 
 [dependencies]
 teitunnel-cf-api.workspace = true
 teitunnel-cloudflared.workspace = true
+teitunnel-control.workspace = true
+teitunnel-lens.workspace = true
+teitunnel-localdomains.workspace = true
+tokio-rustls.workspace = true
+if-addrs.workspace = true
+time.workspace = true
+bytes.workspace = true
+http.workspace = true
 futures-util.workspace = true
 flate2.workspace = true
 tar.workspace = true
@@ -35,15 +43,19 @@ sysinfo.workspace = true
 keyring.workspace = true
 base64.workspace = true
 argon2.workspace = true
+zeroize.workspace = true
+chacha20poly1305.workspace = true
 getrandom.workspace = true
 idna.workspace = true
 sha2.workspace = true
 listeners.workspace = true
 ipnet.workspace = true
+jiff.workspace = true
 intl_pluralrules.workspace = true
 unic-langid.workspace = true
 qrcode.workspace = true
 tokio = { workspace = true, features = ["sync", "process", "time", "io-util", "rt", "macros", "net"] }
+tokio-util.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 
@@ -55,6 +67,7 @@ nix.workspace = true
 
 [dev-dependencies]
 futures-util = { workspace = true, features = ["sink"] }
+http-body-util.workspace = true
 insta.workspace = true
 proptest.workspace = true
 tempfile.workspace = true

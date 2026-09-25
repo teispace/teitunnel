@@ -65,11 +65,17 @@ pub fn run() -> Result<(), tauri::Error> {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             shell::windows::focus_main(app);
         }))
+        // `teitunnel://` links (after single-instance, which forwards them on Windows and
+        // Linux to the running app).
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(shell::windows::state_plugin())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Settings ▸ Integrations ▸ Global shortcut (nothing is registered until it's on).
+        .plugin(shell::shortcut::plugin())
         // Open at login starts hidden, into the menu bar (`--hidden`).
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -95,6 +101,10 @@ pub fn run() -> Result<(), tauri::Error> {
 
             shell::windows::init_start_hidden();
             app.manage(bootstrap::init(app.handle())?);
+            // After the state exists: a link that launched the app is handled now.
+            shell::control::listen_for_links(app.handle());
+            shell::shortcut::restore(app.handle());
+            shell::tray::refresh_services(app.handle());
             app.manage(shell::updates::Updates::new());
             shell::updates::spawn_schedule(app.handle());
             tauri::async_runtime::spawn_blocking(ipc::cli::refresh_installed);

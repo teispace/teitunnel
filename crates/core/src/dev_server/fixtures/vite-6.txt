@@ -1,0 +1,2 @@
+Blocked request. This host ("quiet-river-lamp.trycloudflare.com") is not allowed.
+To allow this host, add "quiet-river-lamp.trycloudflare.com" to `server.allowedHosts` in vite.config.js.

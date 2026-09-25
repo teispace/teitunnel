@@ -1,7 +1,7 @@
-//! `teitunnel-cli`: Teitunnel's routes from the terminal. It uses the app's accounts,
+//! `teitunnel`: Teitunnel's routes from the terminal. It uses the app's accounts,
 //! keychain and database (or, on a server, an API token from the environment), and makes
 //! every change through the same plan → apply engine, showing the plan before applying
-//! it. Connectors run in the app, as Always-on services, or in `teitunnel-cli up`
+//! it. Connectors run in the app, as Always-on services, or in `teitunnel up`
 //! (servers and containers); `share` runs its own for the command's lifetime.
 
 /// Writes a line to stdout; a write error (e.g. a closed pipe) ends the command.
@@ -12,11 +12,28 @@ macro_rules! out {
     }};
 }
 
+mod analytics;
+mod app;
+mod backup;
+mod comments;
+mod complete;
 mod context;
 mod doctor;
+mod expose;
+mod exposure;
+mod fronts;
+mod inspect;
+mod local;
+mod mcp;
 mod probe;
+mod project;
+mod protect;
 mod serve;
 mod share;
+mod sharing;
+mod snapshot;
+mod top;
+mod traffic;
 mod up;
 
 use std::{
@@ -39,7 +56,10 @@ const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "teitunnel-cli",
+    name = "teitunnel",
+    // Help and errors say `teitunnel` whatever the file is called (inside the macOS and
+    // Windows packages it's teitunnel-cli, D-091).
+    bin_name = "teitunnel",
     version,
     about = "Manage Teitunnel routes from the terminal.",
     long_about = "Manage Teitunnel routes from the terminal. Uses the accounts connected in the Teitunnel app; every change is shown before it's applied."
@@ -59,7 +79,20 @@ enum Command {
     /// template at https://dash.cloudflare.com/profile/api-tokens.
     Setup,
     /// Run this machine's tunnels in the foreground until stopped (servers, containers).
-    Up,
+    ///
+    /// In a folder with a teitunnel.yml, its plan is shown and applied first, and its
+    /// shares run as long as this does.
+    Up(up::UpArgs),
+    /// Work with the project file (teitunnel.yml): check, diff, apply, init, down.
+    #[command(subcommand)]
+    Project(project::ProjectCommand),
+    /// Local HTTPS domains on this computer: https://shop.test with a trusted certificate.
+    #[command(subcommand, name = "local-domain", visible_alias = "local")]
+    LocalDomain(local::LocalCommand),
+    /// Move to another computer: an encrypted backup of Teitunnel's setup (never a
+    /// token or password), and restoring it.
+    #[command(subcommand)]
+    Backup(backup::BackupCommand),
     /// Run this machine's tunnels plus a web dashboard and JSON API (servers).
     ///
     /// Listens on 127.0.0.1:8765 unless told otherwise. Sign in with the password set by
@@ -77,6 +110,31 @@ enum Command {
         /// Set the dashboard password (read from the terminal) and exit.
         #[arg(long)]
         set_password: bool,
+        /// Don't serve the MCP endpoint (`/mcp`, for AI agents with an API key).
+        #[arg(long)]
+        no_mcp: bool,
+        /// The MCP endpoint's mode: read-only, ask (default) or full.
+        #[arg(long, value_parser = mcp::parse_mode)]
+        mcp_mode: Option<teitunnel_mcp::Mode>,
+        /// A browser origin allowed to call `/mcp` (repeatable). Agents send none.
+        #[arg(long, value_name = "ORIGIN")]
+        mcp_allow_origin: Vec<String>,
+    },
+    /// Run Teitunnel's MCP server for AI agents (Claude Code, Cursor, VS Code, Codex…)
+    /// over stdio, or connect a client to it (`teitunnel mcp install cursor`).
+    ///
+    /// Agents share local services, manage routes through reviewed plans, diagnose
+    /// problems and inspect traffic. Modes: `read-only`, `ask` (default: every change
+    /// needs your approval) and `full`. Secrets never reach the agent.
+    Mcp {
+        #[command(subcommand)]
+        command: Option<mcp::McpCommand>,
+        /// read-only, ask (default) or full.
+        #[arg(long, value_parser = mcp::parse_mode)]
+        mode: Option<teitunnel_mcp::Mode>,
+        /// Show credentials in captured traffic and logs to the agent (off by default).
+        #[arg(long)]
+        allow_secrets: bool,
     },
     /// Create, list or revoke API keys for the server API.
     #[command(subcommand)]
@@ -111,6 +169,25 @@ enum Command {
         /// monitoring). Checks every account when none is named.
         #[arg(long)]
         check: bool,
+        /// Ask the running app (its connectors' state is the live one); fails if it
+        /// isn't running. By default the app is used when it runs.
+        #[arg(long, conflicts_with = "check")]
+        app: bool,
+    },
+    /// Whether the Teitunnel app is running, and what it serves.
+    Status {
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// A live dashboard of shares, routes and traffic (q quits, ? for keys).
+    Top {
+        /// Only with the running app.
+        #[arg(long, conflicts_with = "here")]
+        app: bool,
+        /// Without the app, from this machine's records.
+        #[arg(long)]
+        here: bool,
     },
     /// Add, or remove, a route.
     #[command(subcommand)]
@@ -139,9 +216,10 @@ enum Command {
     /// Create, or delete, one of this machine's tunnels.
     #[command(subcommand)]
     Tunnel(TunnelCommand),
-    /// Share a local service at a temporary public URL until you press Ctrl-C.
+    /// Share a local service, or a folder of files, at a temporary public URL until you
+    /// press Ctrl-C.
     Share {
-        /// What to share: a port (`3000`), `host:port`, or a URL.
+        /// What to share: a port (`3000`), `host:port`, a URL, or a folder (`./dist`).
         origin: String,
         /// Stop by itself after this long, e.g. `30m`, `2h`, `90s`.
         #[arg(long = "for", value_name = "DURATION", value_parser = share::parse_duration)]
@@ -150,25 +228,239 @@ enum Command {
         #[arg(long)]
         no_qr: bool,
         /// Share at this hostname on one of your domains instead of a random
-        /// trycloudflare.com address (removed again when the command ends).
-        #[arg(long, value_name = "HOSTNAME")]
+        /// trycloudflare.com address (removed again when the command ends). `{project}`,
+        /// `{branch}` and `{user}` are filled in from this folder, e.g.
+        /// `--on {branch}.dev.example.com`; `--on` alone uses the name last used here.
+        #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
+        /// With a folder: list the files of folders that have no index.html.
+        #[arg(long)]
+        listing: bool,
+        /// With a folder: a single-page app (unknown paths get /index.html).
+        #[arg(long)]
+        spa: bool,
+        /// With --on: on only during these hours, paused otherwise, e.g.
+        /// `"mon-fri 09:00-18:00"`.
+        #[arg(long, value_name = "DAYS HH:MM-HH:MM", requires = "on")]
+        schedule: Option<String>,
+        /// With --schedule: its time zone, e.g. `Europe/Berlin` (default: this computer's).
+        #[arg(long, value_name = "ZONE", requires = "schedule")]
+        tz: Option<String>,
         /// With --on: the account, when several are connected.
         #[arg(long, short, requires = "on")]
         account: Option<String>,
         /// With --on: require a login (an email address, or `@domain`); repeatable.
         #[arg(long, value_name = "EMAIL|@DOMAIN", requires = "on")]
         allow: Vec<String>,
+        /// Send this Host header to the service, e.g. `localhost:5173` for a dev server
+        /// that only answers its own address. By default Vite, webpack and Angular dev
+        /// servers get their own address.
+        #[arg(long, value_name = "HOST", conflicts_with = "no_host_header")]
+        host_header: Option<String>,
+        /// Pass the visitor's Host header through unchanged, even to a dev server.
+        #[arg(long)]
+        no_host_header: bool,
+        /// Share through the running app (it keeps the share after this command ends);
+        /// fails if the app isn't running. This is the default when the app runs.
+        #[arg(long, conflicts_with_all = ["here", "on"])]
+        app: bool,
+        /// Share from this terminal, for as long as the command runs, even when the app
+        /// is running.
+        #[arg(long)]
+        here: bool,
+        /// Print `{"url": …, "hostname": …}` on stdout once it's live (for scripts and CI).
+        #[arg(long)]
+        json: bool,
+        /// Don't share when the exposure check finds a leak (a .env file, the git
+        /// folder, debug pages…); by default it only warns.
+        #[arg(long)]
+        strict: bool,
+        /// Don't send requests through Teitunnel's inspector (it records them for
+        /// `teitunnel traffic`, masking credentials).
+        #[arg(long)]
+        no_inspect: bool,
+        /// Don't print a line for each request.
+        #[arg(long, short)]
+        quiet: bool,
+        /// Stop after this long without a request, e.g. `30m`.
+        #[arg(long, value_name = "DURATION", value_parser = share::parse_duration, conflicts_with = "no_inspect")]
+        idle: Option<Duration>,
+        /// Say so when a request hits this path, e.g. `/webhooks/*` (repeatable).
+        #[arg(long, value_name = "PATH", conflicts_with = "no_inspect")]
+        watch: Vec<String>,
+        /// Share a local MCP server for remote AI clients: checks it answers MCP, keeps
+        /// streams alive and requires a bearer token (needs --on: Quick Tunnels don't
+        /// carry event streams). Prints configurations for Claude Code, Cursor and VS
+        /// Code.
+        #[arg(long, requires = "on", conflicts_with_all = ["no_inspect", "ai"])]
+        mcp: bool,
+        /// With --mcp: the server's endpoint path (default: /mcp, then /sse and /).
+        #[arg(long, value_name = "PATH", requires = "mcp")]
+        mcp_path: Option<String>,
+        /// Share a local AI server (Ollama, LM Studio, vLLM) behind a bearer token, for
+        /// OpenAI-compatible clients.
+        #[arg(long, conflicts_with = "no_inspect")]
+        ai: bool,
+        /// With --mcp or --ai on your domain: make a new token instead of the saved one.
+        #[arg(long)]
+        new_token: bool,
     },
-    /// List shares on your domains (from the app or any terminal), or stop one.
-    Shares {
-        /// Stop the share at this hostname (its route and DNS record are removed).
-        #[arg(long, value_name = "HOSTNAME")]
-        stop: Option<String>,
+    /// Inspect one of this machine's routes while this command runs: its requests go
+    /// through Teitunnel's inspector (shown here and in `teitunnel traffic`), and it's
+    /// pointed back at its own service when the command ends. The change is shown first.
+    Inspect {
+        /// The route's hostname.
+        hostname: String,
+        /// The route's path rule, if it has one.
+        #[arg(long)]
+        path: Option<String>,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Point a route left inspected back at its own service.
+        #[arg(long)]
+        off: bool,
+        /// Don't ask before changing the route.
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// Requests captured by the inspector: list, show, follow, replay, clear, export.
+    #[command(subcommand)]
+    Traffic(traffic::TrafficCommand),
+    /// Show the bearer token a shared service expects (`share --mcp` or `--ai` on your
+    /// domain), or make a new one.
+    Token {
+        /// The hostname.
+        hostname: String,
+        /// Make a new token (clients with the old one stop working).
+        #[arg(long)]
+        new: bool,
+    },
+    /// Reserve a hostname so teammates sharing the account see it's taken (a placeholder
+    /// DNS record with your name, until a date or until released). Reserving it again
+    /// changes the end date; a route you add there keeps the reservation.
+    Reserve {
+        /// The hostname, e.g. `alice.dev.example.com`.
+        hostname: String,
+        /// When it ends: `2026-12-31` (end of that day, UTC) or `2026-12-31T18:00Z`.
+        #[arg(long, value_name = "DATE")]
+        until: Option<String>,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// List the account's reserved hostnames and who holds them (`reservations ls`).
+    Reservations {
+        /// `ls` (the default).
+        #[arg(value_enum, default_value = "ls")]
+        action: ReservationsAction,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
         /// Print JSON.
         #[arg(long)]
         json: bool,
     },
+    /// Give up a hostname's reservation (a route there stays).
+    Release {
+        /// The hostname.
+        hostname: String,
+        #[command(flatten)]
+        apply: ApplyArgs,
+    },
+    /// List shares (the app's, terminals' and on your domains), or stop, pause or resume
+    /// one.
+    Shares {
+        /// Stop a share: its URL, its hostname on your domain, or its id.
+        #[arg(long, value_name = "URL|HOSTNAME", conflicts_with_all = ["pause", "resume"])]
+        stop: Option<String>,
+        /// Pause a share on your domain (or a route): the address stays, and visitors see
+        /// a paused page until it's resumed.
+        #[arg(long, value_name = "HOSTNAME", conflicts_with = "resume")]
+        pause: Option<String>,
+        /// Serve a paused share or route again, at the same address.
+        #[arg(long, value_name = "HOSTNAME")]
+        resume: Option<String>,
+        /// With --pause or --resume on a route: the account, when several are connected.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+        /// Ask the running app; fails if it isn't running. By default the app is used
+        /// when it runs.
+        #[arg(long)]
+        app: bool,
+    },
+    /// Run a share on your domain (or a route) only during set hours: visitors see a
+    /// paused page the rest of the time. Without hours, shows its schedule.
+    Schedule {
+        /// The hostname.
+        hostname: String,
+        /// Days and hours, e.g. `mon-fri 09:00-18:00`, `weekends 10:00-16:00` or
+        /// `daily 22:00-02:00` (past midnight).
+        #[arg(value_name = "DAYS HH:MM-HH:MM", num_args = 0..)]
+        spec: Vec<String>,
+        /// The time zone, e.g. `Europe/Berlin` (default: this computer's).
+        #[arg(long, value_name = "ZONE")]
+        tz: Option<String>,
+        /// Remove the schedule (the share stays as it is now).
+        #[arg(long, conflicts_with = "spec")]
+        off: bool,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+    },
+    /// List schedules of shares and routes.
+    Schedules {
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Traffic from Cloudflare's edge: one route in detail, or every route of this
+    /// machine side by side. Needs the token's Zone ▸ Analytics ▸ Read permission.
+    Analytics {
+        /// A route's hostname (default: every route of this machine).
+        hostname: Option<String>,
+        /// With a hostname: only requests under this path, e.g. `/api`.
+        #[arg(long)]
+        path: Option<String>,
+        /// `hour`, `day`, `week` or `month`.
+        #[arg(long, default_value = "day", value_parser = parse_range)]
+        range: teitunnel_core::analytics::AnalyticsRange,
+        /// Account name or id.
+        #[arg(long, short)]
+        account: Option<String>,
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Uptime of this machine's routes (checked every minute through Cloudflare while the
+    /// app, `up` or `serve` runs).
+    Uptime {
+        /// Print JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Publish static copies of a site to your Cloudflare account (online while this
+    /// computer sleeps), and list, update, roll back or delete them.
+    #[command(subcommand)]
+    Snapshot(snapshot::SnapshotCommand),
+    /// Protect a hostname at Cloudflare's edge: challenge or block bots and AI
+    /// crawlers, rate limit visitors, set or remove headers. Without options, shows what
+    /// it has now.
+    Protect(protect::ProtectArgs),
+    /// Service tokens for machines (CI, scripts, servers) to pass a hostname's login.
+    #[command(subcommand)]
+    ServiceToken(protect::ServiceTokenCommand),
+    /// Comments reviewers pinned to your shares and Snapshots: list, reply, resolve.
+    #[command(subcommand)]
+    Comments(comments::CommentsCommand),
+    /// Show your own page instead of Cloudflare's error 1033 while this computer is off
+    /// (a Worker on your account; without options, shows what the route has).
+    Offline(fronts::OfflineArgs),
+    /// Keep webhooks while this computer is off and deliver them in order when it's back.
+    #[command(subcommand)]
+    Inbox(fronts::InboxCommand),
     /// Check for problems, like the app's Doctor. Exits with 1 when there's an error.
     Doctor {
         /// Apply the safe fixes (nothing Teitunnel didn't create is touched).
@@ -181,11 +473,34 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Print a shell completion script, e.g. `teitunnel-cli completions zsh`.
+    /// The cloudflared Teitunnel uses: `status`, or `install` (the latest release from
+    /// Cloudflare, verified, into Teitunnel's data folder; for servers and CI).
+    Cloudflared {
+        /// `status` or `install`.
+        #[arg(value_enum, default_value = "status")]
+        action: CloudflaredAction,
+    },
+    /// Print a shell completion script, e.g. `teitunnel completions zsh`. It completes
+    /// commands and flags, and your hostnames, tunnels, domains, shares and accounts from
+    /// this machine's records (no network).
     Completions {
         /// The shell.
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: complete::Shell,
+        /// Commands and flags only, in a script that never runs `teitunnel`.
+        #[arg(long = "static")]
+        static_script: bool,
+    },
+    /// Candidates for the completion scripts (`completions`); not for people.
+    #[command(name = "__complete", hide = true)]
+    Complete {
+        /// The shell asking.
+        shell: String,
+        /// Which word is being completed (0 is `teitunnel`).
+        index: usize,
+        /// The command line's words.
+        #[arg(raw = true)]
+        words: Vec<String>,
     },
     /// Print this machine's tunnel and routes as config.yml, Docker Compose or Terraform.
     Export {
@@ -332,6 +647,10 @@ enum RouteCommand {
         allow: Vec<String>,
         #[command(flatten)]
         origin_options: OriginArgs,
+        /// Don't add the route when the exposure check finds a leak in the service;
+        /// by default it only warns.
+        #[arg(long)]
+        strict: bool,
         #[command(flatten)]
         apply: ApplyArgs,
     },
@@ -392,10 +711,30 @@ struct ApplyArgs {
     /// didn't create, or routing a public range.
     #[arg(long)]
     replace: bool,
+    /// Take a hostname someone else holds (their reservation, or another machine's
+    /// route).
+    #[arg(long)]
+    take_over: bool,
     /// One of this machine's tunnels, by name. Default: the tunnel carrying the route,
     /// or the default tunnel for a new one.
     #[arg(long)]
     tunnel: Option<String>,
+}
+
+fn parse_range(value: &str) -> Result<teitunnel_core::analytics::AnalyticsRange, String> {
+    teitunnel_core::analytics::AnalyticsRange::parse(value)
+        .ok_or_else(|| format!("`{value}` isn't a range; use hour, day, week or month."))
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CloudflaredAction {
+    Status,
+    Install,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ReservationsAction {
+    Ls,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -425,10 +764,11 @@ impl From<Format> for ExportFormat {
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
-    match run(cli.command).await {
+    // On the heap: the future for every command together is large.
+    match Box::pin(run(cli.command)).await {
         Ok(code) => code,
         Err(message) => {
-            let _ = writeln!(io::stderr().lock(), "teitunnel-cli: {message}");
+            let _ = writeln!(io::stderr().lock(), "teitunnel: {message}");
             ExitCode::FAILURE
         }
     }
@@ -441,17 +781,178 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             stop_after,
             no_qr,
-            on: None,
+            on,
+            account,
+            ai: true,
+            new_token,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
             ..
-        } => return share::run(&origin, stop_after, !no_qr).await,
+        } => {
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            return expose::ai(
+                &origin,
+                on.as_deref(),
+                account.as_deref(),
+                new_token,
+                stop_after,
+                !no_qr,
+                options,
+            )
+            .await;
+        }
+        Command::Share {
+            origin,
+            stop_after,
+            no_qr,
+            on: None,
+            host_header,
+            no_host_header,
+            app,
+            here,
+            json,
+            strict,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
+            listing,
+            spa,
+            ..
+        } => {
+            let host_header = share::host_header_choice(host_header, no_host_header);
+            let folder = folder_arg(&origin, listing, spa)?;
+            if folder.is_some() && app {
+                return Err("Folders are shared from this terminal; leave out --app.".into());
+            }
+            // The app inspects by its own settings; options about the inspector (and
+            // folders, which the inspector serves) keep the share in this terminal.
+            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some();
+            let wanted = app::Where::from_flags(app, here || local_only);
+            let dir = context::data_dir()?;
+            if let Some(client) = app::connect(&dir, wanted).await? {
+                exposure::check(&origin, share::store(&dir).ok().as_ref(), strict).await?;
+                return app::share(&client, &origin, stop_after, !no_qr, json, &host_header).await;
+            }
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            return share::run(
+                &origin,
+                folder,
+                stop_after,
+                !no_qr,
+                json,
+                &host_header,
+                &options,
+                strict,
+            )
+            .await;
+        }
+        Command::Shares {
+            stop,
+            pause,
+            resume,
+            account,
+            json,
+            app,
+        } => {
+            let wanted = app::Where::from_flags(app, false);
+            let pausing = pause.clone().map(|id| (id, true));
+            let pausing = pausing.or_else(|| resume.clone().map(|id| (id, false)));
+            if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                if let Some((id, paused)) = pausing {
+                    return app::pause(&client, &id, account.as_deref(), paused).await;
+                }
+                return app::shares(&client, stop.as_deref(), json).await;
+            }
+            let app = App::open().await?;
+            if let Some((id, paused)) = pausing {
+                return sharing::pause_here(&app, &id, account.as_deref(), paused).await;
+            }
+            return shares(&app, stop.as_deref(), json).await;
+        }
+        Command::Routes {
+            account,
+            json,
+            check: false,
+            app,
+        } => {
+            let wanted = app::Where::from_flags(app, false);
+            if let Some(client) = app::connect(&context::data_dir()?, wanted).await? {
+                let list = client
+                    .routes(account.as_deref())
+                    .await
+                    .map_err(|e| app::describe(&e))?;
+                return app::print_routes(&list, json);
+            }
+            let app = App::open().await?;
+            return routes(&app, account.as_deref(), json).await;
+        }
+        Command::Status { json } => return app::status(&context::data_dir()?, json).await,
+        Command::Top { app, here } => {
+            return top::run(&context::data_dir()?, app::Where::from_flags(app, here)).await;
+        }
+        Command::Complete {
+            index, mut words, ..
+        } => {
+            // Some shells drop the empty word being completed.
+            if words.len() <= index {
+                words.resize(index + 1, String::new());
+            }
+            let names = context::data_dir()
+                .map(|dir| teitunnel_core::completion::candidates(&dir))
+                .unwrap_or_default();
+            let command = <Cli as clap::CommandFactory>::command();
+            for candidate in complete::complete(&command, &words, index, &names) {
+                out!("{}", candidate.line())?;
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
+        Command::Traffic(command) => {
+            let dir = context::data_dir()?;
+            let path = dir.join("teitunnel.db");
+            if !path.exists() {
+                return Err("No captured requests: Teitunnel keeps them in the app's database, which doesn't exist on this machine yet.".into());
+            }
+            let store = teitunnel_core::store::Store::open(&path).map_err(|e| e.to_string())?;
+            return traffic::run(&traffic::History::new(store), command).await;
+        }
         Command::Setup => return setup().await,
-        Command::Completions { shell } => {
-            clap_complete::generate(
+        Command::Cloudflared { action } => return cloudflared_command(action).await,
+        Command::Project(command) => return project::run(command).await,
+        Command::LocalDomain(command) => return local::run(command).await,
+        Command::Mcp {
+            command: Some(command),
+            ..
+        } => return mcp::setup(command),
+        Command::Mcp {
+            command: None,
+            mode,
+            allow_secrets,
+        } => return mcp::serve(mode, allow_secrets).await,
+        Command::Completions {
+            shell,
+            static_script,
+        } => {
+            let script = complete::script(
                 shell,
+                static_script,
                 &mut <Cli as clap::CommandFactory>::command(),
-                "teitunnel-cli",
-                &mut io::stdout(),
             );
+            write!(io::stdout().lock(), "{script}").map_err(|e| e.to_string())?;
             return Ok(ExitCode::SUCCESS);
         }
         _ => {}
@@ -463,23 +964,158 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             stop_after,
             on: Some(hostname),
             account,
-            allow,
+            mcp: true,
+            mcp_path,
+            new_token,
+            quiet,
+            idle,
+            watch,
             ..
         } => {
+            let (hostname, _) = on_hostname(&app, &hostname).await?;
+            let options = share::ShareOptions {
+                inspect: true,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
+            expose::mcp(
+                &app,
+                &origin,
+                mcp_path.as_deref(),
+                &hostname,
+                account.as_deref(),
+                new_token,
+                stop_after,
+                options,
+            )
+            .await
+        }
+        Command::Share {
+            origin,
+            stop_after,
+            on: Some(hostname),
+            account,
+            allow,
+            host_header,
+            no_host_header,
+            json,
+            strict,
+            no_inspect,
+            quiet,
+            idle,
+            watch,
+            listing,
+            spa,
+            schedule,
+            tz,
+            ..
+        } => {
+            let folder = folder_arg(&origin, listing, spa)?;
+            if folder.is_some() && no_inspect {
+                return Err(
+                    "A folder is served by Teitunnel's inspector; leave out --no-inspect.".into(),
+                );
+            }
+            let schedule = schedule
+                .map(|spec| teitunnel_core::schedule::Schedule::parse(&spec, tz.as_deref()))
+                .transpose()
+                .map_err(|e| e.to_string())?;
+            let (hostname, remember) = on_hostname(&app, &hostname).await?;
+            let options = share::ShareOptions {
+                inspect: !no_inspect,
+                idle,
+                watch,
+                log: !quiet,
+                bearer: None,
+            };
             share::run_on_domain(
                 &app,
                 &hostname,
                 &origin,
-                account.as_deref(),
-                access_rule(&allow),
-                stop_after,
+                share::DomainShareOptions {
+                    account,
+                    allow: access_rule(&allow),
+                    stop_after,
+                    json,
+                    strict,
+                    folder,
+                    schedule,
+                    remember: Some(remember),
+                },
+                &share::host_header_choice(host_header, no_host_header),
+                &options,
+                |_| Ok(()),
             )
             .await
         }
-        Command::Share { .. } | Command::Completions { .. } | Command::Setup => {
+        Command::Inspect {
+            hostname,
+            path,
+            account,
+            off,
+            yes,
+        } => {
+            inspect::run(
+                &app,
+                &hostname,
+                path.as_deref(),
+                account.as_deref(),
+                off,
+                yes,
+            )
+            .await
+        }
+        Command::Token { hostname, new } => expose::show_token(&app, &hostname, new).await,
+        Command::Reserve {
+            hostname,
+            until,
+            apply,
+        } => change_routes(&app, Change::ReserveHostname { hostname, until }, &apply).await,
+        Command::Release { hostname, apply } => {
+            change_routes(&app, Change::ReleaseHostname { hostname }, &apply).await
+        }
+        Command::Reservations {
+            action: ReservationsAction::Ls,
+            account,
+            json,
+        } => reservations(&app, account.as_deref(), json).await,
+        Command::Share { .. }
+        | Command::Traffic(_)
+        | Command::Cloudflared { .. }
+        | Command::Completions { .. }
+        | Command::Complete { .. }
+        | Command::Status { .. }
+        | Command::Top { .. }
+        | Command::Shares { .. }
+        | Command::Routes { check: false, .. }
+        | Command::Setup
+        | Command::Project(_)
+        | Command::LocalDomain(_)
+        | Command::Mcp { .. } => {
             unreachable!("handled above")
         }
-        Command::Up => up::up(&app).await,
+        Command::Up(args) => up::up(&app, &args).await,
+        Command::Schedule {
+            hostname,
+            spec,
+            tz,
+            off,
+            account,
+        } => {
+            sharing::set_schedule(
+                &app,
+                &hostname,
+                &spec,
+                tz.as_deref(),
+                off,
+                account.as_deref(),
+            )
+            .await
+        }
+        Command::Schedules { json } => sharing::list_schedules(&app, json).await,
+        Command::Backup(command) => backup::run(&app, command).await,
         Command::Serve {
             set_password: true, ..
         } => set_web_password(&app).await,
@@ -487,6 +1123,9 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             listen,
             allow_remote,
             secure_cookies,
+            no_mcp,
+            mcp_mode,
+            mcp_allow_origin,
             ..
         } => {
             serve::run(
@@ -495,6 +1134,10 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     listen,
                     allow_remote,
                     secure_cookies,
+                    mcp: (!no_mcp).then_some(serve::McpOptions {
+                        mode: mcp_mode,
+                        allowed_origins: mcp_allow_origin,
+                    }),
                 },
             )
             .await
@@ -513,21 +1156,47 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             up::always_on(&app, action, account.as_deref(), tunnel.as_deref()).await
         }
         Command::Doctor { fix, yes, json } => doctor::run(&app, json, fix, yes).await,
+        Command::Analytics {
+            hostname,
+            path,
+            range,
+            account,
+            json,
+        } => {
+            analytics::analytics(
+                &app,
+                hostname.as_deref(),
+                path.as_deref(),
+                range,
+                account.as_deref(),
+                json,
+            )
+            .await
+        }
+        Command::Uptime { json } => analytics::uptime(&app, json).await,
+        Command::Snapshot(command) => snapshot::run(&app, command).await,
+        Command::Protect(args) => protect::protect(&app, args).await,
+        Command::ServiceToken(command) => protect::service_token(&app, command).await,
+        Command::Comments(command) => comments::run(&app, command).await,
+        Command::Offline(args) => fronts::offline(&app, args).await,
+        Command::Inbox(command) => fronts::inbox(&app, command).await,
         Command::Accounts { json } => accounts(&app, json).await,
         Command::Routes {
             account,
             json,
             check: true,
+            ..
         } => check_routes(&app, account.as_deref(), json).await,
-        Command::Routes { account, json, .. } => routes(&app, account.as_deref(), json).await,
         Command::Route(RouteCommand::Add {
             hostname,
             origin,
             path,
             allow,
             origin_options,
+            strict,
             apply,
         }) => {
+            exposure::check(&origin, Some(app.store()), strict).await?;
             let change = Change::AddRoute {
                 route: RouteInput {
                     hostname,
@@ -558,7 +1227,6 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             change_routes(&app, Change::RemoveNetwork { network }, &apply).await
         }
         Command::Tunnels { account, json } => tunnels(&app, account.as_deref(), json).await,
-        Command::Shares { stop, json } => shares(&app, stop.as_deref(), json).await,
         Command::Tunnel(TunnelCommand::Create { name, apply }) => {
             change_routes(&app, Change::CreateTunnel { name }, &apply).await
         }
@@ -577,6 +1245,52 @@ async fn run(command: Command) -> Result<ExitCode, String> {
     }
 }
 
+/// A folder to share, when `origin` names one (`./dist`, `/srv/site`).
+fn folder_arg(
+    origin: &str,
+    listing: bool,
+    spa: bool,
+) -> Result<Option<teitunnel_core::folder_share::FolderShare>, String> {
+    use teitunnel_core::folder_share::{FolderShare, looks_like_folder};
+    if !looks_like_folder(origin) {
+        if listing || spa {
+            return Err(format!(
+                "--listing and --spa are for folders, and {origin} isn't one."
+            ));
+        }
+        return Ok(None);
+    }
+    FolderShare::resolve(origin, listing, spa)
+        .map(Some)
+        .map_err(|e| e.to_string())
+}
+
+/// The hostname of `share --on`: `{project}`, `{branch}` and `{user}` filled in from the
+/// current folder, or the name last used here when none is given. Also returns what to
+/// remember for the folder.
+async fn on_hostname(
+    app: &App,
+    typed: &str,
+) -> Result<(String, (std::path::PathBuf, String)), String> {
+    use teitunnel_core::share_names;
+    let dir = std::env::current_dir().map_err(|e| e.to_string())?;
+    let template = if typed.trim().is_empty() {
+        share_names::remembered(app.store(), &dir)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| {
+                "No name was used for a share from this folder yet; give one: --on demo.example.com (or --on {branch}.dev.example.com).".to_owned()
+            })?
+    } else {
+        typed.trim().to_owned()
+    };
+    let hostname = share_names::expand(&template, &dir).map_err(|e| e.to_string())?;
+    if hostname != template.to_ascii_lowercase() {
+        share::status(&format!("{template} is {hostname} here."));
+    }
+    Ok((hostname, (dir, template)))
+}
+
 async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, String> {
     use teitunnel_core::domain_shares::{self, APP_OWNER};
     let list = app
@@ -589,7 +1303,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
         let share = list
             .iter()
             .find(|s| s.hostname.eq_ignore_ascii_case(hostname.trim()))
-            .ok_or_else(|| format!("No share at {hostname}. See `teitunnel-cli shares`."))?;
+            .ok_or_else(|| format!("No share at {hostname}. See `teitunnel shares`."))?;
         let account = app.account(Some(&share.account_id)).await?;
         let api = app
             .accounts
@@ -619,7 +1333,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
     }
     if list.is_empty() && terminals.is_empty() {
         out!(
-            "No shares running. Start one with `teitunnel-cli share 3000` (add `--on demo.example.com` for your own domain)."
+            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.example.com` for your own domain)."
         )?;
     }
     let now = domain_shares::now_ms();
@@ -632,10 +1346,11 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
         let ends = share.expires_at.map_or_else(String::new, |at| {
             format!(", ends in {} min", at.saturating_sub(now) / 60_000)
         });
+        let paused = if share.paused { ", paused" } else { "" };
         out!(
-            "https://{}\t{}\tstarted by {by}{ends}",
+            "https://{}\t{}\tstarted by {by}{paused}{ends}",
             share.hostname,
-            share.origin
+            share.source.as_deref().unwrap_or(&share.origin)
         )?;
     }
     for share in &terminals {
@@ -668,7 +1383,7 @@ async fn adopt(app: &App, name: &str, account: Option<&str>) -> Result<ExitCode,
         .await
         .map_err(|e| e.to_string())?;
     out!(
-        "“{}” is now one of this machine's tunnels. Run it with `teitunnel-cli up` or the app.",
+        "“{}” is now one of this machine's tunnels. Run it with `teitunnel up` or the app.",
         tunnel.name
     )?;
     Ok(ExitCode::SUCCESS)
@@ -748,7 +1463,7 @@ async fn tunnel_for(
             .find(|t| t.name.eq_ignore_ascii_case(name) || t.tunnel_id == name)
             .map(|t| Some(t.tunnel_id))
             .ok_or_else(|| {
-                format!("This machine has no tunnel named “{name}”. See `teitunnel-cli tunnels`.")
+                format!("This machine has no tunnel named “{name}”. See `teitunnel tunnels`.")
             });
     }
     match change {
@@ -761,6 +1476,26 @@ async fn tunnel_for(
             .map_err(|e| e.to_string()),
         _ => Ok(None),
     }
+}
+
+/// `cloudflared status|install`: the binary Teitunnel runs, found like the app finds it.
+async fn cloudflared_command(action: CloudflaredAction) -> Result<ExitCode, String> {
+    let binary = context::binary(&context::data_dir()?);
+    let found = match action {
+        CloudflaredAction::Status => binary.current().await,
+        CloudflaredAction::Install => binary.install_latest(|_| {}).await,
+    }
+    .map_err(|e| match e {
+        cloudflared::Error::NotFound => {
+            "cloudflared isn't installed. Run `teitunnel cloudflared install`.".to_owned()
+        }
+        other => other.to_string(),
+    })?;
+    let version = found
+        .version
+        .map_or_else(|| "unknown version".to_owned(), |v| v.to_string());
+    out!("{}\t{version}", found.path.display())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Connects the accounts an API token reaches. With a token in the environment it only
@@ -817,7 +1552,7 @@ async fn set_web_password(app: &App) -> Result<ExitCode, String> {
     teitunnel_core::web_auth::set_password(app.store(), password.trim_end_matches(['\r', '\n']))
         .await
         .map_err(|e| e.to_string())?;
-    out!("Password set. Start the dashboard with `teitunnel-cli serve`.")?;
+    out!("Password set. Start the dashboard with `teitunnel serve`.")?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -1085,6 +1820,36 @@ fn warning_text(warning: &Warning) -> String {
         } => format!(
             "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins."
         ),
+        Warning::HeldBy {
+            hostname,
+            owner,
+            until,
+            kind,
+        } => format!(
+            "{} Pass --take-over to take it.",
+            teitunnel_core::reservations::describe(&teitunnel_core::engine::Hold {
+                hostname: hostname.clone(),
+                owner: owner.clone(),
+                until: *until,
+                kind: *kind,
+            })
+            .english()
+        ),
+        Warning::EdgeQuota {
+            quota,
+            zone,
+            used,
+            limit,
+        } => format!(
+            "{zone} will use {used} of the {limit} {} its plan allows.",
+            protect::quota_name(*quota)
+        ),
+        Warning::MachineOnly { domain } => format!(
+            "{domain} has no login yet: the new one lets in only service tokens, so people can't open it in a browser."
+        ),
+        Warning::WorkerRequests { pattern } => format!(
+            "Every request to {pattern} runs a Worker, counted against your account's 100,000 free Worker requests a day; past that the site keeps working without it."
+        ),
     }
 }
 
@@ -1097,6 +1862,74 @@ fn print_plan(plan: &Plan, account_id: &str) -> Result<(), String> {
         out!("{:>2}. {}", index + 1, step.description)?;
     }
     Ok(())
+}
+
+/// What a plan needs confirming: taking a name someone else holds (`--take-over`), and
+/// anything else (`--replace`: records Teitunnel didn't create, public ranges).
+fn confirmations(plan: &Plan) -> (bool, bool) {
+    let held = plan
+        .warnings
+        .iter()
+        .any(|w| matches!(w, Warning::HeldBy { .. }));
+    let other = plan.warnings.iter().any(|w| {
+        matches!(
+            w,
+            Warning::ReplacesForeignRecord { .. }
+                | Warning::DeletesForeignRecord { .. }
+                | Warning::PublicNetwork { .. }
+        )
+    });
+    (held, other || (plan.requires_confirmation && !held))
+}
+
+/// `reservations ls`: the account's reserved hostnames and who holds them.
+async fn reservations(app: &App, account: Option<&str>, json: bool) -> Result<ExitCode, String> {
+    use teitunnel_core::engine::ownership::format_until;
+    let account = app.account(account).await?;
+    let api = app
+        .accounts
+        .client(&account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    let listed = teitunnel_core::reservations::list(&app.engine, &api, &account.id)
+        .await
+        .map_err(|e| e.to_string())?;
+    if json {
+        out!(
+            "{}",
+            serde_json::to_string(&listed).map_err(|e| e.to_string())?
+        )?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    if listed.cached {
+        let _ = writeln!(
+            io::stderr().lock(),
+            "Cloudflare couldn't be reached; these are the reservations seen last."
+        );
+    }
+    if listed.items.is_empty() {
+        out!(
+            "No reserved hostnames in {}. Reserve one with `teitunnel reserve <hostname>`.",
+            account.name
+        )?;
+    }
+    for r in &listed.items {
+        let owner = if r.mine {
+            "you".to_owned()
+        } else {
+            r.owner
+                .clone()
+                .unwrap_or_else(|| "another Teitunnel".to_owned())
+        };
+        let until = match (r.ended, r.until) {
+            (true, Some(at)) => format!("ended {}", format_until(at)),
+            (_, Some(at)) => format!("until {}", format_until(at)),
+            (_, None) => "no end date".to_owned(),
+        };
+        let routed = if r.routed { "\troutes it" } else { "" };
+        out!("{}\t{owner}\t{until}{routed}", r.hostname)?;
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Asks `question` (y/N). Without a terminal to ask on, `--yes` is needed.
@@ -1141,7 +1974,13 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
         return Ok(ExitCode::SUCCESS);
     }
     print_plan(&plan, &account.id)?;
-    if plan.requires_confirmation && !apply.replace {
+    let (held, other) = confirmations(&plan);
+    if held && !apply.take_over {
+        return Ok(share::held(
+            "Someone else holds this hostname (see above). Pass --take-over to take it.",
+        ));
+    }
+    if plan.requires_confirmation && other && !apply.replace {
         return Err("This needs a confirmation (see above). Pass --replace to allow it.".into());
     }
     if !apply.yes && !confirm("Apply?")? {
@@ -1153,7 +1992,7 @@ async fn change_routes(app: &App, change: Change, apply: &ApplyArgs) -> Result<E
     let steps = plan.view(&account.id).steps;
     let approval = Approval {
         fingerprint: &plan.fingerprint,
-        confirmed: apply.replace,
+        confirmed: apply.replace || apply.take_over,
     };
     let outcome = app
         .engine
@@ -1235,6 +2074,9 @@ async fn check(
         }
         (Some(_), Some(message)) => {
             out!("https://{hostname} doesn't work yet: {message}")?;
+            share::explain(&result, share::Via::Route, &mut |line| {
+                let _ = out!("{line}");
+            });
             Ok(false)
         }
         (Some(failure), None) => {
@@ -1286,7 +2128,7 @@ mod tests {
     #[test]
     fn parses_a_share_on_a_domain() {
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "share",
             "3000",
             "--on",
@@ -1310,21 +2152,45 @@ mod tests {
         assert_eq!(stop_after, Some(Duration::from_secs(7200)));
         assert_eq!(allow, ["@team.io"]);
         // Account and logins only make sense on your own domain.
-        assert!(
-            Cli::try_parse_from(["teitunnel-cli", "share", "3000", "--allow", "@x.io"]).is_err()
+        assert!(Cli::try_parse_from(["teitunnel", "share", "3000", "--allow", "@x.io"]).is_err());
+    }
+
+    #[test]
+    fn parses_share_host_header_flags() {
+        use teitunnel_core::quick_share::HostHeaderChoice;
+        let parse = |args: &[&str]| {
+            let cli = Cli::try_parse_from(["teitunnel", "share", "5173"].iter().chain(args))?;
+            let Command::Share {
+                host_header,
+                no_host_header,
+                ..
+            } = cli.command
+            else {
+                panic!("not a share");
+            };
+            Ok::<_, clap::Error>(share::host_header_choice(host_header, no_host_header))
+        };
+        assert_eq!(parse(&[]).unwrap(), HostHeaderChoice::Auto);
+        assert_eq!(parse(&["--no-host-header"]).unwrap(), HostHeaderChoice::Off);
+        assert_eq!(
+            parse(&["--host-header", "localhost:5173"]).unwrap(),
+            HostHeaderChoice::Set {
+                value: "localhost:5173".into()
+            }
         );
+        assert!(parse(&["--host-header", "a", "--no-host-header"]).is_err());
     }
 
     #[test]
     fn parses_tunnel_commands() {
         let cli =
-            Cli::try_parse_from(["teitunnel-cli", "tunnel", "create", "staging", "--yes"]).unwrap();
+            Cli::try_parse_from(["teitunnel", "tunnel", "create", "staging", "--yes"]).unwrap();
         assert!(matches!(
             cli.command,
             Command::Tunnel(TunnelCommand::Create { ref name, ref apply }) if name == "staging" && apply.yes
         ));
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "route",
             "add",
             "beta.example.com",
@@ -1342,7 +2208,7 @@ mod tests {
     #[test]
     fn parses_a_route_add() {
         let cli = Cli::try_parse_from([
-            "teitunnel-cli",
+            "teitunnel",
             "route",
             "add",
             "app.example.com",
@@ -1368,6 +2234,7 @@ mod tests {
             allow,
             origin_options,
             apply,
+            ..
         }) = cli.command
         else {
             unreachable!()
@@ -1398,14 +2265,9 @@ mod tests {
 
     #[test]
     fn parses_a_network_add() {
-        let cli = Cli::try_parse_from([
-            "teitunnel-cli",
-            "network",
-            "add",
-            "192.168.1.0/24",
-            "--replace",
-        ])
-        .unwrap_or_else(|e| unreachable!("{e}"));
+        let cli =
+            Cli::try_parse_from(["teitunnel", "network", "add", "192.168.1.0/24", "--replace"])
+                .unwrap_or_else(|e| unreachable!("{e}"));
         let Command::Network(NetworkCommand::Add { network, apply }) = cli.command else {
             unreachable!()
         };

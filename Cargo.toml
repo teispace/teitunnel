@@ -17,6 +17,10 @@ publish = false
 teitunnel-cf-api = { path = "crates/cf-api" }
 teitunnel-cloudflared = { path = "crates/cloudflared" }
 teitunnel-core = { path = "crates/core" }
+teitunnel-control = { path = "crates/control" }
+teitunnel-lens = { path = "crates/lens" }
+teitunnel-localdomains = { path = "crates/localdomains" }
+teitunnel-mcp = { path = "crates/mcp" }
 
 # Tauri (stay on 2.x, D-015)
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
@@ -28,6 +32,10 @@ tauri-plugin-clipboard-manager = "2.3.3"
 tauri-plugin-notification = "2.4.0"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-updater = "2.12.0"
+tauri-plugin-dialog = "2.7.3"
+# `teitunnel://` links (M12-07)
+tauri-plugin-deep-link = "2.4.10"
+tauri-plugin-global-shortcut = "2.3.2"
 # E2E only (never in release builds): embedded WebDriver for @wdio/tauri-service.
 tauri-plugin-wdio-webdriver = "1.4.0"
 tauri-plugin-wdio = "1.4.0"
@@ -43,6 +51,8 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
 tokio-util = "0.7"
 ipnet = "2.12"
+# Time zones for scheduled shares (the system's tz database; bundled on Windows)
+jiff = "0.2.37"
 # Localization (D-062)
 intl_pluralrules = "7.0.2"
 unic-langid = "0.9.6"
@@ -72,9 +82,46 @@ keyring = "4.2.0"
 base64 = "0.23"
 getrandom = "0.4.3"
 argon2 = { version = "0.6", default-features = false, features = ["alloc", "password-hash"] }
+# Encrypted backups ("move to a new computer"): RustCrypto AEAD (NCC Group audit, 2020).
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+
+# Lens: the local inspector proxy (crates/lens)
+hyper = { version = "1.11", default-features = false }
+hyper-util = { version = "0.1.20", default-features = false }
+http = "1.5"
+http-body = "1.1"
+http-body-util = "0.1.5"
+bytes = "1.12"
+tokio-rustls = { version = "0.26.5", default-features = false, features = ["aws_lc_rs", "tls12", "logging"] }
+rustls-platform-verifier = "0.7.0"
+ring = "0.17.14"
+subtle = "2.6"
+brotli-decompressor = "5.0.3"
+httpdate = "1.0.3"
+percent-encoding = "2.3.2"
+mime_guess = { version = "2.0.5", default-features = false }
+# Local HTTPS domains (crates/localdomains)
+# One TLS crypto provider for the workspace: AWS-LC (reqwest's too); crates pass it explicitly.
+rcgen = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem", "x509-parser"] }
+rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std", "tls12", "logging"] }
+time = "0.3.44"
+zeroize = "1.8"
+hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
+mdns-sd = "0.21.4"
+plist = "1.10"
+x509-parser = "0.18.1"
+sha1 = "0.11"
+# This computer's addresses (local domains accept them as local; already used by mdns-sd).
+if-addrs = "0.15"
 
 # Web dashboard for servers (teitunnel-cli serve)
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
+
+# MCP server (teitunnel mcp, M12-03)
+rmcp = { version = "3.4.1", default-features = false }
+schemars = "1.2"
+jsonc-parser = { version = "0.33.2", features = ["cst", "serde_json"] }
+toml_edit = "0.25.15"
 
 # Persistence
 rusqlite = { version = "0.40.2", features = ["bundled"] }

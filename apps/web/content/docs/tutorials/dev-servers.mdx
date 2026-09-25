@@ -8,18 +8,42 @@ don't know. Through a tunnel, requests arrive for `app.example.com` or
 `something.trycloudflare.com`, not `localhost`, so the first visit often fails. There are two
 fixes; pick one.
 
+## What Teitunnel does for you
+
+- **New shares of Vite, webpack-dev-server and Angular** send the dev server's own address as
+  the Host header from the start (`localhost:5173`, say), and the share card says so. Those
+  servers only read the Host header to stop DNS rebinding, so nothing else changes. Turn it
+  off under **Advanced ▸ Host header** in the share form, or with `--no-host-header`.
+- **When a share or route goes live**, Teitunnel fetches it once through Cloudflare, like a
+  visitor. If the dev server refuses the address (Vite's *Blocked request*, webpack's
+  *Invalid Host header*, Rails' *Blocked hosts*, Django's *DisallowedHost*, or Next.js
+  blocking its dev resources), the card or route shows *Your dev server rejects this
+  address* with the fix in place: **Send Host: localhost:5173** (a Quick Share restarts with
+  a new address; a route changes through a plan like any edit), or **Show the Config Line**
+  with the exact line for your framework, ready to copy. After either, it checks again and
+  tells you when it works.
+- For Next.js, Rails, Django, SvelteKit and Astro the config line comes first: they also
+  compare the Host header with the browser's address (server actions, CSRF protection,
+  sign-in callbacks), so sending another one can break forms and logins.
+
+`teitunnel share` prints the same finding and suggestion, and keeps sharing (exit status 0).
+
 ## Option 1: send `localhost` as the Host header
 
 The quickest fix, with no change to your project. Edit the route (or create it), open
-**Advanced ▸ Origin settings** and set **Host header** to `localhost`. From the terminal:
+**Advanced ▸ Origin settings** and set **Host header** to `localhost:5173` (your dev server's
+address). From the terminal:
 
 ```sh
-teitunnel-cli route add app.example.com 5173 --host-header localhost
+teitunnel route add app.example.com 5173 --host-header localhost:5173
+teitunnel share 5173 --host-header localhost:5173
 ```
 
-Your dev server then sees every request as a request for `localhost`. This works for most
+Your dev server then sees every request as a request for itself. This works for most
 setups; the catch is that anything the app builds from the Host header (absolute links,
-redirects, OAuth callbacks) says `localhost` too. If that matters, use option 2.
+redirects, OAuth callbacks) says `localhost` too, and frameworks that compare it with the
+browser's `Origin` (Next.js server actions, Rails and Django CSRF checks, SvelteKit form
+actions) reject form posts. If that matters, use option 2.
 
 ## Option 2: allow the hostname in your project
 
@@ -92,6 +116,14 @@ redirects, OAuth callbacks) says `localhost` too. If that matters, use option 2.
     `bootstrap/app.php` on Laravel 11). With Vite, also follow the Vite tab.
   </Tab>
 </Tabs>
+
+## Streaming (Server-Sent Events) and MCP servers
+
+Quick Shares (`trycloudflare.com` addresses) don't carry Server-Sent Events: the stream never
+reaches the browser. When the service answers with `text/event-stream` (a streaming UI, or an
+MCP server on the SSE transport at `/sse`), the share card says so. Share it on your own
+domain instead (**Address ▸ On example.com**, or `teitunnel share 3000 --on
+demo.example.com`), where streams work.
 
 ## HTTPS dev servers
 

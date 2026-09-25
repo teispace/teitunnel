@@ -18,7 +18,10 @@ import {
   useCapabilities,
   ZeroTrustFix,
 } from "@/features/accounts";
+import { CheckNotes, HostRejectionFix, useRoute, useSendHostOnRoute } from "@/features/dev-server";
+import { ExposureNotice } from "@/features/exposure";
 import { ServicePicker } from "@/features/quick-share";
+import { HostnameAvailability } from "@/features/reservations/hostname-availability";
 import { errorLink } from "@/lib/error-help";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type {
@@ -272,13 +275,22 @@ interface RouteSheetProps {
   /** What the sheet does; `null` closes it. */
   mode: SheetMode | null;
   onClose: () => void;
+  /** Opens the hostname's edge protection (Advanced ▸ Protection, when editing). */
+  onEditProtection?: (hostname: string) => void;
 }
 
 /**
  * Every routes change goes through this sheet: fill in (add/edit) → review the plan →
  * apply with live progress → check the URL works. Nothing changes before Apply.
  */
-export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: RouteSheetProps) {
+export function RouteSheet({
+  accountId,
+  zones,
+  tunnels = [],
+  mode,
+  onClose,
+  onEditProtection,
+}: RouteSheetProps) {
   const open = mode !== null;
   const [stage, setStage] = useState<Stage>("form");
   const [hostname, setHostname] = useState("");
@@ -299,6 +311,15 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
   const apply = useApply(accountId);
   const verify = useVerify(accountId);
   const caps = useCapabilities(accountId).data;
+  // The route just changed, for fixing a dev server that refuses its address in place.
+  const checkedRoute = useRoute(
+    stage === "done" ? accountId : null,
+    verify.variables?.hostname ?? "",
+    change?.type === "addRoute" || change?.type === "updateRoute"
+      ? change.route.path?.trim() || null
+      : null,
+  ).data;
+  const sendHost = useSendHostOnRoute(accountId);
 
   const review = (next: Change, why: string | null = null, tunnel = tunnelId) => {
     setChange(next);
@@ -482,15 +503,14 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
               variant="primary"
               type="submit"
               form="route-form"
+              pending={preview.isPending}
               disabled={
-                preview.isPending ||
                 (kind === "addNetwork"
                   ? network
                   : kind === "createTunnel"
                     ? tunnelName
                     : origin
-                ).trim() === "" ||
-                gaps.length > 0
+                ).trim() === "" || gaps.length > 0
               }
             >
               {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
@@ -533,7 +553,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
             </SheetClose>
           </>
         ) : (
-          <Button disabled>{t("routeSheet.applying")}</Button>
+          <Button pending>{t("routeSheet.applying")}</Button>
         );
       case "done":
         return (
@@ -541,7 +561,7 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
             {verify.data && !verify.data.failure ? null : (
               <Button
                 className="mr-auto"
-                disabled={verify.isPending}
+                pending={verify.isPending}
                 onClick={() =>
                   verify.variables &&
                   verify.mutate({ hostname: verify.variables.hostname, wait: false })
@@ -661,7 +681,11 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                 />
               )}
             </Field>
-            {fieldError("hostname") ? <ErrorLink error={failure} accountId={accountId} /> : null}
+            {fieldError("hostname") ? (
+              <ErrorLink error={failure} accountId={accountId} />
+            ) : mode?.kind !== "edit" || mode.route.hostname !== hostname.trim().toLowerCase() ? (
+              <HostnameAvailability accountId={accountId} hostname={hostname} />
+            ) : null}
             {kind === "add" && tunnels.length > 1 ? (
               <Field label={t("routeSheet.tunnel.label")} help={t("routeSheet.tunnel.help")}>
                 {(control) => (
@@ -735,6 +759,19 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                     error={fieldError("options") ?? undefined}
                   />
                 </Disclosure>
+                {mode?.kind === "edit" && onEditProtection && !mode.route.client ? (
+                  <div className="flex items-center gap-3">
+                    <span className="flex min-w-0 flex-1 flex-col text-body">
+                      {t("protection.title")}
+                      <span className="text-callout text-secondary">
+                        {t("protection.routeSheetHelp")}
+                      </span>
+                    </span>
+                    <Button size="sm" onClick={() => onEditProtection(mode.route.hostname)}>
+                      {t("protection.edit")}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </Disclosure>
             {fixCard}
@@ -765,6 +802,9 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
               </div>
             )}
             {fixCard}
+            {change?.type === "addRoute" && plan && plan.steps.length > 0 ? (
+              <ExposureNotice origin={change.route.origin} />
+            ) : null}
             {plan?.requiresConfirmation && !preview.isPending ? (
               <label htmlFor="route-confirm" className="flex items-center gap-2 text-body">
                 <Checkbox
@@ -774,7 +814,9 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                 />
                 {plan.warnings.some((w) => w.type === "publicNetwork")
                   ? t("routeSheet.confirm.publicNetwork")
-                  : t("routeSheet.confirm.records")}
+                  : plan.warnings.some((w) => w.type === "heldBy")
+                    ? t("routeSheet.confirm.takeOver")
+                    : t("routeSheet.confirm.records")}
               </label>
             ) : null}
             {generalError ? (
@@ -822,12 +864,35 @@ export function RouteSheet({ accountId, zones, tunnels = [], mode, onClose }: Ro
                   {t("routeSheet.verify.pending", { url })}
                 </p>
               </>
+            ) : verify.data.failure?.type === "hostRejected" ? (
+              <>
+                <HostRejectionFix
+                  rejection={verify.data.failure.rejection}
+                  via="route"
+                  onSendHost={
+                    checkedRoute
+                      ? (host) =>
+                          sendHost.mutate(
+                            { route: checkedRoute, host },
+                            {
+                              onSuccess: () =>
+                                verify.variables &&
+                                verify.mutate({ hostname: verify.variables.hostname, wait: true }),
+                            },
+                          )
+                      : undefined
+                  }
+                  sending={sendHost.isPending}
+                />
+                <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
+              </>
             ) : verify.data.failure ? (
               <>
                 <TriangleAlert aria-hidden className="size-7 text-warning" strokeWidth={1.5} />
                 <p className="max-w-sm text-body">
                   {verify.data.message ? translate(verify.data.message) : null}
                 </p>
+                <CheckNotes check={verify.data} showMessage={false} />
                 <CopyField label={t("common.url")} value={url} className="w-full max-w-sm" />
               </>
             ) : verify.data.protected ? (

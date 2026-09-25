@@ -39,10 +39,59 @@ fn prints_shell_completions() {
     let output = cli(dir.path(), &["completions", "zsh"]);
     assert!(output.status.success());
     let script = String::from_utf8_lossy(&output.stdout);
-    assert!(script.starts_with("#compdef teitunnel-cli"), "{script}");
+    assert!(script.starts_with("#compdef teitunnel"), "{script}");
+    assert!(
+        script.contains("teitunnel __complete zsh"),
+        "live by default"
+    );
+    let output = cli(dir.path(), &["completions", "zsh", "--static"]);
+    let script = String::from_utf8_lossy(&output.stdout);
     for command in ["share", "doctor", "route", "export"] {
         assert!(script.contains(command), "{command}");
     }
+}
+
+#[test]
+fn completes_live_without_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let complete = |words: &[&str]| {
+        let index = (words.len() - 1).to_string();
+        let mut args = vec!["__complete", "bash", index.as_str(), "--"];
+        args.extend_from_slice(words);
+        let output = cli(dir.path(), &args);
+        assert!(output.status.success());
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+    let lines = complete(&["teitunnel", "sta"]);
+    assert_eq!(
+        lines,
+        "status\tWhether the Teitunnel app is running, and what it serves\n"
+    );
+    // No database yet: no names, and nothing is created.
+    assert_eq!(complete(&["teitunnel", "route", "remove", ""]), "");
+    assert!(!dir.path().join("teitunnel.db").exists());
+    // The word being completed may be missing.
+    let output = cli(dir.path(), &["__complete", "fish", "1", "--", "teitunnel"]);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("share\t"));
+}
+
+#[test]
+fn status_works_without_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = cli(dir.path(), &["status"]);
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Teitunnel isn't running.\n"
+    );
+    let output = cli(dir.path(), &["status", "--json"]);
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["running"], false);
+    let output = cli(dir.path(), &["share", "3000", "--app"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Teitunnel isn't running."));
+    let output = cli(dir.path(), &["share", "3000", "--app", "--here"]);
+    assert_eq!(output.status.code(), Some(2), "one or the other");
 }
 
 #[test]
@@ -56,6 +105,19 @@ fn doctor_needs_the_app_to_be_set_up() {
 }
 
 #[test]
+fn analytics_takes_known_ranges_and_needs_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = cli(dir.path(), &["analytics", "--range", "year"]);
+    assert_eq!(output.status.code(), Some(2), "a usage error");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("hour, day, week or month"));
+    for args in [&["analytics"][..], &["uptime", "--json"][..]] {
+        let output = cli(dir.path(), args);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("hasn't been set up"));
+    }
+}
+
+#[test]
 fn share_rejects_bad_input_before_starting_anything() {
     let dir = tempfile::tempdir().unwrap();
     let output = cli(dir.path(), &["share", "not a port"]);
@@ -64,6 +126,60 @@ fn share_rejects_bad_input_before_starting_anything() {
     let output = cli(dir.path(), &["share", "3000", "--for", "1d"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("isn't a duration"));
+}
+
+#[test]
+fn checks_a_project_file_with_positions_and_refuses_secrets() {
+    let data = tempfile::tempdir().unwrap();
+    let repo = tempfile::tempdir().unwrap();
+    std::fs::write(
+        repo.path().join("teitunnel.yml"),
+        "version: 1\nsnapshots:\n  - name: docs\n    source: { folder: dist }\n    password: hunter22\nshares:\n  - port: 70000\n",
+    )
+    .unwrap();
+    let check = || {
+        Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+            .current_dir(repo.path())
+            .args(["project", "check"])
+            .env("TEITUNNEL_DATA_DIR", data.path())
+            .output()
+            .unwrap()
+    };
+    let output = check();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("teitunnel.yml:5:15: error:"), "{stderr}");
+    assert!(stderr.contains("secret"), "{stderr}");
+    assert!(stderr.contains("teitunnel.yml:7:11: error:"), "{stderr}");
+
+    std::fs::write(
+        repo.path().join("teitunnel.yml"),
+        "version: 1\nshares:\n  - port: 5173\nprotection: {}\n",
+    )
+    .unwrap();
+    let output = check();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("warning: protection isn't known"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn project_and_backup_commands_need_their_file() {
+    let data = tempfile::tempdir().unwrap();
+    let empty = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+        .current_dir(empty.path())
+        .args(["project", "diff"])
+        .env("TEITUNNEL_DATA_DIR", data.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("No teitunnel.yml"));
+    let output = cli(data.path(), &["backup", "restore"]);
+    assert_eq!(output.status.code(), Some(2), "the file is required");
 }
 
 /// `share` against the fake cloudflared, as the process a terminal would run.
@@ -89,15 +205,87 @@ mod share {
     }
 
     fn spawn(data: &Path, fake: &Path, args: &[&str]) -> Child {
+        // Nothing listens on the discard port: the check after going live stays offline.
+        spawn_with_edge(data, fake, args, "127.0.0.1:9")
+    }
+
+    fn spawn_with_edge(data: &Path, fake: &Path, args: &[&str], edge: &str) -> Child {
         Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
             .arg("share")
             .args(args)
             .env("TEITUNNEL_DATA_DIR", data)
             .env("TEITUNNEL_CLOUDFLARED", fake)
+            .env("TEITUNNEL_EDGE", edge)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .unwrap()
+    }
+
+    /// A stand-in for Cloudflare's edge that answers every request as a Vite dev server
+    /// refusing the address (Vite 6.0.9+).
+    fn refusing_edge() -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut request = [0_u8; 4096];
+                let _ = stream.read(&mut request);
+                let body = "Blocked request. This host (\"x.trycloudflare.com\") is not allowed.\nTo allow this host, add \"x.trycloudflare.com\" to `server.allowedHosts` in vite.config.js.";
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+        addr
+    }
+
+    #[test]
+    fn explains_a_dev_server_refusing_the_address_and_keeps_sharing() {
+        let Some(fake) = fake() else {
+            eprintln!("skipped: build the workspace to get fake-cloudflared");
+            return;
+        };
+        let data = tempfile::tempdir().unwrap();
+        let mut child = spawn_with_edge(
+            data.path(),
+            &fake,
+            &["5173", "--no-qr", "--for", "30s", "--no-host-header"],
+            &refusing_edge(),
+        );
+        // Read the advice as it comes (after the URL goes live), then end the share.
+        let mut stderr = String::new();
+        let mut lines = BufReader::new(child.stderr.take().unwrap());
+        while !stderr.contains("--host-header") {
+            let mut line = String::new();
+            if lines.read_line(&mut line).unwrap() == 0 {
+                break;
+            }
+            stderr.push_str(&line);
+        }
+        kill(
+            Pid::from_raw(i32::try_from(child.id()).unwrap()),
+            Signal::SIGINT,
+        )
+        .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "a warning, not a failure: {output:?}"
+        );
+        assert!(
+            stderr.contains("Vite refuses requests for fake-"),
+            "{stderr}"
+        );
+        assert!(
+            stderr.contains("server: { allowedHosts: ['.trycloudflare.com'] }"),
+            "{stderr}"
+        );
+        assert!(stderr.contains("--host-header localhost:5173"), "{stderr}");
     }
 
     fn alive(pid: u32) -> bool {

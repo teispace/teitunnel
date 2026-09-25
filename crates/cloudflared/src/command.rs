@@ -170,6 +170,11 @@ fn common_args(metrics_port: u16, log_level: LogLevel) -> Vec<OsString> {
     .collect()
 }
 
+/// What a neutral config file holds: valid YAML with no settings. (An empty file works
+/// too, but cloudflared logs "Configuration file … was empty" as an error.)
+pub const NEUTRAL_CONFIG: &str =
+    "# Written by Teitunnel. Quick Shares read no cloudflared settings from files.\n{}\n";
+
 /// `cloudflared tunnel --url <origin>`: an anonymous `trycloudflare.com` Quick Share.
 #[derive(Debug, Clone)]
 pub struct QuickTunnelCmd {
@@ -177,12 +182,32 @@ pub struct QuickTunnelCmd {
     pub origin: String,
     /// Port for the local metrics server (and `/quicktunnel`).
     pub metrics_port: u16,
+    /// A file holding [`NEUTRAL_CONFIG`], passed as `--config`. Without it cloudflared
+    /// reads `~/.cloudflared/config.yml` (or `/etc/cloudflared/…`) if there is one, and
+    /// that file's `ingress` rules take precedence over `--url`, so a leftover named
+    /// tunnel config would make the share serve something else or fail.
+    pub config: PathBuf,
+    /// Host header sent to the origin (`--http-host-header`), for dev servers that only
+    /// answer their own address.
+    pub host_header: Option<String>,
 }
 
 impl QuickTunnelCmd {
     /// Builds the launch spec for `binary`.
     pub fn build(&self, binary: &Path) -> CommandSpec {
-        let mut args = common_args(self.metrics_port, LogLevel::Info);
+        let mut args = vec![
+            OsString::from("tunnel"),
+            OsString::from("--config"),
+            self.config.clone().into_os_string(),
+        ];
+        args.extend(
+            common_args(self.metrics_port, LogLevel::Info)
+                .into_iter()
+                .skip(1),
+        );
+        if let Some(host) = &self.host_header {
+            args.extend([OsString::from("--http-host-header"), OsString::from(host)]);
+        }
         args.extend([OsString::from("--url"), OsString::from(&self.origin)]);
         CommandSpec {
             program: binary.to_path_buf(),
@@ -297,12 +322,16 @@ mod tests {
         let spec = QuickTunnelCmd {
             origin: "http://localhost:3000".into(),
             metrics_port: 20301,
+            config: "/data/quick-share.yml".into(),
+            host_header: None,
         }
         .build(Path::new("/opt/homebrew/bin/cloudflared"));
         assert_eq!(
             args(&spec),
             [
                 "tunnel",
+                "--config",
+                "/data/quick-share.yml",
                 "--no-autoupdate",
                 "--output",
                 "json",
@@ -315,6 +344,54 @@ mod tests {
             ]
         );
         assert!(spec.env_names().is_empty());
+    }
+
+    #[test]
+    fn quick_tunnel_never_reads_a_default_config_file() {
+        // A leftover ~/.cloudflared/config.yml has ingress rules that win over --url.
+        // `--config` must come with our neutral file, before any other flag.
+        let spec = QuickTunnelCmd {
+            origin: "http://localhost:5173".into(),
+            metrics_port: 20302,
+            config: "/Users/me/Library/Application Support/t/quick-share.yml".into(),
+            host_header: None,
+        }
+        .build(Path::new("cloudflared"));
+        let a = args(&spec);
+        assert_eq!(
+            a[..3],
+            [
+                "tunnel",
+                "--config",
+                "/Users/me/Library/Application Support/t/quick-share.yml"
+            ]
+        );
+        assert_eq!(a.iter().filter(|x| *x == "--config").count(), 1);
+        assert!(
+            NEUTRAL_CONFIG.lines().any(|line| line == "{}"),
+            "valid, empty YAML"
+        );
+    }
+
+    #[test]
+    fn quick_tunnel_sends_a_host_header_when_asked() {
+        let spec = QuickTunnelCmd {
+            origin: "http://localhost:5173".into(),
+            metrics_port: 20303,
+            config: "/c.yml".into(),
+            host_header: Some("localhost:5173".into()),
+        }
+        .build(Path::new("cloudflared"));
+        let a = args(&spec);
+        assert_eq!(
+            a[a.len() - 4..],
+            [
+                "--http-host-header",
+                "localhost:5173",
+                "--url",
+                "http://localhost:5173"
+            ]
+        );
     }
 
     #[test]

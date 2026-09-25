@@ -12,6 +12,7 @@ publish.workspace = true
 name = "cf_api"
 
 [dependencies]
+base64.workspace = true
 futures-util = { workspace = true, features = ["sink"] }
 reqwest.workspace = true
 serde.workspace = true

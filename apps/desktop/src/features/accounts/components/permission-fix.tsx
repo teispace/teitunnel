@@ -9,6 +9,7 @@ import { t } from "@/lib/i18n";
 import type { Capabilities } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openTokenPage, useAccounts, useAddToken, useCapabilities } from "../queries";
+import { ZeroTrustFix } from "./zero-trust-fix";
 
 /** Something a feature needs the account's credential to be allowed to do. */
 export type PermissionNeed =
@@ -19,7 +20,19 @@ export type PermissionNeed =
   | { kind: "anyDns" }
   /** Cloudflare Load Balancing (a paid add-on); not probed, so shown only on refusal. */
   | { kind: "loadBalancing" }
-  | { kind: "access" };
+  | { kind: "access" }
+  /** Traffic analytics (Cloudflare's GraphQL Analytics; optional feature). */
+  | { kind: "analytics" }
+  /** Snapshots: Workers on the account. */
+  | { kind: "workers" }
+  /** Snapshots: a Custom Domain on a zone. */
+  | { kind: "workersRoutes"; zone: string }
+  /** Edge protection: custom and rate limiting rules, and header rules. */
+  | { kind: "edgeRules" }
+  /** Access service tokens for machines. */
+  | { kind: "serviceTokens" }
+  /** D1 databases: Snapshot comments and webhook inboxes. */
+  | { kind: "d1" };
 
 /** The needs a check found missing ("unknown" isn't: it may just be offline). */
 export function missingNeeds(caps: Capabilities, needs: PermissionNeed[]): PermissionNeed[] {
@@ -41,6 +54,30 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return false;
     case "access":
       return caps.accessEdit === "no";
+    case "analytics":
+      return caps.analytics === "no";
+    case "workers":
+      return caps.workersEdit === "no";
+    case "workersRoutes":
+      return caps.zones.some((z) => z.zoneName === need.zone && z.workersRoutes === "no");
+    case "edgeRules":
+      return caps.edgeRules === "no";
+    case "serviceTokens":
+      return caps.serviceTokens === "no";
+    case "d1":
+      return caps.d1 === "no";
+  }
+}
+
+/** Whether the need is allowed but waits for Zero Trust to be set up on the account. */
+function needsZeroTrust(caps: Capabilities, need: PermissionNeed): boolean {
+  switch (need.kind) {
+    case "access":
+      return caps.accessEdit === "notSetUp";
+    case "serviceTokens":
+      return caps.serviceTokens === "notSetUp";
+    default:
+      return false;
   }
 }
 
@@ -70,6 +107,32 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
         { name: t("permissionFix.accessApps"), why: t("permissionFix.accessAppsWhy") },
         { name: t("permissionFix.accessOrg"), why: t("permissionFix.accessOrgWhy") },
       ];
+    case "analytics":
+      return [
+        { name: t("permissionFix.analytics"), why: t("permissionFix.analyticsWhy") },
+        {
+          name: t("permissionFix.accountAnalytics"),
+          why: t("permissionFix.accountAnalyticsWhy"),
+        },
+      ];
+    case "workers":
+      return [{ name: t("permissionFix.workers"), why: t("permissionFix.workersWhy") }];
+    case "workersRoutes":
+      return [
+        {
+          name: t("permissionFix.workersRoutes"),
+          why: t("permissionFix.workersRoutesWhy", { zone: need.zone }),
+        },
+      ];
+    case "edgeRules":
+      return [
+        { name: t("permissionFix.zoneWaf"), why: t("permissionFix.zoneWafWhy") },
+        { name: t("permissionFix.transformRules"), why: t("permissionFix.transformRulesWhy") },
+      ];
+    case "serviceTokens":
+      return [{ name: t("permissionFix.serviceTokens"), why: t("permissionFix.serviceTokensWhy") }];
+    case "d1":
+      return [{ name: t("permissionFix.d1"), why: t("permissionFix.d1Why") }];
   }
 }
 
@@ -123,7 +186,13 @@ function NewToken({ detail, onConnected }: { detail: string; onConnected: () => 
         )}
       </Field>
       <div>
-        <Button size="sm" variant="primary" disabled={!canSubmit} onClick={submit}>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!canSubmit}
+          pending={addToken.isPending}
+          onClick={submit}
+        >
           {addToken.isPending ? t("connect.checking") : t("connect.connect")}
         </Button>
       </div>
@@ -161,7 +230,7 @@ export function PermissionFix({ accountId, needs, refused = false, onReady }: Pe
   const recheck = useCallback(async () => {
     const { data } = await refetch();
     setChecked(true);
-    if (!data || needs.some((need) => isMissing(data, need))) return;
+    if (!data || needs.some((need) => isMissing(data, need) || needsZeroTrust(data, need))) return;
     toast.success(t("permissionFix.ready"));
     onReady?.();
   }, [refetch, onReady, needs]);
@@ -175,6 +244,10 @@ export function PermissionFix({ accountId, needs, refused = false, onReady }: Pe
   // Wait for both, so the right path shows from the first frame.
   if (!account || caps.isPending) return null;
   const found = caps.data ? needs.filter((need) => isMissing(caps.data, need)) : [];
+  // Allowed, but Zero Trust isn't set up: a new token wouldn't help, setting it up does.
+  if (found.length === 0 && caps.data && needs.some((need) => needsZeroTrust(caps.data, need))) {
+    return <ZeroTrustFix onRetry={recheck} retrying={caps.isFetching} />;
+  }
   const shown = found.length > 0 ? found : refused ? needs : [];
   if (shown.length === 0) return null;
   const list = shown.flatMap(permissions);

@@ -47,7 +47,7 @@ const formats: Record<Kind, { label: string; hint: string }> = {
   deb: { label: ".deb", hint: "Ubuntu, Debian, Mint" },
   rpm: { label: ".rpm", hint: "Fedora, RHEL, openSUSE" },
   appimage: { label: "AppImage", hint: "Any distribution" },
-  cli: { label: "teitunnel-cli", hint: "" },
+  cli: { label: "teitunnel", hint: "" },
 };
 
 const archOrder: Arch[] = ["universal", "x64", "arm64"];
@@ -56,7 +56,7 @@ const archOrder: Arch[] = ["universal", "x64", "arm64"];
 const channels = {
   cask: "brew install --cask teispace/tap/teitunnel",
   formula: "brew install teispace/tap/teitunnel-cli",
-  docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data ghcr.io/teispace/teitunnel",
+  docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel",
   // The signed repositories at teitunnel.teispace.com/linux/ (D-086).
   apt: [
     "curl -fsSL https://teitunnel.teispace.com/linux/teitunnel.asc | sudo gpg --dearmor -o /usr/share/keyrings/teitunnel.gpg",
@@ -160,7 +160,7 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
     {
       id: "cli",
       title: "Command line",
-      requirement: "teitunnel-cli for servers, VMs and containers",
+      requirement: "The teitunnel command, for servers, VMs and containers",
       primary: cliLinux,
       primaryDetail: cliLinux ? `Linux · ${archLabels[cliLinux.arch]} · .tar.gz` : "",
       variants: cliVariants,
@@ -168,7 +168,7 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
         ? [
             {
               label: "Linux",
-              command: `curl -L ${cliLinux.url} | sudo tar -xz -C /usr/local/bin teitunnel-cli`,
+              command: `curl -L ${cliLinux.url} | sudo tar -xz -C /usr/local/bin teitunnel`,
             },
             { label: "Homebrew, on macOS or Linux", command: channels.formula },
             { label: "Docker", command: channels.docker },

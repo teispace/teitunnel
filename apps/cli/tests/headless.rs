@@ -92,6 +92,12 @@ fn adds_routes_and_runs_them_with_a_token_from_the_environment() {
     let list: serde_json::Value = serde_json::from_slice(&tunnels.stdout).unwrap();
     assert_eq!(list.as_array().unwrap().len(), 1, "{list}");
 
+    // The route is monitored; nothing ran the checks yet.
+    let uptime = run(cli(data.path(), &fake, &cloudflared).args(["uptime", "--json"]));
+    let routes: serde_json::Value = serde_json::from_slice(&uptime.stdout).unwrap();
+    assert_eq!(routes[0]["route"]["hostname"], "app.xyz.com", "{routes}");
+    assert!(routes[0]["up"].is_null(), "{routes}");
+
     // `up` runs the connector in the foreground until interrupted.
     let mut up = cli(data.path(), &fake, &cloudflared)
         .arg("up")
@@ -157,6 +163,143 @@ fn says_how_to_use_a_token_without_the_app() {
         .unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("CLOUDFLARE_API_TOKEN"));
+}
+
+/// Runs a command with `input` on its standard input.
+fn run_with_input(command: &mut Command, input: &str) -> Output {
+    use std::io::Write as _;
+    let mut child = command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn applies_a_project_file_once_and_takes_down_what_it_created() {
+    let (Some(api), Some(cloudflared)) = (sibling("fake-cloudflare"), sibling("fake-cloudflared"))
+    else {
+        eprintln!("skipped: build the workspace first (fake-cloudflare, fake-cloudflared)");
+        return;
+    };
+    let fake = fake_cloudflare(&api);
+    let data = tempfile::tempdir().unwrap();
+    let repo = tempfile::tempdir().unwrap();
+    std::fs::write(
+        repo.path().join("teitunnel.yml"),
+        "version: 1\nproject: shop\nroutes:\n  - hostname: \"{project}.xyz.com\"\n    origin: 3000\n    originRequest:\n      httpHostHeader: localhost:3000\n",
+    )
+    .unwrap();
+    let project = |args: &[&str]| {
+        run(cli(data.path(), &fake, &cloudflared)
+            .current_dir(repo.path())
+            .arg("project")
+            .args(args))
+    };
+
+    let diff = project(&["diff"]);
+    let out = text(&diff);
+    assert!(diff.status.success(), "{out}");
+    assert!(
+        out.contains("shop.xyz.com") && out.contains("missing"),
+        "{out}"
+    );
+
+    let applied = project(&["apply", "--yes"]);
+    let out = text(&applied);
+    assert!(applied.status.success(), "{out}");
+    assert!(out.contains("done:"), "{out}");
+
+    // Applying again changes nothing.
+    let again = project(&["apply", "--yes"]);
+    let out = text(&again);
+    assert!(again.status.success(), "{out}");
+    assert!(out.contains("Nothing to change."), "{out}");
+    assert!(out.contains("applied"), "{out}");
+
+    let routes = run(cli(data.path(), &fake, &cloudflared).args(["routes", "--json"]));
+    let list: serde_json::Value = serde_json::from_slice(&routes.stdout).unwrap();
+    assert_eq!(list[0]["hostname"], "shop.xyz.com", "{list}");
+
+    // Only what the project created is removed.
+    let down = project(&["down", "--remove-routes", "--yes"]);
+    let out = text(&down);
+    assert!(down.status.success(), "{out}");
+    assert!(out.contains("Removed shop.xyz.com"), "{out}");
+    let routes = run(cli(data.path(), &fake, &cloudflared).args(["routes", "--json"]));
+    let list: serde_json::Value = serde_json::from_slice(&routes.stdout).unwrap();
+    assert_eq!(list.as_array().map(Vec::len), Some(0), "{list}");
+}
+
+#[test]
+fn moves_the_setup_to_another_computer_without_secrets() {
+    let (Some(api), Some(cloudflared)) = (sibling("fake-cloudflare"), sibling("fake-cloudflared"))
+    else {
+        eprintln!("skipped: build the workspace first (fake-cloudflare, fake-cloudflared)");
+        return;
+    };
+    let fake = fake_cloudflare(&api);
+    let old = tempfile::tempdir().unwrap();
+    let added = run(cli(old.path(), &fake, &cloudflared).args([
+        "route",
+        "add",
+        "app.xyz.com",
+        "3000",
+        "--yes",
+    ]));
+    assert!(added.status.success(), "{}", text(&added));
+    let file = old.path().join("setup.teitunnel-backup");
+    let created = run_with_input(
+        cli(old.path(), &fake, &cloudflared).args([
+            "backup",
+            "create",
+            "--file",
+            file.to_str().unwrap(),
+            "--passphrase-stdin",
+        ]),
+        "correct horse battery\n",
+    );
+    assert!(created.status.success(), "{}", text(&created));
+    let bytes = std::fs::read(&file).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains(TOKEN));
+
+    let new = tempfile::tempdir().unwrap();
+    let restore = |passphrase: &str| {
+        run_with_input(
+            cli(new.path(), &fake, &cloudflared).args([
+                "backup",
+                "restore",
+                file.to_str().unwrap(),
+                "--passphrase-stdin",
+                "--yes",
+            ]),
+            passphrase,
+        )
+    };
+    let wrong = restore("not the passphrase\n");
+    assert!(!wrong.status.success());
+    assert!(
+        text(&wrong).contains("passphrase is wrong"),
+        "{}",
+        text(&wrong)
+    );
+
+    let restored = restore("correct horse battery\n");
+    let out = text(&restored);
+    assert!(restored.status.success(), "{out}");
+    assert!(out.contains("this computer's tunnels"), "{out}");
+    // The new computer runs the same tunnel (its token is fetched when it runs).
+    let tunnels = run(cli(new.path(), &fake, &cloudflared).args(["tunnels", "--json"]));
+    let list: serde_json::Value = serde_json::from_slice(&tunnels.stdout).unwrap();
+    assert_eq!(list.as_array().map(Vec::len), Some(1), "{list}");
 }
 
 fn walk(dir: &Path) -> Vec<PathBuf> {
@@ -321,6 +464,25 @@ fn serves_a_signed_in_dashboard_and_an_api() {
     assert_eq!(
         overview["accounts"][0]["overview"]["routes"][0]["hostname"],
         "app.xyz.com"
+    );
+
+    // Uptime of this machine's routes, read-only under the same sign-in.
+    assert_eq!(http(&addr, "GET", "/api/uptime", &[], None).0, 401);
+    let (status, _, body) = http(&addr, "GET", "/api/uptime", &cookie, None);
+    assert_eq!(status, 200, "{body}");
+    let uptime: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(uptime[0]["route"]["hostname"], "app.xyz.com", "{uptime}");
+    let (status, _, _) = http(
+        &addr,
+        "GET",
+        "/api/uptime?hostname=elsewhere.xyz.com",
+        &cookie,
+        None,
+    );
+    assert_eq!(status, 404);
+    assert_eq!(
+        http(&addr, "GET", "/api/analytics?accountId=x", &[], None).0,
+        401
     );
 
     // A change from the browser needs the header too; the plan comes back in English.

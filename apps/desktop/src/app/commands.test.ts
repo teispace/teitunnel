@@ -12,10 +12,12 @@ const menuCommands: MenuCommand[] = [
   "goOverview",
   "goRoutes",
   "goQuickShare",
+  "goSnapshots",
   "goDomains",
   "goTunnels",
   "goActivity",
   "goDoctor",
+  "goAnalytics",
 ];
 
 describe("appCommands", () => {

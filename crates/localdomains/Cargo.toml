@@ -1,0 +1,41 @@
+[package]
+name = "teitunnel-localdomains"
+description = "Local HTTPS domains: a name-constrained local CA, on-demand leaf certificates, trust installation and name resolution"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "localdomains"
+
+[dependencies]
+rcgen.workspace = true
+rustls.workspace = true
+time.workspace = true
+zeroize.workspace = true
+hickory-proto.workspace = true
+mdns-sd.workspace = true
+plist.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+sha2.workspace = true
+base64.workspace = true
+sha1.workspace = true
+x509-parser.workspace = true
+uuid.workspace = true
+sysinfo.workspace = true
+tokio = { workspace = true, features = ["net", "process", "io-util", "rt", "sync", "time", "fs"] }
+tokio-util.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "net"] }
+
+[lints]
+workspace = true

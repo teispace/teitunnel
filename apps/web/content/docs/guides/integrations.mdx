@@ -1,0 +1,146 @@
+---
+title: Links and integrations
+description: "Open routes and shares in Teitunnel with teitunnel:// links from launchers, scripts and web pages, and let the teitunnel command and editor extensions use the running app through its local control connection."
+---
+
+The Teitunnel app can be driven from outside its window: by `teitunnel://` links, and by
+programs on your computer (the `teitunnel` command, editor extensions, launchers) through
+a local control connection. You control both in **Settings ▸ Integrations**.
+
+## teitunnel:// links
+
+| Link | Does |
+|---|---|
+| `teitunnel://share?port=3000` | Asks whether to share `localhost:3000`, then shares it in Quick Share. |
+| `teitunnel://open` | Brings Teitunnel to the front. |
+| `teitunnel://open?route=app.example.com` | Opens the route in **Routes**. |
+| `teitunnel://open?share=<id>` | Opens Quick Share. |
+| `teitunnel://inspect?share=<id>` | Opens the share's requests. |
+
+Use them from Raycast or Alfred, a script (`open teitunnel://share?port=3000` on macOS,
+`start` on Windows, `xdg-open` on Linux) or a link on a page.
+
+Any web page can open a link, so a link never shares anything on its own: Teitunnel asks
+first, every time, and only one question is shown at a time. Links that only open a view
+don't ask. Teitunnel ignores links with anything it doesn't expect (other parameters,
+repeated ones, a port that isn't a number). Turn links off with **Open teitunnel://
+links**.
+
+The installers register the link type on macOS, Windows and Linux (`.deb`, `.rpm`). An
+AppImage is registered only if your AppImage launcher does it.
+
+## The control connection
+
+While the app runs, programs on your computer can ask it for its status, shares and
+routes, share a port, stop a share, open a view, run the Doctor, or change routes through
+a plan you review. The `teitunnel` command uses it for `share`, `shares`, `routes`,
+`status` and `top` (see [Command line](/docs/reference/cli/#with-the-app-running)).
+
+- **Only you:** it's a Unix socket (macOS, Linux) or a named pipe (Windows) that only your
+  user can open. Nothing listens on the network.
+- **A secret, too:** each program presents a random token from a file only you can read.
+- **You approve changes:** sharing, stopping a share or changing routes shows a dialog
+  naming the program. **Always Allow** skips the question for that program from then on;
+  it's listed under **Always allowed** in Settings ▸ Integrations, where **Remove** undoes
+  it. Replacing or deleting DNS records Teitunnel didn't create is asked about every time.
+- **Recorded:** route changes show up in **Activity** with the program's name.
+
+Turn it off with **Allow connections**: open connections close, and `teitunnel` works on
+its own again.
+
+## Editors and launchers
+
+Each extension talks to the running app through the control connection, so the app has to
+be running (it starts at login if you turn on **Open at login**). When it isn't, they say
+so and offer **Open Teitunnel**, and connect as soon as it's up. They introduce themselves
+as `vscode`, `raycast` and `jetbrains`: that's the name in the approval dialog and under
+**Always allowed**.
+
+### VS Code, Cursor and Windsurf
+
+Install **Teitunnel** from the VS Code Marketplace, or from Open VSX in Cursor and
+Windsurf (or **Extensions ▸ … ▸ Install from VSIX…** with a `.vsix` file). It adds:
+
+- **Teitunnel: Share This Workspace's Dev Server**: finds the port in `package.json`
+  scripts (Vite, Next.js, Astro, Angular, webpack, Storybook, …) or from the framework
+  (Django, Rails, Laravel, Flask, Jekyll, Hugo), checks something is listening, shares it
+  and copies the address. With several running it asks which one.
+- **Teitunnel: Share Port…**, and **Share with Teitunnel** on any port in the **Ports**
+  view (in a remote window it shares the forwarded local port).
+- A **Teitunnel** view with your shares and routes: copy an address, open it, stop a
+  share, open its requests (**Open Inspector**), or show it in Teitunnel.
+- A status bar item with the number of live shares; **Teitunnel: Run Doctor**.
+- Request notifications, off by default: turn on `teitunnel.notifyRequests` to hear about
+  requests to inspected shares (at most one notification every few seconds).
+
+The extension runs on your computer even in remote windows (SSH, containers, WSL), where
+the app is.
+
+### Raycast
+
+Install **Teitunnel** from the Raycast Store (macOS and Windows). Commands: **Share Port**
+(copies the address), **List Shares** (copy, open, open the inspector, stop), **Open
+Teitunnel** and **Run Doctor**. Without the extension, `teitunnel://` links work from
+Raycast quicklinks too.
+
+### JetBrains IDEs
+
+Install **Teitunnel** from **Settings ▸ Plugins ▸ Marketplace** (IntelliJ IDEA,
+WebStorm, PyCharm and the other IDEs, 2025.3 or later). It adds a **Teitunnel** tool
+window with your shares and routes (copy, open, open the inspector, stop), **Tools ▸
+Teitunnel** (Share Port…, Run Doctor, Open Teitunnel) and a status bar widget.
+
+### The menu bar and a global shortcut
+
+The menu bar (tray) icon shares a running dev server in one click, copies recent
+addresses, and pauses or stops every share; see [The menu bar and tray](/docs/guides/menu-bar/).
+**Settings ▸ Integrations ▸ Global shortcut** (off by default) shares your dev server from
+any app: it shares the one that's running and copies its address, or opens Quick Share
+when there are none or several. If another app already uses the keys, Teitunnel says so
+and keeps the previous shortcut. Global shortcuts don't work in Wayland sessions on Linux.
+
+## For extension authors
+
+The protocol is newline-delimited [JSON-RPC 2.0](https://www.jsonrpc.org/specification):
+one JSON message per line, at most 1 MiB.
+
+**Where:** in Teitunnel's data folder (`~/Library/Application Support/com.teispace.teitunnel`
+on macOS, `%APPDATA%\com.teispace.teitunnel` on Windows,
+`~/.local/share/com.teispace.teitunnel` on Linux), the `control` folder holds `token` and
+either `sock` (the Unix socket) or `pipe` (a file with the named pipe's name).
+
+**Hello first:** within 5 seconds of connecting, send
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"hello","params":{"protocol":1,"token":"<contents of control/token>","client":{"name":"my-extension","version":"1.0.0"}}}
+```
+
+The answer names the app's version, whether your program is always allowed, and the
+methods and events available. A wrong token or protocol version closes the connection.
+
+| Method | Parameters | Answer |
+|---|---|---|
+| `status` | none | accounts, this machine's tunnels, every share |
+| `shares.list` | none | every share (`id`, `kind`, `url`, `origin`, `status`, `requests`…) |
+| `shares.start` | `origin` (`"3000"`, `host:port` or a URL), `stopAfterSeconds`, `hostHeader` (`{"mode":"auto"}`, `{"mode":"off"}` or `{"mode":"set","value":"localhost:5173"}`) | the share once it has its address |
+| `shares.stop` | `id` (a share's id, URL or hostname) | `{}` |
+| `routes.list` | `account` (id or name; needed with several) | the account, its tunnels and routes with status |
+| `routes.preview` | `account`, `tunnel`, `change` (e.g. `{"type":"addRoute","route":{"hostname":"app.example.com","origin":"3000"}}`) | the plan: steps, warnings, `fingerprint` |
+| `routes.apply` | the same, plus `fingerprint` and `confirmed` | how it ended, and hostnames to check |
+| `open` | `{"view":"route","hostname":"…"}`, `{"view":"share","id":"…"}`, `{"view":"inspector","share":"…"}`, `{"view":"doctor"}` or `{"view":"overview"}` | `{}` |
+| `doctor.run` | none | the problems found |
+| `events.subscribe` | `events` (default: all) | then notifications `{"method":"event","params":{"type":"sharesChanged"}}` |
+
+Events are `sharesChanged`, `routesChanged` and `requestArrived`; ignore types you don't
+know, since new ones will be added. `requestArrived` carries `share` (a share's id, or a
+route's hostname), `method`, `path` (secrets masked, as in the inspector), `status` and
+`durationMs`, once per finished request to an inspected share or route; bursts are
+thinned to at most 40 a second, so treat it as a live feed, not a complete log.
+
+A TypeScript client without dependencies (Node 20+), used by the VS Code and Raycast
+extensions, is in the repository at `integrations/control-client`. Errors use JSON-RPC's codes plus Teitunnel's: `-32001`
+unauthorized, `-32002` too many requests, `-32003` the person said no, `-32004` the plan
+needs `confirmed`, `-32005` Cloudflare changed since the preview (the new plan is in
+`data`), `-32007` message too large, `-32008` not found, `-32009` timed out, `-32010`
+unsupported protocol version. A connection may send 20 requests a second (bursts of 40)
+and 12 changes a minute.

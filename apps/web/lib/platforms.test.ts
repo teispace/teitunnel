@@ -74,7 +74,7 @@ describe("download panels", () => {
     const cli = get(list, "cli").commands.map((c) => c.command);
     assert.match(cli[0] ?? "", /cli_linux-x64\.tar\.gz \| sudo tar -xz/);
     assert.ok(cli.includes("brew install teispace/tap/teitunnel-cli"));
-    assert.ok(cli.some((c) => c.endsWith("ghcr.io/teispace/teitunnel")));
+    assert.ok(cli.some((c) => c.endsWith(" teispace/teitunnel")));
     assert.deepEqual(
       get(list, "macos").commands.map((c) => c.command),
       ["brew install --cask teispace/tap/teitunnel"],

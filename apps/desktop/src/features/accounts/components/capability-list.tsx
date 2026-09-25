@@ -8,22 +8,19 @@ import { PermissionFix, type PermissionNeed } from "./permission-fix";
 
 function GrantIcon({ grant }: { grant: Grant }) {
   const Icon = grant === "yes" ? Check : grant === "no" ? X : Minus;
-  return (
-    <Icon
-      aria-label={
-        grant === "yes"
-          ? t("capabilities.allowed")
-          : grant === "no"
-            ? t("capabilities.notAllowed")
-            : t("capabilities.unknown")
-      }
-      className={cn(
-        "size-3.5 shrink-0",
-        grant === "yes" ? "text-healthy" : grant === "no" ? "text-error" : "text-tertiary",
-      )}
-      strokeWidth={2.5}
-    />
-  );
+  const label = {
+    yes: t("capabilities.allowed"),
+    no: t("capabilities.notAllowed"),
+    unknown: t("capabilities.unknown"),
+    notSetUp: t("capabilities.notSetUp"),
+  }[grant];
+  const tone = {
+    yes: "text-healthy",
+    no: "text-error",
+    unknown: "text-tertiary",
+    notSetUp: "text-warning",
+  }[grant];
+  return <Icon aria-label={label} className={cn("size-3.5 shrink-0", tone)} strokeWidth={2.5} />;
 }
 
 function Row({ grant, label }: { grant: Grant; label: string }) {
@@ -58,6 +55,7 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
           { kind: "tunnels" },
           ...caps.zones.map((z) => ({ kind: "dns" as const, zone: z.zoneName })),
           { kind: "access" },
+          { kind: "workers" },
         ]
       : [{ kind: "tunnels" }, ...(zone ? [{ kind: "dns" as const, zone }] : [])];
   return (
@@ -77,7 +75,13 @@ export function CapabilityList({ accountId, zoneId }: { accountId: string; zoneI
             />
           ))}
         {zoneId === undefined ? (
-          <Row grant={caps.accessEdit} label={t("capabilities.access")} />
+          <>
+            <Row grant={caps.accessEdit} label={t("capabilities.access")} />
+            <Row grant={caps.workersEdit} label={t("capabilities.workers")} />
+            <Row grant={caps.edgeRules} label={t("capabilities.edgeRules")} />
+            <Row grant={caps.serviceTokens} label={t("capabilities.serviceTokens")} />
+            <Row grant={caps.d1} label={t("capabilities.d1")} />
+          </>
         ) : null}
       </ul>
       <PermissionFix accountId={accountId} needs={needs} />

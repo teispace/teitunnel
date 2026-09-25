@@ -36,7 +36,7 @@
           ],
           "state": "followsWindowActiveState"
         },
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "tabbingIdentifier": "teitunnel-main"
       }
     ],
@@ -99,9 +99,19 @@
           "libayatana-appindicator3.so.1()(64bit)"
         ]
       }
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["teitunnel"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY2Rjk0NzU5OEEzQ0Y3QzgKUldUSTl6eUtXVWY1WmpBWUI5N1pvVHpuN3orUmZOU3FURG5TNVo2Q1V4dmRnRGFTMTVzVVNrTSsK",
       "endpoints": [

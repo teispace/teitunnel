@@ -18,6 +18,14 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
+	/**  The AI clients on this computer and whether each is connected. */
+	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
+	/**  Agents connected now, and approvals waiting. */
+	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
+	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
+	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
+	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
+	aiClientsDisconnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_disconnect", { clientId }),
 	/**  Checks for an update now (and downloads it), even with automatic checks off. */
 	updatesCheck: () => __TAURI_INVOKE<UpdateStatus>("updates_check"),
 	/**  Quits, installs the downloaded update and starts the new version. */
@@ -63,19 +71,70 @@ export const commands = {
 	/**
 	 *  Shares a local service at a hostname on one of the account's domains, through this
 	 *  Mac's tunnel, until it's stopped, `stop_after_minutes` pass, or Teitunnel quits. Never
-	 *  replaces a DNS record Teitunnel didn't create.
+	 *  replaces a DNS record Teitunnel didn't create. `{project}`, `{branch}` and `{user}` in
+	 *  the hostname are filled in from `folder` (the service's project folder), and the
+	 *  name is remembered for it.
 	 */
 	domainSharesStart: (accountId: string, hostname: string, origin: string, stopAfterMinutes: number | null, access: {
 	/**  Email addresses, e.g. `me@xyz.com`. */
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
-} | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access }),
+} | null, hostHeader: HostHeaderChoice, folder: string | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader, folder }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
-	/**  Quick Shares running in terminals (`teitunnel-cli share`), oldest first. */
+	/**
+	 *  Pauses (`paused`) or resumes a share on your domain or a route: the address stays,
+	 *  and visitors get a "paused" page from this Mac's inspector until it's resumed.
+	 */
+	sharingSetPaused: (accountId: string, hostname: string, paused: boolean) => __TAURI_INVOKE<null>("sharing_set_paused", { accountId, hostname, paused }),
+	/**  Schedules of shares and routes, with whether each is on now and when it changes. */
+	sharingSchedules: () => __TAURI_INVOKE<RouteSchedule[]>("sharing_schedules"),
+	/**
+	 *  Sets (or, with `null`, removes) when a share on your domain or a route is on. The
+	 *  app applies it within 30 seconds.
+	 */
+	sharingSetSchedule: (accountId: string, hostname: string, schedule: {
+	/**  The days a window starts on, Monday first. */
+	days: Weekday[],
+	/**  Start, `HH:MM` (24-hour). */
+	from: string,
+	/**  End, `HH:MM`. Earlier than `from`: the next day. Equal: the whole day. */
+	to: string,
+	/**  An IANA time zone, e.g. `Europe/Berlin` (`None`: this computer's). */
+	timeZone: string | null,
+} | null) => __TAURI_INVOKE<null>("sharing_set_schedule", { accountId, hostname, schedule }),
+	/**
+	 *  Names to offer for a share on `domain` of a service in `folder` (or known only by
+	 *  its `project` name): the one used there last, `{project}`, `{branch}-{project}`…
+	 */
+	sharingNameSuggestions: (domain: string, folder: string | null, project: string | null) => __TAURI_INVOKE<NameSuggestion[]>("sharing_name_suggestions", { domain, folder, project }),
+	/**
+	 *  Fills in a hostname's `{project}`, `{branch}` and `{user}` for a share of a service
+	 *  in `folder` (to show what it becomes).
+	 */
+	sharingExpandName: (hostname: string, folder: string | null) => __TAURI_INVOKE<string>("sharing_expand_name", { hostname, folder }),
+	/**
+	 *  Checks a folder chosen or dropped for sharing (it must exist and not be the whole
+	 *  disk or the home folder).
+	 */
+	sharingFolder: (path: string, listing: boolean, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
+	/**  Asks the person to choose a folder to share (a native panel). `null`: cancelled. */
+	sharingChooseFolder: () => __TAURI_INVOKE<string | null>("sharing_choose_folder"),
+	/**
+	 *  Shares a folder at a hostname on one of the account's domains: this Mac's inspector
+	 *  serves its files (never secrets or tooling) until it's stopped, `stop_after_minutes`
+	 *  pass, or Teitunnel quits.
+	 */
+	sharingStartFolderOnDomain: (accountId: string, hostname: string, folder: FolderShare, stopAfterMinutes: number | null, access: {
+	/**  Email addresses, e.g. `me@xyz.com`. */
+	emails: string[],
+	/**  Email domains, e.g. `xyz.com`. */
+	emailDomains: string[],
+} | null) => __TAURI_INVOKE<Outcome>("sharing_start_folder_on_domain", { accountId, hostname, folder, stopAfterMinutes, access }),
+	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
 	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
-	/**  Stops a terminal's Quick Share (asks its `teitunnel-cli` to end). */
+	/**  Stops a terminal's Quick Share (asks its `teitunnel` to end). */
 	quickShareCliStop: (owner: string) => __TAURI_INVOKE<null>("quick_share_cli_stop", { owner }),
 	/**  The cloudflared binary in use, or `null` if none is installed. */
 	binaryStatus: () => __TAURI_INVOKE<{
@@ -96,8 +155,29 @@ export const commands = {
 	binaryReveal: () => __TAURI_INVOKE<null>("binary_reveal"),
 	/**  Services listening on this Mac and Docker containers' ports, likely dev servers first. */
 	servicesList: () => __TAURI_INVOKE<LocalService[]>("services_list"),
-	/**  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`. */
-	quickShareStart: (origin: string, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes }),
+	/**
+	 *  Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`.
+	 *  `inspect` chooses whether it goes through the inspector (`null`: the setting, on by
+	 *  default).
+	 */
+	quickShareStart: (origin: string, stopAfterMinutes: number | null, hostHeader: HostHeaderChoice, inspect: boolean | null) => __TAURI_INVOKE<QuickShare>("quick_share_start", { origin, stopAfterMinutes, hostHeader, inspect }),
+	/**
+	 *  Shares a folder at a random trycloudflare.com address: this Mac's inspector serves
+	 *  its files (never secrets or tooling), with an optional listing and single-page-app
+	 *  fallback. Returns at once; the URL arrives with `EntityChanged`.
+	 */
+	quickShareStartFolder: (folder: FolderShare, stopAfterMinutes: number | null) => __TAURI_INVOKE<QuickShare>("quick_share_start_folder", { folder, stopAfterMinutes }),
+	/**
+	 *  Sends `host_header` to a share's service (`null`: none), for a dev server that
+	 *  refuses the public address. An inspected share changes at once and keeps its URL;
+	 *  otherwise it restarts with a new URL. Either way it's checked again once live.
+	 */
+	quickShareSetHostHeader: (id: string, hostHeader: string | null) => __TAURI_INVOKE<QuickShare>("quick_share_set_host_header", { id, hostHeader }),
+	/**
+	 *  Checks a live share through Cloudflare again (e.g. after changing the dev server's
+	 *  config).
+	 */
+	quickShareCheck: (id: string) => __TAURI_INVOKE<Verification>("quick_share_check", { id }),
 	/**  Stops a share. */
 	quickShareStop: (id: string) => __TAURI_INVOKE<null>("quick_share_stop", { id }),
 	/**  Running shares, newest first. */
@@ -270,12 +350,317 @@ export const commands = {
 	 *  added as it is (it can take a minute: it runs traceroutes).
 	 */
 	diagnosticsExport: (includeCloudflared: boolean) => __TAURI_INVOKE<string>("diagnostics_export", { includeCloudflared }),
+	/**
+	 *  Traffic of `hostnames` (in one of the account's domains) side by side, from
+	 *  Cloudflare's edge. Cached, so polling it is cheap.
+	 */
+	analyticsSummary: (accountId: string, hostnames: string[], range: AnalyticsRange) => __TAURI_INVOKE<AnalyticsSummary>("analytics_summary", { accountId, hostnames, range }),
+	/**  One route's traffic in detail, from Cloudflare's edge. */
+	analyticsRoute: (accountId: string, hostname: string, path: string | null, range: AnalyticsRange) => __TAURI_INVOKE<RouteStats>("analytics_route", { accountId, hostname, path, range }),
+	/**  Uptime of every route this Mac serves. */
+	uptimeList: () => __TAURI_INVOKE<UptimeSummary[]>("uptime_list"),
+	/**
+	 *  One route's uptime over `range` (null when this Mac doesn't serve it). `path` is the
+	 *  route's path rule, as in the routes view.
+	 */
+	uptimeRoute: (hostname: string, path: string | null, range: AnalyticsRange) => __TAURI_INVOKE<{
+	/**  The summary. */
+	summary: UptimeSummary,
+	/**  90 slices of the range, oldest first. */
+	bars: UptimeBar[],
+	/**  Response times over the range. */
+	latency: LatencySeries,
+	/**  Incidents in the range, newest first. */
+	incidents: Incident[],
+} | null>("uptime_route", { hostname, path, range }),
+	/**  The alert rules. */
+	alertsGet: () => __TAURI_INVOKE<AlertRules>("alerts_get"),
+	/**  Saves the alert rules (values out of range are brought into it) and returns them. */
+	alertsSet: (rules: AlertRules) => __TAURI_INVOKE<AlertRules>("alerts_set", { rules }),
+	/**  Snapshots in every account, by name. */
+	snapshotsList: () => __TAURI_INVOKE<SnapshotView[]>("snapshots_list"),
+	/**  A Snapshot's kept versions, newest first. */
+	snapshotsVersions: (snapshotId: string) => __TAURI_INVOKE<SnapshotVersionView[]>("snapshots_versions", { snapshotId }),
+	/**  Asks for a folder with the system's open panel. `None` when cancelled. */
+	snapshotsChooseFolder: () => __TAURI_INVOKE<string | null>("snapshots_choose_folder"),
+	/**  Recognises the web project in a folder: framework, build command, output folder. */
+	snapshotsDetectProject: (dir: string) => __TAURI_INVOKE<Project>("snapshots_detect_project", { dir }),
+	/**  Collects a folder's files for publishing (nothing is sent anywhere). */
+	snapshotsPrepareFolder: (path: string) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_folder", { path }),
+	/**
+	 *  Builds a project with its package manager (after the user confirmed the command),
+	 *  streaming its output, then collects the files it produced.
+	 */
+	snapshotsPrepareBuild: (dir: string, onOutput: Channel<string>) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_build", { dir, onOutput }),
+	/**  Captures a site running on this computer (e.g. a dev server) by crawling it. */
+	snapshotsPrepareCrawl: (url: string) => __TAURI_INVOKE<PreparedView>("snapshots_prepare_crawl", { url }),
+	/**  Plans a Snapshot change for review. Nothing is changed. */
+	snapshotsPreview: (accountId: string, change: SnapshotChange) => __TAURI_INVOKE<PlanView>("snapshots_preview", { accountId, change }),
+	/**
+	 *  Applies a reviewed Snapshot change; step progress (and upload progress) streams on
+	 *  `on_progress`.
+	 */
+	snapshotsApply: (accountId: string, change: SnapshotChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("snapshots_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  The Integrations settings. */
+	integrationsGet: () => __TAURI_INVOKE<Integrations>("integrations_get"),
+	/**
+	 *  Turns the control connection or links on or off, or changes the global shortcut.
+	 *  Turning the connection off closes every open connection. A shortcut the system
+	 *  refuses (another app has it) isn't saved: the previous one stays.
+	 */
+	integrationsSet: (patch: IntegrationsPatch) => __TAURI_INVOKE<Integrations>("integrations_set", { patch }),
+	/**  Stops always allowing a program: its next change is asked about again. */
+	integrationsRevoke: (name: string) => __TAURI_INVOKE<Integrations>("integrations_revoke", { name }),
+	/**  The account's reserved hostnames and who holds them (the cache when offline). */
+	reservationsList: (accountId: string) => __TAURI_INVOKE<Reservations>("reservations_list", { accountId }),
+	/**  Whether `hostname` is free, yours, or held by someone else (one DNS read). */
+	reservationsAvailability: (accountId: string, hostname: string) => __TAURI_INVOKE<Availability>("reservations_availability", { accountId, hostname }),
+	/**  What Teitunnel enforces for a hostname at the edge, with the zone's quotas. */
+	protectionGet: (accountId: string, hostname: string) => __TAURI_INVOKE<ProtectionView>("protection_get", { accountId, hostname }),
+	/**  Teitunnel's service tokens for a hostname, with their expiry. */
+	protectionTokens: (accountId: string, hostname: string) => __TAURI_INVOKE<ServiceTokenView[]>("protection_tokens", { accountId, hostname }),
+	/**  Plans a protection change for review. Nothing is changed. */
+	protectionPreview: (accountId: string, change: ProtectionChange) => __TAURI_INVOKE<PlanView>("protection_preview", { accountId, change }),
+	/**  Applies a reviewed protection change; step progress streams on `on_progress`. */
+	protectionApply: (accountId: string, change: ProtectionChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<ProtectionOutcome>("protection_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  Copies a new token's secret (or both headers) to the clipboard, from Rust. */
+	protectionCopySecret: (tokenId: string, what: SecretCopy) => __TAURI_INVOKE<null>("protection_copy_secret", { tokenId, what }),
+	/**  Forgets a new token's secret (its sheet was closed). */
+	protectionForgetSecret: (tokenId: string) => __TAURI_INVOKE<null>("protection_forget_secret", { tokenId }),
+	/**  Projects this Mac knows, by name. */
+	projectsList: () => __TAURI_INVOKE<ProjectEntry[]>("projects_list"),
+	/**  Asks for a project's folder with the system's open panel. `None` when cancelled. */
+	projectsChooseFolder: () => __TAURI_INVOKE<string | null>("projects_choose_folder"),
+	/**  Opens a project (a folder with a `teitunnel.yml`, or the file) and remembers it. */
+	projectsAdd: (path: string) => __TAURI_INVOKE<ProjectEntry>("projects_add", { path }),
+	/**  Forgets a project (nothing it applied is changed). */
+	projectsRemove: (path: string) => __TAURI_INVOKE<null>("projects_remove", { path }),
+	/**  When the project file last changed (a cheap check, polled to notice edits). */
+	projectsModified: (path: string) => __TAURI_INVOKE<number | null>("projects_modified", { path }),
+	/**
+	 *  Reads a project file and plans it: every declared item's state and what applying
+	 *  would change. Nothing is changed.
+	 */
+	projectsStatus: (path: string) => __TAURI_INVOKE<ProjectStatus_Serialize>("projects_status", { path }),
+	/**
+	 *  Applies a reviewed project plan (by fingerprint: a plan that changed since is
+	 *  refused): its routes, its Snapshots, then its shares, which run until stopped or
+	 *  Teitunnel quits. `confirmed` allows replacing DNS records Teitunnel didn't create.
+	 */
+	projectsApply: (path: string, fingerprint: string, confirmed: boolean) => __TAURI_INVOKE<ProjectApplied>("projects_apply", { path, fingerprint, confirmed }),
+	/**
+	 *  Checks a local service for common leaks (a `.env` file, the git folder, debug pages,
+	 *  open admin panels…), directly and within 2 seconds. `None` when the check is off in
+	 *  Settings.
+	 */
+	exposureCheck: (origin: string) => __TAURI_INVOKE<{
+	/**  The service checked. */
+	origin: string,
+	/**  What was found, worst first. */
+	findings: ExposureFinding[],
+	/**  Requests made. */
+	requests: number,
+	/**  Some requests didn't finish in time (their answers weren't checked). */
+	incomplete: boolean,
+	/**  How long it took. */
+	elapsedMs: number,
+} | null>("exposure_check", { origin }),
+	/**  Asks where to save a backup (the system's save panel). `None` when cancelled. */
+	backupChooseSave: () => __TAURI_INVOKE<string | null>("backup_choose_save"),
+	/**  Asks for a backup to restore (the system's open panel). `None` when cancelled. */
+	backupChooseOpen: () => __TAURI_INVOKE<string | null>("backup_choose_open"),
+	/**  Writes an encrypted backup of this Mac's setup to `path` (no tokens or passwords). */
+	backupCreate: (path: string, passphrase: string) => __TAURI_INVOKE<null>("backup_create", { path, passphrase }),
+	/**
+	 *  Reads and decrypts a backup and says what restoring it would bring and replace.
+	 *  Nothing changes until `backup_restore`.
+	 */
+	backupInspect: (path: string, passphrase: string) => __TAURI_INVOKE<BackupPreview>("backup_inspect", { path, passphrase }),
+	/**  Restores the backup `backup_inspect` read (the one shown to the user). */
+	backupRestore: (id: string) => __TAURI_INVOKE<null>("backup_restore", { id }),
+	/**  The inspector's settings. */
+	inspectSettingsGet: () => __TAURI_INVOKE<InspectorSettings>("inspect_settings_get"),
+	/**  Changes the inspector's settings. */
+	inspectSettingsSet: (patch: InspectorSettingsPatch) => __TAURI_INVOKE<InspectorSettings>("inspect_settings_set", { patch }),
+	/**  Running taps (inspected shares and routes). */
+	inspectTaps: () => __TAURI_INVOKE<TapView[]>("inspect_taps"),
+	/**  Every tap captures refer to: running, stopped, or from the history. */
+	inspectKnownTaps: () => __TAURI_INVOKE<KnownTap[]>("inspect_known_taps"),
+	/**  A page of captured requests, newest first, masked. */
+	inspectExchanges: (query: ExchangeQuery) => __TAURI_INVOKE<ExchangePage>("inspect_exchanges", { query }),
+	/**
+	 *  One captured request in full: masked, or revealed (only when the person clicked to
+	 *  reveal secrets).
+	 */
+	inspectExchange: (id: ExchangeId, reveal: boolean) => __TAURI_INVOKE<ExchangeDetail>("inspect_exchange", { id, reveal }),
+	/**
+	 *  Streams changes to captured requests on `on_batch`, at most every 100 ms, until
+	 *  `inspect_unsubscribe` with the returned id (or the window goes away).
+	 */
+	inspectSubscribe: (onBatch: Channel<LiveBatch>) => __TAURI_INVOKE<number>("inspect_subscribe", { onBatch }),
+	/**  Stops a live subscription. */
+	inspectUnsubscribe: (id: number) => __TAURI_INVOKE<void>("inspect_unsubscribe", { id }),
+	/**  Sends a captured request to its service again: edited, repeated, re-signed. */
+	inspectReplay: (id: ExchangeId, input: ReplayInput) => __TAURI_INVOKE<ExchangeRow[]>("inspect_replay", { id, input }),
+	/**
+	 *  Captured requests as cURL, HTTPie, fetch, raw HTTP, HAR, JSON or Markdown; secrets
+	 *  are masked unless `redact` is false (an explicit choice).
+	 */
+	inspectExport: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export", { ids, format, redact }),
+	/**  Saves an export to Downloads and shows it in the file manager. Returns its path. */
+	inspectExportSave: (ids: ExchangeId[], format: TrafficFormat, redact: boolean) => __TAURI_INVOKE<string>("inspect_export_save", { ids, format, redact }),
+	/**
+	 *  Describes the API the captured requests show as OpenAPI 3.1 (to `host`, or every
+	 *  host), saves it to Downloads as JSON and shows it in the file manager. Returns what
+	 *  went into it and where it is.
+	 */
+	inspectOpenapiSave: (host: string | null) => __TAURI_INVOKE<OpenApiSaved>("inspect_openapi_save", { host }),
+	/**  Forgets captured requests of one tap, or all (in memory and on disk). */
+	inspectClear: (tap: string | null) => __TAURI_INVOKE<null>("inspect_clear", { tap }),
+	/**
+	 *  Changes a tap's settings at once: capturing, the paused page, stubs, header rules,
+	 *  network simulation, faults, stream keep-alive, the Host header, watched paths, idle
+	 *  stop.
+	 */
+	inspectConfigure: (tap: TapId, patch: TapPatch) => __TAURI_INVOKE<TapView>("inspect_configure", { tap, patch }),
+	/**
+	 *  Changes a tap's protection. A generated secret link key or bearer token is in the
+	 *  answer once; passwords go in and never come back.
+	 */
+	inspectProtect: (tap: TapId, input: ProtectionInput) => __TAURI_INVOKE<ProtectionResult>("inspect_protect", { tap, input }),
+	/**  A tap's counters and latency percentiles. */
+	inspectMetrics: (tap: TapId) => __TAURI_INVOKE<MetricsSnapshot>("inspect_metrics", { tap }),
+	/**
+	 *  Webhook senders with a signing secret saved for a tap's share or route (never the
+	 *  secrets).
+	 */
+	inspectWebhookSecrets: (tap: TapId) => __TAURI_INVOKE<WebhookSender[]>("inspect_webhook_secrets", { tap }),
+	/**  Saves a webhook signing secret in the keychain for a tap's share or route. */
+	inspectWebhookSecretSet: (tap: TapId, provider: WebhookSender, secret: string) => __TAURI_INVOKE<null>("inspect_webhook_secret_set", { tap, provider, secret }),
+	/**  Removes a saved webhook signing secret. */
+	inspectWebhookSecretRemove: (tap: TapId, provider: WebhookSender) => __TAURI_INVOKE<null>("inspect_webhook_secret_remove", { tap, provider }),
+	/**  Checks a captured webhook's signature with the saved secret (`null`: not a webhook). */
+	inspectWebhookVerify: (id: ExchangeId) => __TAURI_INVOKE<{
+	/**  Who sent it. */
+	provider: WebhookSender,
+	/**  Whether a signing secret is saved for this share or route. */
+	hasSecret: boolean,
+	/**  The result, when a secret is saved. */
+	verification: WebhookVerdict | null,
+} | null>("inspect_webhook_verify", { id }),
+	/**  Routes pointed at an inspector, in every account. */
+	inspectRoutes: () => __TAURI_INVOKE<InspectedRoute[]>("inspect_routes"),
+	/**
+	 *  Plans inspecting a route (`on`: point it at the inspector) or ending it (back to its
+	 *  own service), for review. `null`: nothing to change (ending an inspection whose
+	 *  route is gone or was changed since).
+	 */
+	inspectRoutePreview: (accountId: string, hostname: string, path: string | null, on: boolean) => __TAURI_INVOKE<{
+	/**  The change (an edit of the route's service). */
+	change: Change_Serialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+} | null>("inspect_route_preview", { accountId, hostname, path, on }),
+	/**
+	 *  Applies a reviewed [`inspect_route_preview`] plan. Inspection lasts while the app
+	 *  runs: it's reverted on quit (and after a crash, at the next launch).
+	 */
+	inspectRouteApply: (accountId: string, hostname: string, path: string | null, on: boolean, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<
+/**  Every step succeeded. */
+{ type: "applied"; 
+/**  This Mac's tunnel afterwards (None once deleted). */
+tunnelId: string | null; 
+/**  Hostnames to verify next. */
+verify: string[]; 
+/**  The connector couldn't be started (the routes are configured, though). */
+connectorError: Text | null } | 
+/**  A step failed and everything done before it was undone. */
+{ type: "rolledBack"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: Text } | 
+/**  A step failed and some earlier changes couldn't be undone. */
+{ type: "partiallyApplied"; 
+/**  Index of the failed step. */
+failedStep: number; 
+/**  Why it failed. */
+error: Text; 
+/**  What was left in place. */
+leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, on, fingerprint, confirmed, onProgress }),
+	/**
+	 *  Turns inspection of a running share on or off. cloudflared restarts, so the share
+	 *  gets a new URL (the UI says so before).
+	 */
+	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
+	/**  The domains, the listeners, `.test` names and the CA (no prompts). */
+	localDomainsStatus: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_status"),
+	/**  Adds a local domain and serves it. */
+	localDomainsAdd: (input: LocalDomainInput) => __TAURI_INVOKE<LocalDomainView>("local_domains_add", { input }),
+	/**  Changes a local domain's service, subdomains, HTTPS or inspection. */
+	localDomainsUpdate: (input: LocalDomainInput) => __TAURI_INVOKE<LocalDomainView>("local_domains_update", { input }),
+	/**  Records a local domain's requests in the inspector, or stops. */
+	localDomainsSetInspect: (name: string, inspect: boolean) => __TAURI_INVOKE<LocalDomainView>("local_domains_set_inspect", { name, inspect }),
+	/**  Removes a local domain. */
+	localDomainsRemove: (name: string) => __TAURI_INVOKE<null>("local_domains_remove", { name }),
+	/**  Lets phones and computers on the network open `.local` names, or stops that. */
+	localDomainsSetLan: (lan: boolean) => __TAURI_INVOKE<null>("local_domains_set_lan", { lan }),
+	/**  Starts serving again (after freeing a port, for example). */
+	localDomainsRestart: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_restart"),
+	/**  Where the local CA is trusted (runs the system's tools; no prompts). */
+	localDomainsTrustStatus: () => __TAURI_INVOKE<TrustView>("local_domains_trust_status"),
+	/**  Trusts the local CA. The system asks for a password (macOS) or to confirm (Windows). */
+	localDomainsTrust: (options: TrustOptions) => __TAURI_INVOKE<TrustView>("local_domains_trust", { options }),
+	/**  Stops trusting the local CA; with `forget`, deletes it too. */
+	localDomainsUntrust: (forget: boolean) => __TAURI_INVOKE<TrustView>("local_domains_untrust", { forget }),
+	/**  Runs a step that needs an administrator through the system's dialog (Linux). */
+	localDomainsRunAsAdmin: (task: AdminTask) => __TAURI_INVOKE<null>("local_domains_run_as_admin", { task }),
+	/**  Applies a Doctor fix for local domains. */
+	localDomainsFix: (action: LocalDomainFix) => __TAURI_INVOKE<null>("local_domains_fix", { action }),
+	/**
+	 *  Saves the local CA's certificate (never its key) where the person chooses, to install
+	 *  on a phone. `None` when cancelled.
+	 */
+	localDomainsSaveCa: (format: CaFormat) => __TAURI_INVOKE<string | null>("local_domains_save_ca", { format }),
+	/**  Every share, route and Snapshot with comments, newest activity first. */
+	commentsSubjects: () => __TAURI_INVOKE<SubjectView[]>("comments_subjects"),
+	/**  A subject's threads (with verified addresses, for the owner); marks them read. */
+	commentsThreads: (key: string) => __TAURI_INVOKE<Thread_Serialize[]>("comments_threads", { key }),
+	/**  The owner's reply. */
+	commentsReply: (key: string, thread: string, body: string) => __TAURI_INVOKE<Thread_Serialize>("comments_reply", { key, thread, body }),
+	/**  Resolves or reopens a thread. */
+	commentsResolve: (key: string, thread: string, resolved: boolean) => __TAURI_INVOKE<Thread_Serialize>("comments_resolve", { key, thread, resolved }),
+	/**
+	 *  Removes a subject from the list, with the comments kept on this computer for it
+	 *  (a Snapshot's comments on Cloudflare stay until the Snapshot is deleted).
+	 */
+	commentsForget: (key: string) => __TAURI_INVOKE<null>("comments_forget", { key }),
+	/**
+	 *  Turns comments on a Quick Share or an inspected route on or off. A route with
+	 *  Teitunnel's login trusts the address Cloudflare Access vouches for.
+	 */
+	commentsSetTap: (tap: TapId, on: boolean) => __TAURI_INVOKE<TapView>("comments_set_tap", { tap, on }),
+	/**  Teitunnel's offline pages and webhook inboxes (from this computer's records). */
+	frontsList: (accountId: string | null) => __TAURI_INVOKE<FrontView[]>("fronts_list", { accountId }),
+	/**  Plans an offline page or inbox change for review. Nothing is changed. */
+	frontsPreview: (accountId: string, change: FrontChange) => __TAURI_INVOKE<PlanView>("fronts_preview", { accountId, change }),
+	/**  The change that puts things back as they are now (for Undo after applying). */
+	frontsUndoChange: (accountId: string, change: FrontChange) => __TAURI_INVOKE<FrontChange>("fronts_undo_change", { accountId, change }),
+	/**  Applies a reviewed change; step progress streams on `on_progress`. */
+	frontsApply: (accountId: string, change: FrontChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("fronts_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**  A webhook inbox's recent webhooks: when each arrived and when it was delivered. */
+	inboxItems: (accountId: string, hostname: string, path: string) => __TAURI_INVOKE<InboxItem[]>("inbox_items", { accountId, hostname, path }),
+	/**  Delivers waiting webhooks now (the app also does every 30 seconds). */
+	inboxDeliver: (accountId: string) => __TAURI_INVOKE<DrainReport[]>("inbox_deliver", { accountId }),
 };
 
 /** Events */
 export const events = {
 	entityChanged: makeEvent<EntityChanged>("entity-changed"),
 	menuAction: makeEvent<MenuAction>("menu-action"),
+	openView: makeEvent<OpenView>("open-view"),
 };
 
 /* Types */
@@ -297,6 +682,14 @@ export type Account = {
 	credential: CredentialKind,
 	/**  For cert.pem credentials: the only zone the credential works for. */
 	limitedZone: string | null,
+};
+
+/**  An account as the backup names it (reconnect it after restoring). */
+export type AccountRef = {
+	/**  Account id. */
+	id: string,
+	/**  Its name. */
+	name: string,
 };
 
 /**  One entry of the activity log. */
@@ -345,7 +738,36 @@ export type ActivityKind =
 /**  A route started being load balanced. */
 "balanceRoute" | 
 /**  A route stopped being load balanced. */
-"unbalanceRoute";
+"unbalanceRoute" | 
+/**
+ *  An alert: a route went down or came back, errors, slowness, a connector (not a
+ *  change; recorded by the uptime monitor).
+ */
+"alert" | 
+/**  A Snapshot was published. */
+"publishSnapshot" | 
+/**  A new version of a Snapshot was published. */
+"updateSnapshot" | 
+/**  A Snapshot was rolled back to an earlier version. */
+"rollbackSnapshot" | 
+/**  A Snapshot was deleted. */
+"deleteSnapshot" | 
+/**  A hostname was reserved (or its reservation renewed). */
+"reserveHostname" | 
+/**  A reservation was released. */
+"releaseHostname" | 
+/**  A hostname's edge protection changed (bots, rate limit, headers). */
+"protectHostname" | 
+/**  A service token was created. */
+"createServiceToken" | 
+/**  A service token was revoked. */
+"revokeServiceToken" | 
+/**  A service token got a new secret. */
+"rotateServiceToken" | 
+/**  A route's offline page was added, changed or removed. */
+"offlinePage" | 
+/**  A webhook inbox was added, changed or removed. */
+"webhookInbox";
 
 /**  The structured part of an activity entry. */
 export type ActivityRecord = {
@@ -367,6 +789,109 @@ export type ActivityRecord = {
 	leftovers?: Text[],
 	/**  The routes were applied but this Mac's connector couldn't be started. */
 	connectorError?: Text | null,
+	/**
+	 *  Who asked for it, when it wasn't a person in the app or the terminal (an AI agent
+	 *  through Teitunnel's MCP server). Absent in older entries.
+	 */
+	actor?: Actor | null,
+};
+
+/**  Who made a change, when it wasn't a person using the app or the CLI directly. */
+export type Actor = {
+	/**  How it reached Teitunnel, e.g. `mcp`. */
+	via: string,
+	/**  The client's name as it introduced itself, e.g. `claude-code`. */
+	client: string,
+	/**  The client's version, if it said. */
+	version: string | null,
+};
+
+/**  Where a new Snapshot answers. */
+export type AddressInput = 
+/**  A hostname on one of the account's domains. */
+{ type: "domain"; 
+/**  E.g. `preview.example.com`. */
+hostname: string } | 
+/**  The account's `workers.dev` subdomain. */
+{ type: "workersDev" };
+
+/**  Steps [`LocalDomains::run_as_admin`] can run. */
+export type AdminTask = 
+/**  The `.test` resolver entry. */
+"resolver" | 
+/**  The Linux system trust store. */
+"trustStore";
+
+/**  Built-in user-agent block lists. */
+export type AgentPreset = 
+/**  AI training and answer crawlers (GPTBot, ClaudeBot, CCBot, PerplexityBot…). */
+"aiCrawlers" | 
+/**  Search engine crawlers (Googlebot, Bingbot…). */
+"searchEngines" | 
+/**  SEO and marketing crawlers (AhrefsBot, SemrushBot…). */
+"seoCrawlers";
+
+/**
+ *  AI agents connected through `teitunnel mcp` while the app runs, and their changes
+ *  waiting for the person's answer (asked in a dialog).
+ */
+export type AiAgentsView = {
+	/**  Connected agents. */
+	agents: ConnectedAgent[],
+	/**  Waiting approvals. */
+	approvals: PendingApproval[],
+};
+
+/**  An AI client, as Settings shows it. */
+export type AiClientView = {
+	/**  Its id, e.g. `claude-code`. */
+	id: string,
+	/**  Its name, e.g. `Claude Code`. */
+	name: string,
+	/**  Its MCP configuration file. */
+	path: string,
+	/**  It seems installed. */
+	detected: boolean,
+	/**  Teitunnel is in its configuration. */
+	connected: boolean,
+	/**  Its configuration couldn't be read (connecting would leave it alone). */
+	problem: string | null,
+};
+
+/**  Every client, and whether Teitunnel can connect them (it needs its command line tool). */
+export type AiClientsView = {
+	/**  The command clients would run, when there is one. */
+	command: string | null,
+	/**  The clients. */
+	clients: AiClientView[],
+};
+
+/**  What to alert about. Stored in settings (`alertRules`). */
+export type AlertRules = {
+	/**  A route stops answering. */
+	routeDown: boolean,
+	/**  Failed checks in a row before "down" (a check runs every minute). */
+	downAfter: number,
+	/**  A route that was down answers again. */
+	recovered: boolean,
+	/**  Too many 5xx answers. */
+	errorRate: boolean,
+	/**  The share of 5xx answers that alerts, in percent. */
+	errorRatePercent: number,
+	/**  Over this many minutes. */
+	errorRateMinutes: number,
+	/**  With at least this many requests in the window (a few requests prove nothing). */
+	minRequests: number,
+	/**  Slow answers. */
+	latency: boolean,
+	/**  The response time (P95 of the checks through the edge) that alerts, in ms. */
+	latencyMs: number,
+	/**  Over this many minutes. */
+	latencyMinutes: number,
+	/**  A connector on this machine loses Cloudflare. */
+	connectorDown: boolean,
+	/**  Routes (`hostname` or `hostname/path`) that never alert. */
+	muted: string[],
 };
 
 /**  Whether this Mac's connector can run as a service, and whether it does. */
@@ -375,6 +900,53 @@ export type AlwaysOn = {
 	supported: boolean,
 	/**  The connector runs as a service. */
 	enabled: boolean,
+};
+
+/**  How far back to look. */
+export type AnalyticsRange = 
+/**  The last hour, per minute. */
+"hour" | 
+/**  The last 24 hours, per 15 minutes. */
+"day" | 
+/**  The last 7 days, per hour. */
+"week" | 
+/**  The last 30 days, per day. */
+"month";
+
+/**  Every route of an account, side by side. */
+export type AnalyticsSummary = {
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  One entry per hostname asked for, in the order asked. */
+	hosts: HostSummary[],
+	/**  Data starts here when the plan keeps less than the range. */
+	availableFrom: number | null,
+	/**  Parts not on the plan. */
+	unavailable: StatsPart[],
+	/**  End of the last bucket of every sparkline, milliseconds since the epoch. */
+	endsAt: number,
+	/**  Seconds per sparkline bucket. */
+	bucketSeconds: number,
+	/**  When fetched. */
+	fetchedAt: number,
+};
+
+/**  Where on a page a thread is pinned. */
+export type Anchor = {
+	/**  CSS selector of the element clicked. */
+	selector: string,
+	/**  Horizontal position inside the element (0–1). */
+	x: number | null,
+	/**  Vertical position inside the element (0–1). */
+	y: number | null,
+	/**  Page coordinates, used when the element can't be found. */
+	left: number | null,
+	/**  Page coordinates, used when the element can't be found. */
+	top: number | null,
+	/**  The reviewer's viewport width. */
+	vw: number,
+	/**  The reviewer's viewport height. */
+	vh: number,
 };
 
 /**
@@ -407,12 +979,63 @@ export type AppInfo = {
 	dataDir: string,
 };
 
+/**  A program the person always allows. */
+export type ApprovedClient = {
+	/**  The name it introduced itself with (`teitunnel-cli`, `vscode`, …). */
+	name: string,
+	/**  Its version when it was allowed. */
+	version: string,
+	/**  When (milliseconds since the epoch). */
+	approvedAt: number,
+};
+
 /**  A message argument: a number (formatted for the language) or text. */
 export type Arg = 
 /**  A number, e.g. a count (a JavaScript number in the UI). */
 number | null | 
 /**  Anything else, already as text (hostnames, names, versions). */
 string;
+
+/**  Whether a hostname can be used, as the hostname field shows it while typing. */
+export type Availability = 
+/**  Nothing is there. */
+{ state: "free" } | 
+/**  This owner holds it (a reservation, or a route of this machine's). */
+{ state: "yours" } | 
+/**  Someone else holds it. */
+{ state: "held"; 
+/**  Who, until when, and how. */
+hold: Hold } | 
+/**  A DNS record Teitunnel didn't create is there. */
+{ state: "foreign" } | 
+/**  Not in any of the account's domains. */
+{ state: "noZone" };
+
+/**  A backup read and checked, waiting for the user to restore it. */
+export type BackupPreview = {
+	/**  Pass to `backup_restore`. */
+	id: string,
+	/**  What it holds and what it would replace. */
+	summary: BackupSummary,
+};
+
+/**  What restoring a backup would bring, for review. */
+export type BackupSummary = {
+	/**  When it was made (ms since the epoch). */
+	createdAt: number | null,
+	/**  The Teitunnel that made it. */
+	appVersion: string,
+	/**  The computer it was made on. */
+	machine: string,
+	/**  Accounts to connect again. */
+	accounts: AccountRef[],
+	/**  Projects it knows (their files come with the repositories). */
+	projects: string[],
+	/**  Each part and its size. */
+	sections: SectionCount[],
+	/**  Restoring replaces something here. */
+	overwrites: boolean,
+};
 
 /**  Where cloudflared comes from and whether it's new enough. */
 export type BinaryInfo = {
@@ -426,6 +1049,56 @@ export type BinaryInfo = {
 	supported: boolean,
 };
 
+/**  A body in a view. */
+export type BodyView = {
+	/**  Bytes on the wire. */
+	size: number,
+	/**  Bytes captured. */
+	captured: number,
+	/**  Whether the capture is shorter than the body. */
+	truncated: boolean,
+	/**  Whether the body has finished. */
+	complete: boolean,
+	/**  Classification of the decoded body. */
+	kind: ContentKind,
+	/**  `Content-Type`, if any. */
+	contentType: string | null,
+	/**  `Content-Encoding`, if any. */
+	encoding: string | null,
+	/**  Text bodies: decoded, lossy UTF-8, masked. */
+	text: string | null,
+	/**  Binary bodies: decoded, base64. Never masked (binary can't be masked reliably). */
+	base64: string | null,
+	/**  Why decompression failed, if it did (then `base64` holds the raw bytes). */
+	decodeError: string | null,
+};
+
+/**  What to do with automated clients. */
+export type BotMode = 
+/**  Nothing. */
+"off" | 
+/**  A managed challenge (most people never see it; scripts can't pass it). */
+"challenge" | 
+/**  Refused. */
+"block";
+
+/**  How to save the CA certificate for another device. */
+export type CaFormat = 
+/**  An Apple configuration profile (iPhone, iPad). */
+"appleProfile" | 
+/**  A PEM certificate (Android, other computers). */
+"certificate";
+
+/**  The local certificate authority (public facts only). */
+export type CaView = {
+	/**  `Teitunnel Local CA (user@host)`. */
+	commonName: string,
+	/**  SHA-256 of the certificate. */
+	sha256: string,
+	/**  When it expires, Unix seconds. */
+	notAfter: number | null,
+};
+
 /**  Everything a credential can do in one account. */
 export type Capabilities = {
 	/**  List domains. */
@@ -436,9 +1109,46 @@ export type Capabilities = {
 	tunnelsEdit: Grant,
 	/**  Access policies (optional feature). */
 	accessEdit: Grant,
+	/**  Traffic analytics (optional feature), probed on the first domain. */
+	analytics: Grant,
+	/**  Workers (Snapshots, optional feature). */
+	workersEdit: Grant,
+	/**  Edge rules (optional feature), probed on the first domain. */
+	edgeRules: Grant,
+	/**  Access service tokens (optional feature). */
+	serviceTokens: Grant,
+	/**  D1 databases: Snapshot comments and webhook inboxes (optional feature). */
+	d1: Grant,
 	/**  DNS editing, per domain. */
 	zones: ZoneGrant[],
 };
+
+/**  Why a check failed. */
+export type Cause = 
+/**  No connector is connected to the tunnel (Cloudflare error 1033). */
+"noConnector" | 
+/**  The hostname points at a tunnel that doesn't serve it (1016/530). */
+"tunnelMismatch" | 
+/**  Cloudflare doesn't know the hostname (1001). */
+"notOnCloudflare" | 
+/**  The connector couldn't reach the origin (502). */
+"originUnreachable" | 
+/**  The origin didn't answer in time (504). */
+"originTimeout" | 
+/**  The origin answered with a server error (500, 503…). */
+"serverError" | 
+/**  The edge couldn't be reached for this hostname. */
+"edgeUnreachable" | 
+/**  The certificate doesn't cover the hostname. */
+"certificate" | 
+/**  The check took too long. */
+"timeout" | 
+/**  The DNS record is missing or points elsewhere. */
+"noRecord" | 
+/**  The local service refuses the public address (a dev server's host check). */
+"hostRejected" | 
+/**  Cloudflare refused the request because a limit was reached (413, 429). */
+"limited";
 
 /**  A change the user asks for (or a Doctor fix proposes). */
 export type Change = Change_Serialize | Change_Deserialize;
@@ -448,7 +1158,7 @@ export type Change_Deserialize =
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -456,45 +1166,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Deserialize }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
+routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -502,14 +1212,39 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
+/**
+ *  Reserve a hostname for this owner, so teammates sharing the account see it's
+ *  taken (M12-11). Reserving it again changes the end date.
+ */
+({ type: "reserveHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**
+ *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
+ *  `2026-12-31T18:00Z`; `None` or empty: no end.
+ */
+until?: string | null }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Give up a hostname's reservation (a route there stays). */
+({ type: "releaseHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**
+ *  Enforce protection at Cloudflare's edge for a hostname (the default removes
+ *  Teitunnel's rules).
+ */
+({ type: "protectHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A change the user asks for (or a Doctor fix proposes). */
 export type Change_Serialize = 
 /**  Add a route. */
 ({ type: "addRoute"; 
 /**  The route. */
-route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Edit or rename a route. */
 ({ type: "updateRoute"; 
 /**  Current hostname. */
@@ -517,45 +1252,45 @@ hostname: string;
 /**  Current path. */
 path: string | null; 
 /**  The new definition. */
-route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; recordId?: never; routes?: never; zoneId?: never } | 
+route: RouteInput_Serialize }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a route. */
 ({ type: "removeRoute"; 
 /**  Hostname. */
 hostname: string; 
 /**  Path. */
-path: string | null }) & { domain?: never; name?: never; network?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+path: string | null }) & { domain?: never; name?: never; network?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove every route and delete this Mac's tunnel. */
-({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "removeTunnel" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Load balance a route across the tunnels that route its hostname. */
 ({ type: "balanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop load balancing a route. */
 ({ type: "unbalanceRoute"; 
 /**  Hostname. */
-hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Create another tunnel for this Mac. */
 ({ type: "createTunnel"; 
 /**  Its name. */
-name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+name: string }) & { domain?: never; hostname?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Undo an outside edit of this Mac's routes. */
-({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+({ type: "restoreConfig" }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Remove a login Teitunnel added whose route is gone. */
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
-domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
-routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; zoneId?: never } | 
+routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
 /**  Let WARP clients reach a private range through this Mac's tunnel. */
 ({ type: "addNetwork"; 
 /**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Stop sharing a private range. */
 ({ type: "removeNetwork"; 
 /**  The range. */
-network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
 /**  Zone id. */
@@ -563,7 +1298,32 @@ zoneId: string;
 /**  The record's name. */
 hostname: string; 
 /**  Record id. */
-recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; route?: never; routes?: never };
+recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
+/**
+ *  Reserve a hostname for this owner, so teammates sharing the account see it's
+ *  taken (M12-11). Reserving it again changes the end date.
+ */
+({ type: "reserveHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**
+ *  When the reservation ends: `2026-12-31` (end of that day, UTC) or
+ *  `2026-12-31T18:00Z`; `None` or empty: no end.
+ */
+until: string | null }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; zoneId?: never } | 
+/**  Give up a hostname's reservation (a route there stays). */
+({ type: "releaseHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**
+ *  Enforce protection at Cloudflare's edge for a hostname (the default removes
+ *  Teitunnel's rules).
+ */
+({ type: "protectHostname"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection }) & { domain?: never; name?: never; network?: never; path?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never };
 
 /**  A terminal's live Quick Share. */
 export type CliShare = {
@@ -607,6 +1367,18 @@ export type ClientAccess = {
 	sshConfig: string | null,
 };
 
+/**  Who sent the request. */
+export type ClientInfo = {
+	/**  The visitor's IP: `CF-Connecting-IP` when present and valid, else the peer. */
+	ip: string,
+	/**  The TCP peer (usually cloudflared on loopback). */
+	peer: string,
+	/**  Cloudflare's `CF-Ray` id, when present. */
+	cfRay: string | null,
+	/**  Cloudflare's `CF-IPCountry`, when present. */
+	country: string | null,
+};
+
 /**  The protocol a non-HTTP route carries. */
 export type ClientProtocol = 
 /**  SSH. */
@@ -617,6 +1389,57 @@ export type ClientProtocol =
 "smb" | 
 /**  Any TCP service (a database, …). */
 "tcp";
+
+/**  One comment. */
+export type Comment = Comment_Serialize | Comment_Deserialize;
+
+/**  One comment. */
+export type Comment_Deserialize = {
+	/**  Id. */
+	id: string,
+	/**  Who wrote it. */
+	author: string,
+	/**  Their email, when Cloudflare Access vouched for it (only shown to the owner). */
+	email: string | null,
+	/**  Signed in with Cloudflare Access. */
+	verified: boolean,
+	/**  Written by the owner (from the app, the CLI or an agent). */
+	byOwner: boolean,
+	/**  The text, as typed. */
+	body: string,
+	/**  When (ms since the epoch). */
+	createdAt: number | null,
+};
+
+/**  One comment. */
+export type Comment_Serialize = {
+	/**  Id. */
+	id: string,
+	/**  Who wrote it. */
+	author: string,
+	/**  Their email, when Cloudflare Access vouched for it (only shown to the owner). */
+	email?: string | null,
+	/**  Signed in with Cloudflare Access. */
+	verified: boolean,
+	/**  Written by the owner (from the app, the CLI or an agent). */
+	byOwner: boolean,
+	/**  The text, as typed. */
+	body: string,
+	/**  When (ms since the epoch). */
+	createdAt: number | null,
+};
+
+/**  An AI agent connected through `teitunnel mcp` (Settings ▸ AI Tools). */
+export type ConnectedAgent = {
+	/**  The agent's name, e.g. `claude-code`. */
+	name: string,
+	/**  Its version. */
+	version: string | null,
+	/**  The MCP server's mode: `read-only`, `ask` or `full`. */
+	mode: string,
+	/**  When it connected (milliseconds since the epoch). */
+	connectedAt: number | null,
+};
 
 /**  One edge connection of a connector. */
 export type ConnectionView = {
@@ -672,6 +1495,58 @@ export type ConnectorView = {
 	connections: ConnectionView[],
 };
 
+/**  A coarse classification of a body, for display and export choices. */
+export type ContentKind = 
+/**  No body. */
+"empty" | 
+/**  JSON (including `+json` types). */
+"json" | 
+/**  HTML. */
+"html" | 
+/**  XML (including `+xml` types). */
+"xml" | 
+/**  `application/x-www-form-urlencoded`. */
+"form" | 
+/**  `multipart/*`. */
+"multipart" | 
+/**  `text/event-stream`. */
+"eventStream" | 
+/**  JavaScript or CSS or other text. */
+"text" | 
+/**  An image. */
+"image" | 
+/**  Anything else. */
+"binary";
+
+/**  What a crawl captured. */
+export type CrawlReport = {
+	/**  HTML pages saved. */
+	pages: number,
+	/**  Files saved (pages included). */
+	files: number,
+	/**  Bytes saved. */
+	bytes: number | null,
+	/**  Paths that answered with an error (first 50). */
+	failed: string[],
+	/**  A limit was reached: the capture is incomplete. */
+	truncated: boolean,
+	/**
+	 *  Only one page was found and it loads scripts: probably a single-page app (serve
+	 *  `index.html` for every path).
+	 */
+	singlePage: boolean,
+};
+
+/**  A route a project created (it wasn't there before the project was applied). */
+export type CreatedRoute = {
+	/**  Account id. */
+	accountId: string,
+	/**  Hostname. */
+	hostname: string,
+	/**  Path rule. */
+	path: string | null,
+};
+
 /**  How an account was connected. */
 export type CredentialKind = 
 /**  A user API token. */
@@ -706,7 +1581,62 @@ export type DeltaArea =
 /**  A route's login (Cloudflare Access). */
 "access" | 
 /**  A route's load balancing. */
-"loadBalancing";
+"loadBalancing" | 
+/**  A Snapshot's address. */
+"snapshot" | 
+/**  A rule at Cloudflare's edge (bots, rate limit, headers). */
+"protection" | 
+/**  A service token. */
+"serviceToken" | 
+/**  A Worker in front of a route (offline page, webhook inbox). */
+"worker";
+
+/**  A dev server that checks the Host header. */
+export type DevServer = 
+/**  Vite 5.4.12+ / 6.0.9+ (`server.allowedHosts`), also Laravel's and Remix's. */
+"vite" | 
+/**  SvelteKit (Vite). */
+"svelteKit" | 
+/**  Astro (Vite). */
+"astro" | 
+/**  Nuxt (Vite). */
+"nuxt" | 
+/**  Angular CLI (`ng serve`, Vite or webpack). */
+"angular" | 
+/**  webpack-dev-server (webpack, Create React App, Vue CLI). */
+"webpack" | 
+/**  Next.js 15.2+ (`allowedDevOrigins`). */
+"next" | 
+/**  Rails 6+ (`ActionDispatch::HostAuthorization`). */
+"rails" | 
+/**  Django (`ALLOWED_HOSTS`). */
+"django";
+
+/**  A problem in the file, where it is. */
+export type Diagnostic = {
+	/**  1-based line (0: the whole file). */
+	line: number,
+	/**  1-based column. */
+	column: number,
+	/**  Error or warning. */
+	severity: DiagnosticSeverity,
+	/**  What's wrong. */
+	message: Text,
+};
+
+/**  How serious a problem is. */
+export type DiagnosticSeverity = 
+/**  The file can't be applied. */
+"error" | 
+/**  Applied anyway (e.g. a key this version doesn't know). */
+"warning";
+
+/**  Which way a stream message went. */
+export type Direction = 
+/**  From the visitor to the origin. */
+"clientToServer" | 
+/**  From the origin to the visitor. */
+"serverToClient";
 
 /**  Whether a route's DNS record points at this Mac's tunnel. */
 export type DnsState = 
@@ -717,7 +1647,12 @@ export type DnsState =
 /**  A record pointing somewhere else (or not proxied). */
 { state: "elsewhere"; 
 /**  What it points at. */
-content: string };
+content: string; 
+/**
+ *  Who holds the name now, when it's another Teitunnel (their route or
+ *  reservation).
+ */
+heldBy: Hold | null };
 
 /**  A domain in a connected account. */
 export type Domain = {
@@ -751,6 +1686,17 @@ export type DomainShare = {
 	expiresAt: number | null,
 	/**  When it started (milliseconds since the epoch). */
 	createdAt: number | null,
+	/**
+	 *  What it shares when its route points at an inspector (`origin` is then the
+	 *  inspector's address): the service as given, or a folder.
+	 */
+	source: string | null,
+	/**  It shares a folder (`source`), served by the inspector. */
+	folder: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
+	/**  On only during these hours ([`crate::schedule`]). */
+	schedule: Schedule | null,
 };
 
 /**  Where a domain is in its setup. */
@@ -764,6 +1710,20 @@ export type DomainStatus =
 /**  Being set up, or a state we don't know. */
 "other";
 
+/**  What a delivery round did for one inbox. */
+export type DrainReport = {
+	/**  The hostname. */
+	hostname: string,
+	/**  The inbox path. */
+	path: string,
+	/**  Delivered this round. */
+	delivered: number,
+	/**  Still waiting. */
+	waiting: number,
+	/**  Why delivery stopped, if it did. */
+	error: string | null,
+};
+
 /**  An outside edit of this Mac's tunnel configuration. */
 export type Drift = {
 	/**  Tunnel id. */
@@ -774,6 +1734,32 @@ export type Drift = {
 	currentVersion: number,
 	/**  Routes that differ. */
 	changes: RuleChange[],
+};
+
+/**  What a header rule does. */
+export type EdgeHeaderOp = 
+/**  Set the header to a value (replacing it). */
+"set" | 
+/**  Add a value (response headers only; keeps existing ones). */
+"add" | 
+/**  Remove the header. */
+"remove";
+
+/**
+ *  Everything Teitunnel can enforce at Cloudflare's edge for one hostname. The default
+ *  is nothing (no rules).
+ */
+export type EdgeProtection = {
+	/**  Automated clients (scripts, headless browsers) that aren't verified bots. */
+	bots?: BotMode,
+	/**  Block AI crawlers (Cloudflare's verified "AI Crawler" category). */
+	aiCrawlers?: boolean,
+	/**  Requests per period per visitor. */
+	rateLimit?: RateLimitSpec | null,
+	/**  Headers changed on requests before they reach the origin. */
+	requestHeaders?: HeaderRule[],
+	/**  Headers changed on responses before they reach visitors. */
+	responseHeaders?: HeaderRule[],
 };
 
 /**
@@ -814,7 +1800,21 @@ export type EntityKind =
 /**  Routes and this Mac's tunnel (id: the account). */
 "routes" | 
 /**  App updates. */
-"updates";
+"updates" | 
+/**  Snapshots (id: the account). */
+"snapshots" | 
+/**  Projects (teitunnel.yml files opened in the app). */
+"projects" | 
+/**  The inspector's taps and settings (captures stream on `inspect_subscribe`). */
+"inspector" | 
+/**  Local HTTPS domains, their listeners and trust. */
+"localDomains" | 
+/**  AI agents connected through `teitunnel mcp`, and their approvals waiting. */
+"agents" | 
+/**  Comments on shares, routes and Snapshots (id: the subject's key). */
+"comments" | 
+/**  Offline pages and webhook inboxes (id: the account). */
+"fronts";
 
 /**  Machine-readable error category. The frontend branches on this, never on `message`. */
 export type ErrorCode = 
@@ -836,6 +1836,194 @@ export type ErrorCode =
 /**  The Cloudflare credential lacks a permission. */
 "permissionDenied";
 
+/**  Why an exchange failed. */
+export type ErrorKind = 
+/**  Nothing listens on the upstream port. */
+"connectionRefused" | 
+/**  Connecting or waiting for the response took too long. */
+"timeout" | 
+/**  The upstream closed or reset the connection mid-exchange. */
+"connectionReset" | 
+/**  The upstream's hostname didn't resolve. */
+"dns" | 
+/**  The TLS handshake with the upstream failed. */
+"tls" | 
+/**  The upstream sent something that isn't valid HTTP. */
+"protocol" | 
+/**  The client went away before the exchange finished. */
+"clientAborted" | 
+/**  A static file couldn't be read. */
+"io" | 
+/**  Anything else. */
+"other";
+
+/**  One exchange in full. */
+export type ExchangeDetail = {
+	/**  Everything captured (masked unless revealed). */
+	view: ExchangeView,
+	/**  The webhook sender and its signature check. */
+	webhook: WebhookCheck | null,
+	/**  Read back from the history kept on disk (credentials were masked when stored). */
+	restored: boolean,
+};
+
+/**  An error recorded on an exchange. */
+export type ExchangeError = {
+	/**  Category. */
+	kind: ErrorKind,
+	/**  Technical detail (English, for logs and developers). */
+	message: string,
+};
+
+/**
+ *  Identifies one captured exchange across all taps.
+ * 
+ *  A UUIDv7: unique, and ordered by creation time within the process, so it doubles as
+ *  a pagination cursor. Each exchange also has a per-tap sequence number for display.
+ */
+export type ExchangeId = string;
+
+/**  What kind of traffic an exchange carries. */
+export type ExchangeKind = 
+/**  A plain request and response. */
+"http" | 
+/**  An upgraded WebSocket connection. */
+"webSocket" | 
+/**  A server-sent event stream (`text/event-stream`). */
+"sse" | 
+/**  Another protocol upgrade (e.g. `h2c`, a custom `Upgrade:` token). */
+"upgrade";
+
+/**  A page of exchanges. */
+export type ExchangePage = {
+	/**  Newest first. */
+	items: ExchangeRow[],
+	/**  Pass as `before` for the next (older) page. */
+	next: ExchangeId | null,
+};
+
+/**  Which exchanges to list. */
+export type ExchangeQuery = {
+	/**  Only this tap. */
+	tap?: TapId | null,
+	/**  Any of these methods. */
+	methods?: string[],
+	/**  Status classes (`2` for 2xx…). */
+	statusClasses?: number[],
+	/**  Exact statuses. */
+	statuses?: number[],
+	/**  Text in the path. */
+	path?: string | null,
+	/**  Text in the host. */
+	host?: string | null,
+	/**  Text anywhere (URL, headers, bodies; secrets can't be searched). */
+	text?: string | null,
+	/**  At least this slow (milliseconds). */
+	minDurationMs?: number | null,
+	/**  Started at or after (milliseconds since the epoch). */
+	sinceMs?: number | null,
+	/**  Kinds. */
+	kinds?: ExchangeKind[],
+	/**  Only failed ones. */
+	errorsOnly?: boolean,
+	/**  Page size (default 100, at most 1,000). */
+	limit?: number | null,
+	/**  Older than this exchange (the previous page's `next`). */
+	before?: ExchangeId | null,
+};
+
+/**  A captured exchange in a list. */
+export type ExchangeRow = {
+	/**  Id. */
+	id: ExchangeId,
+	/**  Tap. */
+	tap: TapId,
+	/**  Number within the tap. */
+	seq: number,
+	/**  When the request arrived (milliseconds since the epoch). */
+	startedAt: number | null,
+	/**  Method. */
+	method: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Path and query, masked. */
+	path: string,
+	/**  Status, once answered. */
+	status: number | null,
+	/**  Duration in milliseconds, when known. */
+	durationMs: number | null,
+	/**  Request body bytes. */
+	requestBytes: number | null,
+	/**  Response body bytes. */
+	responseBytes: number | null,
+	/**  HTTP, WebSocket, SSE or another upgrade. */
+	kind: ExchangeKind,
+	/**  Where it is in its life. */
+	state: ExchangeState,
+	/**  `Content-Type` of the response. */
+	contentType: string | null,
+	/**  A recognised webhook sender. */
+	webhook: WebhookSender | null,
+	/**  Replays this exchange. */
+	replayOf: ExchangeId | null,
+	/**
+	 *  Answered by the inspector (a stub, a gate, the paused page, a fault) rather than
+	 *  the service.
+	 */
+	answeredLocally: boolean,
+	/**  An error reaching the service, in English (technical). */
+	error: string | null,
+};
+
+/**  Where an exchange is in its life. */
+export type ExchangeState = 
+/**  Received; waiting for the upstream's response head. */
+"pending" | 
+/**  The response head was sent; the body (or the upgraded stream) is flowing. */
+"streaming" | 
+/**  Finished normally. */
+"complete" | 
+/**  Ended with an error ([`Exchange::error`]). */
+"failed";
+
+/**  A serializable, redaction-aware copy of an [`Exchange`]. */
+export type ExchangeView = {
+	/**  Id. */
+	id: ExchangeId,
+	/**  Per-tap sequence number. */
+	seq: number,
+	/**  Tap. */
+	tap: TapId,
+	/**  Kind. */
+	kind: ExchangeKind,
+	/**  State. */
+	state: ExchangeState,
+	/**  Unix milliseconds. */
+	startedAtMs: number,
+	/**  Duration in milliseconds, when known. */
+	durationMs: number | null,
+	/**  Timings. */
+	timings: Timings,
+	/**  Client. */
+	client: ClientInfo,
+	/**  Request. */
+	request: RequestView,
+	/**  Response. */
+	response: ResponseView | null,
+	/**  Who answered. */
+	responder: Responder,
+	/**  Error. */
+	error: ExchangeError | null,
+	/**  Stream summary (previews masked). */
+	stream: StreamStats | null,
+	/**  Replayed exchange. */
+	replayOf: ExchangeId | null,
+	/**  The fault rule applied, if any. */
+	fault: FaultRecord | null,
+	/**  Whether secrets are masked in this view. */
+	redacted: boolean,
+};
+
 /**  A rendered export. */
 export type ExportFile = {
 	/**  Suggested file name, e.g. `config.yml`. */
@@ -852,6 +2040,86 @@ export type ExportFormat =
 "dockerCompose" | 
 /**  Terraform for the Cloudflare provider v5, with `import` blocks. */
 "terraform";
+
+/**  One finding. */
+export type ExposureFinding = {
+	/**  What. */
+	kind: ExposureKind,
+	/**  How bad. */
+	severity: ExposureSeverity,
+	/**  Where (a path on the service). */
+	path: string,
+	/**  One line for the user. */
+	title: Text,
+	/**  What to do. */
+	advice: Text,
+	/**  What it's based on, when that helps (variable names, never values; a product). */
+	detail: string | null,
+};
+
+/**  What was found. */
+export type ExposureKind = 
+/**  A `.env` file. */
+"envFile" | 
+/**  The `.git` folder. */
+"gitRepository" | 
+/**  A macOS `.DS_Store` file. */
+"dsStore" | 
+/**  A directory listing. */
+"directoryListing" | 
+/**  A zip archive (a backup). */
+"backupArchive" | 
+/**  A SQL dump. */
+"databaseDump" | 
+/**  A SQLite database file. */
+"databaseFile" | 
+/**  Django's debug pages (`DEBUG = True`). */
+"djangoDebug" | 
+/**  Laravel's Ignition or Whoops. */
+"laravelDebug" | 
+/**  Rails in development (error pages, web-console, better_errors, `/rails/info`). */
+"railsDevelopment" | 
+/**  Symfony's profiler. */
+"symfonyProfiler" | 
+/**  Spring Boot's actuator (`/actuator/env`). */
+"springActuator" | 
+/**  `phpinfo()`. */
+"phpInfo" | 
+/**  A stack trace in an error page. */
+"stackTrace" | 
+/**  An admin panel without a login. */
+"openAdmin" | 
+/**  Adminer or phpMyAdmin. */
+"databaseTool" | 
+/**  A database or search engine on the port itself. */
+"databasePort" | 
+/**  Jupyter without a token. */
+"jupyter" | 
+/**  Source maps with the original code. */
+"sourceMap";
+
+/**  The outcome of a check. */
+export type ExposureReport = {
+	/**  The service checked. */
+	origin: string,
+	/**  What was found, worst first. */
+	findings: ExposureFinding[],
+	/**  Requests made. */
+	requests: number,
+	/**  Some requests didn't finish in time (their answers weren't checked). */
+	incomplete: boolean,
+	/**  How long it took. */
+	elapsedMs: number,
+};
+
+/**  How bad it is. */
+export type ExposureSeverity = 
+/**  Secrets or data are readable. */
+"high" | 
+/**  Internals or tools are reachable. */
+"medium" | 
+/**  Worth knowing. */
+"low";
 
 /**  Why a route doesn't work. */
 export type Failure = 
@@ -876,9 +2144,61 @@ message: string } |
 /**  The connector couldn't reach the origin (502). */
 { type: "originUnreachable"; 
 /**  Whether something listens on the origin's local port (None: not local). */
-listening: boolean | null } | 
+listening: boolean | null; 
+/**  The origin's port, when it has one. */
+port: number | null } | 
 /**  The origin didn't answer in time (504). */
-{ type: "originTimeout" };
+{ type: "originTimeout" } | 
+/**  A dev server refused the public address (its Host or Origin check). */
+{ type: "hostRejected"; 
+/**  Which server, and the ways to fix it. */
+rejection: HostRejection } | 
+/**
+ *  Cloudflare refused a request body over its limit (413): 100 MB on the Free and
+ *  Pro plans.
+ */
+{ type: "bodyTooLarge" } | 
+/**  A Quick Share had 200 requests in flight, its limit (429). */
+{ type: "tooManyRequests" };
+
+/**  What a fault rule does. */
+export type FaultAction = 
+/**  Answer with this status (e.g. 500, 502, 503, 504, 429) without forwarding. */
+{ type: "status"; 
+/**  Status code (400–599). */
+status: number; 
+/**  `Retry-After` in seconds. */
+retry_after_secs: number | null } | 
+/**  Close the connection without a response. */
+{ type: "reset" } | 
+/**  Forward normally, but only after this many milliseconds. */
+{ type: "delay"; 
+/**  Milliseconds. */
+ms: number } | 
+/**  Hold the request, then answer `504 Gateway Timeout` (as Cloudflare would). */
+{ type: "timeout"; 
+/**  How long to hold, in milliseconds. */
+after_ms: number };
+
+/**  The fault applied to a captured exchange. */
+export type FaultRecord = {
+	/**  Index of the rule in [`crate::TapConfig::faults`]. */
+	rule: number,
+	/**  What it did. */
+	action: FaultAction,
+};
+
+/**  A fault applied to a share of matching requests. */
+export type FaultRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  Share of matching requests affected, 0–100. */
+	percent: number,
+	/**  What happens to them. */
+	action: FaultAction,
+};
 
 /**  What the preview shows for a file. */
 export type FileSummary = {
@@ -910,25 +2230,29 @@ export type Fix_Deserialize =
 /**  Button title, e.g. "Fix the DNS Record". */
 label: Text; 
 /**  The change. */
-change: Change_Deserialize }) & { accountId?: never; tunnelId?: never } | 
+change: Change_Deserialize }) & { accountId?: never; action?: never; tunnelId?: never } | 
 /**  Install (or update) the managed cloudflared. */
-({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "installBinary" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Start this Mac's connector. */
 ({ type: "startConnector"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Accept an outside edit of this Mac's routes. */
 ({ type: "keepTheirs"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Create a token with the right permissions. */
-({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "reconnect" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Remove a tunnel's stale connections. */
 ({ type: "cleanConnections"; 
 /**  Account. */
 accountId: string; 
 /**  Tunnel. */
-tunnelId: string }) & { change?: never; label?: never };
+tunnelId: string }) & { action?: never; change?: never; label?: never } | 
+/**  Local domains, fixed on this computer. */
+({ type: "localDomains"; 
+/**  What to do. */
+action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; tunnelId?: never };
 
 /**  A way to fix an issue. */
 export type Fix_Serialize = 
@@ -937,25 +2261,39 @@ export type Fix_Serialize =
 /**  Button title, e.g. "Fix the DNS Record". */
 label: Text; 
 /**  The change. */
-change: Change_Serialize }) & { accountId?: never; tunnelId?: never } | 
+change: Change_Serialize }) & { accountId?: never; action?: never; tunnelId?: never } | 
 /**  Install (or update) the managed cloudflared. */
-({ type: "installBinary" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "installBinary" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Start this Mac's connector. */
 ({ type: "startConnector"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Accept an outside edit of this Mac's routes. */
 ({ type: "keepTheirs"; 
 /**  Account. */
-accountId: string }) & { change?: never; label?: never; tunnelId?: never } | 
+accountId: string }) & { action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Create a token with the right permissions. */
-({ type: "reconnect" }) & { accountId?: never; change?: never; label?: never; tunnelId?: never } | 
+({ type: "reconnect" }) & { accountId?: never; action?: never; change?: never; label?: never; tunnelId?: never } | 
 /**  Remove a tunnel's stale connections. */
 ({ type: "cleanConnections"; 
 /**  Account. */
 accountId: string; 
 /**  Tunnel. */
-tunnelId: string }) & { change?: never; label?: never };
+tunnelId: string }) & { action?: never; change?: never; label?: never } | 
+/**  Local domains, fixed on this computer. */
+({ type: "localDomains"; 
+/**  What to do. */
+action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; tunnelId?: never };
+
+/**  A folder to share. */
+export type FolderShare = {
+	/**  The folder (absolute once resolved). */
+	path: string,
+	/**  List a folder's files when it has no `index.html`. */
+	listing?: boolean,
+	/**  A single-page app: unknown paths that ask for a page get `/index.html`. */
+	spa?: boolean,
+};
 
 /**  A cloudflared process Teitunnel doesn't manage. */
 export type ForeignConnector = {
@@ -1019,6 +2357,156 @@ export type FoundRoute_Serialize = {
 	unsupported: Text | null,
 };
 
+/**  A WebSocket frame opcode. */
+export type FrameOpcode = 
+/**  Continues a fragmented message. */
+"continuation" | 
+/**  Text. */
+"text" | 
+/**  Binary. */
+"binary" | 
+/**  Close. */
+"close" | 
+/**  Ping. */
+"ping" | 
+/**  Pong. */
+"pong";
+
+/**  One WebSocket frame, observed without altering it. */
+export type FrameRecord = {
+	/**  When the frame finished, relative to the request (microseconds). */
+	atUs: number,
+	/**  Direction. */
+	direction: Direction,
+	/**  Opcode. */
+	opcode: FrameOpcode,
+	/**  Final fragment of its message. */
+	fin: boolean,
+	/**  Masked on the wire (client frames are). */
+	masked: boolean,
+	/**  `RSV1` set: compressed with `permessage-deflate`. */
+	compressed: boolean,
+	/**  Payload size in bytes (compressed size for compressed frames). */
+	size: number,
+	/**
+	 *  The first payload bytes, unmasked: UTF-8 text for text data, hex otherwise.
+	 *  `None` when unavailable (compressed frames; see the message previews).
+	 */
+	preview: string | null,
+	/**  Whether `preview` is shorter than the payload. */
+	truncated: boolean,
+	/**  Close frames: the status code. */
+	closeCode: number | null,
+	/**  Close frames: the reason. */
+	closeReason: string | null,
+};
+
+/**  Web frameworks Teitunnel knows the static output of. */
+export type Framework = 
+/**  Vite (React, Vue, Svelte, Solid…): `dist`. */
+"vite" | 
+/**  Next.js with `output: 'export'`: `out`. */
+"next" | 
+/**  Astro: `dist`. */
+"astro" | 
+/**  SvelteKit with the static adapter: `build`. */
+"svelteKit" | 
+/**  Nuxt `generate`: `.output/public`. */
+"nuxt" | 
+/**  Create React App: `build`. */
+"createReactApp" | 
+/**  Gatsby: `public`. */
+"gatsby" | 
+/**  Docusaurus: `build`. */
+"docusaurus" | 
+/**  VitePress: `docs/.vitepress/dist` (or `.vitepress/dist`). */
+"vitePress" | 
+/**  Angular: `dist/<project>/browser`. */
+"angular" | 
+/**  A project with a build script Teitunnel doesn't recognise: `dist`. */
+"other" | 
+/**  Plain HTML: the folder itself, no build. */
+"static";
+
+/**  A change to a route's Workers, as the app, the CLI and agents ask for it. */
+export type FrontChange = 
+/**  Show this page while the computer is off (`None` removes it). */
+{ type: "offline"; 
+/**  The hostname. */
+hostname: string; 
+/**  The page. */
+page: OfflinePage | null } | 
+/**  Keep webhooks to `path` while the computer is off (`None` removes the inbox). */
+{ type: "inbox"; 
+/**  The hostname. */
+hostname: string; 
+/**  The path, e.g. `/webhooks/`. */
+path: string; 
+/**  Its settings. */
+inbox: InboxSettings | null };
+
+/**  Which Worker. */
+export type FrontKind = 
+/**  The offline page. */
+"offline" | 
+/**  The webhook inbox. */
+"inbox";
+
+/**  One of Teitunnel's Workers in front of a route, as the app lists it. */
+export type FrontView = {
+	/**  Account id. */
+	accountId: string,
+	/**  The hostname. */
+	hostname: string,
+	/**  Which Worker. */
+	kind: FrontKind,
+	/**  The inbox path (empty for the offline page). */
+	path: string,
+	/**  The page, for the offline page. */
+	page: OfflinePage | null,
+	/**  The settings, for an inbox. */
+	inbox: InboxSettings | null,
+	/**  Its Worker. */
+	script: string,
+	/**  Whether its route is in place. */
+	routed: boolean,
+};
+
+/**  Why a gate stopped a request. */
+export type GateOutcome = 
+/**  The client IP isn't on the allow list. */
+"ipNotAllowed" | 
+/**  The client IP is on the deny list. */
+"ipDenied" | 
+/**  The user agent is blocked. */
+"userAgentBlocked" | 
+/**  The password page was shown. */
+"passwordRequired" | 
+/**  A wrong password was submitted. */
+"passwordWrong" | 
+/**  Too many wrong passwords from this IP. */
+"rateLimited" | 
+/**  The visitor signed in; Lens set the session cookie. */
+"signedIn" | 
+/**  A secret link was used; Lens set the cookie and redirected without the key. */
+"linkAccepted" | 
+/**  A secret link is required and none (or a wrong one) was given. */
+"linkRequired" | 
+/**  HTTP basic credentials are missing or wrong. */
+"basicAuthRequired" | 
+/**  A bearer token is missing or wrong. */
+"bearerRequired";
+
+/**  A system-wide shortcut, off by default. */
+export type GlobalShortcut = {
+	/**  Registered with the system. */
+	enabled: boolean,
+	/**  The keys, e.g. `CommandOrControl+Alt+Shift+S` (Tauri's accelerator syntax). */
+	keys: string,
+	/**  What it does. */
+	action: ShortcutAction,
+};
+
 /**  The result of probing one permission. */
 export type Grant = 
 /**  Allowed. */
@@ -1026,7 +2514,59 @@ export type Grant =
 /**  Not allowed. */
 "no" | 
 /**  Couldn't be checked right now. */
-"unknown";
+"unknown" | 
+/**  Allowed, but the product isn't turned on for the account yet (Zero Trust). */
+"notSetUp";
+
+/**  One header change. */
+export type HeaderOp = 
+/**  Replace every value of `name` with `value`. */
+{ op: "set"; 
+/**  Header name. */
+name: string; 
+/**  Value. */
+value: string } | 
+/**  Add a value, keeping existing ones. */
+{ op: "append"; 
+/**  Header name. */
+name: string; 
+/**  Value. */
+value: string } | 
+/**  Remove the header. */
+{ op: "remove"; 
+/**  Header name. */
+name: string };
+
+/**  One header change. */
+export type HeaderRule = {
+	/**  Header name, e.g. `X-Robots-Tag`. */
+	name: string,
+	/**  What to do. */
+	op: EdgeHeaderOp,
+	/**  The value, for `set` and `add`. */
+	value?: string | null,
+};
+
+/**  Header rewrites for a tap. */
+export type HeaderRules = {
+	/**  Applied to requests before they go upstream (after Lens's own headers). */
+	request?: HeaderOp[],
+	/**  Applied to responses before they go to the client. */
+	response?: HeaderOp[],
+	/**
+	 *  Permissive CORS for development: answer preflights and allow the caller's origin
+	 *  (with credentials).
+	 */
+	cors?: boolean,
+};
+
+/**  One header in a view. */
+export type HeaderView = {
+	/**  Name, lowercase. */
+	name: string,
+	/**  Value (lossy UTF-8), masked per the redaction. */
+	value: string,
+};
 
 /**  A page of help on the web. */
 export type HelpLink = 
@@ -1046,6 +2586,235 @@ export type HistoryRange =
 /**  The last 7 days, in 30-minute buckets. */
 "week";
 
+/**  A hostname someone else holds. */
+export type Hold = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Who (`person@machine`); `None` when an older Teitunnel made it. */
+	owner: string | null,
+	/**  Until when (milliseconds since the epoch); `None`: no end. */
+	until: number | null,
+	/**  Reserved or routed. */
+	kind: HoldKind,
+};
+
+/**  How a name is held. */
+export type HoldKind = 
+/**  Reserved (a placeholder, or a lease on a route's record). */
+"reservation" | 
+/**  Routed by another machine's tunnel. */
+"route";
+
+/**  A Host header a share sends to its service. */
+export type HostHeader = {
+	/**  The value, e.g. `localhost:5173`. */
+	value: string,
+	/**
+	 *  Set by Teitunnel because the service is this dev server, which refuses unknown
+	 *  addresses (`None`: the user asked for it).
+	 */
+	autoFor: DevServer | null,
+};
+
+/**  Which Host header a new share sends. */
+export type HostHeaderChoice = 
+/**
+ *  The service's own address when it's a dev server that needs it and where that's
+ *  safe ([`dev_server::default_host_header`]); otherwise none.
+ */
+{ mode: "auto" } | 
+/**  Leave the Host header as the visitor's browser sent it. */
+{ mode: "off" } | 
+/**  Send this value. */
+{ mode: "set"; 
+/**  E.g. `localhost:5173`. */
+value: string };
+
+/**  The Host header a share sends. */
+export type HostHeaderDecl = 
+/**  Teitunnel decides (dev servers that need their own address get it). */
+{ mode: "auto" } | 
+/**  Pass the visitor's through. */
+{ mode: "off" } | 
+/**  Send this. */
+{ mode: "set"; value: string };
+
+/**  A dev server refused a request for the public address. */
+export type HostRejection = {
+	/**  Which server. */
+	server: DevServer,
+	/**  The public hostname it refused. */
+	host: string,
+	/**
+	 *  The Host header that makes it answer (the origin's own address), when sending it
+	 *  helps and isn't sent already.
+	 */
+	hostHeader: string | null,
+	/**
+	 *  Sending that header breaks nothing (see [`DevServer::host_header_safe`]). When
+	 *  false, the config line is the recommended fix.
+	 */
+	hostHeaderSafe: boolean,
+	/**  The file the config line goes in. */
+	configFile: string,
+	/**  The line that allows the address. */
+	configLine: string,
+};
+
+/**  One route's line in the overview. */
+export type HostSummary = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Bytes sent. */
+	bytes: number,
+	/**  Share of 5xx answers (0–1), when there were requests and it's known. */
+	errorRate: number | null,
+	/**  Origin response time P95 (Pro and up). */
+	p95Ms: number | null,
+	/**  Requests per bucket, for a sparkline. */
+	spark: number[],
+	/**  5xx answers per bucket (zeros when [`StatsPart::Errors`] is unavailable). */
+	sparkErrors: number[],
+};
+
+/**  A kept webhook, as the app and the inspector show it (never its body). */
+export type InboxItem = {
+	/**  Id (sent along as `X-Teitunnel-Inbox`). */
+	id: string,
+	/**  When it arrived at Cloudflare (ms). */
+	receivedAt: number | null,
+	/**  Method. */
+	method: string,
+	/**  Path and query. */
+	path: string,
+	/**  Body size in bytes. */
+	size: number | null,
+	/**  When it was delivered (ms). */
+	deliveredAt: number | null,
+	/**  What the local service answered. */
+	status: number | null,
+	/**  Delivery attempts. */
+	attempts: number,
+	/**  Why the last attempt failed. */
+	error: string | null,
+};
+
+/**  A webhook inbox's settings. */
+export type InboxSettings = {
+	/**  Most webhooks kept waiting (older ones stay; new ones get `503` when full). */
+	maxItems: number,
+	/**  Days a webhook is kept, delivered or not. */
+	retentionDays: number,
+	/**
+	 *  Keep only webhooks with a valid signature (the secret is in the keychain and
+	 *  sent to Cloudflare as a Worker secret).
+	 */
+	verify?: InboxVerify | null,
+};
+
+/**  How the webhook inbox verifies senders before keeping a webhook (optional). */
+export type InboxVerify = 
+/**  GitHub's `X-Hub-Signature-256`. */
+"github" | 
+/**  Stripe's `Stripe-Signature`. */
+"stripe" | 
+/**  Standard Webhooks (`webhook-signature`: Svix, Clerk, Resend…). */
+"standard";
+
+/**  An outage of one route. */
+export type Incident = {
+	/**  Row id. */
+	id: number,
+	/**  Account. */
+	accountId: string,
+	/**  The route. */
+	route: RouteRef,
+	/**  First failed check, milliseconds since the epoch. */
+	startedAt: number,
+	/**  First good check after it, if it's over. */
+	endedAt: number | null,
+	/**  Why the checks failed (at the start). */
+	cause: Cause,
+};
+
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan = InspectPlan_Serialize | InspectPlan_Deserialize;
+
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan_Deserialize = {
+	/**  The change (an edit of the route's service). */
+	change: Change_Deserialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+};
+
+/**  A change to review before inspection starts or ends. */
+export type InspectPlan_Serialize = {
+	/**  The change (an edit of the route's service). */
+	change: Change_Serialize,
+	/**  The tunnel carrying the route. */
+	tunnelId: string | null,
+	/**  The plan, as for any change. */
+	plan: PlanView,
+};
+
+/**  A route pointed at an inspector, as remembered. */
+export type InspectedRoute = {
+	/**  Account id. */
+	accountId: string,
+	/**  Public hostname. */
+	hostname: string,
+	/**  Path rule. */
+	path: string | null,
+	/**  This machine's tunnel carrying it (`None`: the default one). */
+	tunnelId: string | null,
+	/**  The service it had before, restored when inspection ends. */
+	originalOrigin: string,
+	/**  Its login when inspection started (kept as it is). */
+	access: AccessRule | null,
+	/**  The inspector's address the route points at. */
+	lensUrl: string,
+	/**  [`APP_OWNER`], or the CLI process running the inspector. */
+	owner: string,
+	/**  When inspection started (milliseconds since the epoch). */
+	createdAt: number | null,
+};
+
+/**  How the inspector behaves. */
+export type InspectorSettings = {
+	/**  Quick Shares go through the inspector (maintainer decision Q1: on by default). */
+	inspectQuickShares?: boolean,
+	/**  Keep recent captures on disk, credentials masked, so a restart keeps them. */
+	keepHistory?: boolean,
+	/**  Hours of history kept (1–168). */
+	retentionHours?: number,
+	/**  Stop shares after this many minutes without a request (`None`: never). */
+	idleStopMinutes?: number | null,
+	/**
+	 *  Paths that notify when requested, on every share and route (e.g.
+	 *  `/webhooks/*`).
+	 */
+	watchedPaths?: string[],
+};
+
+/**  A partial update: only the fields that are set change. */
+export type InspectorSettingsPatch = {
+	/**  Inspect new Quick Shares. */
+	inspectQuickShares?: boolean | null,
+	/**  Keep history on disk. */
+	keepHistory?: boolean | null,
+	/**  Hours of history (clamped to 1–168). */
+	retentionHours?: number | null,
+	/**  Minutes without a request before a share stops; 0 turns it off. */
+	idleStopMinutes?: number | null,
+	/**  Watched paths (replacing the list). */
+	watchedPaths?: string[] | null,
+};
+
 /**  Install progress, streamed to the webview. */
 export type InstallProgress = 
 /**  Downloading: bytes received of total. */
@@ -1058,6 +2827,28 @@ total: number } |
 { step: "verifying" } | 
 /**  Moving the binary into place. */
 { step: "installing" };
+
+/**  The Integrations settings. */
+export type Integrations = {
+	/**  The CLI, extensions and launchers may connect to the running app. */
+	controlEnabled: boolean,
+	/**  `teitunnel://` links are handled. */
+	deepLinksEnabled: boolean,
+	/**  Programs that make changes without asking each time, oldest first. */
+	clients: ApprovedClient[],
+	/**  The system-wide shortcut. */
+	shortcut: GlobalShortcut,
+};
+
+/**  A change to the switches. */
+export type IntegrationsPatch = {
+	/**  Turn the control connection on or off. */
+	controlEnabled?: boolean | null,
+	/**  Turn links on or off. */
+	deepLinksEnabled?: boolean | null,
+	/**  A new global shortcut (checked and normalized before it's saved). */
+	shortcut?: GlobalShortcut | null,
+};
 
 /**  A detected problem. */
 export type Issue = Issue_Serialize | Issue_Deserialize;
@@ -1114,6 +2905,203 @@ export type Issue_Serialize = {
 	tunnelId: string | null,
 };
 
+/**  A token's credentials as the app shows them: everything but the secret. */
+export type IssuedTokenView = {
+	/**  Token id (to copy its secret while it's kept). */
+	tokenId: string,
+	/**  Its name. */
+	name: string,
+	/**  The `CF-Access-Client-Id` value. */
+	clientId: string,
+	/**  When it stops working (RFC 3339). */
+	expiresAt: string | null,
+};
+
+/**  What kind of item. */
+export type ItemKind = 
+/**  A route. */
+"route" | 
+/**  A share. */
+"share" | 
+/**  A Snapshot. */
+"snapshot" | 
+/**  A local domain. */
+"localDomain";
+
+/**  How a declared item compares with this machine. */
+export type ItemState = 
+/**  As declared. */
+"applied" | 
+/**  There, but not as declared. */
+"differs" | 
+/**  Not there. */
+"missing" | 
+/**  This version can't apply it (see the note). */
+"unsupported";
+
+/**  A tap this process knows about, running or not (captures keep naming it). */
+export type KnownTap = {
+	/**  Id. */
+	id: TapId,
+	/**  What it inspected. */
+	scope: TapScope,
+	/**  Name. */
+	name: string,
+	/**  The local service. */
+	origin: string,
+	/**  Still running in this process. */
+	running: boolean,
+};
+
+/**  Added latency: `base_ms` plus a uniform jitter in `±jitter_ms`. */
+export type Latency = {
+	/**  Base delay in milliseconds. */
+	baseMs: number,
+	/**  Maximum deviation in milliseconds, either way. */
+	jitterMs: number,
+};
+
+/**  Response time over time (a check's time through the edge). */
+export type LatencySeries = {
+	/**  Time of each point, milliseconds since the epoch. */
+	at: number[],
+	/**  Response time (the mean for hourly points), milliseconds; None: the check failed. */
+	ms: (number | null)[],
+};
+
+/**  Latency percentiles (time to the response head), in milliseconds. */
+export type LatencySummary = {
+	/**  Samples. */
+	count: number,
+	/**  Median. */
+	p50Ms: number | null,
+	/**  95th percentile. */
+	p95Ms: number | null,
+	/**  99th percentile. */
+	p99Ms: number | null,
+	/**  Slowest. */
+	maxMs: number | null,
+	/**  Mean. */
+	meanMs: number | null,
+};
+
+/**  What happens to a visitor over the rate limit. */
+export type LimitAction = 
+/**  Refused until the period ends. */
+"block" | 
+/**  A managed challenge until the period ends. */
+"challenge";
+
+/**  What changed since the last batch. */
+export type LiveBatch = {
+	/**  New or changed exchanges (their latest state), oldest change first. */
+	exchanges: ExchangeRow[],
+	/**  Captures were cleared: for these taps, or all when `null` is in the list. */
+	cleared: (TapId | null)[],
+	/**  Taps started, stopped or changed. */
+	tapsChanged: boolean,
+	/**  Updates were missed (too many at once): read the list again. */
+	lagged: boolean,
+};
+
+/**  A local domain the project adds or changes on this computer (nothing in Cloudflare). */
+export type LocalDomainAction = {
+	/**  E.g. `shop.localhost`. */
+	name: string,
+	/**  The port it serves. */
+	port: number,
+	/**  Subdomains too. */
+	wildcard: boolean,
+	/**  It exists already (with another port or wildcard setting). */
+	exists: boolean,
+};
+
+/**  A fix for a local domains issue. */
+export type LocalDomainFix = 
+/**  Trust the local certificate authority. */
+"trust" | 
+/**  Add the `.test` resolver entry (the walkthrough; `pkexec` on Linux). */
+"setUpResolver" | 
+/**  Start serving again. */
+"restart" | 
+/**  Issue fresh certificates. */
+"renewCertificates" | 
+/**  Replace the certificate authority (and trust the new one). */
+"renewCa";
+
+/**  A local domain to add (or the new settings of one). */
+export type LocalDomainInput = {
+	/**  E.g. `shop.test`, `app.localhost`, `phone.local`. */
+	name: string,
+	/**  A port, `host:port` or URL. */
+	target: string,
+	/**  `*.name` goes to the same service. */
+	wildcard: boolean,
+	/**  Serve it over HTTPS (plain HTTP otherwise). */
+	https: boolean,
+	/**  Record its requests in the inspector. */
+	inspect: boolean,
+};
+
+/**  One local domain, with how it's doing. */
+export type LocalDomainView = {
+	/**  E.g. `shop.test`. */
+	name: string,
+	/**  Where to open it, e.g. `https://shop.test` (with the port when it isn't 443/80). */
+	url: string,
+	/**  The local service, e.g. `http://localhost:3000` (`None` for targets not served). */
+	origin: string | null,
+	/**  The target as stored. */
+	target: LocalTarget,
+	/**  Subdomains go to the same service. */
+	wildcard: boolean,
+	/**  Served over HTTPS. */
+	https: boolean,
+	/**  Requests are recorded in the inspector. */
+	inspect: boolean,
+	/**  The project file that declared it. */
+	project: string | null,
+	/**  When it was added, Unix seconds. */
+	createdAt: number | null,
+	/**  Teitunnel is answering for it now. */
+	serving: boolean,
+	/**  Whether the name reaches this computer. */
+	resolution: NameResolution,
+	/**  Its inspector tap while served. */
+	tapId: TapId | null,
+	/**  Requests served since it started. */
+	requests: number | null,
+};
+
+/**  Everything about local domains at a glance (no processes run, no prompts). */
+export type LocalDomainsStatus = {
+	/**  The listeners are up. */
+	running: boolean,
+	/**  The HTTPS port in use. */
+	httpsPort: number | null,
+	/**  The plain HTTP port in use. */
+	httpPort: number | null,
+	/**  Why 443 or 80 isn't used. */
+	portProblems: PortProblem[],
+	/**
+	 *  Phones and other computers on the network may connect (`.local` names only over
+	 *  HTTPS).
+	 */
+	lan: boolean,
+	/**  This computer's addresses on the network, for phones. */
+	lanAddresses: string[],
+	/**  `.test` names. */
+	resolver: ResolverView,
+	/**  The certificate authority, once created. */
+	ca: CaView | null,
+	/**  The domains. */
+	domains: LocalDomainView[],
+	/**  Why local domains aren't served, if they should be. */
+	error: Text | null,
+	/**  Which platform's steps these are. */
+	platform: PlatformKind,
+};
+
 /**  A TCP port something on this machine is listening on. */
 export type LocalService = {
 	/**  The port. */
@@ -1128,6 +3116,8 @@ export type LocalService = {
 	kind: ServiceKind,
 	/**  Project the process runs in (from its working directory), e.g. `my-app`. */
 	project: string | null,
+	/**  The folder the process runs in, when known (for names like `{branch}`). */
+	folder: string | null,
 	/**  Suggested origin URL, e.g. `http://localhost:5173`. */
 	origin: string,
 };
@@ -1177,6 +3167,25 @@ export type LocalSetup_Serialize = {
 	problem: Text | null,
 };
 
+/**  Where a local domain sends requests. */
+export type LocalTarget = 
+/**  A port on this computer (`http://localhost:<port>`). */
+{ kind: "port"; 
+/**  The port. */
+port: number } | 
+/**  An HTTP(S) service by URL. */
+{ kind: "url"; 
+/**  E.g. `https://127.0.0.1:5173`. */
+url: string } | 
+/**  A Quick Share, by id (not served yet; kept so files from newer versions load). */
+{ kind: "share"; 
+/**  The share's id. */
+id: string } | 
+/**  A route, by id (not served yet; kept so files from newer versions load). */
+{ kind: "route"; 
+/**  The route's id. */
+id: string };
+
 /**  One cloudflared log line, for the log drawer. */
 export type LogLine = {
 	/**  Timestamp as printed by cloudflared. */
@@ -1215,18 +3224,139 @@ export type MenuCommand =
 "goRoutes" | 
 /**  View ▸ Quick Share (⌘3). */
 "goQuickShare" | 
-/**  View ▸ Domains (⌘4). */
+/**  View ▸ Snapshots (⌘4). */
+"goSnapshots" | 
+/**  View ▸ Domains (⌘5). */
 "goDomains" | 
-/**  View ▸ Tunnels (⌘5). */
+/**  View ▸ Tunnels (⌘6). */
 "goTunnels" | 
-/**  View ▸ Activity (⌘6). */
+/**  View ▸ Activity (⌘7). */
 "goActivity" | 
-/**  View ▸ Doctor (⌘7). */
+/**  View ▸ Doctor (⌘8). */
 "goDoctor" | 
+/**  View ▸ Analytics (⌘9). */
+"goAnalytics" | 
 /**  Quit was chosen while routes run through the app: ask what to do. */
 "confirmQuit" | 
 /**  Help ▸ Export Diagnostics… */
 "exportDiagnostics";
+
+/**  Counters for one direction of a stream. */
+export type MessageCounts = {
+	/**  Messages. */
+	count: number,
+	/**  Payload bytes. */
+	bytes: number,
+};
+
+/**  Kind of a stream message. */
+export type MessageKind = 
+/**  WebSocket text message. */
+"text" | 
+/**  WebSocket binary message. */
+"binary" | 
+/**  WebSocket ping. */
+"ping" | 
+/**  WebSocket pong. */
+"pong" | 
+/**  WebSocket close. */
+"close" | 
+/**  A server-sent event. */
+"event";
+
+/**  The beginning of one stream message. */
+export type MessagePreview = {
+	/**  When it finished, relative to the request (microseconds). */
+	atUs: number,
+	/**  Direction. */
+	direction: Direction,
+	/**  Kind. */
+	kind: MessageKind,
+	/**  Full size in bytes. */
+	size: number,
+	/**  The first bytes (text is lossy UTF-8). */
+	preview: string,
+	/**  Whether `preview` is shorter than the message. */
+	truncated: boolean,
+	/**  WebSocket `permessage-deflate`: the message was compressed on the wire. */
+	compressed: boolean,
+	/**
+	 *  For compressed messages: whether `preview` shows the inflated text (otherwise
+	 *  the preview is unavailable and empty).
+	 */
+	inflated: boolean,
+};
+
+/**  A point-in-time copy of a tap's metrics. */
+export type MetricsSnapshot = {
+	/**  Requests received. */
+	requests: number,
+	/**  Responses by status class. */
+	status: StatusCounts,
+	/**  Exchanges that failed (upstream unreachable, reset, client aborted…). */
+	errors: number,
+	/**  Requests stopped by a gate. */
+	blocked: number,
+	/**  Requests answered by a stub. */
+	stubbed: number,
+	/**  Request body bytes received from clients. */
+	bytesIn: number,
+	/**  Response body bytes sent to clients. */
+	bytesOut: number,
+	/**  Open client connections on listeners routing to this tap. */
+	activeConnections: number,
+	/**  Requests in flight. */
+	activeRequests: number,
+	/**  Open WebSocket/upgraded streams. */
+	activeStreams: number,
+	/**  Time to the response head. */
+	latency: LatencySummary,
+};
+
+/**  Does the name reach this computer? */
+export type NameResolution = 
+/**  The system resolves it to this computer. */
+"ok" | 
+/**  `.test` names need the resolver entry (browsers can't reach it yet). */
+"needsResolver" | 
+/**  It resolves somewhere else. */
+"elsewhere" | 
+/**  Not checked (`.local` names resolve through multicast DNS on the network). */
+"unchecked";
+
+/**  A suggested name for a share. */
+export type NameSuggestion = {
+	/**
+	 *  What to type (placeholders kept, so the name follows the branch), e.g.
+	 *  `{branch}.dev.example.com`.
+	 */
+	template: string,
+	/**  What it is right now, e.g. `login-fix.dev.example.com`. */
+	hostname: string,
+	/**  Used for this folder last time. */
+	remembered: boolean,
+};
+
+/**  Network conditions for a tap. The default changes nothing. */
+export type NetworkConfig = {
+	/**  Delay before each request is handled. */
+	latency?: Latency | null,
+	/**  Request bodies (visitor → origin), bytes per second, shared by the tap. */
+	upBytesPerSec?: number | null,
+	/**  Response bodies (origin → visitor), bytes per second, shared by the tap. */
+	downBytesPerSec?: number | null,
+};
+
+/**  Network presets. */
+export type NetworkPreset = 
+/**  No simulation. */
+"off" | 
+/**  3G latency and bandwidth. */
+"threeG" | 
+/**  4G latency and bandwidth. */
+"fourG" | 
+/**  Satellite latency. */
+"satellite";
 
 /**  A private network shared through this Mac's tunnel. */
 export type NetworkView = {
@@ -1239,6 +3369,30 @@ export type NetworkView = {
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
 	owned: boolean,
+};
+
+/**  The page shown while this computer is off. */
+export type OfflinePage = {
+	/**  Heading, e.g. "Back soon". */
+	title: string,
+	/**  A line or two for visitors. */
+	message: string,
+	/**  Also show it when the tunnel is up but the local app doesn't answer (502/504). */
+	whenAppDown?: boolean,
+};
+
+/**  An OpenAPI description saved to Downloads. */
+export type OpenApiSaved = {
+	/**  Where it is. */
+	path: string,
+	/**  What went into it. */
+	summary: Summary,
+};
+
+/**  Emitted when the window should show a view. */
+export type OpenView = {
+	/**  The view. */
+	target: ViewTarget,
 };
 
 /**  Origin settings of a route. `None`/`false` means cloudflared's default. */
@@ -1342,6 +3496,58 @@ error: Text;
 /**  What was left in place. */
 leftovers: Text[] };
 
+/**  Which package manager runs the build. */
+export type PackageManager = 
+/**  npm. */
+"npm" | 
+/**  pnpm. */
+"pnpm" | 
+/**  Yarn. */
+"yarn" | 
+/**  Bun. */
+"bun";
+
+/**  The password of a new version. */
+export type PasswordInput = 
+/**  Keep what the live version has (none for a new Snapshot). */
+{ type: "keep" } | 
+/**  No password. */
+{ type: "remove" } | 
+/**  Require this password (hashed at once; never stored or echoed). */
+{ type: "set"; 
+/**  The password. */
+password: string };
+
+/**  The page served while a tap is paused. */
+export type PausedPage = {
+	/**  Heading. */
+	title: string,
+	/**  Explanation below the heading. */
+	message: string,
+	/**  `Retry-After`, in seconds. */
+	retryAfterSecs: number,
+};
+
+/**  An agent's change waiting for the person's answer in the app. */
+export type PendingApproval = {
+	/**  The agent. */
+	agent: string,
+	/**  What it wants to do, in one line. */
+	title: string,
+	/**  Since when (milliseconds since the epoch). */
+	askedAt: number | null,
+};
+
+/**  Percentiles in milliseconds. */
+export type Percentiles = {
+	/**  Median. */
+	p50: number | null,
+	/**  95th percentile. */
+	p95: number | null,
+	/**  99th percentile. */
+	p99: number | null,
+};
+
 /**  A plan, as shown in the preview. */
 export type PlanView = {
 	/**  Steps in order (empty: nothing to change). */
@@ -1354,12 +3560,312 @@ export type PlanView = {
 	fingerprint: string,
 };
 
+/**  The platform, for the trust walkthrough. */
+export type PlatformKind = 
+/**  macOS. */
+"macos" | 
+/**  Windows. */
+"windows" | 
+/**  Linux. */
+"linux";
+
+/**  A port Teitunnel wanted but didn't get. */
+export type PortProblem = {
+	/**  The port wanted (443 or 80). */
+	port: number,
+	/**  Why it wasn't available. */
+	reason: PortReason,
+	/**  The port used instead (`None`: none could be used). */
+	fallback: number | null,
+};
+
+/**  Why the preferred port couldn't be used. */
+export type PortReason = 
+/**  Another program listens on it. */
+"inUse" | 
+/**  The system reserves it for administrators. */
+"permissionDenied" | 
+/**  Something else. */
+"other";
+
+/**  Prepared files, for review. */
+export type PreparedView = {
+	/**  Pass back to preview and publish. */
+	id: string,
+	/**  Where they come from. */
+	source: SnapshotSource,
+	/**  A name to suggest. */
+	suggestedName: string,
+	/**  Files. */
+	files: number | null,
+	/**  Bytes. */
+	bytes: number | null,
+	/**  Left out (secrets, tooling). */
+	skipped: Skipped[],
+	/**  Probably a single-page app (only one HTML page). */
+	singlePage: boolean,
+	/**  A crawl's report. */
+	crawl: CrawlReport | null,
+};
+
+/**  A step that needs administrator rights, for the person to run. */
+export type PrivilegedStep = {
+	/**  The command to paste into a terminal (an administrator one on Windows). */
+	command: string,
+};
+
 /**  A progress update for the step at `step` (index into the plan). */
 export type Progress = {
 	/**  Step index. */
 	step: number,
 	/**  Its state. */
 	state: StepState,
+};
+
+/**  A recognised project. */
+export type Project = {
+	/**  The project folder. */
+	dir: string,
+	/**  Its name (`package.json`, else the folder's). */
+	name: string,
+	/**  The framework. */
+	framework: Framework,
+	/**  Package manager (none for plain HTML). */
+	manager: PackageManager | null,
+	/**  The script to run, e.g. `build` or `generate` (none for plain HTML). */
+	script: string | null,
+	/**  The folder the build writes the site to (the project folder for plain HTML). */
+	output: string,
+	/**  Something to fix first, e.g. Next.js without `output: 'export'`. */
+	warning: ProjectWarning | null,
+};
+
+/**  What applying did. */
+export type ProjectApplied = {
+	/**  The routes. */
+	routes: RoutesApplied,
+	/**  Each Snapshot by name, and what happened. */
+	snapshots: ([string, SnapshotResult])[],
+	/**  Shares started (their addresses). */
+	shares: string[],
+	/**  Shares that couldn't start, and why. */
+	shareErrors: Text[],
+};
+
+/**  A known project. */
+export type ProjectEntry = {
+	/**  The project file's path. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  When it was added (ms since the epoch). */
+	addedAt: number | null,
+	/**  When it was last applied. */
+	appliedAt: number | null,
+	/**  Routes it created. */
+	createdRoutes?: CreatedRoute[],
+};
+
+/**  A declared item and its state. */
+export type ProjectItem = {
+	/**  Route, share, Snapshot or local domain. */
+	kind: ItemKind,
+	/**  Its address or name. */
+	name: string,
+	/**  Where it goes (the service, the source). */
+	target: string,
+	/**  Applied, differs, missing. */
+	state: ItemState,
+	/**  The line it's declared on. */
+	line: number,
+	/**  More to know. */
+	note: Text | null,
+};
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan = ProjectPlan_Serialize | ProjectPlan_Deserialize;
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan_Deserialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  The account it applies to. */
+	accountId: string,
+	/**  Each declared item and its state. */
+	items: ProjectItem[],
+	/**  Route changes, in order. */
+	routes: RouteAction_Deserialize[],
+	/**  Shares to start. */
+	shares: ShareAction[],
+	/**  Snapshots to publish. */
+	snapshots: SnapshotAction[],
+	/**  Local domains to add or change. */
+	localDomains: LocalDomainAction[],
+	/**  Some route change touches a DNS record Teitunnel didn't create. */
+	requiresConfirmation: boolean,
+	/**  Identifies this plan; applying checks it's still the same. */
+	fingerprint: string,
+};
+
+/**  Everything applying the project would do, for review. */
+export type ProjectPlan_Serialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  The account it applies to. */
+	accountId: string,
+	/**  Each declared item and its state. */
+	items: ProjectItem[],
+	/**  Route changes, in order. */
+	routes: RouteAction_Serialize[],
+	/**  Shares to start. */
+	shares: ShareAction[],
+	/**  Snapshots to publish. */
+	snapshots: SnapshotAction[],
+	/**  Local domains to add or change. */
+	localDomains: LocalDomainAction[],
+	/**  Some route change touches a DNS record Teitunnel didn't create. */
+	requiresConfirmation: boolean,
+	/**  Identifies this plan; applying checks it's still the same. */
+	fingerprint: string,
+};
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus = ProjectStatus_Serialize | ProjectStatus_Deserialize;
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus_Deserialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  Errors and warnings in the file, with their lines. */
+	diagnostics: Diagnostic[],
+	/**  What applying would do (with each item's state), when the file has no errors. */
+	plan: ProjectPlan_Deserialize | null,
+	/**  Why there's no plan (an account to choose, a placeholder without a value…). */
+	problem: Text | null,
+	/**  When the file last changed (ms since the epoch), to notice edits. */
+	modifiedAt: number | null,
+};
+
+/**  A project as the app shows it: its file's problems, and its plan when it has none. */
+export type ProjectStatus_Serialize = {
+	/**  The project file. */
+	path: string,
+	/**  The project's name. */
+	name: string,
+	/**  Errors and warnings in the file, with their lines. */
+	diagnostics: Diagnostic[],
+	/**  What applying would do (with each item's state), when the file has no errors. */
+	plan: ProjectPlan_Serialize | null,
+	/**  Why there's no plan (an account to choose, a placeholder without a value…). */
+	problem: Text | null,
+	/**  When the file last changed (ms since the epoch), to notice edits. */
+	modifiedAt: number | null,
+};
+
+/**  A problem with the project's setup the user can fix. */
+export type ProjectWarning = 
+/**  Next.js builds a server app unless `output: 'export'` is set. */
+"nextNeedsExport" | 
+/**  SvelteKit needs `@sveltejs/adapter-static` to produce files. */
+"svelteKitNeedsStaticAdapter";
+
+/**  A change to a hostname's protection, as the app, the CLI and agents ask for it. */
+export type ProtectionChange = 
+/**  Enforce these settings at the edge (the default turns everything off). */
+{ type: "protect"; 
+/**  The hostname. */
+hostname: string; 
+/**  What to enforce. */
+protection: EdgeProtection } | 
+/**  Create a service token for machines. */
+{ type: "createToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  What it's for, e.g. `CI`. */
+label: string } | 
+/**  Revoke (delete) a service token. */
+{ type: "revokeToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  Token id. */
+tokenId: string } | 
+/**  Give a service token a new secret. */
+{ type: "rotateToken"; 
+/**  The hostname. */
+hostname: string; 
+/**  Token id. */
+tokenId: string };
+
+/**
+ *  Protection to set on a tap. Secrets go in, never out: the answer only says what's on
+ *  (and shows a generated secret link or token once).
+ */
+export type ProtectionInput = {
+	/**  A password page with this password; empty removes it; left out keeps it. */
+	password?: string | null,
+	/**  Create a new secret link (`true`) or remove it (`false`). */
+	secretLink?: boolean | null,
+	/**  HTTP basic authentication `[user, password]`; an empty user removes it. */
+	basic?: [string, string] | null,
+	/**
+	 *  Create a new bearer token (`true`, replacing the others) or remove them all
+	 *  (`false`).
+	 */
+	bearer?: boolean | null,
+	/**  Networks allowed (replacing the list). */
+	ipAllow?: string[] | null,
+	/**  Networks refused (replacing the list). */
+	ipDeny?: string[] | null,
+	/**  Blocked user-agent lists. */
+	agentPresets?: AgentPreset[] | null,
+	/**  Extra blocked user-agent text. */
+	agentPatterns?: string[] | null,
+	/**  Paths that skip sign-in. */
+	bypass?: string[] | null,
+};
+
+/**  How applying a protection change ended, with any new token (never its secret). */
+export type ProtectionOutcome = {
+	/**  How applying ended. */
+	outcome: Outcome,
+	/**  Tokens created or rotated; copy their secret with `protection_copy_secret`. */
+	issued: IssuedTokenView[],
+};
+
+/**  Protection after a change, and secrets generated by it (shown once). */
+export type ProtectionResult = {
+	/**  What's on now. */
+	protection: TapProtectionView,
+	/**  A new secret link's key (`?key=…`), shown once. */
+	secretLinkKey: string | null,
+	/**  A new bearer token, shown once. */
+	bearerToken: string | null,
+};
+
+/**  A hostname's edge protection as it is now. */
+export type ProtectionView = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Its zone. */
+	zone: string,
+	/**  The zone's plan. */
+	plan: ZonePlan,
+	/**  What Teitunnel enforces for it now. */
+	protection: EdgeProtection,
+	/**  The zone's quotas. */
+	quotas: QuotaView[],
+	/**  Whether the plan's rate limits can match one hostname (Pro and up). */
+	rateLimitAvailable: boolean,
+	/**  The longest rate limit period the plan allows, in seconds. */
+	longestPeriod: number,
+	/**  Other hostnames sharing its rate limit. */
+	sharesRateLimitWith: string[],
 };
 
 /**  A running Quick Share, as the UI sees it. */
@@ -1381,6 +3887,64 @@ export type QuickShare = {
 	startedAt: number,
 	/**  When it stops by itself, milliseconds since the Unix epoch. */
 	stopAt: number | null,
+	/**  The Host header sent to the service, if any. */
+	hostHeader: HostHeader | null,
+	/**  The check through Cloudflare once the share is live (`None` until then). */
+	check: Verification | null,
+	/**  Requests go through the inspector (its tap has the share's id). */
+	inspected: boolean,
+	/**  A folder served by the inspector (`origin` is then the inspector's address). */
+	folder: FolderShare | null,
+};
+
+/**
+ *  Hours when alerts are recorded but don't notify, in minutes after local midnight.
+ *  `from` after `to` spans midnight (22:00–07:00).
+ */
+export type QuietHours = {
+	/**  Whether quiet hours apply. */
+	enabled: boolean,
+	/**  Start, minutes after midnight. */
+	from: number,
+	/**  End, minutes after midnight. */
+	to: number,
+};
+
+/**  A plan quota. */
+export type QuotaKind = 
+/**  Custom rules. */
+"custom" | 
+/**  Rate limiting rules. */
+"rateLimit" | 
+/**  Transform Rules. */
+"transform";
+
+/**  How much of a quota a zone uses. */
+export type QuotaView = {
+	/**  Which quota. */
+	quota: QuotaKind,
+	/**  Rules now (Teitunnel's and others'). */
+	used: number,
+	/**  What the plan allows. */
+	limit: number,
+};
+
+/**  A value of a breakdown and its requests. */
+export type Ranked = {
+	/**  The value: a path, a country, a status code, a browser, a cache status. */
+	key: string,
+	/**  Requests. */
+	requests: number,
+};
+
+/**  Requests per period per visitor (IP address). */
+export type RateLimitSpec = {
+	/**  Requests allowed per period. */
+	requests: number,
+	/**  The period, in seconds (10, 60, 120, 300, 600 or 3600). */
+	period: number,
+	/**  What happens above it. */
+	action: LimitAction,
 };
 
 /**  A step of the applied plan and how it ended. */
@@ -1408,6 +3972,169 @@ export type RemoteLogsView = {
 	state: RemoteLogState,
 	/**  The newest lines, oldest first. */
 	lines: LogLine[],
+};
+
+/**  Changes to a request before replaying it. */
+export type ReplayInput = {
+	/**  Another method. */
+	method?: string | null,
+	/**  Another path and query (starting with `/`). */
+	path?: string | null,
+	/**  Headers to set. */
+	setHeaders?: ([string, string])[],
+	/**  Headers to remove. */
+	removeHeaders?: string[],
+	/**  Another body (text). */
+	body?: string | null,
+	/**  How many times, one after another (1–100). */
+	times?: number | null,
+	/**  Recompute the webhook signature with the saved secret (fresh timestamp). */
+	resign?: boolean,
+};
+
+/**  The request part of a view. */
+export type RequestView = {
+	/**  Method. */
+	method: string,
+	/**  Full URL, masked. */
+	url: string,
+	/**  Path, masked. */
+	path: string,
+	/**  Query string, masked. */
+	query: string | null,
+	/**  Host. */
+	host: string,
+	/**  `HTTP/1.1`, `HTTP/2`… */
+	httpVersion: string,
+	/**  Headers in order. */
+	headers: HeaderView[],
+	/**  Body. */
+	body: BodyView,
+};
+
+/**  One reserved hostname. */
+export type Reservation = {
+	/**  The hostname. */
+	hostname: string,
+	/**  Who holds it (`person@machine`); `None` when the writer didn't say. */
+	owner: string | null,
+	/**  When it ends (milliseconds since the epoch); `None`: no end. */
+	until: number | null,
+	/**  The holder routes it too (the lease is on the route's record). */
+	routed: boolean,
+	/**  Held by this owner. */
+	mine: boolean,
+	/**  It has ended (the name is free; the record is cleaned up on the next change). */
+	ended: boolean,
+};
+
+/**  The account's reservations, and whether they came from the cache. */
+export type Reservations = {
+	/**  By hostname. */
+	items: Reservation[],
+	/**  Read from the local cache because Cloudflare couldn't be reached. */
+	cached: boolean,
+};
+
+/**  `.test` names: the responder and the system's resolver entry. */
+export type ResolverView = {
+	/**  Some local domain ends in `.test`. */
+	needed: boolean,
+	/**  Teitunnel's name server answers (on `127.0.0.1:<port>`). */
+	responding: boolean,
+	/**  Its port. */
+	port: number,
+	/**  The system sends `.test` names to it (checked by resolving one). */
+	configured: boolean,
+	/**  Why the name server couldn't start. */
+	error: Text | null,
+	/**  The one-time steps that add the resolver entry. */
+	setup: PrivilegedStep[],
+	/**  The steps that remove it. */
+	teardown: PrivilegedStep[],
+};
+
+/**  Who produced the response. */
+export type Responder = 
+/**  The origin server. */
+{ type: "upstream" } | 
+/**  The static folder server. */
+{ type: "folder" } | 
+/**
+ *  A stub rule (`rule` is its index in the tap's stub list, `fallback` when it
+ *  answered because the upstream was unreachable).
+ */
+{ type: "stub"; 
+/**  Index of the rule in [`crate::TapConfig::stubs`]. */
+rule: number; 
+/**  Whether the rule answered only because the upstream was unreachable. */
+fallback: boolean } | 
+/**  A gate refused or challenged the request. */
+{ type: "gate"; 
+/**  Why. */
+reason: GateOutcome } | 
+/**  The tap is paused and served its paused page. */
+{ type: "paused" } | 
+/**  A fault rule answered (a status or a simulated timeout). */
+{ type: "fault"; 
+/**  Index of the rule in [`crate::TapConfig::faults`]. */
+rule: number } | 
+/**  Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages). */
+{ type: "lens" };
+
+/**  The response part of a view. */
+export type ResponseView = {
+	/**  Status code. */
+	status: number,
+	/**  Canonical reason phrase. */
+	statusText: string,
+	/**  `HTTP/1.1`, `HTTP/2`… */
+	httpVersion: string,
+	/**  Headers in order. */
+	headers: HeaderView[],
+	/**  Body. */
+	body: BodyView,
+};
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction = RouteAction_Serialize | RouteAction_Deserialize;
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction_Deserialize = {
+	/**  The route's hostname. */
+	hostname: string,
+	/**  Its path rule. */
+	path: string | null,
+	/**  The change asked of the engine. */
+	change: Change_Deserialize,
+	/**  The tunnel (id) it's on; `None`: the default one. */
+	tunnelId: string | null,
+	/**  The engine's plan, as shown. */
+	plan: PlanView,
+};
+
+/**  A route change of the project, with its reviewed plan. */
+export type RouteAction_Serialize = {
+	/**  The route's hostname. */
+	hostname: string,
+	/**  Its path rule. */
+	path: string | null,
+	/**  The change asked of the engine. */
+	change: Change_Serialize,
+	/**  The tunnel (id) it's on; `None`: the default one. */
+	tunnelId: string | null,
+	/**  The engine's plan, as shown. */
+	plan: PlanView,
+};
+
+/**  A route change that failed. */
+export type RouteFailure = {
+	/**  The route. */
+	hostname: string,
+	/**  Why. */
+	error: Text,
+	/**  What couldn't be undone (empty: everything was). */
+	leftovers: Text[],
 };
 
 /**  A route as typed in the add/edit sheet. */
@@ -1445,6 +4172,71 @@ export type RouteInput_Serialize = {
 	access: AccessRule | null,
 	/**  Origin settings. On an edit, `None` keeps the route's current ones. */
 	options: OriginOptions_Serialize | null,
+};
+
+/**  A route to measure: a hostname and, for path rules, the path they start with. */
+export type RouteRef = {
+	/**  Public hostname. */
+	hostname: string,
+	/**  Literal path prefix (e.g. `/api`), when the route has a path rule. */
+	path: string | null,
+};
+
+/**  Where a schedule applies, and when it next changes (for the UI). */
+export type RouteSchedule = {
+	/**  Account id. */
+	accountId: string,
+	/**  The route's hostname. */
+	hostname: string,
+	/**  The schedule. */
+	schedule: Schedule,
+	/**  On right now. */
+	on: boolean,
+	/**  When it next changes (milliseconds since the epoch). */
+	nextChange: number | null,
+};
+
+/**  Everything known about one route's traffic over a range. */
+export type RouteStats = {
+	/**  Where the numbers come from. */
+	source: SourceKind,
+	/**  The route. */
+	route: RouteRef,
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  Requests over time. */
+	series: StatsSeries,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Bytes sent to visitors. */
+	bytes: number,
+	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */
+	classes: StatusClasses,
+	/**  Requests per status code. */
+	statuses: Ranked[],
+	/**  Top paths. */
+	paths: Ranked[],
+	/**  Top countries. */
+	countries: Ranked[],
+	/**  Top browsers. */
+	browsers: Ranked[],
+	/**  Verified bot categories (the empty key: people and unverified bots). */
+	bots: Ranked[],
+	/**  Cache statuses. */
+	cache: Ranked[],
+	/**  Origin response time. */
+	originMs: Percentiles | null,
+	/**  Edge time to first byte. */
+	ttfbMs: Percentiles | null,
+	/**
+	 *  Data starts here, not at the range's start (the plan keeps less history);
+	 *  milliseconds since the epoch.
+	 */
+	availableFrom: number | null,
+	/**  Parts the plan or the source doesn't offer. */
+	unavailable: StatsPart[],
+	/**  When the numbers were fetched, milliseconds since the epoch. */
+	fetchedAt: number,
 };
 
 /**  One route of this Mac's tunnel. */
@@ -1506,6 +4298,16 @@ export type RouteView_Serialize = {
 	options: OriginOptions_Serialize,
 };
 
+/**  The routes applied. */
+export type RoutesApplied = {
+	/**  Routes the project created (recorded, for `down --remove-routes`). */
+	created: CreatedRoute[],
+	/**  Connectors that couldn't be started (the routes are configured). */
+	notes: Text[],
+	/**  The change that failed (the ones after it weren't applied). */
+	failure: RouteFailure | null,
+};
+
 /**  Everything the Routes view shows for an account. */
 export type RoutesOverview = RoutesOverview_Serialize | RoutesOverview_Deserialize;
 
@@ -1555,6 +4357,35 @@ export type RuleChange = {
 	after: string | null,
 };
 
+/**  When a route is on. */
+export type Schedule = {
+	/**  The days a window starts on, Monday first. */
+	days: Weekday[],
+	/**  Start, `HH:MM` (24-hour). */
+	from: string,
+	/**  End, `HH:MM`. Earlier than `from`: the next day. Equal: the whole day. */
+	to: string,
+	/**  An IANA time zone, e.g. `Europe/Berlin` (`None`: this computer's). */
+	timeZone: string | null,
+};
+
+/**  What to copy of a kept secret. */
+export type SecretCopy = 
+/**  The `CF-Access-Client-Secret` value alone. */
+"secret" | 
+/**  Both headers, as lines to paste into a request or a CI secret. */
+"headers";
+
+/**  One part of a backup and its size. */
+export type SectionCount = {
+	/**  `settings`, `local_tunnels`, `snapshots`… */
+	section: string,
+	/**  Entries in the backup. */
+	count: number,
+	/**  Entries here now, which restoring replaces. */
+	existing: number,
+};
+
 /**  What a listening process appears to be. */
 export type ServiceKind = 
 /**  Vite dev server. */
@@ -1567,6 +4398,12 @@ export type ServiceKind =
 "nuxt" | 
 /**  Remix / React Router. */
 "remix" | 
+/**  SvelteKit (a Vite project with `svelte.config.js`). */
+"svelteKit" | 
+/**  Angular CLI (`ng serve`). */
+"angular" | 
+/**  webpack-dev-server (webpack, Create React App, Vue CLI). */
+"webpack" | 
 /**  Django. */
 "django" | 
 /**  Flask. */
@@ -1602,6 +4439,20 @@ export type ServiceKind =
 /**  Anything else. */
 "other";
 
+/**  One of Teitunnel's service tokens for a hostname (never its secret). */
+export type ServiceTokenView = {
+	/**  Token id. */
+	id: string,
+	/**  What it's for (the name without Teitunnel's prefix and the hostname). */
+	label: string,
+	/**  The `CF-Access-Client-Id` value (not a secret). */
+	clientId: string,
+	/**  When it stops working (RFC 3339). */
+	expiresAt: string | null,
+	/**  Deleted in the dashboard: only Teitunnel's note of it is left. */
+	gone: boolean,
+};
+
 /**  All preferences, with defaults applied. */
 export type Settings = {
 	/**  Appearance override. */
@@ -1614,8 +4465,22 @@ export type Settings = {
 	notifyQuickShares: boolean,
 	/**  Notify when the Doctor finds a new error. */
 	notifyDoctor: boolean,
+	/**  Notify about alerts (routes down or back, errors, slowness). */
+	notifyAlerts: boolean,
+	/**  When alerts and connector notices stay quiet. */
+	quietHours: QuietHours,
 	/**  Check for app updates by itself (at launch and daily). */
 	checkForUpdates: boolean,
+	/**
+	 *  The one-time "Install teitunnel?" offer was answered (Install or Not now), on
+	 *  installs where the CLI isn't put on the PATH by the installer (D-090).
+	 */
+	cliOfferDismissed: boolean,
+	/**
+	 *  Check a service for common leaks (`.env`, `.git`, debug pages…) before sharing it
+	 *  or adding a route to it.
+	 */
+	exposureCheck: boolean,
 	/**
 	 *  Doctor issues the user chose to ignore (stable issue ids). Changed with
 	 *  [`set_ignored`], not through a patch, so concurrent toggles can't lose one.
@@ -1635,8 +4500,16 @@ export type SettingsPatch = {
 	notifyQuickShares?: boolean | null,
 	/**  Doctor notifications on or off. */
 	notifyDoctor?: boolean | null,
+	/**  Alert notifications on or off. */
+	notifyAlerts?: boolean | null,
+	/**  New quiet hours. */
+	quietHours?: QuietHours | null,
 	/**  Automatic update checks on or off. */
 	checkForUpdates?: boolean | null,
+	/**  The command line offer answered. */
+	cliOfferDismissed?: boolean | null,
+	/**  The exposure check on or off. */
+	exposureCheck?: boolean | null,
 };
 
 /**  How bad an issue is. */
@@ -1647,6 +4520,22 @@ export type Severity =
 "warning" | 
 /**  Worth knowing; nothing is broken. */
 "info";
+
+/**  A share the project starts. */
+export type ShareAction = {
+	/**  The service. */
+	origin: string,
+	/**  On a hostname of the account's (a temporary route); `None`: a Quick Share. */
+	hostname: string | null,
+	/**  Ends by itself after this many seconds. */
+	expiresAfter: number | null,
+	/**  Host header. */
+	hostHeader: HostHeaderDecl,
+	/**  Require a login. */
+	login: AccessRule | null,
+	/**  Inspect its traffic. */
+	inspect: boolean,
+};
 
 /**  Live traffic numbers for a share. */
 export type ShareStats = {
@@ -1668,6 +4557,270 @@ export type ShareStatus =
 { status: "failed"; 
 /**  What went wrong, for the user. */
 message: Text };
+
+/**  What the global shortcut does. */
+export type ShortcutAction = 
+/**
+ *  Share the running dev server (copy its address if it's shared already); with
+ *  none or several, open the Quick Share sheet to choose.
+ */
+"shareDevServer" | 
+/**  Always open the Quick Share sheet. */
+"openQuickShare";
+
+/**  Why a file was left out. */
+export type SkipReason = 
+/**  A hidden file or folder (name starting with `.`). */
+"hidden" | 
+/**  Looks like a secret: `.env` files, private keys. */
+"secret" | 
+/**  Version control data. */
+"versionControl" | 
+/**  Installed dependencies (`node_modules`). */
+"dependencies" | 
+/**  A link to something outside the folder, or to a folder. */
+"link" | 
+/**  Not a regular file (socket, device…). */
+"special" | 
+/**  Its name isn't valid text, so it has no URL. */
+"name";
+
+/**  A file left out, relative to the folder. */
+export type Skipped = {
+	/**  Path relative to the folder, e.g. `.env`. */
+	path: string,
+	/**  Why. */
+	reason: SkipReason,
+};
+
+/**  A Snapshot the project publishes (its files are collected when applied). */
+export type SnapshotAction = {
+	/**  Its name. */
+	name: string,
+	/**  The folder (absolute) its files come from, or the project to build. */
+	source: SnapshotSourceDecl,
+	/**  Its hostname; `None`: workers.dev. */
+	hostname: string | null,
+	/**  It exists already: a new version is published if its files or settings changed. */
+	exists: boolean,
+};
+
+/**  A change to Snapshots, as the UI and CLI ask for it. */
+export type SnapshotChange = 
+/**  Publish prepared files as a new Snapshot. */
+{ type: "publish"; 
+/**  From [`Preparations`]. */
+prepared: string; 
+/**  Its name. */
+name: string; 
+/**  Where it answers. */
+address: AddressInput; 
+/**  Settings. */
+options: SnapshotOptions } | 
+/**  Publish a new version: new files (`prepared`) and/or new settings. */
+{ type: "update"; 
+/**  The Snapshot. */
+snapshot: string; 
+/**  New files; `None` keeps the live version's. */
+prepared: string | null; 
+/**  Settings. */
+options: SnapshotOptions } | 
+/**  Make an earlier version live again. */
+{ type: "rollback"; 
+/**  The Snapshot. */
+snapshot: string; 
+/**  The version's number. */
+version: number } | 
+/**  Delete a Snapshot everywhere. */
+{ type: "delete"; 
+/**  The Snapshot. */
+snapshot: string };
+
+/**  Settings for a new Snapshot, or a new version of one. */
+export type SnapshotOptions = {
+	/**  Serve `index.html` for unknown paths (single-page apps). */
+	spa: boolean,
+	/**  A password checked by the Snapshot's Worker. */
+	password: PasswordInput,
+	/**  A Cloudflare Access login for these people (custom hostnames only). */
+	access: AccessRule | null,
+	/**  Delete it after this many days. */
+	expiresInDays: number | null,
+	/**
+	 *  Let reviewers comment (kept in the account's D1 database); left out: as it is
+	 *  now (off for a new Snapshot).
+	 */
+	comments?: boolean | null,
+};
+
+/**  What publishing a declared Snapshot did. */
+export type SnapshotResult = 
+/**  Published (a new Snapshot or a new version). */
+{ result: "published" } | 
+/**  Its files and settings are the live version's already. */
+{ result: "upToDate" } | 
+/**  It would replace a DNS record Teitunnel didn't create; not done. */
+{ result: "needsConfirmation" } | 
+/**  It failed (and was undone). */
+{ result: "failed"; 
+/**  Why. */
+error: Text };
+
+/**  Where a Snapshot's files come from, so "Update" can get them again. */
+export type SnapshotSource = 
+/**  A folder, published as it is. */
+{ type: "folder"; 
+/**  The folder. */
+path: string } | 
+/**  A project, built first. */
+{ type: "build"; 
+/**  The project folder. */
+project: string; 
+/**  The build command shown, e.g. `pnpm run build`. */
+command: string; 
+/**  Its output folder. */
+output: string } | 
+/**  A running site, crawled. */
+{ type: "crawl"; 
+/**  Where it was captured from, e.g. `http://localhost:5173/`. */
+url: string };
+
+/**  Where a Snapshot's files come from. */
+export type SnapshotSourceDecl = 
+/**  A folder, relative to the project file. */
+{ type: "folder"; path: string } | 
+/**  A project to build first, relative to the project file. */
+{ type: "build"; path: string };
+
+/**  A version, for the version list. */
+export type SnapshotVersionView = {
+	/**  1, 2, 3… */
+	number: number,
+	/**  Published (ms). */
+	createdAt: number | null,
+	/**  Files. */
+	files: number | null,
+	/**  Bytes. */
+	bytes: number | null,
+	/**  Serving now. */
+	live: boolean,
+	/**  Single-page app fallback. */
+	spa: boolean,
+	/**  Password protected. */
+	password: boolean,
+};
+
+/**  A Snapshot, for lists. */
+export type SnapshotView = {
+	/**  Local id. */
+	id: string,
+	/**  Account id. */
+	accountId: string,
+	/**  Name. */
+	name: string,
+	/**  The address people open, e.g. `https://preview.example.com`. */
+	url: string,
+	/**  The hostname. */
+	hostname: string,
+	/**  On workers.dev rather than one of the account's domains. */
+	workersDev: boolean,
+	/**  The Worker. */
+	script: string,
+	/**  Where its files come from. */
+	source: SnapshotSource | null,
+	/**  Single-page app fallback. */
+	spa: boolean,
+	/**  Password protected. */
+	password: boolean,
+	/**  Access login. */
+	access: AccessRule | null,
+	/**  When it deletes itself (ms since the epoch). */
+	expiresAt: number | null,
+	/**  Created (ms). */
+	createdAt: number | null,
+	/**  Last published (ms). */
+	updatedAt: number | null,
+	/**  The live version's number (`None`: publishing never finished). */
+	liveVersion: number | null,
+	/**  Versions kept. */
+	versions: number,
+	/**  Files in the live version. */
+	files: number | null,
+	/**  Its size. */
+	bytes: number | null,
+	/**  Reviewers can comment. */
+	comments: boolean,
+};
+
+/**  Where numbers come from. */
+export type SourceKind = 
+/**  Cloudflare's edge (GraphQL Analytics), per hostname, any connector. */
+"edge" | 
+/**  This machine's cloudflared metrics, per tunnel. */
+"connector" | 
+/**  A local inspecting proxy in front of the origin, per route. */
+"proxy";
+
+/**  A part of the numbers that may be missing (not on the plan, or not measured). */
+export type StatsPart = 
+/**  4xx/5xx over time. */
+"errors" | 
+/**  Requests per status code. */
+"statuses" | 
+/**  Top paths. */
+"paths" | 
+/**  Top countries. */
+"countries" | 
+/**  Top browsers. */
+"browsers" | 
+/**  Verified bots. */
+"bots" | 
+/**  Cache status. */
+"cache" | 
+/**  Response time percentiles. */
+"latency";
+
+/**  Requests over time, as columns (entry `i` of every column is one bucket). */
+export type StatsSeries = {
+	/**  End of each bucket, milliseconds since the epoch; ascending. */
+	at: number[],
+	/**  Seconds each bucket covers. */
+	span: number[],
+	/**  Requests. */
+	requests: number[],
+	/**  4xx responses. */
+	clientErrors: number[],
+	/**  5xx responses. */
+	serverErrors: number[],
+	/**  Bytes sent to visitors. */
+	bytes: number[],
+};
+
+/**  Responses by class. */
+export type StatusClasses = {
+	/**  1xx and 2xx. */
+	ok: number,
+	/**  3xx. */
+	redirects: number,
+	/**  4xx. */
+	clientErrors: number,
+	/**  5xx. */
+	serverErrors: number,
+};
+
+/**  Responses by status class. */
+export type StatusCounts = {
+	/**  1xx (mostly `101 Switching Protocols`). */
+	informational: number,
+	/**  2xx. */
+	success: number,
+	/**  3xx. */
+	redirect: number,
+	/**  4xx. */
+	clientError: number,
+	/**  5xx. */
+	serverError: number,
+};
 
 /**  What a step does, for its icon. */
 export type StepKind = 
@@ -1694,7 +4847,21 @@ export type StepKind =
 /**  Load balance a route, or stop. */
 "loadBalancer" | 
 /**  Check the route works. */
-"verify";
+"verify" | 
+/**  Upload, publish, roll back or delete a Snapshot. */
+"snapshot" | 
+/**  Give a Snapshot its address, or take it away. */
+"snapshotAddress" | 
+/**  Reserve a hostname, renew or end a reservation. */
+"reservation" | 
+/**  Add, change or remove an edge rule (bots, rate limit, headers). */
+"edgeRule" | 
+/**  Create, rotate or delete a service token, or let one through a login. */
+"serviceToken" | 
+/**  Create the account's D1 database (comments, webhook inboxes). */
+"database" | 
+/**  Add, change or remove a Worker in front of a route (offline page, webhook inbox). */
+"frontWorker";
 
 /**  The state of one step while applying. */
 export type StepState = 
@@ -1715,7 +4882,17 @@ message: Text } |
 /**  Couldn't be undone; left in place. */
 { state: "undoFailed"; 
 /**  What went wrong. */
-message: Text };
+message: Text } | 
+/**  Sending a Snapshot's files: how far along. */
+{ state: "transferring"; 
+/**  Files sent. */
+files: number | null; 
+/**  Of this many. */
+totalFiles: number | null; 
+/**  Bytes sent. */
+bytes: number | null; 
+/**  Of this many. */
+totalBytes: number | null };
 
 /**  One step of a plan, as shown in the preview. */
 export type StepView = {
@@ -1725,6 +4902,222 @@ export type StepView = {
 	description: Text,
 	/**  "Copy as command" text, when there's an equivalent command. */
 	command: string | null,
+};
+
+/**  Summary of a WebSocket or SSE stream. */
+export type StreamStats = {
+	/**  Messages from the visitor. */
+	client: MessageCounts,
+	/**  Messages from the origin. */
+	server: MessageCounts,
+	/**  The first messages, up to the tap's preview limit. */
+	previews: MessagePreview[],
+	/**  WebSocket frames: the most recent ones, up to the tap's frame limit. */
+	frames: FrameRecord[],
+	/**  Older frames dropped from `frames` to respect the limit. */
+	framesDropped: number,
+	/**  Whether the stream has ended. */
+	closed: boolean,
+};
+
+/**  When a stub answers. */
+export type StubMode = 
+/**  Every matching request, without contacting the upstream. */
+"always" | 
+/**  Only when the upstream can't be reached (refused, timeout, DNS, TLS). */
+"whenUnreachable";
+
+/**  A canned response for requests matching a method and path. */
+export type StubRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  When to answer. */
+	mode: StubMode,
+	/**  Response status. */
+	status: number,
+	/**  Response headers. */
+	headers: ([string, string])[],
+	/**  Response body (text; use a `Content-Type` header to describe it). */
+	body: string,
+};
+
+/**  A share, route or Snapshot that has comments. */
+export type Subject = {
+	/**  Stable key: `share:<id>`, `route:<account>:<hostname>` or `snapshot:<id>`. */
+	key: string,
+	/**  What it is. */
+	kind: SubjectKind,
+	/**  The account (none for a Quick Share). */
+	accountId: string | null,
+	/**  What people see, e.g. the hostname. */
+	label: string,
+	/**  The address to open. */
+	url: string | null,
+};
+
+/**  What a set of comments is about. */
+export type SubjectKind = 
+/**  A Quick Share (a new address each time it starts). */
+"quickShare" | 
+/**  A route or a share on your domain. */
+"route" | 
+/**  A Snapshot (kept on Cloudflare). */
+"snapshot";
+
+/**  A subject with its counts, for the app's list. */
+export type SubjectView = {
+	/**  Unresolved threads. */
+	open: number,
+	/**  Comments. */
+	comments: number,
+	/**  Comments written after the owner last looked. */
+	unread: number,
+	/**  Newest comment (ms). */
+	latestAt: number | null,
+} & Subject;
+
+/**  What went into a description. */
+export type Summary = {
+	/**  Requests used. */
+	requests: number,
+	/**  Requests left out (pages, assets, Teitunnel's own answers…). */
+	skipped: number,
+	/**  Paths described. */
+	paths: number,
+	/**  Operations (path and method) described. */
+	operations: number,
+	/**  Hosts seen. */
+	hosts: string[],
+};
+
+/**
+ *  Identifies a tap (one inspected share, route or folder).
+ * 
+ *  The embedder chooses it (e.g. `share-3f2a` or `route-8c1d`) so captures persisted by
+ *  a [`crate::CaptureStore`] stay attributable across restarts, or lets Lens generate
+ *  one. 1–64 characters of `A–Z a–z 0–9 . _ : -`.
+ */
+export type TapId = string;
+
+/**  Changes to a tap; fields left out stay as they are. */
+export type TapPatch = {
+	/**  Record requests. */
+	capturing?: boolean | null,
+	/**  Serve the paused page (`true` uses the default page unless `pausedPage` is set). */
+	paused?: boolean | null,
+	/**  The paused page's text. */
+	pausedPage?: PausedPage | null,
+	/**  Canned responses (replacing the list). */
+	stubs?: StubRule[] | null,
+	/**  Header rewrites. */
+	headerRules?: HeaderRules | null,
+	/**  A network preset. */
+	networkPreset?: NetworkPreset | null,
+	/**  A custom simulated network (wins over the preset). */
+	network?: NetworkConfig | null,
+	/**  Injected faults (replacing the list). */
+	faults?: FaultRule[] | null,
+	/**
+	 *  Keep-alive for event streams after this many seconds of silence; 0 turns it
+	 *  off.
+	 */
+	sseKeepaliveSecs?: number | null,
+	/**  Host header for the service; empty sends the visitor's. */
+	hostHeader?: string | null,
+	/**  Paths that notify when requested (replacing the list). */
+	watchedPaths?: string[] | null,
+	/**  Minutes without a request before the share stops; 0 turns it off. */
+	idleStopMinutes?: number | null,
+};
+
+/**  Protection on a tap, without its secrets. */
+export type TapProtectionView = {
+	/**  A password page. */
+	password: boolean,
+	/**  A secret link. */
+	secretLink: boolean,
+	/**  HTTP basic authentication (the user name). */
+	basicUser: string | null,
+	/**  Bearer tokens accepted. */
+	bearerTokens: number,
+	/**  Networks allowed (empty: everyone). */
+	ipAllow: string[],
+	/**  Networks refused. */
+	ipDeny: string[],
+	/**  Blocked user-agent lists. */
+	agentPresets: AgentPreset[],
+	/**  Extra blocked user-agent text. */
+	agentPatterns: string[],
+	/**  Paths that skip sign-in (e.g. `/webhooks/*`). */
+	bypass: string[],
+};
+
+/**  What a tap inspects. */
+export type TapScope = 
+/**  A Quick Share. */
+{ kind: "quickShare"; 
+/**  The share's id. */
+shareId: string } | 
+/**  A route (or a share on your domain, which is a temporary route). */
+{ kind: "route"; 
+/**  Account id. */
+accountId: string; 
+/**  Public hostname. */
+hostname: string; 
+/**  Path rule. */
+path: string | null } | 
+/**  A local HTTPS domain on this computer (`https://shop.test`). */
+{ kind: "localDomain"; 
+/**  The name, e.g. `shop.test`. */
+name: string };
+
+/**  A tap: one inspected share or route. */
+export type TapView = {
+	/**  Id (captures refer to it). */
+	id: TapId,
+	/**  What it inspects. */
+	scope: TapScope,
+	/**  Display name (the public hostname or the share's URL, else the service). */
+	name: string,
+	/**  The local service behind it, e.g. `http://localhost:3000`. */
+	origin: string,
+	/**  The public URL, once known. */
+	publicUrl: string | null,
+	/**  Where cloudflared sends requests (the inspector's local address). */
+	address: string,
+	/**  When it started (milliseconds since the epoch). */
+	startedAt: number | null,
+	/**  Requests are recorded. */
+	capturing: boolean,
+	/**  The paused page is served instead of the service. */
+	paused: PausedPage | null,
+	/**  Protection. */
+	protection: TapProtectionView,
+	/**  The Host header the service gets (`None`: the visitor's). */
+	hostHeader: string | null,
+	/**
+	 *  Seconds of silence before an event stream gets a keep-alive comment (`None`:
+	 *  off).
+	 */
+	sseKeepaliveSecs: number | null,
+	/**  Canned responses. */
+	stubs: StubRule[],
+	/**  Header rewrites. */
+	headerRules: HeaderRules,
+	/**  Simulated network. */
+	network: NetworkConfig,
+	/**  Injected faults. */
+	faults: FaultRule[],
+	/**  Paths that notify when requested. */
+	watchedPaths: string[],
+	/**  Minutes without a request before the share stops (`None`: never). */
+	idleStopMinutes: number | null,
+	/**  Requests seen since it started. */
+	requests: number,
+	/**  Reviewers can pin comments to its pages (the overlay is added to HTML pages). */
+	comments: boolean,
 };
 
 /**
@@ -1749,6 +5142,61 @@ export type Theme =
 /**  Always dark. */
 "dark";
 
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread = Thread_Serialize | Thread_Deserialize;
+
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread_Deserialize = {
+	/**  Id (the first comment's). */
+	id: string,
+	/**  The page, e.g. `/pricing`. */
+	path: string,
+	/**  Where it's pinned (none: the whole page). */
+	anchor: Anchor | null,
+	/**  Resolved. */
+	resolved: boolean,
+	/**  Who resolved it. */
+	resolvedBy: string | null,
+	/**  When. */
+	resolvedAt: number | null,
+	/**  When it started. */
+	createdAt: number | null,
+	/**  Comments, oldest first. */
+	comments: Comment_Deserialize[],
+};
+
+/**  A thread: the first comment, its replies and whether it's resolved. */
+export type Thread_Serialize = {
+	/**  Id (the first comment's). */
+	id: string,
+	/**  The page, e.g. `/pricing`. */
+	path: string,
+	/**  Where it's pinned (none: the whole page). */
+	anchor: Anchor | null,
+	/**  Resolved. */
+	resolved: boolean,
+	/**  Who resolved it. */
+	resolvedBy: string | null,
+	/**  When. */
+	resolvedAt: number | null,
+	/**  When it started. */
+	createdAt: number | null,
+	/**  Comments, oldest first. */
+	comments: Comment_Serialize[],
+};
+
+/**  Per-phase timings, relative to when Lens received the request head. */
+export type Timings = {
+	/**  A connection to the upstream was ready (new or reused), in microseconds. */
+	upstreamConnectedUs: number | null,
+	/**  The response head arrived (time to first byte), in microseconds. */
+	firstByteUs: number | null,
+	/**  The request body finished arriving, in microseconds. */
+	requestDoneUs: number | null,
+	/**  The exchange finished (response body or upgraded stream ended), in microseconds. */
+	completeUs: number | null,
+};
+
 /**  A page of Cloudflare's API token settings. */
 export type TokenPage = 
 /**  "Create API token" with Teitunnel's permissions pre-selected. */
@@ -1771,6 +5219,23 @@ export type Traffic = {
 	/**  Edge locations, e.g. `AMS`. */
 	locations: string[],
 };
+
+/**  Export formats for captured requests (Lens's `export::ExportFormat`). */
+export type TrafficFormat = 
+/**  A `curl` command. */
+"curl" | 
+/**  An HTTPie command. */
+"httpie" | 
+/**  A JavaScript `fetch` call. */
+"fetch" | 
+/**  Raw HTTP/1.1. */
+"raw" | 
+/**  HAR 1.2. */
+"har" | 
+/**  JSON. */
+"json" | 
+/**  Markdown (issues, agents). */
+"markdown";
 
 /**  Samples as columns: entry `i` of every column belongs to the same interval. */
 export type TrafficSeries = {
@@ -1796,6 +5261,80 @@ export type TrafficSeries = {
 	connections: number[],
 	/**  Smoothed round trip to the edge, in milliseconds (the mean for rollups). */
 	rttMs: (number | null)[],
+};
+
+/**  What to trust beyond the system store. */
+export type TrustOptions = {
+	/**  Also add it to Chrome's and Firefox's own certificate databases (always on Linux). */
+	browsers: boolean,
+	/**  Turn on "trust the system's certificates" in Firefox profiles (macOS, Windows). */
+	firefoxSystemRoots: boolean,
+};
+
+/**  A trust store's state. */
+export type TrustState = 
+/**  Trusted. */
+{ state: "trusted" } | 
+/**  Present but not trusted. */
+{ state: "notTrusted" } | 
+/**  Not there. */
+{ state: "absent" } | 
+/**  Firefox follows the system's trust. */
+{ state: "followsSystem" } | 
+/**  Firefox doesn't follow the system's trust. */
+{ state: "disabled" } | 
+/**  No supported store here. */
+{ state: "unsupported" } | 
+/**  A tool is missing. */
+{ state: "toolMissing"; 
+/**  The program. */
+tool: string; 
+/**  The package to install. */
+package: string | null } | 
+/**  Checking or changing it failed. */
+{ state: "error"; 
+/**  Details (technical). */
+message: string };
+
+/**  A trust store. */
+export type TrustStoreKind = 
+/**  The macOS login keychain (Safari, Chrome, Edge, and Firefox by default). */
+"macosKeychain" | 
+/**  Windows' certificates for the current user. */
+"windowsUser" | 
+/**  The Linux system store (curl, Node, most tools). */
+"linuxSystem" | 
+/**  Chrome or Chromium's certificate database. */
+"chrome" | 
+/**  A Firefox profile's certificate database. */
+"firefox" | 
+/**  A Firefox profile's "trust the system's certificates" setting. */
+"firefoxSystemRoots";
+
+/**  One store's trust. */
+export type TrustStoreView = {
+	/**  Which store. */
+	kind: TrustStoreKind,
+	/**  Its folder, for databases and profiles. */
+	path: string | null,
+	/**  The Linux distribution family, for the system store. */
+	flavor: string | null,
+	/**  Its state. */
+	state: TrustState,
+};
+
+/**  Whether this computer trusts the local certificate authority, store by store. */
+export type TrustView = {
+	/**  The system's own store trusts it (what most browsers use). */
+	trusted: boolean,
+	/**  Every store found. */
+	stores: TrustStoreView[],
+	/**  Steps left that need administrator rights (Linux's system store). */
+	steps: PrivilegedStep[],
+	/**  The certificate authority (created by the first trust). */
+	ca: CaView | null,
+	/**  The platform. */
+	platform: PlatformKind,
 };
 
 /**  A tunnel in the account. */
@@ -1881,6 +5420,56 @@ export type UpdateStatus = {
 	installOnQuit: boolean,
 };
 
+/**  A slice of time in the status strip. */
+export type UptimeBar = {
+	/**  Start, milliseconds since the epoch. */
+	start: number,
+	/**  End. */
+	end: number,
+	/**  Checks made (0: no data, the app wasn't running or the computer was offline). */
+	checks: number,
+	/**  Checks that passed. */
+	up: number,
+};
+
+/**  One route's uptime in detail. */
+export type UptimeDetail = {
+	/**  The summary. */
+	summary: UptimeSummary,
+	/**  90 slices of the range, oldest first. */
+	bars: UptimeBar[],
+	/**  Response times over the range. */
+	latency: LatencySeries,
+	/**  Incidents in the range, newest first. */
+	incidents: Incident[],
+};
+
+/**  One route's uptime at a glance. */
+export type UptimeSummary = {
+	/**  Account. */
+	accountId: string,
+	/**  The route. */
+	route: RouteRef,
+	/**  The last check passed (None: never checked). */
+	up: boolean | null,
+	/**  When it was last checked. */
+	lastChecked: number | null,
+	/**  How long the last answer took. */
+	lastLatencyMs: number | null,
+	/**  Why the last check failed. */
+	lastCause: Cause | null,
+	/**  Share of passing checks over 24 hours (0–1). */
+	uptimeDay: number | null,
+	/**  Over 7 days. */
+	uptimeWeek: number | null,
+	/**  Over 30 days. */
+	uptimeMonth: number | null,
+	/**  Response time P95 over 24 hours, milliseconds. */
+	p95Ms: number | null,
+	/**  The outage going on, if any. */
+	openIncident: Incident | null,
+};
+
 /**  The result of checking one hostname. */
 export type Verification = {
 	/**  Hostname. */
@@ -1896,7 +5485,31 @@ export type Verification = {
 	 *  check reached the edge but not the origin behind the login.
 	 */
 	protected: boolean,
+	/**
+	 *  The origin answered with a Server-Sent Events stream (Quick Shares don't carry
+	 *  them).
+	 */
+	eventStream: boolean,
 };
+
+/**  Where the main window should go (asked by the control connection or a link). */
+export type ViewTarget = 
+/**  The Overview. */
+{ view: "overview" } | 
+/**  A route's sheet. */
+{ view: "route"; 
+/**  Its hostname. */
+hostname: string } | 
+/**  Quick Share, optionally one share. */
+{ view: "share"; 
+/**  The share's id. */
+id: string | null } | 
+/**  A share's request inspector. */
+{ view: "inspector"; 
+/**  The share's id. */
+share: string } | 
+/**  The Doctor. */
+{ view: "doctor" };
 
 /**  Something the user should know before applying. */
 export type Warning = 
@@ -1947,7 +5560,114 @@ network: string;
 /**  The other route's range. */
 other: string; 
 /**  The other route's tunnel. */
-tunnel: string };
+tunnel: string } | 
+/**
+ *  Someone else holds the hostname (another machine's route, or a reservation that
+ *  hasn't ended): going ahead takes it over, which needs a confirmation.
+ */
+{ type: "heldBy"; 
+/**  Hostname. */
+hostname: string; 
+/**  Who (`person@machine`); `None` when an older Teitunnel made it. */
+owner: string | null; 
+/**  Until when (milliseconds since the epoch); `None`: no end. */
+until: number | null; 
+/**  Reserved or routed. */
+kind: HoldKind } | 
+/**  How much of a plan quota the zone uses after the change. */
+{ type: "edgeQuota"; 
+/**  Which quota. */
+quota: QuotaKind; 
+/**  The zone. */
+zone: string; 
+/**  Rules after the change (Teitunnel's and others'). */
+used: number; 
+/**  What the zone's plan allows. */
+limit: number } | 
+/**
+ *  The hostname has no login, so the new one lets in only service tokens: people
+ *  opening it in a browser are refused.
+ */
+{ type: "machineOnly"; 
+/**  The Access domain. */
+domain: string } | 
+/**
+ *  Every request matching the pattern runs a Worker, counted against the account's
+ *  100,000 free Worker requests a day (past it the site keeps working without it).
+ */
+{ type: "workerRequests"; 
+/**  The route pattern. */
+pattern: string };
+
+/**  A webhook signature check. */
+export type WebhookCheck = {
+	/**  Who sent it. */
+	provider: WebhookSender,
+	/**  Whether a signing secret is saved for this share or route. */
+	hasSecret: boolean,
+	/**  The result, when a secret is saved. */
+	verification: WebhookVerdict | null,
+};
+
+/**
+ *  Webhook senders the inspector recognises (Lens's [`webhook::Provider`], named for
+ *  the IPC types).
+ */
+export type WebhookSender = 
+/**  Stripe. */
+"stripe" | 
+/**  GitHub. */
+"gitHub" | 
+/**  Slack. */
+"slack" | 
+/**  Shopify. */
+"shopify" | 
+/**  Standard Webhooks / Svix (Clerk, Resend…). */
+"standardWebhooks" | 
+/**  Twilio. */
+"twilio" | 
+/**  Linear. */
+"linear" | 
+/**  Discord. */
+"discord";
+
+/**  A webhook signature check's result (Lens's [`webhook::Verification`]). */
+export type WebhookVerdict = 
+/**  The signature matches and the timestamp (if any) is recent. */
+{ result: "valid" } | 
+/**  The signature doesn't match, or headers are missing. */
+{ result: "invalid"; 
+/**  Why (English, technical). */
+reason: string } | 
+/**  The signature matches but the timestamp is too old (or in the future). */
+{ result: "expired"; 
+/**  The signed time (Unix seconds). */
+timestamp: number | null; 
+/**  Its age in seconds. */
+ageSecs: number | null } | 
+/**  Not a known signature. */
+{ result: "unknownProvider" } | 
+/**  The body wasn't captured in full. */
+{ result: "notEnoughData"; 
+/**  Why. */
+reason: string };
+
+/**  A day of the week. */
+export type Weekday = 
+/**  Monday. */
+"mon" | 
+/**  Tuesday. */
+"tue" | 
+/**  Wednesday. */
+"wed" | 
+/**  Thursday. */
+"thu" | 
+/**  Friday. */
+"fri" | 
+/**  Saturday. */
+"sat" | 
+/**  Sunday. */
+"sun";
 
 /**  DNS permission for one domain. */
 export type ZoneGrant = {
@@ -1957,7 +5677,20 @@ export type ZoneGrant = {
 	zoneName: string,
 	/**  Whether DNS records can be edited. */
 	dnsEdit: Grant,
+	/**  Whether Workers can answer on its hostnames (Snapshots' Custom Domains). */
+	workersRoutes: Grant,
 };
+
+/**  A zone's Cloudflare plan, for its rule quotas. */
+export type ZonePlan = 
+/**  Free (also any plan Teitunnel doesn't know: the smallest limits). */
+"free" | 
+/**  Pro. */
+"pro" | 
+/**  Business. */
+"business" | 
+/**  Enterprise. */
+"enterprise";
 
 /**  A zone the account can use. */
 export type ZoneRef = {

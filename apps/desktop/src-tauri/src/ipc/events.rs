@@ -18,6 +18,20 @@ pub enum EntityKind {
     Routes,
     /// App updates.
     Updates,
+    /// Snapshots (id: the account).
+    Snapshots,
+    /// Projects (teitunnel.yml files opened in the app).
+    Projects,
+    /// The inspector's taps and settings (captures stream on `inspect_subscribe`).
+    Inspector,
+    /// Local HTTPS domains, their listeners and trust.
+    LocalDomains,
+    /// AI agents connected through `teitunnel mcp`, and their approvals waiting.
+    Agents,
+    /// Comments on shares, routes and Snapshots (id: the subject's key).
+    Comments,
+    /// Offline pages and webhook inboxes (id: the account).
+    Fronts,
 }
 
 /// Emitted after anything changes, so the UI can invalidate the affected queries.
@@ -52,14 +66,18 @@ pub enum MenuCommand {
     GoRoutes,
     /// View ▸ Quick Share (⌘3).
     GoQuickShare,
-    /// View ▸ Domains (⌘4).
+    /// View ▸ Snapshots (⌘4).
+    GoSnapshots,
+    /// View ▸ Domains (⌘5).
     GoDomains,
-    /// View ▸ Tunnels (⌘5).
+    /// View ▸ Tunnels (⌘6).
     GoTunnels,
-    /// View ▸ Activity (⌘6).
+    /// View ▸ Activity (⌘7).
     GoActivity,
-    /// View ▸ Doctor (⌘7).
+    /// View ▸ Doctor (⌘8).
     GoDoctor,
+    /// View ▸ Analytics (⌘9).
+    GoAnalytics,
     /// Quit was chosen while routes run through the app: ask what to do.
     ConfirmQuit,
     /// Help ▸ Export Diagnostics…
@@ -72,4 +90,41 @@ pub enum MenuCommand {
 pub struct MenuAction {
     /// The chosen command.
     pub command: MenuCommand,
+}
+
+/// Where the main window should go (asked by the control connection or a link).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "view",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ViewTarget {
+    /// The Overview.
+    Overview,
+    /// A route's sheet.
+    Route {
+        /// Its hostname.
+        hostname: String,
+    },
+    /// Quick Share, optionally one share.
+    Share {
+        /// The share's id.
+        id: Option<String>,
+    },
+    /// A share's request inspector.
+    Inspector {
+        /// The share's id.
+        share: String,
+    },
+    /// The Doctor.
+    Doctor,
+}
+
+/// Emitted when the window should show a view.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenView {
+    /// The view.
+    pub target: ViewTarget,
 }

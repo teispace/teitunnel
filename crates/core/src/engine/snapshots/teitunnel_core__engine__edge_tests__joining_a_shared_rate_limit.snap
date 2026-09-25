@@ -1,0 +1,10 @@
+---
+source: crates/core/src/engine/edge_tests.rs
+expression: view(&p)
+---
+- - "Change the rate limit: block visitors who send a.xyz.com, b.xyz.com more than 30 requests in 60 seconds"
+- - type: edgeQuota
+    quota: rateLimit
+    zone: xyz.com
+    used: 1
+    limit: 2

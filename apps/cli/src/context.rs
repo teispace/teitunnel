@@ -76,7 +76,7 @@ pub(crate) fn edge() -> teitunnel_core::engine::Edge {
 }
 
 /// Connects every account `token` reaches and stores it in the OS keychain (creating the
-/// database if needed): `teitunnel-cli setup` on a machine without the app.
+/// database if needed): `teitunnel setup` on a machine without the app.
 pub(crate) async fn connect(token: Secret<String>) -> Result<Vec<Account>, String> {
     let dir = data_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -91,7 +91,8 @@ pub(crate) async fn connect(token: Secret<String>) -> Result<Vec<Account>, Strin
 #[derive(Debug)]
 pub(crate) struct App {
     pub(crate) accounts: Accounts,
-    pub(crate) engine: Engine,
+    /// Shared with the MCP server when one runs in this process.
+    pub(crate) engine: Arc<Engine>,
     pub(crate) machine_name: String,
     /// The cloudflared the app uses (its managed copy, or one on the system).
     pub(crate) binary: BinaryManager,
@@ -116,7 +117,7 @@ impl App {
         let token = env_token()?;
         if token.is_none() && !dir.join("teitunnel.db").exists() {
             return Err(
-                "Teitunnel hasn't been set up on this machine yet. Open the app and connect an account, or set CLOUDFLARE_API_TOKEN (see `teitunnel-cli setup --help`)."
+                "Teitunnel hasn't been set up on this machine yet. Open the app and connect an account, or set CLOUDFLARE_API_TOKEN (see `teitunnel setup --help`)."
                     .to_owned(),
             );
         }
@@ -136,7 +137,7 @@ impl App {
         }
         Ok(Self {
             accounts,
-            engine: Engine::new(Local::new(store.clone())),
+            engine: Arc::new(Engine::new(Local::new(store.clone()))),
             machine_name: teitunnel_core::machine::machine_name(),
             binary: binary(&dir),
             secrets,
@@ -145,7 +146,38 @@ impl App {
         })
     }
 
-    /// This machine's connectors, run by this process (`teitunnel-cli up`), with the
+    /// Like [`App::open`], but on a machine where Teitunnel isn't set up yet it opens
+    /// with no accounts (in memory) instead of failing: `teitunnel mcp` still offers
+    /// Quick Shares, discovery and the rest that needs no account.
+    pub(crate) async fn open_or_empty() -> Result<Self, String> {
+        let dir = data_dir()?;
+        if env_token()?.is_some() || dir.join("teitunnel.db").exists() {
+            return Self::open().await;
+        }
+        let store = Store::open_in_memory().map_err(|e| e.to_string())?;
+        let secrets: Secrets = Arc::new(MemoryStore::default());
+        Ok(Self {
+            accounts: accounts(store.clone(), Arc::clone(&secrets)),
+            engine: Arc::new(Engine::new(Local::new(store.clone()))),
+            machine_name: teitunnel_core::machine::machine_name(),
+            binary: binary(&dir),
+            secrets,
+            dir,
+            store,
+        })
+    }
+
+    /// The app's data folder.
+    pub(crate) fn dir(&self) -> &std::path::Path {
+        &self.dir
+    }
+
+    /// The keychain (memory only with a token from the environment).
+    pub(crate) fn secrets(&self) -> &Secrets {
+        &self.secrets
+    }
+
+    /// This machine's connectors, run by this process (`teitunnel up`), with the
     /// system's service manager for Always-on (`services`; systemd's system instance when
     /// running as root, for servers). The supervisor is returned too, to stop this
     /// process's connectors when it ends.
@@ -205,6 +237,22 @@ impl App {
     /// The database.
     pub(crate) fn store(&self) -> &Store {
         &self.store
+    }
+
+    /// Uptime checks and alerts for this machine's routes; `owner` names this process
+    /// for the lease that keeps two processes from checking the same routes.
+    pub(crate) fn monitor(
+        &self,
+        analytics: teitunnel_core::analytics::Analytics,
+        owner: &str,
+    ) -> teitunnel_core::uptime::Monitor {
+        teitunnel_core::uptime::Monitor::new(
+            self.store.clone(),
+            self.accounts.clone(),
+            analytics,
+            edge(),
+            owner,
+        )
     }
 
     /// The engine context for `account`.

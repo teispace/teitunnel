@@ -42,3 +42,23 @@ if (typeof HTMLElement !== "undefined") {
     }
   }
 }
+// jsdom has no canvas: getContext returns null, which charts (uPlot) draw on. A context
+// whose every method does nothing lets views with charts render in tests; what a chart
+// draws is tested with a fake uPlot where it matters (time-series-chart.test.tsx).
+if (typeof HTMLCanvasElement !== "undefined") {
+  const context = new Proxy(
+    {},
+    {
+      get: (_, prop) => (prop === "canvas" ? undefined : () => ({ width: 0 })),
+      set: () => true,
+    },
+  );
+  HTMLCanvasElement.prototype.getContext = (() =>
+    context) as unknown as HTMLCanvasElement["getContext"];
+}
+// …and the paths it builds.
+if (typeof globalThis.Path2D === "undefined") {
+  globalThis.Path2D = new Proxy(class {}, {
+    construct: () => new Proxy({}, { get: () => () => undefined }),
+  }) as unknown as typeof Path2D;
+}

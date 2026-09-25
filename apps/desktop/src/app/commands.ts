@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n";
 import { type HelpLink, commands as ipc, type MenuCommand } from "@/lib/ipc/bindings";
-import { navItems } from "./navigation";
+import { type NavItem, navItems } from "./navigation";
 import type { Platform } from "./platform";
 import type { Shortcut } from "./shortcuts";
 import { useUiStore } from "./ui-store";
@@ -48,14 +48,21 @@ const helpLinks: readonly [HelpLink, MessageKey, LucideIcon][] = [
   ["reportIssue", "commands.reportIssue", MessageSquareWarning],
 ];
 
-const goMenu: readonly MenuCommand[] = [
-  "goOverview",
-  "goRoutes",
-  "goQuickShare",
-  "goDomains",
-  "goTunnels",
-  "goActivity",
-  "goDoctor",
+/**
+ * The View menu's Go commands, ⌘1–⌘9 in this order. The Inspector, Projects, Local Domains
+ * and Comments have none (all nine digits are taken); they're in the sidebar and the
+ * command palette.
+ */
+const goMenu: readonly (readonly [NavItem["to"], MenuCommand])[] = [
+  ["/", "goOverview"],
+  ["/routes", "goRoutes"],
+  ["/quick-share", "goQuickShare"],
+  ["/snapshots", "goSnapshots"],
+  ["/domains", "goDomains"],
+  ["/tunnels", "goTunnels"],
+  ["/activity", "goActivity"],
+  ["/doctor", "goDoctor"],
+  ["/analytics", "goAnalytics"],
 ];
 
 /**
@@ -63,17 +70,18 @@ const goMenu: readonly MenuCommand[] = [
  * keyboard shortcuts all dispatch through this list, so they can't drift apart.
  */
 export const appCommands: readonly AppCommand[] = [
-  ...navItems.map(
-    (item, index): AppCommand => ({
+  ...navItems.map((item): AppCommand => {
+    const at = goMenu.findIndex(([to]) => to === item.to);
+    const menu = goMenu[at]?.[1];
+    return {
       id: `go:${item.to}`,
       title: item.label,
       group: "go",
       icon: item.icon,
-      shortcut: { key: String(index + 1) },
-      ...(goMenu[index] ? { menu: goMenu[index] } : {}),
+      ...(menu ? { shortcut: { key: String(at + 1) }, menu } : {}),
       run: ({ navigate }) => void navigate({ to: item.to }),
-    }),
-  ),
+    };
+  }),
   {
     id: "new-route",
     title: "commands.newRoute",

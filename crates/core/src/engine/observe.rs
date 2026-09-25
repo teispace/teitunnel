@@ -10,6 +10,7 @@ use super::{
     cloud::CloudApi,
     local::Local,
     networks::{NetworkState, ObservedNetworkRoute},
+    ownership::{Hold, Me, held_by_other},
     types::{ObservedRecord, ObservedTunnel, RouteElsewhere, Snapshot},
 };
 use crate::{domain::Hostname, store::StoreError};
@@ -35,6 +36,13 @@ pub enum ObserveError {
     AccessPermission,
     /// The chosen tunnel isn't one of this Mac's (any more).
     UnknownTunnel,
+    /// Edge rules need Zone WAF and Transform Rules permissions the credential lacks.
+    EdgePermission,
+    /// Service tokens need the Access: Service Tokens permission the credential lacks.
+    ServiceTokenPermission,
+    /// Workers in front of a route or comments need Workers Routes and D1 permissions
+    /// the credential lacks.
+    WorkersPermission,
 }
 
 impl UserText for ObserveError {
@@ -44,6 +52,9 @@ impl UserText for ObserveError {
             Self::Store(err) => err.text(),
             Self::AccessPermission => msg::error::observe::access_permission(),
             Self::UnknownTunnel => msg::error::observe::unknown_tunnel(),
+            Self::EdgePermission => msg::error::observe::edge_permission(),
+            Self::ServiceTokenPermission => msg::error::observe::service_token_permission(),
+            Self::WorkersPermission => msg::error::observe::workers_permission(),
         }
     }
 }
@@ -74,6 +85,14 @@ pub struct ObserveNeed {
     pub tunnel_names: bool,
     /// Load balancing for a hostname.
     pub balance: super::balance::BalanceNeed,
+    /// A Snapshot's Worker.
+    pub site: super::sites::SiteNeed,
+    /// A zone's edge rules.
+    pub edge: super::edge::EdgeNeed,
+    /// The account's service tokens.
+    pub service_tokens: bool,
+    /// Worker routes on a hostname and the account's D1 database.
+    pub front: super::front::FrontNeed,
 }
 
 impl ObserveNeed {
@@ -112,6 +131,58 @@ impl ObserveNeed {
                 },
                 _ => super::balance::BalanceNeed::default(),
             },
+            site: intent
+                .site()
+                .map(|site| super::sites::SiteNeed {
+                    script: Some(site.script.clone()),
+                    hostname: match intent {
+                        Intent::PublishSnapshot { .. } | Intent::UpdateSnapshot { .. } => {
+                            site.address.hostname().map(ToString::to_string)
+                        }
+                        _ => None,
+                    },
+                })
+                .unwrap_or_default(),
+            edge: super::edge::EdgeNeed {
+                hostname: match intent {
+                    Intent::ProtectHostname { hostname, .. } => Some(hostname.to_string()),
+                    _ => None,
+                },
+            },
+            service_tokens: matches!(
+                intent,
+                Intent::CreateServiceToken { .. }
+                    | Intent::RevokeServiceToken { .. }
+                    | Intent::RotateServiceToken { .. }
+            ),
+            front: match intent {
+                Intent::SetOfflinePage { hostname, .. } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: true,
+                    database: false,
+                },
+                Intent::SetInbox {
+                    hostname, inbox, ..
+                } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: true,
+                    database: inbox.is_some(),
+                },
+                // Removing a route takes its offline page and inboxes with it (read only
+                // when the local index has some).
+                Intent::RemoveRoute { hostname, .. } => super::front::FrontNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: false,
+                    database: false,
+                },
+                Intent::PublishSnapshot { settings, .. }
+                | Intent::UpdateSnapshot { settings, .. } => super::front::FrontNeed {
+                    hostname: None,
+                    required: false,
+                    database: settings.comments.is_some(),
+                },
+                _ => super::front::FrontNeed::default(),
+            },
         }
     }
 }
@@ -124,6 +195,7 @@ impl ObserveNeed {
 /// API or database errors, or [`ObserveError::UnknownTunnel`] for a `target` that isn't
 /// this Mac's. A tunnel deleted elsewhere isn't an error: it's observed as missing, so
 /// the planner creates a new one.
+#[allow(clippy::too_many_arguments)]
 pub async fn observe<C: CloudApi>(
     api: &C,
     local: &Local,
@@ -132,6 +204,7 @@ pub async fn observe<C: CloudApi>(
     machine_name: &str,
     hostnames: Option<&[&Hostname]>,
     need: &ObserveNeed,
+    me: Who<'_>,
 ) -> Result<Snapshot, ObserveError> {
     let machine = local.tunnel(account, target).await?;
     if target.is_some() && machine.is_none() {
@@ -189,7 +262,26 @@ pub async fn observe<C: CloudApi>(
         .try_concat()
         .await?;
     records.sort_by(|a, b| (&a.record.name, &a.record.id).cmp(&(&b.record.name, &b.record.id)));
-    let (access, networks, balance) = tokio::try_join!(
+    let mine: Vec<String> = local
+        .tunnels(account)
+        .await?
+        .into_iter()
+        .map(|t| t.tunnel_id)
+        .collect();
+    let held: Vec<Hold> = records
+        .iter()
+        .filter_map(|r| {
+            held_by_other(
+                &r.record,
+                Me {
+                    owner: me.owner,
+                    tunnels: &mine,
+                    now: me.now,
+                },
+            )
+        })
+        .collect();
+    let (access, networks, balance, site) = tokio::try_join!(
         observe_access(api, local, account, &need.access, &names),
         observe_networks(api, account, need.networks),
         async {
@@ -197,6 +289,17 @@ pub async fn observe<C: CloudApi>(
                 .await
                 .map_err(ObserveError::from)
         },
+        async {
+            super::sites::observe(api, account, &need.site)
+                .await
+                .map_err(ObserveError::from)
+        },
+    )?;
+
+    let (edge, service_tokens, (front, database)) = tokio::try_join!(
+        observe_edge(api, local, account, &zones, &need.edge),
+        observe_service_tokens(api, local, account, need.service_tokens),
+        observe_front(api, local, account, &zones, &need.front),
     )?;
 
     Ok(Snapshot {
@@ -210,7 +313,155 @@ pub async fn observe<C: CloudApi>(
         access,
         networks,
         balance,
+        site,
+        held,
+        owner: me.owner.to_owned(),
+        now: me.now,
+        edge,
+        service_tokens,
+        database,
+        front,
     })
+}
+
+/// Reads the Worker routes on `need.hostname` and, when asked, the account's database.
+async fn observe_front<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    zones: &[super::types::ZoneRef],
+    need: &super::front::FrontNeed,
+) -> Result<
+    (
+        Option<super::front::FrontState>,
+        Option<super::front::DatabaseState>,
+    ),
+    ObserveError,
+> {
+    let permission = |err: cf_api::Error| {
+        if err.is_auth() {
+            ObserveError::WorkersPermission
+        } else {
+            ObserveError::Api(err)
+        }
+    };
+    let rows: Vec<super::front::FrontRow> = match need.hostname.as_deref() {
+        Some(hostname) => local
+            .fronts(Some(account), Some(hostname))
+            .await?
+            .into_iter()
+            .map(|(_, row)| row)
+            .collect(),
+        None => Vec::new(),
+    };
+    // An inbox's Worker binds the database: removing it must know which one, to put
+    // it back if something fails.
+    let wants_database = need.database
+        || rows
+            .iter()
+            .any(|r| r.config.kind() == super::front::FrontKind::Inbox);
+    let database = if wants_database {
+        let indexed = local.cloud_database(account).await?;
+        match super::front::observe_database(api, account, indexed.as_deref()).await {
+            Ok(state) => Some(state),
+            // Removing a route doesn't fail because the database can't be read.
+            Err(err) if !need.required && !need.database && err.is_auth() => None,
+            Err(err) => return Err(permission(err)),
+        }
+    } else {
+        None
+    };
+    let Some(hostname) = need.hostname.as_deref() else {
+        return Ok((None, database));
+    };
+    if !need.required && rows.is_empty() {
+        return Ok((None, database));
+    }
+    let Some(zone) = Hostname::parse(hostname)
+        .ok()
+        .and_then(|h| h.zone_in(zones).cloned())
+    else {
+        return Ok((None, database));
+    };
+    match super::front::observe(api, account, hostname, &zone.id, &rows).await {
+        Ok(state) => Ok((Some(state), database)),
+        // Removing a route doesn't fail because its Workers can't be read.
+        Err(err) if !need.required && err.is_auth() => Ok((None, database)),
+        Err(err) => Err(permission(err)),
+    }
+}
+
+/// Who observes, to tell their names from other people's (M12-11).
+#[derive(Debug, Clone, Copy)]
+pub struct Who<'a> {
+    /// This machine's owner label (`person@machine`).
+    pub owner: &'a str,
+    /// Now (milliseconds since the epoch), for leases.
+    pub now: u64,
+}
+
+/// Reads the edge rules of the zone of `need.hostname`.
+async fn observe_edge<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    zones: &[super::types::ZoneRef],
+    need: &super::edge::EdgeNeed,
+) -> Result<Option<super::edge::EdgeState>, ObserveError> {
+    let Some(zone) = need
+        .hostname
+        .as_deref()
+        .and_then(|h| Hostname::parse(h).ok())
+        .and_then(|h| h.zone_in(zones).cloned())
+    else {
+        return Ok(None);
+    };
+    let owned: HashSet<String> = local
+        .owned_edge_rules(account)
+        .await?
+        .into_iter()
+        .map(|r| r.rule_id)
+        .collect();
+    match super::edge::observe(api, &zone, &owned).await {
+        Ok(state) => Ok(Some(state)),
+        Err(super::edge::EdgeReadError::Permission) => Err(ObserveError::EdgePermission),
+        Err(super::edge::EdgeReadError::Api(err)) => Err(err.into()),
+    }
+}
+
+/// Reads the account's service tokens, marking the ones Teitunnel created.
+async fn observe_service_tokens<C: CloudApi>(
+    api: &C,
+    local: &Local,
+    account: &str,
+    want: bool,
+) -> Result<Option<Vec<super::edge::ObservedServiceToken>>, ObserveError> {
+    if !want {
+        return Ok(None);
+    }
+    let owned: HashSet<String> = local
+        .owned_service_tokens(account)
+        .await?
+        .into_iter()
+        .map(|t| t.token_id)
+        .collect();
+    let tokens = match api.service_tokens(account).await {
+        Ok(tokens) => tokens,
+        Err(err) if err.is_auth() => return Err(ObserveError::ServiceTokenPermission),
+        Err(err) => return Err(err.into()),
+    };
+    let mut tokens: Vec<super::edge::ObservedServiceToken> = tokens
+        .into_iter()
+        .map(|t| super::edge::ObservedServiceToken {
+            owned: owned.contains(&t.id),
+            id: t.id,
+            name: t.name,
+            client_id: t.client_id,
+            expires_at: t.expires_at,
+        })
+        .collect();
+    tokens.sort_by(|a, b| (&a.name, &a.id).cmp(&(&b.name, &b.id)));
+    Ok(Some(tokens))
 }
 
 /// The routes Teitunnel last wrote to this Mac's other tunnels in `account`.

@@ -1,0 +1,108 @@
+---
+title: Edge protection
+description: "Challenge or block bots and AI crawlers, rate limit visitors, change headers, and give machines service tokens: rules Cloudflare enforces for one hostname, planned and undoable like every change."
+---
+
+A login ([Require a login](/docs/guides/require-login)) decides **who** may open a
+hostname. **Edge protection** decides what else happens to its traffic at Cloudflare,
+before it reaches your computer:
+
+- **Automated clients:** allow, **challenge** or **block** scripts, command-line tools and
+  headless browsers. Verified bots such as search engines are let through.
+- **AI crawlers:** block Cloudflare's verified AI crawlers.
+- **Rate limit:** at most so many requests per period per visitor (IP address), then block
+  or challenge them until the period ends.
+- **Header rules:** set or remove request headers before they reach your service, and set,
+  add or remove response headers before they reach visitors (for example
+  `X-Robots-Tag: noindex` on a preview).
+
+Cloudflare enforces these rules, so they keep working while this computer is off. Every
+rule applies to **one hostname** only: Teitunnel never changes anything for a whole domain
+(that's why it doesn't offer Bot Fight Mode or "Block AI bots", which are domain-wide
+switches).
+
+## Protect a hostname
+Select a route in **Routes**, and in **Edge Protection** choose **Edit Protection…** (also
+in the route's **Edit** sheet under **Advanced**, and the shield button on a share on your
+domain). Pick what you want, **Review** the plan, and **Apply Rules**. The toast after
+applying has **Undo**, which puts the previous settings back.
+
+From the terminal:
+
+```sh
+teitunnel protect app.example.com                     # what it has now, and the quotas
+teitunnel protect app.example.com --bots challenge --block-ai
+teitunnel protect app.example.com --rate-limit 30/1m          # Pro plans and up
+teitunnel protect app.example.com --set-response-header X-Robots-Tag:noindex
+teitunnel protect app.example.com --remove-request-header Cookie
+teitunnel protect app.example.com --off               # remove every rule Teitunnel added
+```
+
+Options you don't give keep their current value. `-y` applies without asking.
+
+## Your plan's limits
+Cloudflare counts rules per domain, and Teitunnel shows how many are used (yours and any
+others) before and after each change:
+
+| | Free | Pro | Business |
+|---|---|---|---|
+| Custom rules (bots, AI crawlers) | 5 | 20 | 100 |
+| Rate limiting rules | 1 | 2 | 5 |
+| Rate limit periods | 10 s | up to 1 min | up to 10 min |
+| Transform Rules (headers, URL rewrites) | 10 | 25 | 50 |
+
+Each protected hostname uses at most two custom rules and one Transform Rule per direction.
+
+**Rate limits need Pro or higher.** On the Free plan the one rate limiting rule can't be
+limited to a hostname (Cloudflare only lets it match paths there), so it would apply to
+the whole domain; Teitunnel refuses instead of doing that. On Pro and higher, hostnames
+with the **same limit share one rule**, so a second hostname doesn't use up the quota. If
+the plan has no room for another limit, the plan tells you which hostnames use the
+existing one and what it is: use the same limit, or remove it from them first.
+
+## Rules Teitunnel didn't make
+Teitunnel adds, changes and removes only its own rules, one at a time. They're marked
+`teitunnel:` in their description, and it remembers their ids. Rules you or others made in
+the dashboard are counted towards the quotas but never changed, moved or removed.
+
+## Service tokens for machines
+A login stops people who aren't allowed, and also CI jobs, scripts and other servers. A
+**service token** lets a machine through with two headers:
+
+```sh
+curl https://api.example.com \
+  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
+```
+
+In the route's **Service Tokens**, choose **New Service Token…**, name it (for example
+`CI`), review and **Create Token**. The client id is shown; the secret is **copied, never
+displayed**, and only for the next 10 minutes: Cloudflare shows it once, and Teitunnel
+doesn't keep it (it stores only the token's id and client id). Use **Copy Both Headers**
+to paste them into your CI's secrets.
+
+If the hostname has no login yet, it gets one that **only service tokens pass**: people
+opening it in a browser are refused (the plan warns you). Tokens last a year. **Rotate**
+gives a token a new secret (the old one stops working at once); **Revoke** takes it out of
+the login and deletes it. Changing who may log in never removes the tokens.
+
+```sh
+teitunnel service-token create api.example.com --name CI   # prints both headers once
+teitunnel service-token ls api.example.com
+teitunnel service-token rotate api.example.com CI
+teitunnel service-token revoke api.example.com CI
+```
+
+Service tokens are part of Cloudflare Zero Trust (free for up to 50 users; 50 tokens per
+account).
+
+## Permissions
+Edge rules need **Zone WAF: Edit** and **Transform Rules: Edit**; service tokens need
+**Access: Service Tokens: Edit**. The pre-filled token link asks for them; a token without
+them gets the usual in-place fix that names what to add.
+
+## AI agents
+Agents use `get_protection`, `protect_hostname` (a plan, applied with `apply_plan` after
+your approval), `service_token_list`, `service_token_create` and `service_token_revoke`
+([AI agents](/docs/guides/ai-agents)). A token an agent creates is returned to it once,
+after you approved it, and marked sensitive.

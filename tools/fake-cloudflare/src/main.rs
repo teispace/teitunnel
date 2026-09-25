@@ -33,8 +33,10 @@ struct State {
     tunnels: BTreeMap<String, (String, u64, Value)>,
     /// Zone id → records.
     records: BTreeMap<String, Vec<Value>>,
-    /// Access applications.
+    /// Access applications, with their policies by reference (`{id, precedence}`).
     access_apps: Vec<Value>,
+    /// Reusable Access policies.
+    policies: Vec<Value>,
     /// Login methods (identity providers).
     login_methods: Vec<Value>,
     /// Private network routes.
@@ -42,6 +44,44 @@ struct State {
 }
 
 impl State {
+    /// An application as Cloudflare returns it: its policies in full, each with how many
+    /// applications use it.
+    fn expanded(&self, app: &Value) -> Value {
+        let mut app = app.clone();
+        let policies: Vec<Value> = app["policies"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|reference| {
+                let Some(mut policy) = self
+                    .policies
+                    .iter()
+                    .find(|p| p["id"] == reference["id"])
+                    .cloned()
+                else {
+                    // Inline (application-scoped) policies, as 0.1 wrote them.
+                    return reference.clone();
+                };
+                policy["precedence"] = reference["precedence"].clone();
+                policy["app_count"] = json!(self.uses(&policy["id"]));
+                policy
+            })
+            .collect();
+        app["policies"] = json!(policies);
+        app
+    }
+
+    fn uses(&self, policy: &Value) -> usize {
+        self.access_apps
+            .iter()
+            .filter(|a| {
+                a["policies"]
+                    .as_array()
+                    .is_some_and(|list| list.iter().any(|p| p["id"] == *policy))
+            })
+            .count()
+    }
+
     fn id(&mut self, prefix: &str) -> String {
         self.next_id += 1;
         format!("{prefix}{:08}-0000-4000-8000-000000000000", self.next_id)
@@ -133,6 +173,13 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
             Some(_) => ok(json!({ "id": id })),
             None => err(404, 1003, "Tunnel not found"),
         },
+        ("GET", ["accounts", _, "cfd_tunnel", id, "connections"]) => {
+            if s.tunnels.contains_key(*id) {
+                ok(connectors_json())
+            } else {
+                err(404, 1003, "Tunnel not found")
+            }
+        }
         ("DELETE", ["accounts", _, "cfd_tunnel", id, "connections"]) => {
             if s.tunnels.contains_key(*id) {
                 ok(Value::Null)
@@ -163,8 +210,11 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 None => err(404, 1003, "Tunnel not found"),
             }
         }
-        // No Load Balancing add-on: no load balancers.
-        ("GET", ["zones", _, "load_balancers"]) => ok(json!([])),
+        // No Load Balancing add-on: no load balancers. No Workers either: no Custom
+        // Domains (a cleanup job finds no Snapshot).
+        ("GET", ["zones", _, "load_balancers"] | ["accounts", _, "workers", "domains"]) => {
+            ok(json!([]))
+        }
         ("GET", ["zones", zone, "dns_records"]) => {
             let records = s.records.get(*zone).cloned().unwrap_or_default();
             let matching = records
@@ -173,6 +223,11 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                     req.query.get("name").is_none_or(|n| r["name"] == *n)
                         && req.query.get("type").is_none_or(|t| r["type"] == *t)
                         && req.query.get("content").is_none_or(|c| r["content"] == *c)
+                        && req.query.get("comment.contains").is_none_or(|needle| {
+                            r["comment"]
+                                .as_str()
+                                .is_some_and(|comment| comment.contains(needle.as_str()))
+                        })
                 })
                 .collect();
             ok(Value::Array(matching))
@@ -204,6 +259,15 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 .get_mut(*zone)
                 .and_then(|list| list.iter_mut().find(|r| r["id"] == *id));
             match found {
+                // As Cloudflare since 2026-06-30: no type changes in place.
+                Some(record)
+                    if req
+                        .body
+                        .get("type")
+                        .is_some_and(|kind| *kind != record["type"]) =>
+                {
+                    err(400, 9000, "DNS record type cannot be changed.")
+                }
                 Some(record) => {
                     if let (Some(target), Some(patch)) =
                         (record.as_object_mut(), req.body.as_object())
@@ -217,6 +281,33 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 // Also what capability probes (PATCH on a nil id) expect when authorized.
                 None => err(404, 81044, "Record does not exist."),
             }
+        }
+        // Deletes, then posts, all or nothing.
+        ("POST", ["zones", zone, "dns_records", "batch"]) => {
+            let mut list = s.records.get(*zone).cloned().unwrap_or_default();
+            let mut deleted = Vec::new();
+            for delete in req.body["deletes"].as_array().into_iter().flatten() {
+                let Some(at) = list.iter().position(|r| r["id"] == delete["id"]) else {
+                    return err(404, 81044, "Record does not exist.");
+                };
+                deleted.push(list.remove(at));
+            }
+            let mut posted = Vec::new();
+            for post in req.body["posts"].as_array().into_iter().flatten() {
+                if list.iter().any(|r| r["name"] == post["name"]) {
+                    return err(
+                        400,
+                        81053,
+                        "An A, AAAA, or CNAME record with that host already exists.",
+                    );
+                }
+                let mut record = post.clone();
+                record["id"] = json!(s.id("r"));
+                list.push(record.clone());
+                posted.push(record);
+            }
+            s.records.insert((*zone).to_owned(), list);
+            ok(json!({ "deletes": deleted, "posts": posted }))
         }
         ("DELETE", ["zones", zone, "dns_records", id]) => {
             let list = s.records.entry((*zone).to_owned()).or_default();
@@ -254,25 +345,36 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 .access_apps
                 .iter()
                 .filter(|a| req.query.get("domain").is_none_or(|d| a["domain"] == *d))
-                .cloned()
+                .map(|a| s.expanded(a))
                 .collect();
             ok(Value::Array(matching))
         }
+        ("GET", ["accounts", _, "access", "apps", id]) => {
+            match s.access_apps.iter().find(|a| a["id"] == *id) {
+                Some(app) => ok(s.expanded(app)),
+                None => err(404, 12130, "Application not found"),
+            }
+        }
         ("POST", ["accounts", _, "access", "apps"]) => {
+            if let Some(response) = unknown_policy(&s, &req.body) {
+                return response;
+            }
             let mut app = req.body.clone();
             app["id"] = json!(s.id("app"));
             s.access_apps.push(app.clone());
-            ok(app)
+            ok(s.expanded(&app))
         }
         ("PUT", ["accounts", _, "access", "apps", id]) => {
-            match s.access_apps.iter_mut().find(|a| a["id"] == *id) {
-                Some(app) => {
-                    *app = req.body.clone();
-                    app["id"] = json!(id);
-                    ok(app.clone())
-                }
-                None => err(404, 12130, "Application not found"),
+            if let Some(response) = unknown_policy(&s, &req.body) {
+                return response;
             }
+            let Some(at) = s.access_apps.iter().position(|a| a["id"] == *id) else {
+                return err(404, 12130, "Application not found");
+            };
+            let mut app = req.body.clone();
+            app["id"] = json!(id);
+            s.access_apps[at] = app.clone();
+            ok(s.expanded(&app))
         }
         ("DELETE", ["accounts", _, "access", "apps", id]) => {
             let before = s.access_apps.len();
@@ -281,6 +383,26 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 ok(json!({ "id": id }))
             } else {
                 err(404, 12130, "Application not found")
+            }
+        }
+        ("POST", ["accounts", _, "access", "policies"]) => {
+            let mut policy = req.body.clone();
+            policy["id"] = json!(s.id("pol"));
+            policy["reusable"] = json!(true);
+            s.policies.push(policy.clone());
+            ok(policy)
+        }
+        ("DELETE", ["accounts", _, "access", "policies", id]) => {
+            let target = json!(id);
+            if s.uses(&target) > 0 {
+                return err(400, 12130, "Policy is used by an application");
+            }
+            let before = s.policies.len();
+            s.policies.retain(|p| p["id"] != target);
+            if s.policies.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 12130, "Policy not found")
             }
         }
         ("GET", ["accounts", _, "teamnet", "virtual_networks"]) => ok(json!([
@@ -335,14 +457,29 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
     }
 }
 
+/// An application referring to a policy that doesn't exist is refused, as Cloudflare does.
+fn unknown_policy(s: &State, app: &Value) -> Option<(u16, Value)> {
+    let unknown = app["policies"].as_array().into_iter().flatten().any(|p| {
+        p.get("decision").is_none() && !s.policies.iter().any(|known| known["id"] == p["id"])
+    });
+    unknown.then(|| err(400, 12130, "Access policy not found"))
+}
+
+/// A tunnel as Cloudflare returns it from 2026-10-05: without `connections`, which come
+/// from `…/cfd_tunnel/{id}/connections`.
 fn tunnel_json(id: &str, name: &str) -> Value {
     json!({
         "id": id, "name": name, "status": "healthy", "created_at": "2026-09-23T00:00:00Z",
-        "deleted_at": null, "remote_config": true,
-        "connections": [{ "colo_name": "e2e01", "client_id": "c", "client_version": "2026.9.1",
-                          "origin_ip": "127.0.0.1", "opened_at": "2026-09-23T00:00:00Z",
-                          "is_pending_reconnect": false }]
+        "deleted_at": null, "remote_config": true
     })
+}
+
+fn connectors_json() -> Value {
+    json!([{
+        "id": "c", "version": "2026.9.1", "arch": "linux_amd64", "run_at": "2026-09-23T00:00:00Z",
+        "conns": [{ "colo_name": "e2e01", "origin_ip": "127.0.0.1",
+                    "opened_at": "2026-09-23T00:00:00Z", "is_pending_reconnect": false }]
+    }])
 }
 
 fn decode(value: &str) -> String {

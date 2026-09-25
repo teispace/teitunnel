@@ -1,4 +1,4 @@
-//! Putting the bundled `teitunnel-cli` on the PATH (D-077). The work is in
+//! Putting the bundled `teitunnel` on the PATH (D-077). The work is in
 //! `teitunnel_core::cli_install`.
 
 use teitunnel_core::{

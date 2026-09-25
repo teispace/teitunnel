@@ -1,4 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { CircleCheck, RefreshCw, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,11 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, PermissionFix } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
+import { useLocalFix } from "@/features/local-domains/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
 import { t, translate } from "@/lib/i18n";
 import type { Fix, Issue, Severity } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { queryKeys } from "@/lib/ipc/query-keys";
+import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 import { DiagnosticsDialog } from "./diagnostics-dialog";
 import { hasSafeCandidates, useFixSafe, useIssues, useSetIgnored } from "./queries";
 
@@ -44,11 +46,14 @@ function fixLabel(fix: Fix): string {
       return t("doctor.fix.reconnect");
     case "cleanConnections":
       return t("doctor.fix.cleanConnections");
+    case "localDomains":
+      return t(`doctor.fix.local.${fix.action}`);
   }
 }
 
-/** A fix that runs directly (no plan to review). */
+/** A fix that runs directly (no plan to review); busy until the Doctor has checked again. */
 function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
+  const queryClient = useQueryClient();
   const install = useInstallBinary();
   const accountId =
     fix.type === "startConnector" || fix.type === "keepTheirs" || fix.type === "cleanConnections"
@@ -56,52 +61,51 @@ function FixButton({ fix, primary }: { fix: Fix; primary: boolean }) {
       : "";
   const connector = useTunnelAction(accountId);
   const keep = useKeepTheirs(accountId);
-  const variant = primary ? "primary" : "secondary";
-  const failed = (error: unknown) => toast.error(toIpcError(error).message);
+  const local = useLocalFix();
+  const navigate = useNavigate();
+  const apply = useMutation({
+    mutationFn: (run: () => Promise<unknown>) => run(),
+    onSuccess: () => refresh(queryClient, queryKeys.doctor.all()),
+    onError: (error) => toast.error(toIpcError(error).message),
+  });
+  const button = (run: () => Promise<unknown>, label = fixLabel(fix)) => (
+    <Button
+      variant={primary ? "primary" : "secondary"}
+      pending={apply.isPending}
+      onClick={() => apply.mutate(run)}
+    >
+      {label}
+    </Button>
+  );
   switch (fix.type) {
     case "reconnect":
-      return <ConnectSheet trigger={<Button variant={variant}>{fixLabel(fix)}</Button>} />;
-    case "installBinary":
       return (
-        <Button
-          variant={variant}
-          disabled={install.isPending}
-          onClick={() => install.mutate(undefined, { onError: failed })}
-        >
-          {install.isPending ? t("doctor.installing") : fixLabel(fix)}
-        </Button>
+        <ConnectSheet
+          trigger={<Button variant={primary ? "primary" : "secondary"}>{fixLabel(fix)}</Button>}
+        />
+      );
+    case "installBinary":
+      return button(
+        () => install.mutateAsync(),
+        install.isPending ? t("doctor.installing") : fixLabel(fix),
       );
     case "startConnector":
-      return (
-        <Button
-          variant={variant}
-          disabled={connector.isPending}
-          onClick={() => connector.mutate({ action: "start", tunnelId: "" }, { onError: failed })}
-        >
-          {fixLabel(fix)}
-        </Button>
-      );
+      return button(() => connector.mutateAsync({ action: "start", tunnelId: "" }));
     case "cleanConnections":
-      return (
-        <Button
-          variant={variant}
-          disabled={connector.isPending}
-          onClick={() =>
-            connector.mutate({ action: "clean", tunnelId: fix.tunnelId }, { onError: failed })
-          }
-        >
-          {fixLabel(fix)}
-        </Button>
-      );
+      return button(() => connector.mutateAsync({ action: "clean", tunnelId: fix.tunnelId }));
     case "keepTheirs":
-      return (
+      return button(() => keep.mutateAsync());
+    case "localDomains":
+      // The resolver entry needs a command run as an administrator: shown in place there.
+      return fix.action === "setUpResolver" ? (
         <Button
-          variant={variant}
-          disabled={keep.isPending}
-          onClick={() => keep.mutate(undefined, { onError: failed })}
+          variant={primary ? "primary" : "secondary"}
+          onClick={() => void navigate({ to: "/local-domains" })}
         >
           {fixLabel(fix)}
         </Button>
+      ) : (
+        button(() => local.mutateAsync(fix.action))
       );
     case "change":
       return null;
@@ -154,7 +158,7 @@ function IssueInspector({
           )}
           <Button
             variant="plain"
-            disabled={setIgnored.isPending}
+            pending={setIgnored.isPending}
             onClick={() => setIgnored.mutate({ ids: [issue.id], ignored: true })}
           >
             {t("doctor.ignore")}
@@ -221,7 +225,7 @@ export function DoctorPage({ initialIssue = null }: { initialIssue?: string | nu
   const toolbar = (
     <TitlebarToolbar title={t("doctor.title")}>
       {hasSafeCandidates(issues) ? (
-        <Button size="sm" disabled={fixSafe.isPending} onClick={runSafeFixes}>
+        <Button size="sm" pending={fixSafe.isPending} onClick={runSafeFixes}>
           {fixSafe.isPending ? t("doctor.fixing") : t("doctor.fixSafe")}
         </Button>
       ) : null}
@@ -230,7 +234,7 @@ export function DoctorPage({ initialIssue = null }: { initialIssue?: string | nu
         icon={RefreshCw}
         label={t("doctor.checkAgain")}
         onClick={() => void doctor.refetch()}
-        disabled={doctor.isFetching}
+        pending={doctor.isFetching}
       />
     </TitlebarToolbar>
   );
@@ -267,7 +271,10 @@ export function DoctorPage({ initialIssue = null }: { initialIssue?: string | nu
           }
           action={
             ignoredCount > 0 ? (
-              <Button onClick={() => setIgnored.mutate({ ids: ignoredIds, ignored: false })}>
+              <Button
+                pending={setIgnored.isPending}
+                onClick={() => setIgnored.mutate({ ids: ignoredIds, ignored: false })}
+              >
                 {t("doctor.showIgnored")}
               </Button>
             ) : undefined

@@ -49,6 +49,9 @@ pub struct Plan {
     /// Plan name, e.g. "Free Website".
     #[serde(default)]
     pub name: String,
+    /// The plan's stable id: `free`, `pro`, `business` or `enterprise`.
+    #[serde(default)]
+    pub legacy_id: Option<String>,
 }
 
 /// Zone activation state.
@@ -103,6 +106,16 @@ impl Client {
     /// API or network errors (401/403 mean the token was rejected).
     pub async fn verify_token(&self) -> Result<TokenStatus> {
         self.get("/user/tokens/verify").await
+    }
+
+    /// Checks an account-owned token, which only verifies under its account (the user
+    /// endpoint answers "Invalid API Token" for it).
+    ///
+    /// # Errors
+    /// API or network errors (401/403 mean the token was rejected).
+    pub async fn verify_account_token(&self, account_id: &str) -> Result<TokenStatus> {
+        self.get(&format!("/accounts/{}/tokens/verify", encode(account_id)))
+            .await
     }
 
     /// Accounts this credential can access.

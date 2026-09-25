@@ -1,0 +1,121 @@
+---
+title: Inspector
+description: "See every request to a share or route as it happens: headers, bodies, timings, webhook signatures. Replay, export, stub, protect and slow down requests, from the app, the terminal or an AI agent. Everything stays on your computer."
+---
+
+The inspector sits between Cloudflare and your service on this computer and records each
+request and its response while they stream through untouched:
+
+```
+visitor → Cloudflare → cloudflared → inspector (127.0.0.1, in Teitunnel) → your service
+```
+
+Nothing is sent anywhere: captures stay on this computer, and leave it only when you
+export or copy them. Credentials (`Authorization`, cookies, API keys, webhook signatures
+and token-like values) are **masked** everywhere unless you choose to reveal them.
+
+## Quick Shares
+Quick Shares go through the inspector **by default**. Turn it off for a share in the share
+form (**Inspect requests**), or for every new share in **Settings ▸ Inspector**. Turning
+it off (or on) for a running share restarts it, so it gets a new address.
+
+Fixing a dev server that refuses the public address (**Send Host: localhost:5173**)
+applies at once on an inspected share and keeps its address; a share without the
+inspector restarts with a new one.
+
+## Routes and shares on your domain
+Routes aren't inspected until you ask: **Inspect this route** shows a plan that points the
+route at the inspector on this computer (and remembers its own service), like any other
+change. The route goes back to its own service:
+
+- when you choose **Stop Inspecting** (also a plan);
+- when Teitunnel quits (an [Always-on](/docs/concepts/run-modes) connector keeps serving,
+  so the route is restored before the app exits);
+- at the next launch, if Teitunnel didn't quit cleanly.
+
+If a route is ever left pointing at an inspector that isn't running, the
+[Doctor](/docs/reference/doctor) reports it (`inspect.orphan`) with **Restore the Route**.
+Only routes this computer serves can be inspected; for other machines, use their
+[live logs](/docs/guides/observability).
+
+## What you see
+- **Requests:** method, path, status, duration, size and time; filter by status class,
+  method, path or host text and duration, and search text in headers and bodies (masked
+  values can't be found by searching).
+- **Details:** request and response headers and bodies (JSON, forms, text, images, hex),
+  timings (connect, first byte, done), the visitor's address and country, and which
+  answered: your service, a stub, a protection page or a simulated fault.
+- **WebSockets and event streams:** messages in both directions with their size and a
+  preview; event streams get a keep-alive comment after 25 s of silence so Cloudflare's
+  100-second limit never cuts them.
+- **Webhooks:** Stripe, GitHub, Slack, Shopify, Standard Webhooks (Svix, Clerk, Resend…),
+  Twilio, Linear and Discord deliveries are recognised. Save the signing secret for the
+  share or route and each delivery shows **valid**, **invalid** or **expired**. The secret
+  is kept in your keychain, never in Teitunnel's database.
+
+## Replay, edit, export
+- **Replay** sends a captured request to your service again (up to 100 times), optionally
+  edited: method, path, headers, body. With a saved webhook secret, **Re-sign** gives the
+  replay a fresh, valid signature.
+- **Export** as cURL, HTTPie, fetch, raw HTTP, HAR, JSON or Markdown (for an issue or an
+  AI agent). Secrets are masked unless you untick **Redact**.
+
+## Per share or route
+- **Stubs:** answer a path with a saved response, always or only while your service is
+  down (webhook senders stay happy while you restart).
+- **Protection:** a password page, a secret link, basic auth, bearer tokens, IP allow and
+  deny lists, and blocking AI crawlers or other user agents, enforced on this computer
+  (works on Quick Shares too).
+- **Header rules** and permissive **CORS** for development.
+- **Network simulation:** 3G, 4G or satellite latency and bandwidth, and faults (a share
+  of 500/502/503/504/429 answers, resets, slow first bytes) on matching paths.
+- **Paused page:** keep the address, show a "back soon" page.
+- **Watched paths:** a notification when a request hits, say, `/webhooks/*`.
+- **Idle stop:** stop a share after some minutes without requests (off by default; set it
+  in Settings or per share).
+
+## History
+The last 24 hours of captures are also kept on disk (at most 5,000 per share or route and
+256 MB in all), so a restart keeps recent requests and the terminal can read them. Kept
+captures have credentials masked when written, so they can't be revealed later and a
+replay from history leaves masked headers out. Change how long history is kept, turn it
+off, or clear it in **Settings ▸ Inspector**.
+
+## From the terminal
+
+```sh
+teitunnel share 3000                   # inspected by default; a line per request
+teitunnel share 3000 --no-inspect      # straight to the service
+teitunnel share 3000 --idle 30m --watch '/webhooks/*'
+teitunnel inspect app.example.com      # inspect a route until Ctrl-C (shows the plan first)
+teitunnel inspect app.example.com --off  # restore a route left inspected
+teitunnel traffic ls --status 5xx      # captured requests (every process's history)
+teitunnel traffic get 7f3a9c1b --format curl
+teitunnel traffic watch --path /webhooks
+teitunnel traffic replay 7f3a9c1b --set-header 'X-Debug: 1' --times 3
+teitunnel traffic export --har requests.har
+teitunnel traffic clear
+```
+
+`teitunnel traffic` reads the history that the app and every `teitunnel` command with an
+inspector write, so it shows their requests too. See the [CLI reference](/docs/reference/cli).
+
+## AI agents
+Agents read the same captures through Teitunnel's MCP server: `traffic_list`,
+`traffic_get`, `traffic_replay`, `wait_for_request` (blocks until a matching request
+arrives: webhook testing without polling), `traffic_stats` and `traffic_export`.
+Credentials are masked unless you started the server with `--allow-secrets`. See
+[AI agents](/docs/guides/ai-agents).
+
+## Put an MCP server or a local AI server online
+- `teitunnel share 8000 --mcp --on mcp.example.com` checks that port 8000 answers MCP,
+  shares it on your domain (Quick Tunnels can't carry the event streams MCP uses), keeps
+  streams alive, and requires a bearer token. It prints ready configurations for Claude
+  Code (`claude mcp add --transport http …`), Cursor and VS Code. The token is kept in
+  your keychain for that hostname, so clients keep working the next time you share it;
+  `teitunnel token mcp.example.com` shows it and `--new` replaces it. Claude.ai and
+  ChatGPT connectors can't send a fixed token (they use OAuth); OAuth in front of a local
+  MCP server comes later.
+- `teitunnel share 11434 --ai` (Ollama; also LM Studio on 1234 and vLLM on 8000) shares a
+  local AI server behind a bearer token and prints the OpenAI-compatible base URL and key
+  to use. Add `--on ai.example.com` for streaming answers.

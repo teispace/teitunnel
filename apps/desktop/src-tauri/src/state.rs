@@ -20,8 +20,9 @@ pub struct AppState {
     pub quick_shares: QuickShares,
     /// Connected Cloudflare accounts.
     pub accounts: Accounts,
-    /// The routes engine (observe → plan → apply → verify).
-    pub engine: Engine,
+    /// The routes engine (observe → plan → apply → verify), shared with the control
+    /// connection so applies stay serialized.
+    pub engine: std::sync::Arc<Engine>,
     /// This Mac's tunnel connectors.
     pub machine: MachineTunnels,
     /// Live logs of connectors on other machines.
@@ -40,6 +41,33 @@ pub struct AppState {
     pub quit_confirmed: AtomicBool,
     /// Set once shutdown has started, so the exit hook runs only once.
     pub shutting_down: AtomicBool,
-    /// Registries of `teitunnel-cli` processes (their shares show in Quick Share).
+    /// Registries of `teitunnel` processes (their shares show in Quick Share).
     pub cli_runs: std::path::PathBuf,
+    /// Edge analytics (cached GraphQL answers).
+    pub analytics: teitunnel_core::analytics::Analytics,
+    /// Uptime checks and alerts.
+    pub monitor: teitunnel_core::uptime::Monitor,
+    /// Snapshot files prepared for review.
+    pub snapshots: teitunnel_core::snapshot::Preparations,
+    /// Where crawled sites are captured before publishing.
+    pub snapshot_dir: std::path::PathBuf,
+    /// The control connection and `teitunnel://` links.
+    pub control: crate::shell::control::Control,
+    /// New service token secrets, kept in memory briefly so they can be copied.
+    pub issued_secrets: teitunnel_core::protection::IssuedSecrets,
+    /// The keychain (a project's secret references are read from it).
+    pub secrets: teitunnel_core::secrets::Secrets,
+    /// A backup read and shown to the user, waiting to be restored (its id, its contents).
+    pub pending_restore: std::sync::Mutex<Option<(String, teitunnel_core::backup::Contents)>>,
+    /// The inspector (Lens) in front of Quick Shares and inspected routes.
+    pub inspector: teitunnel_core::inspect::Inspector,
+    /// Local HTTPS domains, served through the inspector's Lens.
+    pub local_domains: teitunnel_core::local_domains::LocalDomains,
+    /// Applies pauses (the paused page) to the inspector's taps.
+    pub pauses: std::sync::Arc<teitunnel_core::pause::Enforcer>,
+    /// Wakes the pause and schedule loop (a schedule changed).
+    pub schedules_changed: std::sync::Arc<tokio::sync::Notify>,
+    /// Live inspector subscriptions of the webview, by id (cancelled to stop).
+    pub inspect_live:
+        std::sync::Mutex<std::collections::HashMap<u32, tokio_util::sync::CancellationToken>>,
 }

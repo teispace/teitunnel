@@ -3,7 +3,7 @@ title: Server API
 description: Automate a Teitunnel server with its HTTP API.
 ---
 
-`teitunnel-cli serve` runs a server's tunnels and offers a small HTTP API next to its web
+`teitunnel serve` runs a server's tunnels and offers a small HTTP API next to its web
 dashboard (see [Servers and containers](/docs/guides/servers#web-dashboard-and-api)). The
 machine-readable description is at `/api/openapi.json`.
 
@@ -12,9 +12,9 @@ machine-readable description is at `/api/openapi.json`.
 Create a key on the server and send it as a bearer token:
 
 ```sh
-teitunnel-cli api-key create deploy     # printed once; store it as a secret
-teitunnel-cli api-key list
-teitunnel-cli api-key revoke 3
+teitunnel api-key create deploy     # printed once; store it as a secret
+teitunnel api-key list
+teitunnel api-key revoke 3
 ```
 
 ```http
@@ -30,6 +30,12 @@ Keys are stored only as hashes. The browser dashboard signs in with a password i
 | `GET` | `/api/overview` | Accounts, this machine's tunnels and routes with their status, shares on your domains |
 | `POST` | `/api/preview` | Plans a change. Nothing changes. |
 | `POST` | `/api/apply` | Applies exactly the plan you previewed |
+| `GET` | `/api/analytics?accountId=…&range=day` | Traffic of the account's routes on this machine from Cloudflare's edge; add `hostname` (and `path`) for one route in detail. Needs Zone · Analytics · Read on the token ([Analytics](/docs/guides/analytics)). |
+| `GET` | `/api/uptime` | Uptime of this machine's routes (24 h, 7 d, 30 d, P95, open incident); add `hostname` and `range` for one route's status strip, response times and incidents |
+| `GET` | `/api/traffic` | Requests the [inspector](/docs/guides/inspector) captured (shares started over `/mcp` and this machine's recent history), newest first; filter with `tap`, `host`, `method`, `status` (`404`, `5xx`), `path`, `text`, page with `limit` and `before`. Read-only; credentials are always masked. |
+| `GET` | `/api/traffic/{id}` | One captured request and its response in full (headers, bodies, timings, webhook check), masked |
+| `GET` | `/api/traffic/taps` | The inspector's taps: running in this server, and known from the history |
+| `POST`, `GET`, `DELETE` | `/mcp` | The MCP server for AI agents (Streamable HTTP), with the same keys: see [AI agents](/docs/guides/ai-agents/#a-server-over-http) |
 
 ## Making a change
 

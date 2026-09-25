@@ -1,6 +1,6 @@
 //! Share on your own domain: a temporary route (a hostname on one of the account's
 //! domains, on this machine's default tunnel) that goes away when the share is stopped,
-//! when it expires, or when whoever started it (the app, or a `teitunnel-cli share`)
+//! when it expires, or when whoever started it (the app, or a `teitunnel share`)
 //! exits. It is made and removed through the plan → apply engine like any route; this
 //! module only remembers which routes are temporary and when they end (M10-03, D-068).
 
@@ -40,6 +40,15 @@ pub struct DomainShare {
     /// When it started (milliseconds since the epoch).
     #[cfg_attr(feature = "specta", specta(type = f64))]
     pub created_at: u64,
+    /// What it shares when its route points at an inspector (`origin` is then the
+    /// inspector's address): the service as given, or a folder.
+    pub source: Option<String>,
+    /// It shares a folder (`source`), served by the inspector.
+    pub folder: bool,
+    /// Visitors get the "paused" page ([`crate::pause`]).
+    pub paused: bool,
+    /// On only during these hours ([`crate::schedule`]).
+    pub schedule: Option<crate::schedule::Schedule>,
 }
 
 impl DomainShare {
@@ -70,6 +79,14 @@ pub struct ShareRequest<'a> {
     pub expires_at: Option<u64>,
     /// [`APP_OWNER`] or a CLI process.
     pub owner: &'a str,
+    /// Host header sent to the service (`httpHostHeader`), for dev servers that only
+    /// answer their own address.
+    pub host_header: Option<String>,
+    /// What's shared when `origin` is an inspector's address: the service as given, or
+    /// a folder.
+    pub source: Option<String>,
+    /// It shares a folder.
+    pub folder: bool,
 }
 
 /// Starts a share: remembers it first (so a crash can't leave the route behind
@@ -101,6 +118,10 @@ where
         owner: request.owner.to_owned(),
         expires_at: request.expires_at,
         created_at: now_ms(),
+        source: request.source,
+        folder: request.folder,
+        paused: false,
+        schedule: None,
     };
     let change = Change::AddRoute {
         route: RouteInput {
@@ -108,7 +129,12 @@ where
             path: None,
             origin: share.origin.clone(),
             access: request.access,
-            options: None,
+            options: request.host_header.map(|host| {
+                Box::new(crate::domain::OriginOptions {
+                    http_host_header: Some(host),
+                    ..crate::domain::OriginOptions::default()
+                })
+            }),
         },
     };
     let intent = engine.intent_for(api, ctx, &change).await?;
@@ -197,6 +223,10 @@ where
     match removed {
         Ok(()) | Err((true, _)) => {
             use crate::text::UserText as _;
+            let store = engine.local().store();
+            // Its pause and schedule go with it (a tap it had stops with its owner).
+            let _ = crate::pause::forget(store, ctx.account, hostname).await;
+            let _ = crate::schedule::set(store, ctx.account, hostname, None).await;
             engine
                 .local()
                 .forget_share(ctx.account, hostname)
@@ -204,6 +234,69 @@ where
                 .map_err(|e| e.text())
         }
         Err((false, message)) => Err(message),
+    }
+}
+
+/// Shares a folder at `hostname`: a tap of `inspector` serves its files (see
+/// [`crate::folder_share`]) and the temporary route points at the tap. Stop it with
+/// [`stop`] and [`release_tap`].
+///
+/// # Errors
+/// Lens couldn't serve the folder, or as [`start`] (the tap is stopped again).
+#[allow(clippy::too_many_arguments)]
+pub async fn start_folder<C, K>(
+    engine: &Engine,
+    api: &C,
+    connectors: &K,
+    ctx: Context<'_>,
+    inspector: &crate::inspect::Inspector,
+    hostname: &str,
+    folder: &crate::folder_share::FolderShare,
+    access: Option<AccessRule>,
+    expires_at: Option<u64>,
+) -> Result<Outcome, crate::inspect::InspectError>
+where
+    C: crate::engine::CloudApi,
+    K: Connectors,
+{
+    use crate::inspect::{TapScope, TapSpec};
+    let hostname = hostname.trim().to_ascii_lowercase();
+    let mut spec = TapSpec::new(
+        TapScope::route(ctx.account, &hostname, None),
+        &hostname,
+        &folder.path,
+    );
+    spec.public_url = Some(format!("https://{hostname}"));
+    spec.folder = Some(folder.clone());
+    let tap = inspector.start(spec).await?;
+    let started = start(
+        engine,
+        api,
+        connectors,
+        ctx,
+        ShareRequest {
+            hostname: &hostname,
+            origin: &tap.address,
+            access,
+            expires_at,
+            owner: inspector.owner(),
+            host_header: None,
+            source: Some(folder.path.clone()),
+            folder: true,
+        },
+    )
+    .await;
+    if !matches!(started, Ok(Outcome::Applied { .. })) {
+        inspector.stop(&tap.id).await;
+    }
+    Ok(started?)
+}
+
+/// Stops the tap `inspector` runs for a share on your domain (after [`stop`]), if any.
+pub async fn release_tap(inspector: &crate::inspect::Inspector, account: &str, hostname: &str) {
+    let scope = crate::inspect::TapScope::route(account, hostname, None);
+    if let Some(tap) = inspector.tap_for(&scope) {
+        inspector.stop(&tap).await;
     }
 }
 
@@ -273,6 +366,9 @@ mod tests {
             access: None,
             expires_at: None,
             owner,
+            host_header: None,
+            source: None,
+            folder: false,
         }
     }
 
@@ -320,6 +416,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sends_the_host_header_it_was_given() {
+        let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+        let (cloud, conns) = (cloud(), FakeConnectors::default());
+        let mut vite = request("vite.xyz.com", APP_OWNER);
+        vite.host_header = Some("localhost:5173".into());
+        start(&engine, &cloud, &conns, CTX, vite).await.unwrap();
+        let state = cloud.snapshot();
+        let rule = &state
+            .tunnels
+            .values()
+            .next()
+            .unwrap()
+            .config
+            .as_ref()
+            .unwrap()
+            .ingress[0];
+        assert_eq!(
+            rule.origin_request.get("httpHostHeader"),
+            Some(&serde_json::json!("localhost:5173"))
+        );
+    }
+
+    #[tokio::test]
     async fn never_takes_over_someone_elses_hostname() {
         let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
         let (cloud, conns) = (cloud(), FakeConnectors::default());
@@ -349,6 +468,66 @@ mod tests {
         );
         assert!(engine.local().shares(None).await.unwrap().is_empty());
         assert_eq!(hostnames(&cloud), ["www.xyz.com"]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn shares_a_folder_through_a_tap() {
+        let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+        let (cloud, conns) = (cloud(), FakeConnectors::default());
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("index.html"), "<p>docs</p>").unwrap();
+        std::fs::write(dir.path().join(".env"), "SECRET=1").unwrap();
+        let folder =
+            crate::folder_share::FolderShare::resolve(dir.path().to_str().unwrap(), false, false)
+                .unwrap();
+        let inspector =
+            crate::inspect::Inspector::new(Some(engine.local().store().clone()), None, APP_OWNER);
+        let outcome = start_folder(
+            &engine,
+            &cloud,
+            &conns,
+            CTX,
+            &inspector,
+            "Docs.xyz.com",
+            &folder,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(outcome, Outcome::Applied { .. }));
+        let tap = inspector.taps().pop().unwrap();
+        let state = cloud.snapshot();
+        let rule = &state
+            .tunnels
+            .values()
+            .next()
+            .unwrap()
+            .config
+            .as_ref()
+            .unwrap()
+            .ingress[0];
+        assert_eq!(rule.service, tap.address, "the route points at the tap");
+        let shares = engine.local().shares(Some("acc")).await.unwrap();
+        assert_eq!(shares[0].source.as_deref(), Some(folder.path.as_str()));
+        assert!(shares[0].folder);
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let index = client.get(&tap.address).send().await.unwrap();
+        assert_eq!(index.text().await.unwrap(), "<p>docs</p>");
+        let env = client
+            .get(format!("{}/.env", tap.address))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(env.status().as_u16(), 404);
+
+        stop(&engine, &cloud, &conns, CTX, "docs.xyz.com")
+            .await
+            .unwrap();
+        release_tap(&inspector, "acc", "docs.xyz.com").await;
+        assert!(inspector.taps().is_empty());
+        assert!(hostnames(&cloud).is_empty());
+        inspector.shutdown().await;
     }
 
     #[tokio::test]

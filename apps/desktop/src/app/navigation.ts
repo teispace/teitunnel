@@ -1,9 +1,15 @@
 import {
   Activity,
+  Camera,
+  ChartNoAxesColumn,
+  FolderGit2,
   Globe,
   LayoutGrid,
+  LockKeyhole,
   type LucideIcon,
+  MessageSquare,
   Network,
+  ScanSearch,
   Share,
   Stethoscope,
   Waypoints,
@@ -11,7 +17,20 @@ import {
 import type { MessageKey } from "@/lib/i18n";
 
 export interface NavItem {
-  readonly to: "/" | "/routes" | "/quick-share" | "/domains" | "/tunnels" | "/activity" | "/doctor";
+  readonly to:
+    | "/"
+    | "/routes"
+    | "/quick-share"
+    | "/inspector"
+    | "/snapshots"
+    | "/projects"
+    | "/local-domains"
+    | "/comments"
+    | "/domains"
+    | "/tunnels"
+    | "/activity"
+    | "/doctor"
+    | "/analytics";
   readonly label: MessageKey;
   readonly icon: LucideIcon;
 }
@@ -21,7 +40,11 @@ export interface NavSection {
   readonly items: readonly NavItem[];
 }
 
-/** Sidebar information architecture. ⌘1–⌘7 follow this order. */
+/**
+ * Sidebar information architecture. ⌘1–⌘9 follow this order (Inspector, Projects, Local
+ * Domains and Comments have none). Local Domains sits with the things you run on this
+ * computer, not under Cloudflare: it needs no account.
+ */
 export const navigation: readonly NavSection[] = [
   {
     title: null,
@@ -29,6 +52,11 @@ export const navigation: readonly NavSection[] = [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/routes", label: "nav.routes", icon: Waypoints },
       { to: "/quick-share", label: "nav.quickShare", icon: Share },
+      { to: "/inspector", label: "nav.inspector", icon: ScanSearch },
+      { to: "/snapshots", label: "nav.snapshots", icon: Camera },
+      { to: "/projects", label: "nav.projects", icon: FolderGit2 },
+      { to: "/local-domains", label: "nav.localDomains", icon: LockKeyhole },
+      { to: "/comments", label: "nav.comments", icon: MessageSquare },
     ],
   },
   {
@@ -43,6 +71,7 @@ export const navigation: readonly NavSection[] = [
     items: [
       { to: "/activity", label: "nav.activity", icon: Activity },
       { to: "/doctor", label: "nav.doctor", icon: Stethoscope },
+      { to: "/analytics", label: "nav.analytics", icon: ChartNoAxesColumn },
     ],
   },
 ];

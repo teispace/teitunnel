@@ -29,6 +29,8 @@ let accessEdit: "yes" | "no";
 let accessDenied: boolean;
 let refusal: { key: string; args: Record<string, string>; field?: string } | null;
 let originDown: boolean;
+/** The route's dev server refuses its address until the route sends Host. */
+let viteRefuses: boolean;
 
 const plan = (change: Change): PlanView => {
   if (refusal) {
@@ -115,6 +117,7 @@ beforeEach(() => {
   accessDenied = false;
   refusal = null;
   originDown = false;
+  viteRefuses = false;
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
@@ -201,9 +204,34 @@ beforeEach(() => {
         }
         if (change.type === "removeRoute")
           routes = routes.filter((r) => r.hostname !== change.hostname);
+        if (change.type === "updateRoute")
+          routes = routes.map((r) =>
+            r.hostname === change.hostname ? { ...r, options: change.route.options ?? {} } : r,
+          );
         return { type: "applied", tunnelId: "t1", verify: [], connectorError: null };
       }
       case "routes_verify": {
+        const route = routes.find((r) => r.hostname === payload["hostname"]);
+        if (viteRefuses && !route?.options.httpHostHeader) {
+          return {
+            hostname: payload["hostname"],
+            status: 403,
+            failure: {
+              type: "hostRejected",
+              rejection: {
+                server: "vite",
+                host: payload["hostname"],
+                hostHeader: "localhost:3000",
+                hostHeaderSafe: true,
+                configFile: "vite.config.js",
+                configLine: "server: { allowedHosts: ['app.xyz.com'] }",
+              },
+            },
+            message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
+            protected: false,
+            eventStream: false,
+          };
+        }
         const guarded = routes.some((r) => r.hostname === payload["hostname"] && r.access);
         return {
           hostname: payload["hostname"],
@@ -275,6 +303,35 @@ async function openAddSheet() {
 }
 
 describe("RoutesPage", () => {
+  it("fixes a route whose dev server refuses its address through a plan", async () => {
+    viteRefuses = true;
+    renderPage();
+    await screen.findByRole("option", { name: /app\.xyz\.com/ });
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    const send = await screen.findByRole("button", { name: "Send Host: localhost:3000" });
+    expect(screen.getByText(/Changes the route to send Host: localhost:3000/)).toBeTruthy();
+    fireEvent.click(send);
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "routes_apply")?.args["change"]).toEqual({
+        type: "updateRoute",
+        hostname: "app.xyz.com",
+        path: null,
+        route: {
+          hostname: "app.xyz.com",
+          path: null,
+          origin: "http://localhost:3000",
+          access: null,
+          options: { httpHostHeader: "localhost:3000" },
+        },
+      }),
+    );
+    // Planned first, then checked again once applied.
+    expect(calls.some((c) => c.cmd === "routes_preview")).toBe(true);
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: /rejects this address/ })).toBeNull(),
+    );
+  });
+
   it("shows how to connect to an SSH route instead of a URL", async () => {
     routes = [
       {

@@ -77,6 +77,11 @@ pub enum Fix {
         /// Tunnel.
         tunnel_id: String,
     },
+    /// Local domains, fixed on this computer.
+    LocalDomains {
+        /// What to do.
+        action: crate::local_domains::LocalDomainFix,
+    },
 }
 
 /// A detected problem.
@@ -151,6 +156,8 @@ pub struct AccountFacts {
     pub logs: Vec<String>,
     /// Logins Teitunnel added that still exist but whose route is gone (Access domains).
     pub orphan_logins: Vec<String>,
+    /// Routes left pointing at an inspector that nobody runs (`inspect.orphan`).
+    pub lens_orphans: Vec<crate::inspect::routes::InspectedRoute>,
     /// How WARP clients are set up; read only when this Mac shares private networks.
     pub warp: WarpFacts,
 }
@@ -217,6 +224,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
             networks: Want::IfAllowed,
             ..ObserveNeed::none()
         },
+        engine.who(),
     )
     .await?;
     let tunnels = engine.tunnels(api, connectors, ctx.account).await?;
@@ -261,6 +269,17 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         .map(|t| connectors.recent_logs(&t.id, 500))
         .unwrap_or_default();
     let orphan_logins = orphan_logins(engine, api, ctx.account, &snapshot).await;
+    let lens_orphans = {
+        let remembered = crate::inspect::routes::list(engine.local().store(), Some(ctx.account))
+            .await
+            .unwrap_or_default();
+        let rules: Vec<(String, Option<String>, String)> = snapshot
+            .routes()
+            .into_iter()
+            .filter_map(|r| Some((r.hostname.clone()?, r.path.clone(), r.service.clone())))
+            .collect();
+        crate::inspect::routes::orphans(&remembered, &rules, &listening)
+    };
     let warp = if shared_networks(&snapshot).is_empty() {
         WarpFacts::default()
     } else {
@@ -287,6 +306,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         listening,
         logs,
         orphan_logins,
+        lens_orphans,
         warp,
     })
 }
@@ -939,6 +959,8 @@ fn diagnose_account(
         if let Ok(origin) = RouteOrigin::parse(&rule.service)
             && let Some(port) = origin.port()
             && facts.listening.get(&port) == Some(&false)
+            // A stopped inspector has its own issue (`inspect.orphan`) and fix.
+            && !facts.lens_orphans.iter().any(|o| o.lens_url == rule.service)
         {
             found.add(
                 "origin.not_listening",
@@ -1212,6 +1234,25 @@ fn diagnose_account(
         );
     }
 
+    for route in &facts.lens_orphans {
+        use m::inspect_orphan as o;
+        found.add(
+            "inspect.orphan",
+            Severity::Error,
+            route.hostname.as_str(),
+            o::title(&route.hostname),
+            o::detail(),
+            vec![
+                o::address(&route.lens_url),
+                o::original(&route.original_origin),
+            ],
+            vec![Fix::Change {
+                label: o::fix(),
+                change: route.restore_change(route.access.clone()),
+            }],
+        );
+    }
+
     found.issues
 }
 
@@ -1271,6 +1312,14 @@ mod tests {
                 tunnel_names: Vec::new(),
                 elsewhere: Vec::new(),
                 balance: None,
+                site: None,
+                held: Vec::new(),
+                owner: String::new(),
+                now: 0,
+                edge: None,
+                service_tokens: None,
+                database: None,
+                front: None,
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),
@@ -1292,8 +1341,39 @@ mod tests {
             listening: HashMap::from([(3000, true)]),
             logs: Vec::new(),
             orphan_logins: Vec::new(),
+            lens_orphans: Vec::new(),
             warp: WarpFacts::default(),
         }
+    }
+
+    #[test]
+    fn a_route_left_on_a_stopped_inspector_can_be_restored() {
+        let mut facts = healthy();
+        facts
+            .lens_orphans
+            .push(crate::inspect::routes::InspectedRoute {
+                account_id: "a".into(),
+                hostname: "app.xyz.com".into(),
+                path: None,
+                tunnel_id: None,
+                original_origin: "http://localhost:3000".into(),
+                access: None,
+                lens_url: "http://127.0.0.1:49152".into(),
+                owner: "app".into(),
+                created_at: 1,
+            });
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts],
+            foreign: Vec::new(),
+        });
+        let issue = issues.iter().find(|i| i.check == "inspect.orphan").unwrap();
+        assert_eq!(issue.severity, Severity::Error);
+        assert!(matches!(
+            &issue.fixes[0],
+            Fix::Change { change: Change::UpdateRoute { route, .. }, .. }
+                if route.origin == "http://localhost:3000" && route.hostname == "app.xyz.com"
+        ));
     }
 
     fn checks(facts: AccountFacts) -> Vec<String> {

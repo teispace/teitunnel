@@ -10,7 +10,8 @@ use teitunnel_core::{
     binary::{BinaryStatus, InstallStep as Progress},
     discovery::{self, LocalService},
     domain::OriginUrl,
-    quick_share::{QuickShare, ShareStats, qr_svg},
+    engine::Verification,
+    quick_share::{HostHeaderChoice, QuickShare, ShareStats, qr_svg},
     runtime::ConnectorId,
 };
 
@@ -170,16 +171,83 @@ pub async fn services_list() -> Result<Vec<LocalService>, AppError> {
 }
 
 /// Starts sharing `origin`. The URL arrives via `EntityChanged` for `quickShares`.
+/// `inspect` chooses whether it goes through the inspector (`null`: the setting, on by
+/// default).
 #[tauri::command]
 #[specta::specta]
 pub async fn quick_share_start(
     state: State<'_, AppState>,
     origin: String,
     stop_after_minutes: Option<u32>,
+    host_header: HostHeaderChoice,
+    inspect: Option<bool>,
 ) -> Result<QuickShare, AppError> {
     let origin = OriginUrl::parse(&origin)?;
     let stop_after = stop_after_minutes.map(|m| Duration::from_secs(u64::from(m) * 60));
-    Ok(state.quick_shares.start(origin, stop_after).await?)
+    Ok(state
+        .quick_shares
+        .start_with(origin, stop_after, &host_header, inspect)
+        .await?)
+}
+
+/// Shares a folder at a random trycloudflare.com address: this Mac's inspector serves
+/// its files (never secrets or tooling), with an optional listing and single-page-app
+/// fallback. Returns at once; the URL arrives with `EntityChanged`.
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_start_folder(
+    state: State<'_, AppState>,
+    folder: teitunnel_core::folder_share::FolderShare,
+    stop_after_minutes: Option<u32>,
+) -> Result<QuickShare, AppError> {
+    use teitunnel_core::text::UserText as _;
+    let folder = teitunnel_core::folder_share::FolderShare::resolve(
+        &folder.path,
+        folder.listing,
+        folder.spa,
+    )
+    .map_err(|e| AppError::invalid("folder", e.text()))?;
+    let stop_after = stop_after_minutes.map(|m| Duration::from_secs(u64::from(m) * 60));
+    Ok(state.quick_shares.start_folder(folder, stop_after).await?)
+}
+
+/// Turns inspection of a running share on or off. cloudflared restarts, so the share
+/// gets a new URL (the UI says so before).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_inspected(
+    state: State<'_, AppState>,
+    id: String,
+    inspect: bool,
+) -> Result<QuickShare, AppError> {
+    Ok(state.quick_shares.set_inspected(&id, inspect).await?)
+}
+
+/// Sends `host_header` to a share's service (`null`: none), for a dev server that
+/// refuses the public address. An inspected share changes at once and keeps its URL;
+/// otherwise it restarts with a new URL. Either way it's checked again once live.
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_host_header(
+    state: State<'_, AppState>,
+    id: String,
+    host_header: Option<String>,
+) -> Result<QuickShare, AppError> {
+    Ok(state
+        .quick_shares
+        .set_host_header(&id, host_header.as_deref())
+        .await?)
+}
+
+/// Checks a live share through Cloudflare again (e.g. after changing the dev server's
+/// config).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_check(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Verification, AppError> {
+    Ok(state.quick_shares.recheck(&id).await?)
 }
 
 /// Stops a share.
@@ -246,7 +314,7 @@ pub fn quick_share_qr(url: String) -> Result<String, AppError> {
     qr_svg(&url).ok_or_else(|| AppError::invalid("url", m::qr_too_long()))
 }
 
-/// Quick Shares running in terminals (`teitunnel-cli share`), oldest first.
+/// Quick Shares running in terminals (`teitunnel share`), oldest first.
 #[tauri::command]
 #[specta::specta]
 pub fn quick_share_cli_list(
@@ -255,7 +323,7 @@ pub fn quick_share_cli_list(
     teitunnel_core::cli_shares::list(&state.cli_runs)
 }
 
-/// Stops a terminal's Quick Share (asks its `teitunnel-cli` to end).
+/// Stops a terminal's Quick Share (asks its `teitunnel` to end).
 #[tauri::command]
 #[specta::specta]
 pub async fn quick_share_cli_stop(

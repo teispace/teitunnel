@@ -3,6 +3,7 @@
 //! Configuration models keep every field they don't know in `extra`, so writing a
 //! config back never drops settings someone made in the dashboard.
 
+use futures_util::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -121,7 +122,13 @@ impl Client {
     /// # Errors
     /// API or network errors.
     pub async fn tunnels(&self, account: &str) -> Result<Vec<Tunnel>> {
-        self.get_all(&format!("{}?is_deleted=false", tunnels_path(account)))
+        let tunnels: Vec<Tunnel> = self
+            .get_all(&format!("{}?is_deleted=false", tunnels_path(account)))
+            .await?;
+        stream::iter(tunnels)
+            .map(|tunnel| self.with_connections(account, tunnel))
+            .buffered(4)
+            .try_collect()
             .await
     }
 
@@ -130,7 +137,33 @@ impl Client {
     /// # Errors
     /// API or network errors.
     pub async fn tunnel(&self, account: &str, tunnel: &str) -> Result<Tunnel> {
-        self.get(&tunnel_path(account, tunnel)).await
+        let tunnel = self.get(&tunnel_path(account, tunnel)).await?;
+        self.with_connections(account, tunnel).await
+    }
+
+    /// Fills in `connections`, which the tunnel endpoints stop returning on 2026-10-05
+    /// (they move to `…/cfd_tunnel/{id}/connections`), for tunnels Cloudflare reports as
+    /// connected; the others have none.
+    async fn with_connections(&self, account: &str, mut tunnel: Tunnel) -> Result<Tunnel> {
+        if tunnel.connections.is_empty() && matches!(tunnel.status.as_str(), "healthy" | "degraded")
+        {
+            tunnel.connections = self
+                .tunnel_connectors(account, &tunnel.id)
+                .await?
+                .into_iter()
+                .flat_map(|connector| {
+                    connector.conns.into_iter().map(move |conn| Connection {
+                        colo_name: conn.colo_name,
+                        client_id: connector.id.clone(),
+                        client_version: connector.version.clone(),
+                        origin_ip: conn.origin_ip,
+                        opened_at: conn.opened_at,
+                        is_pending_reconnect: conn.is_pending_reconnect,
+                    })
+                })
+                .collect();
+        }
+        Ok(tunnel)
     }
 
     /// Creates a remotely-managed tunnel. Not retried on server errors (no duplicates).
@@ -253,5 +286,70 @@ mod tests {
         let versioned: VersionedConfig =
             serde_json::from_str(r#"{"version": 0, "config": null}"#).unwrap();
         assert!(versioned.config.is_none());
+    }
+
+    #[tokio::test]
+    async fn reads_connections_from_their_own_endpoint() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let ok = |result: Value| {
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "success": true, "errors": [], "messages": [], "result": result,
+                "result_info": {"page": 1, "per_page": 50, "count": 2, "total_count": 2, "total_pages": 1}
+            }))
+        };
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), crate::ApiToken::new("t")).unwrap();
+        // The shape from 2026-10-05: no `connections` in the tunnel.
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/cfd_tunnel"))
+            .respond_with(ok(serde_json::json!([
+                {"id": "t1", "name": "mac", "status": "healthy", "remote_config": true},
+                {"id": "t2", "name": "old", "status": "inactive", "remote_config": true}
+            ])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/cfd_tunnel/t1"))
+            .respond_with(ok(
+                serde_json::json!({"id": "t1", "name": "mac", "status": "degraded"}),
+            ))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/cfd_tunnel/t1/connections"))
+            .respond_with(ok(serde_json::json!([{
+                "id": "c1", "version": "2026.9.1",
+                "conns": [
+                    {"colo_name": "ams01", "origin_ip": "198.51.100.7", "opened_at": "2026-09-23T00:00:01Z"},
+                    {"colo_name": "fra02", "origin_ip": "198.51.100.7", "opened_at": "2026-09-23T00:00:02Z", "is_pending_reconnect": true}
+                ]
+            }])))
+            .expect(2)
+            .mount(&server)
+            .await;
+
+        let tunnels = client.tunnels("a1").await.unwrap();
+        let conns = &tunnels[0].connections;
+        assert_eq!(conns.len(), 2);
+        assert_eq!(
+            (
+                conns[0].client_id.as_str(),
+                conns[0].client_version.as_str()
+            ),
+            ("c1", "2026.9.1")
+        );
+        assert_eq!(conns[1].colo_name, "fra02");
+        assert!(conns[1].is_pending_reconnect);
+        assert!(
+            tunnels[1].connections.is_empty(),
+            "an inactive tunnel isn't asked (the mock allows two calls: this list and the get)"
+        );
+        assert_eq!(
+            client.tunnel("a1", "t1").await.unwrap().connections.len(),
+            2
+        );
     }
 }

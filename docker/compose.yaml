@@ -6,7 +6,7 @@
 #   docker compose restart teitunnel                  # pick up the new tunnel
 services:
   teitunnel:
-    image: ghcr.io/teispace/teitunnel:latest
+    image: teispace/teitunnel:latest
     build:
       context: ..
       dockerfile: docker/Dockerfile

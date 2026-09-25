@@ -1,0 +1,72 @@
+---
+title: Analytics, uptime and alerts
+description: "See each Cloudflare Tunnel route's traffic, errors and response times from Cloudflare's edge, check its uptime every minute, and get alerts when it goes down, errors or slows down."
+---
+
+Teitunnel shows how every route is doing in one place: how many requests it gets, which
+answers it sends, how fast they are, where visitors come from, and whether it has been up.
+
+## Where to find it
+- **Analytics** in the sidebar lists every route of the account side by side: a sparkline
+  of requests, the share of server errors (5xx), the 95th percentile response time and the
+  uptime. Choose **Hour**, **Day**, **Week** or **Month**, and sort by any column.
+- In **Routes**, the inspector's **Analytics** section shows one route in detail: uptime
+  with a status strip, response times, incidents, a requests chart, responses by class,
+  top paths, countries, browsers, verified bots and cache status.
+- The traffic card on **Overview** opens Analytics.
+
+## Traffic from Cloudflare's edge
+Traffic numbers come from Cloudflare's GraphQL Analytics API, so they cover every request
+to the hostname, whichever machine served it. They need one more token permission:
+**Zone · Analytics · Read** (the token template also asks for **Account · Account
+Analytics · Read**). If the token lacks it, Teitunnel shows how to add it to the existing
+token, and checks again when you come back; nothing needs pasting.
+
+What you see depends on the domain's plan. Cloudflare keeps a limited history per plan,
+and response-time percentiles are available on Pro and above. When the plan doesn't offer
+something, Teitunnel shows what it has and says what's missing. Answers are cached for a
+minute (Hour) up to half an hour (Month), so the views stay well inside Cloudflare's limit
+of 300 analytics queries per five minutes.
+
+Precise counts from this machine's own connector are still in **Tunnels ▸ Traffic**.
+
+## Uptime
+While the app, `teitunnel up` or `teitunnel serve` runs, every route this machine serves
+is requested through Cloudflare's edge once a minute, as a visitor would. Two failed checks
+in a row open an incident; the next good one closes it. A route behind a login counts as
+up when Cloudflare asks for the login.
+
+- Checks are kept for two days and summed per hour for 30 days, so uptime shows for 24
+  hours, 7 days and 30 days.
+- Nothing is recorded while your computer is offline, and failures right after it wakes
+  from sleep get another minute, so a closed laptop doesn't look like an outage.
+- Only one process checks at a time: the app and `teitunnel up` on the same machine
+  don't check twice.
+
+## Alerts
+Set them in **Settings ▸ General ▸ Alerts**:
+
+| Alert | Default |
+|---|---|
+| A route is down | On, after 3 failed checks |
+| A route is back up | On |
+| Too many server errors | On, 5% of at least 20 requests over 10 minutes |
+| Slow responses | Off, P95 above 3 s over 10 minutes |
+| A connector loses Cloudflare | On |
+
+Every alert is recorded in **Activity** (filter by **Alerts**). Notifications follow
+**Settings ▸ Notifications ▸ Alerts**, and **Quiet hours** keep them silent at night while
+still recording them. An alert fires once when a problem starts and once when it ends, and
+the same route notifies at most once every 15 minutes.
+
+## From the terminal
+```sh
+teitunnel analytics                      # every route of this machine, last 24 hours
+teitunnel analytics app.example.com --range week
+teitunnel analytics app.example.com --json
+teitunnel uptime                         # 24 h, 7 d and 30 d uptime per route
+```
+
+`teitunnel up` and `teitunnel serve` run the uptime checks and print alerts. The server API
+has `GET /api/analytics?accountId=…&range=day[&hostname=…]` and
+`GET /api/uptime[?hostname=…&range=…]` (see [API](/docs/reference/api)).
