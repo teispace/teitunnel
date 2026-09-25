@@ -729,6 +729,8 @@ export type ActivityKind =
 "restoreConfig" | 
 /**  A login whose route was gone was removed (Doctor cleanup). */
 "removeLogin" | 
+/**  What Teitunnel left on a hostname without routes was removed. */
+"cleanUpHostname" | 
 /**  A private network was shared. */
 "addNetwork" | 
 /**  A private network stopped being shared. */
@@ -1193,6 +1195,10 @@ name: string }) & { domain?: never; hostname?: never; network?: never; path?: ne
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
 domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**  Remove what Teitunnel attached to a hostname without routes (Doctor). */
+({ type: "cleanUpHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
@@ -1279,6 +1285,10 @@ name: string }) & { domain?: never; hostname?: never; network?: never; path?: ne
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
 domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**  Remove what Teitunnel attached to a hostname without routes (Doctor). */
+({ type: "cleanUpHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */

@@ -230,6 +230,30 @@ impl UserText for PlanError {
 
 english_display!(PlanError);
 
+/// Removes what Teitunnel attached to `hostname` once no route uses it: its front
+/// Workers, edge rules and the service tokens it made for it (after its login, which
+/// may name them). Logins go per route.
+fn release_hostname(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), PlanError> {
+    front::remove_all(b, hostname.as_str());
+    if b.snapshot.edge.is_some() {
+        edge::protect(b, hostname, &crate::engine::edge::EdgeProtection::default())?;
+    }
+    let tokens: Vec<_> = b
+        .snapshot
+        .service_tokens
+        .iter()
+        .flatten()
+        .filter(|t| t.owned && t.made_for.as_deref() == Some(hostname.as_str()))
+        .cloned()
+        .collect();
+    b.steps.extend(
+        tokens
+            .into_iter()
+            .map(|token| Step::DeleteServiceToken { token }),
+    );
+    Ok(())
+}
+
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
     rule.hostname.as_deref() == Some(hostname.as_str())
         && rule.path.as_deref() == path.map(PathRule::as_str)
@@ -813,32 +837,11 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                     }
                 }
             }
-            if !hostname_still_used {
-                front::remove_all(&mut b, hostname.as_str());
-                // Its WAF, header and rate-limit rules would guard a hostname that's gone.
-                if b.snapshot.edge.is_some() {
-                    edge::protect(
-                        &mut b,
-                        hostname,
-                        &crate::engine::edge::EdgeProtection::default(),
-                    )?;
-                }
-            }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
             }
             if !hostname_still_used {
-                // The service tokens Teitunnel made for it would open nothing.
-                let tokens = b.snapshot.service_tokens.as_deref().unwrap_or_default();
-                let made_for = |t: &&crate::engine::edge::ObservedServiceToken| {
-                    t.owned && t.made_for.as_deref() == Some(hostname.as_str())
-                };
-                let doomed: Vec<_> = tokens.iter().filter(made_for).cloned().collect();
-                b.steps.extend(
-                    doomed
-                        .into_iter()
-                        .map(|token| Step::DeleteServiceToken { token }),
-                );
+                release_hostname(&mut b, hostname)?;
             }
         }
         Intent::BalanceRoute { hostname } => {
@@ -959,6 +962,19 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 zone_id: zone_id.clone(),
                 record: record.record.clone(),
             });
+        }
+        Intent::CleanUpHostname { hostname } => {
+            // Only a hostname nothing can serve: no route here, and no DNS record for
+            // another computer's tunnel, a Snapshot or anything else.
+            let served = rules
+                .iter()
+                .any(|r| r.hostname.as_deref() == Some(hostname.as_str()))
+                || snapshot.records_named(hostname.as_str()).next().is_some();
+            if served {
+                return Err(PlanError::HostnameRouted(hostname.to_string()));
+            }
+            b.unprotect(hostname.as_str());
+            release_hostname(&mut b, hostname)?;
         }
         Intent::RemoveLogin { domain } => {
             let routed = rules.iter().any(|r| {

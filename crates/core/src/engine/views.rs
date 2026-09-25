@@ -89,6 +89,11 @@ pub enum Change {
         /// The Access domain, e.g. `app.example.com` or `app.example.com/admin`.
         domain: String,
     },
+    /// Remove what Teitunnel attached to a hostname without routes (Doctor).
+    CleanUpHostname {
+        /// The hostname.
+        hostname: String,
+    },
     /// Add several routes at once (import from an existing cloudflared setup).
     ImportRoutes {
         /// The routes.
@@ -301,6 +306,9 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         },
         Change::RemoveLogin { domain } => Intent::RemoveLogin {
             domain: domain.trim().to_ascii_lowercase(),
+        },
+        Change::CleanUpHostname { hostname } => Intent::CleanUpHostname {
+            hostname: parse_hostname(hostname)?,
         },
         // Filled in by the engine from the drift record.
         Change::RestoreConfig => Intent::RestoreConfig {

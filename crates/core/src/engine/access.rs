@@ -397,6 +397,11 @@ impl AccessNeed {
                 owned: true,
                 ..Self::default()
             },
+            Intent::CleanUpHostname { hostname } => Self {
+                domains: vec![hostname.to_string()],
+                owned: true,
+                ..Self::default()
+            },
             Intent::RemoveLogin { domain } => Self {
                 domains: vec![domain.clone()],
                 ..Self::default()

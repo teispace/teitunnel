@@ -438,3 +438,49 @@ async fn deleting_the_tunnel_revokes_the_service_tokens_of_its_hostnames() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn cleaning_up_a_hostname_left_behind_removes_its_rules_only_once_nothing_serves_it() {
+    use super::{Change, EngineError, PlanError, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    let route = RouteInput {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    let clean_up = Change::CleanUpHostname {
+        hostname: "app.xyz.com".into(),
+    };
+    // Still routed: refused.
+    let intent = engine.intent_for(&cloud, CTX, &clean_up).await.unwrap();
+    assert!(matches!(
+        engine.preview(&cloud, CTX, &intent).await,
+        Err(EngineError::Plan(PlanError::HostnameRouted(_)))
+    ));
+
+    // Deleting the tunnel with the route still on it leaves the edge rules behind.
+    apply(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(
+        !engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    change(&engine, &cloud, clean_up).await;
+    assert_eq!(custom_rules(&cloud), ["Their own rule"]);
+    assert!(
+        engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

@@ -36,6 +36,8 @@ pub enum ActivityKind {
     RestoreConfig,
     /// A login whose route was gone was removed (Doctor cleanup).
     RemoveLogin,
+    /// What Teitunnel left on a hostname without routes was removed.
+    CleanUpHostname,
     /// A private network was shared.
     AddNetwork,
     /// A private network stopped being shared.
@@ -86,6 +88,7 @@ impl From<&Intent> for ActivityKind {
             Intent::DeleteRecord { .. } => Self::DeleteRecord,
             Intent::RestoreConfig { .. } => Self::RestoreConfig,
             Intent::RemoveLogin { .. } => Self::RemoveLogin,
+            Intent::CleanUpHostname { .. } => Self::CleanUpHostname,
             Intent::AddNetwork { .. } => Self::AddNetwork,
             Intent::RemoveNetwork { .. } => Self::RemoveNetwork,
             Intent::CreateTunnel { .. } => Self::CreateTunnel,

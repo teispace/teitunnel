@@ -264,6 +264,12 @@ pub enum Intent {
         /// The Access domain (hostname and optional path).
         domain: String,
     },
+    /// Remove what Teitunnel attached to a hostname that no longer has a route: its
+    /// front Workers, edge rules, service tokens and login.
+    CleanUpHostname {
+        /// The hostname.
+        hostname: Hostname,
+    },
     /// Put back the routes Teitunnel last wrote, undoing an edit made elsewhere.
     RestoreConfig {
         /// The ingress Teitunnel last applied.
@@ -388,7 +394,8 @@ impl Intent {
             | Self::RevokeServiceToken { hostname, .. }
             | Self::RotateServiceToken { hostname, .. }
             | Self::SetOfflinePage { hostname, .. }
-            | Self::SetInbox { hostname, .. } => Some(vec![hostname]),
+            | Self::SetInbox { hostname, .. }
+            | Self::CleanUpHostname { hostname } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -447,6 +454,7 @@ impl Intent {
             Self::RestoreConfig { .. } => m::restore_config(),
             Self::DeleteRecord { hostname, .. } => m::delete_record(hostname),
             Self::RemoveLogin { domain } => m::remove_login(domain),
+            Self::CleanUpHostname { hostname } => m::clean_up_hostname(hostname.as_str()),
             Self::AddNetwork { network } => m::add_network(network),
             Self::RemoveNetwork { network } => m::remove_network(network),
             Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),

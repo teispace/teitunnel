@@ -149,10 +149,12 @@ impl ObserveNeed {
                     required: true,
                 },
                 // Removing a hostname's last route takes its edge rules with it.
-                Intent::RemoveRoute { hostname, .. } => super::edge::EdgeNeed {
-                    hostname: Some(hostname.to_string()),
-                    required: false,
-                },
+                Intent::RemoveRoute { hostname, .. } | Intent::CleanUpHostname { hostname } => {
+                    super::edge::EdgeNeed {
+                        hostname: Some(hostname.to_string()),
+                        required: false,
+                    }
+                }
                 _ => super::edge::EdgeNeed::default(),
             },
             service_tokens: match intent {
@@ -160,7 +162,9 @@ impl ObserveNeed {
                 | Intent::RevokeServiceToken { .. }
                 | Intent::RotateServiceToken { .. } => Want::Yes,
                 // A hostname's tokens go with its last route.
-                Intent::RemoveRoute { .. } | Intent::RemoveTunnel => Want::IfAllowed,
+                Intent::RemoveRoute { .. }
+                | Intent::RemoveTunnel
+                | Intent::CleanUpHostname { .. } => Want::IfAllowed,
                 _ => Want::No,
             },
             front: match intent {
@@ -178,11 +182,13 @@ impl ObserveNeed {
                 },
                 // Removing a route takes its offline page and inboxes with it (read only
                 // when the local index has some).
-                Intent::RemoveRoute { hostname, .. } => super::front::FrontNeed {
-                    hostname: Some(hostname.to_string()),
-                    required: false,
-                    database: false,
-                },
+                Intent::RemoveRoute { hostname, .. } | Intent::CleanUpHostname { hostname } => {
+                    super::front::FrontNeed {
+                        hostname: Some(hostname.to_string()),
+                        required: false,
+                        database: false,
+                    }
+                }
                 Intent::PublishSnapshot { settings, .. }
                 | Intent::UpdateSnapshot { settings, .. } => super::front::FrontNeed {
                     hostname: None,

@@ -526,6 +526,7 @@
       "restoreConfig": "Restores",
       "removeTunnel": "Tunnel Removals",
       "removeLogin": "Login Removals",
+      "cleanUpHostname": "Clean-ups",
       "addNetwork": "Networks Shared",
       "removeNetwork": "Networks Unshared",
       "createTunnel": "Tunnels Created",
@@ -1892,6 +1893,7 @@
         "restoreConfig": "Restore this Mac's routes after an outside edit",
         "deleteRecord": "Delete the DNS record for {hostname}",
         "removeLogin": "Remove the login from {domain}",
+        "cleanUpHostname": "Remove what Teitunnel left on {hostname}",
         "addNetwork": "Share private network {network}",
         "removeNetwork": "Stop sharing private network {network}",
         "importRoutes_one": "Import {count} route from cloudflared",
@@ -2152,12 +2154,20 @@
         "detail": "Teitunnel added this login for a route that was removed outside Teitunnel. It protects nothing now, but would ask for a login if the hostname is routed again elsewhere. Remove it, or add the route back.",
         "app": "Access application “Teitunnel · {domain}”"
       },
+      "hostOrphan": {
+        "title": "{hostname} has no route, but Teitunnel’s settings for it are still in Cloudflare",
+        "detail": "Its route was removed without them (a deleted tunnel, an interrupted change or another computer). They serve or protect nothing now, but count against your plan’s limits and would come back into play if the hostname were routed again. Only what Teitunnel created is removed.",
+        "front": "An offline page or webhook inbox Worker",
+        "edge": "Edge rules (bots, headers or a rate limit)",
+        "tokens": "Service tokens made for it: {count}"
+      },
       "fix": {
         "restoreMine": "Restore Mine",
         "fixDns": "Fix the DNS Record",
         "deleteTunnel": "Delete the Tunnel",
         "deleteRecord": "Delete the Record",
-        "removeLogin": "Remove the Login"
+        "removeLogin": "Remove the Login",
+        "cleanUpHostname": "Clean Up"
       },
       "unreadable": {
         "title": "Couldn't check {account}",
