@@ -18,6 +18,12 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
+	/**  Which browsers can use the extension. */
+	browserHostStatus: () => __TAURI_INVOKE<BrowserHostView>("browser_host_status"),
+	/**  Lets the extension talk to the app, in every installed browser. */
+	browserHostInstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_install"),
+	/**  Stops letting the extension talk to the app. */
+	browserHostUninstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall"),
 	/**  The AI clients on this computer and whether each is connected. */
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
 	/**  Agents connected now, and approvals waiting. */
@@ -1213,6 +1219,31 @@ export type BreakpointRule = {
 	request: boolean,
 	/**  Stop before the answer goes back. */
 	response: boolean,
+};
+
+/**  A browser that can start the host. */
+export type Browser = "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox";
+
+/**  One browser's state. */
+export type BrowserHostStatus = {
+	browser: Browser,
+	/**  Its name. */
+	name: string,
+	/**  It's installed on this computer. */
+	detected: boolean,
+	/**  Teitunnel's manifest is there and points at `exe`. */
+	installed: boolean,
+};
+
+/**
+ *  The browser extension's link to the app (D-133): which browsers can start the
+ *  bundled `teitunnel` as its native messaging host.
+ */
+export type BrowserHostView = {
+	/**  This build carries the command line tool (development builds don't). */
+	available: boolean,
+	/**  Every supported browser. */
+	browsers: BrowserHostStatus[],
 };
 
 /**  How to save the CA certificate for another device. */

@@ -15,6 +15,7 @@ macro_rules! out {
 mod analytics;
 mod app;
 mod backup;
+mod browser;
 mod comments;
 mod complete;
 mod context;
@@ -88,6 +89,9 @@ enum Command {
     /// Local HTTPS domains on this computer: https://shop.test with a trusted certificate.
     #[command(subcommand, name = "local-domain", visible_alias = "local")]
     LocalDomain(local::LocalCommand),
+    /// The Teitunnel browser extension: let it talk to the app from your browsers.
+    #[command(subcommand)]
+    Browser(browser::BrowserCommand),
     /// Move to another computer: an encrypted backup of Teitunnel's setup (never a
     /// token or password), and restoring it.
     #[command(subcommand)]
@@ -774,6 +778,12 @@ impl From<Format> for ExportFormat {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // A browser starting this command for the Teitunnel extension (native messaging):
+    // no arguments to parse, and standard output carries only its messages.
+    let args: Vec<String> = std::env::args().collect();
+    if teitunnel_core::browser_host::started_by_browser(&args) {
+        return browser::host().await;
+    }
     let cli = Cli::parse();
     // On the heap: the future for every command together is large.
     match Box::pin(run(cli.command)).await {
@@ -956,6 +966,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Project(command) => return project::run(command).await,
         Command::LocalDomain(command) => return local::run(command).await,
+        Command::Browser(command) => return browser::run(command).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -1121,6 +1132,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         | Command::Setup
         | Command::Project(_)
         | Command::LocalDomain(_)
+        | Command::Browser(_)
         | Command::Mcp { .. } => {
             unreachable!("handled above")
         }

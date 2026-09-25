@@ -101,6 +101,7 @@ by someone else (a share never takes one; other commands need `--take-over`).
 | [`up`](#up) | Run this machine's tunnels in the foreground until stopped (servers, containers). |
 | [`project`](#project) | Work with the project file (teitunnel.yml): check, diff, apply, init, down. |
 | [`local-domain`](#local-domain) | Local HTTPS domains on this computer: https://shop.test with a trusted certificate. |
+| [`browser`](#browser) | The Teitunnel browser extension: let it talk to the app from your browsers. |
 | [`backup`](#backup) | Move to another computer: an encrypted backup of Teitunnel's setup (never a token or password), and restoring it. |
 | [`serve`](#serve) | Run this machine's tunnels plus a web dashboard and JSON API (servers). |
 | [`mcp`](#mcp) | Run Teitunnel's MCP server for AI agents (Claude Code, Cursor, VS Code, Codex…) over stdio, or connect a client to it (`teitunnel mcp install cursor`). |
@@ -464,6 +465,48 @@ Examples:
 ```sh
 teitunnel local-domain status  # CA, trust, ports, .test names, what to fix
 ```
+
+## browser
+
+The Teitunnel browser extension: let it talk to the app from your browsers.
+
+```sh
+teitunnel browser <COMMAND>
+```
+
+| Command | What it does |
+|---|---|
+| [`browser install`](#browser-install) | Let the Teitunnel browser extension talk to the app, in every installed browser. |
+| [`browser uninstall`](#browser-uninstall) | Stop letting the extension talk to the app. |
+| [`browser status`](#browser-status) | Which browsers can use the extension. |
+
+### browser install
+
+Let the Teitunnel browser extension talk to the app, in every installed browser.
+
+```sh
+teitunnel browser install
+```
+
+### browser uninstall
+
+Stop letting the extension talk to the app.
+
+```sh
+teitunnel browser uninstall
+```
+
+### browser status
+
+Which browsers can use the extension.
+
+```sh
+teitunnel browser status [OPTIONS]
+```
+
+| Option | Description |
+|---|---|
+| `--json` | JSON output. |
 
 ## backup
 

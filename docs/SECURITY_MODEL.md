@@ -143,6 +143,11 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
   (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
   export, or the MCP server runs with `--allow-secrets`.
+- The browser extension (D-133) reaches the app only through native messaging: browsers start
+  the bundled `teitunnel` for the extension ids its manifest names, and it relays five calls
+  (status, list, share a local page, stop, open) to the control connection, where sharing is
+  approved like for any program. It can't share a public site or a folder, and asks the
+  browser for `nativeMessaging` and `activeTab` only.
 - MCP servers shared with OAuth (D-132): every authorization is approved by the person, who
   compares a code shown in the browser and in the app; clients are identified by a verified
   metadata document (fetched only from public addresses, pinned, no redirects, small, timed

@@ -71,6 +71,7 @@ objc2-core-foundation.workspace = true
 objc2-security.workspace = true
 
 [dev-dependencies]
+teitunnel-control = { workspace = true, features = ["testing"] }
 futures-util = { workspace = true, features = ["sink"] }
 http-body-util.workspace = true
 insta.workspace = true

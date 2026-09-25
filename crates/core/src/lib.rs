@@ -10,6 +10,7 @@ pub mod alerts;
 pub mod analytics;
 pub mod backup;
 pub mod binary;
+pub mod browser_host;
 pub mod cli_install;
 pub mod cli_shares;
 pub mod comments;

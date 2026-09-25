@@ -13,6 +13,7 @@ import type {
   ShortcutAction,
 } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
+import { BrowserExtensionSection } from "./browser-extension";
 import { acceleratorFromEvent, formatAccelerator } from "./global-shortcut";
 import { useIntegrations, useRevokeClient, useUpdateIntegrations } from "./queries";
 
@@ -192,6 +193,7 @@ export function IntegrationsPane() {
           />
         </GroupedRow>
       </GroupedSection>
+      <BrowserExtensionSection />
       <ShortcutSection
         shortcut={value("shortcut")}
         disabled={update.isPending}

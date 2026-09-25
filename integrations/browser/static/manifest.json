@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Teitunnel",
+  "short_name": "Teitunnel",
+  "version": "0.1.0",
+  "description": "Share the local page you're on at a public URL, and see your shares, with the Teitunnel app.",
+  "homepage_url": "https://teitunnel.teispace.com/docs/guides/browser-extension",
+  "permissions": ["nativeMessaging", "activeTab"],
+  "action": {
+    "default_title": "Teitunnel",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiA+70uaVA6w4HVwlMzXQ6oAp9JAKyNXVU6tAK0oLFNSFEGpVBPfJWTobIZT1vqKqKM4eZJezySvrbfshL0U9Tz1CPN0AkxMmG471Zq8QwW1mMYmLZXS06gWfzcop/2nwiY9N+rynyy+8K5kTOPRyu1QZF+P6V+wKLaKjI4dhhjpndNaXXylC3jxTmr77oD4VglGCCuQnvTGKyVdhJGHNDkr01uSERdKV6pZw5LSk4xpLUT3+9k+Su4f50TuUwHn9KmpJ5t5lN+9al1O4vkmIic7PI1qbSJEjk4BO+VvZaK0/fCP2+RzZAINpQ5dQMY/AxHwa/zvn4TtGfLOxa70UwQIDAQAB"
+}

@@ -3410,7 +3410,17 @@
       "openQuickShare": "Open Quick Share",
       "openQuickShareDetail": "Brings Teitunnel to the front, ready to share a port."
     },
-    "error": "Couldn't save the change: {message}"
+    "error": "Couldn't save the change: {message}",
+    "browser": {
+      "title": "Browser Extension",
+      "footer": "The Teitunnel extension shares the local page you're on and lists your shares, from Chrome, Edge, Brave, Chromium, Vivaldi, Arc or Firefox. Anything it changes is asked here first.",
+      "setUp": "Set Up",
+      "remove": "Remove",
+      "ready": "Ready",
+      "notSetUp": "Not set up",
+      "none": "No supported browser found.",
+      "unavailable": "Available in the installed app."
+    }
   },
   "protection": {
     "title": "Edge Protection",

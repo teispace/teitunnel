@@ -1,0 +1,175 @@
+:root {
+  --text: #1d1d1f;
+  --secondary: #6e6e73;
+  --surface: #ffffff;
+  --inset: #f5f5f7;
+  --separator: rgb(0 0 0 / 0.1);
+  --accent: #0a84ff;
+  --on-accent: #ffffff;
+  --live: #28a745;
+  --busy: #d99a00;
+  --error: #d70015;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #f5f5f7;
+    --secondary: #a1a1a6;
+    --surface: #1e1e1e;
+    --inset: #2a2a2c;
+    --separator: rgb(255 255 255 / 0.12);
+    --live: #32d74b;
+    --busy: #ffd60a;
+    --error: #ff453a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 340px;
+  background: var(--surface);
+  color: var(--text);
+  font:
+    13px / 1.4 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+#page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--inset);
+}
+
+#page p,
+.hint,
+.origin {
+  margin: 0;
+  color: var(--secondary);
+}
+
+.origin {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+li:last-child {
+  border-bottom: none;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--busy);
+}
+
+.dot.live {
+  background: var(--live);
+}
+
+.dot.error {
+  background: var(--error);
+}
+
+.dot.paused {
+  background: var(--secondary);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label small {
+  display: block;
+  color: var(--secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+button {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: var(--inset);
+  color: var(--text);
+  font: inherit;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+#message {
+  margin: 0;
+  color: var(--error);
+}
+
+footer {
+  display: flex;
+  justify-content: flex-end;
+}

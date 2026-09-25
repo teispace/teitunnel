@@ -1,0 +1,71 @@
+---
+title: Browser extension
+description: "Share the local page you're on at a public URL, and see or stop your shares, from Chrome, Edge, Brave, Arc, Vivaldi, Chromium or Firefox, through the Teitunnel app."
+---
+
+The Teitunnel extension puts sharing where you look at your work: open your dev server in the
+browser, click the Teitunnel button, choose **Share localhost:5173**, and the public URL is
+copied. Its menu also lists every share (from the app, a terminal or an AI agent) with
+**Copy** and **Stop**.
+
+It works through the Teitunnel app, so the app has to be running, and the app asks you before
+anything goes public, as it does for any other program.
+
+## Set it up
+
+<Steps>
+<Step>
+In Teitunnel, open **Settings ▸ Integrations ▸ Browser Extension** and choose **Set Up**. Each
+installed browser shows **Ready**. (From a terminal: `teitunnel browser install`.)
+</Step>
+<Step>
+Install the Teitunnel extension in your browser.
+</Step>
+<Step>
+Open a page from your dev server and click the Teitunnel button in the toolbar.
+</Step>
+</Steps>
+
+## What it can and can't do
+
+- It shares **only pages served from your computer or your local network**: `localhost`,
+  `*.localhost`, `127.0.0.1`, private addresses such as `192.168.1.20`. It never shares a public
+  website you happen to be on.
+- Sharing asks you in the app first (*Teitunnel browser extension wants to share
+  localhost:5173*). Choose **Always Allow** to skip the question next time; it's listed under
+  **Settings ▸ Integrations ▸ Always allowed**, where you can take it back.
+- It lists shares and stops them, and **Open Teitunnel** brings the app forward.
+- It asks the browser for two permissions only: *native messaging* (to talk to the app) and
+  the current tab's address when you click its button. It reads nothing else, and no page can
+  talk to it.
+
+## How it works
+
+Browsers let an extension talk to a program on your computer through *native messaging*:
+the browser starts the program the extension names, as registered in a small manifest file,
+and they exchange messages over its standard input and output. **Set Up** registers the
+`teitunnel` command that comes with the app in each installed browser, for the Teitunnel
+extension only. That command passes a few requests on to the app over its
+[control connection](/docs/guides/integrations#the-control-connection): the status, the
+shares, sharing a local page, stopping a share and opening the app. Nothing listens on the
+network.
+
+Manifests live in each browser's `NativeMessagingHosts` folder on macOS and Linux (on Windows,
+under `%LOCALAPPDATA%\Teitunnel` with a registry key per browser). **Remove** (or `teitunnel
+browser uninstall`) deletes them again; files anyone else put there are left alone.
+
+## Troubleshooting
+
+- **"Set up the extension in Teitunnel"**: the browser couldn't find the app's registration.
+  Choose **Set Up** in Settings (after installing a new browser, choose it again), then reopen
+  the extension's menu.
+- **"Teitunnel isn't running"**: open the app (turn on **Open at login** to keep it there);
+  **Open Teitunnel** in the menu does it.
+- **"Teitunnel's connection for other programs is off"**: turn on the control connection in
+  **Settings ▸ Integrations**.
+- Browsers installed as Flatpak or Snap packages can't start programs outside their sandbox.
+
+## Related
+
+- [Links and integrations](/docs/guides/integrations): editors, launchers and `teitunnel://` links
+- [Sharing](/docs/guides/sharing)

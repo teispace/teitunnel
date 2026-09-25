@@ -1175,6 +1175,17 @@ export function installMockIpc(): void {
               600,
             ),
           );
+        case "browser_host_status":
+        case "browser_host_install":
+          return {
+            available: true,
+            browsers: [
+              { browser: "chrome", name: "Google Chrome", detected: true, installed: true },
+              { browser: "firefox", name: "Firefox", detected: true, installed: false },
+            ],
+          };
+        case "browser_host_uninstall":
+          return { available: true, browsers: [] };
         case "mcp_connections":
           return [
             {

@@ -33,6 +33,7 @@ jobs:
       client: ${{ steps.filter.outputs.client }}
       raycast: ${{ steps.filter.outputs.raycast }}
       jetbrains: ${{ steps.filter.outputs.jetbrains }}
+      browser: ${{ steps.filter.outputs.browser }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: filter
@@ -51,6 +52,9 @@ jobs:
               - ".github/workflows/integrations-test.yml"
             jetbrains:
               - "integrations/jetbrains/**"
+              - ".github/workflows/integrations-test.yml"
+            browser:
+              - "integrations/browser/**"
               - ".github/workflows/integrations-test.yml"
 
   client:
@@ -86,6 +90,24 @@ jobs:
       - run: pnpm --filter ./integrations/vscode typecheck
       - run: pnpm --filter ./integrations/vscode build
       - run: pnpm --filter ./integrations/vscode test
+
+  browser:
+    name: Browser extension
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @teitunnel/browser-extension typecheck
+      - run: pnpm --filter @teitunnel/browser-extension test
+      - run: pnpm --filter @teitunnel/browser-extension build
 
   raycast:
     name: Raycast

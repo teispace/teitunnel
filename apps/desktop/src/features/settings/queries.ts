@@ -80,6 +80,23 @@ export function useMcpDisconnect() {
   });
 }
 
+const browserHostKey = ["browserHost"] as const;
+
+/** Which browsers can use the Teitunnel extension. */
+export function useBrowserHost() {
+  return useQuery({ queryKey: browserHostKey, queryFn: () => call(commands.browserHostStatus()) });
+}
+
+/** Sets the extension up in every installed browser, or removes it. */
+export function useSetBrowserHost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (install: boolean) =>
+      call(install ? commands.browserHostInstall() : commands.browserHostUninstall()),
+    onSuccess: (view) => queryClient.setQueryData(browserHostKey, view),
+  });
+}
+
 /** Saves an OpenAPI description of the captured requests to Downloads. */
 export function useSaveOpenApi() {
   return useMutation({
