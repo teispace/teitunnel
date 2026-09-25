@@ -32,7 +32,7 @@ export function readInputs(env) {
     url: get("url"),
     path: get("path", "."),
     build: bool("build", false),
-    hostname: get("hostname", "pr-{number}.preview.{zone}"),
+    hostname: get("hostname", "pr-{number}-preview.{zone}"),
     zone: get("zone"),
     name: get("name", "{repo}-pr-{number}"),
     expires: get("expires"),
@@ -98,7 +98,7 @@ export function templateContext(env, event, zone) {
  */
 export function renderHostname(template, context) {
   if (template.includes("{zone}") && !context.zone) {
-    throw new Error("The hostname template uses {zone}: set the zone input (e.g. example.com).");
+    throw new Error("The hostname template uses {zone}: set the zone input (e.g. teispace.com).");
   }
   if (template.includes("{number}") && context.number === "") {
     throw new Error(

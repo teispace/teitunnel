@@ -33,9 +33,9 @@ inputs:
   hostname:
     description: "Hostname template. Placeholders: {number} (PR number), {branch}, {sha} (7 characters), {repo}, {owner} (each made a DNS label) and {zone}."
     required: false
-    default: pr-{number}.preview.{zone}
+    default: pr-{number}-preview.{zone}
   zone:
-    description: One of the account's domains, for {zone} (e.g. example.com).
+    description: One of the account's domains, for {zone} (e.g. teispace.com).
     required: false
   name:
     description: Snapshot mode, the Snapshot's name template (the Worker is `teitunnel-<name>`; keep it unique per repository and PR).

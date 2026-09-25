@@ -101,7 +101,7 @@ const calls = (work) =>
 
 const base = {
   "cloudflare-api-token": "cf-secret",
-  zone: "example.com",
+  zone: "teispace.com",
   "cli-path": stub,
   "github-token": "gh-token",
 };
@@ -112,8 +112,8 @@ describe("the action", { skip }, () => {
     const first = await step("main.mjs", { ...base, mode: "snapshot", password: "hunter22" }, work);
     assert.equal(first.code, 0, first.log);
     assert.deepEqual(first.outputs, {
-      hostname: "pr-7.preview.example.com",
-      url: "https://pr-7.preview.example.com",
+      hostname: "pr-7-preview.teispace.com",
+      url: "https://pr-7-preview.teispace.com",
     });
     assert.ok(first.log.includes("::add-mask::cf-secret"));
     assert.ok(first.log.includes("::add-mask::hunter22"));
@@ -140,7 +140,7 @@ describe("the action", { skip }, () => {
     assert.deepEqual(calls(work).at(-1).args, [
       "snapshot",
       "rm",
-      "pr-7.preview.example.com",
+      "pr-7-preview.teispace.com",
       "--missing-ok",
       "--yes",
     ]);
@@ -154,7 +154,7 @@ describe("the action", { skip }, () => {
     const inputs = { ...base, mode: "share", port: "3000", hostname: "{branch}.{zone}" };
     const main = await step("main.mjs", inputs, work);
     assert.equal(main.code, 0, main.log);
-    assert.equal(main.outputs.url, "https://feat-x.example.com");
+    assert.equal(main.outputs.url, "https://feat-x.teispace.com");
     assert.equal(main.state.machine, "gh-web-77-1");
     assert.ok(Number(main.state.pid) > 0);
     assert.ok(!existsSync(join(work, "teitunnel-data", "stopped")), "still running");
