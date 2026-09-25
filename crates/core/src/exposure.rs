@@ -299,7 +299,13 @@ async fn fetch(client: &reqwest::Client, base: &str, path: &str) -> Option<(u16,
 async fn raw_answer(host: &str, port: u16) -> Option<Vec<u8>> {
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
     let host = host.trim_start_matches('[').trim_end_matches(']');
-    let mut stream = tokio::net::TcpStream::connect((host, port)).await.ok()?;
+    // Every address at once: Windows takes seconds to report a refused one, so trying
+    // them in turn (`localhost` is `::1` first) misses a service on 127.0.0.1.
+    let connects = tokio::net::lookup_host((host, port))
+        .await
+        .ok()?
+        .map(|addr| Box::pin(tokio::net::TcpStream::connect(addr)));
+    let (mut stream, _) = futures_util::future::select_ok(connects).await.ok()?;
     // MySQL greets first; the others answer the request line.
     let _ = stream.write_all(b"GET / HTTP/1.0\r\n\r\n").await;
     let mut buffer = vec![0; 1024];
