@@ -121,6 +121,31 @@ describe("PermissionFix", () => {
     expect(screen.queryByText(/Access: Apps and Policies/)).toBeNull();
   });
 
+  it("asks to set up Zero Trust, not for permissions, when it isn't set up", async () => {
+    account = { ...account, credential: "oauth" };
+    accessEdit = "notSetUp";
+    const onReady = renderFix();
+    expect(await screen.findByText("Set up Cloudflare Zero Trust")).toBeTruthy();
+    expect(screen.queryByText(TITLE)).toBeNull();
+    expect(screen.queryByLabelText("API token")).toBeNull();
+
+    // Back from the dashboard with Zero Trust set up: the re-check finds it ready.
+    accessEdit = "yes";
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("Set up Cloudflare Zero Trust")).toBeNull());
+  });
+
+  it("lists a missing permission before Zero Trust", async () => {
+    tunnelsEdit = "no";
+    accessEdit = "notSetUp";
+    renderFix(vi.fn(), [{ kind: "tunnels" }, { kind: "access" }]);
+    expect(await screen.findByText("The token needs one more permission")).toBeTruthy();
+    expect(screen.queryByText("Set up Cloudflare Zero Trust")).toBeNull();
+  });
+
   it("renders nothing when logins are allowed", async () => {
     accessEdit = "yes";
     const onReady = renderFix();

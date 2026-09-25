@@ -890,6 +890,7 @@
     "allowed": "Allowed",
     "notAllowed": "Not allowed",
     "unknown": "Unknown",
+    "notSetUp": "Needs Cloudflare Zero Trust, which isn’t set up yet",
     "checking": "Checking permissions…",
     "failed": "Couldn't check permissions.",
     "zones": "See your domains",

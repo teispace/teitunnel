@@ -9,6 +9,7 @@ import { t } from "@/lib/i18n";
 import type { Capabilities } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { openTokenPage, useAccounts, useAddToken, useCapabilities } from "../queries";
+import { ZeroTrustFix } from "./zero-trust-fix";
 
 /** Something a feature needs the account's credential to be allowed to do. */
 export type PermissionNeed =
@@ -65,6 +66,18 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.serviceTokens === "no";
     case "d1":
       return caps.d1 === "no";
+  }
+}
+
+/** Whether the need is allowed but waits for Zero Trust to be set up on the account. */
+function needsZeroTrust(caps: Capabilities, need: PermissionNeed): boolean {
+  switch (need.kind) {
+    case "access":
+      return caps.accessEdit === "notSetUp";
+    case "serviceTokens":
+      return caps.serviceTokens === "notSetUp";
+    default:
+      return false;
   }
 }
 
@@ -217,7 +230,7 @@ export function PermissionFix({ accountId, needs, refused = false, onReady }: Pe
   const recheck = useCallback(async () => {
     const { data } = await refetch();
     setChecked(true);
-    if (!data || needs.some((need) => isMissing(data, need))) return;
+    if (!data || needs.some((need) => isMissing(data, need) || needsZeroTrust(data, need))) return;
     toast.success(t("permissionFix.ready"));
     onReady?.();
   }, [refetch, onReady, needs]);
@@ -231,6 +244,10 @@ export function PermissionFix({ accountId, needs, refused = false, onReady }: Pe
   // Wait for both, so the right path shows from the first frame.
   if (!account || caps.isPending) return null;
   const found = caps.data ? needs.filter((need) => isMissing(caps.data, need)) : [];
+  // Allowed, but Zero Trust isn't set up: a new token wouldn't help, setting it up does.
+  if (found.length === 0 && caps.data && needs.some((need) => needsZeroTrust(caps.data, need))) {
+    return <ZeroTrustFix onRetry={recheck} retrying={caps.isFetching} />;
+  }
   const shown = found.length > 0 ? found : refused ? needs : [];
   if (shown.length === 0) return null;
   const list = shown.flatMap(permissions);

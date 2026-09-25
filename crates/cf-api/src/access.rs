@@ -320,7 +320,7 @@ impl Client {
             .await
         {
             Ok(org) => Ok(Some(org)),
-            Err(err) if err.status() == Some(404) => Ok(None),
+            Err(err) if err.status() == Some(404) || err.is_not_enabled() => Ok(None),
             Err(err) => Err(err),
         }
     }

@@ -41,6 +41,8 @@ pub enum Grant {
     No,
     /// Couldn't be checked right now.
     Unknown,
+    /// Allowed, but the product isn't turned on for the account yet (Zero Trust).
+    NotSetUp,
 }
 
 impl From<Access> for Grant {
@@ -49,6 +51,7 @@ impl From<Access> for Grant {
             Access::Allowed => Self::Yes,
             Access::Denied => Self::No,
             Access::Unknown => Self::Unknown,
+            Access::NotEnabled => Self::NotSetUp,
         }
     }
 }
@@ -188,10 +191,12 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     }
 }
 
-/// Granted only if both are: one missing permission is enough to fail.
+/// Granted only if both are: one missing permission is enough to fail, and a product
+/// that isn't turned on comes next (a permission to add is said first).
 fn both(a: Access, b: Access) -> Grant {
     match (Grant::from(a), Grant::from(b)) {
         (Grant::No, _) | (_, Grant::No) => Grant::No,
+        (Grant::NotSetUp, _) | (_, Grant::NotSetUp) => Grant::NotSetUp,
         (Grant::Yes, Grant::Yes) => Grant::Yes,
         _ => Grant::Unknown,
     }

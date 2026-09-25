@@ -2514,7 +2514,9 @@ export type Grant =
 /**  Not allowed. */
 "no" | 
 /**  Couldn't be checked right now. */
-"unknown";
+"unknown" | 
+/**  Allowed, but the product isn't turned on for the account yet (Zero Trust). */
+"notSetUp";
 
 /**  One header change. */
 export type HeaderOp = 

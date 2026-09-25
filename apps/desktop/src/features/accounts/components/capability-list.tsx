@@ -8,22 +8,19 @@ import { PermissionFix, type PermissionNeed } from "./permission-fix";
 
 function GrantIcon({ grant }: { grant: Grant }) {
   const Icon = grant === "yes" ? Check : grant === "no" ? X : Minus;
-  return (
-    <Icon
-      aria-label={
-        grant === "yes"
-          ? t("capabilities.allowed")
-          : grant === "no"
-            ? t("capabilities.notAllowed")
-            : t("capabilities.unknown")
-      }
-      className={cn(
-        "size-3.5 shrink-0",
-        grant === "yes" ? "text-healthy" : grant === "no" ? "text-error" : "text-tertiary",
-      )}
-      strokeWidth={2.5}
-    />
-  );
+  const label = {
+    yes: t("capabilities.allowed"),
+    no: t("capabilities.notAllowed"),
+    unknown: t("capabilities.unknown"),
+    notSetUp: t("capabilities.notSetUp"),
+  }[grant];
+  const tone = {
+    yes: "text-healthy",
+    no: "text-error",
+    unknown: "text-tertiary",
+    notSetUp: "text-warning",
+  }[grant];
+  return <Icon aria-label={label} className={cn("size-3.5 shrink-0", tone)} strokeWidth={2.5} />;
 }
 
 function Row({ grant, label }: { grant: Grant; label: string }) {
