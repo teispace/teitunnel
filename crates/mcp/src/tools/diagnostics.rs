@@ -52,7 +52,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              A safe fix (it changes only what Teitunnel created: a missing DNS record, an orphan record or login) is applied right away through a plan (after the person's approval in `ask` mode). Any other Cloudflare fix returns a plan (`planned`) to show the person and apply with apply_plan. Fixes outside Cloudflare (start this machine's connector, accept an outside edit, clean stale connections) run after approval; installing cloudflared or reconnecting an account is for the person to do in the app (`guidance`).\n\
              \n\
-             Example: {\"issueId\": \"dns.missing:abc123:app.example.com\"}",
+             Example: {\"issueId\": \"dns.missing:abc123:app.teispace.com\"}",
             ToolClass::Destructive,
             Hints {
                 read_only: false,
@@ -69,7 +69,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it when a route answers 502/504 or the connector keeps reconnecting. Lines come from the connector this server can see (an Always-on service's log file, or connectors run by this server); for another machine's connector use remote_logs.\n\
              \n\
-             Example: {\"hostname\": \"app.example.com\", \"level\": \"warn\", \"limit\": 50}",
+             Example: {\"hostname\": \"app.teispace.com\", \"level\": \"warn\", \"limit\": 50}",
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,

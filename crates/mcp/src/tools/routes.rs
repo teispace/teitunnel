@@ -43,7 +43,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
         spec::<AccountArgs, DomainsResult>(
             "list_domains",
             "List domains",
-            "List the domains (Cloudflare zones) of an account: the hostnames routes and shares can use are these domains and their subdomains (e.g. `app.example.com` in `example.com`). A domain whose status isn't `active` can't serve routes yet.",
+            "List the domains (Cloudflare zones) of an account: the hostnames routes and shares can use are these domains and their subdomains (e.g. `app.teispace.com` in `teispace.com`). A domain whose status isn't `active` can't serve routes yet.",
             ToolClass::Read,
             Hints::READ_CLOUD,
             super::DEFAULT_TIMEOUT,
@@ -77,7 +77,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              - restoreConfig {}: undo an outside edit of this machine's routes (made in the dashboard).\n\
              - deleteDnsRecord {zoneId, hostname, recordId}: delete one DNS record (orphans the doctor found).\n\
              \n\
-             Example: {\"change\": {\"type\": \"addRoute\", \"hostname\": \"app.example.com\", \"origin\": \"3000\", \"allow\": [\"@example.com\"]}}",
+             Example: {\"change\": {\"type\": \"addRoute\", \"hostname\": \"app.teispace.com\", \"origin\": \"3000\", \"allow\": [\"@teispace.com\"]}}",
             ToolClass::Read,
             Hints::READ_CLOUD,
             super::DEFAULT_TIMEOUT,
@@ -106,7 +106,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it after a change, or when the person says a URL doesn't work. Transient failures (a connector still connecting) are retried for up to `patienceSeconds`.\n\
              \n\
-             Example: {\"hostname\": \"app.example.com\", \"patienceSeconds\": 20}",
+             Example: {\"hostname\": \"app.teispace.com\", \"patienceSeconds\": 20}",
             ToolClass::Read,
             Hints::READ_CLOUD,
             Duration::from_secs(90),
@@ -523,8 +523,8 @@ pub(crate) struct ImportRoute {
 pub(crate) enum ChangeInput {
     /// Route a hostname to a local service.
     AddRoute {
-        /// Public hostname on one of the account's domains, e.g. `app.example.com`
-        /// (or `*.example.com`).
+        /// Public hostname on one of the account's domains, e.g. `app.teispace.com`
+        /// (or `*.teispace.com`).
         hostname: String,
         /// The service: a port (`3000`), `host:port`, or a URL (`http://…`, `https://…`,
         /// `ssh://localhost:22`, `rdp://…`, `tcp://…`, `unix:/path`).
@@ -532,7 +532,7 @@ pub(crate) enum ChangeInput {
         /// Only requests whose path matches this regex, e.g. `^/api`.
         #[serde(default)]
         path: Option<String>,
-        /// Require a login: emails (`me@example.com`) or domains (`@example.com`).
+        /// Require a login: emails (`team@teispace.com`) or domains (`@teispace.com`).
         #[serde(default)]
         allow: Vec<String>,
         /// Origin settings.
@@ -1416,7 +1416,7 @@ pub(super) async fn apply_plan(
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct VerifyArgs {
-    /// The hostname, e.g. `app.example.com`.
+    /// The hostname, e.g. `app.teispace.com`.
     hostname: String,
     /// Account name or id; found from the hostname's domain when omitted.
     #[serde(default)]

@@ -1,0 +1,87 @@
+`teitunnel` works with the accounts you connected in the app. Every change goes
+through the same preview as the app: you see the plan before anything changes.
+
+## Install it
+
+The app puts the `teitunnel` command on your PATH:
+
+- **Windows:** the installer does it (a copy in your user's `WindowsApps` folder, which is
+  already on the PATH), and uninstalling removes it.
+- **Linux:** the `.deb` and `.rpm` install `/usr/bin/teitunnel`. With the AppImage,
+  Teitunnel offers once, after setup, to put it in `~/.local/bin`.
+- **macOS:** Teitunnel offers once, after setup, to link it into Homebrew's `bin` (or
+  `/usr/local/bin`; if it can't write there, it shows the one `sudo ln -s …` command to
+  run). Installed with Homebrew (`brew install --cask teispace/tap/teitunnel`), it's linked
+  for you.
+
+You can add or remove it any time in **Settings ▸ General ▸ Command line**. It updates with
+the app. For servers without the app, download it on its own from the
+[download page](/download/#cli).
+
+The first time it reads your Cloudflare token, macOS asks whether `teitunnel` may use
+the keychain item Teitunnel created. Choose **Always Allow** to not be asked again.
+
+## Where routes run
+
+Routes are served by the app while it's open, all the time with
+[Always-on](/docs/concepts/run-modes) (`teitunnel always-on on`), or by `teitunnel up` on a
+server or in a container. Without the app, give the API token in `CLOUDFLARE_API_TOKEN` or
+`CLOUDFLARE_API_TOKEN_FILE`; it's never stored
+([Servers and containers](/docs/guides/servers)).
+
+## With the app running
+
+When the Teitunnel app is running, `teitunnel` uses it through its
+[control connection](/docs/guides/integrations/):
+
+- `teitunnel share 3000` asks the app to share the port. The share shows up in the app's
+  Quick Share and keeps running after the command ends; stop it there or with
+  `teitunnel shares --stop <url>`. The first time, the app asks you to allow the command
+  line (choose **Always Allow** to not be asked again). `--for` still works, and `--here`
+  shares from the terminal instead.
+- `teitunnel shares` lists the app's shares too, and `--stop` stops any of them.
+- `teitunnel routes` shows the status the app's connectors report.
+- `teitunnel status` says whether the app runs, its tunnels and what it shares.
+
+Without the app every command works on its own.
+
+## Sharing from the terminal
+
+Without the app (or with `--here`), `share` runs a Quick Share for exactly as long as the
+command. Ctrl-C, closing the terminal or `--for` stops it. The URL is the only line on
+standard output, so `URL=$(teitunnel share 3000 | head -1)` works in scripts. `share`
+doesn't need an account, only cloudflared (the app's copy, or one on your system). Once the
+URL is live, `share` checks it through Cloudflare and, if your dev server refuses the
+address or the service streams events a Quick Share can't carry, says what to do on
+standard error; it keeps sharing either way. `share --on` runs the tunnel's connector itself
+when neither the app nor an Always-on service does (a server, a CI job; see
+[Previews in CI](/docs/guides/ci-previews)).
+
+Shares go through the [inspector](/docs/guides/inspector) unless you pass `--no-inspect`:
+each request is printed on standard error (`--quiet` stops that) and kept for
+`teitunnel traffic`. `teitunnel traffic` reads the inspector's history in the app's
+database, written by the app and by every `teitunnel` command with an inspector, with
+credentials masked; so `traffic get --reveal` can't show them, and a replay from history
+leaves masked headers out (set them again with `--set-header`).
+
+Before `share` and `route add` make a service public, the
+[exposure check](/docs/guides/exposure-check/) looks at it for leaks (a `.env` file, the git
+folder, debug pages…) and prints what it finds on standard error; `--strict` makes that an
+error (exit status 1) instead of a warning.
+
+## Exit status
+
+0 when it worked, 1 when it didn't, 2 for a mistyped command, and 3 when a hostname is held
+by someone else (a share never takes one; other commands need `--take-over`).
+
+## Options many commands share
+
+| Option | Meaning |
+|---|---|
+| `-a, --account <ACCOUNT>` | Which account, when several are connected (its name or id). |
+| `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
+| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or routing a public range ([Private networks](/docs/guides/private-networks)). |
+| `--take-over` | Take a hostname someone else holds (their reservation, or another machine's route) ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). Without it, the command exits with status 3. |
+| `--tunnel <TUNNEL>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
+| `--json` | Machine-readable output, for scripts. |
+| `--app`, `--here` | Go through the running app (and fail if it isn't running), or don't use the app even when it runs. |

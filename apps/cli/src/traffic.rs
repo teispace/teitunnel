@@ -116,7 +116,7 @@ pub(crate) enum TrafficCommand {
     /// as schemas, status codes. Pages and assets are left out; no captured values are
     /// copied in.
     Openapi {
-        /// Only requests to this host, e.g. `api.example.com`.
+        /// Only requests to this host, e.g. `api.teispace.com`.
         #[arg(long)]
         host: Option<String>,
         /// Write it here (`.yaml`/`.yml` writes YAML); default: JSON on stdout.

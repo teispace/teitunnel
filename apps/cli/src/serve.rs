@@ -681,7 +681,7 @@ fn openapi_document() -> serde_json::Value {
             "securitySchemes": { "apiKey": { "type": "http", "scheme": "bearer" } },
             "schemas": {
                 "Change": {
-                    "description": "What to change, e.g. {\"type\":\"addRoute\",\"route\":{\"hostname\":\"app.example.com\",\"origin\":\"3000\",\"path\":null,\"access\":null}}, {\"type\":\"removeRoute\",\"hostname\":\"app.example.com\",\"path\":null}, {\"type\":\"createTunnel\",\"name\":\"staging\"}, {\"type\":\"removeTunnel\"}.",
+                    "description": "What to change, e.g. {\"type\":\"addRoute\",\"route\":{\"hostname\":\"app.teispace.com\",\"origin\":\"3000\",\"path\":null,\"access\":null}}, {\"type\":\"removeRoute\",\"hostname\":\"app.teispace.com\",\"path\":null}, {\"type\":\"createTunnel\",\"name\":\"staging\"}, {\"type\":\"removeTunnel\"}.",
                     "type": "object",
                     "required": ["type"]
                 },

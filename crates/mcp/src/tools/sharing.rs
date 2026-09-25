@@ -28,12 +28,12 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to show a dev server to someone, test on a phone, or receive webhooks (Stripe, GitHub, Slack…). Two kinds:\n\
              - Without `hostname`: a Quick Share at a random https://….trycloudflare.com address. No Cloudflare account needed; public to anyone with the link.\n\
-             - With `hostname` (e.g. `demo.example.com`, on one of the connected account's domains): a temporary route on the person's own domain, optionally behind a login (`allow`). It never takes over a hostname that already has a DNS record Teitunnel didn't create.\n\
+             - With `hostname` (e.g. `demo.teispace.com`, on one of the connected account's domains): a temporary route on the person's own domain, optionally behind a login (`allow`). It never takes over a hostname that already has a DNS record Teitunnel didn't create.\n\
              \n\
              The share lasts until stop_share, until `expiresInMinutes`, or until this MCP server stops (the agent session ends), whichever comes first; the Teitunnel app lists it and can stop it too. For a permanent route use plan_change with `addRoute` instead.\n\
              Call list_local_services first if you don't know the port. In `ask` mode the person approves before anything goes online.\n\
              \n\
-             Examples: {\"target\": \"3000\"} · {\"target\": \"localhost:5173\", \"expiresInMinutes\": 60} · {\"target\": \"8080\", \"hostname\": \"demo.example.com\", \"allow\": [\"me@example.com\", \"@team.io\"]}",
+             Examples: {\"target\": \"3000\"} · {\"target\": \"localhost:5173\", \"expiresInMinutes\": 60} · {\"target\": \"8080\", \"hostname\": \"demo.teispace.com\", \"allow\": [\"team@teispace.com\", \"@teispace.com\"]}",
             ToolClass::Change,
             Hints {
                 read_only: false,
@@ -93,14 +93,14 @@ pub(crate) struct ShareArgs {
     /// (`http://localhost:5173`, `https://localhost:8443`).
     target: String,
     /// Share at this hostname on one of the account's domains (e.g.
-    /// `demo.example.com`) instead of a random trycloudflare.com address.
+    /// `demo.teispace.com`) instead of a random trycloudflare.com address.
     #[serde(default)]
     hostname: Option<String>,
     /// With `hostname`: the account (name or id), when several are connected.
     #[serde(default)]
     account: Option<String>,
-    /// With `hostname`: require a login. Email addresses (`me@example.com`) or whole
-    /// domains (`@example.com`).
+    /// With `hostname`: require a login. Email addresses (`team@teispace.com`) or whole
+    /// domains (`@teispace.com`).
     #[serde(default)]
     allow: Vec<String>,
     /// Stop by itself after this many minutes (1 to 10080).

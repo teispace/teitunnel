@@ -61,7 +61,7 @@ pub(crate) struct ExposeArgs {
     /// Its endpoint path, e.g. `/mcp` (default: `/mcp`, then `/sse` and `/` are tried).
     #[serde(default)]
     path: Option<String>,
-    /// A hostname on one of the person's domains, e.g. `mcp.example.com`.
+    /// A hostname on one of the person's domains, e.g. `mcp.teispace.com`.
     hostname: String,
     /// The account (id or name), when several are connected.
     #[serde(default)]
@@ -90,7 +90,7 @@ pub(crate) struct ExposeOut {
     outcome: String,
     /// What happened, and what to tell the person.
     message: String,
-    /// The public MCP endpoint, e.g. `https://mcp.example.com/mcp`.
+    /// The public MCP endpoint, e.g. `https://mcp.teispace.com/mcp`.
     url: Option<String>,
     /// What the probe found.
     server: Option<ServerFound>,
@@ -321,7 +321,7 @@ impl ToolProvider for ExposeTools {
             "Put a local MCP server online",
             "Share an MCP server running on this machine at a hostname on the person's domain, so remote AI clients can use it: Teitunnel checks it answers MCP (Streamable HTTP `initialize`, or SSE), shares it through this machine's tunnel (not a Quick Share: those can't carry event streams), keeps streams alive past Cloudflare's 100-second idle limit, and requires a bearer token. Returns the URL and ready configurations for Claude Code, Cursor and VS Code. The token itself stays with the person (`teitunnel token <hostname>`) unless this server allows secrets.\n\
              \n\
-             Example: {\"origin\": \"8000\", \"hostname\": \"mcp.example.com\"}",
+             Example: {\"origin\": \"8000\", \"hostname\": \"mcp.teispace.com\"}",
             ToolClass::Change,
             Hints {
                 read_only: false,

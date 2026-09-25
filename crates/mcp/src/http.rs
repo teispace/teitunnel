@@ -41,7 +41,7 @@ const MAX_BODY: usize = 1024 * 1024;
 /// How the endpoint is exposed.
 #[derive(Debug, Clone, Default)]
 pub struct HttpOptions {
-    /// Browser origins allowed to call it (`https://app.example.com`). Empty: requests
+    /// Browser origins allowed to call it (`https://app.teispace.com`). Empty: requests
     /// with an `Origin` header are refused (agents don't send one).
     pub allowed_origins: Vec<String>,
     /// Accept any `Host` (the server listens on a public address behind a proxy).

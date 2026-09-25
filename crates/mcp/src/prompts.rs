@@ -21,7 +21,7 @@ pub(crate) fn list() -> Vec<Prompt> {
             Some("Put my dev server online: a public link, or a hostname on my domain with a login."),
             Some(vec![
                 arg("port", "The port or URL of the service (found automatically if omitted).", false),
-                arg("hostname", "A hostname on your domain, e.g. demo.example.com (omit for a random trycloudflare.com link).", false),
+                arg("hostname", "A hostname on your domain, e.g. demo.teispace.com (omit for a random trycloudflare.com link).", false),
                 arg("allow", "Who may open it: emails or @domains, comma-separated (needs a hostname).", false),
                 arg("permanent", "\"yes\" for a permanent route instead of a share that ends with this session.", false),
             ]),
@@ -40,7 +40,7 @@ pub(crate) fn list() -> Vec<Prompt> {
         Prompt::new(
             "route_down",
             Some("Find out why a route doesn't work, and fix it."),
-            Some(vec![arg("hostname", "The hostname that doesn't work, e.g. app.example.com.", true)]),
+            Some(vec![arg("hostname", "The hostname that doesn't work, e.g. app.teispace.com.", true)]),
         )
         .with_title("Why is my route down?"),
         Prompt::new(

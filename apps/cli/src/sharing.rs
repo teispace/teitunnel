@@ -289,7 +289,7 @@ pub(crate) async fn list_schedules(app: &App, json: bool) -> Result<ExitCode, St
         return Ok(ExitCode::SUCCESS);
     }
     if schedules.is_empty() {
-        out!("No schedules. Set one: `teitunnel schedule demo.example.com mon-fri 09:00-18:00`.")?;
+        out!("No schedules. Set one: `teitunnel schedule demo.teispace.com mon-fri 09:00-18:00`.")?;
     }
     for entry in &schedules {
         out!("{}", schedule_line(entry))?;
