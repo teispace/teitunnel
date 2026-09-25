@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/teispace/teitunnel/compare/v0.1.1...v0.2.0) (2026-09-25)
+
+
+### Features
+
+* M12 platform, current Cloudflare API and sign-in for 0.2.0 ([#34](https://github.com/teispace/teitunnel/issues/34)) ([145cb0c](https://github.com/teispace/teitunnel/commit/145cb0caa59fb8944fa21388ad9e778dbcd6beca))
+
+
+### Bug Fixes
+
+* docs, landing page and fixes for 0.2.0 ([#36](https://github.com/teispace/teitunnel/issues/36)) ([c38adac](https://github.com/teispace/teitunnel/commit/c38adac4a6838f585daf8a3a31e387262123b2c3))
+
 ## [0.1.1](https://github.com/teispace/teitunnel/compare/v0.1.0...v0.1.1) (2026-09-24)
 
 
