@@ -42,10 +42,21 @@ fn origin() -> (u16, Arc<Mutex<Vec<String>>>) {
                 }
                 head.extend_from_slice(&buf[..n]);
             }
-            heads
-                .lock()
-                .unwrap()
-                .push(String::from_utf8_lossy(&head).to_lowercase());
+            let text = String::from_utf8_lossy(&head).to_lowercase();
+            // The whole body before answering: closing with unread bytes resets the
+            // connection on Windows, before the proxy reads the response.
+            let length: usize = text
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length:"))
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0);
+            let received = head
+                .windows(4)
+                .position(|w| w == b"\r\n\r\n")
+                .map_or(0, |end| head.len() - end - 4);
+            let mut rest = vec![0u8; length.saturating_sub(received)];
+            let _ = stream.read_exact(&mut rest);
+            heads.lock().unwrap().push(text);
             let _ = stream.write_all(
                 b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
             );
