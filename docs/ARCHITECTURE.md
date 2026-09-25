@@ -536,3 +536,5 @@ Rules:
 | Installer (dmg) | < 15 MB. cloudflared is downloaded on demand. |
 
 Bundle size is checked in CI. Startup and memory are measured manually per release and recorded in the release notes.
+
+The desktop package declares `sideEffects` (only CSS and `main.tsx`), so importing one hook or badge through a feature's `index.ts` doesn't pull that feature's pages into the initial JS. A new module that must run only for its side effects has to be added there.
