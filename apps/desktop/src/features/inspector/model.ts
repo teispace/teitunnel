@@ -7,6 +7,7 @@ import type {
   Paused,
   ReplayInput,
   Resume,
+  TapProtectionView,
   TrafficFormat,
   WebhookSender,
 } from "@/lib/ipc/bindings";
@@ -254,6 +255,23 @@ export function parseHeaders(text: string): [string, string][] {
       if (colon <= 0) return [];
       return [[line.slice(0, colon).trim(), line.slice(colon + 1).trim()]];
     });
+}
+
+/** What protects a tap, in words (empty when nothing does). */
+export function protectionSummary(protection: TapProtectionView): string[] {
+  return [
+    protection.password ? t("inspector.protection.password") : null,
+    protection.secretLink ? t("inspector.protection.link") : null,
+    protection.basicUser ? t("inspector.protection.basic") : null,
+    protection.bearerTokens > 0
+      ? t("inspector.share.tokens", { count: protection.bearerTokens })
+      : null,
+    protection.ipAllow.length > 0 ? t("inspector.protection.allow") : null,
+    protection.ipDeny.length > 0 ? t("inspector.protection.deny") : null,
+    protection.agentPresets.length > 0 || protection.agentPatterns.length > 0
+      ? t("inspector.protection.agents")
+      : null,
+  ].filter((item): item is string => item !== null);
 }
 
 // Breakpoints ----------------------------------------------------------------------

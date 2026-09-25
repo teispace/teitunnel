@@ -1393,7 +1393,13 @@
       "offTitle": "Stop inspecting this share?",
       "newAddress": "The share restarts, so it gets a new address. Anyone using the old one needs the new one.",
       "confirmOn": "Restart with Inspector",
-      "confirmOff": "Restart Without Inspector"
+      "confirmOff": "Restart Without Inspector",
+      "protect": "Protect This Share",
+      "protectNeedsInspect": "Protect this share (turn on Inspect requests first: the inspector enforces it)",
+      "protectTitle": "Protect {name}",
+      "protected": "Protected on this computer: {list}",
+      "tokens_one": "{count} bearer token",
+      "tokens_other": "{count} bearer tokens"
     },
     "tap": {
       "open": "Inspection Settings…",

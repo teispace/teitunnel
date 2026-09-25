@@ -10,7 +10,12 @@ import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
 import { CommentsToggle } from "@/features/comments";
-import { InspectShareButton, ShareInspectSwitch } from "@/features/inspector";
+import {
+  InspectShareButton,
+  ProtectShareButton,
+  ShareInspectSwitch,
+  ShareProtectionNote,
+} from "@/features/inspector";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
@@ -114,6 +119,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
               </Tooltip>
               <QrButton url={share.url} />
               <InspectShareButton share={share} />
+              <ProtectShareButton share={share} />
               {/* The inspector serves the paused page: only inspected shares pause. */}
               {share.inspected ? (
                 <PauseButton
@@ -152,6 +158,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
       {share.paused ? (
         <p className="text-callout text-secondary">{t("quickShare.pause.detail")}</p>
       ) : null}
+      <ShareProtectionNote share={share} />
       {share.hostHeader ? <HostHeaderNote header={share.hostHeader} /> : null}
       {share.status.status === "failed" ? null : (
         <ShareCheck

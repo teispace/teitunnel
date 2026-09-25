@@ -70,9 +70,9 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Later phase: OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key.
 
 ## M12-04 · Protection
-- [ ] Password page, secret link (`?key=` sets a cookie), HTTP basic auth, IP/CIDR allow and deny, user-agent block (bots), per share or route, enforced in Lens (works on Quick Shares too).
+- [x] Password page, secret link (`?key=` sets a cookie), HTTP basic auth, IP/CIDR allow and deny, user-agent block (bots), per share or route, enforced in Lens (works on Quick Shares too). (Inspection Settings ▸ Protection, and the shield on a Quick Share card.)
 - [ ] Cloudflare-enforced options where the user has Access: email code (exists), GitHub/Google login presets, service tokens for machine callers, and "bypass for /webhooks/*" so a protected app still receives webhooks.
-- [ ] Clear labels on where it's enforced ("on this computer" vs "at Cloudflare": the latter keeps working when the app is closed).
+- [x] Clear labels on where it's enforced ("on this computer" vs "at Cloudflare": the latter keeps working when the app is closed).
 - [x] Edge rules scoped to one hostname (never zone-wide: Bot Fight Mode applies to the whole domain, so there's no toggle for it): challenge or block bots/AI crawlers, rate limiting (Free: one rate-limiting rule per zone, 10-second window, per IP; five custom rules), header rules (Transform Rules, 10 on Free, no regex). Teitunnel owns only the rules it creates, merges its hostnames into one expression where the quota is one rule, shows the quota, and goes through plan → apply with undo. (Done: app, CLI `protect`, MCP. Verified 2026-09-24: a Free zone's rate limit can't match `http.host`, so rate limits need Pro; hostnames with the same limit share one rule. [research](../research/cloudflare-edge-rules.md))
 - [x] Access service tokens for machine callers (free), created and shown once. (Done: the secret is never stored anywhere, not even the keychain: copied from Rust in the app, printed once by `teitunnel service-token create`, returned once to an approved agent; only id and client id are kept.)
 - [x] No mTLS: client-certificate enforcement needs paid plans (Access: Enterprise), so free users couldn't use it.

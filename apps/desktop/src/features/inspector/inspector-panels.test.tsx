@@ -10,6 +10,7 @@ import type { QuickShare } from "@/lib/ipc/bindings";
 import { InspectRouteSection } from "./components/inspect-route-section";
 import { InspectorSettingsPane } from "./components/inspector-settings";
 import { ShareInspectSwitch } from "./components/share-inspect";
+import { ProtectShareButton, ShareProtectionNote } from "./components/share-protect";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
 
 const navigate = vi.fn();
@@ -205,5 +206,42 @@ describe("Inspection settings sheet", () => {
     expect(await within(sheet).findByText("tt_abc123")).toBeTruthy();
     expect(within(sheet).getByText(/isn't shown again/)).toBeTruthy();
     expect(called("inspect_protect")[0]?.args).toEqual({ tap: "rt-docs", input: { bearer: true } });
+  });
+});
+
+describe("Protecting a Quick Share", () => {
+  it("is offered once the share is inspected, and says what protects it", async () => {
+    const [first] = mockTaps();
+    if (!first) throw new Error("fixture");
+    mockIPC((cmd, args) => {
+      if (cmd === "inspect_taps") {
+        return [
+          {
+            ...first,
+            protection: { ...first.protection, password: true, bearerTokens: 2 },
+          },
+        ];
+      }
+      return inspectorMock(cmd, (args ?? {}) as Record<string, unknown>) ?? null;
+    });
+    const { unmount } = wrap(<ProtectShareButton share={{ ...share, inspected: false }} />);
+    const off = screen.getByRole("button", { name: /turn on Inspect requests first/ });
+    expect(off.hasAttribute("disabled")).toBe(true);
+    unmount();
+
+    wrap(
+      <>
+        <ProtectShareButton share={share} />
+        <ShareProtectionNote share={share} />
+      </>,
+    );
+    expect(
+      await screen.findByText("Protected on this computer: Password page, 2 bearer tokens"),
+    ).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Protect This Share" });
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(button);
+    const sheet = await screen.findByRole("dialog", { name: "Protect a.trycloudflare.com" });
+    expect(within(sheet).getByText(/Enforced by the inspector on this computer/)).toBeTruthy();
   });
 });

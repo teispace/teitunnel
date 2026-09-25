@@ -6,5 +6,6 @@ export {
   InspectShareButton,
   ShareInspectSwitch,
 } from "./components/share-inspect";
+export { ProtectShareButton, ShareProtectionNote } from "./components/share-protect";
 export { InspectorPage } from "./inspector-page";
 export { useInspectorSettings } from "./queries";
