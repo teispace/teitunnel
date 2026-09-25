@@ -24,7 +24,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 ### Credentials
 - Stored only in the OS keychain (`keyring`). Never in SQLite, config files, logs, or IPC responses.
 - IPC commands take an `AccountId`, never a token. The token-add command accepts a token as input and never echoes it back.
-- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out.
+- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out. Cloudflare rotates the refresh token on every refresh, so the current access token is kept in the keychain too (`cf:<account>:oauth-access`, with its expiry and a hash of the refresh token it belongs to): the app, the CLI and the MCP server share one refresh instead of revoking each other's tokens. Removing the account deletes both items.
 - The permissions are documented in the token template. It includes Access (apps and login methods) so logins work without a second trip (D-065); Teitunnel still changes only Access applications it created (ownership index, D-057), and a token without Access keeps working for plain routes. OAuth scopes for Access stay optional.
 - In-memory token values are wrapped in a `Secret<T>` type whose `Debug`/`Display` impls redact them.
 

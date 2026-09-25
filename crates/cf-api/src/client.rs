@@ -200,7 +200,7 @@ impl Client {
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = self.url(path);
         let (status, body) = self.send(|| self.http.get(&url)).await?;
-        Envelope::decode(status, &body)
+        failed(path, Envelope::decode(status, &body))
     }
 
     /// `POST path` with a JSON body → `result`. Not retried on 5xx or network errors.
@@ -216,7 +216,7 @@ impl Client {
         let (status, bytes) = self
             .send_with(Retry::Once, || self.http.post(&url).json(body))
             .await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     /// `PUT path` with a JSON body → `result`.
@@ -230,7 +230,7 @@ impl Client {
     ) -> Result<T> {
         let url = self.url(path);
         let (status, bytes) = self.send(|| self.http.put(&url).json(body)).await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     /// `DELETE path`. A 404 counts as success (already gone), so retries are safe.
@@ -257,7 +257,7 @@ impl Client {
     ) -> Result<T> {
         let url = self.url(path);
         let (status, bytes) = self.send(|| self.http.patch(&url).json(body)).await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     /// Sends a prepared body (a multipart upload) with `method` → `result`. `bearer`
@@ -289,7 +289,7 @@ impl Client {
                     .timeout(UPLOAD_TIMEOUT)
             })
             .await?;
-        Envelope::decode(status, &bytes)
+        failed(path, Envelope::decode(status, &bytes))
     }
 
     async fn get_page<T: DeserializeOwned>(
@@ -341,6 +341,15 @@ impl Client {
         self.rate = (limit, window);
         self
     }
+}
+
+/// Logs a refused request's path and Cloudflare's reason at debug level (never the
+/// credential or the body), then passes the result on.
+fn failed<T>(path: &str, result: Result<T>) -> Result<T> {
+    if let Err(err) = &result {
+        tracing::debug!(path, %err, "Cloudflare API request failed");
+    }
+    result
 }
 
 #[cfg(test)]
