@@ -501,7 +501,10 @@ fn the_reference_page_is_up_to_date() {
         std::fs::write(PAGE, &page).unwrap();
         return;
     }
-    let current = std::fs::read_to_string(PAGE).unwrap_or_default();
+    // Windows checkouts may turn line endings into CRLF.
+    let current = std::fs::read_to_string(PAGE)
+        .unwrap_or_default()
+        .replace("\r\n", "\n");
     assert!(
         current == page,
         "CLI reference is out of date: run `{REGENERATE}`"

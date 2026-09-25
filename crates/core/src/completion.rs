@@ -143,6 +143,14 @@ mod tests {
             .await
             .unwrap();
         drop(store);
+        // The store closes on its own thread (and checkpoints its log); completion
+        // doesn't wait on a busy database, so let it finish first.
+        for _ in 0..100 {
+            if !candidates(dir.path()).hostnames.is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
 
         let started = std::time::Instant::now();
         let found = candidates(dir.path());
