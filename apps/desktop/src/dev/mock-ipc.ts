@@ -106,6 +106,7 @@ let shares: QuickShare[] = [
       message: null,
       protected: false,
       eventStream: false,
+      transient: false,
     },
   },
   {
@@ -135,6 +136,7 @@ let shares: QuickShare[] = [
       message: { key: "core.verify.hostRejected", args: { server: "Rails" } },
       protected: false,
       eventStream: false,
+      transient: false,
     },
   },
   {

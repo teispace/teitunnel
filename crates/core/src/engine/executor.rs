@@ -95,6 +95,11 @@ english_display!(EngineError);
 /// How often a transient verification failure is retried.
 const VERIFY_RETRY: Duration = Duration::from_secs(2);
 
+/// How long a check right after a change waits out transient failures: Cloudflare takes
+/// about half a minute to connect a new record to a tunnel (1016 until then; measured
+/// 2026-09-25), so 30 s cut it short.
+pub const VERIFY_PATIENCE: Duration = Duration::from_secs(60);
+
 /// Who is asking: the account and this Mac's name for a new tunnel.
 #[derive(Debug, Clone, Copy)]
 pub struct Context<'a> {
@@ -1088,6 +1093,15 @@ impl Engine {
             }
             Outcome::Applied { .. } => {}
         }
+        // The app log says what changed too, so a report ("the record wasn't removed")
+        // can be traced without the database.
+        tracing::info!(
+            account = ctx.account,
+            outcome = outcome.label(),
+            steps = %detail.join("; "),
+            "{}",
+            intent.summary().english()
+        );
         if let Err(err) = self
             .local
             .log(

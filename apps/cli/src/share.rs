@@ -306,7 +306,7 @@ pub(crate) async fn run(
         status(&format!(
             "Serving the files in {}{}{}. Dotfiles, .env files, keys, .git and node_modules are never served.",
             folder.path,
-            if folder.listing {
+            if folder.lists() {
                 ", with file listings"
             } else {
                 ""
@@ -844,6 +844,7 @@ mod tests {
             message: None,
             protected: false,
             event_stream: false,
+            transient: false,
         };
         let vite = explained(&rejected(DevServer::Vite), Via::QuickShare);
         assert_eq!(
@@ -881,6 +882,7 @@ mod tests {
             message: None,
             protected: false,
             event_stream: true,
+            transient: false,
         };
         assert_eq!(explained(&result, Via::QuickShare).len(), 1);
         assert!(

@@ -23,9 +23,6 @@ use crate::{
     },
 };
 
-/// How long a fresh route may take to answer when checked after applying.
-const VERIFY_AFTER_APPLY: Duration = Duration::from_secs(20);
-
 pub(super) fn specs() -> Vec<ToolSpec> {
     vec![
         spec::<ListRoutesArgs, RoutesResult>(
@@ -1323,7 +1320,11 @@ pub(crate) async fn apply_stored(
                     )
                     .await;
                     if let Ok(v) = backend
-                        .verify(&plan.target.account, hostname, VERIFY_AFTER_APPLY)
+                        .verify(
+                            &plan.target.account,
+                            hostname,
+                            teitunnel_core::engine::VERIFY_PATIENCE,
+                        )
                         .await
                     {
                         verification.push(VerifyResult::from(v));

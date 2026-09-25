@@ -1188,7 +1188,8 @@ teitunnel share [OPTIONS] <ORIGIN>
 | `--for <DURATION>` | Stop by itself after this long, e.g. `30m`, `2h`, `90s`. |
 | `--no-qr` | Don't print a QR code. |
 | `--on [HOSTNAME]` | Share at this hostname on one of your domains instead of a random trycloudflare.com address (removed again when the command ends). `{project}`, `{branch}` and `{user}` are filled in from this folder, e.g. `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here. |
-| `--listing` | With a folder: list the files of folders that have no index.html. |
+| `--listing` | With a folder: list the files of folders that have no index.html (the default when the folder itself has none). |
+| `--no-listing` | With a folder: never list files, even when it has no index.html. |
 | `--spa` | With a folder: a single-page app (unknown paths get /index.html). |
 | `--schedule <DAYS HH:MM-HH:MM>` | With --on: on only during these hours, paused otherwise, e.g. `"mon-fri 09:00-18:00"`. |
 | `--tz <ZONE>` | With --schedule: its time zone, e.g. `Europe/Berlin` (default: this computer's). |

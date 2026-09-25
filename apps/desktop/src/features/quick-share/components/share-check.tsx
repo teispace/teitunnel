@@ -30,6 +30,8 @@ interface ShareCheckProps {
   sending: boolean;
   onCheck: () => Promise<unknown>;
   checking: boolean;
+  /** Cloudflare is still connecting the address: say so rather than show an error. */
+  settling?: boolean | undefined;
 }
 
 /**
@@ -44,6 +46,7 @@ export function ShareCheck({
   sending,
   onCheck,
   checking,
+  settling = false,
 }: ShareCheckProps) {
   /** The server a fix was tried for, to confirm when it answers. */
   const [fixing, setFixing] = useState<DevServer | null>(null);
@@ -65,6 +68,13 @@ export function ShareCheck({
 
   // Nothing to say: take no room in the card.
   if (!check || (!check.failure && !check.eventStream && !fixing)) return null;
+  if (settling) {
+    return (
+      <p role="status" className="text-callout text-secondary">
+        {t("quickShare.settling")}
+      </p>
+    );
+  }
   return (
     <div className="flex flex-col gap-2" aria-live="polite">
       {rejection ? (

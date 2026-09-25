@@ -35,7 +35,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
   const now = useNow();
   const stop = useStopDomainShare();
   const pause = useSetSharePaused();
-  const check = useDomainShareCheck(share.accountId, share.hostname);
+  const check = useDomainShareCheck(share.accountId, share.hostname, share.createdAt);
   const route = useRoute(share.accountId, share.hostname).data ?? null;
   const sendHost = useSendHostOnRoute(share.accountId);
   const schedule =
@@ -159,6 +159,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
         sending={sendHost.isPending}
         onCheck={() => check.refetch()}
         checking={check.isFetching}
+        settling={check.settling}
       />
       {schedule ? (
         <p className="text-callout text-secondary">

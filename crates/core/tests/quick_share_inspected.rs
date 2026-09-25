@@ -272,7 +272,7 @@ async fn folders_are_shared_through_the_inspector() {
     tokio::spawn(shares.clone().watch_runtime());
 
     let folder =
-        teitunnel_core::folder_share::FolderShare::resolve(site.to_str().unwrap(), false, true)
+        teitunnel_core::folder_share::FolderShare::resolve(site.to_str().unwrap(), None, true)
             .unwrap();
     let share = shares.start_folder(folder.clone(), None).await.unwrap();
     assert_eq!(share.folder.as_ref(), Some(&folder));

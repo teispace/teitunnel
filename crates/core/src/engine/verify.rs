@@ -165,6 +165,9 @@ pub struct Verification {
     /// The origin answered with a Server-Sent Events stream (Quick Shares don't carry
     /// them).
     pub event_stream: bool,
+    /// The failure usually passes by itself (a new record or connector still settling):
+    /// check again rather than asking for a fix.
+    pub transient: bool,
 }
 
 impl Verification {
@@ -173,6 +176,7 @@ impl Verification {
             hostname,
             status,
             message: failure.as_ref().map(Failure::message),
+            transient: failure.as_ref().is_some_and(Failure::is_transient),
             failure,
             protected: false,
             event_stream: false,
@@ -522,6 +526,12 @@ mod tests {
         assert_eq!(Failure::NoConnector.stage(), Stage::Tunnel);
         assert_eq!(Failure::OriginTimeout.stage(), Stage::Origin);
         assert!(Failure::NoConnector.is_transient());
+        let settling = Verification::new("a.xyz.com".into(), None, Some(Failure::TunnelMismatch));
+        assert!(
+            settling.transient,
+            "a new record's 1016 is worth waiting out"
+        );
+        assert!(!Verification::new("a.xyz.com".into(), Some(200), None).transient);
         assert!(!Failure::OriginTimeout.is_transient());
     }
 

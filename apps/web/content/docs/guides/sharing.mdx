@@ -58,7 +58,8 @@ online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
       **Custom** sends the value you type, such as `localhost:5173`.
     - **Inspect requests**: on by default. Off sends requests straight to the service: faster
       for large downloads, but no request list, pausing or protection.
-    - For folders: file listings and single-page-app mode.
+    - For folders: file listings (on by default when the folder has no `index.html`) and
+      single-page-app mode.
   </Step>
   <Step>
     ### Share
@@ -119,7 +120,7 @@ long as the command runs.
 | `--allow EMAIL\|@DOMAIN` | With `--on`: require a [login](/docs/guides/require-login) (repeatable). |
 | `--schedule "DAYS HH:MM-HH:MM"`, `--tz ZONE` | With `--on`: serve only during these hours ([schedules](#on-a-schedule)). |
 | `--host-header HOST` / `--no-host-header` | Send this Host header to the service, or pass the visitor's through unchanged. |
-| `--listing`, `--spa` | With a folder: list files, or serve `index.html` for unknown paths. |
+| `--listing` / `--no-listing`, `--spa` | With a folder: list files (the default when it has no `index.html`) or never, or serve `index.html` for unknown paths. |
 | `--no-inspect` | Don't send requests through the inspector. |
 | `--idle DURATION` | Stop after this long without a request. |
 | `--watch PATH` | Say so when a request hits this path, such as `/webhooks/*` (repeatable). |
@@ -225,10 +226,12 @@ routes, when none of them runs, routes are served normally.
 Share a folder of files (a built site, docs, a design export) without running a server:
 
 - **App:** drop a folder on the Quick Share window, or choose **Share a Folder…**. Under
-  **Advanced**, turn on **List the files of folders without an index page**, or
+  **Advanced**: **List the files of folders without an index page** (already on when the
+  folder has no `index.html`, so its address never answers *Not found*) and
   **Single-page app (every page opens index.html)**. **Share a service instead** goes back.
 - **Terminal:** `teitunnel share ./dist` (a random address) or
-  `teitunnel share ./dist --on docs.teispace.com`, with `--listing` and `--spa`.
+  `teitunnel share ./dist --on docs.teispace.com`, with `--listing` / `--no-listing` and
+  `--spa`.
 - **AI agents:** `share_folder`.
 
 Teitunnel's inspector serves the files, so a folder share can't turn inspection off. *Hidden

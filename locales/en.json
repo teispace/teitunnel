@@ -1088,7 +1088,8 @@
       "spa": "Single-page app (every page opens index.html)",
       "safety": "Hidden files, .env files, keys, .git and node_modules are never shared.",
       "drop": "Drop a folder to share it."
-    }
+    },
+    "settling": "Cloudflare is still connecting this address. It usually takes under a minute."
   },
   "inspector": {
     "title": "Inspector",

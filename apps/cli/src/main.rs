@@ -53,9 +53,6 @@ use teitunnel_core::{
 
 use crate::context::App;
 
-/// How long a fresh route may take to start answering.
-const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
-
 #[derive(Debug, Parser)]
 #[command(
     name = "teitunnel",
@@ -235,9 +232,13 @@ enum Command {
         /// `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here.
         #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
-        /// With a folder: list the files of folders that have no index.html.
-        #[arg(long)]
+        /// With a folder: list the files of folders that have no index.html (the
+        /// default when the folder itself has none).
+        #[arg(long, conflicts_with = "no_listing")]
         listing: bool,
+        /// With a folder: never list files, even when it has no index.html.
+        #[arg(long)]
+        no_listing: bool,
         /// With a folder: a single-page app (unknown paths get /index.html).
         #[arg(long)]
         spa: bool,
@@ -827,11 +828,12 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             idle,
             watch,
             listing,
+            no_listing,
             spa,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            let folder = folder_arg(&origin, listing, spa)?;
+            let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
             if folder.is_some() && app {
                 return Err("Folders are shared from this terminal; leave out --app.".into());
             }
@@ -1009,12 +1011,13 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             idle,
             watch,
             listing,
+            no_listing,
             spa,
             schedule,
             tz,
             ..
         } => {
-            let folder = folder_arg(&origin, listing, spa)?;
+            let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
             if folder.is_some() && no_inspect {
                 return Err(
                     "A folder is served by Teitunnel's inspector; leave out --no-inspect.".into(),
@@ -1247,17 +1250,22 @@ async fn run(command: Command) -> Result<ExitCode, String> {
     }
 }
 
+/// `--listing` / `--no-listing`; neither: lists only a folder without an index.html.
+fn listing_choice(listing: bool, no_listing: bool) -> Option<bool> {
+    (listing || no_listing).then_some(listing)
+}
+
 /// A folder to share, when `origin` names one (`./dist`, `/srv/site`).
 fn folder_arg(
     origin: &str,
-    listing: bool,
+    listing: Option<bool>,
     spa: bool,
 ) -> Result<Option<teitunnel_core::folder_share::FolderShare>, String> {
     use teitunnel_core::folder_share::{FolderShare, looks_like_folder};
     if !looks_like_folder(origin) {
-        if listing || spa {
+        if listing.is_some() || spa {
             return Err(format!(
-                "--listing and --spa are for folders, and {origin} isn't one."
+                "--listing, --no-listing and --spa are for folders, and {origin} isn't one."
             ));
         }
         return Ok(None);
@@ -2065,7 +2073,7 @@ async fn check(
             app.context(account),
             &host,
             context::edge(),
-            VERIFY_PATIENCE,
+            teitunnel_core::engine::VERIFY_PATIENCE,
         )
         .await
         .map_err(|e| e.to_string())?;

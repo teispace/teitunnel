@@ -103,7 +103,12 @@ beforeEach(() => {
       case "sharing_choose_folder":
         return "/Users/me/site/dist";
       case "sharing_folder":
-        return { path: payload["path"], listing: payload["listing"], spa: payload["spa"] };
+        return {
+          path: payload["path"],
+          listing: payload["listing"],
+          hasIndex: true,
+          spa: payload["spa"],
+        };
       case "quick_share_start_folder": {
         const share: QuickShare = {
           id: "qs-f",
@@ -183,6 +188,8 @@ describe("sharing extras", () => {
     // The folder's options replace the Host header ones.
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
     expect(await screen.findByText(/never shared/)).toBeTruthy();
+    // A built site (it has an index.html): no file list unless asked for.
+    expect(screen.getByLabelText(/List the files/).getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByLabelText(/Single-page app/));
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     const card = await screen.findByRole("article", {
@@ -191,7 +198,8 @@ describe("sharing extras", () => {
     expect(within(card).getByText("https://folder-share.trycloudflare.com")).toBeTruthy();
     expect(calls.find((c) => c.cmd === "quick_share_start_folder")?.args["folder"]).toEqual({
       path: "/Users/me/site/dist",
-      listing: false,
+      listing: null,
+      hasIndex: true,
       spa: true,
     });
   });

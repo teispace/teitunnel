@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   type AccessRule,
   commands,
@@ -12,6 +13,7 @@ import {
   type HostHeaderChoice,
   type QuickShare,
   type Schedule,
+  type Verification,
 } from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys, refresh } from "@/lib/ipc/query-keys";
@@ -183,7 +185,7 @@ export function useStartDomainShare() {
 export const chooseFolder = () => call(commands.sharingChooseFolder());
 
 /** Checks a chosen or dropped folder (it must exist, and not be the disk or home folder). */
-export const resolveFolder = (path: string, listing = false, spa = false) =>
+export const resolveFolder = (path: string, listing: boolean | null = null, spa = false) =>
   call(commands.sharingFolder(path, listing, spa));
 
 /** Shares a folder at a random address; the URL arrives like any Quick Share's. */
@@ -310,14 +312,25 @@ export function useStopDomainShare() {
  * A share on your domain, checked once through Cloudflare (waiting for the connector and
  * propagation, like a new route). `refetch` checks again.
  */
-export function useDomainShareCheck(accountId: string, hostname: string) {
-  return useQuery({
+export function useDomainShareCheck(accountId: string, hostname: string, startedAt: number | null) {
+  // Unknown start (an older share): count from when the card appeared.
+  const [shown] = useState(Date.now);
+  const since = startedAt ?? shown;
+  const settling = (check: Verification | undefined) =>
+    Boolean(check?.transient) && Date.now() - since < SETTLE_MS;
+  const query = useQuery({
     queryKey: queryKeys.domainShareCheck(accountId, hostname),
     queryFn: () => call(commands.routesVerify(accountId, hostname, true)),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
+    // Cloudflare can take a while to connect a new record: check again while it settles.
+    refetchInterval: (q) => (settling(q.state.data) ? 5000 : false),
   });
+  return { ...query, settling: settling(query.data) };
 }
+
+/** How long a new share's transient failures read as "still connecting". */
+const SETTLE_MS = 3 * 60_000;
 
 /** Quick Shares running in terminals (`teitunnel share`); refreshed every 5 s. */
 export function useTerminalShares() {

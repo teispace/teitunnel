@@ -118,7 +118,7 @@ export const commands = {
 	 *  Checks a folder chosen or dropped for sharing (it must exist and not be the whole
 	 *  disk or the home folder).
 	 */
-	sharingFolder: (path: string, listing: boolean, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
+	sharingFolder: (path: string, listing: boolean | null, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
 	/**  Asks the person to choose a folder to share (a native panel). `null`: cancelled. */
 	sharingChooseFolder: () => __TAURI_INVOKE<string | null>("sharing_choose_folder"),
 	/**
@@ -2289,8 +2289,13 @@ action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; 
 export type FolderShare = {
 	/**  The folder (absolute once resolved). */
 	path: string,
-	/**  List a folder's files when it has no `index.html`. */
-	listing?: boolean,
+	/**
+	 *  List a folder's files when it has no `index.html`. `None`: only when the shared
+	 *  folder itself has none, so its address never answers "Not found".
+	 */
+	listing?: boolean | null,
+	/**  The folder has an `index.html` (set by [`FolderShare::resolve`]). */
+	hasIndex?: boolean,
 	/**  A single-page app: unknown paths that ask for a page get `/index.html`. */
 	spa?: boolean,
 };
@@ -5492,6 +5497,11 @@ export type Verification = {
 	 *  them).
 	 */
 	eventStream: boolean,
+	/**
+	 *  The failure usually passes by itself (a new record or connector still settling):
+	 *  check again rather than asking for a fix.
+	 */
+	transient: boolean,
 };
 
 /**  Where the main window should go (asked by the control connection or a link). */

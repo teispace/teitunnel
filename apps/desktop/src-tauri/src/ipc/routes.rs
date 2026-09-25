@@ -21,9 +21,6 @@ use crate::{
     state::AppState,
 };
 
-/// How long a check right after applying waits for the connector and propagation.
-const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
-
 fn context<'a>(
     state: &'a AppState,
     account_id: &'a str,
@@ -123,7 +120,7 @@ pub async fn routes_verify(
     let hostname = teitunnel_core::domain::Hostname::parse(&hostname)
         .map_err(|e| AppError::invalid("hostname", e.text()))?;
     let patience = if wait {
-        VERIFY_PATIENCE
+        teitunnel_core::engine::VERIFY_PATIENCE
     } else {
         Duration::ZERO
     };

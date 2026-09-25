@@ -145,6 +145,7 @@ beforeEach(() => {
             message: null,
             protected: false,
             eventStream: false,
+            transient: false,
           },
         };
         shares = [restarted];
@@ -234,6 +235,7 @@ describe("QuickSharePage", () => {
           message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
           protected: false,
           eventStream: false,
+          transient: false,
         },
       },
     ];
@@ -274,6 +276,7 @@ describe("QuickSharePage", () => {
           message: null,
           protected: false,
           eventStream: true,
+          transient: false,
         },
       },
     ];

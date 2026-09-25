@@ -317,6 +317,7 @@ impl Backend for FakeBackend {
             failure,
             protected: false,
             event_stream: false,
+            transient: false,
         }))
     }
 
@@ -1815,7 +1816,7 @@ async fn folders_are_shared_with_approval() {
     assert_eq!(shared["outcome"], "shared");
     assert_eq!(shared["share"]["url"], "https://docs.xyz.com");
     let folders = h.backend.lock().folders.clone();
-    assert!(folders[0].listing && !folders[0].spa);
+    assert!(folders[0].lists() && !folders[0].spa);
     assert!(
         h.call(
             Mode::Full,

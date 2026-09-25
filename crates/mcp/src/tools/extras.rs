@@ -155,9 +155,10 @@ pub(crate) struct FolderArgs {
     /// With `hostname`: the account (name or id), when several are connected.
     #[serde(default)]
     account: Option<String>,
-    /// List a folder's files when it has no index.html.
+    /// List the files of folders that have no index.html. Default: only when the folder
+    /// itself has none, so its address always shows something.
     #[serde(default)]
-    listing: bool,
+    listing: Option<bool>,
     /// A single-page app: unknown paths get /index.html.
     #[serde(default)]
     spa: bool,

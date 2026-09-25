@@ -78,7 +78,8 @@ export function FolderOptions({
       <label htmlFor={listingId} className="flex items-center gap-2 text-body">
         <Checkbox
           id={listingId}
-          checked={folder.listing ?? false}
+          // Unset: listed when the folder has no index.html (else its address says Not found).
+          checked={folder.listing ?? !folder.hasIndex}
           onCheckedChange={(checked) => onChange({ ...folder, listing: checked === true })}
         />
         {t("quickShare.folder.listing")}
