@@ -24,8 +24,8 @@ use crate::{
     protocol::{
         AgentApproval, AgentDecision, AgentInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue,
         EVENT_NOTIFICATION, Event, HelloParams, HelloResult, LocalDomainsInfo, MAX_MESSAGE,
-        PROTOCOL_VERSION, PauseShare, PlanInfo, PreviewParams, Response, RoutesList, RoutesParams,
-        RpcError, ShareInfo, StartShare, Status, StopShare, View, code, method,
+        OAuthApproval, PROTOCOL_VERSION, PauseShare, PlanInfo, PreviewParams, Response, RoutesList,
+        RoutesParams, RpcError, ShareInfo, StartShare, Status, StopShare, View, code, method,
     },
 };
 
@@ -269,6 +269,16 @@ impl ControlClient {
     /// See [`ClientError`].
     pub async fn approve_for_agent(&self, request: &AgentApproval) -> Result<bool, ClientError> {
         let decision: AgentDecision = self.call(method::AGENT_APPROVE, request).await?;
+        Ok(decision.approved)
+    }
+
+    /// Asks the person, in the app, whether a client may connect to a shared MCP server;
+    /// waits for the answer.
+    ///
+    /// # Errors
+    /// See [`ClientError`].
+    pub async fn approve_oauth(&self, request: &OAuthApproval) -> Result<bool, ClientError> {
+        let decision: AgentDecision = self.call(method::OAUTH_APPROVE, request).await?;
         Ok(decision.approved)
     }
 

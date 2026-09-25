@@ -18,6 +18,7 @@ use teitunnel_core::{
         Inspector, TapScope, TapSpec,
         expose::{self, McpClientConfigs, McpProbe, McpTransport},
     },
+    mcp_auth::McpAuth,
 };
 
 use crate::{
@@ -37,6 +38,7 @@ pub const TOKEN_PLACEHOLDER: &str = "<TOKEN>";
 pub struct ExposeTools {
     backend: SharedBackend,
     inspector: Inspector,
+    auth: Option<McpAuth>,
 }
 
 impl std::fmt::Debug for ExposeTools {
@@ -48,7 +50,19 @@ impl std::fmt::Debug for ExposeTools {
 impl ExposeTools {
     /// Tools sharing through `backend`, protected by `inspector`'s taps.
     pub fn new(backend: SharedBackend, inspector: Inspector) -> Self {
-        Self { backend, inspector }
+        Self {
+            backend,
+            inspector,
+            auth: None,
+        }
+    }
+
+    /// Also put OAuth in front of shared servers (for claude.ai, ChatGPT and other
+    /// remote clients), each connection approved by the person through `auth`.
+    #[must_use]
+    pub fn with_oauth(mut self, auth: McpAuth) -> Self {
+        self.auth = Some(auth);
+        self
     }
 }
 
@@ -163,11 +177,18 @@ impl From<McpClientConfigs> for ClientConfigs {
 }
 
 /// Notes on web connectors (they can't send a static bearer header).
-pub fn connector_notes(hostname: &str) -> Vec<String> {
+pub fn connector_notes(hostname: &str, oauth: bool) -> Vec<String> {
     vec![
-        "Claude Code, Cursor and VS Code send the Authorization header from their configuration.".to_owned(),
-        "Claude.ai and ChatGPT custom connectors can't send a fixed bearer token: they connect with OAuth or without authentication. OAuth in front of a local MCP server comes later; until then, use them only with a server that has its own authentication.".to_owned(),
-        format!("Anyone with the token can use the server: show it with `teitunnel token {hostname}`, and make a new one with `teitunnel token {hostname} --new`."),
+        "Claude Code, Cursor and VS Code send the Authorization header from their configuration."
+            .to_owned(),
+        if oauth {
+            "Claude.ai and ChatGPT: add a custom connector with the URL above and sign in. Each connection waits for the person to approve it in Teitunnel, which shows the same code as the browser. Connected clients are listed in Settings ▸ AI Tools, where they can be disconnected.".to_owned()
+        } else {
+            "Claude.ai and ChatGPT custom connectors can't send a fixed bearer token: they connect with OAuth. This server asks for credentials itself, so Teitunnel's OAuth isn't put in front of it; use it with those connectors through its own sign-in.".to_owned()
+        },
+        format!(
+            "Anyone with the token can use the server: show it with `teitunnel token {hostname}`, and make a new one with `teitunnel token {hostname} --new`."
+        ),
     ]
 }
 
@@ -206,8 +227,13 @@ impl ExposeTools {
             url
         };
         let details = format!(
-            "Share the MCP server at {origin}{} publicly at {url}, on your domain through this machine's tunnel. Clients must send a bearer token (kept in the keychain); streams are kept alive. It ends when this MCP server stops{}.",
+            "Share the MCP server at {origin}{} publicly at {url}, on your domain through this machine's tunnel. Clients must send a bearer token (kept in the keychain){}; streams are kept alive. It ends when this MCP server stops{}.",
             probe.path,
+            if self.auth.is_some() && !probe.requires_auth {
+                ", or sign in with OAuth, each connection approved by you in Teitunnel"
+            } else {
+                ""
+            },
             args.expires_in_minutes
                 .map(|m| format!(" or after {m} minutes"))
                 .unwrap_or_default()
@@ -237,6 +263,25 @@ impl ExposeTools {
             expose::token_for(self.inspector.secrets(), &hostname, args.new_token)
                 .await
                 .map_err(|e| ToolError::new(e.to_string()))?;
+        let name = args
+            .name
+            .or_else(|| probe.server_name.clone())
+            .unwrap_or_else(|| "local-mcp".to_owned())
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+        // A server that asks for credentials itself keeps its own sign-in.
+        let oauth = self
+            .auth
+            .as_ref()
+            .filter(|_| !probe.requires_auth)
+            .map(|auth| auth.provider(&hostname, &probe.path, &name));
         let mut tap = TapSpec::new(
             TapScope::route(&account.id, &hostname, None),
             &hostname,
@@ -244,6 +289,7 @@ impl ExposeTools {
         );
         tap.public_url = Some(format!("https://{hostname}"));
         tap.bearer = vec![token.clone()];
+        tap.oauth.clone_from(&oauth);
         let tap = self
             .inspector
             .start(tap)
@@ -268,19 +314,6 @@ impl ExposeTools {
             self.inspector.stop(&tap.id).await;
             return Err(err.into());
         }
-        let name = args
-            .name
-            .or_else(|| probe.server_name.clone())
-            .unwrap_or_else(|| "local-mcp".to_owned())
-            .chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '-' {
-                    c
-                } else {
-                    '-'
-                }
-            })
-            .collect::<String>();
         let shown = if ctx.allow_secrets() {
             token.expose().clone()
         } else {
@@ -293,7 +326,12 @@ impl ExposeTools {
         Ok(ToolOutput::new(&ExposeOut {
             outcome: "exposed".into(),
             message: format!(
-                "The MCP server ({transport}) is online at {url}, protected by a bearer token. {}",
+                "The MCP server ({transport}) is online at {url}, protected by {}. {}",
+                if oauth.is_some() {
+                    "OAuth (for claude.ai, ChatGPT and other remote clients; each connection is approved in Teitunnel) and a bearer token"
+                } else {
+                    "a bearer token"
+                },
                 if new_token {
                     format!(
                         "A new token was made: the person sees it with `teitunnel token {hostname}`."
@@ -309,7 +347,7 @@ impl ExposeTools {
             server: Some(probe.into()),
             new_token,
             token: ctx.allow_secrets().then(|| token.expose().clone()),
-            notes: connector_notes(&hostname),
+            notes: connector_notes(&hostname, oauth.is_some()),
         }))
     }
 }

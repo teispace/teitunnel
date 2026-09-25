@@ -287,6 +287,15 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         supervisor.clone(),
         &inspector,
     );
+    // Connections to MCP servers an agent shares are approved in the app (stdio has no
+    // terminal to ask in).
+    let oauth = teitunnel_core::mcp_auth::McpAuth::open(
+        app.store().clone(),
+        teitunnel_core::mcp_auth::AskApp::new(app.dir(), None),
+    )
+    .await
+    .map_err(|err| status(&format!("OAuth for shared MCP servers is off: {err}")))
+    .ok();
     let server = McpServer::builder(Arc::clone(&backend), settings.clone())
         .traffic(Arc::new(InspectorTraffic::new(
             inspector.clone(),
@@ -298,10 +307,12 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         .provider(Arc::new(teitunnel_mcp::CommentsTools::new(Arc::clone(
             &backend,
         ))))
-        .provider(Arc::new(ExposeTools::new(
-            Arc::clone(&backend),
-            inspector.clone(),
-        )))
+        .provider(Arc::new(match &oauth {
+            Some(auth) => {
+                ExposeTools::new(Arc::clone(&backend), inspector.clone()).with_oauth(auth.clone())
+            }
+            None => ExposeTools::new(Arc::clone(&backend), inspector.clone()),
+        }))
         .approver(teitunnel_mcp::AppApprover::new(app.dir(), settings.mode))
         .build();
     status(&format!(

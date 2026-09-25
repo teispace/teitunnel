@@ -24,9 +24,9 @@ use teitunnel_control::{
     Action, BoxFuture, ConfirmRequest, Decision, Host, HostResult, Requester,
     protocol::{
         self as wire, AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams,
-        ApplyResult, ClientInfo, DoctorIssue, Event, PauseShare, PlanInfo, PreviewParams,
-        RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare, Status, StepInfo,
-        StopShare, TunnelInfo, View, code,
+        ApplyResult, ClientInfo, DoctorIssue, Event, OAuthApproval, PauseShare, PlanInfo,
+        PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare,
+        Status, StepInfo, StopShare, TunnelInfo, View, code,
     },
 };
 use tokio::sync::broadcast;
@@ -148,6 +148,23 @@ pub struct HostParts {
     pub inspector: crate::inspect::Inspector,
     /// Applies pauses to the app's taps.
     pub pauses: Arc<crate::pause::Enforcer>,
+}
+
+/// What the person reads before letting a client connect to a shared MCP server: who
+/// it is (verified or not), where sign-ins go, and the code to compare.
+pub fn oauth_message(request: &OAuthApproval) -> Text {
+    let identity = if request.redirect_loopback {
+        m::oauth_loopback()
+    } else {
+        match &request.published_by {
+            Some(publisher) => m::oauth_published(publisher, &request.redirect_host),
+            None => m::oauth_unverified(&request.redirect_host),
+        }
+    };
+    crate::text::msg::raw(format!(
+        "{}\n\n{identity}",
+        m::oauth_message(&request.client_name, &request.host, &request.code),
+    ))
 }
 
 /// The wire form of the local domains' status.
@@ -718,6 +735,33 @@ impl Host for CoreHost {
             let prompt = Prompt {
                 title: m::agent_title(&agent),
                 message: m::agent_message(&agent, &request.title, &request.details),
+                allow: m::allow(),
+                always: None,
+                deny: m::deny(),
+            };
+            let decision =
+                tokio::time::timeout(AGENT_APPROVAL_TIMEOUT, self.ui.confirm(prompt)).await;
+            lock(&self.approvals).remove(&id);
+            self.ui.changed(Changed::Agents);
+            matches!(decision, Ok(Decision::Once | Decision::Always))
+        })
+    }
+
+    fn approve_oauth(&self, request: OAuthApproval) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            let id = self.next_approval.fetch_add(1, Ordering::Relaxed);
+            lock(&self.approvals).insert(
+                id,
+                PendingApproval {
+                    agent: request.client_name.clone(),
+                    title: m::oauth_pending(&request.host).to_string(),
+                    asked_at: crate::domain_shares::now_ms(),
+                },
+            );
+            self.ui.changed(Changed::Agents);
+            let prompt = Prompt {
+                title: m::oauth_title(&request.client_name, &request.host),
+                message: oauth_message(&request),
                 allow: m::allow(),
                 always: None,
                 deny: m::deny(),

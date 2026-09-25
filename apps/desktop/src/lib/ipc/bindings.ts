@@ -22,6 +22,13 @@ export const commands = {
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
 	/**  Agents connected now, and approvals waiting. */
 	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
+	/**  Clients connected with OAuth to MCP servers shared from this computer, newest first. */
+	mcpConnections: () => __TAURI_INVOKE<McpConnection[]>("mcp_connections"),
+	/**
+	 *  Disconnects a client from a shared MCP server: its tokens stop working within 30
+	 *  seconds (at once for servers this app shares).
+	 */
+	mcpDisconnect: (id: string) => __TAURI_INVOKE<null>("mcp_disconnect", { id }),
 	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
 	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
 	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
@@ -2640,7 +2647,9 @@ export type GateOutcome =
 /**  HTTP basic credentials are missing or wrong. */
 "basicAuthRequired" | 
 /**  A bearer token is missing or wrong. */
-"bearerRequired";
+"bearerRequired" | 
+/**  An OAuth access token is missing, wrong or expired. */
+"oauthRequired";
 
 /**  A system-wide shortcut, off by default. */
 export type GlobalShortcut = {
@@ -3341,6 +3350,22 @@ export type LogLine = {
 	message: string,
 	/**  The `error` field, if any. */
 	error: string | null,
+};
+
+/**  A client connected to a shared MCP server (for the app's list). */
+export type McpConnection = {
+	/**  Id (to disconnect it). */
+	id: string,
+	/**  The shared server's hostname. */
+	host: string,
+	/**  The client's name. */
+	clientName: string,
+	/**  Where its authorization went. */
+	redirectHost: string,
+	/**  When it was approved (milliseconds since the epoch). */
+	createdAt: number | null,
+	/**  When it last got a token. */
+	lastUsedAt: number | null,
 };
 
 /**  Emitted when a menu-bar item that the webview handles is chosen. */

@@ -808,6 +808,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
                 comments: false,
             };
             return expose::ai(
@@ -867,6 +868,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
                 comments,
             };
             return share::run(
@@ -999,6 +1001,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
                 comments: false,
             };
             expose::mcp(
@@ -1052,6 +1055,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
                 comments,
             };
             share::run_on_domain(

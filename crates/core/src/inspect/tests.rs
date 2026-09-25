@@ -391,6 +391,60 @@ async fn a_breakpoint_holds_a_request_until_it_is_let_go() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_shared_mcp_server_asks_for_oauth_and_says_where() {
+    struct Nobody;
+    impl crate::mcp_auth::Approver for Nobody {
+        fn approve(
+            &self,
+            _: crate::mcp_auth::ConsentRequest,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
+            Box::pin(async { false })
+        }
+    }
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let auth = crate::mcp_auth::McpAuth::open(
+        crate::store::Store::open_in_memory().unwrap(),
+        Arc::new(Nobody),
+    )
+    .await
+    .unwrap();
+    let mut spec = TapSpec::new(quick("qs-mcp"), "mcp", &origin);
+    spec.oauth = Some(auth.provider("mcp.example.com", "/mcp", "docs"));
+    let tap = inspector.start(spec).await.unwrap();
+
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let denied = client
+        .post(format!("{}/mcp", tap.address))
+        .header("host", "mcp.example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 401);
+    assert_eq!(
+        denied.headers()["www-authenticate"],
+        "Bearer resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\""
+    );
+    let metadata: serde_json::Value = client
+        .get(format!(
+            "{}/.well-known/oauth-protected-resource/mcp",
+            tap.address
+        ))
+        .header("host", "mcp.example.com")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        metadata["authorization_servers"][0],
+        "https://mcp.example.com"
+    );
+    inspector.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn reports_watched_paths() {
     let origin = origin().await;
     let inspector = Inspector::new(None, None, "app");

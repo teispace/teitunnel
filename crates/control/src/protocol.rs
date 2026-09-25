@@ -58,6 +58,9 @@ pub mod method {
     pub const AGENT_REGISTER: &str = "agent.register";
     /// An MCP server asks the person, in the app, to approve an agent's change.
     pub const AGENT_APPROVE: &str = "agent.approve";
+    /// A process sharing an MCP server asks the person, in the app, to approve a client
+    /// connecting to it with OAuth.
+    pub const OAUTH_APPROVE: &str = "oauth.approve";
 
     /// Every method after `hello`.
     pub const ALL: &[&str] = &[
@@ -77,6 +80,7 @@ pub mod method {
         LOCAL_DOMAINS_RELOAD,
         AGENT_REGISTER,
         AGENT_APPROVE,
+        OAUTH_APPROVE,
     ];
 
     /// Methods that change something, so the person approves them (or the client).
@@ -89,6 +93,7 @@ pub mod method {
                 | SHARES_RESUME
                 | ROUTES_APPLY
                 | AGENT_APPROVE
+                | OAUTH_APPROVE
         )
     }
 }
@@ -478,7 +483,41 @@ pub struct AgentApproval {
     pub details: String,
 }
 
-/// `agent.approve` result.
+/// `oauth.approve` parameters: a client that wants to connect to a shared MCP server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthApproval {
+    /// The shared server's hostname.
+    pub host: String,
+    /// The client's name, as it says.
+    pub client_name: String,
+    /// Who published the client's metadata (verified), e.g. `claude.ai`.
+    #[serde(default)]
+    pub published_by: Option<String>,
+    /// Where the authorization goes.
+    pub redirect_host: String,
+    /// It goes to an app on the visitor's own computer.
+    #[serde(default)]
+    pub redirect_loopback: bool,
+    /// The code the visitor's browser shows.
+    pub code: String,
+}
+
+impl OAuthApproval {
+    /// Whether the fields are sane (short, no control characters).
+    pub fn is_valid(&self) -> bool {
+        let ok = |s: &str, max: usize| s.chars().count() <= max && !s.chars().any(char::is_control);
+        ok(&self.host, 253)
+            && !self.host.is_empty()
+            && ok(&self.client_name, 100)
+            && self.published_by.as_deref().is_none_or(|p| ok(p, 253))
+            && ok(&self.redirect_host, 253)
+            && self.code.len() <= 8
+            && self.code.chars().all(|c| c.is_ascii_alphanumeric())
+    }
+}
+
+/// `agent.approve` and `oauth.approve` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentDecision {

@@ -1175,6 +1175,19 @@ export function installMockIpc(): void {
               600,
             ),
           );
+        case "mcp_connections":
+          return [
+            {
+              id: "ttgr_demo",
+              host: "mcp.teispace.com",
+              clientName: "Claude",
+              redirectHost: "claude.ai",
+              createdAt: now - 26 * 3_600_000,
+              lastUsedAt: now - 4 * 60_000,
+            },
+          ];
+        case "mcp_disconnect":
+          return null;
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:

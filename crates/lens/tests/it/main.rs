@@ -11,6 +11,7 @@ mod breakpoints;
 mod features;
 mod folder;
 mod gates;
+mod oauth;
 mod proxy;
 mod simulation;
 mod streaming;

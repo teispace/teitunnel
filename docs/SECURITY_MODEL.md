@@ -143,6 +143,13 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
   (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
   export, or the MCP server runs with `--allow-secrets`.
+- MCP servers shared with OAuth (D-132): every authorization is approved by the person, who
+  compares a code shown in the browser and in the app; clients are identified by a verified
+  metadata document (fetched only from public addresses, pinned, no redirects, small, timed
+  out) or by registration; PKCE S256 only; tokens bound to the server, never forwarded to it,
+  short-lived, refresh tokens rotated with replay detection; codes single-use. Only SHA-256
+  hashes of tokens, codes and client secrets are stored. OAuth endpoints' bodies are never
+  captured by the inspector.
 - A request held at a breakpoint is shown unmasked (IPC `inspect_paused_exchange`), since
   it's what goes on and can be changed; like a revealed request it's read on demand, never
   cached or stored, and not offered to agents. Holding is bounded: 60 seconds per request,

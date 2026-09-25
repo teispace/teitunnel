@@ -276,7 +276,27 @@ impl Pipeline {
         }
 
         let mut strip_authorization = false;
-        if gates.requires_sign_in() && !gates.bypassed(&path) {
+        if let Some(oauth) = config.oauth.clone() {
+            if oauth.handles(&path) {
+                return self.oauth_endpoint(&*oauth, request).await;
+            }
+            // Browsers ask before cross-origin calls, without a token.
+            if !rules::is_preflight(request.method(), request.headers()) {
+                let sent = crate::oauth::bearer(request.headers());
+                let admitted = sent.is_some_and(|token| oauth.valid(token))
+                    || gates.bearer_ok(request.headers());
+                if !admitted {
+                    return self.local(
+                        crate::oauth::unauthorized(&*oauth, sent.is_some()),
+                        Responder::Gate {
+                            reason: GateOutcome::OAuthRequired,
+                        },
+                    );
+                }
+                // The token is for this tap, never for the service behind it.
+                strip_authorization = true;
+            }
+        } else if gates.requires_sign_in() && !gates.bypassed(&path) {
             match self.sign_in(&request) {
                 SignIn::Admitted { basic } => strip_authorization = basic,
                 SignIn::Respond(response, outcome) => {
@@ -788,16 +808,8 @@ impl Pipeline {
         // The form holds the password: never capture its bytes, only its size.
         let form = match read_limited(body, MAX_LOGIN_BODY).await {
             Ok((data, true)) => {
-                self.recorder.body_end(
-                    Side::Request,
-                    BodyRecord {
-                        data: Bytes::new(),
-                        size: data.len() as u64,
-                        truncated: !data.is_empty(),
-                        complete: true,
-                    },
-                    None,
-                );
+                self.recorder
+                    .body_end(Side::Request, BodyRecord::size_only(data.len()), None);
                 gate::parse_form(&data)
             }
             _ => {
@@ -882,6 +894,48 @@ impl Pipeline {
             })
             .await;
         self.local(response, Responder::Lens)
+    }
+
+    /// Answers one of the OAuth provider's paths. Its bodies hold codes, verifiers and
+    /// tokens: only their sizes are recorded.
+    async fn oauth_endpoint(
+        &self,
+        oauth: &dyn crate::OAuthProvider,
+        request: Request<Incoming>,
+    ) -> Response<LensBody> {
+        let (parts, body) = request.into_parts();
+        let Ok((body, true)) = read_limited(body, MAX_RESERVED_BODY).await else {
+            return self.local(
+                pages::text(StatusCode::PAYLOAD_TOO_LARGE, "Body too large\n".into()),
+                Responder::Lens,
+            );
+        };
+        self.recorder
+            .body_end(Side::Request, BodyRecord::size_only(body.len()), None);
+        let response = oauth
+            .handle(ReservedRequest {
+                tap: self.tap.id.clone(),
+                method: parts.method,
+                uri: parts.uri,
+                headers: parts.headers,
+                body,
+                client_ip: self.client_ip,
+            })
+            .await;
+        self.recorder.response_head(
+            response.status(),
+            response.version(),
+            response.headers(),
+            Responder::Lens,
+        );
+        let (head, body) = response.into_parts();
+        let size = body.size_hint().exact().unwrap_or(0);
+        self.recorder.body_end(
+            Side::Response,
+            BodyRecord::size_only(usize::try_from(size).unwrap_or(usize::MAX)),
+            None,
+        );
+        Response::from_parts(head, body)
     }
 
     /// Reads (and records) a request body that won't be forwarded, up to the cap.

@@ -101,6 +101,7 @@ subtle = "2.6"
 brotli-decompressor = "5.0.3"
 httpdate = "1.0.3"
 percent-encoding = "2.3.2"
+form_urlencoded = "1.2.2"
 mime_guess = { version = "2.0.5", default-features = false }
 # Local HTTPS domains (crates/localdomains)
 # One TLS crypto provider for the workspace: AWS-LC (reqwest's too); crates pass it explicitly.

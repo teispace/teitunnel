@@ -13,9 +13,9 @@ use crate::{
     BoxFuture, ConfirmRequest, Decision, Endpoint, Host, HostResult, Limits, Server,
     protocol::{
         AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult,
-        ClientInfo, DoctorIssue, Event, LocalDomainInfo, LocalDomainsInfo, PauseShare, PlanInfo,
-        PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare,
-        Status, StopShare, View, code,
+        ClientInfo, DoctorIssue, Event, LocalDomainInfo, LocalDomainsInfo, OAuthApproval,
+        PauseShare, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo,
+        ShareKind, StartShare, Status, StopShare, View, code,
     },
 };
 
@@ -47,6 +47,8 @@ pub struct FakeHost {
     pub agent_questions: Mutex<Vec<AgentApproval>>,
     /// Answers for the next agent approvals (none queued: no).
     pub agent_answers: Mutex<VecDeque<bool>>,
+    /// OAuth connection questions, in order (answered like agents' approvals).
+    pub oauth_questions: Mutex<Vec<OAuthApproval>>,
     events: broadcast::Sender<Event>,
 }
 
@@ -65,6 +67,7 @@ impl FakeHost {
             agents: Mutex::default(),
             agent_questions: Mutex::default(),
             agent_answers: Mutex::default(),
+            oauth_questions: Mutex::default(),
             events,
         })
     }
@@ -163,6 +166,13 @@ impl Host for FakeHost {
     fn approve_for_agent(&self, _: u64, request: AgentApproval) -> BoxFuture<'_, bool> {
         Box::pin(async move {
             lock(&self.agent_questions).push(request);
+            lock(&self.agent_answers).pop_front().unwrap_or(false)
+        })
+    }
+
+    fn approve_oauth(&self, request: OAuthApproval) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            lock(&self.oauth_questions).push(request);
             lock(&self.agent_answers).pop_front().unwrap_or(false)
         })
     }

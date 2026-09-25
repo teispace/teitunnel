@@ -25,9 +25,9 @@ use crate::{
     host::{Action, ConfirmRequest, Decision, Host, Requester},
     protocol::{
         AgentApproval, AgentDecision, AgentInfo, ApplyParams, ClientInfo, EVENT_NOTIFICATION,
-        HelloParams, HelloResult, MAX_MESSAGE, Notification, PROTOCOL_VERSION, PauseShare, Request,
-        Response, RoutesParams, RpcError, StartShare, StopShare, SubscribeParams, View, code,
-        event, method,
+        HelloParams, HelloResult, MAX_MESSAGE, Notification, OAuthApproval, PROTOCOL_VERSION,
+        PauseShare, Request, Response, RoutesParams, RpcError, StartShare, StopShare,
+        SubscribeParams, View, code, event, method,
     },
 };
 
@@ -632,6 +632,19 @@ async fn dispatch(
                 ));
             };
             let approved = host.approve_for_agent(session, request).await;
+            to_value(&AgentDecision { approved })
+        }
+        method::OAUTH_APPROVE => {
+            let request: OAuthApproval = params(raw)?;
+            if !request.is_valid() {
+                return Err(RpcError::new(
+                    code::INVALID_PARAMS,
+                    "Invalid connection request.",
+                ));
+            }
+            // One dialog per connection at a time; later requests wait their turn.
+            let _asking = confirming.lock().await;
+            let approved = host.approve_oauth(request).await;
             to_value(&AgentDecision { approved })
         }
         method::ROUTES_LIST => {

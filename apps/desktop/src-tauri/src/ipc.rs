@@ -67,6 +67,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             cli::cli_uninstall,
             ai_clients::ai_clients_status,
             ai_clients::ai_agents,
+            ai_clients::mcp_connections,
+            ai_clients::mcp_disconnect,
             ai_clients::ai_clients_connect,
             ai_clients::ai_clients_disconnect,
             updates::updates_check,

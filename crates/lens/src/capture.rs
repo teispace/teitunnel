@@ -112,6 +112,9 @@ pub enum GateOutcome {
     BasicAuthRequired,
     /// A bearer token is missing or wrong.
     BearerRequired,
+    /// An OAuth access token is missing, wrong or expired.
+    #[serde(rename = "oauthRequired")]
+    OAuthRequired,
 }
 
 /// Per-phase timings, relative to when Lens received the request head.
@@ -162,6 +165,16 @@ pub struct BodyRecord {
 }
 
 impl BodyRecord {
+    /// A complete body of `size` bytes whose bytes aren't kept (it held secrets).
+    pub fn size_only(size: usize) -> Self {
+        Self {
+            data: Bytes::new(),
+            size: size as u64,
+            truncated: size > 0,
+            complete: true,
+        }
+    }
+
     /// An empty, complete body.
     pub fn empty() -> Self {
         Self {

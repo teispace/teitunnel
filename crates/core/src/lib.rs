@@ -35,6 +35,7 @@ pub mod inbox;
 pub mod inspect;
 pub mod local_domains;
 pub mod machine;
+pub mod mcp_auth;
 pub mod openapi;
 pub mod pause;
 pub mod platform;

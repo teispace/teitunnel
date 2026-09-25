@@ -67,7 +67,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] No built-in LLM or cloud AI service (decision Q4): agents bring the model; Teitunnel stays local and free.
 - [x] MCP exposure preset: detect a local MCP server (Streamable HTTP probe on `/mcp`, SSE), share it on your own domain (Quick Tunnels don't carry SSE) with stream keep-alive and a bearer token checked by Lens (`Authorization: Bearer`, what MCP clients send), and print ready configs for Claude Code, Cursor, VS Code, Claude.ai and ChatGPT connectors. (`share --mcp`, MCP `expose_mcp_server`; Claude.ai/ChatGPT connectors get notes, not configs.)
 - [x] Bearer protection preset for local AI servers (Ollama, vLLM, LM Studio): OpenAI-compatible clients send `Authorization: Bearer`, which Lens checks; Access service tokens as the Cloudflare-enforced alternative. (`share --ai`.)
-- [ ] Later phase: OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key.
+- [x] OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key. (D-132; CIMD and DCR, PKCE S256, resource binding, `iss`, rotation with replay detection; Settings ▸ AI Tools lists and disconnects connections. Not yet tried against the real claude.ai and ChatGPT.)
 
 ## M12-04 · Protection
 - [x] Password page, secret link (`?key=` sets a cookie), HTTP basic auth, IP/CIDR allow and deny, user-agent block (bots), per share or route, enforced in Lens (works on Quick Shares too). (Inspection Settings ▸ Protection, and the shield on a Quick Share card.)

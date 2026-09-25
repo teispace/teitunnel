@@ -177,6 +177,8 @@ pub(crate) struct ShareOptions {
     pub(crate) log: bool,
     /// Require this bearer token (`Authorization: Bearer …`).
     pub(crate) bearer: Option<Secret<String>>,
+    /// OAuth in front of it too (a shared MCP server).
+    pub(crate) oauth: Option<std::sync::Arc<dyn teitunnel_core::inspect::lens::OAuthProvider>>,
     /// Let visitors leave comments on pages (the overlay).
     pub(crate) comments: bool,
 }
@@ -647,6 +649,7 @@ pub(crate) async fn run_on_domain(
         spec.public_url = Some(format!("https://{hostname}"));
         spec.host_header = host_header.as_ref().map(|h| h.value.clone());
         spec.bearer = options.bearer.iter().cloned().collect();
+        spec.oauth.clone_from(&options.oauth);
         spec.folder.clone_from(&folder);
         let tap = inspector.start(spec).await.map_err(|e| e.to_string())?;
         configure_tap(&inspector, &tap.id, options)?;

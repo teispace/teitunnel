@@ -27,6 +27,8 @@ export const queryKeys = {
   /** AI agents connected through `teitunnel mcp`, and their approvals waiting. */
   agents: {
     all: () => ["agents"] as const,
+    /** Clients connected with OAuth to MCP servers shared from here. */
+    mcp: () => ["agents", "mcp"] as const,
   },
   qr: (value: string) => ["qr", value] as const,
   services: {

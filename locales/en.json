@@ -723,6 +723,15 @@
       "saved_one": "Saved {paths} paths from {count} request to Downloads.",
       "saved_other": "Saved {paths} paths from {count} requests to Downloads.",
       "empty": "No API requests captured yet. Use the API through a share, then save again."
+    },
+    "mcpConnections": {
+      "title": "Connected to Your MCP Servers",
+      "footer": "Apps you let sign in to MCP servers you share on your domain, such as claude.ai or ChatGPT. Disconnect one to stop it at once.",
+      "detail": "{host} · approved {approved}, last used {used}",
+      "disconnect": "Disconnect",
+      "confirmTitle": "Disconnect {client} from {host}?",
+      "confirmDetail": "It stops working right away. To use the server again, it has to connect and be approved again.",
+      "disconnected": "{client} was disconnected."
     }
   },
   "cliOffer": {
@@ -1233,7 +1242,8 @@
       "linkAccepted": "secret link used",
       "linkRequired": "secret link missing",
       "basicAuthRequired": "asked for basic authentication",
-      "bearerRequired": "bearer token missing or wrong"
+      "bearerRequired": "bearer token missing or wrong",
+      "oauthRequired": "asked to sign in with OAuth"
     },
     "errorKind": {
       "connectionRefused": "Nothing is listening on the service's port",
@@ -2678,7 +2688,13 @@
       "pause": "{client} wants to pause {share}. Its address stays, and visitors see a paused page until it's resumed.",
       "resume": "{client} wants to serve {share} again.",
       "agentTitle": "Allow {agent} to make this change?",
-      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}"
+      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}",
+      "oauthTitle": "Let {client} connect to {host}?",
+      "oauthMessage": "{client} wants to use the MCP server you share at {host}. Only allow it if you just connected it yourself, and the browser shows the code {code}.",
+      "oauthPublished": "Its identity was confirmed by {publisher}. Sign-ins go to {redirect}.",
+      "oauthUnverified": "It registered itself, so its name isn't confirmed. Sign-ins go to {redirect}.",
+      "oauthLoopback": "Sign-ins go to an app on the visitor's own computer, which any app there could claim.",
+      "oauthPending": "Connect to {host}"
     },
     "protection": {
       "summary": {

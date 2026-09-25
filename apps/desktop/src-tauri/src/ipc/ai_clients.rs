@@ -52,6 +52,31 @@ pub fn ai_agents(state: tauri::State<'_, crate::state::AppState>) -> AiAgentsVie
     }
 }
 
+/// Clients connected with OAuth to MCP servers shared from this computer, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_connections(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<teitunnel_core::mcp_auth::McpConnection>, AppError> {
+    teitunnel_core::mcp_auth::connections(&state.store, None)
+        .await
+        .map_err(|e| teitunnel_core::Error::from(e).into())
+}
+
+/// Disconnects a client from a shared MCP server: its tokens stop working within 30
+/// seconds (at once for servers this app shares).
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_disconnect(
+    state: tauri::State<'_, crate::state::AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    teitunnel_core::mcp_auth::disconnect(&state.store, &id)
+        .await
+        .map(|_| ())
+        .map_err(|e| teitunnel_core::Error::from(e).into())
+}
+
 /// Every client, and whether Teitunnel can connect them (it needs its command line tool).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

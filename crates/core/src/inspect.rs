@@ -188,6 +188,9 @@ pub struct TapSpec {
     pub bearer: Vec<Secret<String>>,
     /// Serve this folder instead of forwarding to `origin` (which then names it).
     pub folder: Option<crate::folder_share::FolderShare>,
+    /// OAuth in front of it (a shared MCP server, [`crate::mcp_auth`]); the bearer
+    /// tokens keep working next to it.
+    pub oauth: Option<std::sync::Arc<dyn lens::OAuthProvider>>,
 }
 
 impl TapSpec {
@@ -202,6 +205,7 @@ impl TapSpec {
             public_url: None,
             bearer: Vec::new(),
             folder: None,
+            oauth: None,
         }
     }
 }
@@ -531,6 +535,7 @@ impl Inspector {
         for token in &spec.bearer {
             config.gates.bearer.push(BearerToken::new(token.expose())?);
         }
+        config.oauth.clone_from(&spec.oauth);
         Ok(config)
     }
 

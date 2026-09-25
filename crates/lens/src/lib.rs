@@ -37,6 +37,7 @@ mod keepalive;
 mod lens;
 mod listener;
 mod metrics;
+mod oauth;
 mod pages;
 mod pattern;
 mod recorder;
@@ -83,6 +84,7 @@ pub use listener::{
     Routing,
 };
 pub use metrics::{LatencySummary, MetricsSnapshot, StatusCounts};
+pub use oauth::OAuthProvider;
 pub use pattern::PathPattern;
 pub use redact::{
     MASK, is_sensitive_header, is_sensitive_key, mask_header, mask_json, mask_query, mask_text,

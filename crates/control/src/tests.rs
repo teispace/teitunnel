@@ -9,8 +9,8 @@ use crate::{
     Action, ClientError, ControlClient, Decision, Endpoint, Limits, Requester,
     deeplink::{DeepLink, Handled, LinkHandler},
     protocol::{
-        AgentApproval, AgentInfo, ApplyParams, ClientInfo, Event, HostHeader, PauseShare,
-        PreviewParams, StartShare, View, code,
+        AgentApproval, AgentInfo, ApplyParams, ClientInfo, Event, HostHeader, OAuthApproval,
+        PauseShare, PreviewParams, StartShare, View, code,
     },
     testing::FakeHost,
 };
@@ -384,6 +384,27 @@ async fn agents_are_listed_while_connected_and_approvals_are_asked_in_the_app() 
     assert_eq!(running.host.agent_questions.lock().unwrap().len(), 2);
     // Approving an agent's change isn't a way around the program's own approval.
     assert_eq!(running.host.asked(), 0);
+
+    // A client connecting to a shared MCP server is asked about the same way.
+    let connecting = OAuthApproval {
+        host: "mcp.example.com".into(),
+        client_name: "Claude".into(),
+        published_by: Some("claude.ai".into()),
+        redirect_host: "claude.ai".into(),
+        redirect_loopback: false,
+        code: "K7Q2".into(),
+    };
+    running.host.agent_answers.lock().unwrap().push_back(true);
+    assert!(client.approve_oauth(&connecting).await.unwrap());
+    assert_eq!(running.host.oauth_questions.lock().unwrap()[0], connecting);
+    let forged = OAuthApproval {
+        code: "<b>".into(),
+        ..connecting
+    };
+    assert_eq!(
+        client.approve_oauth(&forged).await.unwrap_err().code(),
+        Some(code::INVALID_PARAMS)
+    );
 
     drop(client);
     for _ in 0..100 {

@@ -260,6 +260,14 @@ masked unless you started the server with `--allow-secrets`. See
   Code. The token is kept in your keychain for that hostname, so clients keep working the next
   time you share it; `teitunnel token mcp.teispace.com` shows it and `--new` replaces it.
   `--mcp-path` sets the endpoint when it isn't `/mcp`, `/sse` or `/`.
+- **claude.ai, ChatGPT and other remote clients** sign in with OAuth instead of a fixed token:
+  add the MCP URL as a custom connector and sign in. The browser shows a short code and waits;
+  Teitunnel asks you, in a dialog showing the same code, whether that app may connect (when the
+  app isn't running, `share --mcp` asks in the terminal). Only allow a connection you just made
+  yourself: an app's name (even "Claude") says nothing about who is using it. Approved
+  connections are listed in **Settings ▸ General ▸ AI Tools**, where **Disconnect** stops one
+  at once. Tokens are for that server only, last an hour and renew themselves; Teitunnel keeps
+  only their hashes. A server that asks for credentials itself keeps its own sign-in.
 - `teitunnel share 11434 --ai` (Ollama; also LM Studio on 1234 and vLLM on 8000) shares a local
   AI server behind a bearer token and prints the OpenAI-compatible base URL and key to use. Add
   `--on ai.teispace.com` for streaming answers.
