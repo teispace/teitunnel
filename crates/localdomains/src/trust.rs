@@ -76,7 +76,7 @@ pub struct TrustEnv {
     pub app_data: Option<PathBuf>,
     /// `%SystemRoot%` (Windows).
     pub system_root: Option<PathBuf>,
-    /// Filesystem root for Linux store checks (`/`).
+    /// Filesystem root for store checks and the fixed tool directories (`/`).
     pub fs_root: PathBuf,
     /// `PATH`, for finding tools.
     pub path_var: Option<OsString>,
@@ -102,7 +102,12 @@ impl TrustEnv {
         })
     }
 
+    /// `name` on `PATH`, else in one of the fixed `extra` directories (under `fs_root`).
     fn find(&self, name: &str, extra: &[PathBuf]) -> Option<PathBuf> {
+        let extra: Vec<PathBuf> = extra
+            .iter()
+            .map(|dir| self.fs_root.join(dir.strip_prefix("/").unwrap_or(dir)))
+            .collect();
         let extra: Vec<&Path> = extra.iter().map(PathBuf::as_path).collect();
         find_program(name, self.path_var.as_deref(), &extra)
     }

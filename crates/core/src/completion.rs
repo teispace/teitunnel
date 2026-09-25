@@ -146,7 +146,9 @@ mod tests {
 
         let started = std::time::Instant::now();
         let found = candidates(dir.path());
-        assert!(started.elapsed() < std::time::Duration::from_millis(50));
+        // Fast enough for a keypress (usually a few ms; loose for slow CI disks): it never
+        // waits on a busy database.
+        assert!(started.elapsed() < std::time::Duration::from_millis(500));
         assert_eq!(
             found.hostnames,
             ["api.example.com", "app.example.com", "demo.other.dev"]

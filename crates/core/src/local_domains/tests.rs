@@ -496,8 +496,7 @@ async fn names_are_not_checked_when_lookups_are_off() {
             .iter()
             .any(|i| i.check == "local.resolver")
     );
-    assert!(
-        !status.resolver.setup.is_empty(),
-        "the one-time steps are shown"
-    );
+    // The one-time steps are shown (none on Windows off port 53: its resolver can't
+    // forward to another port).
+    assert_eq!(status.resolver.setup.is_empty(), cfg!(windows));
 }

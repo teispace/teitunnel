@@ -98,6 +98,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(unix)] // macOS paths: Windows would join them with `\`.
     fn argv() {
         let kc = login_keychain(Path::new("/Users/ana"));
         assert_eq!(
