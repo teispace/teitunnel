@@ -234,10 +234,7 @@ english_display!(PlanError);
 /// Workers, edge rules and the service tokens it made for it (after its login, which
 /// may name them). Logins go per route.
 fn release_hostname(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), PlanError> {
-    front::remove_all(b, hostname.as_str());
-    if b.snapshot.edge.is_some() {
-        edge::protect(b, hostname, &crate::engine::edge::EdgeProtection::default())?;
-    }
+    release_workers_and_rules(b, hostname)?;
     let tokens: Vec<_> = b
         .snapshot
         .service_tokens
@@ -251,6 +248,18 @@ fn release_hostname(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), Plan
             .into_iter()
             .map(|token| Step::DeleteServiceToken { token }),
     );
+    Ok(())
+}
+
+/// Removes `hostname`'s front Workers and edge rules (those observed).
+fn release_workers_and_rules(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), PlanError> {
+    front::remove_all(b, hostname.as_str());
+    let observed = hostname
+        .zone_in(&b.snapshot.zones)
+        .is_some_and(|zone| b.snapshot.edge_in(&zone.id).is_some());
+    if observed {
+        edge::protect(b, hostname, &crate::engine::edge::EdgeProtection::default())?;
+    }
     Ok(())
 }
 
@@ -824,6 +833,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.warnings.push(Warning::TunnelEmpty);
             }
             b.put_config(&TunnelRef::Existing(tunnel_id.clone()), desired);
+            // Other computers still serving a balanced hostname keep what's in front
+            // of it.
+            let mut served_elsewhere = false;
             if !hostname_still_used {
                 b.release_dns(hostname.as_str(), &tunnel_id);
                 // Leaving a balanced hostname: out of its pool, or, as the last tunnel
@@ -834,13 +846,14 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                         b.unbalance();
                     } else {
                         b.sync_pool(hostname.as_str(), endpoints);
+                        served_elsewhere = true;
                     }
                 }
             }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
             }
-            if !hostname_still_used {
+            if !hostname_still_used && !served_elsewhere {
                 release_hostname(&mut b, hostname)?;
             }
         }
@@ -1080,6 +1093,21 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             }
             for hostname in &hostnames {
                 b.release_dns(hostname, &tunnel.id);
+            }
+            // A hostname whose record pointed here stops resolving: its offline page,
+            // inboxes and edge rules go too (a balanced hostname, which other
+            // computers may still serve, has no such record and keeps them).
+            let target = tunnel_target(&tunnel.id);
+            for hostname in &hostnames {
+                let Ok(host) = Hostname::parse(hostname) else {
+                    continue;
+                };
+                let resolves_here = snapshot
+                    .records_named(hostname)
+                    .any(|r| r.owned && r.record.content.eq_ignore_ascii_case(&target));
+                if resolves_here {
+                    release_workers_and_rules(&mut b, &host)?;
+                }
             }
             // The service tokens Teitunnel made for its hostnames would open nothing.
             let doomed: Vec<_> = snapshot

@@ -2197,8 +2197,20 @@ async fn a_route_leaving_a_balanced_hostname_leaves_its_pool() {
     let ours = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
     let theirs = other_machine(&cloud, "app.xyz.com");
     run(&engine, &cloud, &conns, &balance("app.xyz.com")).await;
+    let protect = super::edge_executor_tests::protect(
+        "app.xyz.com",
+        super::edge_executor_tests::everything(false),
+    );
+    run(&engine, &cloud, &conns, &protect).await;
+    let rules = engine.local().owned_edge_rules("acc").await.unwrap().len();
+    assert!(rules > 0);
 
     run(&engine, &cloud, &conns, &remove("app.xyz.com")).await;
+    // The other machine still serves it: its edge rules stay.
+    assert_eq!(
+        engine.local().owned_edge_rules("acc").await.unwrap().len(),
+        rules
+    );
     let state = cloud.snapshot();
     let pool = state
         .lb_pools

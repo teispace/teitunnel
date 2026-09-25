@@ -102,12 +102,12 @@ fn observed(front: Option<FrontState>, database: Option<Option<&str>>) -> Snapsh
         held: Vec::new(),
         owner: "me@Mac".into(),
         now: 0,
-        edge: None,
+        edge: Vec::new(),
         service_tokens: None,
         database: database.map(|id| DatabaseState {
             id: id.map(str::to_owned),
         }),
-        front,
+        front: front.into_iter().collect(),
     }
 }
 
@@ -178,7 +178,7 @@ fn changing_and_removing_the_offline_page() {
     assert!(change.warnings.is_empty());
     let off = plan(&offline("app.xyz.com", None), &before).unwrap();
     let after = apply(&before, &off);
-    assert!(after.front.as_ref().unwrap().fronts.is_empty());
+    assert!(after.front[0].fronts.is_empty());
     insta::assert_yaml_snapshot!(view(&off));
     assert!(matches!(off.steps[0], Step::DeleteWorkerRoute { .. }));
     assert!(matches!(off.steps[1], Step::DeleteFrontWorker { .. }));

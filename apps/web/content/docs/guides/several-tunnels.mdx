@@ -48,8 +48,9 @@ In **Tunnels**, each of the machine's tunnels has:
 - its **Connectors**, **Logs** and details (routes, tunnel ID, when it was created);
 - **Delete…**.
 
-Deleting a tunnel removes its routes and the DNS records Teitunnel created for them; your
-other tunnels aren't touched. Private networks stay on the default tunnel.
+Deleting a tunnel removes its routes and the DNS records Teitunnel created for them, with
+their logins, offline pages, webhook inboxes, edge rules and service tokens; your other
+tunnels aren't touched. Private networks stay on the default tunnel.
 
 The [Doctor](/docs/reference/doctor) checks each tunnel on its own, and its fixes apply to
 the tunnel the problem is on.
@@ -93,7 +94,7 @@ teitunnel tunnel delete staging
 - **A route on it** puts the hostname in that tunnel's configuration and points the DNS
   record at that tunnel.
 - **Delete** stops its connector, removes the tunnel's routes and the DNS records Teitunnel
-  created for them, then deletes the tunnel. DNS records Teitunnel didn't create are never
+  created for them (with what Teitunnel put in front of them), then deletes the tunnel. DNS records Teitunnel didn't create are never
   deleted.
 
 ## Troubleshooting

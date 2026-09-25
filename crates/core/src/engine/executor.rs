@@ -33,10 +33,10 @@ static EMPTY: Snapshot = Snapshot {
     held: Vec::new(),
     owner: String::new(),
     now: 0,
-    edge: None,
+    edge: Vec::new(),
     service_tokens: None,
     database: None,
-    front: None,
+    front: Vec::new(),
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -515,19 +515,12 @@ impl Engine {
                     .join(",")
             },
         );
+        // Everything the observation reads, so two intents share one only when it
+        // would be the same.
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}{}\n{:?}",
-            tunnel.unwrap_or_default(),
-            u8::from(need.access.setup),
-            u8::from(need.access.owned),
-            need.access.domains.join(","),
-            need.networks,
-            u8::from(need.tunnel_names),
-            need.site.script.as_deref().unwrap_or_default(),
-            need.edge.hostname.as_deref().unwrap_or_default(),
-            u8::from(need.edge.required),
-            need.service_tokens,
+            "{account}\n{}\n{scope}\n{need:?}",
+            tunnel.unwrap_or_default()
         )
     }
 

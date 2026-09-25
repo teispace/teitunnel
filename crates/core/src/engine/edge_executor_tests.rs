@@ -462,7 +462,9 @@ async fn cleaning_up_a_hostname_left_behind_removes_its_rules_only_once_nothing_
         Err(EngineError::Plan(PlanError::HostnameRouted(_)))
     ));
 
-    // Deleting the tunnel with the route still on it leaves the edge rules behind.
+    // Someone deleted its DNS record in the dashboard: deleting the tunnel no longer
+    // knows the hostname was served from here, and leaves its edge rules behind.
+    cloud.edit(|state| state.records.clear());
     apply(&engine, &cloud, &Intent::RemoveTunnel).await;
     assert!(
         !engine
@@ -483,4 +485,39 @@ async fn cleaning_up_a_hostname_left_behind_removes_its_rules_only_once_nothing_
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn deleting_the_tunnel_takes_its_hostnames_workers_and_edge_rules() {
+    use super::{Change, RouteInput, front::OfflinePage};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    for hostname in ["app.xyz.com", "api.xyz.com"] {
+        let route = RouteInput {
+            hostname: hostname.into(),
+            path: None,
+            origin: "3000".into(),
+            access: None,
+            options: None,
+        };
+        change(&engine, &cloud, Change::AddRoute { route }).await;
+    }
+    apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    let offline = Intent::SetOfflinePage {
+        hostname: host("api.xyz.com"),
+        page: Some(OfflinePage::default()),
+    };
+    let (outcome, _) = apply(&engine, &cloud, &offline).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(cloud.snapshot().worker_routes.len(), 1);
+
+    let (outcome, _) = apply(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    assert!(state.tunnels.is_empty());
+    assert!(state.worker_routes.is_empty(), "{:?}", state.worker_routes);
+    assert!(state.workers.is_empty(), "{:?}", state.workers.keys());
+    assert_eq!(custom_rules(&cloud), ["Their own rule"], "theirs stays");
+    let local = engine.local();
+    assert!(local.owned_edge_rules("acc").await.unwrap().is_empty());
+    assert!(local.fronts(Some("acc"), None).await.unwrap().is_empty());
 }

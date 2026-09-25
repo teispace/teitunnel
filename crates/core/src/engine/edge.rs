@@ -816,6 +816,9 @@ pub struct EdgeNeed {
     /// The plan can't be made without them. Otherwise (removing a route) they're read
     /// only when Teitunnel owns rules in the zone, and not being allowed is no error.
     pub required: bool,
+    /// Also the zones of every routed hostname where Teitunnel owns rules (removing a
+    /// tunnel cleans up after all its routes).
+    pub routed: bool,
 }
 
 /// Why edge rules couldn't be read.

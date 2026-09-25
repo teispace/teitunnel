@@ -64,8 +64,7 @@ fn put(
     let zone_id = routed(b, hostname)?;
     let state = b
         .snapshot
-        .front
-        .as_ref()
+        .front_of(hostname.as_str())
         .ok_or_else(|| PlanError::NoZone(hostname.to_string()))?;
     let pattern = pattern_for(hostname.as_str(), &config);
     let kind = config.kind();
@@ -115,7 +114,7 @@ fn put(
 
 /// Removes Teitunnel's Worker of `kind` at `path` (route first).
 fn remove(b: &mut Builder<'_>, hostname: &str, kind: FrontKind, path: &str) -> bool {
-    let Some(state) = b.snapshot.front.as_ref() else {
+    let Some(state) = b.snapshot.front_of(hostname) else {
         return false;
     };
     let Some(front) = state.find(kind, path).cloned() else {
@@ -180,8 +179,7 @@ pub(super) fn inbox(
                 && secret.is_none()
                 && !b
                     .snapshot
-                    .front
-                    .as_ref()
+                    .front_of(hostname.as_str())
                     .and_then(|s| s.find(FrontKind::Inbox, &path))
                     .is_some_and(|f| {
                         f.exists
@@ -214,10 +212,10 @@ pub(super) fn inbox(
 /// Removes every front Worker of a hostname whose last route goes (the offline page
 /// and inboxes would otherwise sit in front of nothing).
 pub(super) fn remove_all(b: &mut Builder<'_>, hostname: &str) {
-    let Some(state) = b.snapshot.front.clone() else {
+    let Some(fronts) = b.snapshot.front_of(hostname).map(|s| s.fronts.clone()) else {
         return;
     };
-    for front in &state.fronts {
+    for front in &fronts {
         remove(b, hostname, front.config.kind(), front.config.path());
     }
 }

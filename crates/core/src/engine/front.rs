@@ -432,6 +432,9 @@ pub struct FrontNeed {
     pub required: bool,
     /// The account's D1 database is needed.
     pub database: bool,
+    /// Also every routed hostname the local index has Workers for (removing a
+    /// tunnel cleans up after all its routes).
+    pub routed: bool,
 }
 
 /// A local index row, as observation needs it.

@@ -417,10 +417,10 @@ fn snapshot(records: Vec<ObservedRecord>, held: Vec<super::ownership::Hold>) -> 
         held,
         owner: "me@Mac".into(),
         now: 1_000,
-        edge: None,
+        edge: Vec::new(),
         service_tokens: None,
         database: None,
-        front: None,
+        front: Vec::new(),
     }
 }
 

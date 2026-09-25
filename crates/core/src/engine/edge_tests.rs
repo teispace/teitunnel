@@ -63,10 +63,10 @@ fn snapshot(edge_state: EdgeState) -> Snapshot {
         held: Vec::new(),
         owner: "me@Mac".into(),
         now: 0,
-        edge: Some(edge_state),
+        edge: vec![edge_state],
         service_tokens: None,
         database: None,
-        front: None,
+        front: Vec::new(),
     }
 }
 
@@ -174,7 +174,7 @@ fn changing_and_turning_off_touches_only_teitunnels_rules() {
     );
     // Their rule arrives in between.
     let mut on = on;
-    if let Some(e) = on.edge.as_mut() {
+    if let Some(e) = on.edge.first_mut() {
         e.rulesets[0].rules.insert(0, foreign("theirs", "block"));
     }
     let block = EdgeProtection {
@@ -374,7 +374,7 @@ fn tokens_snapshot(app: Option<ObservedAccessApp>, tokens: Vec<ObservedServiceTo
             apps: app.into_iter().collect(),
         }),
         service_tokens: Some(tokens),
-        edge: None,
+        edge: Vec::new(),
         ..snapshot(edge(ZonePlan::Free, &[]))
     }
 }

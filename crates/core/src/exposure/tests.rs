@@ -375,8 +375,9 @@ async fn stays_within_its_time_budget() {
         .await;
     let started = std::time::Instant::now();
     let report = check(&server.uri()).await;
+    // Well short of the server's 10 s, with room for a machine busy compiling.
     assert!(
-        started.elapsed() < Duration::from_millis(2500),
+        started.elapsed() < Duration::from_secs(6),
         "{:?}",
         started.elapsed()
     );

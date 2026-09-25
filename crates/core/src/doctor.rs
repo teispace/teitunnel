@@ -1434,10 +1434,10 @@ mod tests {
                 held: Vec::new(),
                 owner: String::new(),
                 now: 0,
-                edge: None,
+                edge: Vec::new(),
                 service_tokens: None,
                 database: None,
-                front: None,
+                front: Vec::new(),
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),

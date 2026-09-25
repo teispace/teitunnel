@@ -127,11 +127,10 @@ pub(super) fn protect(
     hostname: &Hostname,
     protection: &EdgeProtection,
 ) -> Result<(), PlanError> {
-    b.zone_id(hostname)?;
+    let zone_id = b.zone_id(hostname)?;
     let state = b
         .snapshot
-        .edge
-        .as_ref()
+        .edge_in(&zone_id)
         .ok_or_else(|| PlanError::NoZone(hostname.to_string()))?;
     let mut changes = Changes::default();
     let host = vec![hostname.to_string()];

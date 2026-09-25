@@ -147,14 +147,19 @@ impl ObserveNeed {
                 Intent::ProtectHostname { hostname, .. } => super::edge::EdgeNeed {
                     hostname: Some(hostname.to_string()),
                     required: true,
+                    routed: false,
                 },
                 // Removing a hostname's last route takes its edge rules with it.
                 Intent::RemoveRoute { hostname, .. } | Intent::CleanUpHostname { hostname } => {
                     super::edge::EdgeNeed {
                         hostname: Some(hostname.to_string()),
-                        required: false,
+                        ..super::edge::EdgeNeed::default()
                     }
                 }
+                Intent::RemoveTunnel => super::edge::EdgeNeed {
+                    routed: true,
+                    ..super::edge::EdgeNeed::default()
+                },
                 _ => super::edge::EdgeNeed::default(),
             },
             service_tokens: match intent {
@@ -171,7 +176,7 @@ impl ObserveNeed {
                 Intent::SetOfflinePage { hostname, .. } => super::front::FrontNeed {
                     hostname: Some(hostname.to_string()),
                     required: true,
-                    database: false,
+                    ..super::front::FrontNeed::default()
                 },
                 Intent::SetInbox {
                     hostname, inbox, ..
@@ -179,21 +184,25 @@ impl ObserveNeed {
                     hostname: Some(hostname.to_string()),
                     required: true,
                     database: inbox.is_some(),
+                    routed: false,
                 },
                 // Removing a route takes its offline page and inboxes with it (read only
                 // when the local index has some).
                 Intent::RemoveRoute { hostname, .. } | Intent::CleanUpHostname { hostname } => {
                     super::front::FrontNeed {
                         hostname: Some(hostname.to_string()),
-                        required: false,
-                        database: false,
+                        ..super::front::FrontNeed::default()
                     }
                 }
+                // Removing the tunnel: every route's.
+                Intent::RemoveTunnel => super::front::FrontNeed {
+                    routed: true,
+                    ..super::front::FrontNeed::default()
+                },
                 Intent::PublishSnapshot { settings, .. }
                 | Intent::UpdateSnapshot { settings, .. } => super::front::FrontNeed {
-                    hostname: None,
-                    required: false,
                     database: settings.comments.is_some(),
+                    ..super::front::FrontNeed::default()
                 },
                 _ => super::front::FrontNeed::default(),
             },
@@ -311,9 +320,9 @@ pub async fn observe<C: CloudApi>(
     )?;
 
     let (edge, service_tokens, (front, database)) = tokio::try_join!(
-        observe_edge(api, local, account, &zones, &need.edge),
+        observe_edge(api, local, account, &zones, &need.edge, &names),
         observe_service_tokens(api, local, account, need.service_tokens),
-        observe_front(api, local, account, &zones, &need.front),
+        observe_front(api, local, account, &zones, &need.front, &names),
     )?;
 
     Ok(Snapshot {
@@ -345,9 +354,10 @@ async fn observe_front<C: CloudApi>(
     account: &str,
     zones: &[super::types::ZoneRef],
     need: &super::front::FrontNeed,
+    routed: &[String],
 ) -> Result<
     (
-        Option<super::front::FrontState>,
+        Vec<super::front::FrontState>,
         Option<super::front::DatabaseState>,
     ),
     ObserveError,
@@ -359,20 +369,43 @@ async fn observe_front<C: CloudApi>(
             ObserveError::Api(err)
         }
     };
-    let rows: Vec<super::front::FrontRow> = match need.hostname.as_deref() {
-        Some(hostname) => local
-            .fronts(Some(account), Some(hostname))
+    // The hostnames to read, with the local index's rows for each: the one the change
+    // is about (even without rows when it's required), and with `routed`, every routed
+    // hostname that has some.
+    let mut targets: Vec<(String, Vec<super::front::FrontRow>)> = Vec::new();
+    if need.hostname.is_some() || need.routed {
+        let mut by_host: HashMap<String, Vec<super::front::FrontRow>> = HashMap::new();
+        for (_, row) in local
+            .fronts(Some(account), need.hostname.as_deref())
             .await?
-            .into_iter()
-            .map(|(_, row)| row)
-            .collect(),
-        None => Vec::new(),
-    };
+        {
+            by_host
+                .entry(row.hostname.to_ascii_lowercase())
+                .or_default()
+                .push(row);
+        }
+        if let Some(hostname) = need.hostname.as_deref() {
+            let rows = by_host
+                .remove(&hostname.to_ascii_lowercase())
+                .unwrap_or_default();
+            if need.required || !rows.is_empty() {
+                targets.push((hostname.to_owned(), rows));
+            }
+        }
+        if need.routed {
+            for hostname in routed {
+                if let Some(rows) = by_host.remove(&hostname.to_ascii_lowercase()) {
+                    targets.push((hostname.clone(), rows));
+                }
+            }
+        }
+    }
     // An inbox's Worker binds the database: removing it must know which one, to put
     // it back if something fails.
     let wants_database = need.database
-        || rows
+        || targets
             .iter()
+            .flat_map(|(_, rows)| rows)
             .any(|r| r.config.kind() == super::front::FrontKind::Inbox);
     let database = if wants_database {
         let indexed = local.cloud_database(account).await?;
@@ -385,24 +418,22 @@ async fn observe_front<C: CloudApi>(
     } else {
         None
     };
-    let Some(hostname) = need.hostname.as_deref() else {
-        return Ok((None, database));
-    };
-    if !need.required && rows.is_empty() {
-        return Ok((None, database));
+    let mut fronts = Vec::new();
+    for (hostname, rows) in targets {
+        let Some(zone) = Hostname::parse(&hostname)
+            .ok()
+            .and_then(|h| h.zone_in(zones).cloned())
+        else {
+            continue;
+        };
+        match super::front::observe(api, account, &hostname, &zone.id, &rows).await {
+            Ok(state) => fronts.push(state),
+            // Removing routes doesn't fail because their Workers can't be read.
+            Err(err) if !need.required && err.is_auth() => return Ok((Vec::new(), database)),
+            Err(err) => return Err(permission(err)),
+        }
     }
-    let Some(zone) = Hostname::parse(hostname)
-        .ok()
-        .and_then(|h| h.zone_in(zones).cloned())
-    else {
-        return Ok((None, database));
-    };
-    match super::front::observe(api, account, hostname, &zone.id, &rows).await {
-        Ok(state) => Ok((Some(state), database)),
-        // Removing a route doesn't fail because its Workers can't be read.
-        Err(err) if !need.required && err.is_auth() => Ok((None, database)),
-        Err(err) => Err(permission(err)),
-    }
+    Ok((fronts, database))
 }
 
 /// Who observes, to tell their names from other people's (M12-11).
@@ -421,27 +452,48 @@ async fn observe_edge<C: CloudApi>(
     account: &str,
     zones: &[super::types::ZoneRef],
     need: &super::edge::EdgeNeed,
-) -> Result<Option<super::edge::EdgeState>, ObserveError> {
-    let Some(zone) = need
-        .hostname
-        .as_deref()
-        .and_then(|h| Hostname::parse(h).ok())
-        .and_then(|h| h.zone_in(zones).cloned())
-    else {
-        return Ok(None);
+    routed: &[String],
+) -> Result<Vec<super::edge::EdgeState>, ObserveError> {
+    let zone_of = |hostname: &str| {
+        Hostname::parse(hostname)
+            .ok()
+            .and_then(|h| h.zone_in(zones).cloned())
     };
+    let named = need.hostname.as_deref().and_then(zone_of);
+    if named.is_none() && !need.routed {
+        return Ok(Vec::new());
+    }
     let rows = local.owned_edge_rules(account).await?;
-    if !need.required && !rows.iter().any(|r| r.zone_id == zone.id) {
-        return Ok(None);
+    let has_rules = |zone: &super::types::ZoneRef| rows.iter().any(|r| r.zone_id == zone.id);
+    // The named hostname's zone (always when required), then with `routed` the zones
+    // of routed hostnames where Teitunnel has rules.
+    let mut targets: Vec<super::types::ZoneRef> = Vec::new();
+    if let Some(zone) = named.filter(|z| need.required || has_rules(z)) {
+        targets.push(zone);
+    }
+    if need.routed {
+        for zone in routed.iter().filter_map(|h| zone_of(h)) {
+            if has_rules(&zone) && !targets.iter().any(|z| z.id == zone.id) {
+                targets.push(zone);
+            }
+        }
     }
     let owned: HashSet<String> = rows.into_iter().map(|r| r.rule_id).collect();
-    match super::edge::observe(api, &zone, &owned).await {
-        Ok(state) => Ok(Some(state)),
-        // Removing a route doesn't fail because its edge rules can't be read.
-        Err(super::edge::EdgeReadError::Permission) if !need.required => Ok(None),
-        Err(super::edge::EdgeReadError::Permission) => Err(ObserveError::EdgePermission),
-        Err(super::edge::EdgeReadError::Api(err)) => Err(err.into()),
+    let mut states = Vec::new();
+    for zone in targets {
+        match super::edge::observe(api, &zone, &owned).await {
+            Ok(state) => states.push(state),
+            // Removing routes doesn't fail because their edge rules can't be read.
+            Err(super::edge::EdgeReadError::Permission) if !need.required => {
+                return Ok(Vec::new());
+            }
+            Err(super::edge::EdgeReadError::Permission) => {
+                return Err(ObserveError::EdgePermission);
+            }
+            Err(super::edge::EdgeReadError::Api(err)) => return Err(err.into()),
+        }
     }
+    Ok(states)
 }
 
 /// Reads the account's service tokens, marking the ones Teitunnel created.

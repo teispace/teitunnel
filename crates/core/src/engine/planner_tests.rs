@@ -98,10 +98,10 @@ fn fresh() -> Snapshot {
         held: Vec::new(),
         owner: "me@Mac".into(),
         now: 0,
-        edge: None,
+        edge: Vec::new(),
         service_tokens: None,
         database: None,
-        front: None,
+        front: Vec::new(),
         records: Vec::new(),
         access: None,
         networks: None,
@@ -554,10 +554,10 @@ fn scenarios() {
         elsewhere: Vec::new(),
         balance: None,
         site: None,
-        edge: None,
+        edge: Vec::new(),
         service_tokens: None,
         database: None,
-        front: None,
+        front: Vec::new(),
         ..fresh()
     };
 
