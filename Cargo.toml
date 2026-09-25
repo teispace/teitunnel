@@ -46,6 +46,8 @@ specta-typescript = "=0.0.12"
 
 # macOS
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSColor", "NSColorSpace"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFData", "CFDictionary", "CFString"] }
+objc2-security = { version = "0.3.2", default-features = false, features = ["std", "SecAccess", "SecBase", "SecItem", "SecTrustedApplication"] }
 
 # Runtime
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "fs", "signal"] }
@@ -139,7 +141,8 @@ tempfile = "3"
 wiremock = "0.6.5"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# Denied everywhere; the keychain access-list module is the one exception (D-127).
+unsafe_code = "deny"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }

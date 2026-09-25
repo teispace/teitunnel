@@ -13,6 +13,10 @@ use crate::Secret;
 
 use crate::text::{Text, UserText, english_display, msg};
 
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code)] // The keychain's access-list API (D-127).
+mod macos;
+
 /// Keychain service name (D-018).
 pub const SERVICE: &str = "com.teispace.teitunnel";
 
@@ -94,6 +98,15 @@ impl KeychainStore {
 
 impl SecretStore for KeychainStore {
     fn set(&self, key: &str, value: &Secret<String>) -> Result<(), SecretError> {
+        // A new item is shared with the other Teitunnel programs; an existing one keeps
+        // its access list when its value changes.
+        #[cfg(target_os = "macos")]
+        if macos::add(SERVICE, key, value.expose().as_bytes(), shared_with())
+            .map_err(|status| SecretError::Keychain(format!("OSStatus {status}")))?
+            == macos::Added::Yes
+        {
+            return Ok(());
+        }
         Ok(Self::entry(key)?.set_password(value.expose())?)
     }
 
@@ -111,6 +124,18 @@ impl SecretStore for KeychainStore {
             Err(err) => Err(err.into()),
         }
     }
+}
+
+/// The other Teitunnel programs on this Mac, found once per process.
+#[cfg(target_os = "macos")]
+fn shared_with() -> &'static [std::path::PathBuf] {
+    static PROGRAMS: std::sync::OnceLock<Vec<std::path::PathBuf>> = std::sync::OnceLock::new();
+    PROGRAMS.get_or_init(|| {
+        let current = std::env::current_exe()
+            .and_then(std::fs::canonicalize)
+            .unwrap_or_default();
+        macos::programs(&current, std::env::home_dir().as_deref())
+    })
 }
 
 /// An in-memory store for tests.
