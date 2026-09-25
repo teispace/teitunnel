@@ -76,19 +76,6 @@ fn passphrase(from_stdin: bool, confirm: bool) -> Result<Secret<String>, String>
     Ok(Secret::new(first))
 }
 
-fn section_name(section: &str) -> &str {
-    match section {
-        "settings" => "settings (alert rules and projects included)",
-        "local_tunnels" => "this computer's tunnels",
-        "dns_ownership" => "DNS records Teitunnel created",
-        "access_ownership" => "logins Teitunnel added",
-        "balanced_routes" => "load-balanced routes",
-        "snapshots" => "Snapshots",
-        "snapshot_versions" => "Snapshot versions",
-        other => other,
-    }
-}
-
 fn print_summary(summary: &BackupSummary) -> Result<(), String> {
     out!(
         "Backup of {} made by Teitunnel {}:",
@@ -108,7 +95,7 @@ fn print_summary(summary: &BackupSummary) -> Result<(), String> {
         out!(
             "  {:>4}  {}{replaces}",
             section.count,
-            section_name(&section.section)
+            section.label.english()
         )?;
     }
     if !summary.projects.is_empty() {
@@ -197,16 +184,15 @@ mod tests {
 
     #[test]
     fn names_sections_in_words() {
-        assert_eq!(section_name("local_tunnels"), "this computer's tunnels");
-        assert_eq!(section_name("future_table"), "future_table");
         let summary = BackupSummary {
             created_at: 0,
             app_version: "0.2.0".into(),
-            machine: "Ada's Mac".into(),
+            machine: "Teispace MacBook".into(),
             accounts: Vec::new(),
             projects: vec!["shop".into()],
             sections: vec![SectionCount {
                 section: "local_tunnels".into(),
+                label: teitunnel_core::text::msg::backup::section::local_tunnels(),
                 count: 1,
                 existing: 2,
             }],

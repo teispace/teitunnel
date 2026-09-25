@@ -4380,6 +4380,8 @@ export type SecretCopy =
 export type SectionCount = {
 	/**  `settings`, `local_tunnels`, `snapshots`… */
 	section: string,
+	/**  What it holds, for people. */
+	label: Text,
 	/**  Entries in the backup. */
 	count: number,
 	/**  Entries here now, which restoring replaces. */

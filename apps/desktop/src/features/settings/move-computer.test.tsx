@@ -10,16 +10,26 @@ let calls: { cmd: string; args: Record<string, unknown> }[];
 let wrongPassphrase: boolean;
 
 const preview: BackupPreview = {
-  id: "1-Ada's Mac",
+  id: "1-Teispace MacBook",
   summary: {
     createdAt: 1,
     appVersion: "0.2.0",
-    machine: "Ada's Mac",
-    accounts: [{ id: "a1", name: "Acme" }],
+    machine: "Teispace MacBook",
+    accounts: [{ id: "a1", name: "Teispace" }],
     projects: ["shop"],
     sections: [
-      { section: "settings", count: 6, existing: 2 },
-      { section: "local_tunnels", count: 1, existing: 1 },
+      {
+        section: "settings",
+        label: { key: "core.backup.section.settings", args: {} },
+        count: 6,
+        existing: 2,
+      },
+      {
+        section: "local_tunnels",
+        label: { key: "core.backup.section.localTunnels", args: {} },
+        count: 1,
+        existing: 1,
+      },
     ],
     overwrites: true,
   },
@@ -93,15 +103,19 @@ describe("Move to another computer", () => {
       target: { value: "correct horse battery" },
     });
     fireEvent.click(within(sheet).getByRole("button", { name: "Read Backup" }));
-    expect(await within(sheet).findByText("Made on Ada's Mac with Teitunnel 0.2.0.")).toBeTruthy();
     expect(
-      within(sheet).getByText(/Connect these accounts again after restoring: Acme/),
+      await within(sheet).findByText("Made on Teispace MacBook with Teitunnel 0.2.0."),
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByText(/Connect these accounts again after restoring: Teispace/),
     ).toBeTruthy();
     expect(within(sheet).getByText("1 · replaces 1 here")).toBeTruthy();
     expect(calls.some((c) => c.cmd === "backup_restore")).toBe(false);
     fireEvent.click(within(sheet).getByRole("button", { name: "Replace and Restore" }));
     await waitFor(() => expect(calls.some((c) => c.cmd === "backup_restore")).toBe(true));
-    expect(calls.find((c) => c.cmd === "backup_restore")?.args).toEqual({ id: "1-Ada's Mac" });
+    expect(calls.find((c) => c.cmd === "backup_restore")?.args).toEqual({
+      id: "1-Teispace MacBook",
+    });
   });
 
   it("says when the passphrase is wrong", async () => {

@@ -248,3 +248,14 @@ async fn writes_a_private_file() {
         Err(BackupError::WrongPassphrase)
     ));
 }
+
+#[test]
+fn every_section_has_a_name() {
+    for section in std::iter::once("settings").chain(TABLES.iter().map(|(table, _)| *table)) {
+        assert_ne!(
+            section_label(section).key,
+            "core.raw",
+            "{section} needs a name in core.backup.section"
+        );
+    }
+}
