@@ -21,14 +21,17 @@ export function App() {
   useEffect(() => (isTauri() ? syncEntityChanges(queryClient) : undefined), [queryClient]);
   useEffect(() => {
     if (!isTauri()) return;
-    // Apply the saved appearance before the (hidden) window is shown, so it never
-    // flashes the wrong theme.
-    void queryClient
+    // Show the (hidden) window once it can draw the first screen: the saved appearance
+    // applied (no flash of the wrong theme) and that screen's code loaded (no empty
+    // window). Capped, so a slow disk never keeps the window from appearing.
+    const theme = queryClient
       .fetchQuery(settingsQuery)
       .then((settings) => applyTheme(settings.theme))
-      .catch((error: unknown) => console.warn("could not load settings", error))
-      .finally(signalReady);
-  }, [queryClient]);
+      .catch((error: unknown) => console.warn("could not load settings", error));
+    const screen = router.load().catch((error: unknown) => console.warn("first screen", error));
+    const cap = new Promise((resolve) => setTimeout(resolve, SHOW_WITHIN_MS));
+    void Promise.race([Promise.all([theme, screen]), cap]).finally(signalReady);
+  }, [queryClient, router]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -43,6 +46,9 @@ export function App() {
     </QueryClientProvider>
   );
 }
+
+/** The longest the window waits for the first screen before it's shown anyway. */
+const SHOW_WITHIN_MS = 1500;
 
 /**
  * Tells Rust the first frame is ready so it can show the (hidden) window without a

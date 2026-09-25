@@ -84,6 +84,8 @@ describe("OverviewPage", () => {
     renderPage();
     expect(await screen.findByLabelText("Loading what's running")).toBeTruthy();
     expect(screen.queryByText("Nothing running yet")).toBeNull();
+    // Only Cloudflare is left: the wait says what it's for (it fades in when slow).
+    expect(await screen.findByText("Checking your routes on Cloudflare…")).toBeTruthy();
 
     release();
     expect(await screen.findByText("Nothing running yet")).toBeTruthy();

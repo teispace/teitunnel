@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, LayoutGrid, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/patterns/empty-state";
+import { SlowHint } from "@/components/patterns/loading-state";
 import { Sparkline } from "@/components/patterns/sparkline";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,10 @@ export function OverviewPage() {
           <Skeleton className="mx-2.5 h-4 w-24" />
           <Skeleton className="h-11" />
           <Skeleton className="h-11" />
+          {/* Local answers are instant; only Cloudflare can take a while. */}
+          {!sharesQuery.isPending && !accounts.isPending ? (
+            <SlowHint className="px-2.5 pt-1">{t("overview.checkingRoutes")}</SlowHint>
+          ) : null}
         </div>
       </>
     );
