@@ -67,7 +67,13 @@ jobs:
           mkdir -p ctx/data
           for arch in x64:amd64 arm64:arm64; do
             mkdir -p "ctx/linux-${arch#*:}"
-            tar -xzf rel/teitunnel-cli_*_linux-"${arch%:*}".tar.gz -C "ctx/linux-${arch#*:}" teitunnel
+            dir="ctx/linux-${arch#*:}"
+            tar -xzf rel/teitunnel-cli_*_linux-"${arch%:*}".tar.gz -C "$dir"
+            # Releases before 0.2.0 name the binary teitunnel-cli.
+            if [ ! -f "$dir/teitunnel" ] && [ -f "$dir/teitunnel-cli" ]; then
+              mv "$dir/teitunnel-cli" "$dir/teitunnel"
+            fi
+            test -x "$dir/teitunnel"
           done
           {
             echo "tag=$tag"
