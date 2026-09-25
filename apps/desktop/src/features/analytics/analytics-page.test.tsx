@@ -27,6 +27,7 @@ const route = (hostname: string, path: string | null = null) => ({
   tunnelId: "t",
   temporary: false,
   balanced: false,
+  paused: false,
   options: {},
 });
 

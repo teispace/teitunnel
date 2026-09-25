@@ -24,6 +24,7 @@ const route = (hostname: string, path: string | null = null, local = true): Rout
     tunnelId: "t",
     temporary: false,
     balanced: false,
+    paused: false,
     options: {},
   }) as unknown as RouteView;
 

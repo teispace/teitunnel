@@ -668,8 +668,16 @@ impl Engine {
             .balanced(ctx.account)
             .await
             .map_err(ObserveError::from)?;
+        let paused: std::collections::HashSet<String> =
+            crate::pause::list(self.local.store(), Some(ctx.account))
+                .await
+                .map_err(ObserveError::from)?
+                .into_iter()
+                .map(|p| p.hostname.to_ascii_lowercase())
+                .collect();
         for route in &mut merged.routes {
             route.balanced = balanced.contains(&route.hostname.to_ascii_lowercase());
+            route.paused = paused.contains(&route.hostname.to_ascii_lowercase());
             route.temporary = route.path.is_none()
                 && shares
                     .iter()

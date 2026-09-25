@@ -210,6 +210,10 @@
       "remote@linux": "The service isn't on this computer",
       "balancing": "Load balancing"
     },
+    "pause": {
+      "title": "Pause and Schedule",
+      "hint": "Pause it, or serve it only during set hours: visitors see a paused page, and the address stays."
+    },
     "activity": {
       "undone": " · undone after an error"
     },

@@ -87,6 +87,7 @@ pub(crate) fn route(hostname: &str, origin: &str) -> RouteView {
         tunnel_id: Some("t1".into()),
         temporary: false,
         balanced: false,
+        paused: false,
         options: OriginOptions::default(),
     }
 }

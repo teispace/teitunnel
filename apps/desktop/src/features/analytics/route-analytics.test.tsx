@@ -19,6 +19,7 @@ const route = {
   tunnelId: "t",
   temporary: false,
   balanced: false,
+  paused: false,
   options: {},
 } as unknown as RouteView;
 

@@ -548,6 +548,8 @@ pub struct RouteView {
     pub temporary: bool,
     /// Load balanced across tunnels (Cloudflare Load Balancing).
     pub balanced: bool,
+    /// Visitors get the "paused" page ([`crate::pause`]).
+    pub paused: bool,
     /// Its origin settings.
     pub options: OriginOptions,
 }
@@ -737,6 +739,7 @@ pub(crate) fn overview(
                 tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
                 temporary: false,
                 balanced: false,
+                paused: false,
                 options: OriginOptions::from_map(&rule.origin_request),
             })
         })
@@ -836,6 +839,7 @@ mod tests {
             tunnel_id: None,
             temporary: false,
             balanced: false,
+            paused: false,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),

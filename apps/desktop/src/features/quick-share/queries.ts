@@ -255,7 +255,12 @@ export function useSetSharePaused() {
       hostname: string;
       paused: boolean;
     }) => call(commands.sharingSetPaused(accountId, hostname, paused)),
-    onSettled: () => refresh(queryClient, queryKeys.quickShares.domain()),
+    // Shares on your domain and routes both show it.
+    onSettled: () =>
+      Promise.all([
+        refresh(queryClient, queryKeys.quickShares.domain()),
+        refresh(queryClient, queryKeys.routes.all()),
+      ]),
   });
 }
 

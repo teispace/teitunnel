@@ -40,6 +40,7 @@ import {
   ServiceTokens,
   useProtection,
 } from "@/features/protection";
+import { RoutePauseSection } from "@/features/quick-share";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
@@ -287,6 +288,9 @@ function RouteInspector({
           hostname={route.hostname}
           localTunnelIds={localTunnelIds}
         />
+      ) : null}
+      {route.local && !route.temporary && !route.client ? (
+        <RoutePauseSection accountId={accountId} hostname={route.hostname} paused={route.paused} />
       ) : null}
       {route.client ? null : (
         <InspectRouteSection

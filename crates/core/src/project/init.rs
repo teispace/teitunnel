@@ -144,6 +144,7 @@ mod tests {
             tunnel_id: None,
             temporary: false,
             balanced: false,
+            paused: false,
             options: OriginOptions::default(),
         }
     }

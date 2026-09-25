@@ -4288,6 +4288,8 @@ export type RouteView_Deserialize = {
 	temporary: boolean,
 	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
 	balanced: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
 	/**  Its origin settings. */
 	options: OriginOptions_Deserialize,
 };
@@ -4316,6 +4318,8 @@ export type RouteView_Serialize = {
 	temporary: boolean,
 	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
 	balanced: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
 	/**  Its origin settings. */
 	options: OriginOptions_Serialize,
 };
