@@ -3,7 +3,7 @@
 //
 //   pnpm e2e:build && pnpm e2e
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -33,6 +33,10 @@ export const config: WebdriverIO.Config = {
       "@wdio/tauri-service",
       {
         driverProvider: "embedded",
+        // The app's stderr and console into e2e/artifacts (CI uploads them on failure).
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        logDir: artifacts,
         env: {
           TEITUNNEL_CLOUDFLARED: fake,
           TEITUNNEL_DATA_DIR: dataDir,
@@ -55,6 +59,11 @@ export const config: WebdriverIO.Config = {
     mkdirSync(artifacts, { recursive: true });
     const name = `${test.parent} ${test.title}`.replace(/[^\w-]+/g, "_");
     await browser.saveScreenshot(join(artifacts, `${name}.png`));
+    // What the page holds: a blank screenshot alone says little.
+    const page = await browser
+      .execute(() => `${location.href}\n\n${document.documentElement.outerHTML}`)
+      .catch((err: unknown) => `couldn't read the page: ${String(err)}`);
+    writeFileSync(join(artifacts, `${name}.html.txt`), page);
   },
   afterSession: () => {
     // Stop connectors the app left running (the fake cloudflared).
