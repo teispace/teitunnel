@@ -52,6 +52,7 @@ pub(super) fn me() -> AccessRule {
     AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
+        bypass: Vec::new(),
     }
 }
 

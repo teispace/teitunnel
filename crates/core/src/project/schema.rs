@@ -219,6 +219,18 @@ impl Reader {
         }
     }
 
+    /// A list of text, or one entry as text.
+    fn texts(&mut self, key: &str, node: &Node) -> Option<Vec<String>> {
+        match &node.value {
+            Value::Str(_) => self.text(key, node).map(|s| vec![s]),
+            Value::Seq(items) => items.iter().map(|item| self.text(key, item)).collect(),
+            _ => {
+                self.error(node.at, m::expected_list(key));
+                None
+            }
+        }
+    }
+
     fn bool(&mut self, key: &str, node: &Node) -> Option<bool> {
         if let Value::Bool(b) = node.value {
             Some(b)
@@ -287,6 +299,7 @@ impl Reader {
         let rule = AccessRule {
             emails: emails.into_iter().map(|(s, _)| s.clone()).collect(),
             email_domains: domains.into_iter().map(|(s, _)| s.clone()).collect(),
+            bypass: Vec::new(),
         };
         match rule.normalized() {
             Ok(rule) => Some(rule),
@@ -595,6 +608,7 @@ fn read_route(r: &mut Reader, node: &Node) -> Option<RouteDecl> {
     let entries = r.mapping("routes", node)?;
     let (mut hostname, mut origin, mut path, mut tunnel, mut login, mut options) =
         (None, None, None, None, None, None);
+    let mut skip_login: Option<(Vec<String>, Pos)> = None;
     let mut ok = true;
     for (key, at, value) in entries {
         match key {
@@ -625,11 +639,36 @@ fn read_route(r: &mut Reader, node: &Node) -> Option<RouteDecl> {
                 login = r.login(value);
                 ok &= login.is_some();
             }
+            "skipLogin" => match r.texts(key, value) {
+                Some(paths) => skip_login = Some((paths, value.at)),
+                None => ok = false,
+            },
             "originRequest" => {
                 options = read_origin_request(r, value);
                 ok &= options.is_some();
             }
             other => r.unknown(other, at),
+        }
+    }
+    if let Some((paths, at)) = skip_login {
+        match login.as_mut() {
+            Some(rule) => {
+                let with = AccessRule {
+                    bypass: paths,
+                    ..rule.clone()
+                };
+                match with.normalized() {
+                    Ok(with) => *rule = with,
+                    Err(err) => {
+                        r.error(at, err.text());
+                        ok = false;
+                    }
+                }
+            }
+            None => {
+                r.error(at, m::skip_login_needs_login());
+                ok = false;
+            }
         }
     }
     let Some(hostname) = hostname else {

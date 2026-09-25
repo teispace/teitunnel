@@ -123,6 +123,12 @@
           "type": "string"
         },
         "login": { "$ref": "#/$defs/login" },
+        "skipLogin": {
+          "description": "Paths under the route that skip its login, e.g. /webhooks, so webhook senders and other machines get through (needs login; at most 10).",
+          "type": "array",
+          "items": { "type": "string" },
+          "maxItems": 10
+        },
         "originRequest": { "$ref": "#/$defs/originRequest" }
       },
       "additionalProperties": false

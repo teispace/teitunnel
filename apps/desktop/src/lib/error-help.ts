@@ -41,6 +41,8 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.accessRule.empty": input,
   "core.error.accessRule.email": input,
   "core.error.accessRule.domain": input,
+  "core.error.accessRule.bypassPath": input,
+  "core.error.accessRule.tooManyBypass": input,
   "core.error.accessDomain.pathPattern": input,
   "core.error.plan.noZone": {
     kind: "link",

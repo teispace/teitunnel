@@ -652,8 +652,12 @@ enum RouteCommand {
         /// Repeat for more people. Needs Cloudflare Zero Trust (free).
         #[arg(long, value_name = "EMAIL|@DOMAIN")]
         allow: Vec<String>,
+        /// With --allow: a path that skips the login, e.g. `/webhooks`, so webhook
+        /// senders get through; repeatable.
+        #[arg(long, value_name = "PATH", requires = "allow")]
+        skip_login: Vec<String>,
         #[command(flatten)]
-        origin_options: OriginArgs,
+        origin_options: Box<OriginArgs>,
         /// Don't add the route when the exposure check finds a leak in the service;
         /// by default it only warns.
         #[arg(long)]
@@ -1056,7 +1060,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 &origin,
                 share::DomainShareOptions {
                     account,
-                    allow: access_rule(&allow),
+                    allow: access_rule(&allow, &[]),
                     stop_after,
                     json,
                     strict,
@@ -1212,6 +1216,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             path,
             allow,
+            skip_login,
             origin_options,
             strict,
             apply,
@@ -1222,7 +1227,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     hostname,
                     path,
                     origin,
-                    access: access_rule(&allow),
+                    access: access_rule(&allow, &skip_login),
                     options: origin_options.options(),
                 },
             };
@@ -1787,19 +1792,10 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
     Ok(ExitCode::SUCCESS)
 }
 
-/// `--allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or `xyz.com`)
-/// everyone at a domain. The engine validates them.
-fn access_rule(allow: &[String]) -> Option<AccessRule> {
-    if allow.is_empty() {
-        return None;
-    }
-    let (emails, domains): (Vec<&String>, Vec<&String>) = allow
-        .iter()
-        .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
-    Some(AccessRule {
-        emails: emails.into_iter().cloned().collect(),
-        email_domains: domains.into_iter().cloned().collect(),
-    })
+/// `--allow` values as a login rule (see [`AccessRule::from_allow`]); `skip` are the
+/// `--skip-login` paths.
+fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip)
 }
 
 fn warning_text(warning: &Warning) -> String {
@@ -2264,6 +2260,8 @@ mod tests {
             "me@xyz.com",
             "--allow",
             "@team.io",
+            "--skip-login",
+            "/webhooks",
             "--no-tls-verify",
             "--host-header",
             "app.local",
@@ -2277,6 +2275,7 @@ mod tests {
             origin,
             path,
             allow,
+            skip_login,
             origin_options,
             apply,
             ..
@@ -2290,13 +2289,27 @@ mod tests {
         );
         assert!(apply.yes && !apply.replace);
         assert_eq!(
-            access_rule(&allow),
+            access_rule(&allow, &skip_login),
             Some(AccessRule {
                 emails: vec!["me@xyz.com".into()],
                 email_domains: vec!["@team.io".into()],
+                bypass: vec!["/webhooks".into()],
             })
         );
-        assert_eq!(access_rule(&[]), None);
+        assert_eq!(access_rule(&[], &[]), None);
+        // A path can only skip a login the route has.
+        assert!(
+            Cli::try_parse_from([
+                "teitunnel",
+                "route",
+                "add",
+                "a.example.com",
+                "3000",
+                "--skip-login",
+                "/webhooks"
+            ])
+            .is_err()
+        );
         let options = origin_options.options().unwrap();
         assert!(options.no_tls_verify);
         assert_eq!(options.http_host_header.as_deref(), Some("app.local"));

@@ -182,6 +182,7 @@ async fn a_protected_route_asks_for_a_login_until_its_removed() {
         route.access = Some(AccessRule {
             emails: vec!["me@xyz.com".into()],
             email_domains: Vec::new(),
+            bypass: vec!["/webhooks".into()],
         });
     }
     let outcome = apply(&engine, &api, &conns, change).await;
@@ -195,6 +196,13 @@ async fn a_protected_route_asks_for_a_login_until_its_removed() {
         .await
         .unwrap();
     assert_eq!(apps.len(), 1);
+    // Webhooks skip it through an application of their own that lets everyone in.
+    let open = api
+        .access_apps_for("e2e-account", "app.xyz.com/webhooks")
+        .await
+        .unwrap();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].policies[0].decision, "bypass");
     let checked = engine
         .verify(&api, CTX, &host, Edge::Test(addr), Duration::ZERO)
         .await
@@ -213,6 +221,13 @@ async fn a_protected_route_asks_for_a_login_until_its_removed() {
             .unwrap()
             .is_empty(),
         "the login went with the route"
+    );
+    assert!(
+        api.access_apps_for("e2e-account", "app.xyz.com/webhooks")
+            .await
+            .unwrap()
+            .is_empty(),
+        "and so did the path that skipped it"
     );
 }
 

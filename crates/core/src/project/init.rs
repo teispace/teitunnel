@@ -169,6 +169,7 @@ mod tests {
         api.access = Some(AccessRule {
             emails: vec!["me@example.com".into()],
             email_domains: vec!["team.io".into()],
+            bypass: Vec::new(),
         });
         api.options.http_host_header = Some("localhost:4000".into());
         let input = InitInput {

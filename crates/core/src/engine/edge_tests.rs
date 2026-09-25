@@ -383,6 +383,7 @@ fn login_app(domain: &str) -> ObservedAccessApp {
     let rule = AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
+        bypass: Vec::new(),
     };
     ObservedAccessApp {
         id: "app1".into(),

@@ -721,7 +721,9 @@ pub(crate) fn overview(
             let access = snapshot.access.as_ref().and_then(|a| {
                 let domain = access_domain(parsed.as_ref()?, path.as_ref()).ok()?;
                 let app = a.app(&domain).filter(|app| app.owned)?;
-                app.rule.clone()
+                let mut rule = app.rule.clone()?;
+                rule.bypass = super::access::bypass_paths(a, &domain);
+                Some(rule)
             });
             let origin = RouteOrigin::parse(&rule.service).ok();
             Some(RouteView {

@@ -263,6 +263,15 @@ function RouteInspector({
               label: t("routes.detail.login"),
               value: route.access ? describeAllowed(route.access) : t("routes.detail.noLogin"),
             },
+            ...(route.access?.bypass?.length
+              ? [
+                  {
+                    label: t("routes.detail.skipLogin"),
+                    value: route.access.bypass.join(", "),
+                    mono: true,
+                  },
+                ]
+              : []),
             {
               label: t("routes.detail.dns"),
               value:

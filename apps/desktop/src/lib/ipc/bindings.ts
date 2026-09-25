@@ -80,6 +80,12 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 } | null, hostHeader: HostHeaderChoice, folder: string | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader, folder }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
@@ -131,6 +137,12 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 } | null) => __TAURI_INVOKE<Outcome>("sharing_start_folder_on_domain", { accountId, hostname, folder, stopAfterMinutes, access }),
 	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
 	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
@@ -722,6 +734,12 @@ export type AccessRule = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 };
 
 /**  A connected Cloudflare account. */

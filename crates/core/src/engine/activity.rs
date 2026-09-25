@@ -301,6 +301,9 @@ fn routes(ingress: &[IngressRule]) -> BTreeMap<RouteKey, &IngressRule> {
 
 /// Who a login lets in, as a line for the before/after list.
 fn login_summary(app: &cf_api::NewAccessApp) -> Text {
+    if super::access::is_bypass(app) {
+        return delta::login_bypassed();
+    }
     super::access::AccessRule::from_new(app).map_or_else(delta::login_custom, |rule| {
         delta::login_required(rule.people())
     })

@@ -253,6 +253,8 @@ enum Undo {
     DeleteAccessApp {
         id: String,
         domain: String,
+        /// It let everyone through a path (not a login).
+        bypass: bool,
     },
     RestoreAccessApp {
         id: String,
@@ -376,8 +378,16 @@ impl Undo {
             }
             Self::StartConnector(_) => m::start_connector(),
             Self::DeleteLoginMethod(_) => m::delete_login_method(),
+            Self::DeleteAccessApp {
+                domain,
+                bypass: true,
+                ..
+            } => m::delete_access_bypass(domain),
             Self::DeleteAccessApp { domain, .. } => m::delete_access_app(domain),
             Self::RestoreAccessApp { previous, .. } => m::restore_access_app(&previous.domain),
+            Self::RecreateAccessApp(previous) if super::access::is_bypass(previous) => {
+                m::recreate_access_bypass(&previous.domain)
+            }
             Self::RecreateAccessApp(previous) => m::recreate_access_app(&previous.domain),
             Self::DeleteNetworkRoute { network, .. } => m::delete_network_route(network),
             Self::RecreateNetworkRoute(route) => m::recreate_network_route(&route.network),
@@ -1609,6 +1619,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 Ok(Some(Undo::DeleteAccessApp {
                     id: created.id,
                     domain: app.domain.clone(),
+                    bypass: super::access::is_bypass(app),
                 }))
             }
             Step::UpdateAccessApp { id, app, previous } => {
@@ -2031,6 +2042,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                         Ok(Some(Undo::DeleteAccessApp {
                             id: created.id,
                             domain: domain.clone(),
+                            bypass: false,
                         }))
                     }
                 }

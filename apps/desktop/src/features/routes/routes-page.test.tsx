@@ -545,11 +545,16 @@ describe("RoutesPage", () => {
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Who can sign in" }), {
       target: { value: "me@xyz.com, @team.io" },
     });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Paths that skip the login" }), {
+      target: { value: "/webhooks" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
     await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
     const preview = calls.find((c) => c.cmd === "routes_preview");
     expect(preview?.args["change"]).toMatchObject({
-      route: { access: { emails: ["me@xyz.com"], emailDomains: ["team.io"] } },
+      route: {
+        access: { emails: ["me@xyz.com"], emailDomains: ["team.io"], bypass: ["/webhooks"] },
+      },
     });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Route" }));

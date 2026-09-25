@@ -705,6 +705,7 @@ fn people(emails: &[&str], domains: &[&str]) -> AccessRule {
     AccessRule {
         emails: emails.iter().map(|s| (*s).to_owned()).collect(),
         email_domains: domains.iter().map(|s| (*s).to_owned()).collect(),
+        bypass: Vec::new(),
     }
 }
 
@@ -944,6 +945,104 @@ fn removing_takes_the_login_down_last() {
         route: protected(route("r", "app.xyz.com", "3000"), &me),
     };
     assert!(plan(&again, &snapshot).unwrap().is_empty());
+}
+
+fn bypass_app(id: &str, domain: &str) -> ObservedAccessApp {
+    ObservedAccessApp {
+        id: id.into(),
+        domain: domain.into(),
+        owned: true,
+        rule: None,
+        definition: super::access::bypass_definition(domain),
+    }
+}
+
+#[test]
+fn webhooks_skip_the_login_through_their_own_applications() {
+    let me = people(&["me@xyz.com"], &[]);
+    let hooks = AccessRule {
+        bypass: vec!["/webhooks".into()],
+        ..me.clone()
+    };
+    let add = Intent::AddRoute {
+        route: protected(route("r1", "new.xyz.com", "4000"), &hooks),
+    };
+    let p = plan(&add, &with_access(with_app(), 1, Vec::new())).unwrap();
+    assert_eq!(kinds(&p), ["app+", "app+", "config", "dns+", "verify"]);
+    let Step::CreateAccessApp { app } = &p.steps[1] else {
+        unreachable!()
+    };
+    assert_eq!(app.domain, "new.xyz.com/webhooks");
+    assert!(super::access::is_bypass(app));
+    assert_eq!(
+        p.steps[1].describe("t").english(),
+        "Let everyone reach new.xyz.com/webhooks without a login (webhooks)"
+    );
+    assert_eq!(
+        super::access::AccessNeed::of(&add).domains,
+        ["new.xyz.com", "new.xyz.com/webhooks"]
+    );
+
+    // Changing the paths opens the new one and closes the old; the login stays.
+    let snapshot = with_access(
+        with_app(),
+        1,
+        vec![
+            access_app("a1", "app.xyz.com", &me, true),
+            bypass_app("b1", "app.xyz.com/webhooks"),
+        ],
+    );
+    let same = update(
+        "app.xyz.com",
+        None,
+        protected(route("r", "app.xyz.com", "3000"), &hooks),
+    );
+    assert!(
+        plan(&same, &snapshot).unwrap().is_empty(),
+        "nothing to change"
+    );
+    let moved = update(
+        "app.xyz.com",
+        None,
+        protected(
+            route("r", "app.xyz.com", "3000"),
+            &AccessRule {
+                bypass: vec!["/hooks".into()],
+                ..me.clone()
+            },
+        ),
+    );
+    let p = plan(&moved, &snapshot).unwrap();
+    assert_eq!(kinds(&p), ["app+", "app-", "verify"]);
+    assert!(
+        matches!(&p.steps[0], Step::CreateAccessApp { app } if app.domain == "app.xyz.com/hooks")
+    );
+    assert!(matches!(&p.steps[1], Step::DeleteAccessApp { id, .. } if id == "b1"));
+
+    // No login any more, or no route: nothing is left open without one.
+    let open = update("app.xyz.com", None, route("r", "app.xyz.com", "4000"));
+    assert_eq!(
+        kinds(&plan(&open, &snapshot).unwrap()),
+        ["config", "app-", "app-", "verify"]
+    );
+    assert_eq!(
+        kinds(&plan(&remove("app.xyz.com", None), &snapshot).unwrap()),
+        ["config", "dns-", "app-", "app-"]
+    );
+
+    // Someone else's application at the path is never replaced.
+    let taken = with_access(
+        with_app(),
+        1,
+        vec![
+            access_app("a1", "app.xyz.com", &me, true),
+            access_app("x1", "app.xyz.com/webhooks", &me, false),
+        ],
+    );
+    assert!(matches!(
+        plan(&same, &taken),
+        Err(PlanError::AccessAppExists(domain)) if domain == "app.xyz.com/webhooks"
+    ));
 }
 
 #[test]

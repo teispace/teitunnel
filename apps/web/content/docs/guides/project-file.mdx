@@ -147,6 +147,7 @@ deleted. Every change is recorded in Activity and can be undone there.
 | `path` | Only requests whose path matches this regex, e.g. `^/api`. |
 | `tunnel` | One of this machine's tunnels, by name. Default: the default tunnel. An existing route stays on its tunnel; `tunnel` only picks where a new route goes. |
 | `login` | Require a Cloudflare Access login: an email address, `@domain`, or a list of them. |
+| `skipLogin` | Paths that skip the login, e.g. `[/webhooks]`, for webhook senders (needs `login`; at most 10). |
 | `originRequest` | cloudflared's origin settings: `httpHostHeader`, `originServerName`, `matchSNItoHost`, `noTLSVerify`, `caPool`, `http2Origin`, `disableChunkedEncoding`, `connectTimeout`, `tlsTimeout`, `tcpKeepAlive`, `keepAliveTimeout`, `keepAliveConnections`, `noHappyEyeballs`, `proxyType`. |
 
 ### `shares[]`

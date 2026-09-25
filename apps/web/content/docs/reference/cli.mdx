@@ -848,6 +848,7 @@ teitunnel route add [OPTIONS] <HOSTNAME> <ORIGIN>
 |---|---|
 | `--path <PATH>` | Only requests whose path matches this regex, e.g. `^/api`. |
 | `--allow <EMAIL\|@DOMAIN>` | Require a login: an email address, or `@domain` for anyone at that domain. Repeat for more people. Needs Cloudflare Zero Trust (free). |
+| `--skip-login <PATH>` | With --allow: a path that skips the login, e.g. `/webhooks`, so webhook senders get through; repeatable. |
 
 **Origin settings**
 

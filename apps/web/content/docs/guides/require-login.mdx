@@ -51,6 +51,15 @@ provider) are offered too. A sign-in lasts 24 hours.
 The same login works on a [share on your domain](/docs/guides/sharing) and on a
 [Snapshot](/docs/guides/snapshots) (**People I choose**).
 
+## Let webhooks through
+
+Webhook senders (Stripe, GitHub, Slack…) and other machines can't sign in. Under **Paths
+that skip the login**, list the paths they call, such as `/webhooks`: everything under
+them is reachable without a login, and the rest of the route still asks for one. Check
+their signatures in your app (the [inspector](/docs/guides/inspector#webhooks) shows whether
+they're valid). For machines you control, a [service token](/docs/guides/protection) is the
+safer choice: it lets only them through.
+
 ## From the terminal
 
 ```sh
@@ -64,7 +73,8 @@ teitunnel share 5173 --on review.teispace.com --allow @teispace.com
 teitunnel snapshot publish ./dist --on preview.teispace.com --allow @teispace.com
 ```
 
-`--allow` is repeatable and takes an email address or `@domain`. `route add` creates new
+`--allow` is repeatable and takes an email address or `@domain`. `--skip-login /webhooks`
+(repeatable) lets webhooks reach that path without a login. `route add` creates new
 routes only ("… is already routed. Edit that route instead."): change who can sign in to
 an existing route in the app, or in its [project file](/docs/guides/project-file).
 
@@ -94,6 +104,9 @@ Like every change, you review the plan before anything happens:
   allowing the people you listed. It's created *before* the route goes live, so the route
   is never reachable without a login.
 - **Let only … into admin.teispace.com:** changing who can sign in updates the policy.
+- **Let everyone reach admin.teispace.com/webhooks without a login (webhooks):** one more
+  application, `Teitunnel · admin.teispace.com/webhooks`, whose policy lets everyone through
+  (Access applies the most specific path). It comes and goes with the login.
 - **Remove the login from admin.teispace.com:** turning the login off, or removing the
   route, deletes the application once the route is gone (and Teitunnel's policy, unless
   another application uses it).

@@ -532,6 +532,9 @@ pub(crate) enum ChangeInput {
         /// Require a login: emails (`team@teispace.com`) or domains (`@teispace.com`).
         #[serde(default)]
         allow: Vec<String>,
+        /// Paths that skip the login, e.g. `/webhooks` (webhook senders can't log in).
+        #[serde(default)]
+        skip_login: Vec<String>,
         /// Origin settings.
         #[serde(default)]
         options: Option<OptionsInput>,
@@ -555,6 +558,9 @@ pub(crate) enum ChangeInput {
         /// Replace who may log in (use removeLogin to make it public).
         #[serde(default)]
         allow: Option<Vec<String>>,
+        /// Replace the paths that skip the login (`[]`: none).
+        #[serde(default)]
+        skip_login: Option<Vec<String>>,
         /// Origin settings to change.
         #[serde(default)]
         options: Option<OptionsInput>,
@@ -576,6 +582,9 @@ pub(crate) enum ChangeInput {
         path: Option<String>,
         /// Who may log in: emails or @domains.
         allow: Vec<String>,
+        /// Paths that skip the login, e.g. `/webhooks`.
+        #[serde(default)]
+        skip_login: Vec<String>,
     },
     /// Remove the login Teitunnel added to a route (it becomes public).
     RemoveLogin {
@@ -788,13 +797,14 @@ async fn to_change(
     account: &str,
     input: ChangeInput,
 ) -> Result<(Change, Option<String>, String), ToolError> {
-    let people = |allow: &[String]| super::access_rule(allow).map(|r| r.people());
+    let people = |allow: &[String]| super::access_rule(allow, &[]).map(|r| r.people());
     Ok(match input {
         ChangeInput::AddRoute {
             hostname,
             origin,
             path,
             allow,
+            skip_login,
             options,
         } => {
             let summary = format!(
@@ -814,7 +824,7 @@ async fn to_change(
                         hostname,
                         path,
                         origin,
-                        access: super::access_rule(&allow),
+                        access: super::access_rule(&allow, &skip_login),
                         options,
                     },
                 },
@@ -829,18 +839,35 @@ async fn to_change(
             new_hostname,
             new_path,
             allow,
+            skip_login,
             options,
         } => {
             let current = current_route(backend, account, &hostname, path.as_deref()).await?;
+            // Paths that skip the login stay unless replaced, whoever may log in.
+            let skip = skip_login.unwrap_or_else(|| {
+                current
+                    .access
+                    .as_ref()
+                    .map(|a| a.bypass.clone())
+                    .unwrap_or_default()
+            });
             let access = match &allow {
                 Some(allow) if allow.is_empty() => {
                     return Err(ToolError::new(
                         "`allow` can't be empty; use removeLogin to make the route public.",
                     ));
                 }
-                Some(allow) => super::access_rule(allow),
-                None => current.access.clone(),
+                Some(allow) => super::access_rule(allow, &skip),
+                None => current.access.clone().map(|mut rule| {
+                    rule.bypass = skip.clone();
+                    rule
+                }),
             };
+            if access.is_none() && !skip.is_empty() {
+                return Err(ToolError::new(
+                    "`skipLogin` needs a login: set `allow` too, or use requireLogin.",
+                ));
+            }
             let new_path = match new_path {
                 Some(p) if p.trim().is_empty() => None,
                 Some(p) => Some(p),
@@ -881,6 +908,7 @@ async fn to_change(
             hostname,
             path,
             allow,
+            skip_login,
         } => {
             if allow.is_empty() {
                 return Err(ToolError::new(
@@ -900,7 +928,7 @@ async fn to_change(
                         hostname: current.hostname.clone(),
                         path: current.path.clone(),
                         origin: current.origin.clone(),
-                        access: super::access_rule(&allow),
+                        access: super::access_rule(&allow, &skip_login),
                         options: None,
                     },
                 },

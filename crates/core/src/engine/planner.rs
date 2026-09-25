@@ -579,9 +579,12 @@ impl<'a> Builder<'a> {
     /// it lets in different people. Someone else's application is never changed.
     fn protect(&mut self, domain: &str, rule: &AccessRule) -> Result<(), PlanError> {
         let access = self.snapshot.access.as_ref();
+        // The application says who may log in; paths that skip it are applications of
+        // their own.
+        let people = rule.people_only();
         match access.and_then(|a| a.app(domain)) {
             Some(app) if !app.owned => {
-                if app.rule.as_ref() != Some(rule) {
+                if app.rule.as_ref() != Some(&people) {
                     return Err(PlanError::AccessAppExists(domain.to_owned()));
                 }
             }
@@ -589,7 +592,7 @@ impl<'a> Builder<'a> {
                 // Service tokens keep passing when who may log in changes.
                 let wanted =
                     super::access::keep_machines(&app_definition(domain, rule), &app.definition);
-                if app.rule.as_ref() != Some(rule) || app.definition.name != wanted.name {
+                if app.rule.as_ref() != Some(&people) || app.definition.name != wanted.name {
                     self.steps.push(Step::UpdateAccessApp {
                         id: app.id.clone(),
                         app: wanted,
@@ -610,7 +613,59 @@ impl<'a> Builder<'a> {
                 });
             }
         }
+        self.bypass(domain, &rule.bypass)
+    }
+
+    /// Makes the paths under `domain` that skip its login exactly `paths`: an
+    /// application letting everyone through each, created or removed as needed. An
+    /// application someone else made at one of those paths is never changed.
+    fn bypass(&mut self, domain: &str, paths: &[String]) -> Result<(), PlanError> {
+        let access = self.snapshot.access.as_ref();
+        let current = access
+            .map(|a| super::access::bypass_paths(a, domain))
+            .unwrap_or_default();
+        for path in paths.iter().filter(|p| !current.contains(p)) {
+            let at = format!("{domain}{path}");
+            if access.and_then(|a| a.app(&at)).is_some() {
+                // A login (or anything else) is already there: not Teitunnel's to open.
+                return Err(PlanError::AccessAppExists(at));
+            }
+            self.steps.push(Step::CreateAccessApp {
+                app: super::access::bypass_definition(&at),
+            });
+        }
+        for path in current.iter().filter(|p| !paths.contains(p)) {
+            self.close_bypass(&format!("{domain}{path}"));
+        }
         Ok(())
+    }
+
+    fn close_bypass(&mut self, at: &str) {
+        if let Some(app) = self
+            .snapshot
+            .access
+            .as_ref()
+            .and_then(|a| a.app(at))
+            .filter(|a| a.owned && super::access::is_bypass(&a.definition))
+        {
+            self.steps.push(Step::DeleteAccessApp {
+                id: app.id.clone(),
+                previous: app.definition.clone(),
+            });
+        }
+    }
+
+    /// Removes every path under `domain` that skips its login.
+    fn close_bypasses(&mut self, domain: &str) {
+        let paths = self
+            .snapshot
+            .access
+            .as_ref()
+            .map(|a| super::access::bypass_paths(a, domain))
+            .unwrap_or_default();
+        for path in paths {
+            self.close_bypass(&format!("{domain}{path}"));
+        }
     }
 
     /// Removes the people's login from `domain` but keeps its service tokens passing
@@ -629,6 +684,8 @@ impl<'a> Builder<'a> {
             self.unprotect(domain);
             return;
         }
+        // Without a login there's nothing to skip.
+        self.close_bypasses(domain);
         self.steps.push(Step::UpdateAccessApp {
             id: app.id.clone(),
             app: super::access::keep_machines(
@@ -639,8 +696,10 @@ impl<'a> Builder<'a> {
         });
     }
 
-    /// Removes the login from `domain`, if Teitunnel put it there.
+    /// Removes the login from `domain` (and the paths that skip it), if Teitunnel put
+    /// it there.
     fn unprotect(&mut self, domain: &str) {
+        self.close_bypasses(domain);
         if let Some(app) = self
             .snapshot
             .access

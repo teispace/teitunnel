@@ -292,18 +292,10 @@ pub(crate) async fn tunnel_id(
 }
 
 /// `allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or
-/// `xyz.com`) everyone at a domain. The engine validates them.
-pub(crate) fn access_rule(allow: &[String]) -> Option<AccessRule> {
-    if allow.is_empty() {
-        return None;
-    }
-    let (emails, domains): (Vec<&String>, Vec<&String>) = allow
-        .iter()
-        .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
-    Some(AccessRule {
-        emails: emails.into_iter().map(|e| e.trim().to_owned()).collect(),
-        email_domains: domains.into_iter().map(|d| d.trim().to_owned()).collect(),
-    })
+/// `xyz.com`) everyone at a domain; `skip` the paths that skip it (`/webhooks`). The
+/// engine validates them.
+pub(crate) fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip)
 }
 
 /// A plan warning in English.

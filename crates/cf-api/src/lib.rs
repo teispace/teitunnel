@@ -25,7 +25,7 @@ mod workers;
 
 pub use access::{
     AccessApp, AccessOrganization, AccessPolicy, IdentityProvider, NewAccessApp, TEITUNNEL_PREFIX,
-    email_domain_rule, email_rule, rule_email, rule_email_domain,
+    email_domain_rule, email_rule, everyone_rule, rule_email, rule_email_domain, rule_is_everyone,
 };
 pub use analytics::{
     BreakdownRow, Bucket, DatasetLimits, HTTP_DATASET, LatencyRow, MAX_ZONES_PER_QUERY, Part,

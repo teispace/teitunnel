@@ -52,7 +52,9 @@
     "login": {
       "toggle": "Require a login",
       "label": "Who can sign in",
-      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free)."
+      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free).",
+      "skip": "Paths that skip the login",
+      "skipHelp": "For webhooks and other machines that can't log in, e.g. /webhooks. Anyone can reach these paths."
     },
     "nothingToChange": "Nothing to change: it's already set up.",
     "reading": "Reading your Cloudflare account…",
@@ -208,7 +210,8 @@
       "dnsOk@linux": "Points to this computer's tunnel",
       "remote@windows": "The service isn't on this PC",
       "remote@linux": "The service isn't on this computer",
-      "balancing": "Load balancing"
+      "balancing": "Load balancing",
+      "skipLogin": "No login on"
     },
     "pause": {
       "title": "Pause and Schedule",
@@ -1808,7 +1811,9 @@
       "accessRule": {
         "empty": "Add at least one email address or email domain.",
         "email": "{value} isn't an email address.",
-        "domain": "{value} isn't an email domain, like teispace.com."
+        "domain": "{value} isn't an email domain, like teispace.com.",
+        "bypassPath": "“{value}” can't skip the login: use a plain path, such as /webhooks.",
+        "tooManyBypass": "At most {count} paths can skip the login."
       },
       "accessDomain": {
         "pathPattern": "A login can only protect a plain path like /admin, not the pattern {pattern}. Remove the path, or protect the whole hostname."
@@ -2007,7 +2012,9 @@
         "createLoadBalancer": "Load balance {hostname} across its tunnels",
         "deleteLoadBalancer": "Stop load balancing {hostname}",
         "deleteLbPool": "Delete the pool “{name}”",
-        "deleteLbMonitor": "Delete the health check"
+        "deleteLbMonitor": "Delete the health check",
+        "createAccessBypass": "Let everyone reach {domain} without a login (webhooks)",
+        "deleteAccessBypass": "Require the login again for {domain}"
       }
     },
     "activity": {
@@ -2017,7 +2024,8 @@
         "loginRequired": "login required: {people}",
         "routedTo": "routed to tunnel “{tunnel}”",
         "endpoints_one": "load balanced across {count} tunnel",
-        "endpoints_other": "load balanced across {count} tunnels"
+        "endpoints_other": "load balanced across {count} tunnels",
+        "loginBypassed": "no login (webhooks)"
       }
     },
     "apply": {
@@ -2044,7 +2052,9 @@
         "deleteLoadBalancer": "A load balancer for {hostname} was created and is still there",
         "recreateLoadBalancer": "The load balancer for {hostname} wasn't put back",
         "recreateLbPool": "The load-balancing pool “{name}” wasn't put back",
-        "recreateLbMonitor": "The health check wasn't put back"
+        "recreateLbMonitor": "The health check wasn't put back",
+        "deleteAccessBypass": "{domain} was opened without a login and still is",
+        "recreateAccessBypass": "{domain} needs the login again: it was opened without one before"
       },
       "lbNotCreated": "The load-balancing pool or health check wasn't created."
     },
@@ -2802,7 +2812,8 @@
       "noteTemporary": "A temporary share uses this hostname now.",
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
       "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
-      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
+      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs).",
+      "skipLoginNeedsLogin": "skipLogin needs login: paths can only skip a login the route has."
     },
     "exposure": {
       "envFile": {

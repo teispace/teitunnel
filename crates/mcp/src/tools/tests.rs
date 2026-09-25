@@ -1313,6 +1313,7 @@ async fn edits_keep_what_they_dont_mention() {
     h.backend.lock().routes[0].access = Some(teitunnel_core::engine::AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
+        bypass: vec!["/webhooks".into()],
     });
     h.call(
         Mode::Full,
@@ -1979,9 +1980,13 @@ async fn pages_long_lists() {
 
 #[test]
 fn builds_login_rules_from_allow_lists() {
-    let rule =
-        super::access_rule(&["me@xyz.com".into(), "@team.io".into(), "corp.com".into()]).unwrap();
+    let rule = super::access_rule(
+        &["me@xyz.com".into(), "@team.io".into(), "corp.com".into()],
+        &["/webhooks".into()],
+    )
+    .unwrap();
     assert_eq!(rule.emails, ["me@xyz.com"]);
     assert_eq!(rule.email_domains, ["@team.io", "corp.com"]);
-    assert!(super::access_rule(&[]).is_none());
+    assert_eq!(rule.bypass, ["/webhooks"]);
+    assert!(super::access_rule(&[], &["/webhooks".into()]).is_none());
 }

@@ -1007,8 +1007,14 @@ impl Step {
             Self::StopConnector { .. } => m::stop_connector(),
             Self::DeleteTunnel { .. } => m::delete_tunnel(tunnel_name),
             Self::AddLoginMethod => m::add_login_method(),
+            Self::CreateAccessApp { app } if super::access::is_bypass(app) => {
+                m::create_access_bypass(&app.domain)
+            }
             Self::CreateAccessApp { app } => m::create_access_app(&app.domain, people(app)),
             Self::UpdateAccessApp { app, .. } => m::update_access_app(people(app), &app.domain),
+            Self::DeleteAccessApp { previous, .. } if super::access::is_bypass(previous) => {
+                m::delete_access_bypass(&previous.domain)
+            }
             Self::DeleteAccessApp { previous, .. } => m::delete_access_app(&previous.domain),
             Self::CreateNetworkRoute { network, .. } => {
                 m::create_network_route(network, tunnel_name)
