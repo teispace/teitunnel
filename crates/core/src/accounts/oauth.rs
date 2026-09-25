@@ -28,15 +28,13 @@ pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 /// A client id isn't a secret: PKCE protects the flow.
 const CLIENT_ID: Option<&str> = Some("57fe3059e8fc6db30d9e3e07e50e94ea");
 
-/// Scopes requested at sign-in, as Cloudflare names them (the client's scope list). The
-/// first four are required by the client; the rest are optional, so people can decline
-/// them on Cloudflare's consent screen and capability probing shows what's missing.
+/// Scopes requested at sign-in, as Cloudflare names them (the client's scope list,
+/// checked 2026-09-25). The first four are required by the client; the rest are
+/// optional, so one consent screen covers every feature, people can decline any of them,
+/// and capability probing shows what's missing with an in-place fix.
 ///
-/// Only scopes registered on the client are asked for: an unregistered one would fail
-/// the sign-in. Features added since registration (Snapshots and offline pages: Workers
-/// Scripts and Routes; Analytics; WAF, Transform Rules and Access service tokens; D1)
-/// are offered once they're added to the client as optional scopes; until then an OAuth
-/// sign-in lacks them and the capability probe says how to add an API token for them.
+/// Only scopes registered on the client may be asked for: an unregistered one fails the
+/// sign-in.
 const SCOPES: &[&str] = &[
     // Required: tunnels, route DNS records, domains, and finding the accounts.
     "argotunnel.write",
@@ -45,9 +43,26 @@ const SCOPES: &[&str] = &[
     "account-settings.read",
     // A refresh token, so the sign-in lasts.
     "offline_access",
-    // Optional: require a login (Access apps; login methods and team domain).
-    "zone-access.write",
+    // Optional: require a login. Access apps and policies live on the account
+    // (`access-app`, `access-policy`); login methods and the team domain are
+    // `access-acct`; `zone-access` covers zone-level apps.
+    "access-app.write",
+    "access-policy.write",
     "access-acct.write",
+    "zone-access.write",
+    // Optional: edge protection (custom and rate limiting rules, header rules, service
+    // tokens).
+    "zone-waf.write",
+    "zone-transform-rules.write",
+    "access-service-token.write",
+    // Optional: Snapshots and offline pages (Workers and their routes), comments and
+    // webhook inboxes (D1).
+    "workers-scripts.write",
+    "workers-routes.write",
+    "d1.write",
+    // Optional: traffic charts.
+    "analytics.read",
+    "account-analytics.read",
     // Optional: private networks, and the Doctor's WARP checks (read only).
     "teams-networks.write",
     "teams.read",
