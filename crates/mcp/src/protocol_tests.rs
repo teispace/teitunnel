@@ -360,7 +360,7 @@ async fn serves_resources_and_prompts() {
             .is_err()
     );
     let prompts = c.client.list_all_prompts().await.unwrap();
-    assert_eq!(prompts.len(), 4);
+    assert_eq!(prompts.len(), 5);
     let mut args = serde_json::Map::new();
     args.insert("path".into(), "/webhooks/stripe".into());
     let prompt = c

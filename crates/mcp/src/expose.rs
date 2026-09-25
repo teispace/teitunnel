@@ -357,7 +357,7 @@ impl ToolProvider for ExposeTools {
         vec![spec::<ExposeArgs, ExposeOut>(
             "expose_mcp_server",
             "Put a local MCP server online",
-            "Share an MCP server running on this machine at a hostname on the person's domain, so remote AI clients can use it: Teitunnel checks it answers MCP (Streamable HTTP `initialize`, or SSE), shares it through this machine's tunnel (not a Quick Share: those can't carry event streams), keeps streams alive past Cloudflare's 100-second idle limit, and requires a bearer token. Returns the URL and ready configurations for Claude Code, Cursor and VS Code. The token itself stays with the person (`teitunnel token <hostname>`) unless this server allows secrets.\n\
+            "Share an MCP server running on this machine at a hostname on the person's domain, so remote AI clients can use it: Teitunnel checks it answers MCP (Streamable HTTP `initialize`, or SSE), shares it through this machine's tunnel (not a Quick Share: those can't carry event streams), keeps streams alive past Cloudflare's 100-second idle limit, and requires a bearer token or, for claude.ai, ChatGPT and other remote clients, an OAuth sign-in the person approves in Teitunnel. Returns the URL and ready configurations for Claude Code, Cursor and VS Code. The token itself stays with the person (`teitunnel token <hostname>`) unless this server allows secrets.\n\
              \n\
              Example: {\"origin\": \"8000\", \"hostname\": \"mcp.teispace.com\"}",
             ToolClass::Change,
@@ -483,6 +483,59 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(allowed.status(), 200);
+        inspector.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn remote_clients_sign_in_with_oauth_when_it_is_on() {
+        struct Nobody;
+        impl teitunnel_core::mcp_auth::Approver for Nobody {
+            fn approve(
+                &self,
+                _: teitunnel_core::mcp_auth::ConsentRequest,
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
+                Box::pin(async { false })
+            }
+        }
+        let port = mcp_server().await;
+        let backend = FakeBackend::new();
+        let inspector = Inspector::new(None, Some(Arc::new(MemoryStore::default())), "app");
+        let auth = McpAuth::open(
+            teitunnel_core::store::Store::open_in_memory().unwrap(),
+            Arc::new(Nobody),
+        )
+        .await
+        .unwrap();
+        let tools = ExposeTools::new(backend, inspector.clone()).with_oauth(auth);
+        let ctx = ToolContext::detached(settings(Mode::Full), actor());
+        let out = tools
+            .call(
+                "expose_mcp_server",
+                args(&serde_json::json!({ "origin": port.to_string(), "hostname": "mcp.xyz.com" })),
+                &ctx,
+            )
+            .await
+            .unwrap()
+            .structured;
+        assert!(out["message"].as_str().unwrap().contains("OAuth"), "{out}");
+        assert!(
+            out["notes"][1]
+                .as_str()
+                .unwrap()
+                .contains("approve it in Teitunnel")
+        );
+        let tap = inspector.taps().pop().unwrap();
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let refused = client
+            .post(format!("{}/mcp", tap.address))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(refused.status(), 401);
+        assert_eq!(
+            refused.headers()["www-authenticate"],
+            "Bearer resource_metadata=\"https://mcp.xyz.com/.well-known/oauth-protected-resource\""
+        );
         inspector.shutdown().await;
     }
 

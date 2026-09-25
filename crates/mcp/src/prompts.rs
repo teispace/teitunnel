@@ -52,6 +52,15 @@ pub(crate) fn list() -> Vec<Prompt> {
             ]),
         )
         .with_title("Move my routes to a server"),
+        Prompt::new(
+            "test_resilience",
+            Some("Test how my app copes with failures, slow networks or a service that's down."),
+            Some(vec![
+                arg("port", "The port of the app (found automatically if omitted).", false),
+                arg("path", "The endpoint to test, e.g. /api/pay (default: every path).", false),
+            ]),
+        )
+        .with_title("Test how my app copes"),
     ]
 }
 
@@ -153,6 +162,23 @@ pub(crate) fn get(
                 approval_note(mode)
             )
         }
+        "test_resilience" => {
+            let port = value(arguments, "port")
+                .unwrap_or_else(|| "the app (list_local_services finds it)".into());
+            let path = value(arguments, "path").unwrap_or_else(|| "/*".into());
+            format!(
+                "Test how my app copes when things go wrong.\n\n\
+                 1. Share {port} with share_port if it isn't shared yet (list_shares), and note its URL.\n\
+                 2. With configure_inspection on that URL, try one thing at a time, and after each ask me to use the app (or call it yourself) and watch traffic_list / traffic_stats:\n\
+                    a. faults: [{{\"path\": \"{path}\", \"percent\": 30, \"kind\": \"status\", \"status\": 503}}]: does it retry, show a useful error, avoid a half-done state?\n\
+                    b. faults with kind timeout (ms 10000) and kind reset: does it give up gracefully?\n\
+                    c. network 3g, then satellite: is it still usable, do loading states show?\n\
+                    d. stubs with when: always for an endpoint it depends on, returning an empty or error body: does the UI handle it?\n\
+                 3. Tell me what broke and suggest fixes in the code.\n\
+                 4. Put it back: configure_inspection with faults [], stubs [] and network off.\n\n{}",
+                approval_note(mode)
+            )
+        }
         other => {
             return Err(McpError::invalid_params(
                 format!("No prompt {other}."),
@@ -190,6 +216,9 @@ mod tests {
             "hostname is required"
         );
         assert!(get("nope", None, Mode::Ask).is_err());
+        let resilience = get("test_resilience", None, Mode::Full).unwrap();
+        let text = serde_json::to_string(&resilience.messages).unwrap();
+        assert!(text.contains("configure_inspection") && text.contains("/*"));
         for prompt in list() {
             let mut args = JsonObject::new();
             args.insert("hostname".into(), "a.xyz.com".into());

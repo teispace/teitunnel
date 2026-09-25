@@ -313,6 +313,9 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
             }
             None => ExposeTools::new(Arc::clone(&backend), inspector.clone()),
         }))
+        .provider(Arc::new(teitunnel_mcp::InspectionTools::new(
+            inspector.clone(),
+        )))
         .approver(teitunnel_mcp::AppApprover::new(app.dir(), settings.mode))
         .build();
     status(&format!(

@@ -77,13 +77,14 @@ one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio se
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
 | `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares and its recent history: list, inspect, replay, wait for the next one (for webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. |
 | `traffic_openapi` | An OpenAPI 3.1 description of the API the captured requests show ([OpenAPI from traffic](/docs/guides/openapi)). |
-| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`). |
+| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token or, for claude.ai and ChatGPT, an OAuth sign-in you approve in Teitunnel, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`). |
+| `inspection_settings`, `configure_inspection` | What the inspector does for the server's shares, and changing it to test how an app copes: mock responses (always, or only while the service is down), a share of requests failing (a status, a dropped connection, a delay, a timeout), a slow network (3G, 4G, satellite), header rules and CORS, watched paths, idle stop. On this computer only; your approval first in `ask` mode. |
 
 It also offers **resources** your tool can attach as context (`teitunnel://routes`,
 `teitunnel://shares`, `teitunnel://domains`, `teitunnel://issues`, `teitunnel://activity`,
 `teitunnel://route/{hostname}`, `teitunnel://logs/{tunnel}`) and **prompts**: *Put my dev
-server online*, *Debug a failing webhook*, *Why is my route down?* and *Move my routes to a
-server*.
+server online*, *Debug a failing webhook*, *Why is my route down?*, *Move my routes to a
+server* and *Test how my app copes*.
 
 ## Modes
 
