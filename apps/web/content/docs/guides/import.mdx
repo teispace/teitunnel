@@ -1,23 +1,138 @@
 ---
 title: Import an existing setup
-description: Move routes from a cloudflared config.yml (a locally-managed tunnel) onto Teitunnel, previewed and reversible.
+description: "Move the routes of a cloudflared config.yml (a locally-managed tunnel) onto Teitunnel: where it looks, what can be imported, the plan you review, what happens to the old tunnel and its DNS records, and how to switch back."
 ---
 
-If you already run cloudflared with a `config.yml` (a *locally-managed* tunnel),
-Teitunnel can bring its routes over.
+If you already run cloudflared with a `config.yml` (a *locally-managed* tunnel, set up with
+`cloudflared tunnel create` and `cloudflared tunnel route dns`), Teitunnel can bring its
+routes over, so you manage them in one place with previews, checks and the Doctor. The
+import is a normal [reviewed change](/docs/concepts/changes), and your files and the old
+tunnel are left as they are, so you can switch back.
 
-1. In **Routes**, choose **Import** in the toolbar. Teitunnel scans `~/.cloudflared` and
-   the usual system locations for config files and lists the routes it found.
-2. Pick the routes to import and **Review**. They're added to this machine's tunnel in one
-   change, previewed like any other. DNS records that point at the old tunnel weren't
-   created by Teitunnel, so repointing them needs your confirmation.
-3. **Apply**, and check the routes work.
+## What Teitunnel looks at
 
-Your config files and the old tunnel are left untouched, so you can switch back. Once
-you're happy, stop the old cloudflared yourself; Teitunnel lists it under
-**Tunnels ▸ Also on this machine** and can stop it for you.
+Teitunnel only reads; it never changes these files. It looks where cloudflared itself does:
+
+- `~/.cloudflared`, `~/.cloudflare-warp` and `~/cloudflare-warp`;
+- `/etc/cloudflared`, `/usr/local/etc/cloudflared` and Homebrew's
+  `/opt/homebrew/etc/cloudflared` (macOS and Linux);
+- `%SystemRoot%\System32\config\systemprofile\.cloudflared`, where the cloudflared Windows
+  service keeps its files;
+- the `--config` file of every cloudflared process running on this computer that Teitunnel
+  didn't start.
+
+It reads `config.yml`, `config.yaml` and any other `.yml`/`.yaml` file there that has routes
+(per-tunnel files), each once, and none over 1 MB. From a credentials file
+(`<tunnel-id>.json`) it reads only the account and tunnel ids, never the secret.
+
+## In the app
+
+<Steps>
+  <Step>
+    ### Open the import
+
+    In **Routes**, choose **Import from cloudflared** in the toolbar. The button appears when
+    Teitunnel found at least one route it knows how to import.
+  </Step>
+  <Step>
+    ### Pick the routes
+
+    The sheet lists each config file with its routes, as *hostname path → service*. Every
+    route that can be imported starts ticked; untick the ones to leave behind. Routes that
+    can't be imported are shown greyed out, with the reason (see
+    [below](#what-cant-be-imported)).
+  </Step>
+  <Step>
+    ### Review
+
+    Choose **Review**. Teitunnel plans one change, *Import 3 routes from cloudflared*: the
+    routes go onto this computer's tunnel (created first if you don't have one yet), and each
+    hostname's DNS record is pointed at it.
+
+    The records point at the old tunnel, and Teitunnel didn't create them, so the plan shows
+    each one (*… already has a DNS record (CNAME 6a1f….cfargotunnel.com) that Teitunnel
+    didn't create. It will be replaced.*) and asks you to tick **Replace the existing
+    records**.
+  </Step>
+  <Step>
+    ### Apply and check
+
+    Choose **Apply**. Each hostname is checked through Cloudflare's edge, like a new route.
+    If a step fails, everything is undone and the old setup keeps serving.
+  </Step>
+</Steps>
+
+The import is recorded in **Activity** under **Imports**.
 
 <Callout type="info">
-Routes with their own `originRequest` settings in `config.yml` aren't imported yet.
-They're listed with the reason, so you can add them by hand.
+Check each imported route's settings after importing: select it, choose **Edit route**, and
+look under **Advanced ▸ Origin settings**. An HTTPS service with a self-signed certificate,
+for example, needs **Accept self-signed certificates** (`noTLSVerify` in `config.yml`).
 </Callout>
+
+## What happens to the old setup
+
+- **Your files** (`config.yml`, the credentials file) are untouched.
+- **The old tunnel** stays in your Cloudflare account, and its cloudflared keeps running.
+  Since the DNS records now point at Teitunnel's tunnel, visitors reach this computer's
+  connector instead.
+- **cloudflared still running?** It shows under **Tunnels ▸ Also on this Mac** (*this PC* on
+  Windows, *this computer* on Linux), and the Doctor mentions it: *cloudflared is running
+  tunnel … outside Teitunnel*. Once you're happy, choose **Stop…** there. If it runs as a
+  background service (*It runs as a background service, which may start it again*), also
+  disable the service, for example `sudo cloudflared service uninstall`.
+- **Switching back:** remove the routes in Teitunnel (their DNS records are now Teitunnel's,
+  so they're removed too), then run `cloudflared tunnel route dns <tunnel> <hostname>` for
+  each hostname and start the old cloudflared again.
+- **Cleaning up for good:** when you no longer need the old tunnel, delete it with
+  `cloudflared tunnel delete <tunnel>` or in the Cloudflare dashboard.
+
+## What can't be imported
+
+Each route that can't be imported says why:
+
+| Reason shown | What to do |
+|---|---|
+| *Not in this account's domains* | The hostname belongs to another Cloudflare account. Switch accounts in the toolbar and import from there. |
+| *Already routed* | A route with this hostname and path exists in Teitunnel. |
+| *Wildcards are only supported as the first label* | Only `*.teispace.com`-style wildcards work. Add the route by hand with another name. |
+| *“…” isn't a service Teitunnel routes to* | The service isn't one of the kinds a route can point at. Add the route by hand. |
+| *It has settings Teitunnel can't carry over yet: access, bastionMode* | The rule has `originRequest` settings Teitunnel doesn't manage. Add the route by hand, then set those in the Cloudflare dashboard if you still need them. |
+
+Two notes can also appear for a whole file:
+
+- *This file has settings for all routes (originRequest). They aren't imported; check that
+  the routes work after importing.*
+- *Couldn't read it: …* or *It isn't valid YAML: …* when the file can't be read.
+
+Catch-all rules (the last `- service: http_status:404`) aren't routes and are skipped:
+Teitunnel always keeps its own catch-all last.
+
+## From a terminal
+
+There's no import command. To move a route by hand, add it with the same settings and
+confirm the record replacement:
+
+```sh
+teitunnel route add app.teispace.com https://localhost:8443 --no-tls-verify --replace
+```
+
+The [CLI reference](/docs/reference/cli) lists every origin setting as a flag. For a whole
+setup kept in a repository, a [project file](/docs/guides/project-file) is usually the
+better home.
+
+## Troubleshooting
+
+- **No Import button.** Teitunnel found no importable route: check that the config file is
+  in one of the folders above (or that its cloudflared is running) and has `hostname:` rules.
+- **Every route says *Not in this account's domains*.** Pick the account that holds the
+  domain in the toolbar.
+- **"Something changed in Cloudflare since you reviewed this change."** A record changed
+  while you were reviewing. Choose **Review Again**.
+
+## Related
+
+- [What is Cloudflare Tunnel?](/docs/concepts/cloudflare-tunnel#remotely-managed-and-locally-managed-tunnels)
+- [Export your setup](/docs/guides/export): the other direction.
+- [DNS ownership](/docs/concepts/dns-ownership)
+- [Several tunnels](/docs/guides/several-tunnels): run an existing remotely-managed tunnel here with **Run on This Mac…**.

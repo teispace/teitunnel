@@ -1,0 +1,172 @@
+---
+title: Glossary
+description: The words Teitunnel and Cloudflare Tunnel use — tunnel, connector, route, Quick Share, Snapshot, inspector, plan and apply, ownership, Access, Zero Trust, WARP, MCP and more — each with a link to its page.
+---
+
+The terms you'll meet in Teitunnel and its docs, in alphabetical order. Each links to the
+page that explains it.
+
+## A–C
+
+**Access** (Cloudflare Access). Cloudflare's login service, part of Zero Trust. Teitunnel
+uses it to put a login in front of a route, share or Snapshot, and for service tokens.
+[Require a login](/docs/guides/require-login)
+
+**Account.** A Cloudflare account connected to Teitunnel with Sign in with Cloudflare, an
+API token or a cloudflared login. One sign-in or token can connect several.
+[Accounts and permissions](/docs/guides/accounts)
+
+**Activity.** The record of every change Teitunnel made to your Cloudflare account, and who
+made it: you, a program or an AI agent.
+[How changes are made](/docs/concepts/changes#activity)
+
+**Always-on.** A run mode where this computer's connector runs as a system service, from
+login or boot, even when Teitunnel is closed. The switch is
+**Keep running when Teitunnel quits**. [Run modes](/docs/concepts/run-modes)
+
+**API token.** A credential you create in the Cloudflare dashboard with chosen permissions.
+One way to connect an account, and the way servers and CI use Teitunnel.
+[Accounts and permissions](/docs/guides/accounts#connect-an-account)
+
+**Apply.** Carrying out a reviewed plan on Cloudflare, step by step, rolling back if a step
+fails. [How changes are made](/docs/concepts/changes)
+
+**Backup.** An encrypted file with Teitunnel's setup, for moving to a new computer. It never
+holds a token or password. [Move to a new computer](/docs/guides/move-computer)
+
+**cloudflared.** Cloudflare's open-source connector program. Teitunnel installs, checks and
+runs it for you. [What is Cloudflare Tunnel?](/docs/concepts/cloudflare-tunnel)
+
+**Comments.** Notes reviewers pin to a page of a share or Snapshot, which you read and
+answer in Teitunnel. [Comments](/docs/guides/comments)
+
+**Connector.** A running `cloudflared` that holds a tunnel's connections to Cloudflare. A
+route answers only while a connector for its tunnel runs somewhere.
+[Routes and tunnels](/docs/concepts/routes-and-tunnels)
+
+**Control connection.** The private local channel through which the `teitunnel` command,
+editor extensions, launchers and `teitunnel://` links talk to the running app. Only your
+user can open it, and changes ask you first.
+[Links and integrations](/docs/guides/integrations#the-control-connection)
+
+## D–I
+
+**Doctor.** Teitunnel's checks for problems with cloudflared, accounts, DNS, connectors,
+private networks and local domains, each with a fix or guidance.
+[Doctor checks](/docs/reference/doctor)
+
+**Domain.** A domain on your Cloudflare account (Cloudflare calls it a zone), with its
+nameservers pointed at Cloudflare. Routes and shares on your domain live on one.
+[Put a service on your domain](/docs/getting-started/first-route)
+
+**Edge protection.** Cloudflare rules for one hostname, set up by Teitunnel: challenge or
+block bots and AI crawlers, rate limit visitors, set or remove headers.
+[Edge protection](/docs/guides/protection)
+
+**Exposure check.** A quick local look at a service before it's shared, for `.env` files,
+`.git`, debug pages and open admin tools. [Exposure check](/docs/guides/exposure-check)
+
+**Front Worker.** A Cloudflare Worker Teitunnel puts in front of a route's hostname: the
+offline page and the webhook inbox. It fails open, so the free daily limit can't take the
+site down. [Offline page](/docs/guides/offline-page)
+
+**Inbox** (webhook inbox). A front Worker that keeps webhooks sent while your computer is off
+and delivers them in order when it's back. [Webhook inbox](/docs/guides/webhook-inbox)
+
+**Inspector.** Teitunnel's view of every request to an inspected share or route, with
+replay, edit and export, credentials masked. [Inspector](/docs/guides/inspector)
+
+## L–P
+
+**Load balancing.** Several computers serving one hostname, with Cloudflare sending each
+visitor to a healthy one. A paid Cloudflare add-on. [Load balancing](/docs/guides/load-balancing)
+
+**Local domain.** A name such as `shop.test`, `app.localhost` or `name.local` that opens a
+local service over trusted HTTPS on your computer, with no Cloudflare account.
+[Local domains](/docs/guides/local-domains)
+
+**MCP** (Model Context Protocol). The standard AI agents use to call tools. Teitunnel's MCP
+server lets agents share services, manage routes through plans you approve, run the Doctor
+and read traffic. [AI agents](/docs/guides/ai-agents)
+
+**Offline page.** Your own page, shown by a front Worker instead of Cloudflare's error 1033
+while your computer is off. [Offline page](/docs/guides/offline-page)
+
+**Ownership.** Teitunnel's record of what it created on Cloudflare (DNS records, logins,
+rules, Workers). Only what it owns is ever changed or deleted without asking.
+[DNS ownership](/docs/concepts/dns-ownership)
+
+**Pause.** Taking a share or route on your domain offline while keeping its address and DNS
+record; visitors see a paused page until you resume it.
+[Pause and resume](/docs/guides/sharing#pause-and-resume)
+
+**Plan.** The list of steps a change will make on Cloudflare, shown before anything
+happens. Every change from the app, the command line, a project file or an agent is a
+plan first. [How changes are made](/docs/concepts/changes)
+
+**Private network.** A range of addresses on this computer's network that people signed in
+to your Zero Trust organization with WARP can reach through your tunnel.
+[Private networks](/docs/guides/private-networks)
+
+**Project file.** A `teitunnel.yml` in a repository that describes routes, shares,
+Snapshots and local domains, applied with `teitunnel up` or from the app.
+[Project files](/docs/guides/project-file)
+
+## Q–S
+
+**Quick Share.** A share of a local service or folder. By default at a random
+`trycloudflare.com` address through Cloudflare's Quick Tunnels, with no account; it can also
+go on your own domain. [Share a local service](/docs/getting-started/quick-share)
+
+**Reservation.** A hostname held for a teammate on a shared account: a placeholder DNS record
+with the holder's name and an end date. [Previews in CI and teams](/docs/guides/ci-previews#teams-sharing-one-account)
+
+**Route.** A hostname on your domain (optionally with a path) that sends visitors to a local
+service through a tunnel. It stays until you remove it.
+[Routes and tunnels](/docs/concepts/routes-and-tunnels)
+
+**Run token.** The secret a connector uses to run a tunnel. Kept in your keychain and never
+put on a command line. [Security](/docs/reference/security)
+
+**Schedule.** Days and hours when a share or route on your domain is online; outside them
+it's paused. [On a schedule](/docs/guides/sharing#on-a-schedule)
+
+**Service token.** A client id and secret that let a machine (CI, a script, a server)
+through a hostname's login. The secret is shown once and never stored.
+[Service tokens](/docs/guides/protection#service-tokens-for-machines)
+
+**Share on your domain.** A Quick Share at a hostname on your own domain instead of a
+random address: same URL every time, removed when the share stops.
+[On your own domain](/docs/getting-started/quick-share#on-your-own-domain)
+
+**Sign in with Cloudflare.** Connecting an account through Cloudflare's own sign-in and
+consent screen, with nothing to paste. [Accounts and permissions](/docs/guides/accounts#the-consent-screen)
+
+**Snapshot.** A static copy of a folder, build or running site, published to your
+Cloudflare account as a Worker, online while your computer sleeps.
+[Snapshots](/docs/guides/snapshots)
+
+## T–Z
+
+**Tap.** The inspector's local listener between cloudflared and your service. A share or
+route whose traffic goes through a tap is inspected, and can be paused or protected on this
+computer. [Inspector](/docs/guides/inspector)
+
+**`teitunnel`.** The command line tool that comes with the app, and runs on its own on
+servers and in Docker. Called `teitunnel-cli` before 0.2.0.
+[Command line](/docs/reference/cli)
+
+**Tunnel.** A named, long-lived connection point on your Cloudflare account that routes
+point at. Teitunnel creates one per computer and account, and more if you ask.
+[Routes and tunnels](/docs/concepts/routes-and-tunnels) · [Several tunnels](/docs/guides/several-tunnels)
+
+**Undo.** The opposite of a change that just applied, offered for a few seconds afterwards
+and carried out through the same plan and apply. A step that fails halfway is undone by
+itself. [How changes are made](/docs/concepts/changes#undo-after-it-worked)
+
+**WARP.** Cloudflare's device client. People signed in to your Zero Trust organization with
+WARP can reach private networks you share. [Private networks](/docs/guides/private-networks)
+
+**Zero Trust.** Cloudflare's product family for logins (Access), devices (WARP) and
+Gateway. Free for up to 50 users; an account sets it up once in the dashboard.
+[Set up Cloudflare Zero Trust](/docs/guides/accounts#set-up-cloudflare-zero-trust)

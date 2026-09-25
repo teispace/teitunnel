@@ -1,68 +1,100 @@
 ---
 title: SSH, RDP and databases through Cloudflare Tunnel
-description: Reach a machine's SSH, Remote Desktop or database from anywhere through Cloudflare Tunnel, with no inbound port open, and lock it down with Cloudflare Access.
+description: Reach a machine's SSH, Remote Desktop, file shares or database from anywhere through Cloudflare Tunnel, with no inbound port open, and lock it down with Cloudflare Access.
 ---
 
-A route doesn't have to be a website. It can carry SSH, Remote Desktop, or any TCP service
-such as Postgres, so you can reach a machine at home or in the office without opening port 22
-to the internet.
+A route doesn't have to be a website. It can carry SSH, Remote Desktop, SMB file shares or
+any TCP service such as Postgres, so you can reach a machine at home or in the office
+without opening port 22 to the internet. In this tutorial you make a machine reachable over
+SSH at `ssh.teispace.com`, behind a login only you can pass, and connect to it from a
+laptop.
+
+**You need:** Teitunnel on the machine you want to reach (the app, or the
+[CLI on a server](/docs/guides/servers)), a Cloudflare account with a domain, Cloudflare Zero
+Trust set up once for the login (free for up to 50 users), and `cloudflared` on the computer
+you connect from.
 
 ## 1. Add the route
 
-On the machine you want to reach, add a route with a non-HTTP origin:
+On the machine you want to reach, add a route with a non-HTTP origin and a login:
 
 ```sh
-teitunnel route add ssh.example.com ssh://localhost:22 --allow you@example.com
-teitunnel route add desktop.example.com rdp://localhost:3389 --allow you@example.com
-teitunnel route add db.example.com tcp://localhost:5432 --allow you@example.com
+teitunnel route add ssh.teispace.com ssh://localhost:22 --allow team@teispace.com
 ```
 
-In the app: **New Route**, service `ssh://localhost:22`, and under **Advanced** turn on
-**Require a login**. The `--allow` / login part is optional but strongly recommended: without
-it, anyone with cloudflared can reach the port (SSH still asks for your key or password).
+In the app: **Routes ▸ New route**, **Public hostname** `ssh` on `teispace.com`,
+**Service** `ssh://localhost:22`, then under **Advanced** turn on **Require a login** and add
+your address under **Who can sign in**. **Review**, then **Add Route**.
 
-<Callout>
-Keep the machine's routes running with **Keep running when Teitunnel quits**
-(`always-on on`), or you won't be able to reach it after a restart.
-</Callout>
+The login is optional but strongly recommended: without it, anyone with cloudflared can
+reach the port (SSH still asks for your key or password). With it, Cloudflare checks who you
+are before a single packet reaches the machine.
 
-## 2. Connect from your computer
+Other services work the same way:
 
-A browser can't open these routes. On the computer you connect *from*, install
+```sh
+teitunnel route add desktop.teispace.com rdp://localhost:3389 --allow team@teispace.com
+teitunnel route add files.teispace.com smb://localhost:445 --allow team@teispace.com
+teitunnel route add db.teispace.com tcp://localhost:5432 --allow team@teispace.com
+```
+
+## 2. Keep it running
+
+You can't reach the machine while its connector is down, so make it survive restarts:
+**Tunnels ▸ Keep running when Teitunnel quits** in the app, or on a server:
+
+```sh
+sudo -E teitunnel always-on on
+```
+
+## 3. Install cloudflared on the computer you connect from
+
+A browser can't open these routes. On your laptop, install
 [cloudflared](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)
 (`brew install cloudflared`, `winget install Cloudflare.cloudflared`, or your package
-manager). The route's details in Teitunnel show the exact commands for it.
+manager). The route's **Connect** section in Teitunnel shows the exact commands for it.
 
-<Tabs items={["SSH", "Remote Desktop", "Database or TCP"]}>
+## 4. Connect
+
+<Tabs items={["SSH", "Remote Desktop", "File shares (SMB)", "Database or TCP"]}>
   <Tab value="SSH">
     Once:
 
     ```sh
-    ssh -o ProxyCommand="cloudflared access ssh --hostname %h" you@ssh.example.com
+    ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.teispace.com
     ```
 
-    To make plain `ssh ssh.example.com` work, add this to `~/.ssh/config`:
+    To make plain `ssh ssh.teispace.com` work, add this to `~/.ssh/config`:
 
-    ```
-    Host ssh.example.com
+    ```text
+    Host ssh.teispace.com
       ProxyCommand cloudflared access ssh --hostname %h
     ```
 
-    With a login on the route, cloudflared opens your browser to sign in the first time and
-    remembers it for the session.
+    With a login on the route, cloudflared opens your browser to sign in the first time;
+    you get a one-time code by email.
   </Tab>
   <Tab value="Remote Desktop">
-    Start a local listener, then point your Remote Desktop client at it:
+    Start a local listener and keep it open, then point your Remote Desktop client at it:
 
     ```sh
-    cloudflared access rdp --hostname desktop.example.com --url rdp://localhost:3389
+    cloudflared access rdp --hostname desktop.teispace.com --url rdp://localhost:3389
     ```
 
     Connect to `localhost:3389` in Microsoft Remote Desktop (Windows App on macOS).
   </Tab>
+  <Tab value="File shares (SMB)">
+    Port 445 is taken on most computers, so the listener uses 8445:
+
+    ```sh
+    cloudflared access smb --hostname files.teispace.com --url localhost:8445
+    ```
+
+    Then open `smb://localhost:8445` in your file browser.
+  </Tab>
   <Tab value="Database or TCP">
     ```sh
-    cloudflared access tcp --hostname db.example.com --url localhost:5432
+    cloudflared access tcp --hostname db.teispace.com --url localhost:5432
     ```
 
     Then connect your client to `localhost:5432` as if the database were local
@@ -70,8 +102,46 @@ manager). The route's details in Teitunnel show the exact commands for it.
   </Tab>
 </Tabs>
 
+## 5. Let a machine through (optional)
+
+A CI job or a backup script can't sign in with an email code. Give it a
+[service token](/docs/guides/protection#service-tokens) instead:
+
+```sh
+teitunnel service-token create ssh.teispace.com --name backup   # prints both headers once
+```
+
+cloudflared sends them with `--service-token-id` and `--service-token-secret` (see
+Cloudflare's `cloudflared access` documentation).
+
 ## Many machines, or a whole network
 
 One route per service is right for a few machines. To reach many hosts and ports (every
 server in a rack, a NAS, printers), share a [private network](/docs/guides/private-networks)
 and connect with the Cloudflare WARP client instead: then `ssh 192.168.1.20` just works.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="websocket: bad handshake">
+The route isn't live, or the hostname isn't the one you routed. Check the route in
+Teitunnel (**Test**) and that the machine's connector runs.
+</Accordion>
+<Accordion title="The browser sign-in doesn't open">
+Run the command in a terminal on a desktop session, or sign in once with `cloudflared access
+login https://ssh.teispace.com`.
+</Accordion>
+<Accordion title="Connection refused after signing in">
+Nothing listens on the route's port on the machine (`ssh://localhost:22`). Check that the
+SSH server runs there.
+</Accordion>
+</Accordions>
+
+## Where to go next
+
+<Cards>
+  <Card title="Private networks" href="/docs/guides/private-networks" description="Every host and port through WARP." />
+  <Card title="Require a login" href="/docs/guides/require-login" description="Who can sign in, and how." />
+  <Card title="Self-host from home" href="/docs/tutorials/self-host" description="Publish web apps from the same machine." />
+  <Card title="Servers and containers" href="/docs/guides/servers" description="Run it headless." />
+</Cards>

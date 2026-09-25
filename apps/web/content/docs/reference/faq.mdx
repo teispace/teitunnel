@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Common questions about Teitunnel and Cloudflare Tunnel — price, accounts, platforms, security, cloudflared, ngrok, and what happens when you quit.
+description: Common questions about Teitunnel and Cloudflare Tunnel — price, Cloudflare accounts and permissions, platforms, privacy, security, AI agents, cloudflared, and what happens when you quit.
 ---
 
 ## The basics
@@ -10,27 +10,80 @@ description: Common questions about Teitunnel and Cloudflare Tunnel — price, a
     A free, open-source app for [Cloudflare Tunnel](/docs/concepts/cloudflare-tunnel). It
     shares anything running on your computer at a public URL, publishes your apps on your own
     domains with DNS handled for you, and keeps them running, without port forwarding or
-    editing cloudflared config files. There's a desktop app for macOS, Windows and Linux, and a
-    CLI and Docker image for servers.
+    editing cloudflared config files. It also inspects traffic, publishes static
+    [Snapshots](/docs/guides/snapshots), protects hostnames at Cloudflare's edge and serves
+    [local HTTPS domains](/docs/guides/local-domains). There's a desktop app for macOS,
+    Windows and Linux, and the `teitunnel` command and a Docker image for servers.
   </Accordion>
   <Accordion title="Is Teitunnel made by Cloudflare?">
     No. It's an independent open-source project (MIT) by Teispace that uses Cloudflare's
     public API and runs Cloudflare's open-source `cloudflared` connector.
   </Accordion>
-  <Accordion title="Does it cost anything?">
-    Teitunnel is free. Cloudflare Tunnel is available on Cloudflare's free plan, and Quick
-    Shares need no account at all. Some Cloudflare features Teitunnel can set up are paid
-    add-ons, such as Load Balancing; Cloudflare Zero Trust (logins) is free up to 50 users.
-  </Accordion>
   <Accordion title="Which systems does it run on?">
     macOS 14 or later (Apple silicon and Intel), Windows 10 and 11 (x64 and Arm), and Linux
-    with WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 40 or later; x64 and Arm64). The CLI
-    runs on the same systems plus any Linux server, and in Docker.
+    with WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 40 or later; x64 and Arm64). The
+    `teitunnel` command runs on the same systems plus any Linux server, and in Docker. See
+    [Install](/docs/getting-started/install).
   </Accordion>
+  <Accordion title="What's new in 0.2.0?">
+    Sign in with Cloudflare, the inspector, Snapshots, comments, an offline page and webhook
+    inbox, edge protection, local HTTPS domains, project files, AI agents and more. See
+    [What's new in 0.2.0](/docs/getting-started/whats-new). If you're on 0.1.x, update
+    before 5 October 2026, when Cloudflare changes how it reports tunnel connections.
+  </Accordion>
+</Accordions>
+
+## Cost
+
+<Accordions type="multiple">
+  <Accordion title="Does Teitunnel cost anything?">
+    No. Teitunnel is free and open source, with no paid tier, no Teispace account and no
+    usage limits of its own.
+  </Accordion>
+  <Accordion title="Do I need a paid Cloudflare plan?">
+    Usually not. Cloudflare Tunnel, DNS, Quick Shares, Workers (Snapshots, the offline page,
+    the webhook inbox), D1 (comments) and Zero Trust logins (up to 50 users) are all on
+    Cloudflare's free plans, within their limits. A few things need a paid plan: Load
+    Balancing is a paid add-on, and rate limiting one hostname needs the Pro plan or higher.
+    See [Limits and costs](/docs/reference/limits).
+  </Accordion>
+  <Accordion title="Can Teitunnel run up a bill on my Cloudflare account?">
+    Teitunnel only adds things you asked for, and the plan says when a change uses a
+    metered product. The Workers it creates for the offline page and webhook inbox fail
+    open: past the free daily requests, traffic goes straight to your tunnel instead of
+    failing or being billed. Paid products (Load Balancing, a paid Workers plan) only cost
+    money if you turned them on in Cloudflare.
+  </Accordion>
+</Accordions>
+
+## Accounts
+
+<Accordions type="multiple">
   <Accordion title="Do I need a Cloudflare account or a domain?">
-    Not for [Quick Share](/docs/getting-started/quick-share). For routes on your own
-    hostnames you need a free Cloudflare account and a domain whose nameservers point to
-    Cloudflare.
+    Not for [Quick Share](/docs/getting-started/quick-share) or
+    [local domains](/docs/guides/local-domains). For routes on your own hostnames you need a
+    free Cloudflare account and a domain whose nameservers point to Cloudflare.
+  </Accordion>
+  <Accordion title="Sign in with Cloudflare or an API token?">
+    On a desktop, **Sign in with Cloudflare** is quickest: one consent screen, nothing to
+    paste. Use an **API token** to limit Teitunnel to some accounts or domains, and on
+    servers and in CI. See [Accounts and permissions](/docs/guides/accounts#which-one-to-use).
+  </Accordion>
+  <Accordion title="Why does Teitunnel ask for so many permissions?">
+    So each feature works when you first use it. Only four are needed for routes (tunnels,
+    DNS, listing domains, the account's name); the rest belong to optional features such as
+    logins, Snapshots or edge protection. You can decline them on the consent screen or
+    leave them out of the token, and add them later from the feature that needs them. The
+    full list is in [Accounts and permissions](/docs/guides/accounts#every-permission-and-what-needs-it).
+  </Accordion>
+  <Accordion title="Can I use several Cloudflare accounts?">
+    Yes. Connect as many as you like; views that work on one account get an **Account**
+    menu, and the command line takes `--account`.
+  </Accordion>
+  <Accordion title="Can a team share one Cloudflare account?">
+    Yes. Each computer gets its own tunnel, DNS records say which machine and person they
+    belong to, and hostnames can be [reserved](/docs/guides/ci-previews#teams-sharing-one-account)
+    so teammates see who holds a name.
   </Accordion>
 </Accordions>
 
@@ -40,7 +93,8 @@ description: Common questions about Teitunnel and Cloudflare Tunnel — price, a
   <Accordion title="What happens to my routes when I quit?">
     They stop, unless you've turned on [Always-on](/docs/concepts/run-modes). Quitting with
     routes running asks first and offers to switch them. Closing the window doesn't quit:
-    Teitunnel keeps running in the menu bar or tray.
+    Teitunnel keeps running in the menu bar or tray. To show visitors your own page while
+    your computer is off, add an [offline page](/docs/guides/offline-page).
   </Accordion>
   <Accordion title="Can I still use cloudflared from the command line?">
     Yes. Teitunnel works with the Cloudflare API and its own connector, and lists other
@@ -59,19 +113,49 @@ description: Common questions about Teitunnel and Cloudflare Tunnel — price, a
     the route) and it goes live; nothing else needs to change.
   </Accordion>
   <Accordion title="Can I share a dev server like Vite or Next.js?">
-    Yes, and Teitunnel finds them for you. Dev servers may block unknown hostnames; see
-    [dev servers](/docs/tutorials/dev-servers) for the one-line fixes.
+    Yes, and Teitunnel finds them for you. Dev servers may block unknown hostnames;
+    Teitunnel recognises that and offers the fix in place. See
+    [dev servers](/docs/tutorials/dev-servers).
+  </Accordion>
+  <Accordion title="Why does streaming or my MCP server not work on a Quick Share?">
+    Cloudflare's Quick Tunnels don't carry Server-Sent Events. Share on your own domain
+    instead (`teitunnel share 3000 --on demo.teispace.com`). See
+    [Limits and costs](/docs/reference/limits#quick-shares).
   </Accordion>
   <Accordion title="Does it work behind CGNAT, a corporate firewall or on mobile data?">
     Usually yes: cloudflared only makes outbound connections to Cloudflare (port 7844, UDP or
     TCP), so no inbound port or public IP is needed. Very strict firewalls that block port 7844
     need it allowed.
   </Accordion>
-  <Accordion title="How is it different from ngrok?">
-    Teitunnel runs on Cloudflare's network with your own Cloudflare account: your domains,
-    your DNS, Cloudflare Access for logins, and no separate subscription for custom domains.
-    See [expose localhost](/docs/tutorials/expose-localhost#coming-from-ngrok) and the
-    [comparison](/docs/concepts/compare).
+  <Accordion title="Where's the teitunnel command?">
+    It comes with the app. The Windows installer and the Linux packages put it on your PATH;
+    on macOS and with the AppImage, Teitunnel offers it once, and
+    **Settings ▸ General ▸ Command line** adds it any time. It was called `teitunnel-cli`
+    before 0.2.0. See [the teitunnel command](/docs/getting-started/install#the-teitunnel-command).
+  </Accordion>
+</Accordions>
+
+## AI agents
+
+<Accordions type="multiple">
+  <Accordion title="Can AI coding agents use Teitunnel?">
+    Yes. Teitunnel has an MCP server that agents such as Claude Code, Cursor, VS Code and
+    Codex use to share services, add routes, run the Doctor and read captured traffic.
+    Connect a tool in **Settings ▸ AI Tools** or with `teitunnel mcp install`. See
+    [AI agents](/docs/guides/ai-agents).
+  </Accordion>
+  <Accordion title="Can an agent change my account without asking?">
+    Not by default. Every change is a plan, and in the default **ask** mode you approve it,
+    in a native dialog when the app runs. **read-only** mode lets an agent look but not
+    change anything. Replacing or deleting DNS records Teitunnel didn't create needs your
+    confirmation in every mode, and every agent change is recorded in **Activity** with
+    the agent's name.
+  </Accordion>
+  <Accordion title="Does the agent see my Cloudflare token or my traffic's secrets?">
+    No. Agents never get account credentials, and captured cookies, `Authorization` and
+    API-key headers are masked in what they read, unless you start the server with
+    `--allow-secrets`. Teitunnel doesn't run a model of its own and sends nothing to any AI
+    service; your agent talks to Teitunnel on your computer.
   </Accordion>
 </Accordions>
 
@@ -80,22 +164,32 @@ description: Common questions about Teitunnel and Cloudflare Tunnel — price, a
 <Accordions type="multiple">
   <Accordion title="Where are my credentials kept?">
     In your system's keychain (Keychain on macOS, Credential Manager on Windows, the Secret
-    Service on Linux), and only ever sent to Cloudflare. On a server, the API token comes from
-    the environment for each command and is never written to disk. See
-    [security](/docs/reference/security).
+    Service on Linux), and only ever sent to Cloudflare. On a server, the API token can come
+    from the environment for each command and is never written to disk. See
+    [Security](/docs/reference/security).
   </Accordion>
   <Accordion title="Does Teitunnel collect data about me?">
     No. There's no telemetry, analytics or crash reporting, and no Teispace account. It talks
-    to Cloudflare to do what you ask, and to GitHub to fetch cloudflared and check for updates.
-    See [privacy](/privacy/).
+    to Cloudflare to do what you ask, and to GitHub to fetch cloudflared and check for updates;
+    an update check sends nothing about you. See [privacy](/privacy/).
   </Accordion>
-  <Accordion title="Windows says it protected my PC. Is Teitunnel safe to run?">
-    Windows Defender SmartScreen warns about apps it hasn't seen often yet. Choose **More info ▸
-    Run anyway**. Every download is built from this repository by GitHub Actions and can be
-    [verified](/docs/reference/verify) against its checksum and build provenance.
+  <Accordion title="Where does captured traffic go?">
+    Nowhere. The inspector keeps requests on your computer, masked, for a day by default.
+    They leave it only when you export or copy them, or read them with `teitunnel traffic`
+    or an agent's traffic tools.
   </Accordion>
   <Accordion title="Can Teitunnel delete my DNS records?">
     Only records it created, which it marks. Replacing or deleting any other record is shown in
     the plan and needs your explicit confirmation. See [DNS ownership](/docs/concepts/dns-ownership).
+  </Accordion>
+  <Accordion title="Windows says it protected my PC. Is Teitunnel safe to run?">
+    Windows Defender SmartScreen warns about apps that aren't code-signed or that it hasn't
+    seen often yet. Choose **More info ▸ Run anyway**. Every download is built from the public
+    repository by GitHub Actions and can be [verified](/docs/reference/verify) against its
+    checksum and build provenance.
+  </Accordion>
+  <Accordion title="Is a Quick Share private?">
+    No. Anyone with the URL can open it. Use a timer, or put the service on your own domain
+    with a [login](/docs/guides/require-login) for anything private.
   </Accordion>
 </Accordions>

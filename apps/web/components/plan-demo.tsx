@@ -3,24 +3,39 @@
 import { Check, Circle, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// The steps as the app words them (locales/en.json, plan.step).
-const steps = [
+export interface PlanStep {
+  text: string;
+  detail: string;
+}
+
+// The steps as the app words them (locales/en.json, core.plan.step).
+const routeSteps: PlanStep[] = [
   { text: "Create tunnel “MacBook-Pro”", detail: "the first route in this account" },
   {
     text: "Update tunnel “MacBook-Pro” to serve 1 route",
-    detail: "app.example.com → http://localhost:3000",
+    detail: "app.teispace.com → http://localhost:3000",
   },
   {
-    text: "Add DNS record app.example.com → tunnel “MacBook-Pro”",
+    text: "Add DNS record app.teispace.com → tunnel “MacBook-Pro”",
     detail: "proxied CNAME to <id>.cfargotunnel.com",
   },
-  { text: "Check https://app.example.com works", detail: "through Cloudflare's edge" },
+  { text: "Check https://app.teispace.com works", detail: "through Cloudflare's edge" },
 ];
 
 type State = "waiting" | "working" | "done";
 
 /** A plan being applied, step by step, when it scrolls into view (all done with Reduce Motion). */
-export function PlanDemo() {
+export function PlanDemo({
+  title = "Add app.teispace.com",
+  steps = routeSteps,
+  done = "https://app.teispace.com works",
+  doneLabel = "Live",
+}: {
+  title?: string;
+  steps?: PlanStep[];
+  done?: string;
+  doneLabel?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   // Server HTML and no-JS show the finished plan.
@@ -33,7 +48,7 @@ export function PlanDemo() {
     for (let step = 1; step <= steps.length; step++) {
       timers.current.push(window.setTimeout(() => setProgress(step), 350 + step * 750));
     }
-  }, []);
+  }, [steps.length]);
 
   useEffect(() => {
     const element = ref.current;
@@ -61,14 +76,14 @@ export function PlanDemo() {
   return (
     <div
       ref={ref}
-      className="overflow-hidden rounded-2xl border border-fd-border bg-fd-card shadow-xl shadow-black/5 dark:shadow-black/30"
+      className="w-full min-w-0 overflow-hidden rounded-2xl border border-fd-border bg-fd-card shadow-xl shadow-black/5 dark:shadow-black/30"
     >
-      <div className="flex items-center justify-between border-b border-fd-border px-5 py-3">
-        <p className="text-sm font-medium">Add app.example.com</p>
+      <div className="flex items-center justify-between gap-3 border-b border-fd-border px-5 py-3">
+        <p className="min-w-0 truncate text-sm font-medium">{title}</p>
         <button
           type="button"
           onClick={play}
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-foreground"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-xs text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-foreground"
         >
           <RotateCcw className="size-3.5" aria-hidden /> Replay
         </button>
@@ -96,7 +111,7 @@ export function PlanDemo() {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm">{step.text}</span>
-                <span className="block font-mono text-xs text-fd-muted-foreground">
+                <span className="block break-words font-mono text-xs text-fd-muted-foreground">
                   {step.detail}
                 </span>
               </span>
@@ -110,12 +125,12 @@ export function PlanDemo() {
         style={{ opacity: finished ? 1 : 0.4 }}
       >
         <span
-          className={`size-2 rounded-full ${finished ? "tt-live-dot bg-[var(--tt-live)]" : "bg-fd-muted-foreground"}`}
+          className={`size-2 shrink-0 rounded-full ${finished ? "tt-live-dot bg-[var(--tt-live)]" : "bg-fd-muted-foreground"}`}
         />
         {finished ? (
-          <span>
-            <span className="font-medium">Live</span>
-            <span className="text-fd-muted-foreground"> · https://app.example.com works</span>
+          <span className="min-w-0 truncate">
+            <span className="font-medium">{doneLabel}</span>
+            <span className="text-fd-muted-foreground"> · {done}</span>
           </span>
         ) : (
           <span className="text-fd-muted-foreground">Applying…</span>

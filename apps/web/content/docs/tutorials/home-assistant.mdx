@@ -4,21 +4,23 @@ description: Reach Home Assistant from anywhere through Cloudflare Tunnel, witho
 ---
 
 Cloudflare Tunnel is a popular way to reach Home Assistant away from home: no port
-forwarding, no dynamic DNS, your home IP stays private, and it works behind CGNAT. With
-Teitunnel you set it up from a computer or server on the same network, and Home Assistant
-itself needs one small change.
+forwarding, no dynamic DNS, your home IP stays private, and it works behind CGNAT. In this
+tutorial you publish Home Assistant at `https://home.teispace.com` from a machine on your
+home network, set up the companion app, and optionally put a login in front. It takes about
+fifteen minutes.
 
 ## What you need
 
 - Home Assistant running on your network, for example at `http://192.168.1.50:8123`.
 - A computer or server on the same network that stays on: a Mac mini, a Linux box, a
   Raspberry Pi 4 or 5 (Arm64 builds are available), or the machine running Home Assistant.
-- A Cloudflare account with a domain ([before you start](/docs/getting-started/first-route#before-you-start)).
+- A Cloudflare account with a domain
+  ([before you start](/docs/getting-started/first-route#before-you-start)).
 
 ## 1. Trust the tunnel in Home Assistant
 
-Home Assistant refuses proxied requests (with *400: Bad Request*) unless it trusts the proxy.
-Add this to `configuration.yaml` and restart Home Assistant:
+Home Assistant refuses proxied requests (with *400: Bad Request*) unless it trusts the
+proxy. Add this to `configuration.yaml` and restart Home Assistant:
 
 ```yaml
 http:
@@ -29,55 +31,103 @@ http:
     - 192.168.1.20   # the machine running Teitunnel, if it's not Home Assistant's own
 ```
 
-Use the IP address of the machine where Teitunnel (and so cloudflared) runs. If it's the same
-machine as Home Assistant, the two loopback addresses are enough.
+Use the IP address of the machine where Teitunnel (and so cloudflared) runs. If it's the
+same machine as Home Assistant, the two loopback addresses are enough.
 
-## 2. Add the route
+## 2. Check the machine can reach Home Assistant
+
+On the machine that will run Teitunnel:
+
+```sh
+curl -I http://192.168.1.50:8123
+```
+
+You should get an HTTP answer. If not, fix that first (firewall, address, Home Assistant
+not running): the tunnel can only reach what this machine can.
+
+## 3. Add the route
 
 <Tabs items={["Desktop app", "Server (CLI)"]}>
   <Tab value="Desktop app">
-    In Teitunnel choose **Routes ▸ New Route**. Service: `http://192.168.1.50:8123`.
-    Hostname: `home` on `example.com`. **Review**, then **Apply**.
-
-    Then, in **Tunnels**, turn on **Keep running when Teitunnel quits** so it survives
-    restarts.
+    1. In **Routes**, choose **New route**.
+    2. **Public hostname:** `home` on `teispace.com`. **Service:** `http://192.168.1.50:8123`.
+    3. Choose **Review**, read the plan (a DNS record and the tunnel's configuration), then
+       **Add Route**.
+    4. In **Tunnels**, turn on **Keep running when Teitunnel quits**, so the route stays up
+       after you quit the app and starts again when you log in.
   </Tab>
   <Tab value="Server (CLI)">
     On a Linux machine on your network (see [servers](/docs/guides/servers)):
 
     ```sh
     export CLOUDFLARE_API_TOKEN=…
-    teitunnel route add home.example.com http://192.168.1.50:8123 --yes
-    sudo -E teitunnel always-on on
+    teitunnel route add home.teispace.com http://192.168.1.50:8123 --yes
+    sudo -E teitunnel always-on on     # a system service, started at boot
+    teitunnel routes                   # check it's live
     ```
+
+    Or run the [Docker image](/docs/tutorials/docker-compose) next to Home Assistant's
+    container.
   </Tab>
 </Tabs>
 
-Open `https://home.example.com` and sign in as usual.
+After applying, Teitunnel tests the route through Cloudflare like a visitor. Open
+`https://home.teispace.com` and sign in as usual.
 
-## 3. Use it in the companion app
+## 4. Use it in the companion app
 
 In the Home Assistant app on your phone: **Settings ▸ Companion app ▸ Server** and set the
-**External URL** to `https://home.example.com`. Keep the internal URL for when you're home.
+**External URL** to `https://home.teispace.com`. Keep the internal URL for when you're home.
 
-## Add a login in front (optional)
+## 5. Add a login in front (optional)
 
-For a second lock before Home Assistant's own sign-in, [require a login](/docs/guides/require-login)
-for the route and list your email address. Visitors then prove their email to Cloudflare
-first.
+For a second lock before Home Assistant's own sign-in, [require a
+login](/docs/guides/require-login): edit the route, open **Advanced**, turn on **Require a
+login** and list your email address under **Who can sign in**. Visitors then prove their
+email to Cloudflare first, and nothing reaches Home Assistant until they have.
+
+```sh
+teitunnel route add home-admin.teispace.com http://192.168.1.50:8123 --allow team@teispace.com
+```
 
 <Callout type="warn">
 The Home Assistant companion apps can't complete a Cloudflare Access sign-in by themselves.
-If you use them away from home, leave the login off, or use a separate hostname with the
-login for browsers only.
+If you use them away from home, leave the login off the hostname they use, and use a
+separate hostname with the login (like `home-admin.teispace.com` above) for browsers.
 </Callout>
+
+To slow down scripts probing your login page, [edge protection](/docs/guides/protection)
+can challenge automated clients on the hostname (**Automated clients ▸ Challenge**).
+It matches scripts, command-line tools and headless browsers by their user agent; check
+afterwards that the companion app still connects.
 
 ## Troubleshooting
 
-- **400: Bad Request:** the `trusted_proxies` list doesn't include the machine running the
-  tunnel. Check Home Assistant's log for the address it rejected.
-- **502 Bad Gateway:** the tunnel can't reach `192.168.1.50:8123`. Check the address from the
-  machine running Teitunnel, for example with `curl http://192.168.1.50:8123`.
-- **Disconnects every few minutes:** Home Assistant uses a WebSocket, which Cloudflare Tunnel
-  supports; drops usually mean the connector's network is unstable. The Doctor and
-  **Tunnels ▸ Logs** show connection changes.
+<Accordions>
+<Accordion title="400: Bad Request">
+The `trusted_proxies` list doesn't include the machine running the tunnel. Home Assistant's
+log shows the address it rejected; add it and restart.
+</Accordion>
+<Accordion title="502 Bad Gateway">
+The tunnel can't reach `192.168.1.50:8123`. Check the address from the machine running
+Teitunnel with `curl`, as in step 2.
+</Accordion>
+<Accordion title="Error 1033">
+The connector isn't running: the machine is off, asleep, or Teitunnel isn't running there.
+Turn on **Keep running when Teitunnel quits**, or use `always-on` on a server. An
+[offline page](/docs/guides/offline-page) can show your own message meanwhile.
+</Accordion>
+<Accordion title="Disconnects every few minutes">
+Home Assistant uses a WebSocket, which Cloudflare Tunnel supports; drops usually mean the
+connector's network is unstable. The Doctor and **Tunnels ▸ Logs** show connection changes.
+</Accordion>
+</Accordions>
+
+## Where to go next
+
+<Cards>
+  <Card title="Self-host from home" href="/docs/tutorials/self-host" description="Publish more apps the same way." />
+  <Card title="Private networks" href="/docs/guides/private-networks" description="Reach the whole home network with WARP." />
+  <Card title="Analytics" href="/docs/guides/analytics" description="Traffic and uptime per route." />
+  <Card title="Doctor checks" href="/docs/reference/doctor" description="What the Doctor looks for." />
+</Cards>

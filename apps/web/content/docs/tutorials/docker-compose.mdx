@@ -4,9 +4,27 @@ description: Add Teitunnel to a Docker Compose stack and route hostnames to the 
 ---
 
 Add one service to your Compose file and every container in the stack can have its own
-hostname, with DNS records made for you, without publishing a single port on the host.
+hostname, with DNS records made for you, without publishing a single port on the host. In
+this tutorial you put a web app and an API online at `app.teispace.com` and
+`api.teispace.com`, check their health, and add a web dashboard behind a login.
 
-## The Compose file
+**You need:** Docker with Compose, a Cloudflare account with a domain, and an API token.
+
+## 1. Create the API token
+
+In the Cloudflare dashboard, create a token (an account-owned token is best for servers)
+with **Account · Cloudflare Tunnel · Edit**, **Zone · DNS · Edit** and **Zone · Zone ·
+Read**; add the two **Access** permissions if you want logins. See
+[every permission](/docs/guides/accounts#every-permission-and-what-needs-it).
+
+Save it next to the Compose file, and keep it out of git:
+
+```sh
+printf '%s' 'your-token' > cloudflare_api_token
+echo cloudflare_api_token >> .gitignore
+```
+
+## 2. Add Teitunnel to the Compose file
 
 ```yaml title="compose.yaml"
 services:
@@ -17,7 +35,7 @@ services:
     image: ghcr.io/you/api:latest
 
   teitunnel:
-    image: teispace/teitunnel:latest
+    image: teispace/teitunnel:0.2
     environment:
       CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
     secrets: [cloudflare_api_token]
@@ -32,25 +50,37 @@ volumes:
   teitunnel:
 ```
 
-Put your Cloudflare API token in `./cloudflare_api_token` (and in `.gitignore`). Create it in
-the Cloudflare dashboard with **Account · Cloudflare Tunnel · Edit**, **Zone · DNS · Edit**
-and **Zone · Zone · Read**; see [accounts and permissions](/docs/guides/accounts#what-the-token-needs).
+The image (also at `ghcr.io/teispace/teitunnel`) has the `teitunnel` command and
+Cloudflare's own `cloudflared`, runs as a non-root user, and keeps its state in `/data`. The
+token is read from the secret for each command and never written to the volume. Pin a minor
+version (`:0.2`) so upgrades happen when you choose.
 
-## Add routes
+## 3. Add routes
 
 Start the stack, then add a route per service, pointing at the **service name** and its
 container port:
 
 ```sh
 docker compose up -d
-docker compose run --rm teitunnel route add app.example.com http://web:80 --yes
-docker compose run --rm teitunnel route add api.example.com http://api:8000 --yes
+docker compose run --rm teitunnel route add app.teispace.com http://web:80 --yes
+docker compose run --rm teitunnel route add api.teispace.com http://api:8000 --yes
 docker compose restart teitunnel
 ```
 
-The routes live in the `teitunnel` volume, so they survive restarts and upgrades. The
-container runs `teitunnel up` by default and its health check fails unless every route is
-live, so `docker compose ps` tells you when something's wrong.
+The first route creates the tunnel. The routes live in the `teitunnel` volume, so they
+survive restarts and upgrades. Leave out `--yes` to review each plan first.
+
+## 4. Check it
+
+```sh
+docker compose ps                                  # teitunnel shows (healthy)
+docker compose run --rm teitunnel routes           # every route and whether it's live
+docker compose run --rm teitunnel doctor           # problems, with fixes
+```
+
+The container runs `teitunnel up` by default, and its health check (`teitunnel routes
+--check`) fails unless every route is live, so `docker compose ps` tells you when something's
+wrong. Open `https://app.teispace.com`.
 
 ## Things that trip people up
 
@@ -62,8 +92,10 @@ live, so `docker compose ps` tells you when something's wrong.
   maps it to `18000` on the host.
 - **Different Compose projects:** the Teitunnel container must share a network with the
   service. Attach it to the other project's network with `networks:`.
+- **A route shows as down after `route add`:** restart the `teitunnel` container so its
+  connector picks up the new tunnel, as in step 3.
 
-## A web dashboard
+## 5. A web dashboard behind a login (optional)
 
 Run `serve` instead of `up` to add a small dashboard for routes and tunnels, and publish the
 dashboard through Teitunnel itself with a login:
@@ -71,7 +103,7 @@ dashboard through Teitunnel itself with a login:
 ```yaml
   teitunnel:
     # …as above
-    command: ["serve", "--listen", "0.0.0.0:8765", "--allow-remote"]
+    command: ["serve", "--listen", "0.0.0.0:8765", "--allow-remote", "--secure-cookies"]
 ```
 
 Set the dashboard password once (it's kept, hashed, in the `teitunnel` volume), then route a
@@ -80,12 +112,29 @@ hostname with a login to it:
 ```sh
 docker compose run --rm teitunnel serve --set-password
 docker compose up -d
-docker compose run --rm teitunnel route add admin.example.com http://teitunnel:8765 --allow you@example.com --yes
+docker compose run --rm teitunnel route add admin.teispace.com http://teitunnel:8765 \
+  --allow team@teispace.com --yes
 ```
 
-See [web dashboard and API](/docs/guides/servers#web-dashboard-and-api).
+`--allow-remote` lets `serve` listen beyond the container's loopback, where only the Compose
+network can reach it; visitors get HTTPS from Cloudflare, so `--secure-cookies` is right. The
+same port serves the [JSON API](/docs/reference/api) with API keys. See
+[web dashboard and API](/docs/guides/servers#web-dashboard-and-api).
 
-## Already have a cloudflared container?
+## From an existing setup
 
-Teitunnel can [export](/docs/guides/export) a machine's routes as a Compose service running
-plain `cloudflared`, if you'd rather not run Teitunnel in the stack.
+- A project file: put a [`teitunnel.yml`](/docs/guides/project-file) in the working
+  directory and `up` applies it first.
+- Rather not run Teitunnel in the stack? `teitunnel export docker-compose`
+  ([export](/docs/guides/export)) writes a Compose service running plain `cloudflared` for a
+  machine's tunnel; its routes stay in Cloudflare, and the run token goes in an `.env` file,
+  never in the export.
+
+## Where to go next
+
+<Cards>
+  <Card title="Servers and containers" href="/docs/guides/servers" description="Kubernetes, systemd and more." />
+  <Card title="Server API" href="/docs/reference/api" description="Automate routes from deploy scripts." />
+  <Card title="Self-host from home" href="/docs/tutorials/self-host" description="Publish apps from a home server." />
+  <Card title="Require a login" href="/docs/guides/require-login" description="Keep private apps private." />
+</Cards>

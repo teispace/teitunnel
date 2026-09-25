@@ -1,0 +1,153 @@
+---
+title: What's new in 0.2.0
+description: Everything Teitunnel 0.2.0 adds since 0.1.1, from Sign in with Cloudflare and the inspector to Snapshots, edge protection, local HTTPS domains and AI agents, and why 0.1.x users should update before 5 October 2026.
+---
+
+0.2.0 is the biggest release since the first beta: Teitunnel now inspects traffic,
+publishes static copies of sites, protects hostnames at Cloudflare's edge, serves local
+HTTPS domains and works with AI agents. This page groups what changed since 0.1.1, with a
+link to each guide.
+
+<Callout type="warn" title="Using 0.1.x? Update before 5 October 2026">
+  From **2026-10-05** Cloudflare's tunnel list stops including each tunnel's connections
+  ([Cloudflare's changelog](https://developers.cloudflare.com/changelog/post/2026-07-09-tunnel-routes-and-connections-api-changes/)).
+  0.2.0 reads them from Cloudflare's new connections endpoint, so the Tunnels view, the
+  machines running each tunnel, the Doctor and `teitunnel` keep working. 0.1.x would show
+  every tunnel as if no machine ran it. The app updates itself (**Restart to Update**); see
+  [Updates](/docs/getting-started/install#updates) for Homebrew, apt, dnf and Docker.
+</Callout>
+
+## Accounts
+
+- **Sign in with Cloudflare.** Connect an account with one consent screen instead of
+  creating an API token. Four scopes are required; the rest are optional, and anything you
+  decline is offered again, in place, when you use the feature that needs it.
+  [Accounts and permissions](/docs/guides/accounts)
+- **Fix it where you are.** A missing permission shows which dashboard permission to add
+  and why, and Teitunnel checks again when you come back. An account that has never used
+  Cloudflare Zero Trust gets a **Set up Cloudflare Zero Trust** card instead of an error.
+  [When a permission is missing](/docs/guides/accounts#when-a-permission-is-missing)
+- **One sign-in for the app, the command and agents.** They share one access token
+  through the keychain, so one of them refreshing can't sign the others out.
+- **Account-owned API tokens** (Cloudflare's recommendation for servers and CI) work.
+- The token link asks for the permissions of every new feature (Workers, D1, WAF,
+  Transform Rules, service tokens, analytics). [Every permission](/docs/guides/accounts#every-permission-and-what-needs-it)
+
+## The teitunnel command
+
+- **It's `teitunnel` now**, not `teitunnel-cli`, everywhere: the archives, Homebrew, the
+  Linux packages and the Docker image. Update scripts that call the old name.
+- **It comes with the app.** The Windows installer and the Linux packages put it on your
+  PATH; the macOS disk image and the AppImage offer it once, and
+  **Settings ▸ General ▸ Command line** manages it. [The teitunnel command](/docs/getting-started/install#the-teitunnel-command)
+- **It uses the running app** for `share`, `shares` and `routes`, so a share started in a
+  terminal shows up in the app and keeps running there. `--here` keeps it in the terminal.
+- **`teitunnel top`**, a live dashboard of shares, routes and requests, and
+  **`teitunnel status`**. Shell completions now complete your hostnames, tunnels, domains
+  and accounts. [Command line](/docs/reference/cli)
+
+## Sharing
+
+- **Dev servers just work.** Vite, webpack, Angular, Next.js, Rails and Django refusing an
+  unknown host is recognised, with a one-click fix. [Dev servers](/docs/tutorials/dev-servers)
+- **Pause and resume** a share or route on your domain: the address stays and visitors see
+  a paused page. **Schedules** keep one online only during set hours.
+  [Pause, schedule, name and share folders](/docs/guides/sharing)
+- **Stable and branch names** such as `{branch}.dev.teispace.com`, filled from your project.
+- **Share a folder** of files, with a listing or as a single-page app, without a server.
+- **The exposure check** looks for `.env` files, `.git`, debug pages and open admin tools
+  before anything goes public. [Exposure check](/docs/guides/exposure-check)
+- **One-click sharing** from the menu bar or tray, and an optional global shortcut.
+  [The menu bar and tray](/docs/guides/menu-bar)
+- Quick Shares ignore a leftover `~/.cloudflared/config.yml` that used to break them.
+
+## Inspect and debug
+
+- **The inspector** shows every request to a share or route: headers, bodies, timing.
+  Replay, edit, compare and export them (cURL, HAR and more), with credentials masked.
+  Quick Shares are inspected by default; a route when you choose to.
+  [Inspector](/docs/guides/inspector)
+- **OpenAPI from traffic**: an API description inferred from what the inspector saw.
+  [OpenAPI from traffic](/docs/guides/openapi)
+- **Analytics, uptime and alerts**: traffic per hostname from Cloudflare's edge, uptime
+  checked every minute, and alerts when a route goes down or slows.
+  [Analytics, uptime and alerts](/docs/guides/analytics)
+- **Share an MCP server or a local AI server** behind a bearer token
+  (`teitunnel share --mcp`, `--ai`). [Inspector](/docs/guides/inspector#put-an-mcp-server-or-a-local-ai-server-online)
+
+## Publish
+
+- **Snapshots**: a static copy of a folder, a build or a running site, published to your
+  own Cloudflare account, online while your computer sleeps. Versions, rollback, passwords
+  and logins. [Snapshots](/docs/guides/snapshots)
+- **Comments**: reviewers pin comments to a share or Snapshot; you answer from the app, the
+  terminal or an agent. [Comments](/docs/guides/comments)
+- **Offline page**: your own page instead of Cloudflare's error 1033 while your computer is
+  off. [Offline page](/docs/guides/offline-page)
+- **Webhook inbox**: webhooks sent while your computer is off are kept and delivered in
+  order when it's back. [Webhook inbox](/docs/guides/webhook-inbox)
+
+## Protect
+
+- **Edge protection** for one hostname: challenge or block bots and AI crawlers, rate
+  limit visitors, set or remove headers. Never applied to a whole domain.
+  [Edge protection](/docs/guides/protection)
+- **Service tokens** let CI, scripts and servers through a login. The secret is shown once
+  and never stored. [Service tokens](/docs/guides/protection#service-tokens-for-machines)
+
+## On your computer
+
+- **Local HTTPS domains**: `https://shop.test`, `app.localhost` or `name.local` for a local
+  service, with a certificate browsers trust, no Cloudflare account needed.
+  [Local domains](/docs/guides/local-domains)
+- **Move to a new computer** with an encrypted backup of your setup (never a token or
+  password). [Move to a new computer](/docs/guides/move-computer)
+- **Import finds every cloudflared setup**, including Windows service configs and files not
+  named `config.yml`. [Import](/docs/guides/import)
+
+## Automate and work as a team
+
+- **Project files**: a `teitunnel.yml` in your repository describes routes, shares,
+  Snapshots and local domains; `teitunnel up` applies it. [Project files](/docs/guides/project-file)
+- **Pull request previews** with a GitHub Action or GitLab CI template, and **hostname
+  reservations** so teammates sharing one account see who holds a name.
+  [Previews in CI and teams](/docs/guides/ci-previews)
+- **Links and integrations**: `teitunnel://` links, a local control connection, and
+  extensions for VS Code, Raycast and JetBrains IDEs. [Links and integrations](/docs/guides/integrations)
+
+## AI agents
+
+- **An MCP server** gives Claude Code, Cursor, VS Code, Codex and other agents Teitunnel's
+  abilities: share, add routes through reviewed plans, run the Doctor, read traffic.
+  **Settings ▸ AI Tools** connects them in one click, and `teitunnel mcp install` does it
+  from a terminal.
+- **You approve every change** in a native dialog when the app runs, and every agent
+  change is in Activity. Secrets never reach the agent. [AI agents](/docs/guides/ai-agents)
+
+## Under the hood
+
+- **Current Cloudflare API throughout**: tunnel connections from their own endpoint,
+  record type changes through Cloudflare's batch endpoint (pointing an existing A record at
+  a tunnel failed before), and Access applications with reusable policies.
+- **Actions stay busy until their result is on screen**, and every view shows a placeholder
+  while it loads, so a click never looks like it did nothing.
+- **Disconnecting an account leaves nothing behind**: its temporary shares end and
+  everything Teitunnel remembered about it is deleted.
+- **The window opens drawn**, and slow Cloudflare waits say what they're waiting for.
+
+The full list of changes is in the
+[release notes on GitHub](https://github.com/teispace/teitunnel/releases).
+
+## Related
+
+<Cards>
+  <Card title="Install or update" href="/docs/getting-started/install">
+    Every download, Homebrew, apt, dnf and Docker.
+  </Card>
+  <Card title="Limits and costs" href="/docs/reference/limits">
+    What's free on Cloudflare for each new feature.
+  </Card>
+  <Card title="Glossary" href="/docs/reference/glossary">
+    The words Teitunnel uses, in one place.
+  </Card>
+</Cards>

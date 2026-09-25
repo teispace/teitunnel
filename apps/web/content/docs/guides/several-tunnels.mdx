@@ -6,48 +6,118 @@ description: Run several Cloudflare tunnels on one machine to keep staging apart
 Every route normally goes on your machine's tunnel, which Teitunnel creates with the first
 route. You can give the machine more tunnels, for example to keep **staging** routes apart
 from **production**: each tunnel runs its own connector, so you can stop, restart or keep
-one running on its own.
+one running on its own, and each has its own logs and traffic.
 
-## Create a tunnel
-Open **Tunnels**, choose **New tunnel** (+) and give it a name. Names are unique in the
-Cloudflare account and appear in its dashboard. As with every change, you review the plan
-first; nothing starts running until the tunnel has a route.
+Use several tunnels when groups of routes should start and stop independently, or when one
+group should keep running after you quit the app and another shouldn't. For one hostname
+served by several machines, use [load balancing](/docs/guides/load-balancing) instead.
+
+## Create a tunnel in the app
+
+<Steps>
+<Step>
+Open **Tunnels** and choose **New tunnel** (+).
+</Step>
+<Step>
+Give it a **Name** (up to 64 characters, unique in the Cloudflare account; it's shown in the
+Cloudflare dashboard), for example `staging`.
+</Step>
+<Step>
+Review the plan and choose **Create Tunnel**. Nothing runs until the tunnel has a route.
+</Step>
+</Steps>
 
 ## Put routes on it
-With more than one tunnel, **New Route** has a **Tunnel** menu. It starts on the machine's
-default tunnel. The routes list then says which tunnel serves each route, and a route is
+
+With more than one tunnel, the **New Route** sheet has a **Tunnel** menu ("Which of this
+Mac's tunnels serves the route."). It starts on the machine's default tunnel. The routes
+list then says which tunnel serves each route (`→ localhost:4000 · staging`), and a route is
 only live when its own tunnel's connector is.
 
 A hostname is routed once per machine: Teitunnel refuses a route that another of your
-tunnels already serves, so the DNS record can only point one way.
+tunnels already serves ("beta.teispace.com is already routed on tunnel “staging”. Remove it
+there first, or edit it there."), so the DNS record can only point one way.
 
 ## Run and remove
-In **Tunnels**, each of your machine's tunnels has **Start/Stop Here**, **Keep running
-when Teitunnel quits** (Always-on), its own traffic and logs, and **Delete**. Deleting a
-tunnel removes its routes and the DNS records Teitunnel created for them; your other
-tunnels aren't touched. Private networks stay on the default tunnel.
 
-The Doctor checks each tunnel on its own, and its fixes apply to the tunnel the problem is
-on.
+In **Tunnels**, each of the machine's tunnels has:
+
+- **Stop on This Mac** / **Start on This Mac**;
+- **Keep running when Teitunnel quits** (Always-on): the connector runs as a service, and
+  routes stay up after you quit the app and start again when you log in;
+- its **Connectors**, **Logs** and details (routes, tunnel ID, when it was created);
+- **Delete…**.
+
+Deleting a tunnel removes its routes and the DNS records Teitunnel created for them; your
+other tunnels aren't touched. Private networks stay on the default tunnel.
+
+The [Doctor](/docs/reference/doctor) checks each tunnel on its own, and its fixes apply to
+the tunnel the problem is on.
 
 ## Run an existing tunnel here
+
 A tunnel made elsewhere in the account (in the dashboard, or by Teitunnel on another
-machine) can run on this machine too: select it in **Tunnels** and choose **Run on This
-Mac…**. Nothing changes in Cloudflare; its routes stay as they are and this machine serves
-them as well. If another machine runs it at the same time, Cloudflare splits requests
-between both, so only do this when this machine runs the same services (to serve one
-hostname from several machines on purpose, use [load balancing](/docs/guides/load-balancing)).
-Tunnels configured with a local config file can't be run this way; import their routes
-instead.
+machine) can run on this machine too: select it in **Tunnels** (**In Cloudflare**) and choose
+**Run on This Mac…**. Nothing changes in Cloudflare; its routes stay as they are and this
+machine serves them as well.
+
+If another machine runs it at the same time, Cloudflare splits requests between both
+("Another machine runs this tunnel now. Cloudflare will split its requests between both
+machines, so only do this if this Mac runs the same services."). To serve one hostname from
+several machines on purpose, with health checks, use
+[load balancing](/docs/guides/load-balancing).
+
+Tunnels configured with a local `config.yml` can't be run this way; [import](/docs/guides/import)
+their routes instead. Teitunnel doesn't change the routes of tunnels it didn't create.
 
 ## From the terminal
 
 ```sh
-teitunnel tunnels                                # this machine's tunnels
+teitunnel tunnels                                # this machine's tunnels (--json)
 teitunnel tunnel create staging
-teitunnel route add beta.example.com 4000 --tunnel staging
-teitunnel route remove beta.example.com          # finds the tunnel by itself
+teitunnel route add beta.teispace.com 4000 --tunnel staging
+teitunnel route remove beta.teispace.com         # finds the tunnel by itself
+teitunnel always-on on --tunnel staging          # keep only staging running as a service
 teitunnel export config-yaml --tunnel staging
 teitunnel tunnel adopt home-lab                  # run an existing tunnel here too
 teitunnel tunnel delete staging
 ```
+
+`tunnel create` and `tunnel delete` show the plan first; `-y` applies without asking and
+`-a` picks the account. `tunnel adopt` takes a name or id and changes nothing in Cloudflare.
+
+## What happens on Cloudflare
+
+- **Create** makes a remotely-managed tunnel with that name. It costs nothing: Cloudflare
+  Tunnel is free on every plan.
+- **A route on it** puts the hostname in that tunnel's configuration and points the DNS
+  record at that tunnel.
+- **Delete** stops its connector, removes the tunnel's routes and the DNS records Teitunnel
+  created for them, then deletes the tunnel. DNS records Teitunnel didn't create are never
+  deleted.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="The account already has a tunnel named … Choose another name.">
+Tunnel names are unique per account, across every machine. Pick another, or run the
+existing one here with **Run on This Mac…**.
+</Accordion>
+<Accordion title="… is already routed on tunnel … Remove it there first, or edit it there.">
+One machine serves a hostname through one tunnel. Move the route by removing it from the
+other tunnel first.
+</Accordion>
+<Accordion title="A route on the new tunnel is down">
+Each tunnel has its own connector. Check that the tunnel is started on this machine
+(**Start on This Mac**, or `teitunnel up`).
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Load balancing" href="/docs/guides/load-balancing" description="One hostname, several machines, with health checks." />
+  <Card title="Routes and tunnels" href="/docs/concepts/routes-and-tunnels" description="How Teitunnel organises them." />
+  <Card title="Run modes" href="/docs/concepts/run-modes" description="The app, Always-on, up and serve." />
+  <Card title="Export" href="/docs/guides/export" description="A tunnel as config.yml, Compose or Terraform." />
+</Cards>

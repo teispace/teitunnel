@@ -4,66 +4,196 @@ description: "Keep webhooks (Stripe, GitHub, anything) while your computer is of
 ---
 
 Webhook senders give up after a few retries, so webhooks sent while your laptop sleeps are
-often lost. A **webhook inbox** keeps them on your own Cloudflare account and delivers them
-to your app, in order, once this computer is back.
+often lost, and you only find out when a payment or a deploy never showed up in your app. A
+**webhook inbox** keeps them on your own Cloudflare account and delivers them to your app,
+in order, once this computer is back.
 
-## Turn it on
-Open the route in **Routes**, and under **While This Computer Is Off**, choose **Add
-Webhook Inbox…**. Give the path the webhooks come to (for example `/webhooks/`), how many
-to keep and for how long, review the plan and apply it. The first inbox also creates a D1
-database on your account (`teitunnel-data`).
+Use it on a route that receives webhooks you can't afford to miss: Stripe events in a
+local billing app, GitHub events for a bot you run on a home server, form submissions to a
+side project. To develop and debug webhooks, start with the
+[webhooks tutorial](/docs/tutorials/webhooks).
 
-From the terminal:
+## Add one in the app
+
+<Steps>
+<Step>
+Open the route in **Routes**. Under **While This Computer Is Off**, choose **Add Webhook
+Inbox…**.
+</Step>
+<Step>
+In **Webhook Inbox for hooks.teispace.com**, set:
+
+- **Path:** webhooks to this path and below, for example `/webhooks/` or `/api/stripe`. It
+  must start with `/` and have no `*`, `?` or spaces.
+- **Keep up to** 500 **webhooks for** 7 **days**: 1 to 1,000 webhooks, kept 1 to 30 days.
+- **Keep only signed webhooks:** **Keep every webhook**, **GitHub**, **Stripe** or
+  **Standard Webhooks (Svix, Clerk, Resend…)**. See [below](#only-keep-signed-webhooks).
+</Step>
+<Step>
+Choose **Review**, read the plan, and choose **Apply**.
+</Step>
+</Steps>
+
+The route then lists the inbox ("Webhooks to /webhooks/") with each webhook, when it
+arrived, and whether it's **Waiting** or **Delivered** (with the status your app answered).
+**Deliver Now** delivers waiting ones at once.
+
+## From the terminal
 
 ```sh
-teitunnel inbox add app.example.com /webhooks/ --max 500 --days 7
-teitunnel inbox items app.example.com /webhooks/
-teitunnel inbox rm app.example.com /webhooks/
+teitunnel inbox add hooks.teispace.com /webhooks/ --max 500 --days 7
+teitunnel inbox ls                                   # offline pages and inboxes
+teitunnel inbox items hooks.teispace.com /webhooks/  # recent webhooks, arrived and delivered
+teitunnel inbox deliver                              # deliver waiting webhooks now
+teitunnel inbox rm hooks.teispace.com /webhooks/
 ```
+
+| Command | What it does |
+|---|---|
+| `inbox add HOSTNAME PATH` | Keep webhooks to a path while this computer is off. `--max` (default 500, up to 1,000), `--days` (default 7, up to 30), `--verify github\|stripe\|standard`. |
+| `inbox rm HOSTNAME PATH` | Remove an inbox. Webhooks still waiting stay in the database until their retention ends. |
+| `inbox ls` | Offline pages and inboxes on this computer's records. `--json`. |
+| `inbox items HOSTNAME PATH` | An inbox's recent webhooks. `--json`. |
+| `inbox secret HOSTNAME PROVIDER` | Save a signing secret in the keychain. |
+| `inbox deliver` | Deliver waiting webhooks now. |
+
+`add` and `rm` show the plan first; `-a, --account` chooses the account and `-y, --yes`
+applies without asking.
 
 ## What happens to a webhook
-- **This computer is on and nothing is waiting:** the webhook goes straight to your app,
-  as without the inbox.
-- **This computer is off** (Cloudflare can't reach the tunnel, 530) **or the app doesn't
-  answer** (502): the webhook is stored and the sender gets **202 Accepted**.
-- **Earlier webhooks are still waiting:** new ones are stored behind them, so your app gets
-  them in the order they were sent.
 
-Only `POST`, `PUT`, `PATCH` and `DELETE` are kept; other requests (such as a sender's `GET`
-verification) always go through. Bodies up to 512 KB are kept; larger ones pass through.
+Only `POST`, `PUT`, `PATCH` and `DELETE` requests are kept. Anything else, such as a
+sender's `GET` verification handshake, always goes straight through.
 
-When this computer is back, Teitunnel delivers waiting webhooks every 30 seconds (or
-**Deliver Now**), oldest first, with their original method, path, headers and body, plus
-`X-Teitunnel-Inbox` (an id) and `X-Teitunnel-Received-At` (when it arrived at Cloudflare).
-An answer below 500 counts as delivered; a 5xx or no answer stops the round and it's tried
-again later. The route's section lists each webhook with when it arrived and when it was
-delivered, and while the route is [inspected](/docs/guides/inspector), each delivery shows
-there with its headers.
+| Situation | What the inbox does | The sender gets |
+|---|---|---|
+| This computer is on, nothing waiting | Passes it on to your app, unchanged | Your app's answer |
+| This computer is off (Cloudflare can't reach the tunnel, 530) | Stores it | `202 Accepted` |
+| The app doesn't answer (cloudflared can't reach it, 502) | Stores it | `202 Accepted` |
+| Earlier webhooks are still waiting | Stores it behind them, so order is kept | `202 Accepted` |
+| The inbox is full | Doesn't store it | `503` with `Retry-After`, so the sender retries later |
+| Body larger than 512 KB | Passes it through; while offline it's refused | `413` while offline |
+| Signature required and missing or wrong | Doesn't store it | `401` while offline |
 
-Signatures: the body and headers are delivered unchanged, so signatures still verify.
-Senders that sign a timestamp (Stripe, Standard Webhooks) are usually checked with a
-5-minute tolerance, so your app may need a longer tolerance for replayed deliveries.
+Cookies, `cf-*` headers and forwarding headers are dropped before a webhook is stored.
+Webhooks older than the retention are deleted, delivered or not.
+
+## Delivery
+
+While the app runs, it delivers waiting webhooks every 30 seconds, oldest first. Each goes
+from this computer directly to the route's own local service (the one the route points
+at), with its original method, path, headers and body, plus:
+
+- `X-Teitunnel-Inbox`: the webhook's id in the inbox.
+- `X-Teitunnel-Received-At`: when it arrived at Cloudflare.
+
+An answer below 500 counts as delivered. A 5xx or no answer stops the round, so later
+webhooks never overtake it, and it's tried again next time. Redirects aren't followed.
+While the route is [inspected](/docs/guides/inspector), deliveries go through the inspector
+and show there with their headers.
+
+<Callout type="warn" title="On a server">
+`teitunnel up` and `teitunnel serve` don't deliver inboxes by themselves. On a server, run
+`teitunnel inbox deliver` on a timer (a systemd timer or cron job), or keep the app
+running.
+</Callout>
+
+### Signatures and replays
+The body and headers are delivered unchanged, so signatures still verify. But senders that
+sign a timestamp (Stripe, Standard Webhooks) are usually checked with a 5-minute
+tolerance, and a webhook delivered hours later is older than that. Give your app's check a
+longer tolerance, or rely on the inbox's own check (below), which runs when the webhook
+arrives.
 
 ## Only keep signed webhooks
-An inbox can keep only webhooks with a valid signature (GitHub, Stripe or Standard
-Webhooks), so nobody else can fill it. Save the signing secret for the hostname once
-(the inspector uses the same one to check signatures):
+
+An inbox can keep only webhooks with a valid signature, so nobody else can fill it with
+junk while you're away. It checks GitHub (`X-Hub-Signature-256`), Stripe
+(`Stripe-Signature`) and Standard Webhooks (Svix, Clerk, Resend and others; timestamps within
+5 minutes).
+
+Save the signing secret for the hostname once. The [inspector](/docs/guides/inspector)
+uses the same secret to check signatures.
 
 ```sh
-teitunnel inbox secret app.example.com stripe   # reads it from standard input
-teitunnel inbox add app.example.com /webhooks/stripe --verify stripe
+teitunnel inbox secret hooks.teispace.com stripe     # reads it from standard input
+TEITUNNEL_WEBHOOK_SECRET=whsec_… teitunnel inbox secret hooks.teispace.com stripe
+teitunnel inbox add hooks.teispace.com /webhooks/stripe --verify stripe
 ```
 
-The secret is kept in your system's keychain. Teitunnel sends it to Cloudflare only as a
-secret of the inbox's Worker (never shown again, never in the plan or Activity).
+The secret is never read from the command line. It's kept in your system's keychain, and
+Teitunnel sends it to Cloudflare only as a secret of the inbox's Worker: it's never shown
+again, and never in the plan or Activity.
 
-## Limits and cost
-An inbox holds up to 1,000 waiting webhooks (500 by default); when it's full, senders get
-503 with `Retry-After`, so they retry later. Webhooks are deleted after 1 to 30 days (7 by
-default), delivered or not. Every request to the inbox's path runs a Worker (100,000 free a
-day for the account; the route fails open past that) and uses a few D1 rows (5 million
-reads and 100,000 writes free a day).
+## What happens on Cloudflare
+
+The plan ("Keep webhooks to hooks.teispace.com/webhooks/ while this computer is off"):
+
+1. **Create the D1 database `teitunnel-data`** for comments and webhooks, only the first
+   time. One database per account holds every inbox and
+   [Snapshot comments](/docs/guides/comments).
+2. **Upload the webhook inbox Worker** (named `tt-inbox-` and a short hash).
+3. **Run it for `hooks.teispace.com/webhooks/*`** "(fails open past the free daily
+   requests)".
+
+Removing an inbox stops the Worker route and deletes the Worker. Undo in Activity reverses
+either change. Undoing the removal of a verifying inbox brings the Worker back without its
+secret: add the inbox again to restore signature checks. Removing a hostname's last route
+removes its inboxes too.
+
+The inbox and an [offline page](/docs/guides/offline-page) can share a hostname: the more
+specific Worker route (the inbox's path) wins for its path. Teitunnel never takes over a
+pattern another Worker already runs on.
+
+## Limits and costs
+
+| | Limit |
+|---|---|
+| Webhooks waiting per inbox | 1 to 1,000 (500 by default) |
+| Retention | 1 to 30 days (7 by default) |
+| Body size kept | 512 KB |
+| Worker requests | Every request to the inbox's path; 100,000 free a day per account, then the route fails open |
+| D1 (free) | 5 million rows read and 100,000 written a day; 5 GB |
+
+Past the free Worker requests, the route fails open: webhooks go straight to your tunnel as
+if there were no inbox, and are only kept again after 00:00 UTC.
 
 ## Permissions
-**Account · Workers Scripts · Edit**, **Zone · Workers Routes · Edit** and
-**Account · D1 · Edit**. If one is missing, Teitunnel shows how to add it to the same token.
+
+**Account · Workers Scripts · Edit**, **Zone · Workers Routes · Edit** on the route's domain,
+and **Account · D1 · Edit**. If one is missing, Teitunnel shows what to add and continues
+when you're back.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="The webhook path must start with / and have no *, ? or spaces, e.g. /webhooks/.">
+Use a plain path prefix. `/webhooks/` covers `/webhooks/stripe` and everything below it.
+</Accordion>
+<Accordion title="An inbox holds 1 to 1000 webhooks for 1 to 30 days.">
+Choose values inside those ranges.
+</Accordion>
+<Accordion title="Verifying signatures needs the webhook's signing secret.">
+Save it first with `teitunnel inbox secret <hostname> <provider>`, then add the inbox.
+</Accordion>
+<Accordion title="There's nothing of Teitunnel's to remove at …">
+No inbox of Teitunnel's is on that hostname and path. Check `teitunnel inbox ls`.
+</Accordion>
+<Accordion title="Waiting: … stays on a webhook">
+Your app answered 5xx or didn't answer. Start it, check its logs, then **Deliver Now**.
+Later webhooks wait behind this one, so order is kept.
+</Accordion>
+<Accordion title="Your app rejects delivered webhooks as too old">
+The sender's timestamp is checked with a short tolerance. Increase it for requests that
+carry `X-Teitunnel-Inbox`, and let the inbox verify signatures on arrival.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Webhooks tutorial" href="/docs/tutorials/webhooks" description="Receive, inspect and replay webhooks from Stripe or GitHub." />
+  <Card title="Offline page" href="/docs/guides/offline-page" description="Your own page instead of error 1033." />
+  <Card title="Inspector" href="/docs/guides/inspector" description="See every delivery and check signatures." />
+  <Card title="Protection" href="/docs/guides/protection" description="Bots, rate limits and headers at the edge." />
+</Cards>

@@ -3,71 +3,113 @@ title: Servers and containers
 description: Run Cloudflare Tunnel routes on a VPS, AWS EC2, Azure, Google Cloud, Docker or Kubernetes with teitunnel, as a sandboxed systemd service, with a web dashboard and an API.
 ---
 
-The app is for your computer. On a server, `teitunnel` does the same job from the
-terminal: it adds routes through the same reviewed plans, and runs the connectors itself
-or as a system service.
+The app is for your computer. On a server, the `teitunnel` command does the same job from
+the terminal: it adds routes through the same reviewed plans, and runs the connectors
+itself, as a system service, or in a container. Use it for anything that should stay online
+when your laptop is closed: a home server, a VPS, a Raspberry Pi, a Docker host or a
+Kubernetes cluster.
+
+Nothing about the machine's network matters: the connector only makes outbound connections
+to Cloudflare, so no inbound port, public IP, load balancer or firewall rule is needed. Keep
+your services listening on `localhost` (or a private network).
 
 ## The API token
+
 A server usually has no keychain, so Teitunnel doesn't store the token there. Give it to
-each command instead:
+each command through the environment instead:
 
 ```sh
 export CLOUDFLARE_API_TOKEN=…            # or
 export CLOUDFLARE_API_TOKEN_FILE=/run/secrets/cloudflare_api_token
 ```
 
-The token is checked, used for that command and never written to disk. Create it in the
-Cloudflare dashboard with **Cloudflare Tunnel · Edit**, **DNS · Edit** and **Zone · Read**
-(add the two **Access** permissions if routes should require a login). On a machine that
-does have a keychain, `teitunnel setup` stores it there once instead.
+`TEITUNNEL_API_TOKEN` (and `TEITUNNEL_API_TOKEN_FILE`) work too. The token is used for that
+command only and never written to disk. Create it in the Cloudflare dashboard (an
+account-owned token is best for servers) with **Account · Cloudflare Tunnel · Edit**,
+**Zone · DNS · Edit** and **Zone · Zone · Read**; add the two **Access** permissions if
+routes should [require a login](/docs/guides/require-login). On a machine that does have a
+keychain, `teitunnel setup` stores it there once instead.
 
 ## Any Linux server (VPS, EC2, Azure VM, Compute Engine)
 
+<Steps>
+<Step>
+### Install the command
+
+Download the `teitunnel-cli` archive for your architecture from the
+[releases](/docs/getting-started/install) and put `teitunnel` on the `PATH`. Then get a
+verified `cloudflared` if the machine has none:
+
 ```sh
-teitunnel route add app.example.com 3000 --yes   # creates this server's tunnel
-sudo -E teitunnel always-on on                   # a systemd service, started at boot
-teitunnel routes                                 # status
+teitunnel cloudflared install     # the latest release from Cloudflare, checked, into Teitunnel's data folder
+teitunnel cloudflared status
+```
+</Step>
+<Step>
+### Add routes
+
+```sh
+export CLOUDFLARE_API_TOKEN=…
+teitunnel route add app.teispace.com 3000 --yes      # creates this server's tunnel
+teitunnel route add api.teispace.com 8080 --yes
+teitunnel routes                                     # status
+```
+
+`--yes` applies without asking; leave it out to review each plan first.
+</Step>
+<Step>
+### Keep it running
+
+```sh
+sudo -E teitunnel always-on on                       # a systemd service, started at boot
+teitunnel always-on status
 ```
 
 Run as root, `always-on` installs a **system** unit in `/etc/systemd/system`: it starts at
-boot, restarts when it stops, and runs sandboxed (no new privileges, a read-only system,
-writing only its log). As a normal user it installs a user unit instead, which stops at
-logout unless lingering is on (`loginctl enable-linger`). `always-on off` removes it;
-`always-on status` shows it.
+boot, restarts when it stops, and runs sandboxed (`NoNewPrivileges`, `ProtectSystem=strict`,
+a read-only home, writing only its own folder). As a normal user it installs a user unit
+instead, which stops at logout unless lingering is on (`loginctl enable-linger`).
+`always-on off` removes it. `--tunnel NAME` limits it to one of the machine's tunnels, and
+`-a` picks the account.
+</Step>
+</Steps>
 
-Nothing about the cloud provider matters: the connector only makes outbound connections to
-Cloudflare, so no inbound port, load balancer or security-group rule is needed. Keep the
-origin (your app) listening on `localhost`.
+Without systemd, run `teitunnel up` under the supervisor you have (runit, s6, OpenRC, a
+`@reboot` job): it runs every tunnel of the machine in the foreground and stops them on
+`SIGTERM`. In a folder with a [`teitunnel.yml`](/docs/guides/project-file), `up` applies it
+first (`--no-project` skips it).
 
-Without systemd, run `teitunnel up` under the supervisor you have (runit, s6,
-OpenRC, a `@reboot` job): it runs every tunnel of the machine in the foreground and stops
-them on `SIGTERM`.
+On macOS and Windows, `always-on on` installs a launchd agent or a scheduled task for your
+user instead, the same as **Keep running when Teitunnel quits** in the app.
 
 ## Docker
-The image has the CLI and Cloudflare's own `cloudflared`, runs as a non-root user, keeps
-its state in `/data`, and runs `up` by default:
+
+The image `teispace/teitunnel` (also `ghcr.io/teispace/teitunnel`) has the CLI and
+Cloudflare's own `cloudflared`, runs as a non-root user on a distroless base, keeps its state
+in `/data`, and runs `up` by default:
 
 ```sh
 docker volume create teitunnel
 docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
-  teispace/teitunnel route add app.example.com http://web:80 --yes
+  teispace/teitunnel route add app.teispace.com http://web:80 --yes
 docker run -d --name teitunnel --restart unless-stopped \
   -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app teispace/teitunnel
 ```
 
-The image is multi-arch (`linux/amd64`, `linux/arm64`); pin a version (`:0.1.0`) or follow
-a minor release (`:0.1`) instead of `latest` if you want to choose when it changes.
+The image is multi-arch (`linux/amd64`, `linux/arm64`) and tagged `x.y.z`, `x.y` and
+`latest`: pin a version (`:0.2.0`) or follow a minor release (`:0.2`) to choose when it
+changes.
 
-Routes point at other containers by name (`http://web:80`) when they share a network.
-The container's health check is `teitunnel routes --check`, which fails unless every
-route is live.
+Routes point at other containers by name (`http://web:80`) when they share a network. The
+container's health check is `teitunnel routes --check`, which fails unless every route is
+live.
 
 ### Docker Compose
 
 ```yaml
 services:
   teitunnel:
-    image: teispace/teitunnel:latest
+    image: teispace/teitunnel:0.2
     environment:
       CLOUDFLARE_API_TOKEN_FILE: /run/secrets/cloudflare_api_token
     secrets: [cloudflare_api_token]
@@ -85,11 +127,16 @@ volumes:
 
 ```sh
 docker compose up -d
-docker compose run --rm teitunnel route add app.example.com http://web:80 --yes
+docker compose run --rm teitunnel route add app.teispace.com http://web:80 --yes
 docker compose restart teitunnel
 ```
 
+The [Docker Compose tutorial](/docs/tutorials/docker-compose) walks through it end to end,
+and `teitunnel export docker-compose` writes a Compose service running plain `cloudflared`
+for a tunnel you already have.
+
 ### Kubernetes
+
 Run one replica with the token in a Secret and `/data` on a small volume:
 
 ```yaml
@@ -104,7 +151,7 @@ spec:
     spec:
       containers:
         - name: teitunnel
-          image: teispace/teitunnel:latest
+          image: teispace/teitunnel:0.2
           env:
             - name: CLOUDFLARE_API_TOKEN
               valueFrom: { secretKeyRef: { name: cloudflare, key: api-token } }
@@ -114,13 +161,17 @@ spec:
           persistentVolumeClaim: { claimName: teitunnel }
 ```
 
-Route to Services by their cluster name, e.g.
-`kubectl exec deploy/teitunnel -- teitunnel route add app.example.com http://web.default.svc:80 --yes`.
+Route to Services by their cluster name:
+
+```sh
+kubectl exec deploy/teitunnel -- teitunnel route add app.teispace.com http://web.default.svc:80 --yes
+```
 
 ## Web dashboard and API
-`teitunnel serve` runs the tunnels like `up` and adds a small dashboard: every
-tunnel and route with its status, adding and removing routes and tunnels (each change is
-reviewed before it's applied), and shares on your domains.
+
+`teitunnel serve` runs the tunnels like `up` and adds a small web dashboard: every tunnel
+and route with its status, adding and removing routes and tunnels (each change reviewed
+before it's applied), shares on your domains, and a JSON API with an MCP endpoint.
 
 ```sh
 teitunnel serve --set-password      # once; or set TEITUNNEL_WEB_PASSWORD
@@ -128,16 +179,71 @@ teitunnel serve                     # http://127.0.0.1:8765
 ```
 
 It listens on this machine only. To reach it from elsewhere, publish it through Teitunnel
-itself with a login (`teitunnel route add admin.example.com http://127.0.0.1:8765
---allow you@example.com`), or pass `--listen 0.0.0.0:8765 --allow-remote` behind a TLS
-proxy with `--secure-cookies`.
+itself with a login:
 
-For automation, create an API key (`teitunnel api-key create deploy`, shown once) and
-call the API with `Authorization: Bearer <key>`. A change is two calls: `POST
-/api/preview` returns the plan and its fingerprint, and `POST /api/apply` applies exactly
-that plan (or answers 409 if Cloudflare changed in between). The API is described at
-`/api/openapi.json`.
+```sh
+teitunnel route add admin.teispace.com http://127.0.0.1:8765 --allow team@teispace.com
+```
+
+or pass `--listen 0.0.0.0:8765 --allow-remote` behind a TLS proxy, with `--secure-cookies`.
+
+For automation, create an API key (`teitunnel api-key create deploy`, shown once) and call
+the API with `Authorization: Bearer <key>`. A change is two calls: `POST /api/preview`
+returns the plan and its fingerprint, and `POST /api/apply` applies exactly that plan (or
+answers 409 if Cloudflare changed in between). Every endpoint is in the
+[Server API reference](/docs/reference/api).
+
+## Watching a server
+
+| Command | Shows |
+|---|---|
+| `teitunnel routes` / `routes --check` | Every route's status; `--check` exits with 1 unless all are live |
+| `teitunnel doctor` / `doctor --fix` | Problems, and the safe fixes ([Doctor checks](/docs/reference/doctor)) |
+| `teitunnel uptime` | Uptime per route, checked every minute through Cloudflare while `up` or `serve` runs |
+| `teitunnel analytics` | Edge traffic per route (needs Zone · Analytics · Read) |
+| `teitunnel top --here` | A live dashboard in the terminal |
+| `teitunnel export config-yaml` | The routes as cloudflared's `config.yml` |
+
+Things only the app does by itself: deleting [Snapshots](/docs/guides/snapshots) whose time
+is up, and delivering [webhook inboxes](/docs/guides/webhook-inbox). On a server, run
+`teitunnel inbox deliver` on a timer.
 
 ## Temporary shares from a server
+
 `teitunnel share 8080` prints a random `trycloudflare.com` address for as long as the
-command runs; `--on demo.example.com` uses your own domain instead.
+command runs; `--on demo.teispace.com` uses your own domain instead, and `--for 2h` ends it
+by itself.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="Teitunnel hasn't been set up on this machine yet.">
+Set `CLOUDFLARE_API_TOKEN` for the command, or run `teitunnel setup` on a machine with a
+keychain.
+</Accordion>
+<Accordion title="No service manager is available here.">
+The machine has no systemd (a container, or an init without it). Run `teitunnel up` under
+your process supervisor instead.
+</Accordion>
+<Accordion title="Routes stop at logout">
+A user unit stops with your session. Run `always-on on` as root for a system unit, or turn
+on lingering with `loginctl enable-linger`.
+</Accordion>
+<Accordion title="… isn't a loopback address. Pass --allow-remote to listen there">
+`serve` listens on loopback unless told otherwise. Put TLS in front, or publish the
+dashboard through Teitunnel with a login.
+</Accordion>
+<Accordion title="The container is unhealthy">
+`teitunnel routes --check` failed: a route isn't live. Check `docker logs teitunnel` and
+that the services the routes point at are reachable from the container by name.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Self-host an app" href="/docs/tutorials/self-host" description="A home server, end to end." />
+  <Card title="Docker Compose" href="/docs/tutorials/docker-compose" description="Teitunnel next to your containers." />
+  <Card title="Server API" href="/docs/reference/api" description="Automate a server." />
+  <Card title="Move to another computer" href="/docs/guides/move-computer" description="Take routes from your laptop to a server." />
+</Cards>

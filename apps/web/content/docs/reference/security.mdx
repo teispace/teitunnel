@@ -1,32 +1,207 @@
 ---
 title: Security
-description: How Teitunnel protects your Cloudflare credentials, your DNS records and your computer.
+description: How Teitunnel protects your Cloudflare credentials, your DNS records, your computer and your traffic, what it stores where, and what it never keeps.
 ---
 
-The full model is in [SECURITY_MODEL.md](https://github.com/teispace/teitunnel/blob/main/docs/SECURITY_MODEL.md).
-To report a vulnerability, see [SECURITY.md](https://github.com/teispace/teitunnel/blob/main/SECURITY.md).
+Teitunnel holds keys to your Cloudflare account and decides what your computer serves to
+the internet, so it's built to keep credentials in one place, change nothing without
+showing you first, and expose nothing you didn't choose. This page explains what that
+means in practice. The design document is
+[SECURITY_MODEL.md](https://github.com/teispace/teitunnel/blob/main/docs/SECURITY_MODEL.md);
+to report a vulnerability, see
+[SECURITY.md](https://github.com/teispace/teitunnel/blob/main/SECURITY.md).
 
-## Credentials
+## What's stored where
 
-- Cloudflare tokens and tunnel run tokens are stored **only in your system's keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux)**,
-  never in files, logs or the app's database.
-- The window never sees them: its requests name an account, and the core fetches the
-  token itself.
-- A connector running while the app runs gets its run token in memory, never on the
-  command line (where other users could see it). An [Always-on](/docs/concepts/run-modes)
-  connector reads it from a file only you can read, removed when you turn Always-on off.
+| What | Where | Notes |
+|---|---|---|
+| Cloudflare API tokens, sign-in tokens, `cert.pem` logins | System keychain | Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux |
+| Tunnel run tokens | System keychain | Plus a file only you can read while a tunnel is [Always-on](/docs/concepts/run-modes) |
+| Webhook signing secrets, bearer tokens for shared MCP and AI servers | System keychain | Per hostname |
+| The local domains certificate authority's key | System keychain | Only its public certificate is written to disk |
+| Settings, routes, ownership notes, Activity, masked inspector captures | `teitunnel.db` in the data folder | File readable only by you (0600); **no secrets** |
+| App logs | The system's log folder for apps | Tokens, keys and passwords removed as they're written |
 
-## Your DNS
+Everything in the keychain is under the service `com.teispace.teitunnel`. Cloudflare items
+are named `cf:<account-id>:apiToken`, `cf:<account-id>:oauth`,
+`cf:<account-id>:oauth-access` and `cf:<account-id>:certPem`; tunnel run tokens
+`tunnel:<tunnel-id>`. **Disconnect** in **Settings ▸ Accounts** deletes every item of that
+account. See [Accounts and permissions](/docs/guides/accounts#where-credentials-are-kept).
 
-- Every change is shown before it's made and recorded in Activity.
-- Only records Teitunnel created are ever deleted without asking. See
+Things Teitunnel **never** stores anywhere: a Snapshot's password (only a salted hash, on
+Cloudflare), a service token's secret, the dashboard password of `teitunnel serve` (only an
+argon2id hash), and API keys for `serve` (only hashes).
+
+## Secrets stay out of the window and away from agents
+
+- The app's window never holds a credential. It asks the core for work by account id,
+  and the core fetches the token from the keychain itself. A token you paste goes in once
+  and is never sent back.
+- Answers to AI agents pass through the same redaction again, and captured
+  `Authorization`, `Cookie`, `Set-Cookie`, API-key and webhook-signature headers are
+  masked. An agent never gets an account credential; accounts are fixed only in the app.
+  See [AI agents](/docs/guides/ai-agents).
+- Credentials are only ever sent to Cloudflare. A release build never lets the
+  environment redirect where the API token goes.
+- A connector running while the app runs gets its run token in its environment, never on
+  the command line, where other users could see it. An Always-on connector reads it from a
+  file in a folder only you can open (0700 folder, 0600 file), removed when you turn
+  Always-on off.
+
+## Signing in with Cloudflare
+
+Sign in with Cloudflare uses OAuth 2.0 with PKCE (S256), as Cloudflare's public clients do:
+
+- A random `state` is checked when the browser comes back, so a forged answer is refused.
+- The answer comes back to a listener on `127.0.0.1` only (port 53682, 53683 or 53684),
+  which accepts exactly one callback and gives up after 5 minutes.
+- The client id isn't a secret; the PKCE verifier, which never leaves your computer,
+  protects the exchange.
+- The refresh token goes to the keychain. Disconnecting revokes it with Cloudflare, then
+  deletes it.
+
+Cloudflare issues a new refresh token each time one is used. So the app, the `teitunnel`
+command and the MCP server keep the current access token in the keychain too
+(`cf:<account-id>:oauth-access`, with its expiry and a hash of the refresh token it came
+from) and share one refresh, rather than cancelling each other's tokens.
+
+## Every Cloudflare change is reviewed
+
+- Every change to your account (DNS records, tunnels, logins, rules, Workers, databases)
+  is a **plan** first: you see each step before anything happens. **Apply** carries it out
+  and, if a step fails halfway, rolls back what it did. Changes are recorded in **Activity**,
+  and **Undo** reverses one you just made. See [How changes are made](/docs/concepts/changes).
+- The same engine serves the app, the command line, `teitunnel serve`, project files and
+  AI agents. None of them has a way around it.
+- **DNS records Teitunnel didn't create are never deleted without asking.** Records it
+  created carry its marker; replacing or deleting any other record needs your explicit,
+  per-record confirmation, in every mode, even for an agent allowed to make changes. See
   [DNS ownership](/docs/concepts/dns-ownership).
+- The same holds for everything else Teitunnel writes: it changes only Access applications,
+  edge rules, Workers (`tt-…`), Worker routes and the `teitunnel-data` database it created,
+  and never replaces a whole ruleset. Edge rules are always scoped to one hostname, never a
+  whole domain.
+- The Doctor flags records that point at tunnels that no longer exist, a subdomain
+  takeover risk.
 
 ## Your computer
 
-- Nothing is exposed until you share or route it.
+- Nothing is exposed until you share or route it. Quick Share URLs are public and have no
+  login by design; the app says so and offers a timer.
+- Before sharing, the [exposure check](/docs/guides/exposure-check) looks for `.env` files,
+  `.git`, debug pages and open admin tools on the service, locally.
 - Processes are started with explicit arguments, never through a shell.
-- Metrics and diagnostics endpoints listen on `127.0.0.1` only.
+- Metrics, diagnostics and inspector listeners are on `127.0.0.1` only.
 - cloudflared downloads are checked against GitHub's digest, Cloudflare's published
-  checksum and Cloudflare's code signature before use.
-- Logs and diagnostics exports have tokens, keys and passwords removed.
+  checksum and, on macOS, Cloudflare's code signature before use.
+
+## Inspector captures
+
+The [inspector](/docs/guides/inspector) keeps requests to inspected shares and routes so you
+can read and replay them:
+
+- Credential headers keep only their scheme or cookie names; secret-looking query, form
+  and JSON values and token-like strings are replaced. Captures are masked **before** they
+  reach the database, and login forms are never captured.
+- History is kept for a day by default, then deleted. **Clear Requests** removes it
+  sooner.
+- Captures leave the app only when you export or copy them, through `teitunnel traffic`,
+  the read-only traffic API of `teitunnel serve` (with an API key), or an agent's traffic
+  tools, always masked unless you reveal one on screen or untick **Redact** on an export.
+  A value you reveal is never saved.
+- Inspecting a route points it at the inspector through a reviewed plan, and it's pointed
+  back when inspection ends, when the process quits, or at the next launch after a crash.
+
+## Snapshots, comments and Workers
+
+- A [Snapshot](/docs/guides/snapshots) uploads only regular files inside the chosen folder.
+  Hidden files, `.env*`, private keys, `.git` and `node_modules` are never uploaded, and
+  the review lists what's left out.
+- A Snapshot password is hashed on your computer (PBKDF2-HMAC-SHA256 with a random salt)
+  and sent to Cloudflare only as a Worker secret. It's never stored locally or logged.
+  Sessions are signed cookies tied to that hash, so changing the password ends them.
+- [Comments](/docs/guides/comments) accept same-site JSON only, with size and rate limits,
+  and are shown as text, never as HTML. Reviewers' email addresses are never shown to
+  other reviewers or to agents.
+- The [offline page](/docs/guides/offline-page) and [webhook inbox](/docs/guides/webhook-inbox)
+  Workers only replace Cloudflare's error answers, or keep webhooks while you're offline.
+  They're set to fail open, so the free daily request limit can't take a site down. An
+  inbox's signing secret is sent only as a Worker secret, never on a command line.
+
+## Service tokens
+
+A [service token](/docs/guides/protection#service-tokens-for-machines)'s secret exists
+outside Cloudflare only right after it's created or rotated. The app keeps it in memory
+for 10 minutes and copies it to the clipboard itself, so it never reaches the window; the
+command line prints it once; an agent gets it once, after you approve. Only the token's
+id, client id, name and expiry are kept.
+
+## Local HTTPS domains
+
+[Local domains](/docs/guides/local-domains) use Teitunnel's own certificate authority, which
+is **name-constrained**: it can only sign certificates for `localhost`, `.test`, `.local`
+and private addresses, so even a stolen key can't impersonate a real website. Its key lives
+only in the keychain, never in the database, backups or logs. Trust is added for your user
+where the system allows it, and anything that needs an administrator is shown as a
+command, or asked for, never done silently. Connections from other machines are dropped
+unless you turn on **Allow devices on this network**, and then only for `.local` names
+over HTTPS.
+
+## The control connection
+
+Programs on your computer (the `teitunnel` command, editor extensions, launchers,
+`teitunnel://` links) talk to the running app through a local socket (a named pipe on
+Windows) that only your user can open. Nothing listens on a network port.
+
+- Each connection must present a random per-install token from a file only you can read.
+- Sharing, stopping a share and applying a plan ask you in a native dialog naming the
+  program, unless you chose **Always Allow** for it (revocable in
+  **Settings ▸ Integrations**). Changes to DNS records Teitunnel didn't create ask every
+  time.
+- A share from a `teitunnel://` link always asks, and is never remembered. Links can be
+  turned off.
+- An AI agent's changes ask in the app too, with the plan, and an agent can't approve its
+  own change while you can be asked.
+
+See [Links and integrations](/docs/guides/integrations).
+
+## Backups and diagnostics
+
+- A [backup](/docs/guides/move-computer) is encrypted with your passphrase (argon2id and
+  XChaCha20-Poly1305) and never contains a token, sign-in, run token, webhook secret or
+  certificate authority key.
+- **Help ▸ Export Diagnostics…** removes tokens, keys and passwords, and shows you what's
+  in it before it's saved. cloudflared's own report, if you add it, can't be redacted, and
+  is marked as such.
+
+## Updates and downloads
+
+- Releases are built only by GitHub Actions from tagged commits in the public repository,
+  with build provenance you can [verify](/docs/reference/verify).
+- The macOS app is signed with a Developer ID and notarized by Apple. Windows builds aren't
+  code-signed yet.
+- App updates are signed. The app checks the signature against the key built into it
+  before keeping a download, and installs only on restart or quit. An update check fetches
+  one file from GitHub and sends nothing about you.
+
+## What Teitunnel doesn't protect against
+
+- A program running as **your own user** can read what you can: the Always-on token file,
+  a connector's environment, the control connection's token. That's the system's own
+  boundary, and the same for every app you run.
+- Anyone with a Quick Share URL can open it. Use a route with a
+  [login](/docs/guides/require-login) for anything private.
+
+## Related
+
+<Cards>
+  <Card title="Accounts and permissions" href="/docs/guides/accounts">
+    What Teitunnel asks Cloudflare for, and why.
+  </Card>
+  <Card title="DNS ownership" href="/docs/concepts/dns-ownership">
+    Which records Teitunnel may change.
+  </Card>
+  <Card title="Verify a download" href="/docs/reference/verify">
+    Checksums, provenance and signatures.
+  </Card>
+</Cards>

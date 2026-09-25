@@ -1,11 +1,12 @@
 ---
 title: Install Teitunnel
-description: Download and install Teitunnel on macOS, Windows or Linux, step by step, or install the command line on a server or in Docker.
+description: Download and install Teitunnel on macOS, Windows or Linux, with Homebrew, apt or dnf, or install the teitunnel command on a server or in Docker. Verify, update and uninstall.
 ---
 
 Teitunnel runs on **macOS 14 or later**, **Windows 10 and 11** and **Linux** (GNOME, KDE and
-other desktops), and as a command line and Docker image on servers. It's free, and it
-installs and checks **cloudflared** for you.
+other desktops). The `teitunnel` command runs on the same systems, on any Linux server and
+in Docker. It's free and open source, and it installs and checks Cloudflare's
+**cloudflared** for you.
 
 ## Download
 
@@ -37,14 +38,15 @@ further down, and every file is also on the [download page](/download/).
         <h3>Open it</h3>
 
         Open Teitunnel from Applications or Spotlight. The first time, macOS asks whether to
-        open an app downloaded from the internet: choose **Open**.
+        open an app downloaded from the internet: choose **Open**. The app is signed with
+        Teispace's Developer ID and notarized by Apple.
       </Step>
     </Steps>
 
     Teitunnel lives in the menu bar as well as the Dock, and keeps credentials in your
     keychain.
 
-    Prefer Homebrew? The same signed app, with `teitunnel` on your `PATH`:
+    **With Homebrew**, the same signed app, with the `teitunnel` command linked for you:
 
     ```sh
     brew install --cask teispace/tap/teitunnel
@@ -53,20 +55,22 @@ further down, and every file is also on the [download page](/download/).
   <Tab value="Windows">
     <Downloads os="windows" />
 
-    Choose **x64** for most PCs, or **Arm64** for Windows on Arm (Surface Pro X, Snapdragon
-    laptops). Not sure? **Settings ▸ System ▸ About ▸ System type** says which.
+    Choose **x64** for most PCs, or **Arm64** for Windows on Arm (Snapdragon laptops, Surface
+    Pro X). Not sure? **Settings ▸ System ▸ About ▸ System type** says which.
 
     <Steps>
       <Step>
         <h3>Run the installer</h3>
 
-        Open **Teitunnel_…-setup.exe** from your Downloads folder.
+        Open **Teitunnel_…_x64-setup.exe** (or `…_arm64-setup.exe`) from your Downloads
+        folder.
       </Step>
       <Step>
         <h3>Let Windows run it</h3>
 
-        The first time, Microsoft Defender SmartScreen may say *Windows protected your PC*.
-        Choose **More info**, then **Run anyway**.
+        The installer isn't code-signed yet, so Microsoft Defender SmartScreen may say
+        *Windows protected your PC*. Choose **More info**, then **Run anyway**. To check the
+        file first, see [Verify a download](/docs/reference/verify).
       </Step>
       <Step>
         <h3>Finish</h3>
@@ -76,8 +80,9 @@ further down, and every file is also on the [download page](/download/).
       </Step>
     </Steps>
 
-    Credentials are kept in Windows Credential Manager, and routes can keep running with Task
-    Scheduler.
+    The installer also puts the `teitunnel` command on your PATH (a copy in your user's
+    `WindowsApps` folder), so it works in a new terminal right away. Credentials are kept in
+    Windows Credential Manager, and routes can keep running with Task Scheduler.
   </Tab>
   <Tab value="Linux">
     The easiest way is Teitunnel's package repository: your system then installs updates
@@ -120,7 +125,8 @@ further down, and every file is also on the [download page](/download/).
     ```
 
     Installing the `.deb` with `apt` (not `dpkg -i`) also installs what it needs. On an Arm64
-    machine, use the `arm64` / `aarch64` files instead.
+    machine, use the `arm64` / `aarch64` files instead. The `.deb` and `.rpm` also install the
+    `teitunnel` command as `/usr/bin/teitunnel`.
 
     It needs **WebKitGTK 4.1**: Ubuntu 22.04, Debian 12, Fedora 40 or later. The AppImage
     also needs FUSE 2 (`sudo apt install libfuse2`, or `libfuse2t64` on Ubuntu 24.04).
@@ -128,7 +134,8 @@ further down, and every file is also on the [download page](/download/).
     installed and unlocked; routes can keep running as a `systemd --user` service.
   </Tab>
   <Tab value="Server (CLI)">
-    The `teitunnel` command is also released on its own, for servers without a desktop:
+    The `teitunnel` command is also released on its own, for servers and CI without a
+    desktop:
 
     <Downloads cli />
 
@@ -140,29 +147,33 @@ further down, and every file is also on the [download page](/download/).
     teitunnel --version
     ```
 
+    The archives are named `teitunnel-cli_<version>_<system>` (`linux-x64`, `linux-arm64`,
+    `macos-universal`, `windows-x64`, `windows-arm64`) and hold one file, `teitunnel`
+    (`teitunnel.exe` on Windows).
+
     With Homebrew, on macOS or Linux (it installs `cloudflared` too, and shell completions):
 
     ```sh
     brew install teispace/tap/teitunnel-cli
     ```
 
-    Then follow [Servers and containers](/docs/guides/servers). With the desktop app you
-    already have it: see [Command line](/docs/reference/cli#install-it).
+    The formula is named `teitunnel-cli`; the command it installs is `teitunnel`. Then
+    follow [Servers and containers](/docs/guides/servers).
   </Tab>
   <Tab value="Docker">
-    The image has the command line and Cloudflare's own `cloudflared`, runs as a non-root user
-    and keeps its state in `/data`:
+    The image has the `teitunnel` command and Cloudflare's own `cloudflared`, runs as a
+    non-root user and keeps its state in `/data`:
 
     ```sh
     docker run -d --name teitunnel --restart unless-stopped \
       -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel
     ```
 
-    It's on [Docker Hub](https://hub.docker.com/r/teispace/teitunnel) and as
-    `ghcr.io/teispace/teitunnel` (the same image), built for `linux/amd64` and `linux/arm64`
-    from each release's own `teitunnel`, and tagged with the version (`0.1.1`), the minor
-    version (`0.1`) and `latest`. To check that an image came from this repository's release
-    workflow:
+    It's on [Docker Hub](https://hub.docker.com/r/teispace/teitunnel) as
+    `teispace/teitunnel` and on GitHub as `ghcr.io/teispace/teitunnel` (the same image, same
+    digest), built for `linux/amd64` and `linux/arm64` from each release's own `teitunnel`,
+    and tagged with the version (`0.2.0`), the minor version (`0.2`) and `latest`. To check
+    that an image came from Teitunnel's release workflow:
 
     ```sh
     gh attestation verify oci://ghcr.io/teispace/teitunnel:latest --repo teispace/teitunnel
@@ -189,7 +200,45 @@ The managed copy lives in Teitunnel's own folder and is updated from
 **Settings ▸ cloudflared**. When it updates, running connectors move to the new version
 without dropping your routes.
 
+Then share something with [Quick Share](/docs/getting-started/quick-share) (no account
+needed), or [connect a Cloudflare account](/docs/guides/accounts) to use your own domains.
+
 <Screenshot name="overview" alt="Overview after setup: traffic, routes and Quick Shares" caption="Overview, once you have routes and shares." />
+
+## The teitunnel command
+
+Every copy of the app comes with the `teitunnel` command, for routes, shares and the
+Doctor from a terminal, a script or over SSH. Where the system's installer can put it on
+your PATH, it does:
+
+| Installed with | The command |
+|---|---|
+| Windows installer | On the PATH; the uninstaller removes it |
+| Linux `.deb` or `.rpm` | `/usr/bin/teitunnel` |
+| Homebrew cask | Linked into Homebrew's `bin` |
+| macOS disk image, Linux AppImage | Offered once after setup |
+
+On the disk image and the AppImage, the Overview asks once,
+*Use Teitunnel from the terminal too?* **Install** links it into Homebrew's `bin` or
+`/usr/local/bin` on macOS, or `~/.local/bin` with the AppImage. If Teitunnel can't write to
+that folder, it shows the one command to run instead. **Not Now** is remembered too.
+
+Either way, **Settings ▸ General ▸ Command line** installs or uninstalls it at any time,
+and says where it is. It updates with the app. Teitunnel never replaces or removes a
+`teitunnel` it didn't put there. See the [command line reference](/docs/reference/cli).
+
+## Verify a download
+
+Every file is built from the public repository by GitHub Actions and listed in the
+release's `SHA256SUMS.txt`, with build provenance you can check with the GitHub CLI:
+
+```sh
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing     # macOS (sha256sum -c on Linux)
+gh attestation verify Teitunnel_0.2.0_universal.dmg --repo teispace/teitunnel
+```
+
+Homebrew, the Linux repository and the Docker image check the same files. Details, and the
+Windows commands, are in [Verify a download](/docs/reference/verify).
 
 ## Updates
 
@@ -205,18 +254,42 @@ A check downloads one small file from GitHub and sends nothing about you. To che
 when you ask, turn off **Settings ▸ General ▸ Check for updates automatically**; on macOS,
 **Teitunnel ▸ Check for Updates…** checks now.
 
+The `teitunnel` command that came with the app updates with it. Elsewhere:
+
+| Installed with | Update with |
+|---|---|
+| Homebrew | `brew upgrade teitunnel` (cask) or `brew upgrade teitunnel-cli` (formula) |
+| apt or dnf repository | `sudo apt upgrade` or `sudo dnf upgrade` |
+| Docker | `docker pull teispace/teitunnel`, then recreate the container |
+| A downloaded archive | Download the new one and replace the file |
+
+<Callout type="warn" title="Update to 0.2.0 before 5 October 2026">
+  From 2026-10-05 Cloudflare stops including a tunnel's connections in its tunnel list. 0.2.0
+  reads them from Cloudflare's new endpoint; 0.1.x would show every tunnel as if no machine
+  ran it. See [What's new in 0.2.0](/docs/getting-started/whats-new).
+</Callout>
+
 ## Uninstall
 
 Uninstalling doesn't change your Cloudflare account: tunnels, routes and DNS records stay.
-To clean up, first remove your routes in Teitunnel and turn off **Keep running when Teitunnel
-quits** in **Tunnels**, then **Settings ▸ Accounts ▸ Disconnect** deletes the credentials
-from your keychain.
+To clean up first:
+
+1. Remove your routes in Teitunnel (**Routes**), so their DNS records go too.
+2. Turn off **Keep running when Teitunnel quits** in **Tunnels**, so no connector keeps
+   running as a service.
+3. If you installed the command from **Settings ▸ General ▸ Command line**, choose
+   **Uninstall** there.
+4. **Settings ▸ Accounts ▸ Disconnect** each account: it deletes the credentials from your
+   keychain and revokes sign-ins.
+
+Then remove the app:
 
 | System | Remove the app | Settings and history |
 |---|---|---|
-| macOS | Drag Teitunnel from Applications to the Trash | `~/Library/Application Support/com.teispace.teitunnel` |
-| Windows | **Settings ▸ Apps ▸ Installed apps ▸ Teitunnel ▸ Uninstall** | `%APPDATA%\com.teispace.teitunnel` |
+| macOS | Drag Teitunnel from Applications to the Trash, or `brew uninstall --cask teitunnel` (`--zap` also removes its settings) | `~/Library/Application Support/com.teispace.teitunnel` |
+| Windows | **Settings ▸ Apps ▸ Installed apps ▸ Teitunnel ▸ Uninstall** (removes the command too) | `%APPDATA%\com.teispace.teitunnel` |
 | Linux | `sudo apt remove teitunnel`, `sudo dnf remove teitunnel`, or delete the AppImage; to drop the repository too, delete `/etc/apt/sources.list.d/teitunnel.list` or `/etc/yum.repos.d/teitunnel.repo` | `~/.local/share/com.teispace.teitunnel` |
+| Server | Delete `teitunnel`, or `brew uninstall teitunnel-cli`, or remove the container and its `teitunnel` volume | The same folder as on that system |
 
 Delete that folder too if you want nothing left behind. To build Teitunnel yourself instead,
 see the [contributing guide](https://github.com/teispace/teitunnel/blob/main/CONTRIBUTING.md).
@@ -229,5 +302,8 @@ see the [contributing guide](https://github.com/teispace/teitunnel/blob/main/CON
   </Card>
   <Card title="Your first route" href="/docs/getting-started/first-route">
     Put a service on your own domain.
+  </Card>
+  <Card title="What's new in 0.2.0" href="/docs/getting-started/whats-new">
+    Everything this release adds.
   </Card>
 </Cards>

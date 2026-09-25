@@ -5,7 +5,7 @@ export const site = {
   /** The home page's title: what people search for, in plain words. */
   title: "Teitunnel: the Cloudflare Tunnel app for macOS, Windows and Linux",
   description:
-    "A free, open-source app for Cloudflare Tunnel (cloudflared). Share localhost at a public URL in one click, publish apps on your own domain with DNS handled for you, add a login with Cloudflare Access, and keep tunnels running as a service. For macOS, Windows, Linux, servers and Docker.",
+    "A free, open-source app for Cloudflare Tunnel (cloudflared). Share localhost at a public URL in one click, publish apps on your own domains with every change reviewed, inspect and replay requests, keep static copies online with Snapshots, and protect routes with logins and edge rules. For macOS, Windows, Linux, servers and Docker.",
   keywords: [
     "Cloudflare Tunnel",
     "cloudflared",
@@ -15,7 +15,10 @@ export const site = {
     "expose localhost",
     "share localhost",
     "localhost tunnel",
-    "ngrok alternative",
+    "request inspector",
+    "webhook testing",
+    "local HTTPS domains",
+    "MCP server",
     "trycloudflare",
     "Cloudflare Zero Trust",
     "Cloudflare Access",

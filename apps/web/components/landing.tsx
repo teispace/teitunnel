@@ -8,48 +8,81 @@ export function delay(ms: number): CSSProperties {
   return { "--tt-delay": ms } as CSSProperties;
 }
 
-/** A screenshot of the app, in the reader's color scheme (`public/screens/<name>-<scheme>.webp`). */
+/** Screenshots in `public/screens`, as `shoot-site.ts` renders them (CSS pixels × 2). */
+export const screens = {
+  main: { width: 2560, height: 1600 },
+  settings: { width: 1240, height: 1240 },
+  accounts: { width: 1240, height: 1000 },
+  settingsShort: { width: 1240, height: 800 },
+} as const;
+
+/**
+ * A screenshot of the app in the reader's color scheme (`public/screens/<name>-<scheme>.webp`),
+ * framed as a window. Both images carry the same size, so nothing shifts when they load;
+ * the hidden one isn't fetched while it's lazy and out of view.
+ */
 export function Shot({
   name,
   alt,
   priority,
-  width = 2560,
-  height = 1600,
+  size = screens.main,
+  lights = "main",
   className = "",
+  children,
 }: {
   name: string;
   alt: string;
   priority?: boolean;
-  width?: number;
-  height?: number;
+  size?: { width: number; height: number };
+  /** Where the window buttons sit: the main window's toolbar or a settings window's title. */
+  lights?: "main" | "settings" | false;
   className?: string;
+  children?: ReactNode;
 }) {
   const loading = priority ? "eager" : "lazy";
   const image = "block h-auto w-full";
+  const top = lights === "settings" ? (14 / size.height) * 2 : (20 / size.height) * 2;
   return (
-    <div
-      className={`overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/10 dark:shadow-black/40 ${className}`}
-    >
-      {/* biome-ignore lint/performance/noImgElement: static export, pre-sized screenshots */}
-      <img
-        src={asset(`/screens/${name}-light.webp`)}
-        alt={alt}
-        width={width}
-        height={height}
-        loading={loading}
-        decoding="async"
-        className={`${image} dark:hidden`}
-      />
-      {/* biome-ignore lint/performance/noImgElement: static export, pre-sized screenshots */}
-      <img
-        src={asset(`/screens/${name}-dark.webp`)}
-        alt={alt}
-        width={width}
-        height={height}
-        loading={loading}
-        decoding="async"
-        className={`${image} hidden dark:block`}
-      />
+    <div className={`relative ${className}`}>
+      <div className="tt-window relative overflow-hidden rounded-[10px] border border-fd-border bg-fd-card md:rounded-xl">
+        {/* biome-ignore lint/performance/noImgElement: static export, pre-sized screenshots */}
+        <img
+          src={asset(`/screens/${name}-light.webp`)}
+          alt={alt}
+          width={size.width}
+          height={size.height}
+          loading={loading}
+          decoding="async"
+          {...(priority ? { fetchPriority: "high" as const } : {})}
+          className={`${image} dark:hidden`}
+        />
+        {/* biome-ignore lint/performance/noImgElement: static export, pre-sized screenshots */}
+        <img
+          src={asset(`/screens/${name}-dark.webp`)}
+          alt={alt}
+          width={size.width}
+          height={size.height}
+          loading={loading}
+          decoding="async"
+          className={`${image} hidden dark:block`}
+        />
+        {lights ? (
+          <span
+            aria-hidden
+            className="absolute flex -translate-y-1/2 gap-[15.4%]"
+            style={{
+              left: `${(20 / size.width) * 200}%`,
+              top: `${top * 100}%`,
+              width: `${(52 / size.width) * 200}%`,
+            }}
+          >
+            <span className="aspect-square flex-1 rounded-full bg-[#ff5f57]" />
+            <span className="aspect-square flex-1 rounded-full bg-[#febc2e]" />
+            <span className="aspect-square flex-1 rounded-full bg-[#28c840]" />
+          </span>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }

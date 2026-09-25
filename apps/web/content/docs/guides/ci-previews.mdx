@@ -4,19 +4,41 @@ description: Pull request previews on your own Cloudflare domain with the Teitun
 ---
 
 Every pull request can get its own address on your domain, like
-`https://pr-42.preview.example.com`, published from CI to your own Cloudflare account:
-commented on the pull request, updated on every push, and removed when it closes.
+`https://pr-42-preview.teispace.com`, published from CI to your own Cloudflare account:
+commented on the pull request, updated on every push, and removed when it closes. There's
+no preview service in between: the Action and the template run the `teitunnel` CLI in
+your job, against your account, through the same reviewed plan → apply engine as the app.
 
 ## Two kinds of preview
 
-- **Snapshot**: a static copy of your built site ([Snapshots](/docs/guides/snapshots)). It
-  stays up after the job, so reviewers can open it whenever they like. Each push
-  publishes a new version; only changed files are uploaded.
-- **Share**: a live tunnel to a server the job started (an API, a server-rendered app),
-  for as long as the job runs. Useful for end-to-end tests against a real hostname, or for
-  webhooks that need a public address.
+| | Snapshot (default) | Share |
+|---|---|---|
+| What | A static copy of your built site ([Snapshots](/docs/guides/snapshots)) | A live tunnel to a server the job started |
+| Online | After the job, until the pull request closes (or `expires`) | While the job runs |
+| Good for | Reviews of front ends, docs, design | End-to-end tests against a real hostname, APIs, server-rendered apps, webhooks |
+| On each push | A new version; only changed files are uploaded | A new share for that job |
+| Cloudflare pieces | A Worker with static assets and a Custom Domain | A tunnel for the job, a DNS record |
 
 ## GitHub Actions
+
+<Steps>
+<Step>
+### Create the token
+
+Use an **account-owned API token** (*Cloudflare dashboard ▸ Manage account ▸ Account API
+tokens*): it belongs to the account, not to a person who might leave. Give it:
+
+| Permission | For |
+|---|---|
+| Account · Cloudflare Tunnel · Edit, Zone · DNS · Edit, Zone · Zone · Read | Every mode |
+| Account · Workers Scripts · Edit, Zone · Workers Routes · Edit | Snapshots |
+| Account · Access: Apps and Policies · Edit | `allow` (a login in front of the preview) |
+
+Limit it to the zones previews use, and store it as a repository or environment secret
+named `CLOUDFLARE_API_TOKEN`.
+</Step>
+<Step>
+### Add the workflow
 
 ```yaml
 # .github/workflows/preview.yml
@@ -27,7 +49,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write # the comment
 
 jobs:
   publish:
@@ -40,7 +62,7 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           build: true
-          zone: example.com
+          zone: teispace.com
 
   cleanup:
     if: github.event.action == 'closed'
@@ -50,32 +72,109 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: cleanup
-          zone: example.com
+          zone: teispace.com
+```
+</Step>
+<Step>
+### Open a pull request
+
+The job builds the site, publishes it at `pr-<number>-preview.teispace.com`, and comments
+the URL on the pull request. Each push publishes a new version and edits the same comment.
+Closing or merging the pull request runs `cleanup`, which deletes the Snapshot.
+</Step>
+</Steps>
+
+### A live share for end-to-end tests
+
+```yaml
+      - run: npm run start -- --port 3000 &
+      - run: npx wait-on http://localhost:3000
+      - id: preview
+        uses: teispace/teitunnel-action@v1
+        with:
+          cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          mode: share
+          port: 3000
+          hostname: pr-{number}-{repo}.{zone}   # one level: covered by the free certificate
+          zone: teispace.com
+      - run: npx playwright test
+        env:
+          BASE_URL: ${{ steps.preview.outputs.url }}
 ```
 
-For a live share, start the server, then use `mode: share` with its `port`. The share
-stays up until the job ends; the action's post step stops it, removes its DNS record and
-deletes the job's tunnel, even when a step failed.
+The share stays up until the job ends. The Action's post step, which runs even when a step
+failed, stops it, removes its DNS record and deletes the job's tunnel.
 
-The hostname is a template: `{number}`, `{branch}`, `{sha}`, `{repo}`, `{owner}` and
-`{zone}`, each made a valid DNS label. When several repositories share a zone, include
-`{repo}`: `pr-{number}.{repo}.{zone}`. The action's
-[README](https://github.com/teispace/teitunnel/tree/main/integrations/github-action) lists
-every input (`expires`, `password`, `allow` for a Cloudflare Access login, and more).
+### Inputs
 
-### The token
+| Input | Default | |
+|---|---|---|
+| `cloudflare-api-token` | (required) | A Cloudflare API token, from a secret. |
+| `account` | | The account's name or id, when the token reaches several. |
+| `mode` | `snapshot` | `snapshot`, `share` or `cleanup`. |
+| `port` / `url` | | Share mode: the server the job started (`3000`, or `http://localhost:8080`). |
+| `path` | `.` | Snapshot mode: the folder to publish, or the project with `build`. |
+| `build` | `false` | Snapshot mode: build the project first (its package manager runs its build script; Next.js needs `output: 'export'`). |
+| `hostname` | `pr-{number}-preview.{zone}` | The hostname template (below). |
+| `zone` | | One of the account's domains, for `{zone}`. |
+| `name` | `{repo}-pr-{number}` | Snapshot mode: its name (the Worker is `teitunnel-<name>`). Keep it unique per repository and pull request. |
+| `expires` | | End by itself: share `30m`, `2h`; Snapshot `7d`. |
+| `password` | | Snapshot mode: a password visitors type (pass a secret; only a salted hash reaches Cloudflare). |
+| `allow` | | Require a Cloudflare Access login for these emails or `@domains` (comma or newline separated). |
+| `comment` | `true` | Comment the URL on the pull request. |
+| `github-token` | `${{ github.token }}` | For the comment and for downloading the CLI. |
+| `version` | `latest` | The Teitunnel CLI version to install. |
+| `cli-path` | | Use this `teitunnel` binary instead of installing one (self-hosted runners). |
+| `wait` | `120` | Share mode: seconds to wait for the share to be live. |
 
-Use an **account-owned API token** (*Manage account ▸ Account API tokens*): it belongs to
-the account, not to a person who might leave. It needs:
+Outputs: `url` (empty in cleanup mode) and `hostname`.
 
-| Permission | For |
+### Hostname templates
+
+| Placeholder | Becomes |
 |---|---|
-| Account · Cloudflare Tunnel · Edit, Zone · DNS · Edit, Zone · Zone · Read | Shares |
-| Account · Workers Scripts · Edit, Zone · Workers Routes · Edit | Snapshots |
-| Account · Access: Apps and Policies · Edit | `allow` (a login in front of the preview) |
+| `{number}` | The pull request number (runs for other events can't use it). |
+| `{branch}` | The head branch, e.g. `feat/login` → `feat-login`. |
+| `{sha}` | The first 7 characters of the head commit. |
+| `{repo}`, `{owner}` | The repository and its owner. |
+| `{zone}` | The `zone` input, as given. |
 
-Limit it to the zones previews use and store it as a repository or environment secret.
-The action masks it and gives it to the CLI through the environment only.
+Every value is made a DNS label: lowercase letters, digits and dashes, at most 63
+characters. When several repositories share a zone, include `{repo}`:
+`pr-{number}-{repo}.{zone}`.
+
+<Callout title="Keep previews one level deep">
+Cloudflare's free certificate covers one level of subdomain (`pr-42-preview.teispace.com`),
+not deeper names like `pr-42.preview.teispace.com`. The default templates stay one level
+deep for that reason. If you choose a deeper template, Snapshots still work (Cloudflare
+issues their certificate), but shares need an Advanced Certificate for the deeper name.
+</Callout>
+
+### The comment
+
+One comment per preview hostname, found again by a hidden marker and edited in place on
+every push, so a pull request never collects a stack of them. A share's comment says when
+the job ended; a cleanup says the preview was removed. Without `pull-requests: write` the
+preview still works and the comment is skipped with a warning.
+
+### A reusable workflow
+
+The repository's
+[`examples/reusable-preview.yml`](https://github.com/teispace/teitunnel/tree/main/integrations/github-action/examples)
+is a `workflow_call` workflow that starts an app and shares it for a set number of minutes.
+Keep it in one repository and call it from the others:
+
+```yaml
+jobs:
+  preview:
+    uses: <owner>/<repo>/.github/workflows/reusable-preview.yml@main
+    with:
+      zone: teispace.com
+      start: npm run dev -- --port 3000
+      port: "3000"
+    secrets:
+      cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+```
 
 ### Pull requests from forks
 
@@ -83,89 +182,161 @@ GitHub doesn't give secrets to workflows run for pull requests from forks, so th
 previews are skipped. Don't work around it with `pull_request_target`: it runs with your
 secrets and a write token, and building the fork's code there hands both to whoever opened
 the pull request. If you must preview forks, let a maintainer apply a label after reviewing
-the code, run on `pull_request_target` only for that label, and check out the reviewed
-commit by its SHA.
+the code, run on `pull_request_target` only for that label, check out the reviewed commit
+by its SHA, and keep the token scoped to the preview zone.
 
 ## GitLab CI
 
-Include the template and extend its jobs. GitLab shows the preview on the merge request
-through the environment ("View app"), and runs the stop job when the merge request is
-merged or closed.
+Include the template and extend its hidden jobs. GitLab shows the preview on the merge
+request through the environment (**View app**), and runs the stop job when the merge request
+is merged or closed.
 
 ```yaml
 include:
   - remote: https://raw.githubusercontent.com/teispace/teitunnel/main/integrations/gitlab-ci/teitunnel.gitlab-ci.yml
 
 variables:
-  TEITUNNEL_ZONE: example.com
+  TEITUNNEL_ZONE: teispace.com
 
 preview:
   extends: .teitunnel-snapshot
   stage: deploy
   variables:
-    TEITUNNEL_PATH: dist
+    TEITUNNEL_PATH: dist          # a built folder (or set TEITUNNEL_BUILD: "true")
   environment:
     on_stop: preview-stop
 
 preview-stop:
   extends: .teitunnel-snapshot-stop
   stage: deploy
+
+e2e:                              # a live share around the job's script
+  extends: .teitunnel-share
+  variables:
+    TEITUNNEL_PORT: "3000"
+    TEITUNNEL_HOSTNAME: mr-${CI_MERGE_REQUEST_IID}-${CI_PROJECT_NAME}.${TEITUNNEL_ZONE}
+  script:
+    - npm run test:e2e -- --base-url "$TEITUNNEL_URL"
 ```
 
-`.teitunnel-share` runs a live share around your job's `script` (set `TEITUNNEL_PORT`; the
-URL is in `$TEITUNNEL_URL`). Set `CLOUDFLARE_API_TOKEN` as a masked CI/CD variable.
+| Job | Does |
+|---|---|
+| `.teitunnel-snapshot` | Publishes `TEITUNNEL_PATH` as a Snapshot at `TEITUNNEL_HOSTNAME`, updated on each push; `TEITUNNEL_URL` is passed on as a dotenv artifact. |
+| `.teitunnel-snapshot-stop` | Deletes it (the environment's `on_stop` job). Nothing there is fine. |
+| `.teitunnel-share` | Shares `TEITUNNEL_PORT` while the job's `script` runs; `after_script` stops it and deletes the job's tunnel. |
+
+| Variable | Default |
+|---|---|
+| `TEITUNNEL_ZONE` | (required) |
+| `TEITUNNEL_HOSTNAME` | `mr-${CI_MERGE_REQUEST_IID}-preview.${TEITUNNEL_ZONE}` |
+| `TEITUNNEL_NAME` | `${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}` |
+| `TEITUNNEL_PATH` | `.` |
+| `TEITUNNEL_BUILD` | `"false"` |
+| `TEITUNNEL_EXPIRES` | (none) |
+| `TEITUNNEL_PORT` | (none; required for `.teitunnel-share`) |
+| `TEITUNNEL_VERSION` | `latest` |
+
+Set `CLOUDFLARE_API_TOKEN` as a masked CI/CD variable. A protected variable reaches only
+pipelines of protected branches; merge requests from forks get no variables at all, so
+their previews are skipped. The job image needs a POSIX shell, `curl`, `tar` and
+`sha256sum` (any Debian or Ubuntu image; on Alpine, `apk add curl`).
 
 ## Anywhere else
 
-The action and the template are thin wrappers around the CLI, which works in any CI:
+The Action and the template are thin wrappers around the CLI, which works in any CI:
 
 ```sh
-export CLOUDFLARE_API_TOKEN=…            # from your CI's secrets
-teitunnel snapshot publish dist --name web-pr-42 --on pr-42.preview.example.com \
-  --or-update --yes --json               # {"url": "https://pr-42.preview.example.com", …}
-teitunnel snapshot rm pr-42.preview.example.com --missing-ok --yes
+export CLOUDFLARE_API_TOKEN=…             # from your CI's secrets; never stored
+export TEITUNNEL_OWNER="ci/shop"          # who holds the names this job creates
+export TEITUNNEL_MACHINE_NAME="ci-shop-$JOB_ID"   # names the job's tunnel
 
-teitunnel cloudflared install            # a verified cloudflared, if the machine has none
-teitunnel share 3000 --on pr-42.preview.example.com --json &   # up until stopped
+teitunnel snapshot publish dist --name shop-pr-42 --on pr-42-preview.teispace.com \
+  --or-update --yes --json                # {"url": "https://pr-42-preview.teispace.com", …}
+teitunnel snapshot rm pr-42-preview.teispace.com --missing-ok --yes
+
+teitunnel cloudflared install             # a verified cloudflared, if the machine has none
+teitunnel share 3000 --on pr-42-shop.teispace.com --json &     # up until stopped
 ```
 
-`--json` prints the URL as `{"url", "hostname"}`. A hostname someone else holds exits
-with code **3**; other failures exit with 1.
+| Variable | |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` or `TEITUNNEL_API_TOKEN` | The token, for this command only (a `…_FILE` variant reads it from a file, as Docker secrets do). |
+| `TEITUNNEL_OWNER` | The owner written into DNS records, e.g. `github-actions/<repository>`. |
+| `TEITUNNEL_MACHINE_NAME` | The name of the tunnel a share runs on. |
+| `TEITUNNEL_DATA_DIR` | Where Teitunnel keeps its database and cloudflared. |
+
+`share --json` prints `{"url": …, "hostname": …}` once it's live. A hostname someone else
+holds exits with code **3**; other failures exit with 1.
 
 ## Teams sharing one account
 
-When several people (and CI) use one Cloudflare account, Teitunnel writes who made each
-DNS record into its comment: `teitunnel:route=…;by=alice@Alice-MacBook`. Every Teitunnel
-reading the account sees who holds a name, and a plan that would take a teammate's
-hostname says so and needs your confirmation first.
+When several people (and CI) use one Cloudflare account, Teitunnel writes who made each DNS
+record into its comment, for example `teitunnel:route=…;by=<user>@<computer>`. Every
+Teitunnel reading the account sees who holds a name, and a plan that would take a
+teammate's hostname says so and needs your confirmation first.
 
 ### Reservations
 
 Reserve a hostname so nobody else takes it, optionally until a date:
 
 ```sh
-teitunnel reserve alice.dev.example.com                     # no end date
-teitunnel reserve pr-402.preview.example.com --until 2026-12-31
+teitunnel reserve demo.teispace.com                            # no end date
+teitunnel reserve pr-402-preview.teispace.com --until 2026-12-31
 teitunnel reservations ls
-teitunnel release alice.dev.example.com
+teitunnel release demo.teispace.com
 ```
 
-In the app: **Domains ▸ Reservations ▸ Reserve**. The hostname field of a new route
-shows, as you type, whether the name is free, yours, or held by someone (and until when).
+In the app: **Domains ▸ Reservations ▸ Reserve** ("Reserve a hostname"). The hostname field
+of a new route shows, as you type, whether the name is **Available**, **Reserved by you**,
+**Reserved by …** (and until when), **Routed by … on another machine**, or **Has a DNS record
+Teitunnel didn't create**.
 
-A reservation lives in your DNS, so it needs no server: a placeholder record
-(`AAAA 100::`, proxied, which serves nothing) carrying the owner and end date in its
-comment. When you add a route on your reserved name, the route keeps the reservation;
-remove the route and the placeholder comes back. An ended reservation frees the name.
+A reservation lives in your DNS, so it needs no server: a placeholder record (`AAAA 100::`,
+proxied, which serves nothing) carrying the owner and end date in its comment. When you add
+a route on your reserved name, the route keeps the reservation; remove the route and the
+placeholder comes back. An ended reservation frees the name. Reserving it again changes the
+end date.
 
-Taking a name someone else holds needs `--take-over` on the command line (or confirming in
-the app). A share never takes one.
+Taking a name someone else holds needs `--take-over` on the command line (or **Take Over**
+in the app). A share never takes one.
 
 <Callout>
-Your owner label is your user name and this computer's name. On a server or in CI set
-`TEITUNNEL_OWNER` to a stable name (the GitHub Action uses `github-actions/<repository>`).
+Your owner label is your user name and this computer's name. On a server or in CI, set
+`TEITUNNEL_OWNER` to a stable name (the GitHub Action uses `github-actions/<repository>`,
+the GitLab template `gitlab-ci/<project path>`).
 </Callout>
 
 AI agents can list, reserve and release names too, through the MCP tools
 `list_reservations`, `reserve_hostname` and `release_hostname`
 ([AI agents](/docs/guides/ai-agents)).
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="The step fails with exit code 3">
+Someone else holds the hostname: a teammate's reservation, or a route from their machine.
+The log says who. Choose another `hostname` template (include `{repo}`), or release the
+name.
+</Accordion>
+<Accordion title="The comment is missing">
+The workflow needs `permissions: pull-requests: write`. Pull requests from forks get a
+read-only token, so their comment is skipped.
+</Accordion>
+<Accordion title="The build publishes a server app">
+Next.js needs `output: 'export'`, SvelteKit the static adapter. Otherwise use `mode:
+share` with the server the job starts.
+</Accordion>
+<Accordion title="The token is refused">
+Check the permissions table above, and that the token's zone resources include the preview
+zone. Account-owned tokens are recommended.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Snapshots" href="/docs/guides/snapshots" description="What a snapshot preview is." />
+  <Card title="Project files" href="/docs/guides/project-file" description="Routes, shares and Snapshots in teitunnel.yml." />
+  <Card title="Servers and containers" href="/docs/guides/servers" description="Tokens from the environment, teitunnel up." />
+  <Card title="Require a login" href="/docs/guides/require-login" description="Keep previews to your team." />
+</Cards>

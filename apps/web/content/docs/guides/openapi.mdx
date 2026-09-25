@@ -1,34 +1,112 @@
 ---
 title: OpenAPI from traffic
-description: "Describe an API from the requests Teitunnel's inspector captured: an OpenAPI 3.1 file with paths, parameters, JSON schemas and status codes, for docs, client generators and AI agents."
+description: "Describe an API from the requests Teitunnel's inspector captured: an OpenAPI 3.1 file with paths, parameters, JSON schemas, status codes and authentication, for documentation, client generators and AI agents. What it infers, what it leaves out, and why no captured value ends up in the file."
 ---
 
-When requests to an API go through Teitunnel's [inspector](/docs/guides/inspector/) (a
-share, or an inspected route), Teitunnel can describe that API as an
-[OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) document.
+When requests to an API go through Teitunnel's [inspector](/docs/guides/inspector) (a share, an
+inspected route or a local domain that records requests), Teitunnel can describe that API as an
+[OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) document. Use it to document an API that has
+no description yet, to generate a client, to import the API into an HTTP tool, or to give an AI
+agent an accurate picture of what your service really accepts and returns.
 
-- **Terminal:** `teitunnel traffic openapi` prints JSON; `--out api.yaml` writes a file
-  (YAML for `.yaml`/`.yml`), `--host api.example.com` keeps one host, `--title` names it.
-- **App:** Settings ▸ General ▸ Captured Requests ▸ **Save to Downloads**.
-- **AI agents:** `traffic_openapi`, for an agent writing a client or docs.
+## Before you start
+
+The description is only as complete as the traffic it's built from. Exercise the API through the
+inspector first: use the app, run its test suite against the shared address, or let a client
+talk to it for a while. Captures are kept for 24 hours by default (see
+[history](/docs/guides/inspector#history)).
+
+## In the app
+
+1. Open **Settings ▸ General ▸ Captured Requests**.
+2. Next to **API description**, choose **Save to Downloads**.
+3. Teitunnel writes the file to your Downloads folder and says what it described:
+   *Saved 12 paths from 340 requests to Downloads.*
+
+If nothing API-like has been captured, it says *No API requests captured yet. Use the API
+through a share, then save again.*
+
+## From a terminal
+
+```sh
+teitunnel traffic openapi                                   # JSON on standard output
+teitunnel traffic openapi --yaml                            # YAML on standard output
+teitunnel traffic openapi --out api.yaml                    # a file (YAML for .yaml/.yml, else JSON)
+teitunnel traffic openapi --host api.teispace.com --title "Shop API" --out shop.json
+```
+
+```text
+$ teitunnel traffic openapi --host api.teispace.com --out api.yaml
+Wrote 12 path(s), 19 operation(s) from 340 request(s) to api.yaml. Review it before publishing: only what was observed is described.
+```
+
+| Flag | What it does |
+|---|---|
+| `--host HOST` | Only requests to this host, such as `api.teispace.com`. Without it, every host in the history is described, each listed under `servers`. |
+| `--out FILE` | Write to a file instead of standard output. |
+| `--yaml` | YAML on standard output (JSON is the default). |
+| `--title TEXT` | The document's title. Default: *api.teispace.com API* for one host, *Observed API* for several. |
+
+It reads the history that the app and every `teitunnel` command with an inspector write, so it
+describes their captures too.
+
+**AI agents** get the same through Teitunnel's MCP server as `traffic_openapi`, for an agent
+writing a client, tests or documentation. See [AI agents](/docs/guides/ai-agents).
 
 ## What it infers
 
 | | From |
 |---|---|
-| Paths | Segments that look like identifiers become parameters: numbers, UUIDs, long hexadecimal ids and random tokens, dates, and positions where many different one-off names appear under the same parent (slugs). `/users/123/orders/9f2c…` becomes `/users/{userId}/orders/{id}`. |
-| Operations | One per path and method, with the number of requests seen (`x-observed-requests`). |
-| Parameters | Path parameters with their type; query parameters and custom request headers, required when every request had them. |
-| Bodies | JSON request and response bodies as JSON Schemas merged across requests: a property is required when every object had it, types that differ become a list (`["string", "null"]`), integers and numbers merge to `number`, and formats (`date-time`, `date`, `uuid`, `email`, `uri`) are kept when every value had them. Form bodies list their fields. |
-| Responses | Every status code seen, with its body per media type. |
-| Security | Bearer or Basic authentication, when requests sent it. |
+| **Paths** | Segments that look like identifiers become parameters: numbers, UUIDs, long hexadecimal ids and random tokens, dates, and positions where many different one-off names appear under the same parent (slugs). Nested ids are named after their parent: `/users/123/orders/9f2c…` becomes `/users/{userId}/orders/{id}`. |
+| **Operations** | One per path and method, with the number of requests seen (`x-observed-requests`). |
+| **Parameters** | Path parameters with their type; query parameters and custom request headers, marked required when every request had them. Headers every client sends (`Accept`, `User-Agent`, `Cookie`…) are left out. |
+| **Bodies** | JSON request and response bodies as JSON Schemas merged across requests: a property is required when every object had it, types that differ become a list (`["string", "null"]`), integers and numbers merge to `number`, and formats (`date-time`, `date`, `uuid`, `email`, `uri`) are kept when every value had them. Form bodies list their fields. |
+| **Responses** | Every status code seen, with its body schema per media type. |
+| **Security** | Bearer or Basic authentication (`bearerAuth`, `basicAuth`), when requests sent it. |
+| **Servers** | The scheme and host of each described host. |
 
-Pages, scripts, styles, images and fonts are left out, and so are answers Teitunnel gave
-itself (the paused page, sign-in pages, stubs, simulated faults), `OPTIONS` and `HEAD`.
+The document's version is `observed`, and its description says how many captured requests it
+was inferred from.
+
+### What's left out
+
+- Pages, scripts, styles, images and fonts: they aren't an API.
+- Answers Teitunnel gave itself: the paused page, sign-in pages of protection, stubs and
+  simulated faults.
+- `OPTIONS` and `HEAD` requests.
 
 ## Privacy
 
-The description is built from the inspector's history, where credentials are already
-masked, and it copies no captured value into the file: no examples, no header values, no
-query values. It describes only what was observed, so exercise the API (or its test suite)
-through the share first, and review the file before you publish it.
+The description is built from the inspector's history, where credentials are already masked
+before they're written, and it **copies no captured value into the file**: no examples, no
+header values, no query values, no body contents. Only the shape of what was observed ends up in
+it: names, types, formats and status codes.
+
+Names can still say something (a path like `/internal/migrate-billing`, a header like
+`X-Internal-Key`), so review the file before you publish it.
+
+## Limits
+
+- It describes what was observed, not what's possible: an endpoint nobody called, an optional
+  field that never appeared, or an error that never happened isn't in the file.
+- A field that was always present in the captures is marked required, even if the API treats it
+  as optional. Correct such details by hand.
+- Only JSON and form bodies are described in detail; other media types are described as
+  strings of that type. A body larger than the 64 KB the history keeps isn't sampled, so very
+  large JSON answers get no schema.
+
+## Troubleshooting
+
+- **"No API requests captured yet (pages, scripts and images don't count)."** Use the API through
+  a share or an inspected route first, then run it again. Check that the inspector records
+  requests for that share (**Record requests** in its **Inspection Settings…**).
+- **Two different endpoints merged into one path with a parameter.** When many different names
+  appear in the same position, Teitunnel treats them as a slug. Edit the path in the file.
+- **Requests from another project show up.** Pass `--host` to keep one host, or clear the history
+  first with `teitunnel traffic clear`.
+
+## Related
+
+- [Inspector](/docs/guides/inspector)
+- [AI agents](/docs/guides/ai-agents)
+- [Sharing](/docs/guides/sharing)

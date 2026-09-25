@@ -1,4 +1,15 @@
 {
   "title": "Reference",
-  "pages": ["cli", "api", "doctor", "troubleshooting", "security", "verify", "faq"]
+  "pages": [
+    "cli",
+    "permissions",
+    "api",
+    "doctor",
+    "troubleshooting",
+    "security",
+    "verify",
+    "limits",
+    "glossary",
+    "faq"
+  ]
 }

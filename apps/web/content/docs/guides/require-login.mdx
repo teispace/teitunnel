@@ -3,59 +3,160 @@ title: Require a login
 description: "Protect a Cloudflare Tunnel route with a login using Cloudflare Access: a one-time code by email for the people or email domains you list, set up in one step."
 ---
 
-A route is public by default: anyone with the URL reaches your app. To limit it to certain
-people, edit the route, open **Advanced**, turn on **Require a login** and list who can
-sign in:
+A route is public by default: anyone with the address reaches your app. **Require a login**
+puts Cloudflare's sign-in page in front of it, so only the people you list get through.
+Cloudflare checks the login at its edge, before a single request reaches your computer.
 
-- an email address, like `me@example.com`, lets in that person;
-- `@example.com` lets in everyone with an address at that domain.
-
-Visitors then see Cloudflare's sign-in page first. By default they get a one-time code by
-email; any other login methods the account has (Google, GitHub, …) are offered too.
+Use it for anything that isn't meant for the whole internet: an admin panel, a staging
+site, Home Assistant, a tool you share with a few colleagues. For machines (CI jobs,
+scripts) that need to pass the same login, add a
+[service token](/docs/guides/protection#service-tokens).
 
 ## What you need
-Cloudflare **Zero Trust**, which is free for up to 50 users. If the account has never used
-it, open Zero Trust in the Cloudflare dashboard once and choose a team name. Teitunnel says
-so in the review if it isn't set up. Your API token also needs two account permissions:
-**Access: Apps and Policies** (edit) and **Access: Organizations, Identity Providers, and
-Groups** (edit, so Teitunnel can add One-time PIN when there's no login method yet).
 
-Tokens created from Teitunnel's link include them. An older token, or one made by hand, may
-not; then turning on **Require a login** shows how to add them instead of failing:
+- **Cloudflare Zero Trust**, set up once on the account. It's free for up to 50 users.
+  If the account has never used it, Teitunnel shows a **Set up Cloudflare Zero Trust**
+  card instead of the form: choose **Open Zero Trust**, choose a team name, pick the
+  **Free** plan when asked, then come back and choose **Try Again**. Only the dashboard can
+  set it up.
+- **Two account permissions** on the credential: **Access: Apps and Policies · Edit** and
+  **Access: Organizations, Identity Providers, and Groups · Edit** (the second only to add
+  the one-time code login when the account has no login method yet). Tokens created from
+  Teitunnel's link and OAuth sign-in include them.
 
-1. **Open API Tokens** takes you to your tokens in the Cloudflare dashboard.
-2. Choose **Edit** next to the token Teitunnel uses, add the two permissions, then
-   **Continue to Summary** and **Update Token**.
-3. Switch back to Teitunnel. It checks again by itself and the form continues where you
-   left it. The token doesn't change, so there's nothing to paste.
+## Turn it on in the app
 
-Accounts connected with a cloudflared login can't gain these permissions. For them, and if
-you'd rather not edit the token, **Create Token** opens a token with every permission
-Teitunnel uses, logins included; paste it and it replaces the account's credential.
+<Steps>
+<Step>
+In **Routes**, choose **Edit route** on the route (or **New route** for a new one).
+</Step>
+<Step>
+Open **Advanced** and turn on **Require a login**.
+</Step>
+<Step>
+Under **Who can sign in**, list:
 
-## What Teitunnel changes
-Like every change, you review the plan before anything happens:
+- an email address, like `team@teispace.com`, to let that person in;
+- `@teispace.com` to let in everyone with an address at that domain.
+</Step>
+<Step>
+Choose **Review**, read the plan, and choose **Save** (**Add Route** for a new route).
+</Step>
+</Steps>
 
-- **Add a login method:** only when the account has none. Teitunnel adds One-time PIN.
-- **Require a login:** an Access application named `Teitunnel · <hostname>` with one
-  policy allowing the people you listed. It's created *before* the route goes live, so the
-  route is never reachable without a login.
-- Changing who can sign in updates that application. Turning the login off, or removing
-  the route, deletes it, once the route is gone.
+Visitors then see Cloudflare's sign-in page first. By default they get a one-time code by
+email; any other login methods the account has (Google, GitHub, a company identity
+provider) are offered too. A sign-in lasts 24 hours.
 
-Teitunnel changes only applications it created. If a hostname is already protected by an
-application made elsewhere, the plan stops and asks you to manage it in the dashboard.
-
-A route with a path (for example `^/admin`) protects that path. Access matches plain paths,
-so a path pattern like `^/(a|b)` can't have a login; use one route per path instead.
-
-## Checking a protected route
-**Test** reports "Works · asks for a login" when Cloudflare answers with its sign-in page.
-That shows the hostname is on Cloudflare and protected; the app behind the login isn't
-reached, because the check can't sign in.
+The same login works on a [share on your domain](/docs/guides/sharing) and on a
+[Snapshot](/docs/guides/snapshots) (**People I choose**).
 
 ## From the terminal
 
 ```sh
-teitunnel route add admin.example.com 3000 --allow me@example.com --allow @example.com
+# A new route that only your team can open
+teitunnel route add admin.teispace.com 3000 --allow team@teispace.com --allow @teispace.com
+
+# A share on your domain with a login, for as long as the command runs
+teitunnel share 5173 --on review.teispace.com --allow @teispace.com
+
+# A Snapshot behind a login
+teitunnel snapshot publish ./dist --on preview.teispace.com --allow @teispace.com
 ```
+
+`--allow` is repeatable and takes an email address or `@domain`. `route add` creates new
+routes only ("… is already routed. Edit that route instead."): change who can sign in to
+an existing route in the app, or in its [project file](/docs/guides/project-file).
+
+## If a permission is missing
+
+An older token, or one made by hand, may lack the Access permissions. Then turning on
+**Require a login** shows **The token needs 2 more permissions** instead of failing:
+
+1. **Open API Tokens** takes you to your tokens in the Cloudflare dashboard.
+2. Choose **Edit** next to the token you connected (Cloudflare names it "Teitunnel" if you
+   used the link), add the permissions, then **Continue to Summary** and **Update Token**.
+3. Switch back to Teitunnel. It checks again by itself and the form continues where you
+   left it. The token doesn't change, so there's nothing to paste.
+
+If you'd rather not edit the token, **Use a New Token Instead** and **Create Token** open a
+token with every permission Teitunnel uses; paste it and it replaces the account's
+credential. Accounts connected with a cloudflared login can't gain these permissions;
+connect them with an API token instead.
+
+## What happens on Cloudflare
+
+Like every change, you review the plan before anything happens:
+
+- **Add One-time PIN as a login method:** only when the account has none.
+- **Require a login for admin.teispace.com (team@teispace.com, anyone at @teispace.com):**
+  an Access application named `Teitunnel · admin.teispace.com` with a reusable policy
+  allowing the people you listed. It's created *before* the route goes live, so the route
+  is never reachable without a login.
+- **Let only … into admin.teispace.com:** changing who can sign in updates the policy.
+- **Remove the login from admin.teispace.com:** turning the login off, or removing the
+  route, deletes the application once the route is gone (and Teitunnel's policy, unless
+  another application uses it).
+
+Undo in Activity puts the previous state back. Teitunnel changes only applications it
+created. If a hostname is already protected by an application made elsewhere, the plan
+stops ("admin.teispace.com is already protected by an Access application Teitunnel didn't
+create. Change who can sign in there, in the Cloudflare dashboard.").
+
+A route with a path (for example `/admin`) protects that path. Access matches plain paths,
+so a path pattern like `^/(a|b)` can't have a login; use one route per path, or protect the
+whole hostname.
+
+## Checking a protected route
+
+**Test** reports **Works · asks for a login** when Cloudflare answers with its sign-in
+page, and the review shows "Protected by a login: Cloudflare asks visitors to sign in
+before they reach your app." That proves the hostname is on Cloudflare and protected; the
+app behind the login isn't reached, because the check can't sign in. Uptime checks count a
+login page as up too.
+
+## Limits and costs
+
+Cloudflare Zero Trust is free for up to 50 users. Beyond that it's a paid Cloudflare plan.
+Teitunnel adds nothing on top.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="Requiring a login needs Cloudflare Zero Trust, which isn't set up for this account.">
+Open Zero Trust in the Cloudflare dashboard once to choose a team name (the free plan is
+enough), then try again. The app shows this as the **Set up Cloudflare Zero Trust** card.
+</Accordion>
+<Accordion title="This account's token can't manage logins.">
+Add **Access: Apps and Policies · Edit** and **Access: Organizations, Identity Providers,
+and Groups · Edit** to the account's API token; the token itself stays the same.
+</Accordion>
+<Accordion title="… isn't an email address. / … isn't an email domain.">
+Use a full address (`team@teispace.com`) or `@` followed by a domain (`@teispace.com`).
+</Accordion>
+<Accordion title="A login can only protect a plain path like /admin, not the pattern …">
+Remove the path from the route, protect the whole hostname, or use one route per plain
+path.
+</Accordion>
+<Accordion title="… is already protected by an Access application Teitunnel didn't create.">
+Someone created a login for this hostname in the dashboard. Change who can sign in there,
+or delete that application and try again.
+</Accordion>
+<Accordion title="The one-time code never arrives">
+Check the spam folder: the code comes from Cloudflare, not from Teitunnel. Then check that
+the address, or its domain, is spelled the same way in **Who can sign in**.
+</Accordion>
+<Accordion title="Doctor: … still has a login but no route">
+The route was removed outside Teitunnel and its login stayed. It protects nothing now.
+Remove it with Doctor's fix, or add the route back.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Protection" href="/docs/guides/protection" description="Bots, rate limits, headers and service tokens." />
+  <Card title="Sharing" href="/docs/guides/sharing" description="Shares on your domain, with a login." />
+  <Card title="Home Assistant" href="/docs/tutorials/home-assistant" description="A dashboard behind a login, end to end." />
+  <Card title="Doctor checks" href="/docs/reference/doctor" description="access.orphan and other checks." />
+</Cards>

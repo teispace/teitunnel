@@ -7,7 +7,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
  * Runs `play` once when the element is half in view. Without it (Reduce Motion, no
  * IntersectionObserver, server HTML) the demo stays in its finished state.
  */
-function usePlayOnView(ref: RefObject<HTMLElement | null>, play: () => () => void) {
+export function usePlayOnView(ref: RefObject<HTMLElement | null>, play: () => () => void) {
   // The latest `play`, so re-renders (every tick of a demo) don't restart it.
   const latest = useRef(play);
   latest.current = play;
@@ -36,8 +36,8 @@ function usePlayOnView(ref: RefObject<HTMLElement | null>, play: () => () => voi
   }, [ref]);
 }
 
-const card =
-  "w-full min-w-0 max-w-sm rounded-2xl border border-fd-border bg-fd-background/85 p-4 text-sm shadow-2xl shadow-black/15 backdrop-blur-xl dark:shadow-black/50";
+export const card =
+  "w-full min-w-0 max-w-sm rounded-2xl border border-fd-border bg-fd-background p-4 text-sm shadow-2xl shadow-black/15 dark:shadow-black/50";
 
 const shareUrl = "https://quiet-river-lamp-orbit.trycloudflare.com";
 

@@ -1,24 +1,172 @@
 ---
 title: Export your setup
-description: Export Cloudflare Tunnel routes as a cloudflared config.yml, a Docker Compose service or Terraform with import blocks.
+description: "Turn this computer's Cloudflare Tunnel and routes into a cloudflared config.yml, a Docker Compose service or Terraform with import blocks, from the app or with teitunnel export. What each file contains, how to use it, and why no secret is ever included."
 ---
 
-**Routes ▸ Export** turns this machine's tunnel and routes into configuration for other tools.
-Nothing secret is ever included.
+Export turns this computer's tunnel and its routes into configuration for other tools:
+to run the same routes on a server in Docker, to hand them to Terraform, or to keep a
+readable record of what's set up. Exports are rendered from what's actually in Cloudflare
+(including edits made in the dashboard), and **never contain a secret**: no API token, no
+tunnel run token, no credentials file.
 
-| Format | What it's for |
-|---|---|
-| **config.yml** | The routes as a cloudflared configuration file: to run them as a locally-managed tunnel, or to keep as a record. |
-| **Docker Compose** | A `cloudflared` service that runs this same tunnel in Docker, pinned to the version this machine uses. The run token comes from `TUNNEL_TOKEN` in a `.env` file; get it with `cloudflared tunnel token <id>`. |
-| **Terraform** | The tunnel, its routes and their DNS records for the Cloudflare provider v5, with `import` blocks, so `terraform plan` adopts what already exists instead of recreating it. |
+| Format | File | What it's for |
+|---|---|---|
+| **config.yml** | `config.yml` | The routes as a cloudflared configuration file: to run them as a locally-managed tunnel, or to keep as a record. |
+| **Docker Compose** | `compose.yaml` | A `cloudflared` service that runs this same tunnel in Docker, pinned to the cloudflared version this computer uses. |
+| **Terraform** | `teitunnel.tf` | The tunnel, its routes and their DNS records for the Cloudflare provider v5, with `import` blocks that adopt what exists instead of recreating it. |
 
-Copy the file or save it to Downloads.
+## In the app
+
+<Steps>
+  <Step>
+    ### Open Export
+
+    In **Routes**, choose **Export** in the toolbar. It's there once this computer has a
+    tunnel in the account.
+  </Step>
+  <Step>
+    ### Pick a format
+
+    Choose **config.yml**, **Docker Compose** or **Terraform** under **Format**. The file
+    appears below, with a one-line note on what it's for.
+  </Step>
+  <Step>
+    ### Copy or save it
+
+    **Copy** puts it on the clipboard; **Save to Downloads** writes it there and shows the
+    path.
+  </Step>
+</Steps>
+
+The app exports this computer's default tunnel. For another of its
+[tunnels](/docs/guides/several-tunnels), use the terminal with `--tunnel`.
+
+## From a terminal
+
+`teitunnel export` prints the file on standard output:
+
+```sh
+teitunnel export config-yaml > config.yml
+teitunnel export docker-compose > compose.yaml
+teitunnel export terraform > teitunnel.tf
+teitunnel export terraform --tunnel staging --account "Teispace" > staging.tf
+```
+
+`--account` (`-a`) picks the account by name or id when several are connected, and
+`--tunnel` one of this computer's tunnels by name (default: the default tunnel). With no
+routes yet, it says *This machine has no routes in … yet.*
+
+## config.yml
+
+```yaml
+# cloudflared configuration for tunnel "laptop", exported by Teitunnel.
+# This tunnel is managed remotely (its routes live in Cloudflare), so cloudflared
+# run with its token ignores the ingress below. Use this file to run the same
+# routes as a locally-managed tunnel, or as a record of them.
+tunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+credentials-file: /etc/cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json
+ingress:
+  - hostname: "app.teispace.com"
+    service: "http://localhost:3000"
+  - hostname: "api.teispace.com"
+    path: "^/v1/"
+    service: "http://localhost:8000"
+    originRequest: {"connectTimeout":10,"noTLSVerify":true}
+  - service: "http_status:404"
+```
+
+Each route keeps its origin settings (`originRequest`), and the catch-all is last, as
+cloudflared expects. The tunnel Teitunnel created is remotely managed, so this file is a
+faithful copy of its routes but isn't what drives it: cloudflared run with the tunnel's token
+fetches its routes from Cloudflare. To run the routes as a locally-managed tunnel instead, you
+need that tunnel's credentials file (`cloudflared tunnel create` makes one for a new tunnel).
+
+## Docker Compose
+
+```yaml
+# Runs tunnel "laptop" in Docker, exported by Teitunnel.
+# Its routes live in Cloudflare:
+#   app.teispace.com -> http://localhost:3000
+# Origins must be reachable from the container: "localhost" is the container
+# itself, so use host.docker.internal or the other services' names instead.
+#
+# The run token isn't included. Get it with:
+#   cloudflared tunnel token 6ff42ae2-765d-4adf-8112-31c55c1551ef
+# and put it in an .env file next to this one as TUNNEL_TOKEN=...
+# Stop the connector on the Mac once this one is connected, if it should move.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:<version>   # the version this computer runs
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    restart: unless-stopped
+```
+
+The container runs the **same tunnel**, so its routes stay managed in Cloudflare (and in
+Teitunnel). `cloudflared tunnel token` needs a `cloudflared tunnel login` on the computer
+you run it on; the token is also shown in the Cloudflare dashboard, on the tunnel's page, in
+its install command. Two things to change before you start it:
+
+- **Point routes at names the container can reach.** Inside Docker, `localhost` is the
+  container itself: edit the routes to use `host.docker.internal` (a service on the Docker
+  host) or other containers' service names.
+- **Stop this computer's connector** once the container is connected, if the tunnel should
+  move rather than run in both places. While both run, Cloudflare splits requests between
+  them, and the Doctor warns that another machine runs this computer's tunnel.
+
+To run Teitunnel itself on a server instead (routes managed from there, with previews and
+checks), see [servers](/docs/guides/servers) and [Docker Compose](/docs/tutorials/docker-compose).
+
+## Terraform
+
+```hcl
+# Tunnel "laptop" and its routes, exported by Teitunnel for the Cloudflare
+# Terraform provider v5. The import blocks adopt what already exists, so
+# `terraform plan` shows no changes; nothing is recreated.
+# Needs an API token with Cloudflare Tunnel: Edit and DNS: Edit.
+# Terraform takes over these resources: change them there, not in Teitunnel.
+
+resource "cloudflare_zero_trust_tunnel_cloudflared" "mac" {
+  account_id = local.account_id
+  name       = "laptop"
+  config_src = "cloudflare"
+}
+
+import {
+  to = cloudflare_zero_trust_tunnel_cloudflared.mac
+  id = "<account-id>/6ff42ae2-765d-4adf-8112-31c55c1551ef"
+}
+
+resource "cloudflare_dns_record" "app_teispace_com" {
+  zone_id = "<zone-id>"
+  name    = "app.teispace.com"
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.mac.id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+  comment = "teitunnel:route=3f9a1c07e2b4"
+}
+# … the tunnel's configuration, the other records and their import blocks
+```
+
+The file declares the provider (`cloudflare/cloudflare`, `~> 5`), the tunnel
+(`cloudflare_zero_trust_tunnel_cloudflared`), its routes
+(`cloudflare_zero_trust_tunnel_cloudflared_config`, with origin settings in the provider's
+snake_case names) and each hostname's proxied CNAME (`cloudflare_dns_record`, keeping its
+TTL and comment), each with an `import` block. Run `terraform init` and `terraform plan`
+with a token that has **Cloudflare Tunnel · Edit** and **DNS · Edit**: the plan should show
+the resources being imported and no changes.
 
 <Callout type="warn">
-After you import the Terraform, Terraform owns those resources: make changes there, not
-in Teitunnel, or each will undo the other's edits.
+After you apply the Terraform, Terraform owns those resources: make changes there, not in
+Teitunnel, or each will undo the other's edits. Teitunnel will also report Terraform's
+changes to the tunnel as [made outside Teitunnel](/docs/concepts/routes-and-tunnels#routes-changed-outside-teitunnel).
 </Callout>
-<Callout type="info">
-In Docker, `localhost` is the container itself. Point routes at
-`host.docker.internal` or at other services' names so they're reachable from the container.
-</Callout>
+
+## Related
+
+- [Import an existing setup](/docs/guides/import): the other direction.
+- [Move to a new computer](/docs/guides/move-computer): take Teitunnel's own setup along.
+- [Project files](/docs/guides/project-file): routes kept in a repository, applied by Teitunnel.
+- [Servers](/docs/guides/servers)

@@ -1,78 +1,131 @@
 ---
 title: What is Cloudflare Tunnel?
-description: How Cloudflare Tunnel and cloudflared publish services without opening ports, what a tunnel, connector, route and Quick Tunnel are, what it costs, and its limits.
+description: How Cloudflare Tunnel and cloudflared publish services without opening ports, what a tunnel, connector, route, DNS record and Quick Tunnel are, what it costs, and the limits worth knowing before you rely on it.
 ---
 
 **Cloudflare Tunnel** connects a service on your computer or network to Cloudflare, so people
-can reach it at a hostname on your domain without you opening any inbound port. It's free,
-and it's what Teitunnel manages for you.
+can reach it at a hostname on your domain without you opening an inbound port, having a
+public IP address or touching your router. It's free, and it's what Teitunnel manages for
+you. This page explains the moving parts, so the plans Teitunnel shows you and the problems
+the Doctor reports make sense.
 
-## How it works
+## How a request travels
 
 ```
 Visitor ──HTTPS──▶ Cloudflare's edge ◀══ outbound connections ══ cloudflared ──▶ localhost:3000
-                   (app.example.com)                             (your machine)
+                   (app.teispace.com)                            (your computer)
 ```
 
-1. **cloudflared**, Cloudflare's open-source connector, runs on your machine and opens a few
-   long-lived **outbound** connections to nearby Cloudflare data centers (on port 7844, over
-   QUIC or HTTP/2).
-2. A visitor opens `https://app.example.com`. DNS points the hostname at Cloudflare, which
-   terminates HTTPS with its own certificate.
-3. Cloudflare sends the request down one of cloudflared's connections, and cloudflared passes
-   it to your service at `localhost:3000`.
+1. **cloudflared**, Cloudflare's open-source connector, runs on your computer and opens a
+   few long-lived **outbound** connections to nearby Cloudflare data centers, on port 7844
+   over QUIC (UDP), falling back to HTTP/2 (TCP) when UDP is blocked.
+2. A visitor opens `https://app.teispace.com`. The hostname's DNS record points at
+   Cloudflare, which answers HTTPS with its own certificate, applies whatever rules the
+   domain has (logins, firewall rules, caching) and looks up which tunnel serves the name.
+3. Cloudflare sends the request down one of that tunnel's connections. cloudflared matches
+   it against the tunnel's routes and passes it to your service at `localhost:3000`. The
+   answer goes back the same way.
 
-Because the connection starts from your side, there's nothing to forward on your router, no
-public IP needed (it works behind CGNAT), and your IP address is never published. Your
-firewall can block all inbound traffic.
+Because every connection starts from your side:
+
+- there's nothing to forward on your router, and it works behind carrier-grade NAT, hotel
+  Wi-Fi and most corporate firewalls (anything that allows outbound traffic on port 7844);
+- your IP address is never published in DNS, so visitors only ever see Cloudflare;
+- your firewall can block all inbound traffic.
 
 ## The pieces, and their names
 
 | Term | What it is | In Teitunnel |
 |---|---|---|
-| **Tunnel** | A named, persistent object in your Cloudflare account, with a UUID and a secret run token. | One per machine, made with your first route; more if you [ask](/docs/guides/several-tunnels). |
-| **Connector** | A running cloudflared process for a tunnel. Several can run one tunnel. | This machine's connector; listed per tunnel in **Tunnels**. |
-| **Route** (published application, ingress rule) | Which hostname (and path) goes to which local service. | A [route](/docs/concepts/routes-and-tunnels). |
-| **DNS record** | A proxied `CNAME` from your hostname to `<tunnel-id>.cfargotunnel.com`. | Made and removed with the route. |
-| **Quick Tunnel** | A throwaway tunnel with a random `trycloudflare.com` URL, no account needed. | [Quick Share](/docs/getting-started/quick-share). |
-| **Private network** | An IP range reachable through the tunnel by devices running WARP. | [Private networks](/docs/guides/private-networks). |
+| **Tunnel** | A named, persistent object in your Cloudflare account, with an ID (a UUID) and a secret run token. | One per computer, created with your first route; more if you [ask for them](/docs/guides/several-tunnels). |
+| **Connector** | A running cloudflared process for a tunnel. Several connectors, on one or more machines, can run the same tunnel. | This computer's connector, started by the app, `teitunnel up` or an [Always-on service](/docs/concepts/run-modes). Listed per tunnel in **Tunnels**. |
+| **Route** (Cloudflare calls it a *published application* or *ingress rule*) | Which hostname, and optionally which path, goes to which service. | A [route](/docs/concepts/routes-and-tunnels). |
+| **DNS record** | A proxied `CNAME` from your hostname to `<tunnel-id>.cfargotunnel.com`. It's what sends visitors to the tunnel. | Made and removed with the route, and [marked as Teitunnel's](/docs/concepts/dns-ownership). |
+| **Quick Tunnel** | A throwaway tunnel with a random `trycloudflare.com` address, no account needed. | [Quick Share](/docs/getting-started/quick-share). |
+| **Private network** | An IP range reachable through the tunnel by devices signed in to Cloudflare WARP. | [Private networks](/docs/guides/private-networks). |
+| **Access application** | A login Cloudflare asks for before a request reaches the tunnel. | [Require a login](/docs/guides/require-login). |
+
+A route needs both halves: the tunnel has to know the hostname (the ingress rule), and DNS
+has to send the hostname to the tunnel (the `CNAME`). Most tunnel problems are one half
+missing or pointing at the wrong place, which is why Teitunnel always changes both together
+and [checks the result](/docs/concepts/changes#verify).
 
 ## Remotely-managed and locally-managed tunnels
 
 Cloudflare supports two ways to configure a tunnel:
 
-- **Remotely-managed** (the current default): routes are stored in Cloudflare and changed
-  through the dashboard or API; cloudflared only needs a token. Teitunnel creates these.
-- **Locally-managed**: routes live in a `config.yml` next to cloudflared, which uses a
-  credentials file. Teitunnel can [import](/docs/guides/import) their routes and
-  [export](/docs/guides/export) its own back to `config.yml`.
+- **Remotely-managed** (Cloudflare's current default): routes are stored in Cloudflare and
+  changed through the dashboard or the API. cloudflared only needs the tunnel's run token and
+  fetches its routes from Cloudflare. **Teitunnel creates and manages these.**
+- **Locally-managed**: routes live in a `config.yml` next to cloudflared, which authenticates
+  with a credentials file (`<tunnel-id>.json`). Changing a route means editing the file and
+  restarting cloudflared.
+
+Teitunnel can [import](/docs/guides/import) the routes of a locally-managed setup onto its
+own tunnel, and [export](/docs/guides/export) its routes as a `config.yml` if you ever want
+to run them the other way.
 
 ## What it costs
 
-Cloudflare Tunnel is included in Cloudflare's **free** plan, with no bandwidth charge for the
-tunnel itself. You need a domain on Cloudflare for routes on your own hostnames (Quick
-Tunnels need nothing). Some features around it are paid: Load Balancing is a paid add-on, and
-Cloudflare Zero Trust (for logins) is free up to 50 users.
+- **Cloudflare Tunnel is free** on every Cloudflare plan, with no charge for bandwidth
+  through the tunnel.
+- **Routes on your own hostnames** need a domain on Cloudflare (its nameservers pointed at
+  Cloudflare). A free plan is enough. [Quick Shares](/docs/getting-started/quick-share)
+  need no account and no domain.
+- **Logins** use Cloudflare Zero Trust, which is free for up to 50 users.
+- **Load balancing** across machines uses Cloudflare Load Balancing, a paid add-on. See
+  [load balancing](/docs/guides/load-balancing).
+- **Workers** (behind [Snapshots](/docs/guides/snapshots), the
+  [offline page](/docs/guides/offline-page) and the
+  [webhook inbox](/docs/guides/webhook-inbox)) include 100,000 requests a day on the free
+  plan.
+- **Teitunnel** itself is free and open source.
 
 ## Limits worth knowing
 
-- **Request timeout:** Cloudflare waits up to 100 seconds for your service to answer (error
-  524 after that) on most plans.
-- **Upload size:** 100 MB per request on the Free and Pro plans (error 413).
-- **Quick Tunnels** are for testing: no uptime guarantee, a limit on requests in flight, and
-  no server-sent events.
-- **Content:** Cloudflare's service terms apply. Serving mostly video or large files may
-  need Cloudflare's media products; check the current terms for your plan.
-- **WebSockets and gRPC** work through tunnels; for non-HTTP protocols (SSH, RDP, databases),
-  visitors run cloudflared too. See [SSH and TCP](/docs/tutorials/ssh).
+These are Cloudflare's, not Teitunnel's. Where Teitunnel's route check can recognise one,
+it says which limit was hit.
+
+- **Response time:** Cloudflare waits about 100 seconds for your service to start
+  answering. After that visitors get error 524. Long-running work should answer early and
+  continue in the background, or stream.
+- **Upload size:** request bodies over 100 MB are refused on the Free and Pro plans (error
+  413). Teitunnel's check reports it as *Cloudflare refused a request body over 100 MB, the
+  limit on the Free and Pro plans.*
+- **Certificates:** Cloudflare's free certificate covers one level of subdomain
+  (`app.teispace.com`), not deeper names like `a.b.teispace.com`. Use single-level names, or
+  add an Advanced Certificate.
+- **Quick Tunnels** are for testing: no uptime guarantee, at most 200 requests in flight
+  at once, and no server-sent events. Share on your own domain when you need more.
+- **Protocols:** HTTP, WebSockets and gRPC work through a tunnel for any browser or client.
+  For other TCP services (SSH, RDP, databases), the visitor runs cloudflared too, or uses
+  WARP; see [SSH and TCP](/docs/tutorials/ssh) and
+  [private networks](/docs/guides/private-networks).
+- **Content:** Cloudflare's service terms apply to what you serve. Serving mostly video or
+  large files may need Cloudflare's media products; check the current terms for your plan.
 
 ## Why use Teitunnel for it
 
-Everything above can be done with the Cloudflare dashboard and the `cloudflared` command line.
-Teitunnel does the same work in one place: it installs and verifies cloudflared, makes the
-tunnel, routes and DNS records together, shows every change before it's made, undoes it if a
-step fails, keeps connectors running, and explains problems with fixes. See
-[how Teitunnel compares](/docs/concepts/compare).
+Everything above can be done with the Cloudflare dashboard and the `cloudflared` command.
+Teitunnel does the same work in one place and adds guarantees:
 
-Cloudflare's own documentation:
-[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/).
+- it installs cloudflared from Cloudflare's releases and verifies it before use;
+- it creates the tunnel, its routes and their DNS records together, and
+  [shows every change before making it](/docs/concepts/changes);
+- it undoes a change completely if one step fails;
+- it [never deletes a DNS record it didn't create](/docs/concepts/dns-ownership) without
+  asking;
+- it keeps connectors running, restarts them after a crash and moves them to new cloudflared
+  versions without downtime;
+- the [Doctor](/docs/reference/doctor) explains problems and fixes them in place.
+
+See [Teitunnel, cloudflared and the Cloudflare dashboard](/docs/concepts/compare) for when
+to use which.
+
+## Related
+
+- [Routes and tunnels](/docs/concepts/routes-and-tunnels): how Teitunnel models them.
+- [How changes are made](/docs/concepts/changes): plan, apply, verify.
+- [Run modes](/docs/concepts/run-modes): where the connector runs.
+- Cloudflare's documentation:
+  [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/).

@@ -6,70 +6,151 @@ description: "Let reviewers pin comments to any spot on a share or Snapshot, rep
 Send someone a link and get feedback exactly where it applies. With **Comments** on, the
 shared pages get a small comment button in the corner. Reviewers click a spot on the page,
 type, and the comment is pinned there with a number; they can reply to each other and
-resolve threads. You read and answer everything in Teitunnel's **Comments** view.
+resolve threads. You read and answer everything in Teitunnel's **Comments** view, from the
+terminal, or through an AI agent.
+
+Use it for design reviews, a client looking at a preview, or a teammate testing a branch:
+anything where "the button on the pricing page" is easier to point at than to describe.
 
 ## Turn it on
-- **A Quick Share or a share on your domain:** on its card in **Quick Share**, switch on
-  **Comments**. It works while requests go through the [inspector](/docs/guides/inspector)
-  (the default).
-- **A route:** while the route is being inspected, the same switch appears for it.
-- **A Snapshot:** when you publish it (or a new version), switch on **Comments** in the
-  settings, or pass `--comments` to `teitunnel snapshot publish`.
+
+- **A Quick Share, or a share on your domain:** on its card in **Quick Share**, switch on
+  **Comments**. "Reviewers can now comment on this share's pages". The switch is there
+  while the share's requests go through the [inspector](/docs/guides/inspector), which is
+  the default; the inspector adds the comment button to the pages.
+- **A Snapshot:** when you publish it or a new version, switch on **Comments** in the
+  settings step, or pass `--comments` to `teitunnel snapshot publish` or `update`.
+  `--no-comments` turns them off again.
+
+**Show Comments** next to the switch opens the Comments view at that share.
 
 ## For reviewers
-The button shows how many threads are open. **Add a comment**, then click the spot (or
-**Comment on the whole page**), type, and press **Comment** (⌘/Ctrl-Enter works too).
-Reviewers give their name once; their browser remembers it. When the hostname has a
-[login](/docs/guides/require-login), the name comes from Cloudflare Access and the
-comment is marked **Signed in**.
 
-The overlay is keyboard accessible, follows the page's light or dark system setting and
-Reduce Motion, and lives in its own Shadow DOM, so it never picks up or changes the page's
-styles. It loads nothing from anywhere else, and works with a Content Security Policy
-that allows scripts from the site itself.
+The button in the corner shows how many threads are open.
+
+1. Choose **Add a comment**, then click the spot you want to comment on (or choose
+   **Comment on the whole page**).
+2. Type the comment and press **Comment** (⌘-Enter or Ctrl-Enter works too).
+3. The first time, give **Your name**; the browser remembers it.
+
+Reviewers can **Reply**, **Resolve** and **Reopen** threads, and **Show resolved** to see
+closed ones. When the hostname has Teitunnel's own [login](/docs/guides/require-login), the
+name comes from Cloudflare Access and the comment is marked **Signed in**. Your own replies
+are marked **Owner**.
+
+The overlay is keyboard accessible, follows the visitor's light or dark setting and Reduce
+Motion, and lives in a closed Shadow DOM, so it never picks up or changes the page's
+styles. It loads nothing from anywhere else, and works under a strict Content Security
+Policy.
 
 ## Read and answer
-**Comments** in the sidebar lists every share and Snapshot with comments, with a badge for
-new ones; a notification tells you when someone writes. Each thread shows its page, the
-comments, and:
 
-- **Reply**: your answer is marked as yours for reviewers.
+**Comments** in the sidebar lists every share and Snapshot with comments ("Shares with
+comments"), with a badge for unread ones. A notification ("New comment on
+preview.teispace.com") tells you when someone writes, except during quiet hours. Each
+thread shows its page and the comments, with:
+
+- **Reply**: your answer is marked as the owner's for reviewers.
 - **Resolve** / **Reopen**.
 - **Show on Page**: opens the page in your browser at the spot, with the thread open.
+- **Open Page**: opens the page.
 
-From the terminal:
+Use **Show** to switch between **Open** and **Resolved** threads.
+
+Comments on live shares arrive at once. Comments on Snapshots are read from Cloudflare
+every 2 minutes while the app runs.
+
+## From the terminal
 
 ```sh
-teitunnel comments ls
-teitunnel comments ls preview.example.com
-teitunnel comments reply preview.example.com c1a2b3 "Fixed, thanks"
-teitunnel comments resolve preview.example.com c1a2b3
+teitunnel comments ls                                  # what has comments
+teitunnel comments ls preview.teispace.com             # its open threads
+teitunnel comments ls "Launch page" --all              # include resolved threads
+teitunnel comments reply preview.teispace.com c1a2b3 "Fixed in the new version, thanks"
+teitunnel comments resolve preview.teispace.com c1a2b3
+teitunnel comments resolve preview.teispace.com c1a2b3 --reopen
 ```
 
-AI agents connected with [MCP](/docs/guides/ai-agents) get `comments_list`,
-`comments_reply` and `comments_resolve`: an agent can read the feedback on a preview,
-change the code and answer. Replies and resolutions ask you first, like every change.
+A subject is a hostname, a Snapshot's name, or a key from `comments ls` (`snapshot:…`,
+`route:…`, `share:…`). Each thread is listed with its id, page and a link that opens it on
+the page. `--json` prints JSON. Replies are written as you, the owner.
+
+## From an AI agent
+
+Agents connected with [MCP](/docs/guides/ai-agents) get `comments_list`, `comments_reply`
+and `comments_resolve`: an agent can read the feedback on a preview, change the code and
+answer. Replies and resolutions are changes, so they ask you first in `ask` mode.
 Reviewers' email addresses are never given to agents.
 
 ## Where comments are kept
-- **Shares and routes:** in Teitunnel's database on this computer. Nothing goes to
-  Cloudflare, and it works on Quick Shares without an account (the page is only
-  reachable while this computer is on anyway).
-- **Snapshots:** in a **D1 database** on your own Cloudflare account (`teitunnel-data`,
-  created the first time you turn comments on, through the reviewed plan). The Snapshot's
-  Worker answers reviewers; Teitunnel reads and answers with your API token. Deleting a
-  Snapshot deletes its comments.
 
-## Limits
-A comment is at most 4,000 characters, a name 80. A share or Snapshot keeps up to 2,000
-comments and a thread 200. Each visitor can write 10 comments a minute and 60 an hour.
-Comments are stored and shown as plain text: HTML or scripts in them are never run.
+- **Shares:** in Teitunnel's database on this computer. Nothing goes to Cloudflare, it costs
+  no Worker requests, and it works on Quick Shares without an account. The pages are only
+  reachable while this computer is on anyway.
+- **Snapshots:** in a **D1 database** on your own Cloudflare account, `teitunnel-data`,
+  created the first time you turn comments on, as a step of the reviewed plan. The
+  Snapshot's Worker answers reviewers; Teitunnel reads and answers with your own API token,
+  so no Worker has an owner API or holds a key. Deleting a Snapshot deletes its comments.
+  The same database holds [webhook inboxes](/docs/guides/webhook-inbox).
+
+## Limits and costs
+
+| | Limit |
+|---|---|
+| One comment | 4,000 characters |
+| A name | 80 characters |
+| Comments per share or Snapshot | 2,000 |
+| Comments per thread | 200 |
+| Writes per visitor | 10 a minute, 60 an hour |
+| Request body | 16 KB |
+
+Comments are stored and shown as plain text: HTML or scripts in them are never run, and
+control and bidi-override characters are refused. Comments can only be posted from a page
+of the same site.
 
 With comments on, every request to a Snapshot runs its Worker (to add the comment button),
 which counts toward Cloudflare's free 100,000 Worker requests a day. D1's free plan
-includes 5 million rows read and 100,000 written a day.
+includes 5 million rows read and 100,000 rows written a day, and 5 GB of storage.
 
 ## Permissions
-Snapshot comments need **Account · D1 · Edit** on your API token, besides the Workers
-permissions Snapshots already use. If it's missing, Teitunnel shows how to add it to the
-same token.
+
+Snapshot comments need **Account · D1 · Edit**, besides the Workers permissions Snapshots
+already use. If it's missing, Teitunnel shows what to add ("To keep Snapshot comments and
+webhooks in a database on your account.") and continues when you're back. Comments on
+shares need no permissions.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="There's no Comments switch on a share">
+The switch is shown while the share goes through the inspector. If you turned the
+inspector off for this share, turn it on again (a Quick Share restarts with a new address).
+Local domains have no comments.
+</Accordion>
+<Accordion title="Comments aren't on for this Snapshot. Publish a new version with comments on.">
+Publish a new version with **Comments** on (or `teitunnel snapshot update <name>
+--settings-only --comments`).
+</Accordion>
+<Accordion title="Connect the Snapshot's Cloudflare account to read its comments.">
+Snapshot comments are read with the account's token. Connect the account in
+**Accounts**, then refresh.
+</Accordion>
+<Accordion title="Too many comments at once. Try again in a minute.">
+A reviewer hit the limit of 10 comments a minute or 60 an hour.
+</Accordion>
+<Accordion title="There are too many comments here. Resolve and clear some first.">
+The share or Snapshot reached 2,000 comments, or the thread 200.
+</Accordion>
+<Accordion title="Couldn't reach the comments on Cloudflare: …">
+Cloudflare didn't answer, or the D1 free daily limit was used up. It resets at 00:00 UTC.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Snapshots" href="/docs/guides/snapshots" description="Static copies that stay online, with comments in D1." />
+  <Card title="Inspector" href="/docs/guides/inspector" description="What carries the comment button on live shares." />
+  <Card title="AI agents" href="/docs/guides/ai-agents" description="Let an agent read feedback and answer it." />
+  <Card title="Require a login" href="/docs/guides/require-login" description="Signed-in reviewers, with names from Cloudflare Access." />
+</Cards>

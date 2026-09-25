@@ -1,41 +1,129 @@
 ---
 title: Server API
-description: Automate a Teitunnel server with its HTTP API.
+description: "Automate a Teitunnel server with its JSON API: API keys, every endpoint, the preview → apply flow with fingerprints, change types, errors and security."
 ---
 
-`teitunnel serve` runs a server's tunnels and offers a small HTTP API next to its web
-dashboard (see [Servers and containers](/docs/guides/servers#web-dashboard-and-api)). The
-machine-readable description is at `/api/openapi.json`.
+`teitunnel serve` runs a server's tunnels and offers a web dashboard and a small JSON API
+next to it (see [Servers and containers](/docs/guides/servers#web-dashboard-and-api)). Use
+the API to add and remove routes from deploy scripts, read route status and uptime for
+monitoring, or look at captured requests. Every change goes through the same reviewed plan
+as in the app: you preview it, then apply exactly that plan.
+
+The machine-readable description (OpenAPI 3.1) is at `/api/openapi.json` on the server,
+without signing in.
+
+## Start the server
+
+```sh
+teitunnel serve --set-password        # once: the dashboard password, read from the terminal
+teitunnel serve                       # listens on 127.0.0.1:8765
+```
+
+| Flag | Meaning |
+|---|---|
+| `--listen ADDR` | Where to listen. Default `127.0.0.1:8765`. |
+| `--allow-remote` | Allow a non-loopback address. Put TLS in front of it. |
+| `--secure-cookies` | Mark the session cookie `Secure` (when served over HTTPS). |
+| `--set-password` | Set the dashboard password and exit. `TEITUNNEL_WEB_PASSWORD` sets it at start instead. |
+| `--no-mcp` | Don't serve the MCP endpoint at `/mcp`. |
+| `--mcp-mode MODE` | The MCP endpoint's mode: `read-only`, `ask` (default) or `full`. |
+| `--mcp-allow-origin ORIGIN` | A browser origin allowed to call `/mcp` (repeatable). |
+
+`serve` refuses to start without a password, and refuses a non-loopback address without
+`--allow-remote`. Instead of exposing the port, you can also publish the dashboard through
+Teitunnel itself on a route with a [login](/docs/guides/require-login).
 
 ## Authentication
 
-Create a key on the server and send it as a bearer token:
+Automation uses **API keys**. Create one on the server and send it as a bearer token:
 
 ```sh
-teitunnel api-key create deploy     # printed once; store it as a secret
-teitunnel api-key list
-teitunnel api-key revoke 3
+teitunnel api-key create deploy       # printed once; store it as a secret
+teitunnel api-key list                # ids and names only
+teitunnel api-key revoke 3            # by id
 ```
 
 ```http
 Authorization: Bearer ttk_…
 ```
 
-Keys are stored only as hashes. The browser dashboard signs in with a password instead.
+Keys start with `ttk_` and are stored only as hashes, so a lost key can't be shown again:
+revoke it and create another. The same keys work for `/mcp`.
+
+The browser dashboard signs in with the password instead: `POST /api/login` sets a session
+cookie (`HttpOnly`, `SameSite=Strict`, 12 hours). Every change made with a session must
+also send an `X-Teitunnel` header (any value), which a cross-site form can't send. API keys
+don't need it.
 
 ## Endpoints
 
 | Method | Path | Does |
 |---|---|---|
-| `GET` | `/api/overview` | Accounts, this machine's tunnels and routes with their status, shares on your domains |
+| `GET` | `/api/overview` | Accounts, this machine's tunnels and routes with their status, and shares on your domains |
 | `POST` | `/api/preview` | Plans a change. Nothing changes. |
 | `POST` | `/api/apply` | Applies exactly the plan you previewed |
-| `GET` | `/api/analytics?accountId=…&range=day` | Traffic of the account's routes on this machine from Cloudflare's edge; add `hostname` (and `path`) for one route in detail. Needs Zone · Analytics · Read on the token ([Analytics](/docs/guides/analytics)). |
-| `GET` | `/api/uptime` | Uptime of this machine's routes (24 h, 7 d, 30 d, P95, open incident); add `hostname` and `range` for one route's status strip, response times and incidents |
-| `GET` | `/api/traffic` | Requests the [inspector](/docs/guides/inspector) captured (shares started over `/mcp` and this machine's recent history), newest first; filter with `tap`, `host`, `method`, `status` (`404`, `5xx`), `path`, `text`, page with `limit` and `before`. Read-only; credentials are always masked. |
-| `GET` | `/api/traffic/{id}` | One captured request and its response in full (headers, bodies, timings, webhook check), masked |
+| `GET` | `/api/analytics` | Edge traffic for the account's routes on this machine, or one route in detail |
+| `GET` | `/api/uptime` | Uptime of every route on this machine, or one route in detail |
+| `GET` | `/api/traffic` | Requests the inspector captured, newest first |
+| `GET` | `/api/traffic/{id}` | One captured request and its response in full |
 | `GET` | `/api/traffic/taps` | The inspector's taps: running in this server, and known from the history |
-| `POST`, `GET`, `DELETE` | `/mcp` | The MCP server for AI agents (Streamable HTTP), with the same keys: see [AI agents](/docs/guides/ai-agents/#a-server-over-http) |
+| `GET` | `/api/openapi.json` | This API as OpenAPI 3.1 (no sign-in needed) |
+| `GET` | `/api/session` | `{"signedIn": true\|false}` for the dashboard |
+| `POST` | `/api/login`, `/api/logout` | The dashboard's password sign-in (`{"password": "…"}`) |
+| `POST`, `GET`, `DELETE` | `/mcp` | The MCP server for AI agents (Streamable HTTP), with the same API keys: see [AI agents](/docs/guides/ai-agents#a-server-over-http) |
+
+Messages in answers (plan steps, warnings, errors) are plain English text.
+
+### `GET /api/overview`
+
+```json
+{
+  "machine": "<this machine's name>",
+  "accounts": [
+    { "id": "…", "name": "<account name>", "overview": { "…": "tunnels, routes, status" }, "error": null }
+  ],
+  "shares": []
+}
+```
+
+An account whose overview couldn't be read has `overview: null` and the reason in `error`.
+
+### `GET /api/analytics`
+
+| Parameter | |
+|---|---|
+| `accountId` | Required. |
+| `hostname` | One route in detail: requests, bytes, status classes and codes, paths, countries, browsers, bots, cache, origin time and a time series. Without it: every route of this machine with requests, error rate, p95 and a sparkline. |
+| `path` | With `hostname`: the route's path rule, e.g. `^/api`. |
+| `range` | `hour`, `day` (default), `week` or `month`. |
+
+Needs **Zone · Analytics · Read** on the account's token ([Analytics](/docs/guides/analytics)).
+Answers `403` without it, and `429` when Cloudflare's analytics rate limit is reached.
+
+### `GET /api/uptime`
+
+Without parameters: every route on this machine with its uptime over 24 hours, 7 days and
+30 days, p95 response time and any open incident. With `hostname` (and `path`, `range`): one
+route's status strip, response times and incidents; `404` if this machine doesn't serve it.
+
+### `GET /api/traffic`
+
+Requests the [inspector](/docs/guides/inspector) captured: shares started over `/mcp`, and
+this machine's recent history. Read-only; credentials are always masked, and the API can't
+reveal them.
+
+| Parameter | |
+|---|---|
+| `tap` | Only this tap (see `/api/traffic/taps`). |
+| `host`, `method`, `path` | Filters; `path` is text in the path. |
+| `status` | An exact status (`404`) or a class (`5xx`). |
+| `text` | Text anywhere in the request (masked secrets can't be searched). |
+| `limit` | 1 to 1,000; default 100. |
+| `before` | The previous page's `next`, for the next page. |
+
+The answer has `items` (id, tap, method, host, path, status, durationMs, sizes, kind, state,
+webhook) and `next`. `GET /api/traffic/{id}` returns one exchange with headers, bodies,
+timings and the webhook signature check.
 
 ## Making a change
 
@@ -43,35 +131,134 @@ A change is two calls. The preview returns the plan and its **fingerprint**; app
 the same change with that fingerprint. If anything changed in Cloudflare in between, apply
 answers `409` and nothing is changed: preview again.
 
+<Steps>
+<Step>
+### Preview
+
 ```sh
 curl -s -X POST http://127.0.0.1:8765/api/preview \
-  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"accountId":"…","change":{"type":"addRoute","route":{"hostname":"app.example.com","origin":"3000","path":null,"access":null}}}'
+  -H "Authorization: Bearer $TEITUNNEL_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"accountId":"<account id>","change":{"type":"addRoute","route":{"hostname":"api.teispace.com","origin":"8080","path":null,"access":null}}}'
 ```
 
-The response lists the steps (in English) and warnings; `requiresConfirmation` is `true` when
-the change would replace DNS records Teitunnel didn't create. To apply:
+```json
+{
+  "steps": [
+    { "kind": "putConfig", "description": "…", "command": null },
+    { "kind": "createRecord", "description": "…", "command": null }
+  ],
+  "warnings": [],
+  "requiresConfirmation": false,
+  "fingerprint": "…"
+}
+```
+
+`steps` is empty when there's nothing to change. `requiresConfirmation` is `true` when the
+change would replace or delete DNS records Teitunnel didn't create; applying then needs
+`"confirmed": true`.
+</Step>
+<Step>
+### Apply
 
 ```sh
 curl -s -X POST http://127.0.0.1:8765/api/apply \
-  -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
-  -d '{"accountId":"…","change":{…the same change…},"fingerprint":"…","confirmed":false}'
+  -H "Authorization: Bearer $TEITUNNEL_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"accountId":"<account id>","change":{…the same change…},"fingerprint":"…","confirmed":false}'
 ```
 
-The outcome is `applied`, or `rolledBack` (nothing is left changed) or `partiallyApplied`
-(with what couldn't be undone).
+The outcome has a `type`:
 
-## Changes
+- `applied`: every step succeeded. `verify` lists hostnames to check; `connectorError` is
+  set if the connector couldn't be started (the routes are configured).
+- `rolledBack`: a step failed and everything done before it was undone. `failedStep` and
+  `error` say which and why.
+- `partiallyApplied`: a step failed and some earlier changes couldn't be undone;
+  `leftovers` lists them.
+</Step>
+</Steps>
+
+Get the account id from `/api/overview` or `teitunnel accounts --json`.
+
+## Change types
+
+`change` is an object with a `type`. Fields are camelCase.
 
 | `type` | Fields |
 |---|---|
-| `addRoute` | `route: { hostname, origin, path, access }` |
-| `updateRoute` | `hostname`, `path`, `route` |
+| `addRoute` | `route: { hostname, origin, path, access, options }` |
+| `updateRoute` | `hostname`, `path` (the route's current ones), `route` (the new definition) |
 | `removeRoute` | `hostname`, `path` |
 | `createTunnel` | `name` |
-| `removeTunnel` | (with `tunnelId` to choose which) |
+| `removeTunnel` | none; with `tunnelId` to choose which |
 | `balanceRoute`, `unbalanceRoute` | `hostname` |
-| `addNetwork`, `removeNetwork` | `network` |
+| `addNetwork`, `removeNetwork` | `network`, e.g. `192.168.1.0/24` |
+| `importRoutes` | `routes`: a list of `route` objects |
+| `reserveHostname` | `hostname`, `until` (`2026-12-31` or `2026-12-31T18:00Z`; `null` for no end) |
+| `releaseHostname` | `hostname` |
+| `protectHostname` | `hostname`, `protection` (below) |
+| `restoreConfig` | none: undo an outside edit of this machine's routes |
+| `removeLogin` | `domain`: a login Teitunnel added whose route is gone |
+| `deleteRecord` | `zoneId`, `hostname`, `recordId`: an orphaned record Doctor found |
+
+A `route`:
+
+- `hostname`: on one of the account's domains.
+- `origin`: a port (`"3000"`), `host:port`, or a URL (`"http://localhost:3000"`).
+- `path`: a path regex such as `"^/api"`, or `null`.
+- `access`: `{ "emails": ["team@teispace.com"], "emailDomains": ["teispace.com"] }` to
+  require a login, or `null`. On `updateRoute`, `null` removes the login Teitunnel added.
+- `options`: origin settings (the same as the CLI's origin flags, camelCase), or leave it
+  out for cloudflared's defaults (on `updateRoute`, leaving it out keeps the current ones).
+
+`protection` for `protectHostname` ([Edge protection](/docs/guides/protection)); an empty
+object removes Teitunnel's rules:
+
+```json
+{
+  "bots": "challenge",
+  "aiCrawlers": true,
+  "rateLimit": { "requests": 100, "period": 60, "action": "block" },
+  "requestHeaders": [{ "name": "Cookie", "op": "remove" }],
+  "responseHeaders": [{ "name": "X-Robots-Tag", "op": "set", "value": "noindex" }]
+}
+```
+
+`bots` is `off`, `challenge` or `block`; `period` is one of 10, 60, 120, 300, 600 or 3600
+seconds; `action` is `block` or `challenge`; `op` is `set`, `add` (response headers only) or
+`remove`.
 
 `tunnelId` (next to `accountId`) picks one of the machine's tunnels; without it, the default
-tunnel. `access` is `{ "emails": [...], "emailDomains": [...] }` or `null`.
+tunnel, or the tunnel carrying an existing route.
+
+## Errors
+
+Errors are JSON: `{ "error": "…" }`.
+
+| Status | When |
+|---|---|
+| `400` | The request or change isn't valid, or planning failed (the message says why) |
+| `401` | `Invalid API key.` or `Sign in first.` |
+| `403` | `Missing the X-Teitunnel header.` (a session change without it), or a missing analytics permission |
+| `404` | A route or captured request this machine doesn't have |
+| `409` | `Something changed in Cloudflare since this was reviewed. Review it again.` |
+| `429` | `Too many attempts. Try again in a few minutes.` (5 failed sign-ins from one address in 5 minutes), or Cloudflare's analytics limit |
+| `502` | Cloudflare didn't answer an analytics query |
+
+## Security
+
+- Listens on loopback unless `--allow-remote`. No CORS headers are ever sent.
+- Every response carries a strict Content Security Policy, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Cache-Control: no-store`.
+- No secret is ever returned: not tokens, not keys, not captured credentials.
+- `/mcp` refuses requests with an `Origin` header unless it's allowed with
+  `--mcp-allow-origin`, accepts only a loopback `Host` unless the server listens remotely,
+  and refuses repeated bad keys from one address for a while.
+
+## Related
+
+<Cards>
+  <Card title="Servers and containers" href="/docs/guides/servers" description="Run tunnels with up, serve and Always-on." />
+  <Card title="AI agents" href="/docs/guides/ai-agents" description="The /mcp endpoint and its modes." />
+  <Card title="CLI reference" href="/docs/reference/cli" description="Every command and flag." />
+  <Card title="How changes work" href="/docs/concepts/changes" description="Plans, fingerprints and undo." />
+</Cards>

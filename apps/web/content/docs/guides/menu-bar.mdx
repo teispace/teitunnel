@@ -1,30 +1,132 @@
 ---
 title: The menu bar and tray
-description: Status and quick actions without opening the window.
+description: "Route status and Quick Shares without opening the window: the menu bar or tray menu, one-click sharing of running services, pausing and stopping every share, a global shortcut that shares your dev server, and teitunnel:// links for launchers and scripts."
 ---
 
-On macOS Teitunnel has a menu bar icon; on Windows it's in the notification area and on
-Linux in the system tray (left click opens the app on Windows, right click shows the menu).
-The icon shows a dot when a route isn't working. Its menu has:
+Teitunnel keeps running when you close its window, and its menu bar icon (a tray icon on
+Windows and Linux) gives you the status of your routes and shares, and the actions you use
+most, without switching apps. A global shortcut and `teitunnel://` links reach the same
+actions from anywhere.
 
-- a **health line** ("All 3 routes live", "1 of 3 routes not working"),
-- each **route** with its status, to copy its URL or open it,
-- **Stop Routes on This Mac** / **Start Routes on This Mac** (*This PC* on Windows, *This Computer* on Linux),
-- your **Quick Shares**, each with **Copy URL**, **Open in Browser** and **Stop Sharing**,
-- **Copy** for the three newest addresses, in one click,
-- **Pause All Shares** / **Resume All Shares** (visitors see a "paused" page and the
-  addresses keep working; for inspected shares) and **Stop All Shares**,
-- **Share a Running Service**: dev servers and other local services that aren't shared yet,
-  shared in one click. Teitunnel runs its exposure check first; if it finds something, the
-  Quick Share sheet opens so you can decide. The address is copied once it's live.
-- **Share a Local Port…**,
-- **Open Teitunnel** and **Quit Teitunnel**.
+## Where it is
 
-Running services are looked up when you point at the icon (macOS, Windows); on Linux, at
-launch and whenever a share changes.
+- **macOS:** the icon in the menu bar. Click it for the menu.
+- **Windows:** the icon in the notification area. Left-click opens Teitunnel's window;
+  right-click shows the menu.
+- **Linux:** the icon in the system tray (your desktop needs tray support, for example the
+  AppIndicator extension on GNOME). Click it for the menu.
 
-Stopping routes yourself doesn't count as a problem, so the icon stays plain.
+The icon shows a **dot when a route isn't working**. Routes you stopped yourself don't count
+as a problem, so the icon stays plain.
 
-Closing the window leaves Teitunnel running in the menu bar. **Settings ▸ General ▸ Open
-at login** starts it there when you log in, without opening the window. You can hide the
-icon in **Settings ▸ General ▸ Menu bar**.
+**Settings ▸ General ▸ Menu bar ▸ Show in menu bar** hides or shows the icon. Closing the
+window keeps routes and Quick Shares running either way; quit with ⌘Q (or **Quit Teitunnel**
+from the menu) to stop them. **Settings ▸ General ▸ Startup ▸ Open at login** starts
+Teitunnel in the menu bar when you log in, without opening a window.
+
+## What the menu shows
+
+From top to bottom:
+
+| Item | What it does |
+|---|---|
+| **Health line** | *All 3 routes live*, *1 of 3 routes not working*, or *Routes stopped on this Mac*. |
+| **Each route** | Its hostname and status (*Live*, *No DNS record*…), with **Copy URL** and **Open in Browser**. |
+| **Stop Routes on This Mac** / **Start Routes on This Mac** | Stops or starts this computer's connectors (*This PC* on Windows, *This Computer* on Linux). Always-on connectors keep their own service. |
+| **Quick Shares** | Each share as *origin — status* (*Starting*, *Live*, *Reconnecting*, *Failed*), with **Copy URL**, **Open in Browser** and **Stop Sharing**. *No Quick Shares* when there are none. |
+| **Copy …** | The addresses of the three newest live shares, one click each. |
+| **Pause All Shares** / **Resume All Shares** | Visitors see a "paused" page and the addresses keep working. Applies to shares that go through the [inspector](/docs/guides/inspector) (the default). |
+| **Stop All Shares** | Stops every Quick Share. |
+| **Share a Running Service** | Dev servers and other web services running on this computer that aren't shared yet (up to six, dev servers first), such as *localhost:5173 — Vite · shop*. One click shares it. |
+| **Share a Local Port…** | Opens the Quick Share sheet to type a port or address. |
+| **Open Teitunnel** | Brings the window forward. |
+| **Quit Teitunnel** | Quits, asking first if routes run through the app. |
+
+### Sharing in one click
+
+When you choose a service under **Share a Running Service**:
+
+1. Teitunnel runs its [exposure check](/docs/guides/exposure-check) on the service first.
+2. If the check finds something (a `.env` file, the git folder, a debug page), the Quick Share
+   sheet opens with the findings, so you decide: **Share Anyway** or **Cancel**.
+3. Otherwise it shares, waits for the address, **copies it** to the clipboard, and notifies
+   you: *localhost:5173 is shared. Its address is copied: https://….trycloudflare.com*.
+
+On macOS and Windows, running services are looked up when you point at the icon (at most
+every 3 seconds). Linux has no such event, so the list is refreshed at launch and whenever a
+share starts or stops.
+
+## The global shortcut
+
+A keyboard shortcut that works from any app while Teitunnel runs. It's off until you turn it
+on in **Settings ▸ Integrations ▸ Global shortcut**:
+
+1. Turn on **Use a global shortcut**. The default is ⌘⌥⇧S on macOS (Ctrl+Alt+Shift+S on
+   Windows and Linux).
+2. To change it, choose **Change** and type the keys. Use at least one modifier other than
+   Shift, with one letter, digit, function key or Space.
+3. Under **When pressed**, choose:
+   - **Share the running dev server:** shares the one dev server that's running and copies its
+     address (or copies the address if it's shared already). With none or several, Quick
+     Share opens so you can choose. The exposure check runs first, as in the menu.
+   - **Open Quick Share:** brings Teitunnel to the front, ready to share a port.
+
+If the system refuses the shortcut, the previous one stays and Teitunnel says why:
+*Another app already uses this shortcut. Choose a different one.* or *This system doesn't let
+apps use global shortcuts.* (some Wayland desktops on Linux).
+
+## teitunnel:// links
+
+Launchers (Raycast, Alfred), scripts and web pages can open Teitunnel with a link:
+
+| Link | What it does |
+|---|---|
+| `teitunnel://share?port=3000` | Shares `localhost:3000` as a Quick Share. **Always asks first**, one request at a time, and is never remembered: any web page can open a link. |
+| `teitunnel://open` | Brings the window forward on Overview. |
+| `teitunnel://open?route=app.teispace.com` | Opens that route. |
+| `teitunnel://open?share=<id>` | Opens that share in Quick Share. |
+| `teitunnel://inspect?share=<id>` | Opens that share's requests in the [inspector](/docs/guides/inspector). |
+
+Links are parsed strictly: an unknown action, an unknown or repeated parameter, or a value that
+isn't a port, hostname or share id is refused. Turn them off in **Settings ▸ Integrations ▸
+Links ▸ Open teitunnel:// links**. The installers register the scheme; nothing else is needed.
+
+From a terminal:
+
+```sh
+open "teitunnel://share?port=3000"        # macOS
+start "" "teitunnel://share?port=3000"    # Windows
+xdg-open "teitunnel://share?port=3000"    # Linux
+```
+
+## The same from a terminal
+
+The menu's information is in the terminal too, and the `teitunnel` command uses the running
+app when there is one:
+
+```sh
+teitunnel status        # whether the app runs, and what it serves
+teitunnel top           # a live dashboard of shares, routes and traffic (q quits, ? for keys)
+teitunnel shares        # every share, with --stop, --pause and --resume
+teitunnel routes        # this computer's routes and their status
+teitunnel share 5173    # share a port through the app
+```
+
+See [sharing](/docs/guides/sharing) and the [CLI reference](/docs/reference/cli).
+
+## Troubleshooting
+
+- **No icon on Linux.** Your desktop may not show tray icons: on GNOME, install the
+  AppIndicator extension. Check **Settings ▸ General ▸ Menu bar ▸ Show in menu bar** too.
+- **A service is missing from Share a Running Service.** Databases and system services aren't
+  offered, services already shared are hidden, and at most six are listed. Use
+  **Share a Local Port…** instead.
+- **Pause All Shares isn't in the menu.** No running share goes through the inspector. Shares
+  started with **Inspect requests** off can't show a paused page.
+
+## Related
+
+- [Quick Share](/docs/getting-started/quick-share)
+- [Sharing: pause, schedule, name and share folders](/docs/guides/sharing)
+- [Run modes](/docs/concepts/run-modes): what keeps running when you quit.
+- [Integrations](/docs/guides/integrations): editors and launchers on the same connection.

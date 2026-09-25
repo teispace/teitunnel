@@ -3,54 +3,127 @@ title: Load balancing
 description: "Serve one hostname from several machines through Cloudflare Tunnel with Cloudflare Load Balancing: health checks, failover and per-region status."
 ---
 
-When the same app runs on several machines, Teitunnel can put Cloudflare's load balancer
-in front of it: visitors go to whichever machines are healthy, and traffic moves away from
-one that goes down.
+When the same app runs on several machines, Teitunnel can put Cloudflare's load balancer in
+front of it: visitors go to whichever machines are healthy, and traffic moves away from one
+that goes down. Use it for failover between two servers, or to keep a site up while you
+restart one machine.
+
+For groups of routes on one machine, see [several tunnels](/docs/guides/several-tunnels)
+instead.
 
 ## What you need
-- **Cloudflare Load Balancing**, a paid add-on. Turn it on in the Cloudflare dashboard
-  under **Traffic ▸ Load Balancing**.
-- The token permissions **Account · Load Balancing: Monitors and Pools · Edit** and
-  **Zone · Load Balancers · Edit**. If they're missing, Teitunnel shows how to add them.
-- The same route on each machine: run Teitunnel (or `teitunnel` on a server) on every
-  machine, and add the route with the same hostname on each.
 
-## Turn it on
-Select the route in **Routes** and choose **Load Balance…**, or from the terminal:
+- **Cloudflare Load Balancing**, a paid add-on. Turn it on in the Cloudflare dashboard under
+  **Traffic ▸ Load Balancing** first.
+- The permissions **Account · Load Balancing: Monitors and Pools · Edit** and **Zone · Load
+  Balancers · Edit**. If they're missing, Teitunnel shows what to add ("To load balance a
+  route. Load Balancing is a paid Cloudflare add-on: turn it on in the dashboard first.").
+- **The same route on each machine:** run Teitunnel (the app, or `teitunnel` on a server) on
+  every machine, and add the route with the same hostname on each.
+
+## Set it up
+
+<Steps>
+<Step>
+### Add the route on the first machine
 
 ```sh
-teitunnel route balance app.example.com
+teitunnel route add app.teispace.com 3000
+```
+</Step>
+<Step>
+### Add the same route on the other machines
+
+A hostname another machine serves is held by that machine, so the plan says so and asks
+for a confirmation before it points the DNS record here. Confirm it in the app, or pass
+`--take-over`:
+
+```sh
+teitunnel route add app.teispace.com 3000 --take-over
 ```
 
-The plan shows what's created before anything is:
+Until the next step, visitors go to whichever machine the DNS record points at.
+</Step>
+<Step>
+### Turn on load balancing
 
-- a **health check** that requests `https://app.example.com/` through each tunnel and
-  expects a 2xx answer (after redirects);
-- a **pool** with one endpoint per machine: each tunnel's `<id>.cfargotunnel.com`, with
-  your hostname as the Host header, as Cloudflare recommends for tunnels;
-- a **load balancer** named after the hostname. It takes precedence over the DNS record,
-  so the record stays as a fallback.
+Select the route in **Routes** and choose **Load Balance…** (the sheet is **Load Balance
+Route**; apply with **Load Balance**), or from the terminal:
 
-With only one machine serving the route so far, the plan warns you: add the route on
-another machine and balance again to include it.
+```sh
+teitunnel route balance app.teispace.com
+```
 
-## See how each machine is doing
-The route's details list **Machines**: every endpoint of the pool, with the result of
-Cloudflare's health checks from each region that checks it ("Healthy in all 3 regions",
-"Healthy in 2 of 3 regions", or failing with Cloudflare's reason, such as a timeout). The
-machine you're on is marked. Checks run about once a minute; the list refreshes while it's
-open.
+The plan ("Load balance app.teispace.com across its tunnels") shows what's created before
+anything is (see below). With only one machine serving the route so far, it warns: "Only
+this tunnel serves app.teispace.com so far. Add the same route on another machine so the
+load balancer has somewhere to fail over to."
+</Step>
+</Steps>
 
-## Machines joining and leaving
-A machine that adds the route later joins the pool by itself, instead of taking the DNS
-record over. Removing the route on a machine takes it out of the pool; when the last one
-goes, the load balancer, pool and health check go too.
+## What happens on Cloudflare
 
-## Turn it off
-**Stop Load Balancing…** (or `teitunnel route unbalance app.example.com`) deletes the
-load balancer, pool and health check. The hostname's DNS record serves it again.
+- A **health check** that requests `https://app.teispace.com/` through each tunnel, with your
+  hostname as the Host header, and expects any 2xx answer after following redirects.
+- A **pool** with one endpoint per machine: each tunnel's `<tunnel id>.cfargotunnel.com`,
+  with your hostname as the Host header, as Cloudflare recommends for tunnels.
+- A **load balancer** named after the hostname. It takes precedence over the DNS record, so
+  the record stays as a fallback.
 
 Teitunnel marks what it creates (`teitunnel:lb=<hostname>` in the description) and only
-changes those. If a load balancer made elsewhere already answers for the hostname, the plan
-stops and asks you to manage it in the dashboard. Every step can be undone, and a failure
-part-way puts back what was there.
+changes those, from any machine. If a load balancer made elsewhere already answers for the
+hostname, the plan stops ("app.teispace.com already has a load balancer Teitunnel didn't
+create. Change it in the Cloudflare dashboard."). Every step can be undone in Activity, and a
+failure part-way puts back what was there.
+
+## See how each machine is doing
+
+The route's details show **Load balancing** ("Across every tunnel that routes it") and
+**Machines**: every endpoint of the pool, with the result of Cloudflare's health checks from
+each region that checks it ("Healthy in all 3 regions", "Healthy in 2 of 3 regions", or
+failing with Cloudflare's reason, such as a timeout). The machine you're on is marked.
+Checks run about once a minute; the list refreshes while it's open. Balanced routes are
+marked **Balanced** in the routes list.
+
+## Machines joining and leaving
+
+Once the hostname is balanced, a machine that adds the route joins the pool by itself,
+without taking the DNS record over. Removing the route on a machine takes it out of the
+pool; when the last one goes, the load balancer, pool and health check go too.
+
+## Turn it off
+
+**Stop Load Balancing…** (or `teitunnel route unbalance app.teispace.com`) deletes the load
+balancer, pool and health check. The hostname's DNS record serves it again, so visitors go
+to the machine the record points at.
+
+## Limits and costs
+
+Load Balancing is a paid Cloudflare add-on; see Cloudflare's pricing for what your plan
+includes. Teitunnel creates one load balancer, one pool and one health check per balanced
+hostname, and adds nothing on top.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="The load-balancing pool or health check wasn't created.">
+Load Balancing isn't turned on for the account, or the token lacks the two permissions.
+Turn it on under **Traffic ▸ Load Balancing** (**Open Load Balancing**), then try again.
+</Accordion>
+<Accordion title="Teitunnel doesn't load balance …">
+The hostname isn't balanced by Teitunnel, so there's nothing to stop.
+</Accordion>
+<Accordion title="A machine shows as failing in every region">
+Its connector is down, or the app behind it doesn't answer 2xx at `/`. Check the route on
+that machine (**Test**, or `teitunnel doctor`).
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Several tunnels" href="/docs/guides/several-tunnels" description="Separate groups of routes on one machine." />
+  <Card title="Servers and containers" href="/docs/guides/servers" description="Run the second machine without the app." />
+  <Card title="DNS ownership" href="/docs/concepts/dns-ownership" description="Who holds a hostname, and taking it over." />
+  <Card title="Analytics" href="/docs/guides/analytics" description="Traffic per route from Cloudflare's edge." />
+</Cards>
