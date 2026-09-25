@@ -4,7 +4,7 @@ import { parseOrigin } from "./logic.ts";
 import { explain, withTeitunnel } from "./teitunnel.ts";
 
 /** Shares a local port and copies the address (Teitunnel asks first unless Raycast is always allowed). */
-export default async function SharePort(props: LaunchProps<{ arguments: Arguments.SharePort }>) {
+export default async function SharePort(props: LaunchProps<{ arguments: { port: string } }>) {
   const origin = parseOrigin(props.arguments.port);
   if (!origin) {
     await showToast({ style: Toast.Style.Failure, title: "Enter a port like 3000" });
