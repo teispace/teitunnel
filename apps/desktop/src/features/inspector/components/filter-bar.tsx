@@ -33,14 +33,14 @@ export function FilterBar({ search, onSearch, filters, onFilters }: FilterBarPro
         placeholder={t("inspector.filter.searchPlaceholder")}
         value={search}
         onChange={(event) => onSearch(event.target.value)}
-        className="min-w-24 flex-1 rounded-full"
+        className="min-w-48 flex-1 rounded-full"
       />
       <Input
         aria-label={t("inspector.filter.text")}
         placeholder={t("inspector.filter.textPlaceholder")}
         value={filters.text}
         onChange={(event) => onFilters({ ...filters, text: event.target.value })}
-        className="w-24 shrink-0 font-mono text-mono"
+        className="w-40 shrink-0 font-mono text-mono"
       />
       <SegmentedControl
         label={t("inspector.filter.status")}
