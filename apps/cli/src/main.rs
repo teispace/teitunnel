@@ -764,7 +764,8 @@ impl From<Format> for ExportFormat {
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
-    match run(cli.command).await {
+    // On the heap: the future for every command together is large.
+    match Box::pin(run(cli.command)).await {
         Ok(code) => code,
         Err(message) => {
             let _ = writeln!(io::stderr().lock(), "teitunnel: {message}");
