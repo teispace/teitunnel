@@ -1062,9 +1062,22 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             if !rules.is_empty() {
                 b.put_config(&TunnelRef::Existing(tunnel.id.clone()), Vec::new());
             }
-            for hostname in hostnames {
+            for hostname in &hostnames {
                 b.release_dns(hostname, &tunnel.id);
             }
+            // The service tokens Teitunnel made for its hostnames would open nothing.
+            let doomed: Vec<_> = snapshot
+                .service_tokens
+                .iter()
+                .flatten()
+                .filter(|t| {
+                    t.owned
+                        && t.made_for
+                            .as_deref()
+                            .is_some_and(|h| hostnames.contains(&h))
+                })
+                .cloned()
+                .collect();
             // Logins come down once no route reaches them, but before the tunnel is
             // deleted: that step can't be undone, so it stays last.
             let owned: Vec<String> = snapshot
@@ -1076,6 +1089,11 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             for domain in owned {
                 b.unprotect(&domain);
             }
+            b.steps.extend(
+                doomed
+                    .into_iter()
+                    .map(|token| Step::DeleteServiceToken { token }),
+            );
             // Private network routes would point at a tunnel that no longer exists.
             let networks: Vec<ObservedNetworkRoute> = snapshot
                 .networks

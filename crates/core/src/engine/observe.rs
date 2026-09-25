@@ -160,7 +160,7 @@ impl ObserveNeed {
                 | Intent::RevokeServiceToken { .. }
                 | Intent::RotateServiceToken { .. } => Want::Yes,
                 // A hostname's tokens go with its last route.
-                Intent::RemoveRoute { .. } => Want::IfAllowed,
+                Intent::RemoveRoute { .. } | Intent::RemoveTunnel => Want::IfAllowed,
                 _ => Want::No,
             },
             front: match intent {

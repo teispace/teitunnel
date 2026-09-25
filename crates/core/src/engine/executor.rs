@@ -1096,17 +1096,16 @@ impl Engine {
         }
         // A hostname with no route left keeps no pause or schedule (they'd come back if
         // the name were used again).
-        if let (Outcome::Applied { .. }, Intent::RemoveRoute { hostname, .. }) = (&outcome, intent)
-            && matches!(
-                self.local
-                    .tunnel_routing(ctx.account, hostname.as_str())
-                    .await,
-                Ok(None)
-            )
+        if matches!(outcome, Outcome::Applied { .. })
+            && matches!(intent, Intent::RemoveRoute { .. } | Intent::RemoveTunnel)
         {
-            let store = self.local.store();
-            warn_local(crate::pause::forget(store, ctx.account, hostname.as_str()).await);
-            warn_local(crate::schedule::set(store, ctx.account, hostname.as_str(), None).await);
+            for hostname in &record.hostnames {
+                if let Ok(None) = self.local.tunnel_routing(ctx.account, hostname).await {
+                    let store = self.local.store();
+                    warn_local(crate::pause::forget(store, ctx.account, hostname).await);
+                    warn_local(crate::schedule::set(store, ctx.account, hostname, None).await);
+                }
+            }
         }
         // The app log says what changed too, so a report ("the record wasn't removed")
         // can be traced without the database.
