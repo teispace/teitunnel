@@ -98,7 +98,8 @@ static NEXT_SUBSCRIPTION: AtomicU32 = AtomicU32::new(1);
 /// `inspect_unsubscribe` with the returned id (or the window goes away).
 #[tauri::command]
 #[specta::specta]
-pub fn inspect_subscribe(
+// Async: on the runtime, not the main thread (starting Lens spawns its tasks).
+pub async fn inspect_subscribe(
     state: State<'_, AppState>,
     on_batch: Channel<LiveBatch>,
 ) -> Result<u32, AppError> {
