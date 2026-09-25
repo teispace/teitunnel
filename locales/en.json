@@ -2161,7 +2161,7 @@
       },
       "hostOrphan": {
         "title": "{hostname} has no route, but Teitunnel’s settings for it are still in Cloudflare",
-        "detail": "Its route was removed without them (a deleted tunnel, an interrupted change or another computer). They serve or protect nothing now, but count against your plan’s limits and would come back into play if the hostname were routed again. Only what Teitunnel created is removed.",
+        "detail": "Its route was removed without them (an older version, a DNS record deleted in the dashboard, an interrupted change or another computer). They serve or protect nothing now, but count against your plan’s limits and would come back into play if the hostname were routed again. Only what Teitunnel created is removed.",
         "front": "An offline page or webhook inbox Worker",
         "edge": "Edge rules (bots, headers or a rate limit)",
         "tokens": "Service tokens made for it: {count}"
