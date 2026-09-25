@@ -68,6 +68,7 @@ one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio se
 | `undo_last` | Plans the reverse of the latest change. |
 | `get_protection`, `protect_hostname` | A hostname's rules at Cloudflare's edge (bots, AI crawlers, rate limit, headers) and quotas; plans a change, applied with `apply_plan` ([Edge protection](/docs/guides/protection)). |
 | `service_token_list`, `service_token_create`, `service_token_revoke` | Service tokens that let machines through a login. A new token's secret is returned once, after your approval, marked sensitive. |
+| `get_offline_page_and_inboxes`, `set_offline_page`, `set_webhook_inbox` | A hostname's [offline page](/docs/guides/offline-page) and [webhook inboxes](/docs/guides/webhook-inbox): what it has, and setting or removing either after your approval of the plan. A verifying inbox uses the signing secret already saved in the inspector. |
 | `list_reservations`, `reserve_hostname`, `release_hostname` | Hostnames reserved on the account and who holds them; reserve one (optionally until a date) or give it up ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). |
 | `comments_list`, `comments_reply`, `comments_resolve` | Reviewers' comments on shares and Snapshots ([Comments](/docs/guides/comments)); reviewers' email addresses are never included. |
 | `doctor`, `fix_issue` | The Doctor's issues and their fixes ([Doctor checks](/docs/reference/doctor)). |

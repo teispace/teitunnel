@@ -128,7 +128,9 @@ impl ServerBuilder {
             Arc::clone(&self.backend),
             plans,
         ));
-        let mut providers = vec![core, protection];
+        let fronts: Arc<dyn ToolProvider> =
+            Arc::new(crate::tools::FrontTools::new(Arc::clone(&self.backend)));
+        let mut providers = vec![core, protection, fronts];
         providers.extend(self.providers);
         let mut tools: Vec<(ToolSpec, usize)> = Vec::new();
         let mut names = HashSet::new();

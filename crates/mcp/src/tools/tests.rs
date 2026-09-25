@@ -59,6 +59,7 @@ pub(crate) struct FakeState {
     /// Pauses (`true`) and resumes, by hostname.
     pub(crate) paused: Vec<(String, bool)>,
     pub(crate) quick_paused: Vec<(String, bool)>,
+    pub(crate) fronts_applied: Vec<teitunnel_core::fronts::FrontChange>,
     /// Schedules set (`None`: removed), by hostname.
     pub(crate) schedules: Vec<(String, Option<teitunnel_core::schedule::Schedule>)>,
     /// Folders shared.
@@ -647,6 +648,39 @@ impl Backend for FakeBackend {
         _hostname: &'a str,
     ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::protection::ServiceTokenView>>> {
         ready(Ok(self.lock().tokens.clone()))
+    }
+
+    fn preview_front<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        ready(Ok(PlanView {
+            steps: vec![StepView {
+                kind: StepKind::ServiceToken,
+                description: msg::raw(format!("Put a Worker in front of {}", change.hostname())),
+                command: None,
+            }],
+            warnings: Vec::new(),
+            requires_confirmation: false,
+            fingerprint: "fp-front".into(),
+        }))
+    }
+
+    fn apply_front<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+        approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        assert_eq!(approval.fingerprint, "fp-front");
+        self.lock().fronts_applied.push(change.clone());
+        ready(Ok(Outcome::Applied {
+            tunnel_id: None,
+            verify: Vec::new(),
+            connector_error: None,
+        }))
     }
 
     fn preview_protection<'a>(
@@ -1732,6 +1766,47 @@ async fn an_agent_pauses_its_own_quick_share_without_asking() {
         h.backend.lock().paused.is_empty(),
         "not treated as a domain"
     );
+}
+
+#[tokio::test]
+async fn an_offline_page_is_shown_to_the_person_before_it_goes_up() {
+    let h = harness();
+    let shared: SharedBackend = h.backend.clone();
+    let fronts = super::FrontTools::new(shared);
+    let call = |args: Value| {
+        let ctx = ToolContext::detached(settings(Mode::Ask), actor());
+        let Value::Object(args) = args else {
+            panic!("an object")
+        };
+        let fronts = &fronts;
+        async move {
+            fronts
+                .call("set_offline_page", args, &ctx)
+                .await
+                .map(|out| out.structured)
+                .unwrap()
+        }
+    };
+    let args = json!({ "hostname": "demo.xyz.com", "title": "Back at 5" });
+    let asked = call(args).await;
+    assert_eq!(asked["outcome"], "needsApproval");
+    assert!(
+        h.backend.lock().fronts_applied.is_empty(),
+        "nothing unasked"
+    );
+    let args = json!({ "hostname": "demo.xyz.com", "title": "Back at 5", "confirmed": true });
+    let done = call(args).await;
+    assert_eq!(done["outcome"], "applied", "{done}");
+    let applied = h.backend.lock().fronts_applied.clone();
+    let [
+        teitunnel_core::fronts::FrontChange::Offline {
+            page: Some(page), ..
+        },
+    ] = applied.as_slice()
+    else {
+        panic!("{applied:?}");
+    };
+    assert_eq!(page.title, "Back at 5");
 }
 
 #[tokio::test]

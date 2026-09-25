@@ -174,8 +174,9 @@ async fn introduces_itself_with_instructions_and_capabilities() {
 async fn lists_tools_by_mode() {
     let ask = connect(Mode::Ask, None, false).await;
     let tools = ask.client.list_all_tools().await.unwrap();
-    // Teitunnel's 26, the 5 sharing extras and OpenAPI, and the 5 edge protection tools.
-    assert_eq!(tools.len(), 36);
+    // Teitunnel's 26, the 5 sharing extras and OpenAPI, the 5 edge protection tools, and
+    // the offline page and inbox tools.
+    assert_eq!(tools.len(), 39);
     for tool in &tools {
         assert_eq!(
             tool.input_schema.get("type"),
@@ -194,6 +195,8 @@ async fn lists_tools_by_mode() {
         "share_port",
         "pause_share",
         "share_folder",
+        "set_offline_page",
+        "set_webhook_inbox",
         "apply_plan",
         "stop_share",
         "fix_issue",

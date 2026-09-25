@@ -4,6 +4,7 @@
 
 mod diagnostics;
 mod extras;
+mod fronts;
 mod protection;
 mod routes;
 mod setup;
@@ -30,6 +31,7 @@ use crate::{
     traffic::TrafficSource,
 };
 
+pub use fronts::FrontTools;
 pub use protection::ProtectionTools;
 
 /// The default time a tool may take.

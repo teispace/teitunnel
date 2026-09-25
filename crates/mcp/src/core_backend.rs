@@ -1063,6 +1063,80 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         })
     }
 
+    fn fronts<'a>(
+        &'a self,
+        account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::fronts::FrontView>>> {
+        Box::pin(async move {
+            teitunnel_core::fronts::list(self.engine(), Some(account))
+                .await
+                .map_err(msg)
+        })
+    }
+
+    fn preview_front<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            // A verifying inbox's signing secret is the inspector's.
+            let secrets = self
+                .parts
+                .quick_shares
+                .inspector()
+                .and_then(|i| i.secrets());
+            teitunnel_core::fronts::preview(
+                self.engine(),
+                &api,
+                secrets,
+                self.context(account, None),
+                change,
+            )
+            .await
+            .map_err(|e| engine_error(e, account))
+        })
+    }
+
+    fn apply_front<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+        approval: ApplyApproval,
+        actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            let connectors = self.source.connectors(Some(account)).await;
+            let secrets = self
+                .parts
+                .quick_shares
+                .inspector()
+                .and_then(|i| i.secrets());
+            let run = teitunnel_core::fronts::apply(
+                self.engine(),
+                &api,
+                &connectors,
+                secrets,
+                self.context(account, None),
+                change,
+                Approval {
+                    fingerprint: &approval.fingerprint,
+                    confirmed: approval.confirmed,
+                },
+                |_| {},
+            );
+            let outcome = match actor {
+                Some(actor) => with_actor(actor, run).await,
+                None => run.await,
+            }
+            .map_err(|e| engine_error(e, account))?;
+            let _ = self.changes.send(ChangeEvent::Routes);
+            Ok(outcome)
+        })
+    }
+
     fn set_quick_paused<'a>(
         &'a self,
         id: &'a str,

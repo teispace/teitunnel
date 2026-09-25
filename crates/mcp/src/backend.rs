@@ -385,6 +385,35 @@ pub trait Backend: Send + Sync + 'static {
         Box::pin(async { Err(unsupported_protection()) })
     }
 
+    /// Teitunnel's offline pages and webhook inboxes in an account (from the local
+    /// records).
+    fn fronts<'a>(
+        &'a self,
+        _account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::fronts::FrontView>>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Plans an offline page or inbox change for review. Nothing changes.
+    fn preview_front<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Applies a reviewed offline page or inbox change, on behalf of `actor`.
+    fn apply_front<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a teitunnel_core::fronts::FrontChange,
+        _approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
     /// Pauses or resumes one of this server's Quick Shares (by id): the address stays and
     /// visitors get a "paused" page from its inspector tap.
     fn set_quick_paused<'a>(
