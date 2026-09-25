@@ -151,6 +151,25 @@ beforeEach(() => {
               },
             ]
           : [];
+      case "import_scan":
+        return [
+          {
+            configPath: "~/.cloudflared/config.yml",
+            tunnel: "old",
+            accountId: "acc",
+            tunnelId: null,
+            routes: [
+              {
+                hostname: "shop.xyz.com",
+                path: null,
+                service: "https://localhost:8443",
+                options: { noTLSVerify: true },
+                unsupported: null,
+              },
+            ],
+            hasGlobalOptions: false,
+          },
+        ];
       case "routes_preview":
         return plan(payload["change"] as Change);
       case "routes_balance_health":
@@ -373,6 +392,28 @@ describe("RoutesPage", () => {
     expect(calls.some((c) => c.cmd === "routes_logs" && c.args["hostname"] === "app.xyz.com")).toBe(
       true,
     );
+  });
+
+  it("imports a route with its origin settings from a config file", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Import from cloudflared" }));
+    const sheet = await screen.findByRole("dialog", { name: "Import from cloudflared" });
+    // Everything importable starts selected.
+    expect(within(sheet).getByRole("checkbox").getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(sheet).getByRole("button", { name: "Review" }));
+    await waitFor(() => expect(calls.some((c) => c.cmd === "routes_preview")).toBe(true));
+    const preview = calls.find((c) => c.cmd === "routes_preview");
+    expect(preview?.args["change"]).toEqual({
+      type: "importRoutes",
+      routes: [
+        {
+          hostname: "shop.xyz.com",
+          path: null,
+          origin: "https://localhost:8443",
+          options: { noTLSVerify: true },
+        },
+      ],
+    });
   });
 
   it("adds a route: form → review → apply → verified", async () => {
@@ -617,7 +658,7 @@ describe("RoutesPage", () => {
     fireEvent.change(subdomain, { target: { value: "bad" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
     expect(
-      await within(dialog).findByText("Include the domain, like app.example.com."),
+      await within(dialog).findByText("Include the domain, like app.teispace.com."),
     ).toBeTruthy();
     expect(subdomain.getAttribute("aria-invalid")).toBe("true");
   });
