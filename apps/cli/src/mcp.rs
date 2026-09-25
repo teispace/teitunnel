@@ -280,7 +280,13 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         accounts: app.accounts.clone(),
     };
     let inspector = inspector(&app);
-    let backend = backend(&app, source, machine, supervisor.clone(), &inspector);
+    let backend = backend(
+        &app,
+        source,
+        machine.clone(),
+        supervisor.clone(),
+        &inspector,
+    );
     let server = McpServer::builder(Arc::clone(&backend), settings.clone())
         .traffic(Arc::new(InspectorTraffic::new(
             inspector.clone(),
@@ -304,6 +310,8 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
     ));
     // Pauses and schedules of the shares on a domain this server starts.
     let share_loop = crate::sharing::spawn_share_loop(app.store().clone(), inspector.clone());
+    // What killed agents and terminals left behind, while the app isn't running.
+    let sweeper = crate::inspect::sweep_left_behind(&app, machine.clone());
     let stop = CancellationToken::new();
     let serving = tokio::spawn(teitunnel_mcp::serve_stdio(server, stop.clone()));
     tokio::pin!(serving);
@@ -321,6 +329,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         }
     };
     share_loop.abort();
+    sweeper.abort();
     backend.stop_own_shares().await;
     supervisor.stop_all().await;
     inspector.shutdown().await;
