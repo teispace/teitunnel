@@ -316,6 +316,17 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         .provider(Arc::new(teitunnel_mcp::InspectionTools::new(
             inspector.clone(),
         )))
+        .provider(Arc::new(teitunnel_mcp::LocalDomainTools::new(
+            teitunnel_core::local_domains::LocalDomains::new(
+                app.store().clone(),
+                inspector.clone(),
+                teitunnel_core::local_domains::LocalDomainsConfig::detect(
+                    app.dir(),
+                    Some(Arc::clone(app.secrets())),
+                ),
+            ),
+            app.dir(),
+        )))
         .approver(teitunnel_mcp::AppApprover::new(app.dir(), settings.mode))
         .build();
     status(&format!(

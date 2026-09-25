@@ -27,6 +27,7 @@ pub mod http;
 pub mod inspection;
 mod inspector_traffic;
 pub mod limits;
+pub mod local_domains;
 pub mod plans;
 mod prompts;
 #[cfg(test)]
@@ -47,6 +48,7 @@ pub use core_backend::{ConnectorSource, CoreBackend, CoreParts};
 pub use expose::ExposeTools;
 pub use inspection::InspectionTools;
 pub use inspector_traffic::InspectorTraffic;
+pub use local_domains::LocalDomainTools;
 pub use registry::{
     Approval, ApprovalRequest, Approver, ToolClass, ToolContext, ToolError, ToolOutput,
     ToolProvider, ToolResult, ToolSpec,

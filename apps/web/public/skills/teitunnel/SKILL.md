@@ -69,6 +69,10 @@ and VS Code use the returned configuration (the user gets the token with `teitun
 <hostname>`); claude.ai and ChatGPT add the URL as a connector and sign in, which the user
 approves in Teitunnel.
 
+**Give a dev server a local HTTPS address**: `add_local_domain {name: "shop.test", target:
+"3000"}`; relay the notes (trusting the certificate or a `.test` resolver entry is done by the
+user, it asks for their password).
+
 **Move routes to a server**: `list_routes`, then `export_config {format: "dockerCompose"}`;
 explain that the token is set on the server (`TUNNEL_TOKEN`), never pasted into chat.
 
@@ -78,8 +82,9 @@ Read: `list_routes`, `list_domains`, `list_tunnels`, `list_shares`,
 `list_local_services`, `plan_change`, `verify_route`, `undo_last`, `doctor`, `logs_tail`,
 `remote_logs`, `connector_status`, `export_config`, `import_scan`, `accounts`,
 `recent_activity`, `traffic_list`, `traffic_get`, `traffic_stats`, `traffic_export`,
-`wait_for_request`, `inspection_settings`, `route_health`.
+`wait_for_request`, `inspection_settings`, `route_health`, `list_local_domains`.
 Change (need approval in `ask` mode, absent in `read-only`): `share_port`, `stop_share`,
-`apply_plan`, `fix_issue`, `traffic_replay`, `configure_inspection`, `expose_mcp_server`.
+`apply_plan`, `fix_issue`, `traffic_replay`, `configure_inspection`, `expose_mcp_server`,
+`add_local_domain`, `remove_local_domain`.
 
 Docs: https://teitunnel.teispace.com/docs/guides/ai-agents/
