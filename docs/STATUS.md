@@ -97,6 +97,7 @@ The maintainer starts a session with "start" or "continue" and is then **away**.
 - 2026-09-22: M0 complete. CI green on macOS/Linux/Windows.
 
 ## Blockers / maintainer actions needed
+- **OAuth client scopes (maintainer):** Teitunnel requests only the scopes registered on the "Teitunnel" OAuth client. To offer Snapshots, offline pages, analytics, edge protection, service tokens and D1 to OAuth sign-ins, add them to the client as optional scopes (Workers Scripts + Routes write, Analytics read, Account Analytics read, Zone WAF write, Transform Rules write, Access service tokens write, D1 write), then add their names to `SCOPES` in `crates/core/src/accounts/oauth.rs`. Until then those features ask OAuth users for an API token.
 | Item | Needed by | Notes |
 |---|---|---|
 | Cloudflare OAuth public client + verify teispace.com | M2-04 (built; hidden until then) | Redirects `http://127.0.0.1:{53682,53683,53684}/callback`. Put the client id in `crates/core/src/accounts/oauth.rs` (`CLIENT_ID`) and confirm the scope ids in `SCOPES` |

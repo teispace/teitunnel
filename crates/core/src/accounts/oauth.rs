@@ -23,40 +23,37 @@ pub const REDIRECT_PORTS: [u16; 3] = [53682, 53683, 53684];
 /// How long to wait for the browser to come back.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-/// The public client registered by teispace. `None` until the maintainer registers it
-/// (then OAuth is offered); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for testing.
-const CLIENT_ID: Option<&str> = None;
+/// The public client "Teitunnel" in the Teispace Cloudflare account (registered
+/// 2026-09-24, research/cloudflare.md); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for tests.
+/// A client id isn't a secret: PKCE protects the flow.
+const CLIENT_ID: Option<&str> = Some("57fe3059e8fc6db30d9e3e07e50e94ea");
 
-/// Scopes requested at sign-in. Cloudflare scope names mirror API-token permissions;
-/// the exact ids are confirmed when the client is registered (research doc TODO).
-const SCOPES: &[&str] = &[
-    "account:read",
-    "zone:read",
-    "dns:edit",
-    "cloudflare_tunnel:edit",
-    // Snapshots; registered as optional scopes, so declining them only disables Snapshots.
-    "workers_scripts:edit",
-    "workers_routes:edit",
-    "offline_access",
-];
-
-/// Scopes registered as optional (Aug 2026: users may untick them on the consent
-/// screen, and the token then lacks them; capability probing notices). Analytics reads
-/// traffic per hostname (zone analytics) and per account. Cloudflare's documented scope
-/// format is `<permission-group>.<level>` (`zone.read`, `workers-scripts.write`); these
-/// ids are confirmed with the others when the client is registered.
+/// Scopes requested at sign-in, as Cloudflare names them (the client's scope list). The
+/// first four are required by the client; the rest are optional, so people can decline
+/// them on Cloudflare's consent screen and capability probing shows what's missing.
 ///
-/// Edge protection (M12-04): Zone WAF (custom and rate limiting rules), Transform Rules
-/// (header rules) and Access service tokens. Unconfirmed names, like the others: see
-/// docs/research/cloudflare-edge-rules.md.
-const OPTIONAL_SCOPES: &[&str] = &[
-    "analytics.read",
-    "account-analytics.read",
-    "zone-waf.write",
-    "transform-rules.write",
-    "access-service-tokens.write",
-    // Snapshot comments and webhook inboxes (unconfirmed name, like the others).
-    "d1.write",
+/// Only scopes registered on the client are asked for: an unregistered one would fail
+/// the sign-in. Features added since registration (Snapshots and offline pages: Workers
+/// Scripts and Routes; Analytics; WAF, Transform Rules and Access service tokens; D1)
+/// are offered once they're added to the client as optional scopes; until then an OAuth
+/// sign-in lacks them and the capability probe says how to add an API token for them.
+const SCOPES: &[&str] = &[
+    // Required: tunnels, route DNS records, domains, and finding the accounts.
+    "argotunnel.write",
+    "dns.write",
+    "zone.read",
+    "account-settings.read",
+    // A refresh token, so the sign-in lasts.
+    "offline_access",
+    // Optional: require a login (Access apps; login methods and team domain).
+    "zone-access.write",
+    "access-acct.write",
+    // Optional: private networks, and the Doctor's WARP checks (read only).
+    "teams-networks.write",
+    "teams.read",
+    // Optional: load balancing across machines.
+    "load-balancers.write",
+    "load-balancing-monitors-and-pools.write",
 ];
 
 /// Errors from the OAuth flow. Messages are shown to the user.
@@ -132,11 +129,7 @@ impl OAuthConfig {
             authorize_url: format!("{base}/oauth2/auth"),
             token_url: format!("{base}/oauth2/token"),
             revoke_url: format!("{base}/oauth2/revoke"),
-            scopes: SCOPES
-                .iter()
-                .chain(OPTIONAL_SCOPES)
-                .map(|s| (*s).to_owned())
-                .collect(),
+            scopes: SCOPES.iter().map(|s| (*s).to_owned()).collect(),
             ports: REDIRECT_PORTS.to_vec(),
         }
     }
