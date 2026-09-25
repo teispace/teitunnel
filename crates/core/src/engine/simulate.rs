@@ -364,6 +364,7 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                         client_id: "sim-token.access".into(),
                         expires_at: None,
                         owned: true,
+                        made_for: None,
                     },
                 );
             }

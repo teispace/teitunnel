@@ -827,6 +827,19 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
             }
+            if !hostname_still_used {
+                // The service tokens Teitunnel made for it would open nothing.
+                let tokens = b.snapshot.service_tokens.as_deref().unwrap_or_default();
+                let made_for = |t: &&crate::engine::edge::ObservedServiceToken| {
+                    t.owned && t.made_for.as_deref() == Some(hostname.as_str())
+                };
+                let doomed: Vec<_> = tokens.iter().filter(made_for).cloned().collect();
+                b.steps.extend(
+                    doomed
+                        .into_iter()
+                        .map(|token| Step::DeleteServiceToken { token }),
+                );
+            }
         }
         Intent::BalanceRoute { hostname } => {
             let zone_id = b.zone_id(hostname)?;

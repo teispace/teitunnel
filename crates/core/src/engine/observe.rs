@@ -1,6 +1,6 @@
 //! The observer: one consistent read of everything a plan depends on.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use futures_util::{StreamExt, TryStreamExt, stream};
 
@@ -90,7 +90,7 @@ pub struct ObserveNeed {
     /// A zone's edge rules.
     pub edge: super::edge::EdgeNeed,
     /// The account's service tokens.
-    pub service_tokens: bool,
+    pub service_tokens: Want,
     /// Worker routes on a hostname and the account's D1 database.
     pub front: super::front::FrontNeed,
 }
@@ -155,12 +155,14 @@ impl ObserveNeed {
                 },
                 _ => super::edge::EdgeNeed::default(),
             },
-            service_tokens: matches!(
-                intent,
+            service_tokens: match intent {
                 Intent::CreateServiceToken { .. }
-                    | Intent::RevokeServiceToken { .. }
-                    | Intent::RotateServiceToken { .. }
-            ),
+                | Intent::RevokeServiceToken { .. }
+                | Intent::RotateServiceToken { .. } => Want::Yes,
+                // A hostname's tokens go with its last route.
+                Intent::RemoveRoute { .. } => Want::IfAllowed,
+                _ => Want::No,
+            },
             front: match intent {
                 Intent::SetOfflinePage { hostname, .. } => super::front::FrontNeed {
                     hostname: Some(hostname.to_string()),
@@ -441,26 +443,32 @@ async fn observe_service_tokens<C: CloudApi>(
     api: &C,
     local: &Local,
     account: &str,
-    want: bool,
+    want: Want,
 ) -> Result<Option<Vec<super::edge::ObservedServiceToken>>, ObserveError> {
-    if !want {
+    if want == Want::No {
         return Ok(None);
     }
-    let owned: HashSet<String> = local
+    let owned: HashMap<String, String> = local
         .owned_service_tokens(account)
         .await?
         .into_iter()
-        .map(|t| t.token_id)
+        .map(|t| (t.token_id, t.hostname))
         .collect();
+    // Incidental (removing a route): only when Teitunnel made some.
+    if want == Want::IfAllowed && owned.is_empty() {
+        return Ok(None);
+    }
     let tokens = match api.service_tokens(account).await {
         Ok(tokens) => tokens,
+        Err(err) if err.is_auth() && want == Want::IfAllowed => return Ok(None),
         Err(err) if err.is_auth() => return Err(ObserveError::ServiceTokenPermission),
         Err(err) => return Err(err.into()),
     };
     let mut tokens: Vec<super::edge::ObservedServiceToken> = tokens
         .into_iter()
         .map(|t| super::edge::ObservedServiceToken {
-            owned: owned.contains(&t.id),
+            owned: owned.contains_key(&t.id),
+            made_for: owned.get(&t.id).cloned(),
             id: t.id,
             name: t.name,
             client_id: t.client_id,

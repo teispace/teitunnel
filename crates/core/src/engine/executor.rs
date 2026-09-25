@@ -517,7 +517,7 @@ impl Engine {
         );
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}\n{}",
+            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}{}\n{:?}",
             tunnel.unwrap_or_default(),
             u8::from(need.access.setup),
             u8::from(need.access.owned),
@@ -526,7 +526,8 @@ impl Engine {
             u8::from(need.tunnel_names),
             need.site.script.as_deref().unwrap_or_default(),
             need.edge.hostname.as_deref().unwrap_or_default(),
-            u8::from(need.service_tokens),
+            u8::from(need.edge.required),
+            need.service_tokens,
         )
     }
 

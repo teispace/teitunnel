@@ -896,6 +896,8 @@ pub struct ObservedServiceToken {
     pub expires_at: Option<String>,
     /// Teitunnel created it (ownership index).
     pub owned: bool,
+    /// The hostname Teitunnel made it for (its tokens go with the hostname's last route).
+    pub made_for: Option<String>,
 }
 
 /// A service token's credentials right after it was created or rotated: the only time

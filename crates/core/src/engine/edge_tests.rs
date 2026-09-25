@@ -400,6 +400,7 @@ fn token(id: &str, owned: bool) -> ObservedServiceToken {
         client_id: format!("{id}.access"),
         expires_at: None,
         owned,
+        made_for: owned.then(|| "api.xyz.com".into()),
     }
 }
 

@@ -368,3 +368,41 @@ async fn removing_the_last_route_takes_its_edge_rules_with_it() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn removing_the_last_route_revokes_the_service_tokens_made_for_it() {
+    use super::{Change, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("free")));
+    let route = RouteInput {
+        hostname: "api.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    let (outcome, issued) = apply(&engine, &cloud, &create_token("api.xyz.com", "CI")).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(issued.len(), 1);
+
+    let removal = Change::RemoveRoute {
+        hostname: "api.xyz.com".into(),
+        path: None,
+    };
+    change(&engine, &cloud, removal).await;
+    let state = cloud.snapshot();
+    assert!(
+        state.service_tokens.is_empty(),
+        "{:?}",
+        state.service_tokens
+    );
+    assert!(state.access_apps.is_empty(), "the login went too");
+    assert!(
+        engine
+            .local()
+            .owned_service_tokens("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
