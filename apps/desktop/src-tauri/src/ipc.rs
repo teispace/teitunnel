@@ -215,6 +215,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             inspect::inspect_route_preview,
             inspect::inspect_route_apply,
             quick_share::quick_share_set_inspected,
+            quick_share::quick_share_set_paused,
             local_domains::local_domains_status,
             local_domains::local_domains_add,
             local_domains::local_domains_update,

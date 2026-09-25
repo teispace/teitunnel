@@ -223,6 +223,18 @@ pub async fn quick_share_set_inspected(
     Ok(state.quick_shares.set_inspected(&id, inspect).await?)
 }
 
+/// Pauses or resumes a share: visitors see the "paused" page and the address stays
+/// (inspected shares only: the inspector serves the page).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_paused(
+    state: State<'_, AppState>,
+    id: String,
+    paused: bool,
+) -> Result<QuickShare, AppError> {
+    Ok(state.quick_shares.set_paused(&id, paused)?)
+}
+
 /// Sends `host_header` to a share's service (`null`: none), for a dev server that
 /// refuses the public address. An inspected share changes at once and keeps its URL;
 /// otherwise it restarts with a new URL. Either way it's checked again once live.

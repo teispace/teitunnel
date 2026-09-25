@@ -39,6 +39,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to take a demo offline for a moment, or while fixing something, and bring it back at the same URL. The Teitunnel process serving the route shows the page (the app, `teitunnel up`/`serve`, or the terminal running the share); a route that isn't inspected is pointed at the inspector first through a plan, and back on resume.\n\
              \n\
+             A Quick Share this agent started (its trycloudflare.com URL or id) pauses the same way, at once and without asking: its inspector shows the page.\n\
+             \n\
              Example: {\"share\": \"demo.teispace.com\"}",
             ToolClass::Change,
             change,
@@ -90,7 +92,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct PauseArgs {
-    /// The share's hostname or URL (a share on your domain or a route of this machine).
+    /// The share's hostname or URL (a share on your domain or a route of this machine),
+    /// or a Quick Share this agent started (its URL or id).
     share: String,
     /// The account (name or id), when several are connected.
     #[serde(default)]
@@ -232,6 +235,35 @@ pub(super) async fn pause(
 ) -> ToolResult {
     let args: PauseArgs = arguments(args)?;
     let hostname = hostname_of(&args.share);
+    // A Quick Share: its inspector tap shows the paused page.
+    let shares = backend.shares().await?;
+    if let Some(share) = super::sharing::find(&shares, &args.share)
+        .filter(|s| s.kind == crate::backend::ShareKind::Quick)
+    {
+        if !share.mine {
+            return Err(ToolError::new(format!(
+                "That Quick Share was started by {}; pause it where it runs (the app's Quick Share view, or `teitunnel shares --pause`).",
+                share.started_by
+            )));
+        }
+        backend.set_quick_paused(&share.id, paused).await?;
+        let url = share
+            .url
+            .clone()
+            .unwrap_or_else(|| format!("https://{hostname}"));
+        let message = if paused {
+            format!(
+                "{url} now shows a paused page (HTTP 503). resume_share serves it again at the same address."
+            )
+        } else {
+            format!("{url} is served again.")
+        };
+        return result(
+            if paused { "paused" } else { "resumed" },
+            &hostname,
+            message,
+        );
+    }
     let account = account_for_hostname(backend, args.account.as_deref(), &hostname).await?;
     let (title, details, tool) = if paused {
         (

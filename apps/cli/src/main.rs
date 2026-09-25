@@ -376,12 +376,12 @@ enum Command {
         /// Stop a share: its URL, its hostname on your domain, or its id.
         #[arg(long, value_name = "URL|HOSTNAME", conflicts_with_all = ["pause", "resume"])]
         stop: Option<String>,
-        /// Pause a share on your domain (or a route): the address stays, and visitors see
-        /// a paused page until it's resumed.
-        #[arg(long, value_name = "HOSTNAME", conflicts_with = "resume")]
+        /// Pause a share (on your domain, a route, or one of the app's Quick Shares by its
+        /// URL or id): the address stays, and visitors see a paused page until it's resumed.
+        #[arg(long, value_name = "URL|HOSTNAME", conflicts_with = "resume")]
         pause: Option<String>,
         /// Serve a paused share or route again, at the same address.
-        #[arg(long, value_name = "HOSTNAME")]
+        #[arg(long, value_name = "URL|HOSTNAME")]
         resume: Option<String>,
         /// With --pause or --resume on a route: the account, when several are connected.
         #[arg(long, short)]

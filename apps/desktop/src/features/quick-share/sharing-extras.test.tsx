@@ -118,6 +118,7 @@ beforeEach(() => {
           startedAt: Date.now(),
           stopAt: null,
           inspected: true,
+          paused: false,
           folder: payload["folder"] as QuickShare["folder"],
           hostHeader: null,
           check: null,

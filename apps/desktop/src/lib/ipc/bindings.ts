@@ -595,6 +595,11 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	 *  gets a new URL (the UI says so before).
 	 */
 	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
+	/**
+	 *  Pauses or resumes a share: visitors see the "paused" page and the address stays
+	 *  (inspected shares only: the inspector serves the page).
+	 */
+	quickShareSetPaused: (id: string, paused: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_paused", { id, paused }),
 	/**  The domains, the listeners, `.test` names and the CA (no prompts). */
 	localDomainsStatus: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_status"),
 	/**  Adds a local domain and serves it. */
@@ -3910,6 +3915,8 @@ export type QuickShare = {
 	inspected: boolean,
 	/**  A folder served by the inspector (`origin` is then the inspector's address). */
 	folder: FolderShare | null,
+	/**  Visitors get the "paused" page; the address stays ([`QuickShares::set_paused`]). */
+	paused: boolean,
 };
 
 /**

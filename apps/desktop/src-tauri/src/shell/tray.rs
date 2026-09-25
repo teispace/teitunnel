@@ -194,11 +194,7 @@ pub fn set_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) {
 
 /// Rebuilds the menu for the current Quick Shares.
 pub fn refresh<R: Runtime>(app: &AppHandle<R>, shares: &[QuickShare]) {
-    let pause = app
-        .try_state::<AppState>()
-        .map_or(PauseAll::Unavailable, |state| {
-            quick_actions::pause_state(&state.inspector, shares)
-        });
+    let pause = quick_actions::pause_state(shares);
     update(app, |model| {
         model.shares = shares.to_vec();
         model.pause = pause;
@@ -580,9 +576,8 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
         let Some(state) = app.try_state::<AppState>() else {
             return true;
         };
-        let shares = state.quick_shares.list();
-        quick_actions::set_all_paused(&state.inspector, &shares, id == PAUSE_ALL);
-        refresh(app, &shares);
+        // Change events refresh the menu and the Quick Share view.
+        state.quick_shares.set_all_paused(id == PAUSE_ALL);
     } else if id == STOP_ALL {
         let Some(state) = app.try_state::<AppState>() else {
             return true;

@@ -1820,7 +1820,8 @@
         "notFound": "That Quick Share isn't running.",
         "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
         "config": "Couldn't prepare cloudflared's settings: {detail}",
-        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share."
+        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share.",
+        "notInspected": "This share doesn't go through the inspector, which shows the paused page. Turn on Inspect requests to pause it (it gets a new address)."
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",

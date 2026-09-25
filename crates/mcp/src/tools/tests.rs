@@ -58,6 +58,7 @@ pub(crate) struct FakeState {
     pub(crate) protection_applied: Vec<teitunnel_core::protection::ProtectionChange>,
     /// Pauses (`true`) and resumes, by hostname.
     pub(crate) paused: Vec<(String, bool)>,
+    pub(crate) quick_paused: Vec<(String, bool)>,
     /// Schedules set (`None`: removed), by hostname.
     pub(crate) schedules: Vec<(String, Option<teitunnel_core::schedule::Schedule>)>,
     /// Folders shared.
@@ -564,6 +565,15 @@ impl Backend for FakeBackend {
         paused: bool,
     ) -> BoxFuture<'a, BackendResult<()>> {
         self.lock().paused.push((hostname.to_owned(), paused));
+        ready(Ok(()))
+    }
+
+    fn set_quick_paused<'a>(
+        &'a self,
+        id: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        self.lock().quick_paused.push((id.to_owned(), paused));
         ready(Ok(()))
     }
 
@@ -1699,6 +1709,27 @@ async fn traffic_is_masked_and_waited_for() {
         )
         .await
         .is_err()
+    );
+}
+
+#[tokio::test]
+async fn an_agent_pauses_its_own_quick_share_without_asking() {
+    let h = harness();
+    let shared = h
+        .call(Mode::Full, "share_port", json!({ "target": "3000" }))
+        .await
+        .unwrap();
+    let url = shared["share"]["url"].as_str().unwrap().to_owned();
+    let paused = h
+        .call(Mode::Ask, "pause_share", json!({ "share": url }))
+        .await
+        .unwrap();
+    assert_eq!(paused["outcome"], "paused", "{paused}");
+    let id = shared["share"]["id"].as_str().unwrap().to_owned();
+    assert_eq!(h.backend.lock().quick_paused, [(id, true)]);
+    assert!(
+        h.backend.lock().paused.is_empty(),
+        "not treated as a domain"
     );
 }
 

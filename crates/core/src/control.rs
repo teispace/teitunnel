@@ -621,6 +621,22 @@ impl Host for CoreHost {
     fn pause_share(&self, request: PauseShare, paused: bool) -> BoxFuture<'_, HostResult<()>> {
         Box::pin(async move {
             let hostname = crate::pause::hostname_of(&request.id);
+            // One of this app's Quick Shares (by id or address): its tap pauses it.
+            let quick = self.parts.quick_shares.list().into_iter().find(|share| {
+                share.id == request.id
+                    || share
+                        .url
+                        .as_deref()
+                        .is_some_and(|url| crate::pause::hostname_of(url) == hostname)
+            });
+            if let Some(share) = quick {
+                use crate::text::UserText as _;
+                let result = self.parts.quick_shares.set_paused(&share.id, paused);
+                self.ui.changed(Changed::Shares);
+                return result
+                    .map(drop)
+                    .map_err(|e| error(code::INVALID_PARAMS, &e.text()));
+            }
             let store = &self.parts.store;
             let account = match crate::pause::share_account(store, &hostname)
                 .await

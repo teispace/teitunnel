@@ -1063,6 +1063,21 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         })
     }
 
+    fn set_quick_paused<'a>(
+        &'a self,
+        id: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async move {
+            self.parts
+                .quick_shares
+                .set_paused(id, paused)
+                .map_err(|e| BackendError::Message(e.to_string()))?;
+            let _ = self.changes.send(ChangeEvent::Shares);
+            Ok(())
+        })
+    }
+
     fn set_paused<'a>(
         &'a self,
         account: &'a str,

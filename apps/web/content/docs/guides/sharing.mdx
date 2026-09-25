@@ -11,7 +11,7 @@ colleague, a webhook endpoint for a provider, a built site for a review. There a
 | Address | Random: `https://quiet-river-1234.trycloudflare.com` | One you choose: `https://demo.teispace.com` |
 | Needs | Nothing: no account, no domain | A connected Cloudflare account with a domain |
 | What it is in Cloudflare | A throwaway Quick Tunnel | A temporary [route](/docs/concepts/routes-and-tunnels) on this computer's tunnel, with its DNS record |
-| Pause and schedules | Pause all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
+| Pause and schedules | Pause and resume per share (inspected ones), or all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
 | Limits | 200 requests in flight, no server-sent events, no uptime guarantee | Your domain's plan |
 | Ends | When you stop it, it times out, or Teitunnel quits | The same; its route and DNS record are then removed |
 
@@ -72,7 +72,8 @@ online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
 
 Each running share has a card with its address and status, **Open in browser**, the copy
 button, **Show QR code** (for opening it on a phone), request and error counts, *Stops in …*,
-its **Log**, **Stop Sharing**, and, for shares on your domain, **Pause** and **Schedule**.
+its **Log**, **Stop Sharing**, **Pause** (for inspected Quick Shares and every share on your
+domain), and, for shares on your domain, **Schedule**.
 **Publish a Snapshot** turns the shared site into a static copy that stays online.
 
 Shares started from a terminal appear on the same page under **From a terminal**, and shares on
@@ -171,9 +172,11 @@ serves your service again at once, with no DNS change to wait for.
   **Resume** ends it.
 - **Terminal:** `teitunnel shares --pause demo.teispace.com`, then
   `teitunnel shares --resume demo.teispace.com`.
-- **Quick Shares:** **Pause All Shares** in the [menu bar](/docs/guides/menu-bar) pauses
-  every inspected Quick Share.
-- **AI agents:** `pause_share` and `resume_share`, with your approval.
+- **Quick Shares:** **Pause** on the card, `teitunnel shares --pause <its URL or id>` for the
+  app's, or **Pause All Shares** in the [menu bar](/docs/guides/menu-bar). The address stays
+  too; only inspected shares pause, since the inspector shows the page.
+- **AI agents:** `pause_share` and `resume_share`, with your approval (an agent pauses the
+  Quick Shares it started itself without asking).
 
 The paused page is shown by Teitunnel's inspector in the process that serves the share: the
 app, the terminal running `teitunnel share --on`, or `teitunnel up`/`serve`. A share that

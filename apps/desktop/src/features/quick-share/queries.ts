@@ -230,6 +230,19 @@ export function useStartDomainFolderShare() {
 }
 
 /** Pauses (the paused page) or resumes a share on your domain; the address stays. */
+/** Pauses or resumes a Quick Share (same address; visitors see the paused page). */
+export function useSetQuickSharePaused() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paused }: { id: string; paused: boolean }) =>
+      call(commands.quickShareSetPaused(id, paused)),
+    onSuccess: (share) =>
+      queryClient.setQueryData<QuickShare[]>(quickSharesQuery.queryKey, (shares = []) =>
+        shares.map((existing) => (existing.id === share.id ? share : existing)),
+      ),
+  });
+}
+
 export function useSetSharePaused() {
   const queryClient = useQueryClient();
   return useMutation({

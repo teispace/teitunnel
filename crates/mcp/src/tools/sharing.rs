@@ -341,7 +341,7 @@ pub(crate) struct StopResult {
 }
 
 /// Finds a share by id, URL or hostname.
-fn find<'a>(shares: &'a [ShareInfo], wanted: &str) -> Option<&'a ShareInfo> {
+pub(super) fn find<'a>(shares: &'a [ShareInfo], wanted: &str) -> Option<&'a ShareInfo> {
     let wanted = wanted.trim().trim_end_matches('/');
     let host = wanted
         .trim_start_matches("https://")

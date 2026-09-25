@@ -385,6 +385,16 @@ pub trait Backend: Send + Sync + 'static {
         Box::pin(async { Err(unsupported_protection()) })
     }
 
+    /// Pauses or resumes one of this server's Quick Shares (by id): the address stays and
+    /// visitors get a "paused" page from its inspector tap.
+    fn set_quick_paused<'a>(
+        &'a self,
+        _id: &'a str,
+        _paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
     /// Pauses (`paused`) or resumes a share on your domain or a route: the address stays
     /// and visitors get a "paused" page, served by whichever Teitunnel process serves it
     /// (M12-06).

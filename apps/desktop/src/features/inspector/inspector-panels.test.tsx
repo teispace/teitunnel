@@ -52,6 +52,7 @@ const share: QuickShare = {
   hostHeader: null,
   check: null,
   inspected: true,
+  paused: false,
   folder: null,
 };
 

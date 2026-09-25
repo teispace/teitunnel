@@ -413,7 +413,8 @@ pub struct StopShare {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PauseShare {
-    /// A share on your domain or a route: its hostname or URL.
+    /// A share on your domain or a route (its hostname or URL), or one of the app's
+    /// Quick Shares (its address or id).
     pub id: String,
     /// Account id or name, for a route (needed when several are connected).
     #[serde(default)]
