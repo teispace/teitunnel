@@ -12,14 +12,12 @@
 /// account-scoped ones (research/cloudflare-analytics.md).
 /// `workers_scripts` (account) and `workers_routes` (zone) publish Snapshots and give
 /// them a hostname (docs/research/cloudflare-snapshots.md).
-/// `zone_waf` (custom and rate limiting rules), `transform_rules` (header rules) and
-/// `access_service_tokens` protect hostnames at the edge (M12-04). None of the three is
-/// in Cloudflare's documented key table yet (docs/research/cloudflare-edge-rules.md):
-/// an unknown key is dropped silently, and the capability probe and the in-place fix
-/// name the dashboard permission instead.
-/// `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments and webhook inboxes
-/// (docs/research/cloudflare-workers-features.md); also not in the documented key table
-/// (unverified), handled the same way.
+/// `zone_waf` (custom and rate limiting rules), `zone_transform_rules` (header rules;
+/// `transform_rules` is the account-level group) and `access_service_token` protect
+/// hostnames at the edge (M12-04). `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments
+/// and webhook inboxes. None of these is in Cloudflare's documented key table; all were
+/// checked against the dashboard's pre-filled form on 2026-09-25
+/// (docs/research/cloudflare-edge-rules.md).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -32,8 +30,8 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("workers_scripts", "edit"),
     ("workers_routes", "edit"),
     ("zone_waf", "edit"),
-    ("transform_rules", "edit"),
-    ("access_service_tokens", "edit"),
+    ("zone_transform_rules", "edit"),
+    ("access_service_token", "edit"),
     ("d1", "edit"),
 ];
 
@@ -88,8 +86,13 @@ mod tests {
         // Snapshots: Workers Scripts (account) and Workers Routes (zones).
         assert!(url.contains("%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D"));
         assert!(url.contains("%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D"));
-        // Edge protection: rules, header rules and service tokens.
-        for key in ["zone_waf", "transform_rules", "access_service_tokens"] {
+        // Edge protection (rules, header rules, service tokens) and D1.
+        for key in [
+            "zone_waf",
+            "zone_transform_rules",
+            "access_service_token",
+            "d1",
+        ] {
             assert!(url.contains(&format!(
                 "%7B%22key%22%3A%22{key}%22%2C%22type%22%3A%22edit%22%7D"
             )));
