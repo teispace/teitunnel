@@ -6868,6 +6868,8 @@ dependencies = [
  "keyring",
  "listeners",
  "nix",
+ "objc2-core-foundation",
+ "objc2-security",
  "proptest",
  "qrcode",
  "regex",
