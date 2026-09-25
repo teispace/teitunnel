@@ -15,6 +15,7 @@ import { toIpcError } from "@/lib/ipc/client";
 import { formatMs, statusTone, toneText } from "../model";
 import { revealExchange, useExchange, useReplay } from "../queries";
 import { BodyView } from "./body-view";
+import { HoldLikeThis } from "./breakpoint-rules";
 import { HeadersView } from "./headers-view";
 import { MessagesView } from "./messages-view";
 import { TimingBar } from "./timing-bar";
@@ -40,6 +41,8 @@ function responder(view: ExchangeView): string {
       return t("inspector.responder.paused");
     case "fault":
       return t("inspector.responder.fault");
+    case "breakpoint":
+      return t("inspector.responder.breakpoint");
     case "lens":
       return t("inspector.responder.lens");
   }
@@ -179,6 +182,7 @@ export function ExchangeDetail({
           <Button size="sm" onClick={onExport}>
             <FileOutput /> {t("inspector.detail.export")}
           </Button>
+          <HoldLikeThis tap={row.tap} method={view.request.method} path={view.request.path} />
           <Tooltip
             content={
               detail.restored ? t("inspector.detail.restored") : t("inspector.detail.revealHelp")
@@ -233,6 +237,19 @@ export function ExchangeDetail({
                     {
                       label: t("inspector.detail.error"),
                       value: `${t(`inspector.errorKind.${view.error.kind}` as MessageKey)} · ${view.error.message}`,
+                    },
+                  ]
+                : []),
+              ...(view.breakpoint &&
+              (view.breakpoint.requestEdited ||
+                view.breakpoint.responseEdited ||
+                view.breakpoint.timedOut)
+                ? [
+                    {
+                      label: t("inspector.detail.breakpoint"),
+                      value: view.breakpoint.timedOut
+                        ? t("inspector.held.timedOut")
+                        : t("inspector.held.edited"),
                     },
                   ]
                 : []),

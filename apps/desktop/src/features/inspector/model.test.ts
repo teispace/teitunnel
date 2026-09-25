@@ -1,15 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { mockRows } from "@/dev/mock-inspector";
-import type { ExchangeRow, LiveBatch } from "@/lib/ipc/bindings";
+import type { ExchangeRow, LiveBatch, Paused } from "@/lib/ipc/bindings";
+import { exactPattern } from "./components/breakpoint-rules";
 import {
+  answerResume,
   diffHeaders,
   diffLines,
+  heldChanged,
+  heldDraft,
+  heldResume,
   hexDump,
   matches,
+  newAnswer,
   noFilters,
   parseForm,
   parseMultipart,
   replayInput,
+  secondsLeft,
+  statusClass,
+  statusText,
 } from "./model";
 import { ExchangeStore, MAX_ROWS } from "./store";
 
@@ -179,5 +188,88 @@ describe("compare", () => {
       { name: "a", left: "1", right: "2" },
       { name: "b", left: null, right: "3" },
     ]);
+  });
+});
+
+describe("breakpoints", () => {
+  const held: Paused = {
+    exchange: "ex-1",
+    tap: "t",
+    stage: "request",
+    sinceMs: 1_000,
+    resumesAtMs: 61_000,
+    method: "POST",
+    target: "/hooks?x=1",
+    host: "app.test",
+    status: null,
+    headers: [
+      ["content-type", "application/json"],
+      ["x-a", "1"],
+    ],
+    body: '{"n":1}',
+    bodyLocked: null,
+  };
+
+  it("goes on as it is until something changes, then sends only what changed", () => {
+    const draft = heldDraft(held);
+    expect(draft.headers).toBe("content-type: application/json\nx-a: 1");
+    expect(heldChanged(held, draft)).toBe(false);
+    expect(heldResume(held, draft)).toEqual({ type: "continue" });
+    // Spacing in a header line isn't a change.
+    expect(
+      heldResume(held, { ...draft, headers: "content-type:application/json\nx-a:  1\n" }),
+    ).toEqual({ type: "continue" });
+
+    const edited = {
+      ...draft,
+      method: "put",
+      body: '{"n":2}',
+      headers: `${draft.headers}\nx-b: 2`,
+    };
+    expect(heldChanged(held, edited)).toBe(true);
+    expect(heldResume(held, edited)).toEqual({
+      type: "edited",
+      edit: {
+        method: "PUT",
+        headers: [
+          ["content-type", "application/json"],
+          ["x-a", "1"],
+          ["x-b", "2"],
+        ],
+        body: '{"n":2}',
+      },
+    });
+  });
+
+  it("changes an answer's status, never a locked body, and writes answers", () => {
+    const answer: Paused = {
+      ...held,
+      stage: "response",
+      status: 200,
+      body: null,
+      bodyLocked: "binary",
+    };
+    const draft = heldDraft(answer);
+    expect(heldResume(answer, { ...draft, status: "503", body: "x" })).toEqual({
+      type: "edited",
+      edit: { status: 503 },
+    });
+    expect(answerResume({ ...newAnswer(), status: "201", body: "{}" })).toEqual({
+      type: "answer",
+      status: 201,
+      headers: [["content-type", "application/json"]],
+      body: "{}",
+    });
+    expect(secondsLeft(held, 30_500)).toBe(31);
+    expect(secondsLeft(held, 90_000)).toBe(0);
+  });
+
+  it("marks held rows and holds exactly the path asked for", () => {
+    const waiting = row("h", { paused: "request", status: null });
+    expect(statusText(waiting)).toBe("Held");
+    expect(statusClass(waiting)).toBe("text-accent");
+    expect(statusClass(row("s", { status: 503, paused: null }))).toBe("text-error");
+    expect(exactPattern("/hooks/stripe")).toBe("/hooks/stripe");
+    expect(exactPattern("/files/a*b?.txt")).toBe("re:^/files/a\\*b\\?\\.txt$");
   });
 });

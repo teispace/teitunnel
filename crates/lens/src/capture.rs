@@ -79,6 +79,8 @@ pub enum Responder {
         #[cfg_attr(feature = "specta", specta(type = u32))]
         rule: usize,
     },
+    /// Someone answered it at a breakpoint.
+    Breakpoint,
     /// Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages).
     Lens,
 }
@@ -451,6 +453,8 @@ pub struct Exchange {
     pub replay_of: Option<ExchangeId>,
     /// The fault rule applied to it, if any.
     pub fault: Option<crate::FaultRecord>,
+    /// Whether it stopped at a breakpoint, and what happened there.
+    pub breakpoint: Option<crate::BreakRecord>,
 }
 
 impl Exchange {

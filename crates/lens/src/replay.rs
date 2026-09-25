@@ -246,6 +246,7 @@ async fn once(
         stream: None,
         replay_of: Some(original.id),
         fault: None,
+        breakpoint: None,
     };
     let id = exchange.id;
     // Replays are always recorded: the caller gets them back from the store.

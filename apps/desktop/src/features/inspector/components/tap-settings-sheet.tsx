@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { TextArea } from "@/components/ui/text-area";
 import { type MessageKey, t } from "@/lib/i18n";
 import type {
+  BreakpointRule,
   FaultAction,
   FaultRule,
   HeaderOp,
@@ -22,10 +23,18 @@ import type {
 } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { useConfigureTap } from "../queries";
+import { BreakpointRules } from "./breakpoint-rules";
 import { TapProtection } from "./tap-protection";
 
-type Tab = "responses" | "headers" | "network" | "protection" | "more";
-const TABS: readonly Tab[] = ["responses", "headers", "network", "protection", "more"];
+type Tab = "responses" | "breakpoints" | "headers" | "network" | "protection" | "more";
+const TABS: readonly Tab[] = [
+  "responses",
+  "breakpoints",
+  "headers",
+  "network",
+  "protection",
+  "more",
+];
 const PRESETS: readonly NetworkPreset[] = ["off", "threeG", "fourG", "satellite"];
 const IDLE = ["0", "15", "30", "60", "120", "480"] as const;
 
@@ -41,6 +50,7 @@ interface Draft {
   /** `custom`: the tap has a simulated network no preset describes (left alone). */
   preset: NetworkPreset | "custom";
   faults: FaultRule[];
+  breakpoints: BreakpointRule[];
   keepAlive: string;
   watched: string;
   idle: string;
@@ -64,6 +74,7 @@ function draftOf(tap: TapView): Draft {
     hostHeader: tap.hostHeader ?? "",
     preset: presetOf(tap),
     faults: tap.faults,
+    breakpoints: tap.breakpoints,
     keepAlive: String(tap.sseKeepaliveSecs ?? 0),
     watched: tap.watchedPaths.join("\n"),
     idle: String(tap.idleStopMinutes ?? 0),
@@ -104,6 +115,7 @@ export function patchOf(tap: TapView, draft: Draft): TapPatch {
     patch.networkPreset = draft.preset;
   }
   if (!same(draft.faults, before.faults)) patch.faults = draft.faults;
+  if (!same(draft.breakpoints, before.breakpoints)) patch.breakpoints = draft.breakpoints;
   if (draft.keepAlive !== before.keepAlive) patch.sseKeepaliveSecs = Number(draft.keepAlive) || 0;
   if (draft.watched.trim() !== before.watched.trim()) {
     patch.watchedPaths = draft.watched
@@ -124,7 +136,7 @@ interface TapSettingsSheetProps {
 
 /**
  * Everything the inspector does for one share or route, on this computer: stubs and the
- * paused page, header rules and CORS, the simulated network and faults, stream
+ * paused page, breakpoints, header rules and CORS, the simulated network and faults, stream
  * keep-alive, protection, watched paths and idle stop.
  */
 export function TapSettingsSheet({ tap, open, onClose }: TapSettingsSheetProps) {
@@ -199,6 +211,11 @@ export function TapSettingsSheet({ tap, open, onClose }: TapSettingsSheetProps) 
           />
           {tab === "responses" ? (
             <Responses draft={draft} set={set} />
+          ) : tab === "breakpoints" ? (
+            <BreakpointRules
+              rules={draft.breakpoints}
+              onChange={(breakpoints) => set({ breakpoints })}
+            />
           ) : tab === "headers" ? (
             <Headers draft={draft} set={set} />
           ) : tab === "network" ? (

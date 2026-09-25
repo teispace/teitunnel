@@ -169,6 +169,24 @@ describe("Inspection settings sheet", () => {
     });
   });
 
+  it("adds a breakpoint", async () => {
+    const tap = mockTaps()[0];
+    if (!tap) throw new Error("fixture");
+    wrap(<TapSettingsSheet tap={tap} open onClose={() => {}} />);
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByRole("radio", { name: "Breakpoints" }));
+    expect(within(sheet).getByText("No breakpoints.")).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole("button", { name: /Add Breakpoint/ }));
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Path" }), {
+      target: { value: "/webhooks/*" },
+    });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(called("inspect_configure")).toHaveLength(1));
+    expect(called("inspect_configure")[0]?.args["patch"]).toEqual({
+      breakpoints: [{ method: null, path: "/webhooks/*", request: true, response: false }],
+    });
+  });
+
   it("protects on this computer and shows a new token once", async () => {
     const tap = mockTaps()[1];
     if (!tap) throw new Error("fixture");

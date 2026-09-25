@@ -9,6 +9,7 @@ import type {
   InspectorSettings,
   InspectorSettingsPatch,
   KnownTap,
+  Paused,
   PlanView,
   TapPatch,
   TapView,
@@ -67,6 +68,7 @@ export function mockTaps(): TapView[] {
       headerRules: { request: [], response: [], cors: false },
       network: {},
       faults: [],
+      breakpoints: [],
       watchedPaths: ["/webhooks/*"],
       idleStopMinutes: null,
       requests: 42,
@@ -94,6 +96,7 @@ export function mockTaps(): TapView[] {
       headerRules: { request: [], response: [], cors: false },
       network: {},
       faults: [],
+      breakpoints: [],
       watchedPaths: [],
       idleStopMinutes: null,
       requests: 6,
@@ -309,9 +312,56 @@ export function mockRows(count = 48): ExchangeRow[] {
       replayOf: spec.replayOf ?? null,
       answeredLocally: spec.local ?? false,
       error: spec.failed ? "timed out waiting for the response head" : null,
+      paused: null,
+      edited: false,
     });
   }
-  return rows.reverse();
+  rows.reverse();
+  const newest = rows[0];
+  if (newest && heldDemo()) {
+    rows[0] = {
+      ...newest,
+      method: "POST",
+      path: "/api/projects",
+      paused: "request",
+      status: null,
+      durationMs: null,
+      responseBytes: null,
+      state: "pending",
+    };
+  }
+  return rows;
+}
+
+/** `?held` in the page's address: the newest request waits at a breakpoint (screenshots). */
+function heldDemo(): boolean {
+  return typeof location !== "undefined" && new URLSearchParams(location.search).has("held");
+}
+
+/** The held request of `?held`, as it would go on. */
+function mockHeld(id: string): Paused | null {
+  const row = mockRows()[0];
+  if (!row?.paused || row.id !== id) return null;
+  const now = Date.now();
+  return {
+    exchange: row.id,
+    tap: row.tap,
+    stage: "request",
+    sinceMs: now - 12_000,
+    resumesAtMs: now + 48_000,
+    method: "POST",
+    target: "/api/projects",
+    host: row.host,
+    status: null,
+    headers: [
+      ["content-type", "application/json"],
+      ["accept", "application/json"],
+      ["user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15"],
+      ["content-length", "38"],
+    ],
+    body: '{"name":"Launch","visibility":"team"}',
+    bodyLocked: null,
+  };
 }
 
 const PNG =
@@ -543,6 +593,7 @@ export function mockDetail(id: string, reveal = false): ExchangeDetail {
             : null,
       replayOf: row.replayOf,
       fault: null,
+      breakpoint: null,
       redacted: !reveal,
     },
     webhook: row.webhook
@@ -654,6 +705,7 @@ export function inspectorMock(cmd: string, payload: Record<string, unknown>): un
               ...tap,
               stubs: patch.stubs ?? tap.stubs,
               faults: patch.faults ?? tap.faults,
+              breakpoints: patch.breakpoints ?? tap.breakpoints,
               watchedPaths: patch.watchedPaths ?? tap.watchedPaths,
               capturing: patch.capturing ?? tap.capturing,
             }
@@ -704,6 +756,14 @@ export function inspectorMock(cmd: string, payload: Record<string, unknown>): un
         tunnelId: null,
         plan: inspectPlan,
       };
+    case "inspect_paused":
+      return mockHeld(mockRows()[0]?.id ?? "") ? [mockHeld(mockRows()[0]?.id ?? "")] : [];
+    case "inspect_paused_exchange":
+      return mockHeld(String(payload["id"]));
+    case "inspect_resume":
+      return null;
+    case "inspect_resume_all":
+      return heldDemo() ? 1 : 0;
     case "inspect_route_apply":
       return { type: "applied", tunnelId: null, verify: [], connectorError: null };
     default:

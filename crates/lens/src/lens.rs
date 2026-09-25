@@ -14,8 +14,9 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
     CaptureStore, Exchange, ExchangeId, Filter, LensError, LensEvent, ListenOptions, ListenerId,
-    ListenerInfo, MemoryStore, MetricsSnapshot, Page, Query, Redaction, Routing, TapConfig, TapId,
-    TapInfo,
+    ListenerInfo, MemoryStore, MetricsSnapshot, Page, Paused, Query, Redaction, Resume, Routing,
+    TapConfig, TapId, TapInfo,
+    breakpoint::Breaks,
     events::{Change, Hub},
     gate::Sessions,
     listener::{self, HostTable, ListenerState},
@@ -102,6 +103,8 @@ pub(crate) struct Shared {
     pub(crate) tracker: TaskTracker,
     pub(crate) password_checks: Semaphore,
     pub(crate) random: Arc<dyn RandomSource>,
+    /// Exchanges paused at breakpoints.
+    pub(crate) breaks: Arc<Breaks>,
 }
 
 impl Shared {
@@ -156,6 +159,7 @@ impl Lens {
                 random: options
                     .random
                     .unwrap_or_else(|| Arc::new(SplitMix::from_entropy())),
+                breaks: Arc::new(Breaks::default()),
             }),
         })
     }
@@ -236,8 +240,37 @@ impl Lens {
         if let Some(capacity) = capacity {
             self.shared.hub.store.configure(id, capacity);
         }
+        // Nothing stops here any more: whatever waits goes on.
+        let released = active.config.breakpoints.is_empty() || !active.config.capture.enabled;
         runtime.replace(active);
+        if released {
+            self.shared.breaks.resume_all(Some(id));
+        }
         Ok(())
+    }
+
+    /// Exchanges paused at breakpoints (one tap's, or all), oldest first.
+    pub fn paused(&self, tap: Option<&TapId>) -> Vec<Paused> {
+        self.shared.breaks.list(tap)
+    }
+
+    /// One paused exchange, as it would go on.
+    pub fn paused_exchange(&self, id: ExchangeId) -> Option<Paused> {
+        self.shared.breaks.get(id)
+    }
+
+    /// Lets a paused exchange go on: as it is, changed, answered from here or dropped.
+    ///
+    /// # Errors
+    /// [`LensError::NotPaused`] when it isn't waiting (any more), or
+    /// [`LensError::InvalidConfig`] when the changes don't fit it (it keeps waiting).
+    pub fn resume(&self, id: ExchangeId, resume: Resume) -> Result<(), LensError> {
+        self.shared.breaks.resume(id, resume)
+    }
+
+    /// Lets every paused exchange (of one tap, or all) go on unchanged; returns how many.
+    pub fn resume_all(&self, tap: Option<&TapId>) -> usize {
+        self.shared.breaks.resume_all(tap)
     }
 
     /// A tap's current configuration.
@@ -277,6 +310,7 @@ impl Lens {
         if removed.is_none() {
             return Err(LensError::UnknownTap(id.clone()));
         }
+        self.shared.breaks.resume_all(Some(id));
         let mut to_close = Vec::new();
         {
             let listeners = self
@@ -403,6 +437,7 @@ impl Lens {
             .copied()
             .collect();
         self.shared.shutdown.cancel();
+        self.shared.breaks.resume_all(None);
         for id in ids {
             let _ = self.close_listener(id).await;
         }

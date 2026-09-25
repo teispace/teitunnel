@@ -517,6 +517,42 @@ export const commands = {
 	inspectOpenapiSave: (host: string | null) => __TAURI_INVOKE<OpenApiSaved>("inspect_openapi_save", { host }),
 	/**  Forgets captured requests of one tap, or all (in memory and on disk). */
 	inspectClear: (tap: string | null) => __TAURI_INVOKE<null>("inspect_clear", { tap }),
+	/**  Requests waiting at breakpoints (one tap's, or all), oldest first. */
+	inspectPaused: (tap: string | null) => __TAURI_INVOKE<Paused[]>("inspect_paused", { tap }),
+	/**  One request waiting at a breakpoint, as it would go on (`None` once it went on). */
+	inspectPausedExchange: (id: ExchangeId) => __TAURI_INVOKE<{
+	/**  The exchange. */
+	exchange: ExchangeId,
+	/**  Its tap. */
+	tap: TapId,
+	/**  Where it waits. */
+	stage: BreakStage,
+	/**  When it stopped (Unix milliseconds). */
+	sinceMs: number | null,
+	/**  When it goes on by itself (Unix milliseconds). */
+	resumesAtMs: number | null,
+	/**  Request method. */
+	method: string,
+	/**  Request path and query. */
+	target: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Response status (at the response stage). */
+	status: number | null,
+	/**  Headers of the request, or of the answer at the response stage, in order. */
+	headers: ([string, string])[],
+	/**  The body as text, when it can be changed. */
+	body: string | null,
+	/**  Why the body can't be changed. */
+	bodyLocked: BodyLock | null,
+} | null>("inspect_paused_exchange", { id }),
+	/**
+	 *  Lets a request waiting at a breakpoint go on: as it is, changed, answered from here
+	 *  or dropped.
+	 */
+	inspectResume: (id: ExchangeId, resume: Resume) => __TAURI_INVOKE<null>("inspect_resume", { id, resume }),
+	/**  Lets every waiting request (of one tap, or all) go on unchanged; returns how many. */
+	inspectResumeAll: (tap: string | null) => __TAURI_INVOKE<number>("inspect_resume_all", { tap }),
 	/**
 	 *  Changes a tap's settings at once: capturing, the paused page, stubs, header rules,
 	 *  network simulation, faults, stream keep-alive, the Host header, watched paths, idle
@@ -1067,6 +1103,15 @@ export type BinaryInfo = {
 	supported: boolean,
 };
 
+/**  Why a body can't be changed. */
+export type BodyLock = 
+/**  It isn't text (or is compressed). */
+"binary" | 
+/**  It's larger than [`MAX_EDIT_BODY`]. */
+"tooLarge" | 
+/**  Its size isn't known up front (it's still arriving). */
+"streamed";
+
 /**  A body in a view. */
 export type BodyView = {
 	/**  Bytes on the wire. */
@@ -1099,6 +1144,51 @@ export type BotMode =
 "challenge" | 
 /**  Refused. */
 "block";
+
+/**  Changes to a paused exchange; fields left out stay as they are. */
+export type BreakEdit = {
+	/**  Request method (request stage). */
+	method?: string | null,
+	/**  Request path and query, starting with `/` (request stage). */
+	target?: string | null,
+	/**  Response status (response stage). */
+	status?: number | null,
+	/**  Every header, replacing them all. */
+	headers?: ([string, string])[] | null,
+	/**  The body (only when it could be changed). */
+	body?: string | null,
+};
+
+/**  A breakpoint's mark on a captured exchange. */
+export type BreakRecord = {
+	/**  Where it waits now (`None` once it went on). */
+	waiting?: BreakStage | null,
+	/**  The request was changed at the breakpoint. */
+	requestEdited?: boolean,
+	/**  The answer was changed at the breakpoint. */
+	responseEdited?: boolean,
+	/**  It went on by itself after [`BREAK_TIMEOUT`]. */
+	timedOut?: boolean,
+};
+
+/**  Where an exchange stops. */
+export type BreakStage = 
+/**  Before the request goes to the service. */
+"request" | 
+/**  Before the answer goes back to the visitor. */
+"response";
+
+/**  Stops requests matching a method and path. */
+export type BreakpointRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  Stop before the request goes to the service. */
+	request: boolean,
+	/**  Stop before the answer goes back. */
+	response: boolean,
+};
 
 /**  How to save the CA certificate for another device. */
 export type CaFormat = 
@@ -1999,6 +2089,10 @@ export type ExchangeRow = {
 	answeredLocally: boolean,
 	/**  An error reaching the service, in English (technical). */
 	error: string | null,
+	/**  Waiting at a breakpoint, and where. */
+	paused: BreakStage | null,
+	/**  Changed or answered at a breakpoint. */
+	edited: boolean,
 };
 
 /**  Where an exchange is in its life. */
@@ -2046,6 +2140,8 @@ export type ExchangeView = {
 	replayOf: ExchangeId | null,
 	/**  The fault rule applied, if any. */
 	fault: FaultRecord | null,
+	/**  Whether it stopped at a breakpoint, and what happened there. */
+	breakpoint: BreakRecord | null,
 	/**  Whether secrets are masked in this view. */
 	redacted: boolean,
 };
@@ -3549,6 +3645,34 @@ export type PasswordInput =
 /**  The password. */
 password: string };
 
+/**  A paused exchange, as it would go on. */
+export type Paused = {
+	/**  The exchange. */
+	exchange: ExchangeId,
+	/**  Its tap. */
+	tap: TapId,
+	/**  Where it waits. */
+	stage: BreakStage,
+	/**  When it stopped (Unix milliseconds). */
+	sinceMs: number | null,
+	/**  When it goes on by itself (Unix milliseconds). */
+	resumesAtMs: number | null,
+	/**  Request method. */
+	method: string,
+	/**  Request path and query. */
+	target: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Response status (at the response stage). */
+	status: number | null,
+	/**  Headers of the request, or of the answer at the response stage, in order. */
+	headers: ([string, string])[],
+	/**  The body as text, when it can be changed. */
+	body: string | null,
+	/**  Why the body can't be changed. */
+	bodyLocked: BodyLock | null,
+};
+
 /**  The page served while a tap is paused. */
 export type PausedPage = {
 	/**  Heading. */
@@ -4112,6 +4236,8 @@ reason: GateOutcome } |
 { type: "fault"; 
 /**  Index of the rule in [`crate::TapConfig::faults`]. */
 rule: number } | 
+/**  Someone answered it at a breakpoint. */
+{ type: "breakpoint" } | 
 /**  Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages). */
 { type: "lens" };
 
@@ -4128,6 +4254,25 @@ export type ResponseView = {
 	/**  Body. */
 	body: BodyView,
 };
+
+/**  How a paused exchange goes on. */
+export type Resume = 
+/**  As it is. */
+{ type: "continue" } | 
+/**  With changes. */
+{ type: "edited"; 
+/**  The changes. */
+edit: BreakEdit } | 
+/**  Answer the visitor from here, without the service (request stage). */
+{ type: "answer"; 
+/**  Status. */
+status: number; 
+/**  Headers. */
+headers: ([string, string])[]; 
+/**  Body (text). */
+body: string } | 
+/**  Drop the connection: the visitor gets no answer. */
+{ type: "abort" };
 
 /**  A route change of the project, with its reviewed plan. */
 export type RouteAction = RouteAction_Serialize | RouteAction_Deserialize;
@@ -5058,6 +5203,8 @@ export type TapPatch = {
 	network?: NetworkConfig | null,
 	/**  Injected faults (replacing the list). */
 	faults?: FaultRule[] | null,
+	/**  Breakpoints (replacing the list; an empty list lets everything waiting go on). */
+	breakpoints?: BreakpointRule[] | null,
 	/**
 	 *  Keep-alive for event streams after this many seconds of silence; 0 turns it
 	 *  off.
@@ -5149,6 +5296,8 @@ export type TapView = {
 	network: NetworkConfig,
 	/**  Injected faults. */
 	faults: FaultRule[],
+	/**  Requests stopped for a look. */
+	breakpoints: BreakpointRule[],
 	/**  Paths that notify when requested. */
 	watchedPaths: string[],
 	/**  Minutes without a request before the share stops (`None`: never). */

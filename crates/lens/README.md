@@ -41,7 +41,7 @@ println!("{}", export::markdown(&hook, &Redaction::masked()));
 | Replay | `Lens::replay(id, ReplayOptions { edits, times, target, resign, timeout })` |
 | Export | `export::{curl, httpie, fetch, raw_http, har, har_string, json_string, markdown, export}` |
 | Webhooks | `webhook::{detect, verify, verify_exchange, resign}` for Stripe, GitHub, Slack, Shopify, Standard Webhooks (Svix, Clerk, Resend…), Twilio, Linear, Discord |
-| Per-tap features | `Gates` (password page, secret link, basic auth, bearer tokens, IP allow/deny, user-agent presets, bypass paths), `StubRule` (always / when unreachable), `HeaderRules` (+ CORS helper), `Injection` + `ReservedHandler` (`/__teitunnel/…`), `PausedPage`, `sse_keepalive` |
+| Per-tap features | `Gates` (password page, secret link, basic auth, bearer tokens, IP allow/deny, user-agent presets, bypass paths), `StubRule` (always / when unreachable), `BreakpointRule` (hold a request or its answer: `Lens::paused`, `resume`, `resume_all`; 60 s, 50 at once), `HeaderRules` (+ CORS helper), `Injection` + `ReservedHandler` (`/__teitunnel/…`), `PausedPage`, `sse_keepalive` |
 | Simulation | `NetworkConfig` (`Latency::{THREE_G, FOUR_G, SATELLITE}` or custom, up/down bytes per second), `FaultRule` + `FaultAction::{Status, Reset, Delay, Timeout}` on a share of matching requests; `LensOptions::random` for deterministic tests |
 | Metrics | `Lens::metrics(tap)` → counts by status class, errors, blocked, stubbed, bytes, active connections/requests/streams, latency p50/p95/p99 |
 

@@ -2,13 +2,14 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   FileOutput,
   GitCompareArrows,
+  OctagonPause,
   Pause,
   Play,
   ScanSearch,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
@@ -27,6 +28,7 @@ import { ExchangeDetail } from "./components/exchange-detail";
 import { ExchangeList } from "./components/exchange-list";
 import { ExportSheet } from "./components/export-sheet";
 import { FilterBar } from "./components/filter-bar";
+import { HeldRequest } from "./components/held-request";
 import { InspectRouteSheet } from "./components/inspect-route-sheet";
 import { ReplaySheet } from "./components/replay-sheet";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
@@ -37,6 +39,7 @@ import {
   useClearExchanges,
   useInspectedRoutes,
   useKnownTaps,
+  useResumeAll,
   useTapMetrics,
   useTaps,
 } from "./queries";
@@ -94,6 +97,13 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
   const metrics = useTapMetrics(tapView ? tapView.id : null);
 
   const selected = visible.find((row) => row.id === selectedId) ?? null;
+  const held = useMemo(() => rows.filter((row) => row.paused), [rows]);
+  const resumeAll = useResumeAll();
+  // Land on a request as soon as it's held, unless something else is being looked at.
+  const firstHeld = held.at(-1)?.id ?? null;
+  useEffect(() => {
+    if (firstHeld && selectedId === null) setSelectedId(firstHeld);
+  }, [firstHeld, selectedId]);
   const names = useMemo(
     () => new Map((known.data ?? []).map((tap) => [tap.id, tap.name])),
     [known.data],
@@ -228,6 +238,20 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
           </Button>
         </div>
       ))}
+      {held.length > 0 ? (
+        <div
+          role="status"
+          className="mx-3 mt-2 flex items-center gap-2 rounded-row bg-accent/10 px-3 py-2 text-callout"
+        >
+          <OctagonPause aria-hidden className="size-4 shrink-0 text-accent" strokeWidth={2} />
+          <span className="min-w-0 flex-1">
+            {t("inspector.held.banner", { count: held.length })}
+          </span>
+          <Button size="sm" pending={resumeAll.isPending} onClick={() => resumeAll.mutate(current)}>
+            {t("inspector.held.continueAll")}
+          </Button>
+        </div>
+      ) : null}
       {live.status === "loading" && rows.length === 0 ? (
         <div className="flex flex-col gap-1.5 px-3 pt-8" aria-busy>
           {Array.from({ length: 6 }, (_, row) => (
@@ -312,7 +336,9 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
             minListWidth={340}
             maxListWidth={900}
           >
-            {selected ? (
+            {selected?.paused ? (
+              <HeldRequest key={selected.id} row={selected} />
+            ) : selected ? (
               <ExchangeDetail
                 key={selected.id}
                 row={selected}

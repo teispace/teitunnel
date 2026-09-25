@@ -300,6 +300,97 @@ async fn tap_settings_change_at_once() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_breakpoint_holds_a_request_until_it_is_let_go() {
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let tap = inspector
+        .start(TapSpec::new(quick("qs-break"), "demo", &origin))
+        .await
+        .unwrap();
+    let rule = lens::BreakpointRule {
+        method: Some("POST".into()),
+        path: lens::PathPattern::parse("/hooks").unwrap(),
+        request: true,
+        response: false,
+    };
+    let view = inspector
+        .configure(
+            &tap.id,
+            &TapPatch {
+                breakpoints: Some(vec![rule]),
+                ..TapPatch::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(view.breakpoints.len(), 1);
+
+    let address = tap.address.clone();
+    let sent = tokio::spawn(async move { send(&address, "POST", "/hooks", &[]).await });
+    let mut waiting = Vec::new();
+    for _ in 0..500 {
+        waiting = inspector.paused(Some(&tap.id));
+        if !waiting.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let paused = waiting.first().expect("the request waits").clone();
+    // Values aren't masked while it waits: they're what goes on.
+    assert!(
+        paused
+            .body
+            .as_deref()
+            .unwrap()
+            .contains("sk_live_0123456789abcdef")
+    );
+    let row = inspector
+        .list(&ExchangeQuery::default())
+        .items
+        .into_iter()
+        .find(|r| r.id == paused.exchange)
+        .unwrap();
+    assert_eq!(row.paused, Some(lens::BreakStage::Request));
+
+    let wrong = lens::Resume::Edited {
+        edit: lens::BreakEdit {
+            status: Some(500),
+            ..lens::BreakEdit::default()
+        },
+    };
+    assert!(matches!(
+        inspector.resume(paused.exchange, wrong),
+        Err(InspectError::Invalid(_))
+    ));
+    inspector
+        .resume(
+            paused.exchange,
+            lens::Resume::Edited {
+                edit: lens::BreakEdit {
+                    body: Some("{}".into()),
+                    ..lens::BreakEdit::default()
+                },
+            },
+        )
+        .unwrap();
+    assert_eq!(sent.await.unwrap().0, 200);
+    assert!(matches!(
+        inspector.resume(paused.exchange, lens::Resume::Continue),
+        Err(InspectError::NotPaused)
+    ));
+    settle(&inspector, 1).await;
+    let row = inspector
+        .list(&ExchangeQuery::default())
+        .items
+        .into_iter()
+        .find(|r| r.id == paused.exchange)
+        .unwrap();
+    assert_eq!(row.paused, None);
+    assert!(row.edited);
+    assert_eq!(inspector.resume_all(None), 0);
+    inspector.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn reports_watched_paths() {
     let origin = origin().await;
     let inspector = Inspector::new(None, None, "app");

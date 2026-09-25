@@ -1153,7 +1153,8 @@
       "replay": "Replay",
       "webhook": "Webhook",
       "newAbove_one": "{count} newer request",
-      "newAbove_other": "{count} newer requests"
+      "newAbove_other": "{count} newer requests",
+      "held": "Held"
     },
     "state": {
       "pending": "Waiting for the service",
@@ -1204,7 +1205,8 @@
       "hide": "Hide Secrets",
       "revealHelp": "Credentials are masked. Show them for this request; they're not kept.",
       "revealed": "Secrets are shown for this request until you hide them or select another.",
-      "restored": "Kept in history with credentials masked when it was saved, so they can't be shown."
+      "restored": "Kept in history with credentials masked when it was saved, so they can't be shown.",
+      "breakpoint": "Breakpoint"
     },
     "responder": {
       "upstream": "Your service",
@@ -1214,7 +1216,8 @@
       "gate": "Protection on this computer: {reason}",
       "paused": "The paused page",
       "fault": "A simulated fault",
-      "lens": "The inspector"
+      "lens": "The inspector",
+      "breakpoint": "You, at a breakpoint"
     },
     "gate": {
       "ipNotAllowed": "address not allowed",
@@ -1402,7 +1405,8 @@
         "headers": "Headers",
         "network": "Network",
         "protection": "Protection",
-        "more": "More"
+        "more": "More",
+        "breakpoints": "Breakpoints"
       },
       "save": "Save",
       "saved": "Saved settings for {name}",
@@ -1495,6 +1499,19 @@
       "idle": {
         "title": "Stop after no requests for",
         "help": "The share stops by itself after this long without a request."
+      },
+      "breakpoints": {
+        "title": "Breakpoints",
+        "help": "Hold matching requests so you can look at them, change them, answer them yourself or drop them. A held request goes on by itself after a minute, before Cloudflare gives up waiting. Only while requests are recorded.",
+        "add": "Add Breakpoint",
+        "empty": "No breakpoints.",
+        "stage": "Hold",
+        "stages": {
+          "request": "Request",
+          "response": "Answer",
+          "both": "Both"
+        },
+        "remove": "Remove breakpoint"
       }
     },
     "protection": {
@@ -1565,6 +1582,39 @@
       "watched": "Watched paths",
       "watchedFooter": "A notification when a request to any share or route hits one of these paths, e.g. /webhooks/*. One per line.",
       "save": "Save"
+    },
+    "held": {
+      "banner_one": "{count} request is held at a breakpoint.",
+      "banner_other": "{count} requests are held at breakpoints.",
+      "continueAll": "Continue All",
+      "request": "Held before it goes to your service",
+      "response": "Held before the answer goes back",
+      "resumesIn": "Goes on by itself in {seconds} s",
+      "method": "Method",
+      "target": "Path",
+      "status": "Status",
+      "headers": "Headers",
+      "headersHelp": "One per line, as name: value.",
+      "body": "Body",
+      "locked": {
+        "binary": "The body isn't text, so it goes on as it is.",
+        "tooLarge": "The body is larger than 1 MB, so it goes on as it is.",
+        "streamed": "The body is still arriving, so it goes on as it is."
+      },
+      "continue": "Continue",
+      "continueChanged": "Continue with Changes",
+      "revert": "Undo Changes",
+      "answer": "Answer Myself…",
+      "answerTitle": "Your answer",
+      "sendAnswer": "Send Answer",
+      "backToRequest": "Back to the Request",
+      "drop": "Drop",
+      "dropHelp": "The visitor gets no answer.",
+      "gone": "This request isn't held any more.",
+      "added": "Requests to {method} {path} will be held.",
+      "addHere": "Hold Requests Like This",
+      "edited": "Changed at a breakpoint",
+      "timedOut": "Went on by itself after a minute"
     }
   },
   "nav": {
@@ -1871,6 +1921,7 @@
         "notRoute": "{hostname} isn't a route served by this computer.",
         "notInspected": "{hostname} isn't being inspected.",
         "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
+        "notPaused": "This request isn't waiting any more: it went on by itself after a minute, or the visitor left.",
         "invalid": "{detail}"
       },
       "shortcut": {

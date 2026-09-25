@@ -3,8 +3,8 @@
 //! `specta`-derived in `crates/lens`).
 
 use lens::{
-    AgentPreset, ExchangeId, ExchangeKind, ExchangeState, ExchangeView, FaultRule, HeaderRules,
-    Latency, NetworkConfig, PausedPage, StubRule, TapId, webhook,
+    AgentPreset, BreakStage, BreakpointRule, ExchangeId, ExchangeKind, ExchangeState, ExchangeView,
+    FaultRule, HeaderRules, Latency, NetworkConfig, PausedPage, StubRule, TapId, webhook,
 };
 use serde::{Deserialize, Serialize};
 
@@ -271,6 +271,8 @@ pub struct TapView {
     pub network: NetworkConfig,
     /// Injected faults.
     pub faults: Vec<FaultRule>,
+    /// Requests stopped for a look.
+    pub breakpoints: Vec<BreakpointRule>,
     /// Paths that notify when requested.
     pub watched_paths: Vec<String>,
     /// Minutes without a request before the share stops (`None`: never).
@@ -328,6 +330,10 @@ pub struct ExchangeRow {
     pub answered_locally: bool,
     /// An error reaching the service, in English (technical).
     pub error: Option<String>,
+    /// Waiting at a breakpoint, and where.
+    pub paused: Option<BreakStage>,
+    /// Changed or answered at a breakpoint.
+    pub edited: bool,
 }
 
 impl ExchangeRow {
@@ -370,6 +376,12 @@ impl ExchangeRow {
                 lens::Responder::Upstream | lens::Responder::Folder
             ),
             error: exchange.error.as_ref().map(|e| e.message.clone()),
+            paused: exchange.breakpoint.as_ref().and_then(|mark| mark.waiting),
+            edited: exchange
+                .breakpoint
+                .as_ref()
+                .is_some_and(|mark| mark.request_edited || mark.response_edited)
+                || exchange.responder == lens::Responder::Breakpoint,
         }
     }
 }
@@ -586,6 +598,9 @@ pub struct TapPatch {
     /// Injected faults (replacing the list).
     #[serde(default)]
     pub faults: Option<Vec<FaultRule>>,
+    /// Breakpoints (replacing the list; an empty list lets everything waiting go on).
+    #[serde(default)]
+    pub breakpoints: Option<Vec<BreakpointRule>>,
     /// Keep-alive for event streams after this many seconds of silence; 0 turns it
     /// off.
     #[serde(default)]

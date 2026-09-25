@@ -1,9 +1,12 @@
 import { formatBytes } from "@/features/snapshots/format";
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n";
 import type {
+  BreakEdit,
   ExchangeRow,
   HeaderView,
+  Paused,
   ReplayInput,
+  Resume,
   TrafficFormat,
   WebhookSender,
 } from "@/lib/ipc/bindings";
@@ -90,6 +93,7 @@ export function formatClock(at: number | null): string {
 
 /** The status cell: the code, or where the exchange is. */
 export function statusText(row: ExchangeRow): string {
+  if (row.paused) return t("inspector.list.held");
   if (row.status !== null) return String(row.status);
   if (row.state === "failed") return t("inspector.list.failed");
   return t("inspector.list.pending");
@@ -112,6 +116,13 @@ export const toneText: Record<Tone, string> = {
   error: "text-error",
   neutral: "text-secondary",
 };
+
+/** The status cell's colour: held rows stand out, unanswered ones recede. */
+export function statusClass(row: ExchangeRow): string {
+  if (row.paused) return "text-accent";
+  if (row.status === null) return "text-secondary";
+  return toneText[statusTone(row.status, row.state === "failed")];
+}
 
 export const providerNames: Record<WebhookSender, string> = {
   stripe: "Stripe",
@@ -243,6 +254,88 @@ export function parseHeaders(text: string): [string, string][] {
       if (colon <= 0) return [];
       return [[line.slice(0, colon).trim(), line.slice(colon + 1).trim()]];
     });
+}
+
+// Breakpoints ----------------------------------------------------------------------
+
+/** A held request, as the editor shows it. */
+export interface HeldDraft {
+  method: string;
+  /** Path and query. */
+  target: string;
+  status: string;
+  /** `Name: value` lines. */
+  headers: string;
+  /** Only when the body can be changed. */
+  body: string;
+}
+
+const headerLines = (headers: readonly (readonly [string, string])[]) =>
+  headers.map(([name, value]) => `${name}: ${value}`).join("\n");
+
+export function heldDraft(held: Paused): HeldDraft {
+  return {
+    method: held.method,
+    target: held.target,
+    status: held.status === null ? "" : String(held.status),
+    headers: headerLines(held.headers),
+    body: held.body ?? "",
+  };
+}
+
+/** Whether the draft differs from what's held. */
+export function heldChanged(held: Paused, draft: HeldDraft): boolean {
+  return JSON.stringify(heldDraft(held)) !== JSON.stringify(draft);
+}
+
+/**
+ * How a held request goes on with `draft`: as it is when nothing changed, else with
+ * only what changed (the inspector fixes `Content-Length` for a new body).
+ */
+export function heldResume(held: Paused, draft: HeldDraft): Resume {
+  const original = heldDraft(held);
+  const edit: BreakEdit = {};
+  if (held.stage === "request") {
+    if (draft.method.trim().toUpperCase() !== original.method) {
+      edit.method = draft.method.trim().toUpperCase();
+    }
+    if (draft.target.trim() !== original.target) edit.target = draft.target.trim();
+  } else if (draft.status.trim() !== original.status) {
+    edit.status = Number(draft.status.trim());
+  }
+  const headers = parseHeaders(draft.headers);
+  if (JSON.stringify(headers) !== JSON.stringify(parseHeaders(original.headers))) {
+    edit.headers = headers;
+  }
+  if (held.body !== null && draft.body !== original.body) edit.body = draft.body;
+  return Object.keys(edit).length === 0 ? { type: "continue" } : { type: "edited", edit };
+}
+
+/** An answer written at a breakpoint. */
+export interface AnswerDraft {
+  status: string;
+  headers: string;
+  body: string;
+}
+
+export const newAnswer = (): AnswerDraft => ({
+  status: "200",
+  headers: "content-type: application/json",
+  body: "",
+});
+
+export function answerResume(draft: AnswerDraft): Resume {
+  return {
+    type: "answer",
+    status: Number(draft.status.trim()),
+    headers: parseHeaders(draft.headers),
+    body: draft.body,
+  };
+}
+
+/** Seconds until a held request goes on by itself (0 once due). */
+export function secondsLeft(held: Paused, now: number): number {
+  return held.resumesAtMs === null ? 0 : Math.max(0, Math.ceil((held.resumesAtMs - now) / 1000));
 }
 
 /** Headers Teitunnel sets itself; editing them makes no sense in a replay. */

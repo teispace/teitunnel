@@ -373,6 +373,9 @@ pub struct TapConfig {
     pub network: NetworkConfig,
     /// Fault injection, checked in order.
     pub faults: Vec<FaultRule>,
+    /// Requests to stop for a look (the first matching rule applies); only while
+    /// capturing.
+    pub breakpoints: Vec<crate::BreakpointRule>,
 }
 
 impl TapConfig {
@@ -395,6 +398,7 @@ impl TapConfig {
             sse_keepalive: Some(crate::keepalive::DEFAULT_SSE_KEEPALIVE),
             network: NetworkConfig::default(),
             faults: Vec::new(),
+            breakpoints: Vec::new(),
         }
     }
 }

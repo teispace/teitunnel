@@ -49,7 +49,7 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
 crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
-                     replay, exports, webhooks, gates, stubs, simulation. Pure library, no Tauri,
+                     replay, exports, webhooks, gates, stubs, breakpoints, simulation. Pure library, no Tauri,
                      no core; an optional `specta` feature derives IPC types.
 crates/localdomains  Local HTTPS domains (D-101): the name-constrained CA, leaves issued per SNI
                      name, trust installers per OS (privileged steps returned as data), the `.test`

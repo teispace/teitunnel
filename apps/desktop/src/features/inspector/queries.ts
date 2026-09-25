@@ -11,6 +11,7 @@ import {
   type ProtectionInput,
   type QuickShare,
   type ReplayInput,
+  type Resume,
   type StepState,
   type TapId,
   type TapPatch,
@@ -90,6 +91,30 @@ export function useExchange(id: ExchangeId | null, version: string) {
  */
 export function revealExchange(id: ExchangeId) {
   return call(commands.inspectExchange(id, true));
+}
+
+/**
+ * A request held at a breakpoint, as it would go on (`null` once it went on). Unmasked,
+ * since it's what goes on and can be changed, so, like a revealed request, it's read on
+ * demand and never cached.
+ */
+export function heldExchange(id: ExchangeId) {
+  return call(commands.inspectPausedExchange(id));
+}
+
+/** Lets a held request go on: as it is, changed, answered from here or dropped. */
+export function useResume() {
+  return useMutation({
+    mutationFn: ({ id, resume }: { id: ExchangeId; resume: Resume }) =>
+      call(commands.inspectResume(id, resume)),
+  });
+}
+
+/** Lets every held request (of one tap, or all) go on unchanged. */
+export function useResumeAll() {
+  return useMutation({
+    mutationFn: (tap: TapId | null) => call(commands.inspectResumeAll(tap)),
+  });
 }
 
 /** A page of requests (masked), newest first. */

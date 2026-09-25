@@ -7,6 +7,7 @@
     unreachable_pub
 )]
 
+mod breakpoints;
 mod features;
 mod folder;
 mod gates;

@@ -143,6 +143,10 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
   (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
   export, or the MCP server runs with `--allow-secrets`.
+- A request held at a breakpoint is shown unmasked (IPC `inspect_paused_exchange`), since
+  it's what goes on and can be changed; like a revealed request it's read on demand, never
+  cached or stored, and not offered to agents. Holding is bounded: 60 seconds per request,
+  50 at once, only while recording, and rules are never persisted (D-130).
 - Webhook signing secrets and bearer tokens for exposed services live only in the
   keychain; they cross IPC only as input (never echoed back). A generated secret link key
   or bearer token is returned once, to show the person.

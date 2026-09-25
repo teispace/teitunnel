@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { ExchangeRow } from "@/lib/ipc/bindings";
-import { formatClock, formatMs, rowSize, statusText, statusTone, toneText } from "../model";
+import { formatClock, formatMs, rowSize, statusClass, statusText } from "../model";
 
 /** Row height: one 12 px line in a 24 px row, like Xcode's and Proxyman's tables. */
 export const ROW = 24;
@@ -147,7 +147,6 @@ export function ExchangeList({
               if (!row) return null;
               const selected = row.id === selectedId;
               const picked = marked.has(row.id);
-              const tone = statusTone(row.status, row.state === "failed");
               return (
                 <div
                   key={item.key}
@@ -185,12 +184,7 @@ export function ExchangeList({
                     ) : null}
                     <span className="truncate">{row.path}</span>
                   </span>
-                  <span
-                    className={cn(
-                      "truncate tabular",
-                      row.status === null ? "text-secondary" : toneText[tone],
-                    )}
-                  >
+                  <span className={cn("truncate tabular", statusClass(row))}>
                     {statusText(row)}
                   </span>
                   <span className="truncate text-right text-secondary tabular">

@@ -125,6 +125,7 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.inspect.notRoute": input,
   "core.error.inspect.notInspected": retry,
   "core.error.inspect.tapGone": retry,
+  "core.error.inspect.notPaused": retry,
   "core.error.inspect.invalid": input,
   "core.error.shortcut.invalid": input,
   "core.error.shortcut.needsModifier": input,

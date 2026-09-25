@@ -73,6 +73,9 @@ struct Meta {
     stream: Option<StreamStats>,
     replay_of: Option<ExchangeId>,
     fault: Option<FaultRecord>,
+    /// Whether it stopped at a breakpoint (rows from before breakpoints have none).
+    #[serde(default)]
+    breakpoint: Option<lens::BreakRecord>,
 }
 
 fn version_text(version: Version) -> &'static str {
@@ -210,6 +213,11 @@ pub(crate) fn to_row(exchange: &Exchange) -> Row {
         }),
         replay_of: exchange.replay_of,
         fault: exchange.fault.clone(),
+        // Only what happened: nothing stored is still waiting.
+        breakpoint: exchange.breakpoint.clone().map(|mut mark| {
+            mark.waiting = None;
+            mark
+        }),
     };
     let path = uri.split('?').next().unwrap_or("/").to_owned();
     Row {
@@ -305,6 +313,7 @@ pub(crate) fn from_row(row: &Row) -> Option<Exchange> {
         stream: meta.stream,
         replay_of: meta.replay_of,
         fault: meta.fault,
+        breakpoint: meta.breakpoint,
     })
 }
 
@@ -368,6 +377,7 @@ pub(crate) mod tests {
             stream: None,
             replay_of: None,
             fault: None,
+            breakpoint: None,
         }
     }
 

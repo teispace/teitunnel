@@ -8,11 +8,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use http::{HeaderMap, StatusCode, Version};
+use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
 use crate::{
-    BodyRecord, Exchange, ExchangeError, ExchangeKind, ExchangeState, Responder, ResponseRecord,
-    StreamStats,
+    BodyRecord, BreakRecord, Exchange, ExchangeError, ExchangeId, ExchangeKind, ExchangeState,
+    Responder, ResponseRecord, StreamStats,
     capture::ErrorKind,
     events::{Change, Hub},
     metrics::TapMetrics,
@@ -125,6 +125,40 @@ impl Recorder {
         if self.0.capture {
             self.0.hub.publish(change, exchange.clone());
         }
+    }
+
+    /// The exchange's id.
+    pub(crate) fn id(&self) -> ExchangeId {
+        self.lock().exchange.id
+    }
+
+    /// Updates the breakpoint mark and publishes it (so a pause shows right away).
+    pub(crate) fn breakpoint(&self, update: impl FnOnce(&mut BreakRecord)) {
+        let mut state = self.lock();
+        update(
+            state
+                .exchange
+                .breakpoint
+                .get_or_insert_with(BreakRecord::default),
+        );
+        let snapshot = state.exchange.clone();
+        drop(state);
+        self.publish(Change::Updated, &snapshot);
+    }
+
+    /// The request as changed at a breakpoint (what the service gets).
+    pub(crate) fn edit_request(&self, method: &Method, uri: &Uri, headers: &HeaderMap) {
+        let mut state = self.lock();
+        let exchange = &mut state.exchange;
+        exchange.request.method = method.clone();
+        exchange.request.uri = uri.clone();
+        if self.0.capture {
+            exchange.request.headers = headers.clone();
+        }
+        exchange
+            .breakpoint
+            .get_or_insert_with(BreakRecord::default)
+            .request_edited = true;
     }
 
     /// The upstream connection is ready.

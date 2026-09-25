@@ -173,6 +173,8 @@ pub struct ExchangeView {
     pub replay_of: Option<ExchangeId>,
     /// The fault rule applied, if any.
     pub fault: Option<crate::FaultRecord>,
+    /// Whether it stopped at a breakpoint, and what happened there.
+    pub breakpoint: Option<crate::BreakRecord>,
     /// Whether secrets are masked in this view.
     pub redacted: bool,
 }
@@ -243,6 +245,7 @@ pub(super) fn build(exchange: &Exchange, redaction: &Redaction) -> ExchangeView 
         stream,
         replay_of: exchange.replay_of,
         fault: exchange.fault.clone(),
+        breakpoint: exchange.breakpoint.clone(),
         redacted: redaction.mask,
     }
 }

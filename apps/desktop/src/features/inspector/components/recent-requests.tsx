@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { useLiveExchanges, useRows } from "../live";
-import { formatClock, formatMs, statusText, statusTone, toneText } from "../model";
+import { formatClock, formatMs, statusClass, statusText } from "../model";
 
 interface RecentRequestsProps {
   /** How many to show. */
@@ -21,7 +21,6 @@ export function RecentRequests({ limit, children }: RecentRequestsProps) {
   if (rows.length === 0) return null;
   return children(
     rows.map((row) => {
-      const tone = statusTone(row.status, row.state === "failed");
       return (
         <li key={row.id}>
           <Link
@@ -30,14 +29,7 @@ export function RecentRequests({ limit, children }: RecentRequestsProps) {
             title={`${row.method} ${row.host}${row.path}`}
             className="flex min-h-9 items-center gap-3 rounded-row py-1.5 font-mono text-mono outline-offset-0"
           >
-            <span
-              className={cn(
-                "w-10 shrink-0 tabular",
-                row.status === null ? "text-secondary" : toneText[tone],
-              )}
-            >
-              {statusText(row)}
-            </span>
+            <span className={cn("w-10 shrink-0 tabular", statusClass(row))}>{statusText(row)}</span>
             <span className="w-14 shrink-0 truncate font-medium">{row.method}</span>
             <span className="min-w-0 flex-1 truncate">
               <span className="text-secondary">{row.host}</span>
