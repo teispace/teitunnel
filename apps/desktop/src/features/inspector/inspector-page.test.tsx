@@ -28,7 +28,7 @@ beforeEach(() => {
   });
 });
 
-function renderPage(props: { tap?: string } = {}) {
+function renderPage(props: { tap?: string; exchange?: string } = {}) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <TooltipProvider>
@@ -69,6 +69,13 @@ describe("InspectorPage", () => {
     await waitFor(() => expect(options()[0]?.textContent).toContain("503"));
     view.unmount();
     await waitFor(() => expect(called("inspect_unsubscribe")[0]?.args["id"]).toBe(7));
+  });
+
+  it("opens with a linked request selected", async () => {
+    renderPage({ exchange: "ex-3" });
+    const detail = await screen.findByRole("region", { name: "Request details" });
+    await waitFor(() => expect(called("inspect_exchange")[0]?.args["id"]).toBe("ex-3"));
+    expect(detail).toBeTruthy();
   });
 
   it("holds live requests back while paused", async () => {

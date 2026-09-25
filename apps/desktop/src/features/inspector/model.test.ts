@@ -74,6 +74,14 @@ describe("ExchangeStore", () => {
     expect(store.rows()[0]?.id).toBe(`r${MAX_ROWS + 4}`);
   });
 
+  it("keeps no more than a smaller capacity, from a page or live", () => {
+    const store = new ExchangeStore(null, 2);
+    store.reset([row("c"), row("b"), row("a")]);
+    expect(store.rows().map((r) => r.id)).toEqual(["c", "b"]);
+    store.apply(batch([row("d")]));
+    expect(store.rows().map((r) => r.id)).toEqual(["d", "c"]);
+  });
+
   it("leaves new requests out when a search can't match them", () => {
     const store = new ExchangeStore();
     store.reset([row("a")]);

@@ -874,7 +874,20 @@
     "traffic@linux": "Traffic on this computer",
     "loading": "Loading what's running",
     "checkingRoutes": "Checking your routes on Cloudflare…",
-    "routesFailed": "Couldn't load your routes."
+    "routesFailed": "Couldn't load your routes.",
+    "errors": "Errors",
+    "errorsNone": "None",
+    "errorsDetail_one": "{failed} of {count} request in 5 min",
+    "errorsDetail_other": "{failed} of {count} requests in 5 min",
+    "errorsQuiet": "No requests in 5 min",
+    "uptime": "Uptime",
+    "uptimeAllUp": "All up",
+    "uptimeDown_one": "{count} down",
+    "uptimeDown_other": "{count} down",
+    "uptimeLowest": "Lowest in 24 h: {percent}",
+    "uptimeDownMore": "{hostname} and {count} more",
+    "recent": "Recent Requests",
+    "showAll": "Show All"
   },
   "accounts": {
     "credential": {

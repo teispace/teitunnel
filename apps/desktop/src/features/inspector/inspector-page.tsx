@@ -48,6 +48,8 @@ interface InspectorPageProps {
   tap?: string | undefined;
   /** Show this hostname's requests first (a route or a share on your domain). */
   host?: string | undefined;
+  /** Open with this request selected. */
+  exchange?: string | undefined;
 }
 
 /** Order for the picker: running taps first, then by name. */
@@ -60,7 +62,7 @@ const byRunning = (a: KnownTap, b: KnownTap) =>
  * request's headers, bodies, timing and webhook signature; replay, compare and export;
  * and what the inspector does for each share or route.
  */
-export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
+export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageProps) {
   const navigate = useNavigate();
   const known = useKnownTaps();
   const taps = useTaps();
@@ -80,7 +82,7 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
   const rows = useRows(live.store);
   const visible = useMemo(() => rows.filter((row) => matches(row, filters)), [rows, filters]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(exchange ?? null);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [replaying, setReplaying] = useState<Detail | null>(null);
   const [exporting, setExporting] = useState<readonly string[]>([]);

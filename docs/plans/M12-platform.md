@@ -81,7 +81,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3).
 - [x] Uptime: every route checked through the edge on a schedule; history, incidents, response time chart; notification when down/recovered; optional status badge.
 - [x] Alerts: 5xx rate, latency, connector down, certificate/DNS problems, quota-like limits (429s on Quick Share), with quiet hours.
-- [ ] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance.
+- [x] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance. (Traffic, Errors (5xx and unreachable over 5 min) and Uptime tiles; Recent Requests from the inspector, live, each opening selected in the Inspector.)
 
 ## M12-06 · Sharing power-ups
 - [x] Pause/resume a share on your domain: the hostname stays reserved (route kept, connector paused, a friendly "paused" page served by Lens); resume with the same URL.

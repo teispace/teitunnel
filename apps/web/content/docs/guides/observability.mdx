@@ -21,8 +21,15 @@ Select a tunnel in **Tunnels**; its **Traffic** section charts this computer's c
 
 Below the charts: **Now** (the current rate, such as *4.2 requests/s*), **Responses** by status
 class (2xx, 3xx, 4xx, 5xx), **Since start** (*1,204 requests, 3 failed*), the number of
-**Connections**, and the **Edge** locations in use (such as `AMS01`, `FRA08`). The traffic card
-on **Overview** shows a summary and opens [Analytics](/docs/guides/analytics).
+**Connections**, and the **Edge** locations in use (such as `AMS01`, `FRA08`).
+
+**Overview** is the live dashboard: problems the Doctor found, then three tiles that open
+[Analytics](/docs/guides/analytics): **Traffic** (requests per second and a sparkline of the
+last hour), **Errors** (the share of the last 5 minutes' requests that got a 5xx or never reached
+your service; orange for any, red over 5%) and **Uptime** (whether every checked route is up, or
+which are down, and the lowest 24-hour uptime). Below your routes and Quick Shares,
+**Recent Requests** lists the newest requests to inspected shares and routes as they arrive;
+each opens in the [Inspector](/docs/guides/inspector).
 
 While the chart is open it updates every second; otherwise the connector is sampled every 10
 seconds. History is kept per minute for seven days, so the Day and Week views survive restarts.
