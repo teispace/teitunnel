@@ -201,7 +201,7 @@ fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to read feedback on a preview, then fix the code and answer with comments_reply / comments_resolve.\n\
              \n\
-             Example: {} or {\"subject\": \"snapshot:3f2a…\"} or {\"subject\": \"preview.example.com\", \"includeResolved\": true}",
+             Example: {} or {\"subject\": \"snapshot:3f2a…\"} or {\"subject\": \"preview.teispace.com\", \"includeResolved\": true}",
             ToolClass::Read,
             Hints::READ_CLOUD,
             DEFAULT_TIMEOUT,
@@ -221,7 +221,7 @@ fn specs() -> Vec<ToolSpec> {
             "Resolve a review comment",
             "Marks a comment thread resolved (or reopens it with resolved: false). Asks the person first.\n\
              \n\
-             Example: {\"subject\": \"route:acc:app.example.com\", \"thread\": \"c1a2b3\"}",
+             Example: {\"subject\": \"route:acc:app.teispace.com\", \"thread\": \"c1a2b3\"}",
             ToolClass::Change,
             Hints {
                 idempotent: true,

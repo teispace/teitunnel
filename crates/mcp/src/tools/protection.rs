@@ -76,7 +76,7 @@ impl ToolProvider for ProtectionTools {
                  \n\
                  Call it before protect_hostname to change only what the person asked for.\n\
                  \n\
-                 Example: {\"hostname\": \"app.example.com\"}",
+                 Example: {\"hostname\": \"app.teispace.com\"}",
                 ToolClass::Read,
                 Hints::READ_CLOUD,
                 DEFAULT_TIMEOUT,
@@ -88,7 +88,7 @@ impl ToolProvider for ProtectionTools {
                  \n\
                  Fields you leave out keep their current value (see get_protection); `off: true` removes every rule Teitunnel added for the hostname. Rate limits need a Pro plan or higher (Free rate limits can't be limited to one hostname); periods are 10, 60, 120, 300, 600 or 3600 seconds. Teitunnel never touches rules it didn't create.\n\
                  \n\
-                 Example: {\"hostname\": \"app.example.com\", \"bots\": \"challenge\", \"blockAiCrawlers\": true, \"responseHeaders\": [{\"name\": \"X-Robots-Tag\", \"op\": \"set\", \"value\": \"noindex\"}]}",
+                 Example: {\"hostname\": \"app.teispace.com\", \"bots\": \"challenge\", \"blockAiCrawlers\": true, \"responseHeaders\": [{\"name\": \"X-Robots-Tag\", \"op\": \"set\", \"value\": \"noindex\"}]}",
                 // Like plan_change: it only reads Cloudflare and returns a plan.
                 ToolClass::Read,
                 Hints::READ_CLOUD,
@@ -99,7 +99,7 @@ impl ToolProvider for ProtectionTools {
                 "List service tokens",
                 "Teitunnel's Access service tokens for a hostname (the ones machines use to pass its login), with their client id and expiry. Never their secrets.\n\
                  \n\
-                 Example: {\"hostname\": \"api.example.com\"}",
+                 Example: {\"hostname\": \"api.teispace.com\"}",
                 ToolClass::Read,
                 Hints::READ_CLOUD,
                 DEFAULT_TIMEOUT,
@@ -111,7 +111,7 @@ impl ToolProvider for ProtectionTools {
                  \n\
                  The person approves it first. The secret is returned ONCE, marked sensitive: use it for the request at hand or hand it to the person; don't write it into files, logs or chat history, and don't call this again to see it (rotate instead in the app or with `teitunnel service-token rotate`).\n\
                  \n\
-                 Example: {\"hostname\": \"api.example.com\", \"name\": \"CI\"}",
+                 Example: {\"hostname\": \"api.teispace.com\", \"name\": \"CI\"}",
                 ToolClass::Change,
                 CHANGE,
                 DEFAULT_TIMEOUT,
@@ -121,7 +121,7 @@ impl ToolProvider for ProtectionTools {
                 "Revoke a service token",
                 "Revoke one of Teitunnel's service tokens for a hostname: it's taken out of the login and deleted, so machines using it are refused. This can't be undone (a new token has a new secret). The person approves it first.\n\
                  \n\
-                 Example: {\"hostname\": \"api.example.com\", \"token\": \"CI\"}",
+                 Example: {\"hostname\": \"api.teispace.com\", \"token\": \"CI\"}",
                 ToolClass::Destructive,
                 REVOKE,
                 DEFAULT_TIMEOUT,
@@ -153,7 +153,7 @@ impl ToolProvider for ProtectionTools {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct HostArgs {
-    /// The hostname, e.g. `app.example.com`.
+    /// The hostname, e.g. `app.teispace.com`.
     hostname: String,
     /// Account name or id; found from the hostname's domain when omitted.
     #[serde(default)]

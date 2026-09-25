@@ -295,7 +295,7 @@ fn moves_the_setup_to_another_computer_without_secrets() {
     let restored = restore("correct horse battery\n");
     let out = text(&restored);
     assert!(restored.status.success(), "{out}");
-    assert!(out.contains("this computer's tunnels"), "{out}");
+    assert!(out.contains("This computer's tunnels"), "{out}");
     // The new computer runs the same tunnel (its token is fetched when it runs).
     let tunnels = run(cli(new.path(), &fake, &cloudflared).args(["tunnels", "--json"]));
     let list: serde_json::Value = serde_json::from_slice(&tunnels.stdout).unwrap();

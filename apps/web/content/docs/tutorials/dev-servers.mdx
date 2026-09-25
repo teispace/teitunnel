@@ -3,77 +3,145 @@ title: Share a Vite, Next.js, Django or Rails dev server
 description: Fix "Blocked request. This host is not allowed", "Invalid Host header", broken hot reload and CSRF errors when sharing a dev server through Cloudflare Tunnel.
 ---
 
+In this tutorial you share a running dev server, first at a random address and then on your
+own domain with a name that follows your git branch, and fix the errors dev servers give
+when they're reached through a tunnel. It takes about ten minutes.
+
+**You need:** Teitunnel installed, a dev server you can start (the examples use a Vite app
+on port 5173), and, for the second part, a Cloudflare account with a domain
+([first route](/docs/getting-started/first-route#before-you-start)).
+
+## Why the first visit often fails
+
 Dev servers protect you from DNS-rebinding attacks by refusing requests for hostnames they
-don't know. Through a tunnel, requests arrive for `app.example.com` or
-`something.trycloudflare.com`, not `localhost`, so the first visit often fails. There are two
-fixes; pick one.
+don't know. Through a tunnel, requests arrive for `demo.teispace.com` or
+`something.trycloudflare.com`, not `localhost`, so Vite answers *Blocked request. This host
+is not allowed*, webpack *Invalid Host header*, Rails *Blocked hosts* and Django
+*DisallowedHost*. Teitunnel recognises each of these and fixes them in place.
 
-## What Teitunnel does for you
+## 1. Share it at a random address
 
-- **New shares of Vite, webpack-dev-server and Angular** send the dev server's own address as
-  the Host header from the start (`localhost:5173`, say), and the share card says so. Those
-  servers only read the Host header to stop DNS rebinding, so nothing else changes. Turn it
-  off under **Advanced ▸ Host header** in the share form, or with `--no-host-header`.
-- **When a share or route goes live**, Teitunnel fetches it once through Cloudflare, like a
-  visitor. If the dev server refuses the address (Vite's *Blocked request*, webpack's
-  *Invalid Host header*, Rails' *Blocked hosts*, Django's *DisallowedHost*, or Next.js
-  blocking its dev resources), the card or route shows *Your dev server rejects this
-  address* with the fix in place: **Send Host: localhost:5173** (a Quick Share restarts with
-  a new address; a route changes through a plan like any edit), or **Show the Config Line**
-  with the exact line for your framework, ready to copy. After either, it checks again and
-  tells you when it works.
-- For Next.js, Rails, Django, SvelteKit and Astro the config line comes first: they also
-  compare the Host header with the browser's address (server actions, CSRF protection,
-  sign-in callbacks), so sending another one can break forms and logins.
-
-`teitunnel share` prints the same finding and suggestion, and keeps sharing (exit status 0).
-
-## Option 1: send `localhost` as the Host header
-
-The quickest fix, with no change to your project. Edit the route (or create it), open
-**Advanced ▸ Origin settings** and set **Host header** to `localhost:5173` (your dev server's
-address). From the terminal:
+<Steps>
+<Step>
+Start the dev server as usual:
 
 ```sh
-teitunnel route add app.example.com 5173 --host-header localhost:5173
-teitunnel share 5173 --host-header localhost:5173
+npm run dev          # Vite: http://localhost:5173
+```
+</Step>
+<Step>
+In **Quick Share**, the dev server is listed under **Running on this Mac**. Choose it (or
+type `5173` in **Port or address**) and **Share**.
+
+From a terminal instead:
+
+```sh
+teitunnel share 5173
+```
+</Step>
+<Step>
+Within a few seconds the card shows a `https://….trycloudflare.com` address and a QR code
+for your phone. Open it.
+</Step>
+</Steps>
+
+New shares of **Vite, Nuxt, webpack-dev-server and Angular** send the dev server's own
+address as the Host header from the start (`localhost:5173`), so they work at once; the
+card says "Sends Host: localhost:5173 so Vite accepts the public address." Those servers
+only read the Host header to stop DNS rebinding, so nothing else changes. To turn it off:
+**Advanced ▸ Host header ▸ As the browser sends it** in the share form, or
+`--no-host-header`.
+
+Before sharing, the [exposure check](/docs/guides/exposure-check) looks at the dev server for
+things that shouldn't be public, like a `.env` file it serves.
+
+## 2. Share it on your domain, named after your branch
+
+A random address changes every time. On your own domain the address stays the same, and it
+can carry server-sent events and long-lived streams.
+
+```sh
+cd ~/code/shop
+teitunnel share 5173 --on "{branch}.teispace.com"     # feat/login → feat-login.teispace.com
+teitunnel share 5173 --on                             # the same name as last time, in this folder
 ```
 
-Your dev server then sees every request as a request for itself. This works for most
-setups; the catch is that anything the app builds from the Host header (absolute links,
-redirects, OAuth callbacks) says `localhost` too, and frameworks that compare it with the
-browser's `Origin` (Next.js server actions, Rails and Django CSRF checks, SvelteKit form
-actions) reject form posts. If that matters, use option 2.
+`{branch}`, `{project}` and `{user}` are filled in from the current folder. In the app,
+choose **Address ▸ On teispace.com** in the share form and type the **Subdomain**; the form
+suggests names from the project and shows what they become ("It's feat-login.teispace.com
+here.").
 
-## Option 2: allow the hostname in your project
+The share makes a temporary route and removes it again when you stop it, quit the app or
+end the command. Add `--allow @teispace.com` to put a [login](/docs/guides/require-login) in
+front of it.
 
-<Tabs items={["Vite", "Next.js", "Django", "Rails", "webpack", "Laravel"]}>
+## 3. When the dev server refuses the address
+
+When a share or route goes live, Teitunnel fetches it once through Cloudflare, like a
+visitor. If the dev server refuses the address, the card or route says **Your dev server
+rejects this address.** ("Next.js only answers addresses it knows, and demo.teispace.com
+isn't one of them.") and offers two fixes:
+
+- **Send Host: localhost:5173**: the quickest fix, with no change to your project. A Quick
+  Share restarts with a new address; a route or domain share changes through a plan like
+  any edit.
+- **Show the Config Line**: the exact line for your framework, ready to copy ("Add this to
+  vite.config.js, then restart the dev server:").
+
+After either, choose **Check Again**: it tells you when it works ("Vite accepts the address
+now.").
+
+For **Next.js, Rails, Django, SvelteKit and Astro** the config line comes first: they also
+compare the Host header with the browser's address (server actions, CSRF protection,
+sign-in callbacks), so sending another one can break forms and logins. Next.js checks where
+requests come from rather than the Host header, so for it only the config line works.
+
+`teitunnel share` prints the same finding and suggestion, and keeps sharing.
+
+### Option A: send `localhost` as the Host header
+
+```sh
+teitunnel share 5173 --host-header localhost:5173
+teitunnel route add app.teispace.com 5173 --host-header localhost:5173
+```
+
+In the app, for a route: **Edit route ▸ Advanced ▸ Origin settings ▸ Host header**. The dev
+server then sees every request as a request for itself. The catch: anything the app builds
+from the Host header (absolute links, redirects, OAuth callbacks) says `localhost` too, and
+frameworks that compare it with the browser's `Origin` reject form posts. If that matters,
+use option B.
+
+### Option B: allow the hostname in your project
+
+These are the lines Teitunnel suggests. A leading dot (`.teispace.com`) allows every
+subdomain, and for Quick Shares Teitunnel suggests `.trycloudflare.com`, since the address
+changes each time.
+
+<Tabs items={["Vite", "Next.js", "Django", "Rails", "webpack", "Angular", "Laravel"]}>
   <Tab value="Vite">
     Vite 6.0.9 and later (and 5.4.12, 4.5.6) answer *Blocked request. This host
-    ("app.example.com") is not allowed.* Allow your hostname in `vite.config.ts`:
+    ("demo.teispace.com") is not allowed.* In `vite.config.js` (Astro: `astro.config.mjs`
+    under `vite:`; Nuxt: `nuxt.config.ts` under `vite:`; SvelteKit: `vite.config.js`):
 
     ```ts
     export default defineConfig({
       server: {
-        allowedHosts: ["app.example.com"], // or [".trycloudflare.com"] for Quick Shares
-        hmr: { clientPort: 443 },           // hot reload through the tunnel
+        allowedHosts: [".teispace.com"], // or [".trycloudflare.com"] for Quick Shares
+        hmr: { clientPort: 443 },         // hot reload through the tunnel
       },
     });
     ```
 
-    A leading dot allows every subdomain. `hmr.clientPort: 443` makes the browser open the
-    hot-reload WebSocket on the tunnel's HTTPS port instead of `5173`, so edits show up live
-    for everyone viewing it. The same `server` options work for SvelteKit, Astro, Nuxt, Remix
-    and other Vite-based frameworks.
+    `hmr.clientPort: 443` makes the browser open the hot-reload WebSocket on the tunnel's
+    HTTPS port instead of `5173`, so edits show up live for everyone viewing it.
   </Tab>
   <Tab value="Next.js">
-    `next dev` serves pages to any host, but newer versions warn about, and will block,
-    cross-origin requests to dev-only resources such as hot reload. Allow your hostname in
-    `next.config.js`:
+    Next.js 15.2 and later block cross-origin requests to dev-only resources such as hot
+    reload. In `next.config.js`:
 
     ```js
     module.exports = {
-      allowedDevOrigins: ["app.example.com", "*.trycloudflare.com"],
+      allowedDevOrigins: ["demo.teispace.com", "*.trycloudflare.com"],
     };
     ```
   </Tab>
@@ -82,36 +150,44 @@ actions) reject form posts. If that matters, use option 2.
     (403). In `settings.py`:
 
     ```py
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "app.example.com"]
-    CSRF_TRUSTED_ORIGINS = ["https://app.example.com"]
+    ALLOWED_HOSTS = [".teispace.com", "localhost", "127.0.0.1"]
+    CSRF_TRUSTED_ORIGINS = ["https://demo.teispace.com"]
     ```
 
+    Keep `localhost` in the list: setting `ALLOWED_HOSTS` replaces Django's default.
     `CSRF_TRUSTED_ORIGINS` needs the scheme (`https://`) since Django 4.0.
   </Tab>
   <Tab value="Rails">
-    Rails shows *Blocked hosts: app.example.com*. In `config/environments/development.rb`:
+    Rails shows *Blocked hosts: demo.teispace.com*. In `config/environments/development.rb`:
 
     ```rb
-    config.hosts << "app.example.com"
+    config.hosts << ".teispace.com"
     config.hosts << ".trycloudflare.com" # every Quick Share address
     ```
   </Tab>
   <Tab value="webpack">
-    webpack-dev-server (and Create React App, Vue CLI, Angular) answers *Invalid Host
-    header*. In `webpack.config.js`:
+    webpack-dev-server (and Create React App, Vue CLI) answers *Invalid Host header*. In
+    `webpack.config.js`:
 
     ```js
     module.exports = {
       devServer: {
-        allowedHosts: ["app.example.com"], // or "all"
+        allowedHosts: [".teispace.com"], // or "all"
         client: { webSocketURL: "auto://0.0.0.0:0/ws" },
       },
     };
     ```
   </Tab>
+  <Tab value="Angular">
+    In `angular.json`, under the `serve` target's `options`:
+
+    ```json
+    "allowedHosts": [".teispace.com"]
+    ```
+  </Tab>
   <Tab value="Laravel">
     `php artisan serve` accepts any host. If assets or links point at `http://localhost`,
-    set `APP_URL=https://app.example.com` in `.env`, and trust the tunnel as a proxy so
+    set `APP_URL=https://demo.teispace.com` in `.env`, and trust the tunnel as a proxy so
     Laravel knows the page is HTTPS (`$middleware->trustProxies(at: '*')` in
     `bootstrap/app.php` on Laravel 11). With Vite, also follow the Vite tab.
   </Tab>
@@ -121,15 +197,17 @@ actions) reject form posts. If that matters, use option 2.
 
 Quick Shares (`trycloudflare.com` addresses) don't carry Server-Sent Events: the stream never
 reaches the browser. When the service answers with `text/event-stream` (a streaming UI, or an
-MCP server on the SSE transport at `/sse`), the share card says so. Share it on your own
-domain instead (**Address ▸ On example.com**, or `teitunnel share 3000 --on
-demo.example.com`), where streams work.
+MCP server on the SSE transport), the card says "This service streams events (Server-Sent
+Events), which Quick Shares don't carry. Share it on your own domain instead, where streams
+work." Share it with `--on`, as in step 2. For a local MCP server, `teitunnel share 3000
+--on mcp.teispace.com --mcp` adds a bearer token and keeps streams alive.
 
 ## HTTPS dev servers
 
 If your dev server itself uses HTTPS with a self-signed certificate (`https://localhost:8443`),
-cloudflared refuses it by default. Turn on **Origin settings ▸ No TLS verify** for the route,
-or `--no-tls-verify` on the command line. Visitors still get Cloudflare's valid certificate.
+cloudflared refuses it by default. For a route, turn on **Origin settings ▸ Accept
+self-signed certificates**, or pass `--no-tls-verify`. Visitors still get Cloudflare's valid
+certificate.
 
 ## Mixed content and redirects
 
@@ -138,3 +216,12 @@ builds `http://` links or redirects HTTP to HTTPS forever, tell it to trust the 
 (`X-Forwarded-Proto: https`): `app.set("trust proxy", true)` in Express,
 `SECURE_PROXY_SSL_HEADER` in Django, `config.assume_ssl = true` in Rails 7.1+. See
 [too many redirects](/docs/reference/troubleshooting#too-many-redirects).
+
+## Where to go next
+
+<Cards>
+  <Card title="Inspector" href="/docs/guides/inspector" description="See every request to the share, replay and edit them." />
+  <Card title="Comments" href="/docs/guides/comments" description="Let reviewers pin feedback on the pages." />
+  <Card title="Snapshots" href="/docs/guides/snapshots" description="A copy that stays online when you close the lid." />
+  <Card title="Sharing" href="/docs/guides/sharing" description="Pause, schedule and name shares." />
+</Cards>

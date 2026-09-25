@@ -1,87 +1,290 @@
 ---
-title: Pause, schedule, name and share folders
-description: "Pause a share on your domain without losing its address, run it only during set hours, name it after your project or branch, and share a folder of files instead of a running service."
+title: Share, pause, schedule and name
+description: "Everything about sharing a local service or a folder: Quick Shares at a random trycloudflare.com address and shares on your own domain, stable names from your project and branch, pause and resume, schedules, folder shares, QR codes, stopping after a time or when idle, inspection on or off, and teitunnel share, shares and schedule."
 ---
 
-A share on your own domain ([Quick Share](/docs/getting-started/quick-share/) with an
-address on one of your domains, or `teitunnel share --on`) is a temporary route. These
-extras make it behave the way a demo or a preview usually needs.
+A **share** makes something on this computer public for a while: a dev server for a
+colleague, a webhook endpoint for a provider, a built site for a review. There are two kinds:
 
-## Pause and resume
+| | Quick Share | Share on your domain |
+|---|---|---|
+| Address | Random: `https://quiet-river-1234.trycloudflare.com` | One you choose: `https://demo.teispace.com` |
+| Needs | Nothing: no account, no domain | A connected Cloudflare account with a domain |
+| What it is in Cloudflare | A throwaway Quick Tunnel | A temporary [route](/docs/concepts/routes-and-tunnels) on this computer's tunnel, with its DNS record |
+| Pause and schedules | Pause all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
+| Limits | 200 requests in flight, no server-sent events, no uptime guarantee | Your domain's plan |
+| Ends | When you stop it, it times out, or Teitunnel quits | The same; its route and DNS record are then removed |
 
-Pausing keeps the address: the route and its DNS record stay, and visitors get a small
-"paused" page (HTTP 503 with `Retry-After`) until you resume. Resume, and the same URL
-serves your service again.
+Both go through Teitunnel's [inspector](/docs/guides/inspector) by default, so you see each
+request, and both run the [exposure check](/docs/guides/exposure-check) first. For something
+that should stay up, add a [route](/docs/getting-started/first-route) instead; to keep a site
+online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
 
-- **App:** the pause button on the share's card in Quick Share. A **Paused** badge shows
-  while it lasts.
-- **Terminal:** `teitunnel shares --pause demo.example.com`, then
-  `teitunnel shares --resume demo.example.com`.
-- **AI agents:** `pause_share` and `resume_share`, with your approval.
+## Share in the app
 
-The paused page comes from Teitunnel's [inspector](/docs/guides/inspector/) in the process
-that serves the share: the app, the terminal running `teitunnel share --on`, or
-`teitunnel up`/`serve`. A share that isn't inspected yet is pointed at the inspector
-first (the same reviewed change as *Inspect this route*) and pointed back when you resume.
-You can pause one of this machine's permanent routes the same way while the app,
-`teitunnel up` or `teitunnel serve` is running; when none runs, nothing on this computer
-can show the page, and Teitunnel says so instead of pretending. A share started with
-`--no-inspect` can't be paused; share it again without that option.
+<Screenshot name="quick-share" alt="Quick Share: a live share with its trycloudflare.com URL, request count and log" />
 
-## On a schedule
+<Steps>
+  <Step>
+    ### Choose what to share
 
-A schedule makes a share (or a route) available only during set hours on set days, and
-paused the rest of the time.
+    Open **Quick Share** in the sidebar (or **File ▸ New Quick Share…**). Type a port or an
+    address in **Port or address** (`3000`, `localhost:5173`, `https://localhost:8443`), or
+    pick one of the services **Running on this Mac**: Teitunnel lists dev servers, Docker
+    containers and other local services with their project names. To share a folder, drop it
+    on the window or choose **Share a Folder…** (see [below](#share-a-folder)).
+  </Step>
+  <Step>
+    ### Choose the address
 
-- **App:** the calendar button on the share's card: choose the days and the hours.
-- **Terminal:** `teitunnel schedule demo.example.com mon-fri 09:00-18:00`, or directly
-  with the share: `teitunnel share 3000 --on demo.example.com --schedule "mon-fri 09:00-18:00"`.
-  `teitunnel schedules` lists them; `teitunnel schedule demo.example.com --off` removes one.
-- **AI agents:** `schedule_share`.
+    Under **Address**, keep **Random address** for a Quick Share, or pick **On teispace.com**
+    (one entry per domain of the account) and type a **Subdomain**, such as `demo`.
+    Teitunnel suggests names from the service's project (the one you used last time first)
+    and shows what a name with [placeholders](#names-from-your-project-and-branch) becomes.
+  </Step>
+  <Step>
+    ### Choose when to stop
 
-Days are written like `mon-fri`, `sat,sun`, `weekdays`, `weekends` or `daily`. Times are
-wall-clock times in your computer's time zone, or in the one you name with `--tz
-Europe/Berlin`, so daylight saving time keeps 9:00 at 9:00. A window that ends before it
-starts runs past midnight (`fri 22:00-02:00`). Pausing or resuming by hand holds until
-the schedule's next change. Whoever serves the share applies its schedule within 30
-seconds; for this machine's routes that's the app, or `teitunnel up`/`serve` when the app
-isn't running.
+    **When to stop**: **Keep running**, **Stop after 15 min**, **Stop after 1 hour** or
+    **Stop after 8 hours**.
+  </Step>
+  <Step>
+    ### Advanced options (optional)
 
-## Names from your project and branch
+    Under **Advanced**:
 
-A hostname may contain `{project}`, `{branch}` and `{user}`, the same placeholders as
-[project files](/docs/guides/project-file/):
+    - **Host header**: **Automatic** sends the service's own address to dev servers that only
+      answer it (Vite, webpack, Angular); **As the browser sends it** passes the visitor's;
+      **Custom** sends the value you type, such as `localhost:5173`.
+    - **Inspect requests**: on by default. Off sends requests straight to the service: faster
+      for large downloads, but no request list, pausing or protection.
+    - For folders: file listings and single-page-app mode.
+  </Step>
+  <Step>
+    ### Share
+
+    Choose **Share**. The exposure check runs first; if it finds something, you choose
+    **Share Anyway** or **Cancel**. The share's card shows *Getting a URL…*, then **Live**
+    with the address.
+  </Step>
+</Steps>
+
+Each running share has a card with its address and status, **Open in browser**, the copy
+button, **Show QR code** (for opening it on a phone), request and error counts, *Stops in …*,
+its **Log**, **Stop Sharing**, and, for shares on your domain, **Pause** and **Schedule**.
+**Publish a Snapshot** turns the shared site into a static copy that stays online.
+
+Shares started from a terminal appear on the same page under **From a terminal**, and shares on
+your domain say *Removed when you stop it or quit Teitunnel* or *Started from the command
+line*.
+
+## Share from a terminal
 
 ```sh
-teitunnel share 3000 --on {branch}.dev.example.com     # login-fix.dev.example.com
-teitunnel share 3000 --on {project}-{user}.example.com # shop-ada.example.com
-teitunnel share 3000 --on                              # the name used in this folder last time
+teitunnel share 3000                            # a Quick Share of localhost:3000
+teitunnel share 3000 --for 2h                   # stops by itself after 2 hours
+teitunnel share 3000 --on demo.teispace.com     # on your domain, until Ctrl-C
+teitunnel share 3000 --on demo.teispace.com --allow team@teispace.com   # behind a login
+teitunnel share ./dist                          # a folder
+teitunnel shares                                # every share, wherever it runs
+teitunnel shares --stop demo.teispace.com
+```
+
+```text
+$ teitunnel share 3000
+https://quiet-river-1234.trycloudflare.com
+
+█▀▀▀▀▀█ ▄▀▄ ▀▄█ █▀▀▀▀▀█
+…
+http://localhost:3000 is public at https://quiet-river-1234.trycloudflare.com for anyone with the link. Press Ctrl-C to stop.
+14:02:11  GET     200    18 ms    2.1 KB  quiet-river-1234.trycloudflare.com/  3c9e1f0a
+```
+
+The address alone goes to standard output (so `teitunnel share 3000 | head -1` works in
+scripts; `--json` prints `{"url": …, "hostname": …}` instead), and everything else to
+standard error. A QR code is printed when the output is a terminal (`--no-qr` leaves it out),
+and a line per request unless you pass `--quiet`.
+
+**When the app is running**, `teitunnel share` hands a Quick Share to the app (which may ask
+you to allow it) and returns; the share keeps running there. `--here` keeps it in the
+terminal instead, and `--app` fails if the app isn't running. A share on your domain, a
+folder, or one with `--no-inspect`, `--idle` or `--watch` always runs in the terminal, for as
+long as the command runs.
+
+| Flag | What it does |
+|---|---|
+| `--for DURATION` | Stop after `30m`, `2h`, `90s`… |
+| `--on [HOSTNAME]` | Share on your domain instead of a random address. Alone, reuses the name last used in this folder. |
+| `--account`, `-a` | With `--on`: the account, when several are connected. |
+| `--allow EMAIL\|@DOMAIN` | With `--on`: require a [login](/docs/guides/require-login) (repeatable). |
+| `--schedule "DAYS HH:MM-HH:MM"`, `--tz ZONE` | With `--on`: serve only during these hours ([schedules](#on-a-schedule)). |
+| `--host-header HOST` / `--no-host-header` | Send this Host header to the service, or pass the visitor's through unchanged. |
+| `--listing`, `--spa` | With a folder: list files, or serve `index.html` for unknown paths. |
+| `--no-inspect` | Don't send requests through the inspector. |
+| `--idle DURATION` | Stop after this long without a request. |
+| `--watch PATH` | Say so when a request hits this path, such as `/webhooks/*` (repeatable). |
+| `--strict` | Don't share when the exposure check finds something. |
+| `--json`, `--quiet`, `--no-qr` | Output for scripts, no request lines, no QR code. |
+| `--here`, `--app` | Where the share runs (see above). |
+| `--mcp`, `--ai` | Share a local MCP server or AI server behind a bearer token; see [the inspector](/docs/guides/inspector#put-an-mcp-server-or-a-local-ai-server-online). |
+
+## Shares on your domain
+
+A share on your domain is a **temporary route**: Teitunnel plans and applies it like any
+other change (tunnel configuration, then the DNS record, then a check), and removes the route
+and its record when the share ends. It's served by this computer's tunnel, so the app's
+connector (or the command's, in a terminal) must be running.
+
+- **It never takes over someone else's name.** A hostname with a DNS record Teitunnel didn't
+  create is refused, and so is one someone on your team
+  [reserved](/docs/concepts/dns-ownership#reservations) or routes on another machine.
+- **Nothing is left behind.** The share is recorded before its route is applied. If the app
+  or a terminal running a share quits or crashes, the app removes those routes within 30
+  seconds, or at its next launch.
+- **Logins:** `--allow` puts a Cloudflare Access login in front of it, like a route's.
+
+### Names from your project and branch
+
+A hostname may contain `{project}`, `{branch}` and `{user}`, the same placeholders as
+[project files](/docs/guides/project-file):
+
+```sh
+teitunnel share 3000 --on {branch}.dev.teispace.com     # login-fix.dev.teispace.com
+teitunnel share 3000 --on {project}-{user}.teispace.com # shop-<your user name>.teispace.com
+teitunnel share 3000 --on                               # the name used in this folder last time
 ```
 
 `{project}` is the name in the folder's `package.json`, `Cargo.toml`, `pyproject.toml`,
 `composer.json` or `go.mod` (else the folder's name), `{branch}` is read from the git
-repository the folder is in (no git process is started), and every value becomes a valid
-DNS label. The name you used is remembered for the folder. In the app, pick one of your
-domains under **Address**: Teitunnel suggests names from the project of the service you
-chose (the one used last time first) and shows what a name with placeholders becomes.
+repository the folder is in (no git process is started), and `{user}` is your user name. Every
+value becomes a valid DNS label, and the command says what the name became: *\{branch\}.dev.teispace.com
+is login-fix.dev.teispace.com here.* The name you used is remembered for the folder.
 
-A name someone on your team [reserved](/docs/guides/ci-previews#teams-sharing-one-account)
-is never taken by a share, and neither is a hostname with a DNS record Teitunnel didn't
-create.
+## Pause and resume
+
+Pausing keeps the address: the route and its DNS record stay, and visitors get a small
+"paused" page (HTTP 503 with `Retry-After`) until you resume. Resume, and the same address
+serves your service again at once, with no DNS change to wait for.
+
+- **App:** **Pause** on the share's card. A **Paused** badge shows while it lasts;
+  **Resume** ends it.
+- **Terminal:** `teitunnel shares --pause demo.teispace.com`, then
+  `teitunnel shares --resume demo.teispace.com`.
+- **Quick Shares:** **Pause All Shares** in the [menu bar](/docs/guides/menu-bar) pauses
+  every inspected Quick Share.
+- **AI agents:** `pause_share` and `resume_share`, with your approval.
+
+The paused page is shown by Teitunnel's inspector in the process that serves the share: the
+app, the terminal running `teitunnel share --on`, or `teitunnel up`/`serve`. A share that
+isn't inspected is pointed at the inspector first (the same reviewed change as
+**Inspect this route**) and pointed back when you resume.
+
+You can pause one of this computer's **permanent routes** the same way, while the app,
+`teitunnel up` or `teitunnel serve` runs to show the page. When none of them runs, Teitunnel
+says so rather than pretending.
+
+## On a schedule
+
+A schedule makes a share on your domain, or a route, available only during set hours on set
+days, and paused the rest of the time: a demo that's only up during office hours, a staging
+site that's closed at night.
+
+- **App:** **Schedule** on the share's card. Choose the **Days**, the hours **From** and
+  **to**, and **Save**. The card then shows *On a schedule: …* with the days and hours, and
+  when it next changes. **Remove Schedule** takes it off.
+- **Terminal:**
+
+  ```sh
+  teitunnel schedule demo.teispace.com mon-fri 09:00-18:00
+  teitunnel schedule demo.teispace.com weekends 10:00-16:00 --tz Europe/Berlin
+  teitunnel schedule demo.teispace.com            # show it
+  teitunnel schedule demo.teispace.com --off      # remove it; the share stays as it is
+  teitunnel schedules                             # every schedule
+  teitunnel share 3000 --on demo.teispace.com --schedule "mon-fri 09:00-18:00"
+  ```
+
+  ```text
+  $ teitunnel schedules
+  https://demo.teispace.com	mon,tue,wed,thu,fri 09:00-18:00 (local time)	on, pauses at Wed 18:00
+  ```
+
+- **AI agents:** `schedule_share`.
+
+Days are written like `mon-fri`, `sat,sun`, `weekdays`, `weekends` or `daily`, and times in
+24-hour `HH:MM`. Times are wall-clock times in your computer's time zone, or in the one you
+name with `--tz`, so daylight saving time keeps 09:00 at 09:00. A window that ends before it
+starts runs past midnight (`fri 22:00-02:00`). Pausing or resuming by hand holds until the
+schedule's next change.
+
+Whoever serves the share applies its schedule within 30 seconds: the app, `teitunnel up`,
+`teitunnel serve`, the terminal running the share, or `teitunnel mcp`. For this computer's
+routes, when none of them runs, routes are served normally.
 
 ## Share a folder
 
 Share a folder of files (a built site, docs, a design export) without running a server:
 
-- **App:** drop a folder on the Quick Share window, or click the folder button next to the
-  service field. Under **Advanced**, turn on a file listing for folders without an index
-  page, or single-page-app mode (every page opens `index.html`).
+- **App:** drop a folder on the Quick Share window, or choose **Share a Folder…**. Under
+  **Advanced**, turn on **List the files of folders without an index page**, or
+  **Single-page app (every page opens index.html)**. **Share a service instead** goes back.
 - **Terminal:** `teitunnel share ./dist` (a random address) or
-  `teitunnel share ./dist --on docs.example.com`, with `--listing` and `--spa`.
+  `teitunnel share ./dist --on docs.teispace.com`, with `--listing` and `--spa`.
 - **AI agents:** `share_folder`.
 
-Teitunnel's inspector serves the files. Nothing outside the folder is ever served (links
-that lead out of it are refused), and neither are the things a
-[Snapshot](/docs/guides/snapshots/) never publishes: hidden files, `.env` files, private
-keys, `.git` and `node_modules`. Sharing the whole disk or your home folder is refused.
-To keep a site online while your computer sleeps, publish a Snapshot instead.
+Teitunnel's inspector serves the files, so a folder share can't turn inspection off. *Hidden
+files, .env files, keys, .git and node_modules are never shared*, nothing outside the folder is
+ever served (links that lead out of it are refused), and sharing the whole disk or your home
+folder is refused: *… holds far more than a site. Share the folder with the files you want
+people to see, like dist or public.*
+
+## Stop after a while, or when idle
+
+- **After a fixed time:** **When to stop** in the app, `--for 2h` in the terminal. The card
+  shows *Stops in …*.
+- **When nobody uses it:** **Settings ▸ Inspector ▸ Stop idle shares** stops any share after
+  15 minutes to 8 hours without a request (off by default). Per share, it's in the share's
+  **Inspection Settings… ▸ More**, or `--idle 30m` in the terminal. You get a notification:
+  *demo.teispace.com had no requests for 30 minutes, so it stopped.*
+
+## Inspection on or off
+
+Shares go through the inspector unless you turn it off. Turning it off or on for a running
+Quick Share restarts it, so it gets a new address; the app asks first (*The share restarts,
+so it gets a new address.*). The default for new Quick Shares is **Settings ▸ Inspector ▸
+Inspect Quick Shares**.
+
+Without the inspector, a share has no request list, no paused page, no idle stop and no
+[protection on this computer](/docs/guides/inspector#per-share-or-route). With it, the
+inspector adds a few milliseconds per request, and keeps event streams alive past
+Cloudflare's 100-second limit.
+
+## Troubleshooting
+
+- **"Cloudflare didn't provide a URL in time. Check your internet connection and try
+  again."** A Quick Share waits 20 seconds for trycloudflare.com. It's sometimes busy; try
+  again, or share on your own domain.
+- **"This Quick Share hit its limit of 200 requests at once. Share on your own domain for
+  more."** Quick Tunnels carry at most 200 requests in flight.
+- **The page loads but a dev server answers "Invalid Host header" or "Blocked request".**
+  Set **Host header** to **Automatic** or **Custom** (`--host-header localhost:5173`).
+  Teitunnel's check usually spots it and offers the fix.
+- **"The terminal that shared demo.teispace.com has stopped, so there's nothing to pause."**
+  The share ended with its terminal. Share it again.
+- **"demo.teispace.com runs in a terminal without Teitunnel's inspector (--no-inspect), which
+  is what shows the paused page."** Stop it and share it again without `--no-inspect`.
+- **"Pausing demo.teispace.com needs Teitunnel running on this computer to show the paused
+  page: open the app, or run teitunnel up or teitunnel serve."**
+- **"No name was used for a share from this folder yet; give one: --on demo.teispace.com (or
+  --on \{branch\}.dev.teispace.com)."** `--on` alone only works after you've shared from this
+  folder once.
+- **"\{branch\} has no value here (the branch comes from the git repository the share starts
+  in)."** Run the command inside the repository, or use another placeholder.
+- **"Too many Quick Shares are running."** Stop some; each share runs its own cloudflared.
+
+## Related
+
+- [Quick Share](/docs/getting-started/quick-share): your first share, step by step.
+- [Inspector](/docs/guides/inspector): see, replay and protect a share's requests.
+- [Exposure check](/docs/guides/exposure-check)
+- [Require a login](/docs/guides/require-login) and [protection](/docs/guides/protection)
+- [Snapshots](/docs/guides/snapshots): a static copy that stays online.

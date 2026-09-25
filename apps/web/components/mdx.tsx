@@ -27,7 +27,12 @@ function Screenshot({
 }) {
   return (
     <figure className={`not-prose my-6 ${narrow ? "max-w-md" : ""}`}>
-      <Shot name={name} alt={alt} width={width} height={height} className="shadow-lg" />
+      <Shot
+        name={name}
+        alt={alt}
+        lights={narrow ? "settings" : "main"}
+        {...(width && height ? { size: { width, height } } : {})}
+      />
       {caption ? (
         <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
           {caption}

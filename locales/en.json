@@ -220,18 +220,18 @@
     "new": "New route",
     "connectCloudflare": {
       "title": "Connect Cloudflare",
-      "description": "Routes send a hostname on your domain, like app.example.com, to a service on this Mac.",
-      "description@windows": "Routes send a hostname on your domain, like app.example.com, to a service on this PC.",
-      "description@linux": "Routes send a hostname on your domain, like app.example.com, to a service on this computer."
+      "description": "Routes send a hostname on your domain, like app.teispace.com, to a service on this Mac.",
+      "description@windows": "Routes send a hostname on your domain, like app.teispace.com, to a service on this PC.",
+      "description@linux": "Routes send a hostname on your domain, like app.teispace.com, to a service on this computer."
     },
     "loadFailed": "Couldn't load routes",
     "empty": {
       "title": "No routes yet",
       "noDomains": "Add a domain to your Cloudflare account first. Routes use hostnames on your domains.",
-      "description": "A route sends a hostname like app.example.com to a service on this Mac, such as localhost:3000.",
+      "description": "A route sends a hostname like app.teispace.com to a service on this Mac, such as localhost:3000.",
       "add": "Add Route",
-      "description@windows": "A route sends a hostname like app.example.com to a service on this PC, such as localhost:3000.",
-      "description@linux": "A route sends a hostname like app.example.com to a service on this computer, such as localhost:3000."
+      "description@windows": "A route sends a hostname like app.teispace.com to a service on this PC, such as localhost:3000.",
+      "description@linux": "A route sends a hostname like app.teispace.com to a service on this computer, such as localhost:3000."
     },
     "list": "Routes",
     "otherZone": "Other",
@@ -442,7 +442,8 @@
     "alreadyRouted": "Already routed",
     "noRoutes": "No hostname routes.",
     "description@windows": "These routes are in cloudflared config files on this PC. Imported routes move to this PC's tunnel; the files are left as they are.",
-    "description@linux": "These routes are in cloudflared config files on this computer. Imported routes move to this computer's tunnel; the files are left as they are."
+    "description@linux": "These routes are in cloudflared config files on this computer. Imported routes move to this computer's tunnel; the files are left as they are.",
+    "globalOptions": "This file has settings for every route (originRequest) that Teitunnel can't carry over. Check that the routes work after importing."
   },
   "remoteLogs": {
     "connecting": "Connecting to the connector…",
@@ -764,7 +765,7 @@
     "title": "Domains",
     "refresh": "Refresh domains",
     "connectAnother": "Connect another account",
-    "connectDescription": "Use your own domains, like app.example.com, for services on this Mac.",
+    "connectDescription": "Use your own domains, like app.teispace.com, for services on this Mac.",
     "loadFailed": "Couldn't load domains",
     "filter": "Filter domains",
     "filterPlaceholder": "Filter",
@@ -774,8 +775,8 @@
     "noMatchesDetail": "No domain contains “{query}”.",
     "noneDetail": "Add a domain in your Cloudflare dashboard, then refresh.",
     "noSelection": "No domain selected",
-    "connectDescription@windows": "Use your own domains, like app.example.com, for services on this PC.",
-    "connectDescription@linux": "Use your own domains, like app.example.com, for services on this computer."
+    "connectDescription@windows": "Use your own domains, like app.teispace.com, for services on this PC.",
+    "connectDescription@linux": "Use your own domains, like app.teispace.com, for services on this computer."
   },
   "doctor": {
     "severity": {
@@ -1700,10 +1701,10 @@
     },
     "error": {
       "hostname": {
-        "empty": "Enter a hostname, like app.example.com.",
+        "empty": "Enter a hostname, like app.teispace.com.",
         "invalid": "That isn't a valid hostname. Use letters, digits and hyphens, separated by dots.",
-        "noDomain": "Include the domain, like app.example.com.",
-        "badWildcard": "A wildcard can only be the first part, like *.example.com.",
+        "noDomain": "Include the domain, like app.teispace.com.",
+        "badWildcard": "A wildcard can only be the first part, like *.teispace.com.",
         "tooLong": "That hostname is too long."
       },
       "origin": {
@@ -1732,7 +1733,7 @@
       "accessRule": {
         "empty": "Add at least one email address or email domain.",
         "email": "{value} isn't an email address.",
-        "domain": "{value} isn't an email domain, like example.com."
+        "domain": "{value} isn't an email domain, like teispace.com."
       },
       "accessDomain": {
         "pathPattern": "A login can only protect a plain path like /admin, not the pattern {pattern}. Remove the path, or protect the whole hostname."
@@ -2236,7 +2237,7 @@
       "noRecord": "There's no DNS record for this hostname.",
       "recordElsewhere": "The DNS record points at {content}, not at this Mac's tunnel.",
       "edgeUnreachable": "Couldn't reach Cloudflare: {detail}",
-      "certificateNotCovered": "Cloudflare's free certificate covers one level of subdomain (app.example.com), not deeper names like a.b.example.com. Use a single-level name or add an Advanced Certificate.",
+      "certificateNotCovered": "Cloudflare's free certificate covers one level of subdomain (app.teispace.com), not deeper names like a.b.teispace.com. Use a single-level name or add an Advanced Certificate.",
       "notOnCloudflareYet": "Cloudflare doesn't serve this hostname yet. New records usually take a few seconds.",
       "noConnector": "Cloudflare can't reach this Mac: the connector isn't connected.",
       "tunnelMismatch": "The hostname points at a tunnel that doesn't serve it.",
@@ -2521,7 +2522,7 @@
         "invalidName_one": "Use {count} character or fewer: letters, digits, spaces, dots, - and _.",
         "invalidName_other": "Use up to {count} characters: letters, digits, spaces, dots, - and _.",
         "nameTaken": "You already have a Snapshot named {name}. Choose another name.",
-        "invalidHostname": "{hostname} isn't a hostname a Snapshot can use. Use one like preview.example.com.",
+        "invalidHostname": "{hostname} isn't a hostname a Snapshot can use. Use one like preview.teispace.com.",
         "notAFolder": "{path} isn't a folder.",
         "empty": "There's nothing to publish in {path}.",
         "tooManyFiles_one": "There are more files than Cloudflare accepts in one version ({count}).",
@@ -2802,7 +2803,21 @@
       "newerSchema": "This backup was made by a newer Teitunnel. Update Teitunnel to restore it.",
       "io": "Couldn't use {path}: {detail}",
       "internal": "The backup couldn't be made: {detail}",
-      "notPending": "Open the backup again to restore it."
+      "notPending": "Open the backup again to restore it.",
+      "section": {
+        "settings": "Settings (alert rules and projects included)",
+        "localTunnels": "This computer's tunnels",
+        "dnsOwnership": "DNS records Teitunnel created",
+        "accessOwnership": "Logins Teitunnel added",
+        "balancedRoutes": "Load-balanced routes",
+        "snapshots": "Snapshots",
+        "snapshotVersions": "Snapshot versions",
+        "edgeRules": "Edge rules Teitunnel added",
+        "serviceTokens": "Service tokens",
+        "localDomains": "Local domains",
+        "cloudDatabases": "Databases Teitunnel created",
+        "frontWorkers": "Offline pages and webhook inboxes"
+      }
     },
     "localDomains": {
       "error": {
@@ -3259,7 +3274,7 @@
       "title": "Links",
       "footer": "teitunnel:// links let launchers, scripts and web pages open a route or a share in Teitunnel. Sharing from a link always asks first.",
       "enabled": "Open teitunnel:// links",
-      "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.example.com."
+      "enabledDetail": "For example teitunnel://share?port=3000 or teitunnel://open?route=app.teispace.com."
     },
     "shortcut": {
       "title": "Global shortcut",
@@ -3489,17 +3504,7 @@
     "projects": "Projects: {names}",
     "accounts": "Connect these accounts again after restoring: {names}",
     "overwrites": "Restoring replaces this computer's tunnels and records of what Teitunnel created with the backup's.",
-    "restored": "Restored. Connect your accounts again to run the tunnels here.",
-    "section": {
-      "settings": "Settings",
-      "local_tunnels": "Tunnels",
-      "dns_ownership": "DNS records Teitunnel created",
-      "access_ownership": "Logins Teitunnel added",
-      "balanced_routes": "Load-balanced routes",
-      "snapshots": "Snapshots",
-      "snapshot_versions": "Snapshot versions",
-      "local_domains": "Local domains"
-    }
+    "restored": "Restored. Connect your accounts again to run the tunnels here."
   },
   "localDomains": {
     "title": "Local Domains",

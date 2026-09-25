@@ -1,65 +1,121 @@
 ---
 title: Exposure check
-description: "Before a share or route makes a local service public, Teitunnel looks at it for common leaks: .env files, the git folder, backups and database dumps, framework debug pages, open admin panels and database tools, Jupyter without a token, source maps."
+description: "Before a share or route makes a local service public, Teitunnel looks at it for common leaks: .env files, the git folder, backups and database dumps, framework debug pages, open admin panels and database tools, Jupyter without a token, source maps. What it finds, how it works, and --strict for scripts and CI."
 ---
 
-Sharing a dev server shares everything it serves. Many serve more than the app: the
-project folder with its `.env` file, the git history, a database dump someone left there,
-or a framework's debug pages. Before a **Quick Share**, a **share on your domain** or a
-**new route** goes public, Teitunnel looks at the service for these leaks and tells you
-what it found. It never blocks: choose **Share Anyway** or **Cancel**.
+Sharing a dev server shares everything it serves. Many serve more than the app: the project
+folder with its `.env` file, the git history, a database dump someone left there, or a
+framework's debug pages that print your settings. Before a **Quick Share**, a **share on your
+domain**, a **new route** or a project's routes go public, Teitunnel looks at the service for
+these leaks and tells you what it found, with what to do about it.
+
+It never blocks you: you can always share anyway. It only takes a moment, and nothing leaves
+this computer.
 
 ## What it looks for
 
-| Finding | How it's recognised |
-|---|---|
-| `.env` file | `/.env` answers with `NAME=value` lines. Only the variable names are shown, never the values. |
-| The git folder | `/.git/config` or `/.git/HEAD` can be downloaded (history, remotes, sometimes credentials). |
-| `.DS_Store` | macOS's Finder index is served, listing the folder's files. |
-| Directory listing | `/` lists files (nginx and Apache autoindex, Python's `http.server`, `http-server`, IIS). |
-| Backups and dumps | `/backup.zip`, `/dump.sql` or `/db.sqlite` is a zip archive, a MySQL/MariaDB/PostgreSQL dump or a SQLite database. |
-| Django debug | `DEBUG = True` error pages (URL patterns, settings). |
-| Laravel debug | Ignition's health check (`/_ignition/health-check`) or the Whoops error page. |
-| Rails development | The routing error page with `Rails.root`, `/rails/info/properties`, web-console or better_errors. |
-| Symfony profiler | `/_profiler`. |
-| Spring Boot actuator | `/actuator/env` shows the configuration and environment. |
-| phpinfo | `/phpinfo.php`. |
-| Stack traces | An error page with a Node/Express, Python or Java stack trace. |
-| Open admin panel | Django's admin answers without a login. |
-| Database tools | Adminer or phpMyAdmin is reachable. |
-| A database on the port | The port is MongoDB, Redis, PostgreSQL, MySQL, Elasticsearch or CouchDB, not a website. |
-| Jupyter without a token | Jupyter's API answers without authentication (anyone could run code). |
-| Source maps | A script's `.map` file includes the original source code (fine for most demos). |
+| Finding | Severity | How it's recognised |
+|---|---|---|
+| *Its .env file can be downloaded* | High | `/.env` answers with `NAME=value` lines. Only the variable names are shown, never the values. |
+| *Its .git folder can be downloaded* | High | `/.git/config` or `/.git/HEAD` can be downloaded (history, remotes, sometimes credentials). |
+| *A backup archive can be downloaded* | High | `/backup.zip` is a zip archive. |
+| *A database dump can be downloaded* | High | `/dump.sql` is a MySQL, MariaDB or PostgreSQL dump. |
+| *A SQLite database can be downloaded* | High | `/db.sqlite` is a SQLite database. |
+| *Laravel's debug tools are on* | High | Ignition's health check (`/_ignition/health-check`) or the Whoops error page. |
+| *Spring Boot's actuator shows the environment* | High | `/actuator/env` shows the configuration and environment. |
+| *An admin panel opens without a login* | High | Django's admin (`/admin/`) answers without a login. |
+| *A database tool (Adminer or phpMyAdmin) is reachable* | High | `/adminer.php` or `/phpmyadmin/` answers. |
+| *This port is a database, not a website* | High | The port speaks MongoDB, Redis, PostgreSQL, MySQL, Elasticsearch or CouchDB. |
+| *Jupyter runs without a token* | High | Jupyter's API (`/api/status`) answers without authentication (anyone could run code). |
+| *Django runs with DEBUG = True* | Medium | The not-found page lists URL patterns and settings. |
+| *Rails runs in development mode* | Medium | The routing error page with `Rails.root`, `/rails/info/properties`, web-console or better_errors. |
+| *Symfony's profiler is reachable* | Medium | `/_profiler` answers. |
+| *phpinfo() is reachable* | Medium | `/phpinfo.php` answers. |
+| *Error pages show stack traces* | Medium | An error page with a Node/Express, Python or Java stack trace. |
+| *A .DS_Store file lists the folder's files* | Low | macOS's Finder index is served, revealing file names. |
+| *It lists the files in its folder* | Low | `/` is a directory listing (nginx and Apache autoindex, Python's `http.server`, `http-server`, IIS). |
+| *Source maps include your source code* | Low | A script's `.map` file includes the original source (usually fine for a demo). |
 
-Each finding says how serious it is (high, medium or low) and what to do about it. Every
-check looks at the content of the answer, never only its status, so a single-page app that
-answers every path with its `index.html` doesn't count as a leak.
-
-## How it works
-
-Teitunnel talks to the service directly, the way it's reached on this computer, not
-through Cloudflare. It makes about twenty `GET` requests at once (plus one plain request on
-the port to recognise a database), reads at most 64 KB of each answer, never follows a
-redirect, and gives up after two seconds in all, so starting a share is barely slower.
-Nothing leaves this computer.
+Each finding comes with advice, such as *Serve a build folder instead of the project folder,
+or block dotfiles in the server's settings.* Every check looks at the **content** of the
+answer, never only its status, so a single-page app that answers every path with its
+`index.html` isn't mistaken for a leak.
 
 ## In the app
 
-The check runs when you choose **Share** on the Quick Share page. If it finds something,
-the findings appear under the form with **Share Anyway** and **Cancel**. When you add a
-route, the findings are shown next to the plan, and **Apply** is the "anyway". A project's
-plan shows them for each new route too.
+- **Quick Share:** the check runs when you choose **Share** (*Checking for exposed files…*).
+  If it finds something, the findings appear under the form, most serious first, headed
+  *localhost:3000 may expose more than you mean to share*, with **Share Anyway** and
+  **Cancel**.
+- **New route:** the findings are shown next to the plan (*… may expose more than you mean to
+  make public*), and **Apply** is the "anyway". A project's plan shows them for each new route.
+- **Menu bar and global shortcut:** a one-click share runs the check first. If it finds
+  something, the Quick Share sheet opens with the findings instead of sharing.
 
-Turn it off in **Settings ▸ General ▸ Before Sharing**.
+If some checks didn't finish in time, the list says *Some checks didn't finish in time.*
+
+Turn the check off (or on again) in **Settings ▸ General ▸ Before Sharing ▸ Check for exposed
+files and debug pages**. The setting applies to the command line too.
 
 ## From a terminal
 
-`teitunnel share`, `teitunnel route add`, `teitunnel project apply` and `teitunnel up`
-print the findings on standard error and carry on. With `--strict`, a finding is an error:
-nothing is shared and the command exits with status 1, which is useful in scripts and CI.
+`teitunnel share`, `teitunnel route add`, `teitunnel project apply` and `teitunnel up` print the
+findings on standard error and carry on:
+
+```text
+$ teitunnel share 3000
+! http://localhost:3000 may expose more than you mean to share:
+  [high] Its .env file can be downloaded (DATABASE_URL, STRIPE_SECRET_KEY) at /.env
+         Anyone could read the secrets in it. Serve a build folder instead of the project folder, or block dotfiles in the server's settings.
+  [low] Source maps include your source code at /assets/index-4f2a.js.map
+         Visitors can read the original code. That's usually fine for a demo; turn off source maps in the build otherwise.
+https://quiet-river-1234.trycloudflare.com
+```
+
+With `--strict`, any finding is an error: nothing is shared or changed, and the command exits
+with status 1. Use it in scripts and CI:
 
 ```sh
 teitunnel share 3000 --strict
+teitunnel route add app.teispace.com 3000 --strict
+teitunnel project apply --strict
 ```
 
-The setting in the app applies to the command line too.
+```text
+teitunnel: Not shared: the exposure check found 2 problem(s) (--strict).
+```
+
+## How it works
+
+Teitunnel talks to the service **directly**, the way it's reached on this computer, not through
+Cloudflare, so nothing is public while it checks. It makes about twenty `GET` requests at once
+(plus one plain request on the port to recognise a database), reads at most 64 KB of each
+answer, never follows a redirect, and gives up after two seconds in all (1.5 seconds per
+request), keeping whatever it found by then. Sharing is barely slower, and the service sees a
+handful of requests for paths like `/.env` in its log.
+
+It only reads. It never sends credentials, submits forms or tries to log in.
+
+## Limits
+
+- It looks for **common** leaks at their usual paths. A clean result doesn't prove a service is
+  safe to share: a secret at an unusual path, or an app bug, won't be found.
+- It checks the service as it answers now. A share that serves different content later isn't
+  checked again.
+- For anything sensitive, share on your domain with a [login](/docs/guides/require-login), or
+  use [protection](/docs/guides/protection).
+
+## Troubleshooting
+
+- **A finding you know is harmless.** Choose **Share Anyway**; in the terminal, the warning
+  doesn't stop anything unless you pass `--strict`.
+- **"This port is a database, not a website."** Sharing a database over HTTP won't work, and a
+  database shouldn't be public. For remote access, use a [TCP route](/docs/tutorials/ssh) with a
+  login, or a [private network](/docs/guides/private-networks).
+- **You want no check at all.** Turn it off in **Settings ▸ General ▸ Before Sharing**.
+
+## Related
+
+- [Sharing](/docs/guides/sharing)
+- [Inspector](/docs/guides/inspector): protection on this computer for shares.
+- [Security model](/docs/reference/security)

@@ -37,7 +37,7 @@ pub(crate) struct ChangeArgs {
 /// `teitunnel offline <hostname>`.
 #[derive(Debug, Args)]
 pub(crate) struct OfflineArgs {
-    /// The route's hostname, e.g. `app.example.com`.
+    /// The route's hostname, e.g. `app.teispace.com`.
     hostname: String,
     /// The page's title (turns the page on).
     #[arg(long)]

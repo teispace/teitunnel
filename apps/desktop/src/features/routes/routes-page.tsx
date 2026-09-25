@@ -594,6 +594,8 @@ export function RoutesPage({
                 hostname: r.hostname,
                 path: r.path,
                 origin: r.service,
+                // The file's origin settings (e.g. noTLSVerify) come along.
+                options: r.options,
               })),
             },
           });

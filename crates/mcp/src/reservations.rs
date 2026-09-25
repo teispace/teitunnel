@@ -48,7 +48,7 @@ struct ListArgs {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReserveArgs {
-    /// The hostname, e.g. `alice.dev.example.com`.
+    /// The hostname, e.g. `review.dev.teispace.com`.
     hostname: String,
     /// When the reservation ends: `2026-12-31` (end of that day, UTC) or
     /// `2026-12-31T18:00Z`. Leave out for no end date.
@@ -146,7 +146,7 @@ fn specs() -> Vec<ToolSpec> {
         spec::<ReserveArgs, ChangeOut>(
             "reserve_hostname",
             "Reserve a hostname",
-            "Reserves a hostname for the person running Teitunnel, optionally until a date, so teammates sharing the account see it's taken (a placeholder DNS record that serves nothing). Reserving it again changes the end date; a route added there later keeps the reservation. Shows the plan and asks the person before applying. A name someone else holds is taken only if the person confirms. Example: {\"hostname\": \"alice.dev.example.com\", \"until\": \"2026-12-31\"}.",
+            "Reserves a hostname for the person running Teitunnel, optionally until a date, so teammates sharing the account see it's taken (a placeholder DNS record that serves nothing). Reserving it again changes the end date; a route added there later keeps the reservation. Shows the plan and asks the person before applying. A name someone else holds is taken only if the person confirms. Example: {\"hostname\": \"review.dev.teispace.com\", \"until\": \"2026-12-31\"}.",
             ToolClass::Change,
             WRITE,
             DEFAULT_TIMEOUT,
@@ -154,7 +154,7 @@ fn specs() -> Vec<ToolSpec> {
         spec::<ReleaseArgs, ChangeOut>(
             "release_hostname",
             "Release a reserved hostname",
-            "Gives up a hostname's reservation (a route there stays). Asks the person before applying; someone else's reservation is released only if the person confirms. Example: {\"hostname\": \"alice.dev.example.com\"}.",
+            "Gives up a hostname's reservation (a route there stays). Asks the person before applying; someone else's reservation is released only if the person confirms. Example: {\"hostname\": \"review.dev.teispace.com\"}.",
             ToolClass::Destructive,
             Hints {
                 destructive: true,

@@ -135,7 +135,7 @@ export default function Gallery() {
           <GroupedSection title="Text fields">
             <div className="flex flex-col gap-3 py-3">
               <Field label="Hostname" help="A subdomain of one of your domains.">
-                {(control) => <Input placeholder="app.example.com" {...control} />}
+                {(control) => <Input placeholder="app.teispace.com" {...control} />}
               </Field>
               <Field label="Local port" error="Port must be between 1 and 65535.">
                 {(control) => <Input defaultValue="70000" {...control} />}
@@ -215,7 +215,7 @@ export default function Gallery() {
                   <Button variant="destructive">Dialog</Button>
                 </DialogTrigger>
                 <DialogContent
-                  title="Delete app.example.com?"
+                  title="Delete app.teispace.com?"
                   description="The route and its DNS record are removed. Your local service keeps running."
                   footer={
                     <>
@@ -248,15 +248,15 @@ export default function Gallery() {
                   }
                 >
                   <ol className="flex list-decimal flex-col gap-1.5 pl-4 text-body">
-                    <li>Create DNS record app.example.com</li>
+                    <li>Create DNS record app.teispace.com</li>
                     <li>Add route to tunnel “MacBook”</li>
-                    <li>Verify app.example.com</li>
+                    <li>Verify app.teispace.com</li>
                   </ol>
                 </SheetContent>
               </Sheet>
               <Button
                 onClick={() =>
-                  toast.success("app.example.com is live", {
+                  toast.success("app.teispace.com is live", {
                     description: "It points to localhost:3000.",
                   })
                 }

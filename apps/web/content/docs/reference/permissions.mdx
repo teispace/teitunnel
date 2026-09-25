@@ -1,0 +1,58 @@
+---
+title: Permissions and scopes
+description: "Every Cloudflare permission and OAuth scope Teitunnel asks for, whether routes need it, and which features use it."
+---
+
+{/* Generated from crates/core/src/accounts (capabilities.rs, template.rs, oauth.rs). Edit it there, then run: UPDATE_DOCS=1 cargo test -p teitunnel-core --test permissions_doc */}
+
+Teitunnel connects to a Cloudflare account with an API token or by signing in with Cloudflare. Either way it asks for the permissions below: the required ones are what routes need; the optional ones are only used by the feature next to them, and everything else keeps working without them. When a feature needs one the account's credential lacks, it says which to add and checks again when you come back ([Accounts and permissions](/docs/guides/accounts/#when-a-permission-is-missing)).
+
+**Settings ▸ Accounts ▸ Permissions** shows what the connected credential can do. The permissions with *Yes* under Checked are tested there without changing anything; the others show up when Cloudflare refuses a change.
+
+## Required
+
+| Permission | Token link key | OAuth scope | Used for | Checked |
+|---|---|---|---|---|
+| Account · Cloudflare Tunnel · Edit | `argotunnel` | `argotunnel.write` | Creating and running tunnels, routes, shares on your domains, private networks with a token, connector logs. | Yes |
+| Zone · DNS · Edit | `dns` | `dns.write` | The DNS records of routes, shares on your domains and reservations (per domain). | Yes |
+| Zone · Zone · Read | `zone` | `zone.read` | Listing your domains. | Yes |
+| Account · Account Settings · Read | `account_settings` | `account-settings.read` | Finding and naming the accounts a credential reaches. | No |
+
+## Optional
+
+| Permission | Token link key | OAuth scope | Used for | Checked |
+|---|---|---|---|---|
+| Account · Access: Apps and Policies · Edit | `access` | `access-app.write`, `access-policy.write`, `zone-access.write` | [Logins](/docs/guides/require-login/) in front of routes, shares and Snapshots (`--allow`). | Yes |
+| Account · Access: Organizations, Identity Providers, and Groups · Edit | `access_acct` | `access-acct.write` | Logins: adding the one-time code login method when the account has none. | Yes |
+| Zone · Analytics · Read | `analytics` | `analytics.read` | [Traffic charts](/docs/guides/analytics/) per route and `teitunnel analytics`. | Yes |
+| Account · Account Analytics · Read | `account_analytics` | `account-analytics.read` | Traffic numbers Cloudflare keeps per account. | No |
+| Account · Workers Scripts · Edit | `workers_scripts` | `workers-scripts.write` | [Snapshots](/docs/guides/snapshots/), [offline pages](/docs/guides/offline-page/) and [webhook inboxes](/docs/guides/webhook-inbox/) (Workers on your account). | Yes |
+| Zone · Workers Routes · Edit | `workers_routes` | `workers-routes.write` | A hostname on your domain for a Snapshot, an offline page or an inbox (per domain). | Yes |
+| Zone · Zone WAF · Edit | `zone_waf` | `zone-waf.write` | [Edge protection](/docs/guides/protection/): bot and AI crawler rules, rate limits. | Yes |
+| Zone · Transform Rules · Edit | `zone_transform_rules` | `zone-transform-rules.write` | Edge protection: request and response header rules. | Yes |
+| Account · Access: Service Tokens · Edit | `access_service_token` | `access-service-token.write` | Service tokens that let machines through a login (`teitunnel service-token`). | Yes |
+| Account · D1 · Edit | `d1` | `d1.write` | [Snapshot comments](/docs/guides/comments/) and webhook inboxes (a D1 database on your account). | Yes |
+| Account · Load Balancing: Monitors and Pools · Edit | not in the link | `load-balancing-monitors-and-pools.write` | [Load balancing](/docs/guides/load-balancing/) a route across machines (a paid add-on). | No |
+| Zone · Load Balancers · Edit | not in the link | `load-balancers.write` | Load balancing a route across machines (a paid add-on). | No |
+
+## Only when signing in with Cloudflare
+
+A sign-in also asks for these scopes, which have no permission of their own in an API token.
+
+| OAuth scope | Used for |
+|---|---|
+| `teams-networks.write` | [Private networks](/docs/guides/private-networks/) (with an API token, Cloudflare Tunnel · Edit covers them). |
+| `teams.read` | The Doctor's WARP checks (read only). |
+| `offline_access` | Keeping the sign-in (a refresh token). |
+
+Every optional scope can be declined on Cloudflare's consent screen; the feature that needs it then asks for it again.
+
+## The token link
+
+**Open Cloudflare** in **Settings ▸ Accounts ▸ Connect an Account** opens the dashboard's *Create API token* page with these permissions selected, for all your accounts and domains:
+
+```text
+https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22argotunnel%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22dns%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22zone%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22account_settings%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22access%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22access_acct%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22analytics%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22account_analytics%22%2C%22type%22%3A%22read%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_routes%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22zone_waf%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22zone_transform_rules%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22access_service_token%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22d1%22%2C%22type%22%3A%22edit%22%7D%5D&accountId=*&zoneId=all&name=Teitunnel
+```
+
+Load balancing isn't in the link, because it's a paid add-on: add its two permissions to the token if you use it. Cloudflare ignores keys it doesn't know without saying so, so if **Cloudflare Tunnel · Edit** is missing from the page it opens, add it by hand.

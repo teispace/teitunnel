@@ -1,52 +1,55 @@
 ---
 title: Test webhooks on localhost
-description: Receive Stripe, GitHub, Slack, Shopify or Twilio webhooks on your computer through Cloudflare Tunnel, at a stable HTTPS URL that doesn't change every time you restart.
+description: Receive Stripe, GitHub, Slack, Shopify or Twilio webhooks on your computer through Cloudflare Tunnel, at a stable HTTPS URL, then inspect, check and replay every delivery.
 ---
 
-Webhook providers need a public HTTPS URL, but your handler runs on `localhost`. A tunnel
-bridges the two. The one thing to get right is a **URL that stays the same**, so you set it
-in the provider once instead of after every restart.
+Webhook providers need a public HTTPS URL, but your handler runs on `localhost`. In this
+tutorial you give a local handler a URL that stays the same every day, point Stripe at it,
+watch a delivery arrive, check its signature, and replay it while you fix the handler.
+The same steps work for GitHub, Slack, Shopify, Twilio and others.
 
-## Get a stable URL
+**You need:** Teitunnel, a Cloudflare account with a domain
+([first route](/docs/getting-started/first-route#before-you-start)), and a webhook handler
+you can run. The examples use a handler at `http://localhost:4000/webhooks/stripe` and the
+hostname `hooks.teispace.com`.
 
-Connect your Cloudflare account ([first route](/docs/getting-started/first-route#before-you-start)),
-then share your server on a subdomain you reserve for webhooks:
+## 1. Get a stable URL
+
+A random `trycloudflare.com` Quick Share works for a first try, but its URL changes every
+time, so you'd update the provider each session. Share on a subdomain you keep for webhooks
+instead:
 
 ```sh
-teitunnel share 4000 --on hooks.example.com
+teitunnel share 4000 --on hooks.teispace.com --watch "/webhooks/*"
 ```
 
-In the app: **Quick Share ▸ Address ▸ On example.com**, subdomain `hooks`, **Share**.
+In the app: **Quick Share**, type `4000`, **Address ▸ On teispace.com**, **Subdomain**
+`hooks`, then **Share**.
 
-`https://hooks.example.com` now reaches `localhost:4000` for as long as the share runs, and
-it's the same address tomorrow. If you want it up whenever your computer is, make it a
-[route](/docs/getting-started/first-route) instead and turn on
-[Keep running](/docs/concepts/run-modes).
+`https://hooks.teispace.com` now reaches `localhost:4000` for as long as the share runs, and
+it's the same address tomorrow. `--watch` prints a line whenever a request hits that path, so
+you notice deliveries even with a busy terminal. Every request goes through Teitunnel's
+[inspector](/docs/guides/inspector), which records it with its response, credentials
+masked.
 
-<Callout>
-A random `trycloudflare.com` Quick Share works too, but its URL changes every time, so you'd
-update the provider each session.
-</Callout>
-
-## Point the provider at it
+## 2. Point the provider at it
 
 <Tabs items={["Stripe", "GitHub", "Slack", "Others"]}>
   <Tab value="Stripe">
-    **Developers ▸ Webhooks ▸ Add endpoint** in test mode, with
-    `https://hooks.example.com/webhooks/stripe` (your handler's path). Copy the endpoint's
-    **Signing secret** (`whsec_…`) into your app and verify signatures with it. Use **Send
-    test webhook** to try it.
+    In the Stripe dashboard, in test mode, **Developers ▸ Webhooks ▸ Add endpoint**, with
+    `https://hooks.teispace.com/webhooks/stripe`. Copy the endpoint's **Signing secret**
+    (`whsec_…`) into your app and verify signatures with it.
   </Tab>
   <Tab value="GitHub">
     In the repository, **Settings ▸ Webhooks ▸ Add webhook**: payload URL
-    `https://hooks.example.com/github`, content type `application/json`, and a secret your
-    app checks against `X-Hub-Signature-256`. **Recent Deliveries** shows each request and
-    lets you **Redeliver** it while you debug.
+    `https://hooks.teispace.com/webhooks/github`, content type `application/json`, and a
+    secret your app checks against `X-Hub-Signature-256`. **Recent Deliveries** shows each
+    request and lets you **Redeliver** it.
   </Tab>
   <Tab value="Slack">
     In your app's settings at api.slack.com, set the **Request URL** under *Event
-    Subscriptions* (or *Interactivity*) to `https://hooks.example.com/slack/events`. Slack
-    sends a `url_verification` challenge first; your handler must echo it back.
+    Subscriptions* (or *Interactivity*) to `https://hooks.teispace.com/webhooks/slack`.
+    Slack sends a `url_verification` challenge first; your handler must echo it back.
   </Tab>
   <Tab value="Others">
     Shopify, Twilio, Discord, Linear, Paddle and others work the same way: paste the public
@@ -54,26 +57,103 @@ update the provider each session.
   </Tab>
 </Tabs>
 
-## Watch deliveries
+## 3. Watch a delivery arrive
 
-The share's card in Teitunnel counts requests and errors as they arrive and shows the
-connector's log. cloudflared logs failed requests (a `502` because your server wasn't
-running, say); your own server's log shows the rest.
+Send a test event from the provider (GitHub sends a `ping` as soon as you add the webhook).
+The terminal prints the request with its status and duration.
+
+In the app, open **Inspector**: the request is at the top of the list, marked **Webhook**.
+Select it to see the headers, the body, your handler's answer and the timings. From a
+terminal:
+
+```sh
+teitunnel traffic ls --path /webhooks --last 5
+teitunnel traffic get 7f3a                      # the end of an id, as ls shows it
+teitunnel traffic get 7f3a --format curl        # the same request as a curl command
+teitunnel traffic watch --path /webhooks        # follow new ones
+```
+
+## 4. Check the signature
+
+Save the provider's signing secret once, and the inspector checks every delivery's
+signature against it: **Signature valid**, **Signature invalid**, **Signature expired**
+(signed too long before it arrived), or **Not checked**.
+
+In the app, select the request and choose **Add Signing Secret…** under **Webhook**. From a
+terminal (read from standard input, never from the command line):
+
+```sh
+teitunnel inbox secret hooks.teispace.com stripe
+```
+
+The secret is kept in your system's keychain and never shown again. The inspector knows
+Stripe, GitHub, Slack, Shopify, Standard Webhooks (Svix, Clerk, Resend…), Twilio, Linear and
+Discord.
+
+If the inspector says the signature is valid but your handler says it isn't, your framework
+is probably parsing the body before verification. Give the handler the raw request body.
+
+## 5. Fix the handler and replay
+
+You don't need the provider to send the event again. Change your code, then send the same
+request to your service:
+
+```sh
+teitunnel traffic replay 7f3a
+teitunnel traffic replay 7f3a --set-header "X-Debug: 1" --times 3
+```
+
+In the app: **Replay**, or **Edit and Replay…** to change the method, path, headers or body
+first. Headers you leave alone keep their captured values, masked ones included, while the
+app still has the request in memory. A request read back from the history (after a restart,
+or `teitunnel traffic replay` in another terminal) is replayed without its masked headers
+("From history: masked headers are left out of the replay."), so its signature header is
+missing. Repeat until the handler answers `200`.
+
+Providers that sign a timestamp (Stripe, Standard Webhooks) usually accept a signature for
+only about 5 minutes, so a later replay fails your handler's check. In **Edit and Replay…**,
+turn on **Re-sign**: with the signing secret saved in step 4, each replay gets a fresh, valid
+signature. Or send a fresh test event from the provider.
+
+## 6. Keep receiving when you're away
+
+A share ends when you stop it. For a handler that should always receive:
+
+1. Stop the share (Ctrl-C), then make it a [route](/docs/getting-started/first-route):
+   `teitunnel route add hooks.teispace.com 4000`, and turn on **Keep running when Teitunnel quits** in
+   **Tunnels** so it's up whenever your computer is.
+2. Add a [webhook inbox](/docs/guides/webhook-inbox): webhooks sent while your computer is
+   off are kept on your Cloudflare account and delivered in order when it's back.
+
+```sh
+teitunnel inbox add hooks.teispace.com /webhooks/ --verify stripe
+```
 
 ## If deliveries fail
 
-- **The provider says 502 or 530:** your handler isn't running on that port, or the share
-  stopped. Open `https://hooks.example.com` yourself to check.
+- **The provider says 502:** your handler isn't running on that port. **530** or error
+  1033: the share stopped or the computer is off. Open `https://hooks.teispace.com`
+  yourself to check.
 - **Cloudflare blocks the requests:** if your domain has **Bot Fight Mode**, *I'm Under
   Attack* mode or strict WAF rules, Cloudflare may challenge webhook deliveries, which can't
   solve a challenge. Add a WAF skip rule for the hostname, or use a subdomain on a domain
-  without them.
-- **Signature errors:** make sure your framework gives your handler the raw request body;
-  JSON parsing before verification changes it.
+  without them. Teitunnel's own [edge protection](/docs/guides/protection) is per hostname,
+  so it doesn't affect `hooks.teispace.com` unless you turn it on there.
+- **Signature errors:** see step 4.
 - **Slow handlers:** providers time out after a few seconds. Answer `200` right away and do
   the work afterwards.
 
 ## Keep it private
 
 Anyone who knows the URL can post to it, so always verify the provider's signature. Don't
-put a [login](/docs/guides/require-login) in front of a webhook route: providers can't sign in.
+put a [login](/docs/guides/require-login) in front of a webhook route: providers can't sign
+in. A webhook inbox with `--verify` keeps only correctly signed webhooks.
+
+## Where to go next
+
+<Cards>
+  <Card title="Webhook inbox" href="/docs/guides/webhook-inbox" description="Keep webhooks while your computer is off." />
+  <Card title="Inspector" href="/docs/guides/inspector" description="Everything about captured requests." />
+  <Card title="AI agents" href="/docs/guides/ai-agents" description="Let an agent wait for a webhook and fix the handler." />
+  <Card title="OpenAPI from traffic" href="/docs/guides/openapi" description="Describe the API your requests show." />
+</Cards>

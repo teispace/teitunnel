@@ -10,12 +10,12 @@ const core = (key: string, args: Record<string, string | number> = {}) => ({
   args,
 });
 
-const PATH = "/Users/ada/code/shop/teitunnel.yml";
+const PATH = "~/code/shop/teitunnel.yml";
 
 const projects: ProjectEntry[] = [
   { path: PATH, name: "shop", addedAt: 1, appliedAt: Date.now() - 86_400_000, createdRoutes: [] },
   {
-    path: "/Users/ada/code/docs/teitunnel.yml",
+    path: "~/code/docs/teitunnel.yml",
     name: "docs",
     addedAt: 2,
     appliedAt: null,
@@ -45,7 +45,7 @@ const status: ProjectStatus = {
     items: [
       {
         kind: "route",
-        name: "shop.acme.dev",
+        name: "shop.teispace.dev",
         target: "3000",
         state: "applied",
         line: 6,
@@ -53,7 +53,7 @@ const status: ProjectStatus = {
       },
       {
         kind: "route",
-        name: "api.acme.dev ^/v1",
+        name: "api.teispace.dev ^/v1",
         target: "http://localhost:4000",
         state: "missing",
         line: 8,
@@ -61,7 +61,7 @@ const status: ProjectStatus = {
       },
       {
         kind: "share",
-        name: "feat-login-shop.acme.dev",
+        name: "feat-login-shop.teispace.dev",
         target: "http://localhost:5173",
         state: "missing",
         line: 14,
@@ -77,7 +77,7 @@ const status: ProjectStatus = {
       },
       {
         kind: "localDomain",
-        name: "shop.localhost",
+        name: "shop.teispace.localhost",
         target: "localhost:3000",
         state: "missing",
         line: 22,
@@ -86,13 +86,13 @@ const status: ProjectStatus = {
     ],
     routes: [
       {
-        hostname: "api.acme.dev",
+        hostname: "api.teispace.dev",
         path: "^/v1",
         tunnelId: null,
         change: {
           type: "addRoute",
           route: {
-            hostname: "api.acme.dev",
+            hostname: "api.teispace.dev",
             path: "^/v1",
             origin: "http://localhost:4000",
             access: null,
@@ -106,14 +106,14 @@ const status: ProjectStatus = {
           steps: [
             {
               kind: "putConfig",
-              description: core("plan.step.putConfig", { count: 2, tunnel: "Ada's MacBook" }),
+              description: core("plan.step.putConfig", { count: 2, tunnel: "Teispace MacBook" }),
               command: null,
             },
             {
               kind: "createRecord",
               description: core("plan.step.createRecord", {
-                hostname: "api.acme.dev",
-                tunnel: "Ada's MacBook",
+                hostname: "api.teispace.dev",
+                tunnel: "Teispace MacBook",
               }),
               command: null,
             },
@@ -124,7 +124,7 @@ const status: ProjectStatus = {
     shares: [
       {
         origin: "http://localhost:5173",
-        hostname: "feat-login-shop.acme.dev",
+        hostname: "feat-login-shop.teispace.dev",
         expiresAfter: 7200,
         hostHeader: { mode: "set", value: "localhost:5173" },
         login: null,
@@ -134,12 +134,12 @@ const status: ProjectStatus = {
     snapshots: [
       {
         name: "docs",
-        source: { type: "folder", path: "/Users/ada/code/shop/dist" },
-        hostname: "docs.acme.dev",
+        source: { type: "folder", path: "~/code/shop/dist" },
+        hostname: "docs.teispace.dev",
         exists: true,
       },
     ],
-    localDomains: [{ name: "shop.localhost", port: 3000, wildcard: false, exists: false }],
+    localDomains: [{ name: "shop.teispace.localhost", port: 3000, wildcard: false, exists: false }],
   },
 };
 

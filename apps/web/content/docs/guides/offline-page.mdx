@@ -4,45 +4,132 @@ description: "Show your own page instead of Cloudflare's error 1033 when the com
 ---
 
 When the computer that serves a route is off, asleep or offline, Cloudflare can't reach
-its tunnel and shows visitors **error 1033**. An **offline page** replaces that with a page
-of your own ("Back soon…"), served by a small Worker on your Cloudflare account, so it
-works while your computer is off.
+its tunnel and shows visitors **error 1033**, a Cloudflare error page that looks like the
+site is broken. An **offline page** replaces it with a page of your own ("Back soon"),
+served by a small Worker on your Cloudflare account, so it works while your computer is
+off.
 
-## Turn it on
-Open the route in **Routes**, and under **While This Computer Is Off**, choose **Turn On…**
-next to **Offline page**. Give it a title and a message, review the plan and apply it. The
-plan uploads the Worker, then adds a Worker route for `app.example.com/*`. Undo takes it
-off again.
+Use it for routes people visit when you're not watching: a portfolio or side project on a
+laptop, a home server that restarts, a demo you send before a meeting. For a static site
+that must stay fully online, publish a [Snapshot](/docs/guides/snapshots) instead.
 
-Turn on **Also when the app doesn't answer** to show the page too when the tunnel is up but
-the local service answers 502 or 504 (the app on this computer stopped).
+## Turn it on in the app
 
-From the terminal:
+<Steps>
+<Step>
+Open the route in **Routes**. Under **While This Computer Is Off** ("Workers on your
+Cloudflare account keep answering when this computer is off or asleep."), choose
+**Turn On…** next to **Offline page**.
+</Step>
+<Step>
+In **Offline Page for app.teispace.com**, give it a **Title** (up to 120 characters) and a
+**Message** (up to 1,000 characters; each line becomes a paragraph).
+</Step>
+<Step>
+Optionally turn on **Also when the app doesn't answer**: it shows the page too when the
+tunnel is up but the local service returns 502 or 504, for example because the app on this
+computer crashed or wasn't started.
+</Step>
+<Step>
+Choose **Review**, read the plan, and choose **Apply**. The plan warns about the cost
+(see [Limits and costs](#limits-and-costs)). The route then shows **Edit…** and **Remove**
+for the page.
+</Step>
+</Steps>
+
+## From the terminal
 
 ```sh
-teitunnel offline app.example.com --title "Back soon" --message "I'm away until Monday."
-teitunnel offline app.example.com            # what it has now
-teitunnel offline app.example.com --off
+teitunnel offline app.teispace.com --title "Back soon" --message "We're updating the demo. Try again in an hour."
+teitunnel offline app.teispace.com --when-app-down      # also for 502/504 from the app
+teitunnel offline app.teispace.com                      # what it has now
+teitunnel offline app.teispace.com --off                # remove it
 ```
 
+`--title` turns the page on; `--title`, `--message` and `--when-app-down` change only what
+you pass and keep the rest. Without options, it prints the current title, message and
+setting. `-a, --account` chooses the account and `-y, --yes` applies without asking.
+
+## What happens on Cloudflare
+
+The plan ("Show an offline page on app.teispace.com") has two steps:
+
+1. **Upload the offline page Worker for app.teispace.com.** It's named `tt-offline-` and a
+   short hash of the hostname.
+2. **Run it for `app.teispace.com/*`** "(fails open past the free daily requests)": a
+   Worker route on the hostname.
+
+Removing it stops running the Worker for the pattern, then deletes the Worker. Undo in
+[Activity](/docs/concepts/changes) reverses either change; a deleted Worker is restored from
+its recorded settings. Removing a hostname's last route removes its offline page too.
+
+Teitunnel only changes Workers and Worker routes it created. If another Worker already runs
+on the same pattern, the plan stops with "Another Worker (…) already runs for
+app.teispace.com/*. Teitunnel doesn't change Workers it didn't add." and changes nothing.
+
 ## How it works
-The Worker passes every request on to your tunnel unchanged (bodies stream, WebSockets
-work). Only when Cloudflare answers **530** (error 1033: no connector) does it show your
-page, with status 503 and `Retry-After`, so browsers and search engines know it's
-temporary. API calls get a short JSON answer instead of HTML.
 
-## What it costs
-Every request to the hostname runs the Worker, even while your computer is on, and counts
-toward Cloudflare's free **100,000 Worker requests a day** (for the whole account). The
-Worker route is created to **fail open**: once the day's free requests are used up, the
-site keeps working normally without it, and only the offline page is missing until the
-next day (00:00 UTC). That's why it's off by default and chosen per route.
+The Worker passes every request on to your tunnel unchanged, without buffering bodies;
+uploads, streaming and WebSockets work as before, and a working response is never changed.
+Only when Cloudflare answers **530** (error 1033: no connector for the tunnel), or 502/504
+with **Also when the app doesn't answer**, does it answer instead:
 
-## Ownership
-Teitunnel only changes the Workers and Worker routes it created (named `tt-offline-…`). If
-another Worker already has a route on the same pattern, it says so and changes nothing.
-Removing the route in Teitunnel removes its offline page too.
+- **Pages** (a browser navigation): your page, with status **503**, `Retry-After: 60`,
+  `Cache-Control: no-store` and `noindex`, so browsers and search engines treat it as
+  temporary and never cache or index it. It follows the visitor's light or dark setting,
+  loads nothing from elsewhere, and your text is always shown as text.
+- **Everything else** (API calls, images, scripts): a short `503` JSON answer
+  `{"error": "offline", "message": "<title>"}`.
+
+## Limits and costs
+
+| | Cloudflare free plan |
+|---|---|
+| Requests that run the Worker | Every request to the hostname, even while this computer is on |
+| Free Worker requests | 100,000 a day for the whole account, reset at 00:00 UTC |
+| Past the limit | The route **fails open**: the site keeps working without the Worker |
+
+The Worker route is created to fail open (verified on a live Free-plan account on
+2026-09-25: the dashboard shows "Request limit failure mode: Fail open (proceed)"). Once the
+day's free requests are used up, requests go straight to your tunnel as if there were no
+Worker; only the offline page is missing until 00:00 UTC. Your site never goes down because
+of the limit. That's why the page is off by default and chosen per route, and why the plan
+warns: "Every request to app.teispace.com/* runs a Worker and counts against your
+account's 100,000 free Worker requests a day. Past that, the site keeps working without
+it."
 
 ## Permissions
+
 **Account · Workers Scripts · Edit** and **Zone · Workers Routes · Edit** on the route's
-domain. If one is missing, Teitunnel shows how to add it to the same token.
+domain. Tokens created from Teitunnel's link and OAuth sign-in include both. If one is
+missing, Teitunnel shows what to add and continues when you're back.
+
+## Troubleshooting
+
+<Accordions>
+<Accordion title="… has no route through Cloudflare. Add a route for it first.">
+An offline page sits in front of a route. Add the route first (a Quick Share on
+trycloudflare.com can't have one).
+</Accordion>
+<Accordion title="Another Worker (…) already runs for …/*.">
+A Worker you or someone else added in the dashboard already has a route on this hostname.
+Remove that Worker route in the Cloudflare dashboard if you don't need it, then try again.
+</Accordion>
+<Accordion title="Visitors still see error 1033">
+The day's free Worker requests may be used up (the page is back at 00:00 UTC), or the
+Worker route was removed in the dashboard: check `teitunnel offline app.teispace.com`, and
+turn the page off and on again.
+</Accordion>
+<Accordion title="Give the page a title of at most 120 characters.">
+Shorten the title. The message can hold up to 1,000 characters.
+</Accordion>
+</Accordions>
+
+## Related
+
+<Cards>
+  <Card title="Webhook inbox" href="/docs/guides/webhook-inbox" description="Keep webhooks while this computer is off." />
+  <Card title="Snapshots" href="/docs/guides/snapshots" description="A static copy that stays fully online." />
+  <Card title="Run on a server" href="/docs/guides/servers" description="Keep routes up without a laptop." />
+  <Card title="Troubleshooting" href="/docs/reference/troubleshooting" description="Error 1033 and other Cloudflare errors." />
+</Cards>

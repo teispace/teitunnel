@@ -26,7 +26,7 @@ switch (`${args[0]} ${args[1] ?? ""}`.trim()) {
     break;
   case "snapshot publish":
     if (on.startsWith("held")) {
-      process.stderr.write("teitunnel: held.example.com is reserved by alice@mac.\n");
+      process.stderr.write("teitunnel: held.teispace.com is reserved by alice@mac.\n");
       process.exit(3);
     }
     process.stdout.write(" 1. Upload 2 files\n");

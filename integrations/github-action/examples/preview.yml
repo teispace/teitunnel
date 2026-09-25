@@ -1,5 +1,5 @@
 # .github/workflows/preview.yml: a Snapshot preview per pull request at
-# pr-<number>.preview.example.com, commented on the PR and removed when it closes.
+# pr-<number>-preview.teispace.com, commented on the PR and removed when it closes.
 name: Preview
 
 on:
@@ -31,7 +31,7 @@ jobs:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: snapshot
           build: true
-          zone: example.com
+          zone: teispace.com
           expires: 14d
       - run: echo "Preview at ${{ steps.preview.outputs.url }}"
 
@@ -44,4 +44,4 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: cleanup
-          zone: example.com
+          zone: teispace.com

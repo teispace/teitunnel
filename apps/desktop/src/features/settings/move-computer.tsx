@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { type MessageKey, t } from "@/lib/i18n";
+import { t, translate } from "@/lib/i18n";
 import type { BackupSummary } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import {
@@ -17,22 +17,6 @@ import {
 } from "./queries";
 
 const MIN_PASSPHRASE = 10;
-
-const sectionLabels: Record<string, MessageKey> = {
-  settings: "backup.section.settings",
-  local_tunnels: "backup.section.local_tunnels",
-  dns_ownership: "backup.section.dns_ownership",
-  access_ownership: "backup.section.access_ownership",
-  balanced_routes: "backup.section.balanced_routes",
-  snapshots: "backup.section.snapshots",
-  snapshot_versions: "backup.section.snapshot_versions",
-  local_domains: "backup.section.local_domains",
-};
-
-function sectionName(section: string): string {
-  const label = sectionLabels[section];
-  return label ? t(label) : section;
-}
 
 type Mode = { kind: "export"; path: string } | { kind: "import"; path: string };
 
@@ -48,7 +32,7 @@ function Summary({ summary }: { summary: BackupSummary }) {
             key={section.section}
             className="flex justify-between gap-3 border-inset border-b-hairline py-1.5 last:border-b-0"
           >
-            <span>{sectionName(section.section)}</span>
+            <span>{translate(section.label)}</span>
             <span className="tabular text-secondary">
               {section.count}
               {section.existing > 0 && section.section !== "settings"

@@ -6,7 +6,7 @@
 #     preview:
 #       uses: acme/.github/.github/workflows/reusable-preview.yml@main
 #       with:
-#         zone: example.com
+#         zone: teispace.com
 #         start: npm run dev -- --port 3000
 #         port: "3000"
 #       secrets:

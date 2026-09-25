@@ -38,7 +38,7 @@ pub(crate) enum Bots {
 /// `teitunnel protect <hostname>`.
 #[derive(Debug, Args)]
 pub(crate) struct ProtectArgs {
-    /// The hostname, e.g. `app.example.com` (a route, or a share on your domain).
+    /// The hostname, e.g. `app.teispace.com` (a route, or a share on your domain).
     hostname: String,
     /// Automated clients (scripts, headless browsers; verified bots like search engines
     /// are let through).

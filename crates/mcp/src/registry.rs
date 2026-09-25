@@ -152,7 +152,7 @@ pub trait Approver: Send + Sync + 'static {
 /// What needs approving.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovalRequest {
-    /// One line, e.g. "Add app.example.com → http://localhost:3000".
+    /// One line, e.g. "Add app.teispace.com → http://localhost:3000".
     pub title: String,
     /// The plan or details, as the person should read them.
     pub details: String,

@@ -24,9 +24,9 @@ const env = (inputs) =>
 
 describe("inputs", () => {
   it("reads defaults and refuses what can't work", () => {
-    const inputs = readInputs(env({ "cloudflare-api-token": "t", zone: "example.com" }));
+    const inputs = readInputs(env({ "cloudflare-api-token": "t", zone: "teispace.com" }));
     assert.equal(inputs.mode, "snapshot");
-    assert.equal(inputs.hostname, "pr-{number}.preview.{zone}");
+    assert.equal(inputs.hostname, "pr-{number}-preview.{zone}");
     assert.equal(inputs.comment, true);
     assert.deepEqual(inputs.allow, []);
     assert.throws(() => readInputs(env({})), /cloudflare-api-token/);
@@ -34,9 +34,9 @@ describe("inputs", () => {
     assert.throws(() => readInputs(env({ "cloudflare-api-token": "t", mode: "share" })), /port/);
     assert.throws(() => readInputs(env({ "cloudflare-api-token": "t", build: "maybe" })), /build/);
     const allow = readInputs(
-      env({ "cloudflare-api-token": "t", allow: "a@x.io, @team.io\nb@y.io" }),
+      env({ "cloudflare-api-token": "t", allow: "a@teispace.com, @teispace.dev\nb@teispace.app" }),
     );
-    assert.deepEqual(allow.allow, ["a@x.io", "@team.io", "b@y.io"]);
+    assert.deepEqual(allow.allow, ["a@teispace.com", "@teispace.dev", "b@teispace.app"]);
   });
 });
 
@@ -44,18 +44,18 @@ describe("hostname templates", () => {
   const event = {
     pull_request: { number: 42, head: { ref: "feat/New Login!", sha: "abcdef1234567" } },
   };
-  const context = templateContext({ GITHUB_REPOSITORY: "Acme/Web.App" }, event, "Example.com");
+  const context = templateContext({ GITHUB_REPOSITORY: "Teispace/Web.App" }, event, "Teispace.com");
 
   it("fills placeholders as DNS labels", () => {
     assert.equal(
-      renderHostname("pr-{number}.preview.{zone}", context),
-      "pr-42.preview.example.com",
+      renderHostname("pr-{number}-preview.{zone}", context),
+      "pr-42-preview.teispace.com",
     );
     assert.equal(
       renderHostname("{branch}.{repo}.{zone}", context),
-      "feat-new-login.web-app.example.com",
+      "feat-new-login.web-app.teispace.com",
     );
-    assert.equal(renderHostname("{sha}.{owner}.{zone}", context), "abcdef1.acme.example.com");
+    assert.equal(renderHostname("{sha}.{owner}.{zone}", context), "abcdef1.teispace.teispace.com");
   });
 
   it("refuses templates that can't make a hostname", () => {
@@ -122,7 +122,7 @@ describe("CLI arguments and output", () => {
       port: "3000",
       mode: "share",
       expires: "2h",
-      allow: "a@x.io",
+      allow: "a@teispace.com",
       account: "Acme",
       password: "hunter22",
       build: "true",
@@ -130,12 +130,12 @@ describe("CLI arguments and output", () => {
   );
 
   it("never puts secrets in argv", () => {
-    const share = shareArgs(inputs, "pr-1.example.com");
+    const share = shareArgs(inputs, "pr-1.teispace.com");
     assert.deepEqual(share, [
       "share",
       "3000",
       "--on",
-      "pr-1.example.com",
+      "pr-1.teispace.com",
       "--json",
       "--no-qr",
       "--account",
@@ -143,9 +143,9 @@ describe("CLI arguments and output", () => {
       "--for",
       "2h",
       "--allow",
-      "a@x.io",
+      "a@teispace.com",
     ]);
-    const snapshot = snapshotArgs(inputs, "pr-1.example.com", "web-pr-1");
+    const snapshot = snapshotArgs(inputs, "pr-1.teispace.com", "web-pr-1");
     assert.ok(snapshot.includes("--or-update") && snapshot.includes("--build"));
     assert.ok(snapshot.includes("--password"));
     for (const args of [share, snapshot]) {
@@ -156,8 +156,8 @@ describe("CLI arguments and output", () => {
 
   it("finds the JSON the CLI prints after its plan", () => {
     const out =
-      ' 1. Upload 3 files\n    done: Upload\n{"url":"https://a.example.com","hostname":"a.example.com"}\n';
-    assert.equal(lastJson(out)?.url, "https://a.example.com");
+      ' 1. Upload 3 files\n    done: Upload\n{"url":"https://a.teispace.com","hostname":"a.teispace.com"}\n';
+    assert.equal(lastJson(out)?.url, "https://a.teispace.com");
     assert.equal(lastJson("nothing here\n{broken"), null);
   });
 
@@ -198,24 +198,24 @@ describe("the pull request comment", () => {
     repository: "acme/web",
     number: 7,
     token: "gh",
-    hostname: "pr-7.example.com",
+    hostname: "pr-7.teispace.com",
     body,
   });
 
   it("is posted once and then edited in place", async () => {
     const github = fakeGitHub([{ id: 1, body: "unrelated" }]);
     const live = commentBody({
-      hostname: "pr-7.example.com",
-      url: "https://pr-7.example.com",
+      hostname: "pr-7.teispace.com",
+      url: "https://pr-7.teispace.com",
       state: "live",
       sha: "abc1234",
       mode: "snapshot",
     });
-    assert.ok(live.startsWith(marker("pr-7.example.com")));
+    assert.ok(live.startsWith(marker("pr-7.teispace.com")));
     assert.equal(await upsertComment(args(github.fetch, live)), "created");
     const again = commentBody({
-      hostname: "pr-7.example.com",
-      url: "https://pr-7.example.com",
+      hostname: "pr-7.teispace.com",
+      url: "https://pr-7.teispace.com",
       state: "live",
       sha: "def5678",
       mode: "snapshot",
@@ -224,7 +224,7 @@ describe("the pull request comment", () => {
     assert.equal(github.comments.length, 2, "never a second preview comment");
     assert.match(github.comments[1].body, /def5678/);
     const removed = commentBody({
-      hostname: "pr-7.example.com",
+      hostname: "pr-7.teispace.com",
       url: "",
       state: "removed",
       mode: "snapshot",
@@ -235,7 +235,7 @@ describe("the pull request comment", () => {
 
   it("finds its comment on a later page", async () => {
     const many = Array.from({ length: 150 }, (_, i) => ({ id: i + 1, body: `c${i}` }));
-    many[120].body = `${marker("pr-7.example.com")}\nold`;
+    many[120].body = `${marker("pr-7.teispace.com")}\nold`;
     const github = fakeGitHub(many);
     assert.equal(await upsertComment(args(github.fetch, "new")), "updated");
     assert.equal(github.comments[120].body, "new");

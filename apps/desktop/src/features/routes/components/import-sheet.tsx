@@ -122,10 +122,7 @@ export function ImportSheet({
                 </ul>
               )}
               {setup.hasGlobalOptions ? (
-                <p className="text-callout text-secondary">
-                  This file has settings for all routes (originRequest). They aren't imported; check
-                  that the routes work after importing.
-                </p>
+                <p className="text-callout text-secondary">{t("import.globalOptions")}</p>
               ) : null}
             </section>
           ))}

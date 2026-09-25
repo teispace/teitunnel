@@ -99,7 +99,7 @@ pub(crate) enum SnapshotCommand {
         /// The folder, or the project with --build. Default: the current folder.
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// A hostname on one of your domains, e.g. `preview.example.com`. Default: your
+        /// A hostname on one of your domains, e.g. `preview.teispace.com`. Default: your
         /// account's workers.dev address.
         #[arg(long, value_name = "HOSTNAME")]
         on: Option<String>,

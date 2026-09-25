@@ -71,6 +71,12 @@ const SCOPES: &[&str] = &[
     "load-balancing-monitors-and-pools.write",
 ];
 
+/// The scopes asked for at sign-in, for the docs' permissions page.
+#[doc(hidden)]
+pub fn requested_scopes() -> &'static [&'static str] {
+    SCOPES
+}
+
 /// Errors from the OAuth flow. Messages are shown to the user.
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthError {

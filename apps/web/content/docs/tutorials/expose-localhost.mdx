@@ -1,6 +1,6 @@
 ---
 title: Expose localhost to the internet
-description: Share a website or API running on localhost at a public HTTPS URL with Cloudflare Tunnel, free and without port forwarding, from the app or the command line. An ngrok alternative on your own domain.
+description: Share a website or API running on localhost at a public HTTPS URL with Cloudflare Tunnel, free and without port forwarding, from the app or the command line. Stable URLs on your own domain too.
 ---
 
 You have something running at `http://localhost:3000` and want someone else to open it: a
@@ -13,7 +13,7 @@ There are two ways, depending on how long the link should last.
 
 | | Quick Share | Route on your domain |
 |---|---|---|
-| Address | `random-words.trycloudflare.com` | `app.example.com` |
+| Address | `random-words.trycloudflare.com` | `app.teispace.com` |
 | Cloudflare account | not needed | free account + a domain |
 | Same URL every time | no | yes |
 | Logins, keep running as a service | no | yes |
@@ -43,7 +43,7 @@ There are two ways, depending on how long the link should last.
 
 <Screenshot name="quick-share" alt="A Quick Share of localhost with its public URL" />
 
-For a stable address, connect Cloudflare and choose **Address ▸ On example.com** before
+For a stable address, connect Cloudflare and choose **Address ▸ On teispace.com** before
 sharing; see [Quick Share on your own domain](/docs/getting-started/quick-share#on-your-own-domain).
 
 ## From the terminal
@@ -57,7 +57,7 @@ Common variations:
 
 ```sh
 teitunnel share 8080 --for 1h                 # stop by itself after an hour
-teitunnel share 3000 --on demo.example.com    # your own domain, same URL every time
+teitunnel share 3000 --on demo.teispace.com   # your own domain, same URL every time
 teitunnel share https://localhost:8443        # an HTTPS dev server
 ```
 
@@ -77,15 +77,3 @@ stays until you remove it, can [require a login](/docs/guides/require-login) and
   [troubleshooting](/docs/reference/troubleshooting#502-bad-gateway).
 - **It's slow:** Quick Tunnels are best-effort. A route on your own domain uses your
   account's tunnel and is faster and more reliable.
-
-## Coming from ngrok?
-
-The idea is the same: a local agent, a public URL, no open ports. The differences:
-
-- It runs on **Cloudflare's network with your own Cloudflare account**: your domains, your
-  DNS, Cloudflare's certificates, and logins through Cloudflare Access. There's no separate
-  subscription for custom domains.
-- Random URLs come from Cloudflare's free Quick Tunnels (`trycloudflare.com`) and need no
-  sign-up at all.
-- Teitunnel adds a desktop app, service discovery, a reviewed plan for every change to your
-  account, and a Doctor that explains problems.

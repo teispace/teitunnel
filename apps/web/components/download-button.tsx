@@ -15,9 +15,11 @@ import { buttonClass } from "./landing";
 export function DownloadButton({
   downloads,
   showAlternative = true,
+  className = "",
 }: {
   downloads: Download[];
   showAlternative?: boolean;
+  className?: string;
 }) {
   const [choice, setChoice] = useState<Choice | null>(null);
   useEffect(() => {
@@ -32,7 +34,7 @@ export function DownloadButton({
 
   const href = choice?.download ? thanksHref(choice.download) : "/download/";
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-2">
+    <span className={`inline-flex flex-wrap items-center gap-x-4 gap-y-2 ${className}`}>
       <Link href={href} className={buttonClass(true)}>
         <DownloadIcon className="size-4" aria-hidden />
         {choice?.label ?? "Download"}

@@ -57,7 +57,7 @@ const threads: Thread[] = [
     comments: [
       {
         id: "c1",
-        author: "Ana Souza",
+        author: "Teispace Design",
         email: null,
         verified: false,
         byOwner: false,
@@ -66,7 +66,7 @@ const threads: Thread[] = [
       },
       {
         id: "c2",
-        author: "Krishna",
+        author: "Teispace",
         email: null,
         verified: false,
         byOwner: true,
@@ -75,8 +75,8 @@ const threads: Thread[] = [
       },
       {
         id: "c3",
-        author: "ana@teispace.com",
-        email: "ana@teispace.com",
+        author: "design@teispace.com",
+        email: "design@teispace.com",
         verified: true,
         byOwner: false,
         body: "Thanks! Also check the mobile layout.",
@@ -95,7 +95,7 @@ const threads: Thread[] = [
     comments: [
       {
         id: "c4",
-        author: "Ben",
+        author: "Teispace QA",
         email: null,
         verified: false,
         byOwner: false,
@@ -109,13 +109,13 @@ const threads: Thread[] = [
     path: "/docs/start",
     anchor: { selector: "#install", x: 0.1, y: 0.2, left: 60, top: 820, vw: 1280, vh: 800 },
     resolved: true,
-    resolvedBy: "Krishna",
+    resolvedBy: "Teispace",
     resolvedAt: minutes(200),
     createdAt: minutes(300),
     comments: [
       {
         id: "c5",
-        author: "Ben",
+        author: "Teispace QA",
         email: null,
         verified: false,
         byOwner: false,

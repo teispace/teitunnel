@@ -6,7 +6,7 @@
 #     - remote: https://raw.githubusercontent.com/teispace/teitunnel/main/integrations/gitlab-ci/teitunnel.gitlab-ci.yml
 #
 #   variables:
-#     TEITUNNEL_ZONE: example.com
+#     TEITUNNEL_ZONE: teispace.com
 #
 #   preview:
 #     extends: .teitunnel-snapshot
@@ -40,7 +40,7 @@
 variables:
   TEITUNNEL_VERSION: latest
   TEITUNNEL_ZONE: ""
-  TEITUNNEL_HOSTNAME: mr-${CI_MERGE_REQUEST_IID}.preview.${TEITUNNEL_ZONE}
+  TEITUNNEL_HOSTNAME: mr-${CI_MERGE_REQUEST_IID}-preview.${TEITUNNEL_ZONE}
   TEITUNNEL_NAME: ${CI_PROJECT_NAME}-mr-${CI_MERGE_REQUEST_IID}
   TEITUNNEL_PATH: .
   TEITUNNEL_BUILD: "false"
@@ -56,7 +56,7 @@ variables:
       echo "CLOUDFLARE_API_TOKEN isn't set (merge requests from forks don't get variables)."
       exit 1
     fi
-    if [ -z "$TEITUNNEL_ZONE" ]; then echo "Set TEITUNNEL_ZONE, e.g. example.com."; exit 1; fi
+    if [ -z "$TEITUNNEL_ZONE" ]; then echo "Set TEITUNNEL_ZONE, e.g. teispace.com."; exit 1; fi
     version="$TEITUNNEL_VERSION"
     if [ "$version" = latest ]; then
       version=$(curl -fsSL https://api.github.com/repos/teispace/teitunnel/releases/latest \

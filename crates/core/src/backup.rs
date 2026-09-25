@@ -60,6 +60,26 @@ const TABLES: &[(&str, &[&str])] = &[
     ("front_workers", &[]),
 ];
 
+/// A section's name for people (every table in [`TABLES`] and `settings` has one).
+fn section_label(section: &str) -> Text {
+    use crate::text::msg::backup::section as s;
+    match section {
+        "settings" => s::settings(),
+        "local_tunnels" => s::local_tunnels(),
+        "dns_ownership" => s::dns_ownership(),
+        "access_ownership" => s::access_ownership(),
+        "balanced_routes" => s::balanced_routes(),
+        "snapshots" => s::snapshots(),
+        "snapshot_versions" => s::snapshot_versions(),
+        "edge_rules" => s::edge_rules(),
+        "service_tokens" => s::service_tokens(),
+        "local_domains" => s::local_domains(),
+        "cloud_databases" => s::cloud_databases(),
+        "front_workers" => s::front_workers(),
+        other => crate::text::msg::raw(other),
+    }
+}
+
 /// Settings that belong to this machine (a lease held by a running process).
 const LOCAL_SETTINGS: &[&str] = &["uptimeRunner"];
 
@@ -144,6 +164,8 @@ pub struct Contents {
 pub struct SectionCount {
     /// `settings`, `local_tunnels`, `snapshots`…
     pub section: String,
+    /// What it holds, for people.
+    pub label: Text,
     /// Entries in the backup.
     pub count: u32,
     /// Entries here now, which restoring replaces.
@@ -485,12 +507,14 @@ pub async fn summarize(store: &Store, contents: &Contents) -> Result<BackupSumma
             let existing_settings: u32 =
                 conn.query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))?;
             let mut out = vec![SectionCount {
+                label: section_label("settings"),
                 section: "settings".into(),
                 count: settings,
                 existing: existing_settings,
             }];
             for (table, count_in_backup) in tables {
                 out.push(SectionCount {
+                    label: section_label(&table),
                     existing: count(conn, &table)?,
                     section: table,
                     count: count_in_backup,

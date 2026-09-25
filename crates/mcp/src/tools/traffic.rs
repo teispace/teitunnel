@@ -38,7 +38,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to see what a webhook sender or browser actually sent, then traffic_get for the full request. To wait for a request that hasn't arrived yet, use wait_for_request instead of polling this.\n\
              \n\
-             Example: {\"scope\": \"demo.example.com\", \"status\": \"5xx\"}",
+             Example: {\"scope\": \"demo.teispace.com\", \"status\": \"5xx\"}",
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
@@ -77,7 +77,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              This is how to test webhooks: share the port (share_port), register the URL with the sender or trigger it, then call this with e.g. `pathContains: \"/webhooks\"` and `method: \"POST\"`; inspect it, fix the handler, and replay with traffic_replay. A request that arrived after `sinceMs` but before this call also counts, so nothing is missed between calls (default: from now).\n\
              \n\
-             Example: {\"scope\": \"demo.example.com\", \"method\": \"POST\", \"pathContains\": \"/webhooks/stripe\", \"timeoutSeconds\": 300}",
+             Example: {\"scope\": \"demo.teispace.com\", \"method\": \"POST\", \"pathContains\": \"/webhooks/stripe\", \"timeoutSeconds\": 300}",
             ToolClass::Wait,
             Hints::READ_LOCAL,
             Duration::from_secs(MAX_WAIT + 30),
@@ -87,7 +87,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             "Traffic numbers",
             "Numbers over captured requests matching the filter: count, status classes, latency percentiles (p50/p95/p99), bytes, and the busiest paths. Use it to spot errors or slow endpoints before looking at single requests.\n\
              \n\
-             Example: {\"scope\": \"app.example.com\"}",
+             Example: {\"scope\": \"app.teispace.com\"}",
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
@@ -99,7 +99,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to document an API, write a client, or check what an app actually calls.\n\
              \n\
-             Example: {\"host\": \"api.example.com\"}",
+             Example: {\"host\": \"api.teispace.com\"}",
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
@@ -463,7 +463,7 @@ pub(super) async fn stats(source: &dyn TrafficSource, args: JsonObject) -> ToolR
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct OpenApiArgs {
-    /// Only requests to this host (e.g. `api.example.com`); default: every host.
+    /// Only requests to this host (e.g. `api.teispace.com`); default: every host.
     #[serde(default)]
     host: Option<String>,
     /// The document's title.

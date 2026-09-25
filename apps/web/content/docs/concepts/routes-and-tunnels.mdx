@@ -1,34 +1,173 @@
 ---
 title: Routes and tunnels
-description: "How Teitunnel maps hostnames to services on your computer: tunnels, connectors, ingress rules and proxied CNAME records."
+description: "How Teitunnel maps hostnames on your domain to services on your computer: the machine tunnel and its connector, what a route is made of in Cloudflare, path rules and their order, route status, and what happens when routes are changed outside Teitunnel."
 ---
 
-## One tunnel per Mac, per account
+A **route** sends a hostname on your domain (say `app.teispace.com`) to a service on this
+computer (say `localhost:3000`). A **tunnel** carries routes from Cloudflare to the
+computer. Teitunnel is built around routes: you say which hostname goes where, and it works
+out the tunnel, the DNS record and the connector that make it happen.
 
-The first time you add a route in a Cloudflare account, Teitunnel creates a
-**remotely-managed tunnel** for this machine, named after it. Every route you add in that
-account goes on that tunnel. Its token is stored in the keychain, and a **connector**
-(`cloudflared tunnel run`) on this machine holds its connections to Cloudflare's edge.
+## One tunnel per computer, per account
 
-The **Tunnels** view lists every tunnel in the account, with this machine's first: its
-connectors, where they connect (e.g. `AMS01`), traffic and logs. Other cloudflared
-processes running on this machine are listed too, so nothing runs unnoticed.
+The first time you add a route (or share a private network) in a Cloudflare account,
+Teitunnel creates a **remotely-managed tunnel** for this computer, named after it (with a
+number added if the account already has a tunnel by that name). Every route you add in that
+account goes on that tunnel unless you choose another.
 
-## What a route is
+- The tunnel's run token is fetched from Cloudflare and kept in your system's keychain. It's
+  never written to Teitunnel's database, and never passed on a command line.
+- A **connector** (`cloudflared tunnel run`) on this computer holds the tunnel's connections
+  to Cloudflare. The app starts it, or `teitunnel up`, or an
+  [Always-on service](/docs/concepts/run-modes).
+- Removing the last route keeps the tunnel, so the next route is quick. **Tunnels ▸ Delete…**
+  (or `teitunnel tunnel delete`) removes it, with the DNS records Teitunnel created for it.
 
-A route is two things in Cloudflare, kept in step:
+Want staging routes apart from production, each with its own connector? Create more tunnels
+for the same computer: see [several tunnels](/docs/guides/several-tunnels).
 
-1. An **ingress rule** on the tunnel: *requests for `app.example.com` (optionally only
-   under a path) go to `http://localhost:3000`*.
-2. A **proxied CNAME** from `app.example.com` to `<tunnel-id>.cfargotunnel.com`, so the
-   hostname resolves to Cloudflare, which sends the request down the tunnel.
+<Screenshot name="tunnels" alt="Tunnels: this computer's tunnel with its connector, the Keep running switch and traffic" />
 
-Teitunnel shows a route as **Live** only when both are right and the connector is
-connected. Otherwise it says what's wrong ("No DNS record", "Nothing is listening on
-port 8000") and the [Doctor](/docs/reference/doctor) offers a fix.
+The **Tunnels** view lists every tunnel in the account under **In Cloudflare**, this
+computer's first, with their connectors: each machine's address, cloudflared version and the
+Cloudflare locations it connects to (for example `AMS01`), plus traffic and logs.
+**Also on this Mac** (*this PC* on Windows, *this computer* on Linux) lists cloudflared
+processes Teitunnel didn't start, so nothing runs unnoticed; you can stop them or
+[import their routes](/docs/guides/import).
 
-## Edits made elsewhere
+A tunnel Teitunnel didn't create is shown but never changed: *Teitunnel didn't create this
+tunnel, so it doesn't change its routes.* If this computer should serve it too, choose
+**Run on This Mac…** (`teitunnel tunnel adopt <name>`); nothing changes in Cloudflare.
 
-If the tunnel's routes are changed outside Teitunnel (in the Cloudflare dashboard, say),
-Routes shows a banner with what changed. You can keep those changes or restore what
-Teitunnel set up; nothing is overwritten silently.
+## What a route is made of
+
+A route is two things in Cloudflare, always changed together:
+
+1. An **ingress rule** on the tunnel: *requests for `app.teispace.com` (optionally only
+   under a path) go to `http://localhost:3000`*, with any origin settings you chose.
+2. A **proxied CNAME** from `app.teispace.com` to `<tunnel-id>.cfargotunnel.com`, so the
+   hostname resolves to Cloudflare, which sends the request down the tunnel. The record
+   carries a comment that marks it as [Teitunnel's](/docs/concepts/dns-ownership).
+
+Adding a route updates the tunnel first and DNS second, so the tunnel already knows the
+hostname when the first visitor arrives. Removing one goes the other way round. See
+[how changes are made](/docs/concepts/changes).
+
+<Screenshot name="routes" alt="Routes: this computer's routes with their status, and a selected route's details" />
+
+### What a route can point at
+
+| You type | It becomes |
+|---|---|
+| `3000` | `http://localhost:3000` |
+| `127.0.0.1:8080`, `nas.lan:5000` | `http://…` on that host and port |
+| `https://localhost:8443` | An HTTPS service (turn on **Accept self-signed certificates** under **Advanced ▸ Origin settings** if it uses one) |
+| `ssh://localhost:22`, `rdp://…`, `smb://…`, `tcp://…` | A non-web service. Visitors connect with `cloudflared access`; Teitunnel shows the command. See [SSH and TCP](/docs/tutorials/ssh). |
+| `unix:/path/to.sock` | A Unix socket |
+| `hello_world`, `http_status:404` | cloudflared's built-in test page, or a fixed status |
+
+A service on another machine of your network works too; the plan warns that it
+*isn't on this Mac* and must be reachable from here.
+
+### Hostnames, paths and order
+
+- A hostname can be any name in one of the account's domains, or a wildcard on the first
+  label (`*.teispace.com`).
+- A **path** (under **Advanced**, or `--path` in the terminal) is a regular expression:
+  `^/api` sends only API requests to this service, and another route on the same hostname
+  can take the rest. Several routes on one hostname share one DNS record.
+- cloudflared uses the first rule that matches, so Teitunnel keeps the tunnel's rules in
+  order of specificity: exact hostnames before wildcards, and longer paths before shorter
+  ones. A final rule answers every other request with 404.
+
+## Route status
+
+Teitunnel shows a route as **Live** only when the ingress rule, the DNS record and the
+connector are all right. Otherwise its status says what's wrong:
+
+| Status | Meaning |
+|---|---|
+| **Live** | Everything's in place and the connector is connected. |
+| **Connecting** / **Restarting** | The connector is starting, or restarting after a crash. |
+| **Connection lost** | cloudflared runs but has no connection to Cloudflare. It reconnects on its own. |
+| **Keeps stopping** | cloudflared exited several times in a row; the Doctor shows its last log lines. |
+| **Stopped** | This computer's connector isn't running. |
+| **No DNS record** | The tunnel serves the hostname, but nothing points it at the tunnel. |
+| **DNS points elsewhere** | The hostname's record points at something else. |
+| **Routed by … now** | Another machine on the account took the hostname over. |
+
+After a change, and whenever you choose **Test Again**, Teitunnel checks the hostname through
+Cloudflare's edge and explains a failure (*Nothing is listening on port 8000. Is your server
+running?*). The [Doctor](/docs/reference/doctor) offers a fix for each problem.
+
+## From a terminal
+
+```sh
+teitunnel route add app.teispace.com 3000                  # shows the plan, asks, applies, checks
+teitunnel route add app.teispace.com 8080 --path '^/api'   # only /api on this hostname
+teitunnel route add admin.teispace.com 9000 --allow team@teispace.com
+teitunnel route remove app.teispace.com
+teitunnel routes                                           # this computer's routes and status
+teitunnel tunnels                                          # this computer's tunnels
+```
+
+```text
+$ teitunnel route add app.teispace.com 3000
+ 1. Update tunnel “laptop” to serve 2 routes
+ 2. Add DNS record app.teispace.com → tunnel “laptop”
+ 3. Check https://app.teispace.com works
+Apply? [y/N] y
+    done: Update tunnel “laptop” to serve 2 routes
+    done: Add DNS record app.teispace.com → tunnel “laptop”
+Checking https://app.teispace.com…
+https://app.teispace.com works.
+
+$ teitunnel routes
+app.teispace.com	http://localhost:3000	Live
+api.teispace.com ^/v1	http://localhost:8080	Live
+```
+
+`teitunnel routes --check` exits with status 1 unless every route is live, which makes it a
+health check for containers and monitoring. The origin settings (`--host-header`,
+`--no-tls-verify`, `--connect-timeout` and the rest) are listed in the
+[CLI reference](/docs/reference/cli).
+
+## Routes changed outside Teitunnel
+
+Cloudflare is the source of truth: Teitunnel reads the tunnel's routes and DNS records from
+Cloudflare each time, and keeps only its own bookkeeping locally. When someone changes this
+computer's tunnel elsewhere (the Cloudflare dashboard, the API, another machine), Cloudflare
+raises the configuration's version number, and Teitunnel notices it didn't make that change.
+
+**Routes** then shows a banner, *Routes were changed outside Teitunnel*, listing what differs:
+a route added, removed, pointed at another service, or with changed settings. Choose:
+
+- **Keep Changes**: accept the tunnel as it is now.
+- **Restore Mine…**: plan a change that puts back what Teitunnel set up. You review it like
+  any other change.
+
+Nothing is overwritten silently in either direction. The Doctor reports the same situation
+(*This Mac's routes were changed outside Teitunnel*) with **Restore Mine** as its fix.
+
+## Troubleshooting
+
+- **"app.teispace.com isn't in any of this account's domains. Add the domain to Cloudflare first."**
+  The hostname must be in a domain (zone) of the account you're adding it to. Pick the
+  right account in the toolbar, or with `--account`.
+- **"… is already routed. Edit that route instead."** A route with the same hostname and
+  path exists. Edit it, or add a path to tell them apart.
+- **"… is already routed on tunnel “staging”. Remove it there first, or edit it there."**
+  Each hostname and path lives on one of this computer's tunnels.
+- **The plan says a record *will be replaced*.** The hostname already has a DNS record
+  Teitunnel didn't create. See [DNS ownership](/docs/concepts/dns-ownership).
+- **Live, but the browser shows a certificate error on `a.b.teispace.com`.** Cloudflare's
+  free certificate covers one level of subdomain. Use `ab.teispace.com`, or add an Advanced
+  Certificate.
+
+## Related
+
+- [What is Cloudflare Tunnel?](/docs/concepts/cloudflare-tunnel)
+- [How changes are made](/docs/concepts/changes)
+- [DNS ownership](/docs/concepts/dns-ownership)
+- [Several tunnels](/docs/guides/several-tunnels) and [load balancing](/docs/guides/load-balancing)
+- [Your first route](/docs/getting-started/first-route)

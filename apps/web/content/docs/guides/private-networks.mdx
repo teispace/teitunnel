@@ -1,68 +1,130 @@
 ---
 title: Private networks and SSH
-description: Share a private network through Cloudflare Tunnel with WARP clients, check Split Tunnel settings, and connect to SSH, RDP and TCP routes.
+description: Share a private network through Cloudflare Tunnel with WARP clients, check Split Tunnel settings, and connect to SSH, RDP, SMB and TCP routes with cloudflared.
 ---
 
-## Share a private network
-A route publishes one service at a hostname. A **private network** goes further: people
-signed in to your Cloudflare Zero Trust organization with the **WARP** client can reach
-addresses on this machine's network, like a NAS at `192.168.1.20` or a whole range such as
-`192.168.1.0/24`, as if they were at home.
+A route publishes one web service at a hostname. Two more ways reach things that aren't web
+pages:
 
+- **A private network:** people signed in to your Cloudflare Zero Trust organization with
+  the **WARP** client reach addresses on this machine's network, like a NAS at
+  `192.168.1.20` or a whole range such as `192.168.1.0/24`, as if they were at home. Nothing
+  gets a public hostname.
+- **SSH, RDP, SMB and TCP routes:** a hostname that carries a non-HTTP service; visitors
+  connect with `cloudflared` on their computer.
+
+## Share a private network
+
+### What you need
+
+- **Cloudflare Zero Trust** set up on the account (free for up to 50 users), and the
+  **WARP** client on each device that should reach the network, signed in to your
+  organization.
+- **Account · Cloudflare Tunnel · Edit** on the credential (it covers private network
+  routes). Zero Trust read access lets the Doctor check WARP settings too.
+
+### In the app
+
+<Steps>
+<Step>
 In **Tunnels**, select this machine's tunnel and choose **Share Network…** under
 **Private Networks** (or **Share a Private Network…** when this machine has no tunnel yet).
-Enter an address or a range and review the plan. Teitunnel routes the range to this machine's
-tunnel and makes sure the connector runs. To stop, use the remove button next to the range.
+</Step>
+<Step>
+In **Share a Private Network**, enter a **Network**: an address or a range on this
+machine's network, like `192.168.1.0/24`.
+</Step>
+<Step>
+Review the plan ("Route private network 192.168.1.0/24 to tunnel “…”") and choose
+**Share**. Teitunnel routes the range to this machine's tunnel and makes sure the connector
+runs.
+</Step>
+</Steps>
 
-From the terminal:
+To stop, choose the stop button next to the range (**Stop sharing 192.168.1.0/24**), then
+**Stop Sharing**. Ranges added outside Teitunnel are marked **Added outside Teitunnel**.
+
+### From the terminal
 
 ```sh
 teitunnel network add 192.168.1.0/24
-teitunnel networks
+teitunnel networks                     # --json
 teitunnel network remove 192.168.1.0/24
 ```
 
+`-y` applies without asking, `-a` picks the account, and `--replace` confirms a public range.
+
 ### What Teitunnel checks
-- A range already routed to another tunnel is refused; remove it there first.
+
+- A range already routed to another tunnel is refused ("… is already shared through tunnel
+  “…”. Remove that route first.").
 - A range that overlaps another tunnel's is allowed, with a warning: for addresses both
   cover, the narrower range wins.
-- A public range (not `10.x`, `172.16–31.x`, `192.168.x`, `100.64–127.x` or `fd00::/8`) needs
-  a confirmation, because WARP users would reach those addresses through this machine instead of
-  the internet.
+- A public range (not `10.x`, `172.16–31.x`, `192.168.x`, `100.64–127.x` or `fd00::/8`)
+  needs a confirmation (**Send these public addresses through this Mac**), because WARP
+  users would reach those addresses through this machine instead of the internet.
 - Ranges broader than `/8` (IPv4) or `/16` (IPv6), loopback and link-local addresses are
   refused.
 
-Routes go in the account's default virtual network. Removing this machine's tunnel removes the
-ranges routed to it; other tunnels' ranges are never touched.
+Routes go in the account's default virtual network. Removing this machine's tunnel removes
+the ranges routed to it; other tunnels' ranges are never touched.
 
 ### When WARP users can't reach it
-The **Doctor** reads your WARP settings once you share a network and warns about the two
-usual causes, which only you can change in the Zero Trust dashboard:
 
-- **Split Tunnels exclude the range.** Cloudflare's default device profile excludes private
-  address space such as `192.168.0.0/16`, so WARP sends that traffic to the local network.
-  Remove or narrow the entry (`network.excluded`), or, in include mode, add the range
-  (`network.not_included`).
+The [Doctor](/docs/reference/doctor) reads your WARP settings once you share a network and
+warns about the usual causes, which only you can change in the Zero Trust dashboard:
+
+- **Split Tunnels exclude the range** (`network.excluded`). Cloudflare's default device
+  profile excludes private address space such as `192.168.0.0/16`, so WARP sends that
+  traffic to the local network. Remove or narrow the entry.
+- **Split Tunnels don't include it** (`network.not_included`), in include mode: add the
+  range.
 - **The Gateway proxy is off** (`network.proxy_off`). Turn it on for TCP, and UDP if your
   services use it.
 
-Your API token needs **Cloudflare Tunnel** (edit) to manage ranges, and Zero Trust read
-access for the Doctor to check WARP settings. Without them, routes keep working and the
-private networks section says what's missing.
+Without read access to the Zero Trust settings, routes keep working and the Private
+Networks section says what's missing ("This account's API token can't read private
+networks.").
 
-## Connect to SSH, RDP and TCP routes
-A route can also carry SSH, Remote Desktop, SMB or any TCP service: use an origin like
-`ssh://localhost:22`, `rdp://localhost:3389` or `tcp://localhost:5432`. A browser can't open
-these, so the route's inspector shows what visitors run instead, with **cloudflared**
-installed on their computer:
+## Connect to SSH, RDP, SMB and TCP routes
+
+A route can carry SSH, Remote Desktop, SMB or any TCP service: use an origin like
+`ssh://localhost:22`, `rdp://localhost:3389`, `smb://localhost:445` or
+`tcp://localhost:5432`.
 
 ```sh
-# SSH
-ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.example.com
-# a database (then connect to localhost:5432)
-cloudflared access tcp --hostname db.example.com --url localhost:5432
+teitunnel route add ssh.teispace.com ssh://localhost:22 --allow team@teispace.com
 ```
 
-For SSH it also gives an `~/.ssh/config` entry, so plain `ssh ssh.example.com` works.
-Combine it with [Require a login](/docs/guides/require-login) so only the people you choose can
-connect: cloudflared opens the browser to sign in the first time.
+A browser can't open these, so the route's details show a **Connect** section with the
+command visitors run, with **cloudflared** installed on their computer:
+
+| Origin | Visitors run | Then |
+|---|---|---|
+| `ssh://` | `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.teispace.com` | That's it. |
+| `rdp://` | `cloudflared access rdp --hostname rdp.teispace.com --url rdp://localhost:3389` | Point the Remote Desktop app at `localhost:3389`. |
+| `smb://` | `cloudflared access smb --hostname files.teispace.com --url localhost:8445` | Open `smb://localhost:8445` in the file browser. |
+| `tcp://` | `cloudflared access tcp --hostname db.teispace.com --url localhost:5432` | Point the app at `localhost:5432`. |
+
+For SSH it also gives an `~/.ssh/config` entry, so plain `ssh ssh.teispace.com` works:
+
+```text
+Host ssh.teispace.com
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+The local port for RDP and TCP is the route's own port; SMB uses 8445, since 445 is taken
+on most computers. Keep the command running while you're connected.
+
+Combine it with [Require a login](/docs/guides/require-login) so only the people you choose
+can connect: cloudflared opens the browser to sign in the first time. The
+[SSH tutorial](/docs/tutorials/ssh) walks through it end to end.
+
+## Related
+
+<Cards>
+  <Card title="SSH tutorial" href="/docs/tutorials/ssh" description="SSH into a home machine, end to end." />
+  <Card title="Require a login" href="/docs/guides/require-login" description="Only the people you list." />
+  <Card title="Doctor checks" href="/docs/reference/doctor" description="network.excluded and the other checks." />
+  <Card title="Cloudflare Tunnel" href="/docs/concepts/cloudflare-tunnel" description="Which protocols work where." />
+</Cards>

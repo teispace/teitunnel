@@ -1,7 +1,7 @@
 # Teitunnel Preview (GitHub Action)
 
 Pull request previews on **your own domain**, served from **your own Cloudflare account**:
-`https://pr-42.preview.example.com`, commented on the pull request, updated on every push,
+`https://pr-42-preview.teispace.com`, commented on the pull request, updated on every push,
 and removed when the pull request closes.
 
 Two kinds of preview:
@@ -41,7 +41,7 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           build: true
-          zone: example.com
+          zone: teispace.com
 
   cleanup:
     if: github.event.action == 'closed'
@@ -51,7 +51,7 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: cleanup
-          zone: example.com
+          zone: teispace.com
 ```
 
 A live share of a server the job started:
@@ -65,7 +65,7 @@ A live share of a server the job started:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: share
           port: 3000
-          zone: example.com
+          zone: teispace.com
       - run: npx playwright test
         env:
           BASE_URL: ${{ steps.preview.outputs.url }}
@@ -87,7 +87,7 @@ More in [`examples/`](examples): the workflow above and a
 | `port` / `url` | | Share mode: the server the job started (`3000`, or `http://localhost:8080`). |
 | `path` | `.` | Snapshot mode: the folder to publish, or the project with `build`. |
 | `build` | `false` | Snapshot mode: build the project first (its package manager runs its build script; Next.js needs `output: 'export'`). |
-| `hostname` | `pr-{number}.preview.{zone}` | The hostname template (below). |
+| `hostname` | `pr-{number}-preview.{zone}` | The hostname template (below). |
 | `zone` | | One of the account's domains, for `{zone}`. |
 | `name` | `{repo}-pr-{number}` | Snapshot mode: its name (the Worker is `teitunnel-<name>`). Keep it unique per repository and pull request. |
 | `expires` | | End by itself: share `30m`, `2h`; snapshot `7d`. |

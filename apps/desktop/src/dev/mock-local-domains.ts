@@ -24,7 +24,7 @@ const domain = (view: Partial<LocalDomainView> & { name: string }): LocalDomainV
 
 let domains: LocalDomainView[] = [
   domain({
-    name: "api.localhost",
+    name: "api.teispace.localhost",
     origin: "http://localhost:4000",
     target: { kind: "port", port: 4000 },
     wildcard: true,
@@ -32,14 +32,14 @@ let domains: LocalDomainView[] = [
     requests: 128,
   }),
   domain({
-    name: "phone.local",
+    name: "teispace.local",
     origin: "http://localhost:5173",
     target: { kind: "port", port: 5173 },
     requests: 12,
   }),
   domain({
-    name: "shop.test",
-    project: "/Users/ada/code/shop/teitunnel.yml",
+    name: "shop.teispace.test",
+    project: "~/code/shop/teitunnel.yml",
     requests: 342,
   }),
 ];
@@ -47,7 +47,7 @@ let trusted = false;
 let lan = false;
 
 const ca = {
-  commonName: "Teitunnel Local CA (ada@studio)",
+  commonName: "Teitunnel Local CA (teispace@Teispace-MacBook)",
   sha256: "4F2A…",
   notAfter: 2_100_000_000,
 };

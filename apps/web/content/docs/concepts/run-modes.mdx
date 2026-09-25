@@ -1,37 +1,168 @@
 ---
 title: Run modes
-description: Keep Cloudflare Tunnel routes running only while Teitunnel is open, or all the time as a launchd, systemd or Task Scheduler service that starts at login or boot.
+description: "Where this computer's Cloudflare Tunnel connector runs: in the Teitunnel app, as an Always-on launchd, systemd or Task Scheduler service that survives quitting and restarts, in the foreground with teitunnel up, with a web dashboard with teitunnel serve, or in Docker."
 ---
 
-This machine's connector (the cloudflared process that carries your routes) runs in one of two
-modes, set per tunnel in **Tunnels ▸ Running ▸ Keep running when Teitunnel quits**.
+Your routes answer only while a **connector** for their tunnel (a `cloudflared` process)
+runs somewhere and holds its connections to Cloudflare. Teitunnel can run this computer's
+connectors in several ways. They all serve the same tunnel and the same routes, so you can
+switch between them without touching Cloudflare.
 
-| | While Teitunnel runs | Always-on |
-|---|---|---|
-| Runs when | the app is open, including in the menu bar or tray | always, from login, even after you quit |
-| Started by | Teitunnel | your system: a launch agent on macOS, a Task Scheduler task on Windows, a `systemd --user` unit on Linux |
-| Run token | passed to the process in memory | a file only you can read (`0600`), removed when you turn it off |
-| Restarts after a crash | yes, with backoff | yes, by the system |
+| Mode | Runs while | Started by | Good for |
+|---|---|---|---|
+| **With the app** (default) | Teitunnel is open, including when only its menu bar or tray icon shows | The app | A laptop you work on |
+| **Always-on** | Always: from login (or boot, on servers), even after you quit the app | Your system's service manager | A desktop that serves things all day, a home server |
+| **`teitunnel up`** | The command runs | You, a terminal, or a process supervisor | Servers, containers, CI |
+| **`teitunnel serve`** | The command runs | Same as `up` | Servers you want to see and manage from a browser |
 
-<Screenshot name="tunnels" alt="Tunnels: this machine's tunnel with its connector, private networks, the Keep running switch and traffic" />
+## With the app
 
-**Switching doesn't drop your routes.** The new connector starts and must connect before the
-old one stops. If it doesn't connect within 30 seconds, the old one keeps running and you're
-told why.
+This is where every tunnel starts. The app starts a connector for each of this computer's
+tunnels, watches its health, and restarts it with increasing delays (from 1 second up to a
+minute) if it crashes. If it crashes more than five times in two minutes, Teitunnel stops
+retrying and the [Doctor](/docs/reference/doctor) shows why, with its last log lines.
 
-Closing the window keeps everything running in the menu bar or tray. Quitting (⌘Q, or
-**Quit Teitunnel** from the tray) with routes running through the app asks first, and offers
-to switch them to Always-on.
+- The tunnel's run token is handed to cloudflared in its environment, never on the command
+  line, so other programs can't read it from the process list.
+- **Closing the window keeps everything running** in the menu bar (or the tray on Windows and
+  Linux). **Settings ▸ General ▸ Open at login** starts Teitunnel there when you log in,
+  without opening a window.
+- **Quitting** (⌘Q, or **Quit Teitunnel** from the menu bar) while routes run through the
+  app asks first: *Your routes stop when Teitunnel quits. They can keep running in the
+  background instead, and start again when you log in.* Choose **Keep Routes Running** to
+  switch them to Always-on, or **Quit Anyway**.
+- **Stop Routes on This Mac** in the menu bar, or **Stop on This Mac** in **Tunnels**, stops
+  the connectors on purpose (the menu bar icon doesn't flag it as a problem);
+  **Start on This Mac** starts them again.
 
-## On servers
+## Always-on
 
-`teitunnel always-on on` does the same without the app. Run as root, it installs a
-**system** service that starts at boot, before anyone logs in; see
-[servers](/docs/guides/servers#any-linux-server-vps-ec2-azure-vm-compute-engine). In a
-container, the image runs the connectors itself (`teitunnel up`).
+<Screenshot name="tunnels" alt="Tunnels: this computer's tunnel with its connector, the Keep running when Teitunnel quits switch and traffic" />
 
-## Updates
+In **Tunnels**, select the tunnel and turn on **Running ▸ Keep running when Teitunnel quits**.
+Teitunnel installs a service that runs the connector without the app:
 
-When cloudflared is updated, running connectors move to the new version one at a time.
-An Always-on connector is covered by a temporary one while it restarts, so routes stay
-up throughout.
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| Service | A launch agent in `~/Library/LaunchAgents` | A Task Scheduler task | A `systemd --user` unit |
+| Starts | At login | At logon | At login (and at boot with lingering, see below) |
+| Restarts after a crash | Yes (launchd) | Yes (Task Scheduler) | Yes (systemd) |
+
+- The service reads the run token from a file only your user can read (`0600`) in
+  Teitunnel's data folder. It's removed when you turn Always-on off. This is the only place
+  a secret is ever written to a file.
+- Its log goes to Teitunnel's data folder, and the app shows it in **Tunnels ▸ Logs** as
+  usual.
+- The app only observes an Always-on connector; it never supervises it. Quitting or updating
+  the app can't take those routes down.
+- On Linux, user services stop when you log out. Run `loginctl enable-linger` once to keep
+  them running after logout and start them at boot.
+
+**Switching doesn't drop your routes.** When you turn Always-on on or off, the new connector
+starts and must connect to Cloudflare before the old one stops (*Switching without dropping
+connections…*). If it doesn't connect within 30 seconds, the old one keeps running and you're
+told why, for example *The always-on connector didn't connect within 30 seconds. This Mac
+keeps using the app's connector.*
+
+From a terminal:
+
+```sh
+teitunnel always-on on                   # every tunnel of the account
+teitunnel always-on on --tunnel staging  # one tunnel
+teitunnel always-on status
+teitunnel always-on off
+```
+
+```text
+$ teitunnel always-on status
+laptop	always on, running
+staging	runs with the app
+```
+
+Run as **root on a Linux server**, `teitunnel always-on on` installs a **system** unit instead,
+which starts at boot before anyone logs in and runs sandboxed. See
+[servers](/docs/guides/servers).
+
+## teitunnel up
+
+`teitunnel up` runs every tunnel of this computer, for every connected account, in the
+foreground until you press Ctrl-C or the process is stopped. It's the command for servers
+and containers, and for any process supervisor (systemd, runit, Docker, Kubernetes).
+
+```text
+$ teitunnel up
+Running 1 tunnel(s): laptop. Press Ctrl-C to stop.
+laptop: connecting
+laptop: connected
+```
+
+- Tunnels that are Always-on are left to their service: *staging runs as a service already
+  (Always-on); leaving it to it.*
+- In a folder with a [project file](/docs/guides/project-file) (`teitunnel.yml`), `up` shows
+  and applies its plan first, and runs its shares for as long as it runs. `--file` picks
+  another file, `--no-project` ignores it, and `--yes`, `--replace` and `--strict` work as
+  in `project apply`.
+- While it runs, `up` also does what the app would: it checks each route's
+  [uptime](/docs/guides/analytics#uptime) every minute and prints alerts, applies
+  [pauses and schedules](/docs/guides/sharing#pause-and-resume) of this computer's routes
+  (when the app isn't doing it already), and points back any route an ended inspection left
+  behind.
+- On a server without a keychain, give it the API token in the environment:
+  `CLOUDFLARE_API_TOKEN`, or `CLOUDFLARE_API_TOKEN_FILE` for Docker and Kubernetes secrets.
+  It's used for that command and never stored.
+
+## teitunnel serve
+
+`teitunnel serve` does everything `up` does and adds a small web dashboard and JSON API,
+listening on `127.0.0.1:8765` by default. Set its password with
+`teitunnel serve --set-password`, create keys for automation with `teitunnel api-key create`,
+and put TLS in front of it before using `--listen` on a public address with
+`--allow-remote`. See [servers](/docs/guides/servers) and the [API](/docs/reference/api).
+
+## Docker
+
+The `teispace/teitunnel` image runs `teitunnel up` by default, keeps its state in `/data`,
+and uses `teitunnel routes --check` as its health check:
+
+```sh
+docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
+  teispace/teitunnel route add app.teispace.com http://web:80 --yes
+docker run -d --name teitunnel --restart unless-stopped \
+  -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app teispace/teitunnel
+```
+
+Inside a container, `localhost` is the container itself: point routes at other containers by
+their service name. See [Docker Compose](/docs/tutorials/docker-compose).
+
+## Several places at once
+
+A tunnel can run on several machines, and on one machine in more than one mode, at the
+same time. Cloudflare then splits requests between the connectors. That's how
+[load balancing](/docs/guides/load-balancing) and zero-downtime switches work, but if two
+machines run the same tunnel by accident, some visitors reach the wrong one. The Doctor warns
+when another machine runs this computer's tunnel, and when two connectors on this computer
+do.
+
+## cloudflared updates
+
+When Teitunnel installs a new cloudflared, running connectors move to it one account at a
+time. A connector run by the app restarts in place in a few seconds. An Always-on connector
+is covered by a temporary one while its service is reinstalled, so routes stay up throughout;
+if the reinstall fails, the temporary connector keeps serving and you're told.
+
+## Troubleshooting
+
+- **"Always-on isn't available on this system."** No supported service manager was found
+  (for example, a Linux system without systemd). Use `teitunnel up` under your own supervisor.
+- **"The background service couldn't be set up: …"** The service manager refused the service.
+  The app's connector keeps serving; the detail says why.
+- **Routes stop when you log out (Linux).** Run `loginctl enable-linger`.
+- **"This machine has no tunnel to run. Add a route first (`teitunnel route add …`)."**
+  `teitunnel up` found no tunnel for this computer in any connected account.
+
+## Related
+
+- [Routes and tunnels](/docs/concepts/routes-and-tunnels)
+- [Servers](/docs/guides/servers) and [Docker Compose](/docs/tutorials/docker-compose)
+- [The menu bar and tray](/docs/guides/menu-bar)
+- [Several tunnels](/docs/guides/several-tunnels)

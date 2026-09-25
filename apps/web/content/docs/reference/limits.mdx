@@ -1,0 +1,203 @@
+---
+title: Limits and costs
+description: What each Teitunnel feature costs on Cloudflare and which limits apply — Quick Tunnels, Cloudflare Tunnel, Zero Trust, Workers, D1, WAF and Transform Rules, analytics — with the free plan's numbers and when they were checked.
+---
+
+Teitunnel is free and open source, with no paid tier and no limits of its own on what
+you share. What it builds lives on **your Cloudflare account**, so Cloudflare's plans and
+limits apply. Most people never leave Cloudflare's free plans. This page lists, feature by
+feature, what it uses on Cloudflare, what's free, and the limits that matter.
+
+<Callout title="Cloudflare changes its plans">
+  The numbers below were checked against Cloudflare's documentation on the dates shown.
+  Cloudflare's own pages are the final word; links are in each section.
+</Callout>
+
+## At a glance
+
+| Feature | Cloudflare product | Free plan enough? |
+|---|---|---|
+| [Quick Share](/docs/getting-started/quick-share) (random address) | Quick Tunnels | Yes, no account needed |
+| [Routes](/docs/getting-started/first-route) and shares on your domain | Cloudflare Tunnel, DNS | Yes |
+| [Require a login](/docs/guides/require-login), [service tokens](/docs/guides/protection#service-tokens-for-machines) | Zero Trust (Access) | Yes, up to 50 users |
+| [Private networks](/docs/guides/private-networks) | Zero Trust (WARP, Gateway) | Yes, up to 50 users |
+| [Snapshots](/docs/guides/snapshots) | Workers Static Assets | Yes |
+| [Offline page](/docs/guides/offline-page), [webhook inbox](/docs/guides/webhook-inbox) | Workers routes | Yes, 100,000 requests a day |
+| [Comments](/docs/guides/comments) on Snapshots, webhook inbox storage | D1 | Yes |
+| [Edge protection](/docs/guides/protection): bot and header rules | WAF custom rules, Transform Rules | Yes |
+| Edge protection: rate limiting one hostname | WAF rate limiting rules | No, Pro or higher |
+| [Analytics](/docs/guides/analytics) | GraphQL Analytics | Yes; history depends on the plan |
+| [Load balancing](/docs/guides/load-balancing) | Load Balancing | No, a paid add-on |
+| [Inspector](/docs/guides/inspector), [local domains](/docs/guides/local-domains), [exposure check](/docs/guides/exposure-check) | None: on your computer | Nothing on Cloudflare |
+
+## Quick Shares
+
+A Quick Share with a random `trycloudflare.com` address uses Cloudflare's Quick Tunnels:
+free, with no account. They're meant for testing:
+
+- At most **200 requests in flight** at once; more get **429**.
+- **No Server-Sent Events**, so event streams, MCP servers over SSE and some live-reload
+  setups don't work. `teitunnel share --mcp` needs `--on` for this reason.
+- A **new random address** every time, and no uptime guarantee.
+- A brand-new address looked up before it exists can be cached as missing by a resolver
+  for up to 30 minutes.
+
+For any of these, share on your own domain instead (**Address ▸ On** *your domain*, or
+`teitunnel share 3000 --on demo.teispace.com`): same free plan, same URL each time.
+
+Checked 2026-09-24. Source:
+[Quick Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/).
+
+## Cloudflare Tunnel and routes
+
+Cloudflare Tunnel is free on every plan, with no charge for traffic through it. A route
+needs a domain whose nameservers point to Cloudflare; the free plan is enough. Limits that
+apply to every request through a tunnel:
+
+| Limit | Free and Pro | What you see |
+|---|---|---|
+| Time to start answering | about 100 seconds | error 524 |
+| Request body size | 100 MB | error 413 |
+| Free certificate | one level of subdomain (`app.teispace.com`, not `a.b.teispace.com`) | SSL handshake error |
+
+See [What is Cloudflare Tunnel?](/docs/concepts/cloudflare-tunnel#limits-worth-knowing) and
+[Troubleshooting](/docs/reference/troubleshooting).
+
+## Logins, service tokens and private networks
+
+Logins, service tokens and private networks use Cloudflare Zero Trust, which is **free for
+up to 50 users**. An account has to set it up once in the dashboard (a team name and the
+Free plan); Teitunnel shows **Set up Cloudflare Zero Trust** when it's needed.
+
+| Limit | Per account |
+|---|---|
+| Service tokens | 50 |
+| Access applications | 500 |
+| Reusable Access policies | 500 |
+
+Checked 2026-09-24. Source:
+[Cloudflare One account limits](https://developers.cloudflare.com/cloudflare-one/account-limits/),
+[service tokens](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/).
+
+## Snapshots
+
+A Snapshot is a Worker with static assets on your account. Requests for its files are
+**free and unlimited**; the Worker's script only runs when the Snapshot has a password
+or comments, and then each request counts against Workers' daily requests.
+
+| Limit | Free | Workers Paid |
+|---|---|---|
+| Files per version | 20,000 | 100,000 |
+| Size of one file | 25 MiB | 25 MiB |
+| Workers per account | 100 | 500 |
+| Requests that run a Worker | 100,000 a day | billed |
+| Custom domains per zone | 100 | 100 |
+
+Teitunnel checks the file count and sizes against the free limits before uploading.
+Checked 2026-09-24. Source:
+[Workers limits](https://developers.cloudflare.com/workers/platform/limits/).
+
+## Offline page and webhook inbox
+
+Both are Workers in front of a route's hostname, so **every request to that hostname runs
+the Worker**, even while your computer is on.
+
+- Workers on the free plan run for **100,000 requests a day per account**, reset at 00:00
+  UTC.
+- Teitunnel creates their routes to **fail open**: past the limit, requests go straight to
+  your tunnel as if no Worker were there. Your site keeps working; only the offline page, or
+  keeping webhooks while you're offline, pauses until the next day.
+- The plan shows this cost before you turn either on, and both are off unless you choose
+  them for a route.
+
+The inbox itself keeps at most **1,000 webhooks** of up to **512 KB** each for 1 to 30 days
+(you choose), and answers 503 with `Retry-After` when full.
+
+Checked 2026-09-25. Sources:
+[Workers limits](https://developers.cloudflare.com/workers/platform/limits/),
+[Workers routes](https://developers.cloudflare.com/workers/configuration/routing/routes/).
+
+## Comments and inbox storage (D1)
+
+Snapshot comments and webhook inboxes share one D1 database on your account,
+`teitunnel-data`.
+
+| Limit | Free |
+|---|---|
+| Databases per account | 10 |
+| Size of one database | 500 MB |
+| Storage per account | 5 GB |
+| Rows read | 5 million a day |
+| Rows written | 100,000 a day |
+
+Past a daily limit, Cloudflare refuses queries until it resets. Teitunnel adds its own
+limits to comments: 2,000 per share or Snapshot, 200 per thread, and 10 a minute (60 an
+hour) from one visitor. Comments on live shares are kept on your computer and use no D1.
+
+Checked 2026-09-25. Source: [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
+
+## Edge protection
+
+Rules are always scoped to one hostname and count against your domain's plan:
+
+| Limit per domain | Free | Pro | Business |
+|---|---|---|---|
+| Custom rules (bots, AI crawlers) | 5 | 20 | 100 |
+| Rate limiting rules | 1 | 2 | 5 |
+| Rate limiting can match a hostname | **No** | Yes | Yes |
+| Rate limiting period | 10 s | up to 1 min | up to 10 min |
+| Transform Rules (headers) | 10 | 25 | 50 |
+
+On Free, a rate limiting rule can only match paths, so it would apply to the whole domain.
+Teitunnel never changes a whole domain, so it refuses rate limiting on Free and explains
+why. Bot and header rules work on Free. The review shows how much of your plan's quota a
+change uses.
+
+Checked 2026-09-24. Sources:
+[custom rules](https://developers.cloudflare.com/waf/custom-rules/),
+[rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/),
+[Transform Rules](https://developers.cloudflare.com/rules/transform/).
+
+## Analytics and uptime
+
+Traffic per hostname comes from Cloudflare's GraphQL Analytics, which is included in every
+plan:
+
+- How far back you can look depends on your domain's plan. Teitunnel reads the limit from
+  Cloudflare and says from when data is available.
+- Numbers come from sampled data, so at high volume they're estimates.
+- Cloudflare allows 300 analytics queries per 5 minutes per user. Teitunnel caches answers
+  and stays under 200 per account.
+
+Uptime checks run on your computer, every minute, while the app, `teitunnel up` or
+`teitunnel serve` runs. Each check is one request to your route through Cloudflare. Raw
+checks are kept for 2 days and hourly totals for 30 days, on your computer.
+
+Checked 2026-09-24. Source:
+[GraphQL Analytics limits](https://developers.cloudflare.com/analytics/graphql-api/limits/).
+
+## Load balancing
+
+Load balancing across machines uses Cloudflare Load Balancing, a **paid add-on**. Turn it
+on in the Cloudflare dashboard first; Teitunnel then sets up the monitor, pool and load
+balancer. See [Load balancing](/docs/guides/load-balancing).
+
+## On your computer
+
+The inspector, local HTTPS domains, the exposure check, backups and the Doctor use nothing
+on Cloudflare. The inspector keeps up to 5,000 requests per share or route (256 MB in all)
+for a day by default, and up to 1 MiB of each body.
+
+## Related
+
+<Cards>
+  <Card title="Accounts and permissions" href="/docs/guides/accounts">
+    What each feature needs from your account.
+  </Card>
+  <Card title="Troubleshooting" href="/docs/reference/troubleshooting">
+    What you see when a limit is reached.
+  </Card>
+  <Card title="What is Cloudflare Tunnel?" href="/docs/concepts/cloudflare-tunnel">
+    How it works, and what it costs.
+  </Card>
+</Cards>

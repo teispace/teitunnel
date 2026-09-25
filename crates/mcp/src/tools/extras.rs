@@ -39,7 +39,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Use it to take a demo offline for a moment, or while fixing something, and bring it back at the same URL. The Teitunnel process serving the route shows the page (the app, `teitunnel up`/`serve`, or the terminal running the share); a route that isn't inspected is pointed at the inspector first through a plan, and back on resume.\n\
              \n\
-             Example: {\"share\": \"demo.example.com\"}",
+             Example: {\"share\": \"demo.teispace.com\"}",
             ToolClass::Change,
             change,
             Duration::from_secs(90),
@@ -49,7 +49,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             "Resume a paused share",
             "Serve a paused share or route again at the same address (see pause_share).\n\
              \n\
-             Example: {\"share\": \"https://demo.example.com\"}",
+             Example: {\"share\": \"https://demo.teispace.com\"}",
             ToolClass::Change,
             change,
             Duration::from_secs(90),
@@ -61,7 +61,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              The process serving the route applies it (the app, `teitunnel up`/`serve`, or the terminal running the share). Pausing or resuming by hand holds until the schedule's next change.\n\
              \n\
-             Examples: {\"share\": \"demo.example.com\", \"days\": \"mon-fri\", \"from\": \"09:00\", \"to\": \"18:00\"} · {\"share\": \"demo.example.com\", \"off\": true}",
+             Examples: {\"share\": \"demo.teispace.com\", \"days\": \"mon-fri\", \"from\": \"09:00\", \"to\": \"18:00\"} · {\"share\": \"demo.teispace.com\", \"off\": true}",
             ToolClass::Change,
             change,
             super::DEFAULT_TIMEOUT,
@@ -73,7 +73,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              \n\
              Without `hostname` it's a Quick Share at a random trycloudflare.com URL; with `hostname` it's a temporary route on the person's domain. It ends like any share this server started (stop_share, `expiresInMinutes`, or when this session ends).\n\
              \n\
-             Examples: {\"path\": \"/Users/me/site/dist\", \"spa\": true} · {\"path\": \"./public\", \"hostname\": \"docs.example.com\", \"listing\": true}",
+             Examples: {\"path\": \"~/site/dist\", \"spa\": true} · {\"path\": \"./public\", \"hostname\": \"docs.teispace.com\", \"listing\": true}",
             ToolClass::Change,
             Hints {
                 read_only: false,

@@ -36,7 +36,7 @@ let domainShares: DomainShare[] = [
     owner: "app",
     expiresAt: now + 55 * 60_000,
     createdAt: now - 5 * 60_000,
-    source: "/Users/demo/Projects/docs/dist",
+    source: "~/Projects/docs/dist",
     folder: true,
     paused: false,
     schedule: null,
@@ -115,11 +115,23 @@ export function sharingMock(cmd: string, payload: Record<string, unknown>): unkn
         .replace("{branch}", "login-fix")
         .replace("{user}", "demo");
     case "sharing_choose_folder":
-      return "/Users/demo/Projects/docs/dist";
+      return "~/Projects/docs/dist";
     case "sharing_folder":
       return { path: payload["path"], listing: payload["listing"], spa: payload["spa"] };
     case "ai_agents":
       return agents();
+    case "integrations_get":
+    case "integrations_set":
+    case "integrations_revoke":
+      return {
+        controlEnabled: true,
+        deepLinksEnabled: true,
+        clients: [
+          { name: "vscode", version: "0.2.0", approvedAt: now - 3 * 86_400_000 },
+          { name: "raycast", version: "0.2.0", approvedAt: now - 86_400_000 },
+        ],
+        shortcut: { enabled: true, keys: "CommandOrControl+Alt+Shift+S", action: "shareDevServer" },
+      };
     case "inspect_openapi_save":
       return {
         path: "~/Downloads/teitunnel-openapi.json",

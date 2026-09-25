@@ -1,50 +1,132 @@
 ---
 title: Traffic, logs and notifications
-description: Traffic charts, logs per route and per connector, and notifications when a Cloudflare Tunnel connector goes down.
+description: "Watch a Cloudflare Tunnel connector's traffic, read logs per connector and per route, follow the live log of any machine running a tunnel, and get notified when a connector goes down, keeps crashing or the Doctor finds a problem. In the app and from a terminal."
 ---
+
+Teitunnel shows what this computer's connectors are doing (requests, failures, the round trip
+to Cloudflare, their logs) and tells you when something goes wrong, even with the window
+closed. For per-route numbers from Cloudflare's edge and uptime checks, see
+[analytics, uptime and alerts](/docs/guides/analytics); for individual requests, the
+[inspector](/docs/guides/inspector).
 
 ## Traffic
 
-**Tunnels ▸ Traffic** charts this machine's connector: requests and failed requests per
-second, and the round trip to Cloudflare, over the last **hour**, **day** or **week**.
-While the chart is open it updates every second; history is kept per minute for seven
-days. Below it: the current rate, responses by status class (2xx, 3xx, 4xx, 5xx), totals
-and the edge locations in use. **Overview** shows a summary.
+<Screenshot name="tunnels" alt="Tunnels: this computer's tunnel with its connector and traffic chart" />
 
-cloudflared reports traffic per tunnel, not per hostname, so these numbers cover all of
-this machine's routes together.
+Select a tunnel in **Tunnels**; its **Traffic** section charts this computer's connector:
 
-<Screenshot name="tunnels" alt="Tunnels: this machine's tunnel with its connector and traffic chart" />
+- **Requests** and **Failed** requests per second;
+- the **Round trip** to Cloudflare;
+- over the last **Hour**, **Day** or **Week**.
+
+Below the charts: **Now** (the current rate, such as *4.2 requests/s*), **Responses** by status
+class (2xx, 3xx, 4xx, 5xx), **Since start** (*1,204 requests, 3 failed*), the number of
+**Connections**, and the **Edge** locations in use (such as `AMS01`, `FRA08`). The traffic card
+on **Overview** shows a summary and opens [Analytics](/docs/guides/analytics).
+
+While the chart is open it updates every second; otherwise the connector is sampled every 10
+seconds. History is kept per minute for seven days, so the Day and Week views survive restarts.
+The numbers come from the connector's own metrics on this computer: they count every request it
+carried, and nothing is sent anywhere.
+
+cloudflared reports traffic per tunnel, not per hostname, so these numbers cover all of the
+tunnel's routes together. Per-route numbers come from Cloudflare's edge in
+[Analytics](/docs/guides/analytics).
 
 ## Logs
 
-- **Tunnels ▸ Logs** shows the connector's log.
-- **Routes ▸ Logs** shows only the lines about that route's requests. cloudflared logs
-  failed requests; successful ones are logged only at debug level.
+- **Tunnels ▸ Logs** shows the connector's log: connections to Cloudflare opening and closing,
+  configuration updates, and errors reaching your services.
+- **Routes**, select a route, **Logs** shows only the lines about that route's requests.
+  cloudflared logs failed requests; successful ones are logged only at debug level, so an empty
+  log says *No failed requests. Successful ones aren't logged.*
 
-Search, filter to warnings or errors, pause, copy, or save to a file (secrets are removed
-from saved logs).
+The log viewer can **Show** **All**, **Warnings** or **Errors**, **Search** the log, **Pause**
+and **Resume** it, **Copy** the visible lines, or **Save** them to a file. Secrets are removed
+from saved logs.
+
+The connector's log is kept in bounded files in Teitunnel's data folder, including for
+[Always-on](/docs/concepts/run-modes#always-on) connectors, so it survives restarts without
+growing forever. For a request-level view (headers, bodies, timing), use the
+[inspector](/docs/guides/inspector).
 
 ## Machines running a tunnel
-**Tunnels** lists every machine connected for a tunnel: its public address, cloudflared
-version and the Cloudflare locations it connects to, with this machine marked. Choose
-**Logs** next to another machine to follow its connector's log live, relayed by
-Cloudflare while the sheet is open, with nothing to install there. This works for any
-tunnel in the account, such as one running on a server. It shows warnings, errors and
-connection changes, and needs the token's Cloudflare Tunnel permission (Edit).
 
-If another machine also runs *this machine's* tunnel, the Doctor warns you. Cloudflare splits
-requests between the machines, and each one sends them to its own services, so some
-visitors would reach the other machine instead of this machine. Stop cloudflared there.
+**Tunnels** lists every machine connected for a tunnel, with this computer marked
+(**This Mac**): its public address, cloudflared version and the Cloudflare locations it connects
+to. A route's **Machines** section shows the same for the tunnel that carries it.
+
+Choose **Logs** next to another machine to follow its connector's log live (**Connector Logs**,
+*Relayed live by Cloudflare while this is open*), with nothing to install there. It works for any
+tunnel in the account, such as one running on a server, and shows warnings, errors and connection
+changes. It needs the account's token to have the **Cloudflare Tunnel** permission (Edit).
+
+If another machine also runs *this computer's* tunnel, the Doctor warns you: *Another machine
+also runs this Mac's tunnel.* Cloudflare splits requests between the machines running a tunnel,
+and each sends them to its own services, so some visitors reach the other machine instead of
+this one. Find it with its logs and stop cloudflared there. When the other machine is supposed to
+serve the same routes, that's [load balancing](/docs/guides/load-balancing) or
+[adopting a tunnel](/docs/guides/several-tunnels).
 
 ## Notifications
 
 Teitunnel notifies you when:
 
-- this machine's connector loses its connection for more than 20 seconds, and when it's back,
-- a connector keeps crashing,
-- the Doctor finds a new problem (it checks every few minutes, also with the window closed),
-- a Quick Share goes live or stops.
+| When | Notification | Setting |
+|---|---|---|
+| This computer's connector loses its connection for more than 20 seconds, and when it's back | *Routes on this Mac are down* / *Routes are back* | **Routes down or back** |
+| A connector keeps crashing | *The connector keeps stopping* | **Routes down or back** |
+| The Doctor finds a new problem (it checks every few minutes, also with the window closed) | The problem's title, or *Teitunnel found 3 problems* | **Problems** |
+| A Quick Share goes live or stops working | *Quick Share is live* / *Quick Share stopped working* | **Quick Shares** |
+| A route goes down, errors or slows down | See [alerts](/docs/guides/analytics#alerts) | **Alerts** |
+| A request hits a [watched path](/docs/guides/inspector#watched-paths-and-idle-stop) | *Request to /webhooks/stripe* | Per share or route |
 
-Brief blips stay quiet, each problem is announced once, and nothing is shown while a
-Teitunnel window is in front. Each kind can be turned off in **Settings ▸ General**.
+Brief blips stay quiet, each problem is announced once, and nothing is shown while a Teitunnel
+window is in front. Turn each kind on or off in **Settings ▸ General ▸ Notifications**; alerts
+also have **Quiet hours**. How notifications look is up to your system (on macOS,
+**System Settings ▸ Notifications**).
+
+## From a terminal
+
+```sh
+teitunnel status              # whether the app runs, and what it serves
+teitunnel top                 # live dashboard: shares, routes, traffic, requests (q quits, ? for keys)
+teitunnel routes              # each route and its status
+teitunnel routes --check      # exit status 1 unless every route is live
+teitunnel doctor              # the Doctor's checks; exit status 1 on an error
+teitunnel traffic watch       # requests as they arrive, from the inspector
+```
+
+`teitunnel up` prints each tunnel's state as it changes (*laptop: connected*,
+*laptop: connection lost, reconnecting*) and any [alerts](/docs/guides/analytics#alerts).
+`teitunnel top` uses the running app when there is one; `--here` reads this computer's records
+without it.
+
+On a server, `teitunnel serve` shows the same in a web dashboard and its JSON API; see
+[servers](/docs/guides/servers) and the [API](/docs/reference/api).
+
+## Diagnostics
+
+**Help ▸ Export Diagnostics…** saves a small `.tar.gz` with what's useful for a bug report: a
+summary, the Doctor's results, your settings and the end of the newest logs, all with secrets
+removed. The file list is shown before anything is written. Attach it to an issue with
+**Help ▸ Report an Issue…**.
+
+## Troubleshooting
+
+- **The chart says *Traffic appears here a few seconds after the connector starts.*** The
+  connector isn't running yet, or just started.
+- **The Day or Week view is empty (*History appears here after the connector has run for a
+  minute.*).** History is kept per minute; give it a minute.
+- **A route's Logs are empty but visitors see errors.** The errors may come from Cloudflare
+  before the request reaches the tunnel (a login, a firewall rule, a missing DNS record). Test
+  the route, or look at the [Doctor](/docs/reference/doctor).
+- **Another machine's Logs don't connect.** The token needs **Cloudflare Tunnel · Edit**; see
+  [accounts](/docs/guides/accounts).
+
+## Related
+
+- [Analytics, uptime and alerts](/docs/guides/analytics)
+- [Inspector](/docs/guides/inspector)
+- [Doctor](/docs/reference/doctor)
+- [Run modes](/docs/concepts/run-modes)

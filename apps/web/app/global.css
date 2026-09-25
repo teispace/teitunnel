@@ -6,13 +6,37 @@
 
 :root {
   --tt-accent: oklch(0.62 0.19 255);
+  /* Accent as text and as a fill behind white text: 4.5:1 or better on the page. */
+  --tt-accent-text: oklch(0.53 0.2 257);
+  --tt-accent-fill: oklch(0.55 0.2 257);
   --tt-live: oklch(0.72 0.17 150);
+  --tt-live-text: oklch(0.5 0.14 150);
   --tt-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* A window's shadow, as macOS draws it: a close contact shadow and a wide soft one. */
+  --tt-window-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.04), 0 2px 6px rgb(0 0 0 / 0.06), 0 24px 64px -12px rgb(0 0 0 / 0.18);
 }
 
 .dark {
   --tt-accent: oklch(0.7 0.16 255);
+  --tt-accent-text: oklch(0.74 0.14 255);
+  --tt-accent-fill: oklch(0.55 0.2 257);
   --tt-live: oklch(0.78 0.16 150);
+  --tt-live-text: oklch(0.8 0.15 150);
+  --tt-window-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.06), 0 2px 6px rgb(0 0 0 / 0.3),
+    0 24px 64px -12px rgb(0 0 0 / 0.6);
+}
+
+.tt-window {
+  box-shadow: var(--tt-window-shadow);
+}
+
+/* Keyboard focus, visible on every link and button of the site pages. */
+:where(#nd-home-layout) :is(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--tt-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 html {
@@ -163,6 +187,85 @@ html.tt-motion [data-reveal][data-shown] .tt-line {
   transform: none;
 }
 
+/* A new request in the inspector demo. */
+@keyframes tt-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    background-color: color-mix(in oklab, var(--tt-accent) 14%, transparent);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    background-color: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+  }
+}
+
+.tt-row-in {
+  background-color: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+}
+
+html.tt-motion .tt-row-in {
+  animation: tt-row-in 0.45s var(--tt-ease) both;
+}
+
+/* Requests travelling along the lines of the "how it works" diagram, towards your service. */
+@keyframes tt-packet-x {
+  from {
+    left: 100%;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  to {
+    left: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes tt-packet-y {
+  from {
+    top: 100%;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  to {
+    top: 0;
+    opacity: 0;
+  }
+}
+
+.tt-wire::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+}
+
+html.tt-motion .tt-wire::after {
+  opacity: 1;
+  animation: tt-packet-y 1.6s linear infinite;
+  animation-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+@media (min-width: 768px) {
+  html.tt-motion .tt-wire::after {
+    top: 50%;
+    animation-name: tt-packet-x;
+  }
+}
+
 /* Switching tabs on the download page. */
 html.tt-motion .tt-panel {
   animation: tt-rise 0.45s var(--tt-ease) both;
@@ -179,7 +282,12 @@ html.tt-motion .tt-panel {
     transition: none;
   }
 
-  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-settle, .tt-panel) {
+  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-settle, .tt-panel, .tt-row-in) {
     animation: none;
+  }
+
+  html.tt-motion .tt-wire::after {
+    animation: none;
+    opacity: 0;
   }
 }

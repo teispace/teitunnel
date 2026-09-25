@@ -202,6 +202,214 @@ fn both(a: Access, b: Access) -> Grant {
     }
 }
 
+/// A Cloudflare permission Teitunnel asks for, and what needs it. The source of the
+/// docs' "Permissions and scopes" page (`crates/core/tests/permissions_doc.rs`), which
+/// also checks that the table covers every key of the token link and every OAuth scope.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy)]
+pub struct PermissionUse {
+    /// As the dashboard names it; `None` for what only a sign-in asks for.
+    pub name: Option<&'static str>,
+    /// Its key under `permissionFix` in `locales/en.json`, when the app names it there.
+    pub fix_key: Option<&'static str>,
+    /// Its key in the pre-filled "Create API token" link, if the link asks for it.
+    pub token_key: Option<&'static str>,
+    /// The OAuth scopes that grant it at sign-in.
+    pub scopes: &'static [&'static str],
+    /// Whether routes need it; the rest are for optional features.
+    pub required: bool,
+    /// What needs it (Markdown).
+    pub features: &'static str,
+    /// Whether [`probe`] checks it (the rest show up when Cloudflare refuses a change).
+    pub probed: bool,
+}
+
+/// Every permission and scope Teitunnel asks for, in the order the docs list them.
+#[doc(hidden)]
+pub const PERMISSION_USES: &[PermissionUse] = &[
+    PermissionUse {
+        name: Some("Account · Cloudflare Tunnel · Edit"),
+        fix_key: Some("tunnels"),
+        token_key: Some("argotunnel"),
+        scopes: &["argotunnel.write"],
+        required: true,
+        features: "Creating and running tunnels, routes, shares on your domains, private networks with a token, connector logs",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · DNS · Edit"),
+        fix_key: Some("dns"),
+        token_key: Some("dns"),
+        scopes: &["dns.write"],
+        required: true,
+        features: "The DNS records of routes, shares on your domains and reservations (per domain)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · Zone · Read"),
+        fix_key: Some("zones"),
+        token_key: Some("zone"),
+        scopes: &["zone.read"],
+        required: true,
+        features: "Listing your domains",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · Account Settings · Read"),
+        fix_key: None,
+        token_key: Some("account_settings"),
+        scopes: &["account-settings.read"],
+        required: true,
+        features: "Finding and naming the accounts a credential reaches",
+        probed: false,
+    },
+    PermissionUse {
+        name: Some("Account · Access: Apps and Policies · Edit"),
+        fix_key: Some("accessApps"),
+        token_key: Some("access"),
+        scopes: &[
+            "access-app.write",
+            "access-policy.write",
+            "zone-access.write",
+        ],
+        required: false,
+        features: "[Logins](/docs/guides/require-login/) in front of routes, shares and Snapshots (`--allow`)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · Access: Organizations, Identity Providers, and Groups · Edit"),
+        fix_key: Some("accessOrg"),
+        token_key: Some("access_acct"),
+        scopes: &["access-acct.write"],
+        required: false,
+        features: "Logins: adding the one-time code login method when the account has none",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · Analytics · Read"),
+        fix_key: Some("analytics"),
+        token_key: Some("analytics"),
+        scopes: &["analytics.read"],
+        required: false,
+        features: "[Traffic charts](/docs/guides/analytics/) per route and `teitunnel analytics`",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · Account Analytics · Read"),
+        fix_key: Some("accountAnalytics"),
+        token_key: Some("account_analytics"),
+        scopes: &["account-analytics.read"],
+        required: false,
+        features: "Traffic numbers Cloudflare keeps per account",
+        probed: false,
+    },
+    PermissionUse {
+        name: Some("Account · Workers Scripts · Edit"),
+        fix_key: Some("workers"),
+        token_key: Some("workers_scripts"),
+        scopes: &["workers-scripts.write"],
+        required: false,
+        features: "[Snapshots](/docs/guides/snapshots/), [offline pages](/docs/guides/offline-page/) and [webhook inboxes](/docs/guides/webhook-inbox/) (Workers on your account)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · Workers Routes · Edit"),
+        fix_key: Some("workersRoutes"),
+        token_key: Some("workers_routes"),
+        scopes: &["workers-routes.write"],
+        required: false,
+        features: "A hostname on your domain for a Snapshot, an offline page or an inbox (per domain)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · Zone WAF · Edit"),
+        fix_key: Some("zoneWaf"),
+        token_key: Some("zone_waf"),
+        scopes: &["zone-waf.write"],
+        required: false,
+        features: "[Edge protection](/docs/guides/protection/): bot and AI crawler rules, rate limits",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Zone · Transform Rules · Edit"),
+        fix_key: Some("transformRules"),
+        token_key: Some("zone_transform_rules"),
+        scopes: &["zone-transform-rules.write"],
+        required: false,
+        features: "Edge protection: request and response header rules",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · Access: Service Tokens · Edit"),
+        fix_key: Some("serviceTokens"),
+        token_key: Some("access_service_token"),
+        scopes: &["access-service-token.write"],
+        required: false,
+        features: "Service tokens that let machines through a login (`teitunnel service-token`)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · D1 · Edit"),
+        fix_key: Some("d1"),
+        token_key: Some("d1"),
+        scopes: &["d1.write"],
+        required: false,
+        features: "[Snapshot comments](/docs/guides/comments/) and webhook inboxes (a D1 database on your account)",
+        probed: true,
+    },
+    PermissionUse {
+        name: Some("Account · Load Balancing: Monitors and Pools · Edit"),
+        fix_key: Some("lbPools"),
+        token_key: None,
+        scopes: &["load-balancing-monitors-and-pools.write"],
+        required: false,
+        features: "[Load balancing](/docs/guides/load-balancing/) a route across machines (a paid add-on)",
+        probed: false,
+    },
+    PermissionUse {
+        name: Some("Zone · Load Balancers · Edit"),
+        fix_key: Some("lbBalancers"),
+        token_key: None,
+        scopes: &["load-balancers.write"],
+        required: false,
+        features: "Load balancing a route across machines (a paid add-on)",
+        probed: false,
+    },
+    PermissionUse {
+        name: None,
+        fix_key: None,
+        token_key: None,
+        scopes: &["teams-networks.write"],
+        required: false,
+        features: "[Private networks](/docs/guides/private-networks/) (with an API token, Cloudflare Tunnel · Edit covers them)",
+        probed: false,
+    },
+    PermissionUse {
+        name: None,
+        fix_key: None,
+        token_key: None,
+        scopes: &["teams.read"],
+        required: false,
+        features: "The Doctor's WARP checks (read only)",
+        probed: false,
+    },
+    PermissionUse {
+        name: None,
+        fix_key: None,
+        token_key: None,
+        scopes: &["offline_access"],
+        required: false,
+        features: "Keeping the sign-in (a refresh token)",
+        probed: false,
+    },
+];
+
+/// The pre-filled token link's permissions, `(key, type)`.
+#[doc(hidden)]
+pub fn token_template_permissions() -> &'static [(&'static str, &'static str)] {
+    super::template::PERMISSIONS
+}
+
 #[cfg(test)]
 mod tests {
     use wiremock::{
