@@ -69,6 +69,10 @@ async fn populated() -> (Store, MemoryStore) {
     )
     .await
     .unwrap();
+    let hours = crate::schedule::Schedule::parse("mon-fri 09:00-18:00", Some("UTC")).unwrap();
+    crate::schedule::set(&store, "acc", "shop.example.com", Some(&hours))
+        .await
+        .unwrap();
     // The local CA's key sits in the keychain, like every secret.
     keychain
         .set(localdomains::CA_KEYCHAIN_ACCOUNT, &pass(CA_KEY))
@@ -107,6 +111,11 @@ async fn round_trips_to_another_computer() {
     assert_eq!(settings.theme, crate::settings::Theme::Dark);
     let projects = crate::project::registry::list(&fresh).await.unwrap();
     assert_eq!(projects[0].name, "shop");
+    let schedules = crate::schedule::list(&fresh, Some("acc")).await.unwrap();
+    assert_eq!(
+        schedules[0].hostname, "shop.example.com",
+        "schedules come along"
+    );
     let domains = crate::local_domains::registry::list(&fresh).await.unwrap();
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].name.as_str(), "shop.test");

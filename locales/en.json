@@ -2832,7 +2832,8 @@
         "serviceTokens": "Service tokens",
         "localDomains": "Local domains",
         "cloudDatabases": "Databases Teitunnel created",
-        "frontWorkers": "Offline pages and webhook inboxes"
+        "frontWorkers": "Offline pages and webhook inboxes",
+        "routeSchedules": "Schedules of routes and shares"
       }
     },
     "localDomains": {

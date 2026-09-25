@@ -58,6 +58,9 @@ const TABLES: &[(&str, &[&str])] = &[
     ("local_domains", &[]),
     ("cloud_databases", &[]),
     ("front_workers", &[]),
+    // Schedules are the person's settings; pauses aren't copied (a pause belongs to the
+    // process showing the paused page, on this computer).
+    ("route_schedules", &[]),
 ];
 
 /// A section's name for people (every table in [`TABLES`] and `settings` has one).
@@ -76,6 +79,7 @@ fn section_label(section: &str) -> Text {
         "local_domains" => s::local_domains(),
         "cloud_databases" => s::cloud_databases(),
         "front_workers" => s::front_workers(),
+        "route_schedules" => s::route_schedules(),
         other => crate::text::msg::raw(other),
     }
 }
