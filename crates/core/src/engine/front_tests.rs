@@ -707,3 +707,58 @@ pub(super) async fn adopt_fronts(engine: &Engine, state: &CloudState) {
             .unwrap();
     }
 }
+
+/// A route with a GitHub-verifying inbox on an engine that has the keychain (the secret
+/// saved as the app saves it).
+async fn verifying_inbox() -> (Engine, FakeCloud) {
+    let secrets: crate::secrets::Secrets =
+        std::sync::Arc::new(crate::secrets::MemoryStore::default());
+    crate::fronts::set_inbox_secret(
+        &secrets,
+        "app.xyz.com",
+        InboxVerify::Github,
+        Secret::new("gh-secret".into()),
+    )
+    .await
+    .unwrap();
+    let (engine, cloud) = (engine().with_secrets(secrets), FakeCloud::new(zones()));
+    run(&engine, &cloud, &route("r1", "app.xyz.com")).await;
+    let on = Intent::SetInbox {
+        hostname: host("app.xyz.com"),
+        path: "/hooks/".into(),
+        inbox: Some(InboxSettings {
+            verify: Some(InboxVerify::Github),
+            ..InboxSettings::default()
+        }),
+        secret: Some(Secret::new("gh-secret".into())),
+    };
+    assert!(matches!(
+        run(&engine, &cloud, &on).await,
+        Outcome::Applied { .. }
+    ));
+    cloud.reset_failures();
+    (engine, cloud)
+}
+
+#[tokio::test]
+async fn a_rolled_back_removal_puts_a_verifying_inbox_back_with_its_secret() {
+    let script = script_for(FrontKind::Inbox, "app.xyz.com", "/hooks/");
+    // Deleting the tunnel, once through, to count its changes.
+    let (engine, cloud) = verifying_inbox().await;
+    assert!(matches!(
+        run(&engine, &cloud, &Intent::RemoveTunnel).await,
+        Outcome::Applied { .. }
+    ));
+    assert!(!cloud.snapshot().workers.contains_key(&script));
+    let changes = cloud.mutations();
+
+    // Again, with its last change (deleting the tunnel) failing: everything comes back,
+    // the inbox's Worker with its signing secret.
+    let (engine, cloud) = verifying_inbox().await;
+    cloud.fail_once(changes - 1);
+    let outcome = run(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::RolledBack { .. }), "{outcome:?}");
+    let secret = binding(&cloud, &script, "SIGNING_SECRET").expect("the secret is back");
+    assert_eq!(secret["text"], "gh-secret");
+    assert_eq!(cloud.snapshot().worker_routes.len(), 1);
+}

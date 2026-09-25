@@ -190,7 +190,8 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   when full. A verifying inbox's signing secret comes from the keychain (never IPC outward,
   never argv: the CLI reads it from the environment or standard input), is sent only as a
   `secret_text` binding and kept on later versions with `keep_bindings`; it's never in a
-  plan, Activity or the local database. Delivery goes only to the route's own local service
+  plan, Activity or the local database. The engine reads it from the keychain only to put a
+  verifying inbox back when a plan that removed or changed it rolls back (D-129). Delivery goes only to the route's own local service
   (its ingress rule), without following redirects.
 
 ### Logs & diagnostics

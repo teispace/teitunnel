@@ -79,14 +79,6 @@ pub struct FrontView {
     pub routed: bool,
 }
 
-fn provider_of(verify: InboxVerify) -> lens::webhook::Provider {
-    match verify {
-        InboxVerify::Github => lens::webhook::Provider::GitHub,
-        InboxVerify::Stripe => lens::webhook::Provider::Stripe,
-        InboxVerify::Standard => lens::webhook::Provider::StandardWebhooks,
-    }
-}
-
 fn hostname(input: &str) -> Result<Hostname, InputError> {
     Hostname::parse(input).map_err(|e| InputError {
         field: "hostname",
@@ -161,14 +153,7 @@ pub async fn intent(
                 (Some(verify), Some(secrets))
                     if current.as_ref().and_then(|c| c.verify) != Some(verify) =>
                 {
-                    crate::inspect::secrets::webhook_secret_text(
-                        secrets,
-                        &crate::inspect::secrets::host_scope(host.as_str()),
-                        provider_of(verify),
-                    )
-                    .await
-                    .ok()
-                    .flatten()
+                    crate::engine::front::saved_inbox_secret(secrets, host.as_str(), verify).await
                 }
                 _ => None,
             };
@@ -235,7 +220,7 @@ pub async fn set_inbox_secret(
     secret: crate::Secret<String>,
 ) -> Result<(), crate::secrets::SecretError> {
     let scope = crate::inspect::secrets::host_scope(hostname);
-    crate::inspect::secrets::set_webhook_secret(secrets, &scope, provider_of(verify), secret).await
+    crate::inspect::secrets::set_webhook_secret(secrets, &scope, verify.provider(), secret).await
 }
 
 /// Which senders have a signing secret saved for `hostname` (never the secrets).
@@ -254,7 +239,7 @@ pub async fn inbox_secrets(
         InboxVerify::Standard,
     ]
     .into_iter()
-    .filter(|v| saved.contains(&provider_of(*v)))
+    .filter(|v| saved.contains(&v.provider()))
     .collect())
 }
 

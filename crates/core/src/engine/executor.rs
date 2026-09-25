@@ -456,6 +456,9 @@ type Locks = HashMap<String, Arc<tokio::sync::Mutex<()>>>;
 #[derive(Debug)]
 pub struct Engine {
     local: Local,
+    /// The keychain, for putting back a verifying inbox's signing secret when a plan
+    /// that removed its Worker rolls back (never read otherwise).
+    secrets: Option<crate::secrets::Secrets>,
     /// Who this is, for the DNS comments it writes (`person@machine`).
     owner: String,
     locks: Mutex<Locks>,
@@ -467,6 +470,7 @@ impl Engine {
     pub fn new(local: Local) -> Self {
         Self {
             local,
+            secrets: None,
             owner: super::ownership::owner_label(),
             locks: Mutex::default(),
             cache: Mutex::default(),
@@ -478,6 +482,14 @@ impl Engine {
     #[must_use]
     pub fn with_owner(mut self, owner: &str) -> Self {
         self.owner = super::ownership::sanitize_owner(owner);
+        self
+    }
+
+    /// The same engine with the keychain, so a rollback restores a verifying inbox with
+    /// its signing secret.
+    #[must_use]
+    pub fn with_secrets(mut self, secrets: crate::secrets::Secrets) -> Self {
+        self.secrets = Some(secrets);
         self
     }
 
@@ -1022,6 +1034,7 @@ impl Engine {
             api,
             connectors,
             local: &self.local,
+            secrets: self.secrets.as_ref(),
             snapshot: &snapshot,
             account: ctx.account,
             slot: match (intent, ctx.tunnel) {
@@ -1143,6 +1156,7 @@ struct Run<'a, C, K> {
     api: &'a C,
     connectors: &'a K,
     local: &'a Local,
+    secrets: Option<&'a crate::secrets::Secrets>,
     snapshot: &'a Snapshot,
     account: &'a str,
     /// How a tunnel this run creates is remembered.
@@ -2476,8 +2490,28 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 config,
                 database,
             } => {
-                self.put_front(hostname, zone_id, script, config, database.as_deref(), None)
-                    .await?;
+                // A verifying inbox gets its signing secret back: a Worker that was
+                // deleted has none, and one whose verification changed has the new one.
+                let secret = match (config, self.secrets) {
+                    (super::front::FrontConfig::Inbox { settings, .. }, Some(secrets)) => {
+                        match settings.verify {
+                            Some(verify) => {
+                                super::front::saved_inbox_secret(secrets, hostname, verify).await
+                            }
+                            None => None,
+                        }
+                    }
+                    _ => None,
+                };
+                self.put_front(
+                    hostname,
+                    zone_id,
+                    script,
+                    config,
+                    database.as_deref(),
+                    secret.as_ref(),
+                )
+                .await?;
             }
             Undo::DeleteWorkerRoute {
                 zone,

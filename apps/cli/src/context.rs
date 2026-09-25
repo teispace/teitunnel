@@ -137,7 +137,9 @@ impl App {
         }
         Ok(Self {
             accounts,
-            engine: Arc::new(Engine::new(Local::new(store.clone()))),
+            engine: Arc::new(
+                Engine::new(Local::new(store.clone())).with_secrets(Arc::clone(&secrets)),
+            ),
             machine_name: teitunnel_core::machine::machine_name(),
             binary: binary(&dir),
             secrets,
@@ -158,7 +160,9 @@ impl App {
         let secrets: Secrets = Arc::new(MemoryStore::default());
         Ok(Self {
             accounts: accounts(store.clone(), Arc::clone(&secrets)),
-            engine: Arc::new(Engine::new(Local::new(store.clone()))),
+            engine: Arc::new(
+                Engine::new(Local::new(store.clone())).with_secrets(Arc::clone(&secrets)),
+            ),
             machine_name: teitunnel_core::machine::machine_name(),
             binary: binary(&dir),
             secrets,

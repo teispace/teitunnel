@@ -135,7 +135,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         edge,
         "app",
     );
-    let engine = Arc::new(Engine::new(local));
+    let engine = Arc::new(Engine::new(local).with_secrets(secrets.clone()));
     let control = control(
         app,
         &data_dir,
