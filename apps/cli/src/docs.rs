@@ -636,7 +636,8 @@ fn render() -> String {
          and the prose in apps/cli/src/docs/intro.mdx or apps/cli/src/docs.rs, then run: \
          {REGENERATE} */}}\n\n"
     );
-    page.push_str(INTRO.trim());
+    // Checked out with CRLF on Windows.
+    page.push_str(&INTRO.trim().replace("\r\n", "\n"));
     page.push_str("\n\n## Commands\n\n| Command | What it does |\n|---|---|\n");
     for sub in visible_subcommands(&root) {
         let _ = writeln!(
