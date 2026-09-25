@@ -465,6 +465,21 @@ pub trait Backend: Send + Sync + 'static {
         Box::pin(async { Err(unsupported_extras()) })
     }
 
+    /// Uptime of this machine's routes (one hostname's, or all) over `range`, from the
+    /// checks through Cloudflare the app runs every minute.
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        let _ = (hostname, range);
+        Box::pin(async {
+            Err(BackendError::Unsupported(
+                "Uptime isn't available from this host.".into(),
+            ))
+        })
+    }
+
     /// Shares, routes and Snapshots with comments, with their counts.
     fn comment_subjects(&self) -> BoxFuture<'_, BackendResult<Vec<SubjectView>>> {
         Box::pin(async { Err(unsupported_comments()) })

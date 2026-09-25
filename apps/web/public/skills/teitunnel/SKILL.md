@@ -49,7 +49,8 @@ their domains → a service on a machine), **shares** (temporary public URLs), l
 5. `traffic_replay {id}` until it answers 2xx.
 
 **A route is down**
-1. `verify_route {hostname}`: where it breaks (DNS, edge, tunnel, origin).
+1. `verify_route {hostname}`: where it breaks (DNS, edge, tunnel, origin); `route_health
+   {hostname}`: since when, and earlier incidents.
 2. `doctor`; `connector_status` when every route of a tunnel is down; `logs_tail
    {hostname}` for 502/504.
 3. Fix with `fix_issue {issueId}`, a plan, or tell the user what to do (start the dev server,
@@ -77,7 +78,7 @@ Read: `list_routes`, `list_domains`, `list_tunnels`, `list_shares`,
 `list_local_services`, `plan_change`, `verify_route`, `undo_last`, `doctor`, `logs_tail`,
 `remote_logs`, `connector_status`, `export_config`, `import_scan`, `accounts`,
 `recent_activity`, `traffic_list`, `traffic_get`, `traffic_stats`, `traffic_export`,
-`wait_for_request`, `inspection_settings`.
+`wait_for_request`, `inspection_settings`, `route_health`.
 Change (need approval in `ask` mode, absent in `read-only`): `share_port`, `stop_share`,
 `apply_plan`, `fix_issue`, `traffic_replay`, `configure_inspection`, `expose_mcp_server`.
 

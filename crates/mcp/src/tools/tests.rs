@@ -553,6 +553,52 @@ impl Backend for FakeBackend {
         self.changes.subscribe()
     }
 
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        _range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        use teitunnel_core::{
+            analytics::RouteRef,
+            uptime::{Cause, Incident, LatencySeries, UptimeDetail, UptimeSummary},
+        };
+        let route = RouteRef {
+            hostname: "app.xyz.com".into(),
+            path: None,
+        };
+        let outage = Incident {
+            id: 1,
+            account_id: "acc".into(),
+            route: route.clone(),
+            started_at: 1_000,
+            ended_at: None,
+            cause: Cause::NoConnector,
+        };
+        let detail = UptimeDetail {
+            summary: UptimeSummary {
+                account_id: "acc".into(),
+                route,
+                up: Some(false),
+                last_checked: Some(2_000),
+                last_latency_ms: None,
+                last_cause: Some(Cause::NoConnector),
+                uptime_day: Some(0.98765),
+                uptime_week: Some(0.999),
+                uptime_month: None,
+                p95_ms: Some(120.0),
+                open_incident: Some(outage.clone()),
+            },
+            bars: Vec::new(),
+            latency: LatencySeries {
+                at: Vec::new(),
+                ms: Vec::new(),
+            },
+            incidents: vec![outage],
+        };
+        let found = hostname.is_none_or(|h| h == "app.xyz.com");
+        Box::pin(async move { Ok(if found { vec![detail] } else { Vec::new() }) })
+    }
+
     fn stop_own_shares(&self) -> BoxFuture<'_, usize> {
         let mut state = self.lock();
         let before = state.shares.len();
@@ -1051,6 +1097,7 @@ fn every_tool_is_listed_with_schemas_and_annotations() {
         "logs_tail",
         "remote_logs",
         "connector_status",
+        "route_health",
         "export_config",
         "import_scan",
         "accounts",
@@ -1989,4 +2036,42 @@ fn builds_login_rules_from_allow_lists() {
     assert_eq!(rule.email_domains, ["@team.io", "corp.com"]);
     assert_eq!(rule.bypass, ["/webhooks"]);
     assert!(super::access_rule(&[], &["/webhooks".into()]).is_none());
+}
+
+#[tokio::test]
+async fn says_how_routes_have_been_doing() {
+    let h = harness();
+    let out = h
+        .call(Mode::ReadOnly, "route_health", json!({"range": "week"}))
+        .await
+        .unwrap();
+    let route = &out["routes"][0];
+    assert_eq!(route["hostname"], "app.xyz.com");
+    assert_eq!(route["up"], false);
+    assert_eq!(route["uptimeDay"], 98.77);
+    assert_eq!(
+        route["ongoing"]["cause"],
+        "No connector is connected to the tunnel."
+    );
+    assert_eq!(route["incidents"].as_array().unwrap().len(), 1);
+    let none = h
+        .call(
+            Mode::ReadOnly,
+            "route_health",
+            json!({"hostname": "other.xyz.com"}),
+        )
+        .await
+        .unwrap();
+    assert!(
+        none["note"]
+            .as_str()
+            .unwrap()
+            .contains("isn't a route of this machine")
+    );
+    assert!(
+        h.call(Mode::ReadOnly, "route_health", json!({"range": "year"}))
+            .await
+            .unwrap_err()
+            .contains("hour, day, week or month")
+    );
 }

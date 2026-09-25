@@ -73,6 +73,7 @@ one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio se
 | `comments_list`, `comments_reply`, `comments_resolve` | Reviewers' comments on shares and Snapshots ([Comments](/docs/guides/comments)); reviewers' email addresses are never included. |
 | `doctor`, `fix_issue` | The Doctor's issues and their fixes ([Doctor checks](/docs/reference/doctor)). |
 | `logs_tail`, `remote_logs`, `connector_status` | This machine's connector logs (per route), another machine's live logs, connector health. |
+| `route_health` | Whether each route is up, its uptime over a day, week and month, response times, the outage going on and recent incidents, from the checks the app runs every minute ([Analytics](/docs/guides/analytics)). |
 | `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
 | `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares and its recent history: list, inspect, replay, wait for the next one (for webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. |

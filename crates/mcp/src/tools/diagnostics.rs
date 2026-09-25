@@ -96,7 +96,138 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             Hints::READ_CLOUD,
             super::DEFAULT_TIMEOUT,
         ),
+        spec::<HealthArgs, HealthResult>(
+            "route_health",
+            "Route uptime and incidents",
+            "How this machine's routes have been doing: whether each is up now, its uptime over the last day, week and month, response times (last and 95th percentile), the outage going on (with its cause) and recent incidents. The app checks every route through Cloudflare's edge once a minute while it runs; routes it hasn't checked say so.\n\
+             \n\
+             Use it to answer \"has my site been up?\" or to find when an outage started before reading logs.\n\
+             \n\
+             Example: {\"hostname\": \"app.teispace.com\", \"range\": \"week\"}",
+            ToolClass::Read,
+            Hints::READ_LOCAL,
+            super::DEFAULT_TIMEOUT,
+        ),
     ]
+}
+
+/// Which routes, over how long.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct HealthArgs {
+    /// One hostname (default: every route of this machine).
+    #[serde(default)]
+    hostname: Option<String>,
+    /// Incidents from the last `hour`, `day` (default), `week` or `month`.
+    #[serde(default)]
+    range: Option<String>,
+}
+
+/// An outage.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncidentOut {
+    /// When checks started failing (milliseconds since the epoch).
+    started_at: i64,
+    /// When they passed again (absent while it goes on).
+    ended_at: Option<i64>,
+    /// Why, in a sentence.
+    cause: String,
+}
+
+/// One route's health.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RouteHealth {
+    hostname: String,
+    path: Option<String>,
+    /// Up at the last check (absent: never checked).
+    up: Option<bool>,
+    /// When it was last checked.
+    last_checked: Option<i64>,
+    /// How long the last check took.
+    last_latency_ms: Option<u32>,
+    /// Share of passing checks, as percentages.
+    uptime_day: Option<f64>,
+    uptime_week: Option<f64>,
+    uptime_month: Option<f64>,
+    /// 95th percentile response time over a day.
+    p95_ms: Option<f64>,
+    /// The outage going on.
+    ongoing: Option<IncidentOut>,
+    /// Incidents in the range, newest first.
+    incidents: Vec<IncidentOut>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HealthResult {
+    routes: Vec<RouteHealth>,
+    /// Said when something needs explaining (nothing checked yet…).
+    note: Option<String>,
+}
+
+fn incident(incident: &teitunnel_core::uptime::Incident) -> IncidentOut {
+    IncidentOut {
+        started_at: incident.started_at,
+        ended_at: incident.ended_at,
+        cause: incident.cause.message().english(),
+    }
+}
+
+fn percent(share: Option<f64>) -> Option<f64> {
+    share.map(|s| (s * 10_000.0).round() / 100.0)
+}
+
+pub(super) async fn route_health(backend: &SharedBackend, args: JsonObject) -> ToolResult {
+    use teitunnel_core::analytics::AnalyticsRange;
+    let args: HealthArgs = arguments(args)?;
+    let range = match args.range.as_deref().map(str::trim) {
+        None | Some("day") => AnalyticsRange::Day,
+        Some("hour") => AnalyticsRange::Hour,
+        Some("week") => AnalyticsRange::Week,
+        Some("month") => AnalyticsRange::Month,
+        Some(other) => {
+            return Err(ToolError::new(format!(
+                "`range` is hour, day, week or month, not \"{other}\"."
+            )));
+        }
+    };
+    let details = backend.uptime(args.hostname.as_deref(), range).await?;
+    let routes: Vec<RouteHealth> = details
+        .iter()
+        .map(|d| {
+            let s = &d.summary;
+            RouteHealth {
+                hostname: s.route.hostname.clone(),
+                path: s.route.path.clone(),
+                up: s.up,
+                last_checked: s.last_checked,
+                last_latency_ms: s.last_latency_ms,
+                uptime_day: percent(s.uptime_day),
+                uptime_week: percent(s.uptime_week),
+                uptime_month: percent(s.uptime_month),
+                p95_ms: s.p95_ms,
+                ongoing: s.open_incident.as_ref().map(incident),
+                incidents: d.incidents.iter().map(incident).collect(),
+            }
+        })
+        .collect();
+    let note = if routes.is_empty() {
+        Some(match &args.hostname {
+            Some(host) => format!(
+                "{host} isn't a route of this machine (only this machine's routes are checked)."
+            ),
+            None => "This machine serves no routes.".to_owned(),
+        })
+    } else if routes.iter().all(|r| r.up.is_none()) {
+        Some(
+            "Not checked yet: Teitunnel checks routes once a minute while the app runs.".to_owned(),
+        )
+    } else {
+        None
+    };
+    Ok(ToolOutput::new(&HealthResult { routes, note }))
 }
 
 /// Filters.

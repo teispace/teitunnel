@@ -140,7 +140,7 @@ pub(crate) fn get(
                 .ok_or_else(|| McpError::invalid_params("route_down needs a hostname.", None))?;
             format!(
                 "https://{hostname} doesn't work. Find out why and fix it.\n\n\
-                 1. verify_route {hostname}: it says at which stage it breaks (DNS, edge, tunnel, origin).\n\
+                 1. verify_route {hostname}: it says at which stage it breaks (DNS, edge, tunnel, origin). route_health {hostname} says since when, and whether it happened before.\n\
                  2. doctor: look for issues about {hostname} or its tunnel.\n\
                  3. If the connector is the problem (noConnector, 1033), check connector_status; if the service is (originUnreachable, 502), check list_local_services and logs_tail with hostname {hostname}.\n\
                  4. Fix it with fix_issue, or a plan (plan_change), or tell me what to do on my side (start the dev server, open Teitunnel).\n\

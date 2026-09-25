@@ -174,9 +174,9 @@ async fn introduces_itself_with_instructions_and_capabilities() {
 async fn lists_tools_by_mode() {
     let ask = connect(Mode::Ask, None, false).await;
     let tools = ask.client.list_all_tools().await.unwrap();
-    // Teitunnel's 26, the 5 sharing extras and OpenAPI, the 5 edge protection tools, and
-    // the offline page and inbox tools.
-    assert_eq!(tools.len(), 39);
+    // Teitunnel's 27 (with route_health), the 5 sharing extras and OpenAPI, the 5 edge
+    // protection tools, and the offline page and inbox tools.
+    assert_eq!(tools.len(), 40);
     for tool in &tools {
         assert_eq!(
             tool.input_schema.get("type"),
@@ -190,7 +190,7 @@ async fn lists_tools_by_mode() {
     let tools = read_only.client.list_all_tools().await.unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
     assert!(names.contains(&"plan_change") && names.contains(&"wait_for_request"));
-    assert!(names.contains(&"traffic_openapi"));
+    assert!(names.contains(&"traffic_openapi") && names.contains(&"route_health"));
     for hidden in [
         "share_port",
         "pause_share",

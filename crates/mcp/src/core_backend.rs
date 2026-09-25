@@ -961,6 +961,28 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         self.changes.subscribe()
     }
 
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        Box::pin(async move {
+            let store = teitunnel_core::uptime::UptimeStore::new(self.parts.store.clone());
+            let now = i64::try_from(teitunnel_core::domain_shares::now_ms()).unwrap_or(i64::MAX);
+            let mut out = Vec::new();
+            for target in
+                teitunnel_core::uptime::targets(&self.parts.accounts, self.engine().local()).await
+            {
+                if hostname.is_some_and(|h| !h.trim().eq_ignore_ascii_case(&target.route.hostname))
+                {
+                    continue;
+                }
+                out.push(store.detail(&target, range, now).await.map_err(msg)?);
+            }
+            Ok(out)
+        })
+    }
+
     fn comment_subjects(
         &self,
     ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::comments::SubjectView>>> {
