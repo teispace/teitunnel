@@ -20,7 +20,14 @@ import type {
   PlanView,
 } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { applyFrontDirectly, undoChange, useFrontApply, useFrontPreview } from "../queries";
+import {
+  applyFrontDirectly,
+  undoChange,
+  useFrontApply,
+  useFrontPreview,
+  useInboxSecrets,
+} from "../queries";
+import { InboxSecretField } from "./inbox-secret-field";
 
 type Stage = "form" | "review" | "applying";
 
@@ -78,6 +85,13 @@ export function FrontSheet({
   const preview = useFrontPreview(accountId);
   const apply = useFrontApply(accountId);
   const exists = target.current !== null;
+  const secrets = useInboxSecrets(target.hostname);
+  // A verifying inbox needs its sender's signing secret before it can be planned.
+  const needsSecret =
+    target.kind === "inbox" &&
+    inbox.verify !== null &&
+    inbox.verify !== undefined &&
+    !(secrets.data ?? []).includes(inbox.verify);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per opening
   useEffect(() => {
@@ -187,7 +201,13 @@ export function FrontSheet({
             <SheetClose asChild>
               <Button>{t("common.cancel")}</Button>
             </SheetClose>
-            <Button variant="primary" type="submit" form="front-form" pending={preview.isPending}>
+            <Button
+              variant="primary"
+              type="submit"
+              form="front-form"
+              pending={preview.isPending}
+              disabled={needsSecret}
+            >
               {preview.isPending ? t("routeSheet.checking") : t("routeSheet.review")}
             </Button>
           </>
@@ -342,6 +362,13 @@ export function FrontSheet({
                     />
                   )}
                 </Field>
+                {inbox.verify ? (
+                  <InboxSecretField
+                    hostname={target.hostname}
+                    verify={inbox.verify}
+                    saved={!needsSecret}
+                  />
+                ) : null}
               </>
             )}
             <p className="text-callout text-secondary">{t("fronts.cost")}</p>

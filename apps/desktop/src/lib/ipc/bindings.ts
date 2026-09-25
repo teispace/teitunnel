@@ -655,6 +655,17 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	frontsUndoChange: (accountId: string, change: FrontChange) => __TAURI_INVOKE<FrontChange>("fronts_undo_change", { accountId, change }),
 	/**  Applies a reviewed change; step progress streams on `on_progress`. */
 	frontsApply: (accountId: string, change: FrontChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("fronts_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**
+	 *  Which senders have a signing secret saved for `hostname`'s inboxes (never the
+	 *  secrets themselves).
+	 */
+	frontsInboxSecrets: (hostname: string) => __TAURI_INVOKE<InboxVerify[]>("fronts_inbox_secrets", { hostname }),
+	/**
+	 *  Saves the signing secret `hostname`'s verifying inboxes check `verify`'s webhooks
+	 *  with, in the keychain (it goes to Cloudflare only as a Worker secret, never back
+	 *  across IPC).
+	 */
+	frontsInboxSecretSet: (hostname: string, verify: InboxVerify, secret: string) => __TAURI_INVOKE<null>("fronts_inbox_secret_set", { hostname, verify, secret }),
 	/**  A webhook inbox's recent webhooks: when each arrived and when it was delivered. */
 	inboxItems: (accountId: string, hostname: string, path: string) => __TAURI_INVOKE<InboxItem[]>("inbox_items", { accountId, hostname, path }),
 	/**  Delivers waiting webhooks now (the app also does every 30 seconds). */

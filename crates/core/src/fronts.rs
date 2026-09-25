@@ -163,7 +163,7 @@ pub async fn intent(
                 {
                     crate::inspect::secrets::webhook_secret_text(
                         secrets,
-                        &format!("host:{host}"),
+                        &crate::inspect::secrets::host_scope(host.as_str()),
                         provider_of(verify),
                     )
                     .await
@@ -223,6 +223,41 @@ where
         .await
 }
 
+/// Saves the signing secret a verifying inbox on `hostname` checks `verify`'s webhooks
+/// with (in the keychain, shared with the hostname's inspector).
+///
+/// # Errors
+/// The keychain refused.
+pub async fn set_inbox_secret(
+    secrets: &Secrets,
+    hostname: &str,
+    verify: InboxVerify,
+    secret: crate::Secret<String>,
+) -> Result<(), crate::secrets::SecretError> {
+    let scope = crate::inspect::secrets::host_scope(hostname);
+    crate::inspect::secrets::set_webhook_secret(secrets, &scope, provider_of(verify), secret).await
+}
+
+/// Which senders have a signing secret saved for `hostname` (never the secrets).
+///
+/// # Errors
+/// The keychain refused.
+pub async fn inbox_secrets(
+    secrets: &Secrets,
+    hostname: &str,
+) -> Result<Vec<InboxVerify>, crate::secrets::SecretError> {
+    let scope = crate::inspect::secrets::host_scope(hostname);
+    let saved = crate::inspect::secrets::webhook_providers(secrets, &scope).await?;
+    Ok([
+        InboxVerify::Github,
+        InboxVerify::Stripe,
+        InboxVerify::Standard,
+    ]
+    .into_iter()
+    .filter(|v| saved.contains(&provider_of(*v)))
+    .collect())
+}
+
 /// The change that puts a route's Worker back as it is now (for Undo in the app).
 ///
 /// # Errors
@@ -264,14 +299,25 @@ mod tests {
     async fn a_verifying_inbox_takes_the_saved_secret_once() {
         let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
         let secrets: Secrets = std::sync::Arc::new(MemoryStore::default());
-        crate::inspect::secrets::set_webhook_secret(
+        assert!(
+            inbox_secrets(&secrets, "app.xyz.com")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        // Saved the way the app and `teitunnel inbox secret` save it (any case).
+        set_inbox_secret(
             &secrets,
-            "host:app.xyz.com",
-            lens::webhook::Provider::GitHub,
+            "App.xyz.com",
+            InboxVerify::Github,
             Secret::new("gh".into()),
         )
         .await
         .unwrap();
+        assert_eq!(
+            inbox_secrets(&secrets, "app.xyz.com").await.unwrap(),
+            [InboxVerify::Github]
+        );
         let change = FrontChange::Inbox {
             hostname: "App.XYZ.com".into(),
             path: "/hooks/".into(),

@@ -239,6 +239,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             fronts::fronts_preview,
             fronts::fronts_undo_change,
             fronts::fronts_apply,
+            fronts::fronts_inbox_secrets,
+            fronts::fronts_inbox_secret_set,
             fronts::inbox_items,
             fronts::inbox_deliver
         ])

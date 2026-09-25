@@ -31,6 +31,12 @@ fn bearer_key(hostname: &str) -> String {
     format!("lens:bearer:{}", hostname.trim().to_ascii_lowercase())
 }
 
+/// Where a hostname's webhook secrets are kept (a route's taps and its webhook inbox
+/// share them).
+pub fn host_scope(hostname: &str) -> String {
+    format!("host:{}", hostname.trim().to_ascii_lowercase())
+}
+
 /// Saves the signing secret for `provider` on `scope` ([`super::TapScope::secret_scope`]).
 ///
 /// # Errors

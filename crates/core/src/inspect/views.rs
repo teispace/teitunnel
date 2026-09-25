@@ -201,7 +201,7 @@ impl TapScope {
     pub fn secret_scope(&self, origin: &str) -> String {
         match self {
             Self::QuickShare { .. } => format!("origin:{}", origin.trim().to_ascii_lowercase()),
-            Self::Route { hostname, .. } => format!("host:{hostname}"),
+            Self::Route { hostname, .. } => super::secrets::host_scope(hostname),
             Self::LocalDomain { name } => format!("local:{name}"),
         }
     }

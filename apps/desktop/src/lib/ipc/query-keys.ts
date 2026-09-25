@@ -116,6 +116,8 @@ export const queryKeys = {
     list: () => ["fronts", "list"] as const,
     inbox: (accountId: string, hostname: string, path: string) =>
       ["fronts", "inbox", accountId, hostname, path] as const,
+    /** Which senders have a signing secret saved for a hostname. */
+    secrets: (hostname: string) => ["fronts", "secrets", hostname] as const,
   },
   binary: {
     status: () => ["binary", "status"] as const,

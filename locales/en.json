@@ -2915,6 +2915,9 @@
         "needsSecret": "Verifying signatures needs the webhook's signing secret.",
         "noDatabase": "The D1 database wasn't created."
       }
+    },
+    "fronts": {
+      "secretEmpty": "Paste the signing secret from the sender’s webhook settings."
     }
   },
   "permissionFix": {
@@ -3753,13 +3756,19 @@
       "days": "days",
       "verify": {
         "label": "Keep only signed webhooks",
-        "help": "Uses the signing secret saved for this hostname in the keychain (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
+        "help": "Checks each webhook’s signature with the sender’s signing secret, saved in the keychain for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
         "none": "Keep every webhook",
         "github": "GitHub",
         "stripe": "Stripe",
         "standard": "Standard Webhooks (Svix, Clerk, Resend…)",
-        "help@windows": "Uses the signing secret saved for this hostname in Windows Credential Manager (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
-        "help@linux": "Uses the signing secret saved for this hostname in your keyring (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown."
+        "help@windows": "Checks each webhook’s signature with the sender’s signing secret, saved in Windows Credential Manager for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
+        "help@linux": "Checks each webhook’s signature with the sender’s signing secret, saved in your keyring for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
+        "secret": "Signing secret",
+        "secretSaved": "Signing secret saved",
+        "secretReplace": "Replace…",
+        "secretSave": "Save Secret",
+        "secretPlaceholder": "From the sender’s webhook settings",
+        "secretNeeded": "Save the signing secret to keep only signed webhooks."
       },
       "activity": "Webhooks to {path}",
       "empty": "No webhooks kept yet.",

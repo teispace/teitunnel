@@ -3,12 +3,13 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
-import type { FrontView, InboxItem, PlanView } from "@/lib/ipc/bindings";
+import type { FrontView, InboxItem, InboxVerify, PlanView } from "@/lib/ipc/bindings";
 import { FrontsSection } from "./components/fronts-section";
 
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let fronts: FrontView[];
 let refused: boolean;
+let savedSecrets: InboxVerify[];
 
 const plan: PlanView = {
   steps: [
@@ -43,6 +44,7 @@ const items: InboxItem[] = [
 ];
 
 beforeEach(() => {
+  savedSecrets = [];
   calls = [];
   fronts = [];
   refused = false;
@@ -68,6 +70,11 @@ beforeEach(() => {
         };
       case "fronts_list":
         return fronts;
+      case "fronts_inbox_secrets":
+        return savedSecrets;
+      case "fronts_inbox_secret_set":
+        savedSecrets = [...savedSecrets, payload["verify"] as InboxVerify];
+        return null;
       case "inbox_items":
         return items;
       case "inbox_deliver":
@@ -103,6 +110,27 @@ function renderSection() {
 }
 
 describe("FrontsSection", () => {
+  it("asks for the signing secret before a verifying inbox can be reviewed", async () => {
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Add Webhook Inbox…" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByRole("combobox", { name: "Keep only signed webhooks" }));
+    fireEvent.click(await screen.findByRole("option", { name: "GitHub" }));
+    const review = within(sheet).getByRole("button", { name: "Review" });
+    expect(review.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(within(sheet).getByLabelText("Signing secret"), {
+      target: { value: "whsec_1" },
+    });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save Secret" }));
+    expect(await within(sheet).findByText("Signing secret saved")).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "fronts_inbox_secret_set")?.args).toEqual({
+      hostname: "app.xyz.com",
+      verify: "github",
+      secret: "whsec_1",
+    });
+    await waitFor(() => expect(review.hasAttribute("disabled")).toBe(false));
+  });
+
   it("turns the offline page on through a reviewed plan", async () => {
     renderSection();
     fireEvent.click(await screen.findByRole("button", { name: "Turn On…" }));
