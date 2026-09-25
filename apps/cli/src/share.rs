@@ -177,7 +177,11 @@ pub(crate) struct ShareOptions {
     pub(crate) log: bool,
     /// Require this bearer token (`Authorization: Bearer …`).
     pub(crate) bearer: Option<Secret<String>>,
+    /// Let visitors leave comments on pages (the overlay).
+    pub(crate) comments: bool,
 }
+
+const COMMENTS_ON: &str = "Comments are on: visitors can pin comments on its pages. Read and answer them with `teitunnel comments` or in the app.";
 
 /// Configures an inspected share's tap: idle stop and watched paths.
 fn configure_tap(inspector: &Inspector, tap: &TapId, options: &ShareOptions) -> Result<(), String> {
@@ -326,6 +330,14 @@ pub(crate) async fn run(
         && let Some(tap) = &tap
     {
         configure_tap(&inspector, tap, options)?;
+        if options.comments {
+            // A Quick Share has no login whose email header could be trusted.
+            inspector
+                .set_comments(tap, true, false)
+                .await
+                .map_err(|e| e.to_string())?;
+            status(COMMENTS_ON);
+        }
         if let Some(token) = &options.bearer {
             inspector
                 .require_bearer(tap, token)
@@ -638,6 +650,12 @@ pub(crate) async fn run_on_domain(
         spec.folder.clone_from(&folder);
         let tap = inspector.start(spec).await.map_err(|e| e.to_string())?;
         configure_tap(&inspector, &tap.id, options)?;
+        if options.comments {
+            teitunnel_core::comments::set_on_tap(&inspector, app.engine.local(), &tap.id, true)
+                .await
+                .map_err(|e| e.to_string())?;
+            status(COMMENTS_ON);
+        }
         (tap.address.clone(), None, Some(tap.id))
     } else {
         (

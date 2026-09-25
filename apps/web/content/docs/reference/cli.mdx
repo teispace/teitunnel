@@ -1205,6 +1205,7 @@ teitunnel share [OPTIONS] <ORIGIN>
 | `-q, --quiet` | Don't print a line for each request. |
 | `--idle <DURATION>` | Stop after this long without a request, e.g. `30m`. |
 | `--watch <PATH>` | Say so when a request hits this path, e.g. `/webhooks/*` (repeatable). |
+| `--comments` | Let visitors pin comments on its pages (read and answer them with `teitunnel comments` or in the app). |
 | `--mcp` | Share a local MCP server for remote AI clients: checks it answers MCP, keeps streams alive and requires a bearer token (needs --on: Quick Tunnels don't carry event streams). Prints configurations for Claude Code, Cursor and VS Code. |
 | `--mcp-path <PATH>` | With --mcp: the server's endpoint path (default: /mcp, then /sse and /). |
 | `--ai` | Share a local AI server (Ollama, LM Studio, vLLM) behind a bearer token, for OpenAI-compatible clients. |

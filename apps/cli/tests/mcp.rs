@@ -135,9 +135,12 @@ fn shares_a_port_and_lets_the_app_stop_it() {
         .collect();
     // Teitunnel's 26, the sharing extras' 4 and traffic_openapi (M12-06, M12-12), the
     // protection provider's 5 (M12-04), the reservation provider's 3 (M12-11), the
-    // comments provider's 3 (M12-06) and expose_mcp_server (M12-02).
-    assert_eq!(names.len(), 43, "{names:?}");
+    // comments provider's 3 (M12-06), expose_mcp_server (M12-02), and the offline page
+    // and inbox provider's 3.
+    assert_eq!(names.len(), 46, "{names:?}");
     for tool in [
+        "set_offline_page",
+        "set_webhook_inbox",
         "comments_list",
         "comments_reply",
         "comments_resolve",

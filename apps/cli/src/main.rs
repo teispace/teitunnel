@@ -291,6 +291,10 @@ enum Command {
         /// Say so when a request hits this path, e.g. `/webhooks/*` (repeatable).
         #[arg(long, value_name = "PATH", conflicts_with = "no_inspect")]
         watch: Vec<String>,
+        /// Let visitors pin comments on its pages (read and answer them with
+        /// `teitunnel comments` or in the app).
+        #[arg(long, conflicts_with = "no_inspect")]
+        comments: bool,
         /// Share a local MCP server for remote AI clients: checks it answers MCP, keeps
         /// streams alive and requires a bearer token (needs --on: Quick Tunnels don't
         /// carry event streams). Prints configurations for Claude Code, Cursor and VS
@@ -800,6 +804,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                comments: false,
             };
             return expose::ai(
                 &origin,
@@ -830,6 +835,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             listing,
             no_listing,
             spa,
+            comments,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
@@ -839,7 +845,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             }
             // The app inspects by its own settings; options about the inspector (and
             // folders, which the inspector serves) keep the share in this terminal.
-            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some();
+            let local_only =
+                no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some() || comments;
             let wanted = app::Where::from_flags(app, here || local_only);
             let dir = context::data_dir()?;
             if let Some(client) = app::connect(&dir, wanted).await? {
@@ -852,6 +859,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                comments,
             };
             return share::run(
                 &origin,
@@ -983,6 +991,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                comments: false,
             };
             expose::mcp(
                 &app,
@@ -1015,6 +1024,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             spa,
             schedule,
             tz,
+            comments,
             ..
         } => {
             let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
@@ -1034,6 +1044,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                comments,
             };
             share::run_on_domain(
                 &app,
@@ -2189,6 +2200,26 @@ mod tests {
             }
         );
         assert!(parse(&["--host-header", "a", "--no-host-header"]).is_err());
+    }
+
+    #[test]
+    fn comments_need_the_inspector_and_folders_choose_their_listing() {
+        let share = |args: &[&str]| {
+            Cli::try_parse_from(["teitunnel", "share", "5173"].iter().chain(args))
+                .map(|c| c.command)
+        };
+        let Ok(Command::Share { comments, .. }) = share(&["--comments"]) else {
+            panic!("--comments parses");
+        };
+        assert!(comments);
+        assert!(
+            share(&["--comments", "--no-inspect"]).is_err(),
+            "the inspector shows them"
+        );
+        assert!(share(&["--listing", "--no-listing"]).is_err());
+        assert_eq!(listing_choice(false, false), None, "automatic");
+        assert_eq!(listing_choice(true, false), Some(true));
+        assert_eq!(listing_choice(false, true), Some(false));
     }
 
     #[test]

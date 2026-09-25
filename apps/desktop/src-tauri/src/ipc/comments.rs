@@ -6,7 +6,7 @@ use tauri::{AppHandle, State};
 use tauri_specta::Event;
 use teitunnel_core::{
     comments::{Author, Subject, SubjectKind, SubjectView, Thread},
-    inspect::{TapScope, TapView, lens::TapId},
+    inspect::{TapView, lens::TapId},
     text::msg,
 };
 
@@ -147,30 +147,10 @@ pub async fn comments_set_tap(
     tap: TapId,
     on: bool,
 ) -> Result<TapView, AppError> {
-    let view = state
-        .inspector
-        .view(&tap)
-        .map_err(teitunnel_core::Error::from)?;
-    let trust = match &view.scope {
-        TapScope::Route {
-            account_id,
-            hostname,
-            ..
-        } => state
-            .engine
-            .local()
-            .owned_access_apps(account_id)
+    let view =
+        teitunnel_core::comments::set_on_tap(&state.inspector, state.engine.local(), &tap, on)
             .await
-            .unwrap_or_default()
-            .iter()
-            .any(|(_, domain)| domain.split('/').next() == Some(hostname.as_str())),
-        TapScope::QuickShare { .. } | TapScope::LocalDomain { .. } => false,
-    };
-    let view = state
-        .inspector
-        .set_comments(&tap, on, trust)
-        .await
-        .map_err(teitunnel_core::Error::from)?;
+            .map_err(teitunnel_core::Error::from)?;
     let _ = EntityChanged {
         kind: EntityKind::Inspector,
         id: None,
