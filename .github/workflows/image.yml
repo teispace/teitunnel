@@ -113,7 +113,8 @@ jobs:
       - name: Smoke test
         run: |
           version=${{ steps.release.outputs.tag }}
-          docker run --rm teitunnel:test --version | tee /dev/stderr | grep -qx "teitunnel ${version#v}"
+          # Releases before 0.2.0 call themselves teitunnel-cli.
+          docker run --rm teitunnel:test --version | tee /dev/stderr | grep -qxE "teitunnel(-cli)? ${version#v}"
           docker run --rm --entrypoint /usr/local/bin/cloudflared teitunnel:test --version
           docker run --rm teitunnel:test routes 2>&1 | grep -q CLOUDFLARE_API_TOKEN
 
