@@ -42,7 +42,7 @@ use crate::{
     quick_share::{HostHeaderChoice, QuickShare, QuickShareError, QuickShares, ShareStatus},
     runtime::ConnectorState,
     store::Store,
-    text::{Text, msg::control as m},
+    text::{Text, UserText, msg::control as m},
 };
 
 /// How long a Quick Share may take to get its address.
@@ -269,7 +269,7 @@ fn quick_info(share: &QuickShare, requests: Option<u64>) -> ShareInfo {
         expires_at: share.stop_at,
         requests,
         account_id: None,
-        paused: false,
+        paused: share.paused,
     }
 }
 
@@ -438,7 +438,9 @@ impl CoreHost {
             Action::StartShare(start) => {
                 let origin = OriginUrl::parse(&start.origin)
                     .map_or_else(|_| start.origin.clone(), |o| o.to_string());
-                if link {
+                if let Some(folder) = &start.folder {
+                    (m::share_folder(&client, &folder.path), false)
+                } else if link {
                     (m::link_share(&origin), true)
                 } else {
                     (m::share(&client, &origin), false)
@@ -541,25 +543,42 @@ impl Host for CoreHost {
 
     fn start_share(&self, request: StartShare) -> BoxFuture<'_, HostResult<ShareInfo>> {
         Box::pin(async move {
-            let origin = OriginUrl::parse(&request.origin)
-                .map_err(|e| RpcError::new(code::INVALID_PARAMS, e.to_string()))?;
             let stop_after = request.stop_after_seconds.map(Duration::from_secs);
-            let choice = match request.host_header {
-                wire::HostHeader::Auto => HostHeaderChoice::Auto,
-                wire::HostHeader::Off => HostHeaderChoice::Off,
-                wire::HostHeader::Set { value } => HostHeaderChoice::Set { value },
+            let started = match &request.folder {
+                // Checked again here: the app serves only a real folder that isn't the
+                // whole disk or the home folder.
+                Some(folder) => {
+                    let folder = crate::folder_share::FolderShare::resolve(
+                        &folder.path,
+                        folder.listing,
+                        folder.spa,
+                    )
+                    .map_err(|e| error(code::INVALID_PARAMS, &e.text()))?;
+                    self.parts
+                        .quick_shares
+                        .start_folder(folder, stop_after)
+                        .await
+                }
+                None => {
+                    let origin = OriginUrl::parse(&request.origin)
+                        .map_err(|e| RpcError::new(code::INVALID_PARAMS, e.to_string()))?;
+                    let choice = match request.host_header {
+                        wire::HostHeader::Auto => HostHeaderChoice::Auto,
+                        wire::HostHeader::Off => HostHeaderChoice::Off,
+                        wire::HostHeader::Set { value } => HostHeaderChoice::Set { value },
+                    };
+                    self.parts
+                        .quick_shares
+                        .start(origin, stop_after, &choice)
+                        .await
+                }
             };
-            let share = self
-                .parts
-                .quick_shares
-                .start(origin, stop_after, &choice)
-                .await
-                .map_err(|e| match e {
-                    QuickShareError::Binary(cloudflared::Error::NotFound) => {
-                        error(code::INTERNAL, &m::error::no_binary())
-                    }
-                    other => internal(other),
-                })?;
+            let share = started.map_err(|e| match e {
+                QuickShareError::Binary(cloudflared::Error::NotFound) => {
+                    error(code::INTERNAL, &m::error::no_binary())
+                }
+                other => internal(other),
+            })?;
             self.ui.changed(Changed::Shares);
             let live = self.await_url(&share.id).await?;
             Ok(quick_info(&live, Some(0)))

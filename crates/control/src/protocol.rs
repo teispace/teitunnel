@@ -399,6 +399,25 @@ pub struct StartShare {
     /// The Host header (default: automatic, as in the app).
     #[serde(default)]
     pub host_header: HostHeader,
+    /// Share this folder's files instead of `origin` (served by the app's inspector,
+    /// which checks the folder again). Never set from a `teitunnel://` link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<ShareFolder>,
+}
+
+/// A folder to share, as `teitunnel share <folder>` resolved it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareFolder {
+    /// Its absolute path.
+    pub path: String,
+    /// List files where there's no `index.html` (`None`: only when the folder itself
+    /// has none).
+    #[serde(default)]
+    pub listing: Option<bool>,
+    /// A single-page app: unknown pages get `/index.html`.
+    #[serde(default)]
+    pub spa: bool,
 }
 
 /// `shares.stop` parameters.
@@ -795,6 +814,20 @@ mod tests {
         );
         let start: StartShare = serde_json::from_value(json!({"origin": "3000"})).unwrap();
         assert_eq!(start.host_header, HostHeader::Auto);
+        assert_eq!(start.folder, None);
+        assert!(!serde_json::to_string(&start).unwrap().contains("folder"));
+        let start: StartShare = serde_json::from_value(
+            json!({"origin": "/srv/site", "folder": {"path": "/srv/site", "spa": true}}),
+        )
+        .unwrap();
+        assert_eq!(
+            start.folder,
+            Some(ShareFolder {
+                path: "/srv/site".into(),
+                listing: None,
+                spa: true
+            })
+        );
         let start: StartShare = serde_json::from_value(
             json!({"origin": "5173", "hostHeader": {"mode": "set", "value": "localhost:5173"}}),
         )

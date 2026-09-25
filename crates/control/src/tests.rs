@@ -261,6 +261,7 @@ async fn changes_need_the_persons_approval() {
         origin: "3000".into(),
         stop_after_seconds: None,
         host_header: HostHeader::Auto,
+        folder: None,
     };
 
     // No: nothing happens.

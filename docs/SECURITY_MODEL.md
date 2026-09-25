@@ -110,7 +110,9 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   create is asked every time. Route changes are recorded in Activity with the program's
   name. The program's name is self-declared: the token and file permissions, not the name,
   keep other users out; a process running as the same user is trusted like the rest of this
-  model.
+  model. A folder share names the folder in the question, and the app resolves and checks
+  the folder itself (a real folder, never the whole disk or the home folder, served with the
+  Snapshot rules that keep dotfiles, keys and `.env*` out); links can't share a folder.
 - `teitunnel://` links are parsed strictly (known actions and parameters only, a port, a
   hostname or an id). Sharing from a link always asks, is never remembered, and only one
   question is shown at a time; links that only open a view don't ask. Links can be turned

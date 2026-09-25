@@ -107,11 +107,11 @@ scripts; `--json` prints `{"url": …, "hostname": …}` instead), and everythin
 standard error. A QR code is printed when the output is a terminal (`--no-qr` leaves it out),
 and a line per request unless you pass `--quiet`.
 
-**When the app is running**, `teitunnel share` hands a Quick Share to the app (which may ask
-you to allow it) and returns; the share keeps running there. `--here` keeps it in the
-terminal instead, and `--app` fails if the app isn't running. A share on your domain, a
-folder, or one with `--no-inspect`, `--idle` or `--watch` always runs in the terminal, for as
-long as the command runs.
+**When the app is running**, `teitunnel share` hands a Quick Share (of a service or a
+folder) to the app (which may ask you to allow it) and returns; the share keeps running there.
+`--here` keeps it in the terminal instead, and `--app` fails if the app isn't running. A share
+on your domain, or one with `--no-inspect`, `--idle`, `--watch` or `--comments`, always runs in
+the terminal, for as long as the command runs.
 
 | Flag | What it does |
 |---|---|
@@ -233,8 +233,8 @@ Share a folder of files (a built site, docs, a design export) without running a 
   **Advanced**: **List the files of folders without an index page** (already on when the
   folder has no `index.html`, so its address never answers *Not found*) and
   **Single-page app (every page opens index.html)**. **Share a service instead** goes back.
-- **Terminal:** `teitunnel share ./dist` (a random address) or
-  `teitunnel share ./dist --on docs.teispace.com`, with `--listing` / `--no-listing` and
+- **Terminal:** `teitunnel share ./dist` (a random address; handed to the app when it runs)
+  or `teitunnel share ./dist --on docs.teispace.com`, with `--listing` / `--no-listing` and
   `--spa`.
 - **AI agents:** `share_folder`.
 

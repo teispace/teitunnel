@@ -30,25 +30,27 @@ async fn a_share_through_the_app_needs_its_approval() {
     let app = testing::serve(dir.path(), Limits::default()).await.unwrap();
     let client = connect(dir.path(), Where::App).await.unwrap().unwrap();
 
-    let declined = share(&client, "5173", None, false, false, &HostHeaderChoice::Off)
-        .await
-        .unwrap_err();
+    let request = ShareRequest {
+        origin: "5173",
+        folder: None,
+        stop_after: None,
+        host_header: &HostHeaderChoice::Off,
+    };
+    let declined = share(&client, &request, false, false).await.unwrap_err();
     assert_eq!(declined, "Not allowed in Teitunnel. Nothing changed.");
     assert!(app.host.started.lock().unwrap().is_empty());
 
     app.host.answer(Decision::Once);
-    let started = share(
-        &client,
-        "5173",
-        Some(Duration::from_secs(90)),
-        false,
-        false,
-        &HostHeaderChoice::Set {
-            value: "localhost:5173".into(),
-        },
-    )
-    .await
-    .unwrap();
+    let host_header = HostHeaderChoice::Set {
+        value: "localhost:5173".into(),
+    };
+    let request = ShareRequest {
+        origin: "5173",
+        folder: None,
+        stop_after: Some(Duration::from_secs(90)),
+        host_header: &host_header,
+    };
+    let started = share(&client, &request, false, false).await.unwrap();
     assert_eq!(started, ExitCode::SUCCESS);
     let request = app.host.started.lock().unwrap()[0].clone();
     assert_eq!(request.origin, "5173");
@@ -59,11 +61,37 @@ async fn a_share_through_the_app_needs_its_approval() {
             value: "localhost:5173".into()
         }
     );
+    assert_eq!(request.folder, None);
     // The CLI introduces itself by name.
     let asked = app.host.asked.lock().unwrap()[0].clone();
     assert_eq!(
         asked.requester,
         teitunnel_control::Requester::Client(client_info())
+    );
+
+    // A folder goes as its resolved path, with how to serve it.
+    let site = dir.path().join("site");
+    std::fs::create_dir(&site).unwrap();
+    let folder =
+        teitunnel_core::folder_share::FolderShare::resolve(&site.display().to_string(), None, true)
+            .unwrap();
+    let request = ShareRequest {
+        origin: "./site",
+        folder: Some(&folder),
+        stop_after: None,
+        host_header: &HostHeaderChoice::Auto,
+    };
+    app.host.answer(Decision::Once);
+    share(&client, &request, false, false).await.unwrap();
+    let sent = app.host.started.lock().unwrap()[1].clone();
+    assert_eq!(sent.origin, folder.path);
+    assert_eq!(
+        sent.folder,
+        Some(ShareFolder {
+            path: folder.path.clone(),
+            listing: None,
+            spa: true,
+        })
     );
 }
 

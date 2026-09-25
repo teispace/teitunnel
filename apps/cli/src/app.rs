@@ -7,11 +7,11 @@ use std::{io::IsTerminal, path::Path, process::ExitCode, time::Duration};
 use teitunnel_control::{
     ClientError, ControlClient, Endpoint,
     protocol::{
-        ClientInfo, HostHeader, PauseShare, RoutesList, ShareInfo, ShareKind, StartShare, Status,
-        code,
+        ClientInfo, HostHeader, PauseShare, RoutesList, ShareFolder, ShareInfo, ShareKind,
+        StartShare, Status, code,
     },
 };
-use teitunnel_core::quick_share::HostHeaderChoice;
+use teitunnel_core::{folder_share::FolderShare, quick_share::HostHeaderChoice};
 
 use crate::share::status as note;
 
@@ -86,15 +86,23 @@ fn host_header(choice: &HostHeaderChoice) -> HostHeader {
     }
 }
 
-/// `teitunnel share <origin>` through the app: the app runs the share and keeps it;
-/// this command prints the address and ends.
+/// What `teitunnel share` asks the app to share.
+pub(crate) struct ShareRequest<'a> {
+    /// The service, as typed.
+    pub(crate) origin: &'a str,
+    /// Or a folder's files.
+    pub(crate) folder: Option<&'a FolderShare>,
+    pub(crate) stop_after: Option<Duration>,
+    pub(crate) host_header: &'a HostHeaderChoice,
+}
+
+/// `teitunnel share <origin|folder>` through the app: the app runs the share and keeps
+/// it; this command prints the address and ends.
 pub(crate) async fn share(
     client: &ControlClient,
-    origin: &str,
-    stop_after: Option<Duration>,
+    request: &ShareRequest<'_>,
     qr: bool,
     json: bool,
-    choice: &HostHeaderChoice,
 ) -> Result<ExitCode, String> {
     if client.hello().approved {
         note("Sharing through the Teitunnel app…");
@@ -103,9 +111,16 @@ pub(crate) async fn share(
     }
     let share = client
         .start_share(&StartShare {
-            origin: origin.to_owned(),
-            stop_after_seconds: stop_after.map(|d| d.as_secs()),
-            host_header: host_header(choice),
+            origin: request
+                .folder
+                .map_or_else(|| request.origin.to_owned(), |f| f.path.clone()),
+            stop_after_seconds: request.stop_after.map(|d| d.as_secs()),
+            host_header: host_header(request.host_header),
+            folder: request.folder.map(|f| ShareFolder {
+                path: f.path.clone(),
+                listing: f.listing,
+                spa: f.spa,
+            }),
         })
         .await
         .map_err(|e| describe(&e))?;
@@ -118,9 +133,17 @@ pub(crate) async fn share(
     {
         out!("\n{code}")?;
     }
+    let what = match request.folder {
+        Some(folder) => format!("The files in {}", folder.path),
+        None => share.origin.clone(),
+    };
     note(&format!(
-        "{} is public at {url} for anyone with the link. It runs in the Teitunnel app: stop it there or with `teitunnel shares --stop {url}`.",
-        share.origin
+        "{what} {} public at {url} for anyone with the link. It runs in the Teitunnel app: stop it there or with `teitunnel shares --stop {url}`.",
+        if request.folder.is_some() {
+            "are"
+        } else {
+            "is"
+        }
     ));
     Ok(ExitCode::SUCCESS)
 }

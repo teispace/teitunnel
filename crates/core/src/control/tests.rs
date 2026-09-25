@@ -74,7 +74,8 @@ fn fixture() -> Fixture {
             PortAllocator::new(QUICK_SHARE_PORTS),
             store.clone(),
             dir.path().join("quick-share.yml"),
-        ),
+        )
+        .with_inspector(crate::inspect::Inspector::new(None, None, "test")),
         binary,
         runs: dir.path().join("run-cli"),
         machine_name: "test-machine".into(),
@@ -113,6 +114,7 @@ fn start(origin: &str) -> StartShare {
         origin: origin.into(),
         stop_after_seconds: None,
         host_header: HostHeader::Auto,
+        folder: None,
     }
 }
 
@@ -168,6 +170,37 @@ async fn explains_what_it_cant_do() {
     );
     let error = f.host.start_share(start("not a port")).await.unwrap_err();
     assert_eq!(error.code, code::INVALID_PARAMS);
+    // A folder is checked again by the app: a real one, not the home folder.
+    let folder = |path: &str| StartShare {
+        folder: Some(teitunnel_control::protocol::ShareFolder {
+            path: path.into(),
+            listing: None,
+            spa: false,
+        }),
+        ..start(path)
+    };
+    let missing = f.dir.path().join("nope").display().to_string();
+    let error = f.host.start_share(folder(&missing)).await.unwrap_err();
+    assert_eq!(error.code, code::INVALID_PARAMS);
+    if let Some(home) = std::env::home_dir() {
+        let error = f
+            .host
+            .start_share(folder(&home.display().to_string()))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, code::INVALID_PARAMS, "{}", error.message);
+    }
+    let site = f.dir.path().join("site");
+    std::fs::create_dir(&site).unwrap();
+    let error = f
+        .host
+        .start_share(folder(&site.display().to_string()))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.message,
+        "cloudflared isn't installed. Open Teitunnel to install it."
+    );
     let error = f
         .host
         .stop_share(StopShare {
@@ -219,6 +252,20 @@ async fn asks_in_the_persons_words() {
     f.host
         .confirm(ConfirmRequest {
             requester: Requester::Client(client()),
+            action: Action::StartShare(StartShare {
+                folder: Some(teitunnel_control::protocol::ShareFolder {
+                    path: "/Users/me/site".into(),
+                    listing: None,
+                    spa: false,
+                }),
+                ..start("/Users/me/site")
+            }),
+            offer_always: false,
+        })
+        .await;
+    f.host
+        .confirm(ConfirmRequest {
+            requester: Requester::Client(client()),
             action: Action::Apply(ApplyParams {
                 account: None,
                 tunnel: None,
@@ -253,12 +300,16 @@ async fn asks_in_the_persons_words() {
     assert_eq!(prompts[1].allow.english(), "Share");
     assert_eq!(prompts[1].always, None);
     assert_eq!(prompts[1].deny.english(), "Cancel");
-    // Without an account the plan can't be described in detail.
     assert_eq!(
         prompts[2].message.english(),
+        "vscode wants to share the files in /Users/me/site at a public address. Anyone with the address can open them."
+    );
+    // Without an account the plan can't be described in detail.
+    assert_eq!(
+        prompts[3].message.english(),
         "vscode wants to change your routes in Cloudflare."
     );
-    assert_eq!(prompts[2].always, None);
+    assert_eq!(prompts[3].always, None);
 }
 
 #[tokio::test]

@@ -379,6 +379,7 @@ fn act(source: &Source, records: &Records, command: Command, done: &mpsc::Sender
                         origin,
                         stop_after_seconds: None,
                         host_header: teitunnel_control::protocol::HostHeader::Auto,
+                        folder: None,
                     })
                     .await
                     .map(|s| format!("Shared at {}", s.url.unwrap_or_default()))

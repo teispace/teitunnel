@@ -840,18 +840,22 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
             let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
-            if folder.is_some() && app {
-                return Err("Folders are shared from this terminal; leave out --app.".into());
-            }
-            // The app inspects by its own settings; options about the inspector (and
-            // folders, which the inspector serves) keep the share in this terminal.
-            let local_only =
-                no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some() || comments;
+            // The app inspects by its own settings; options about the inspector keep
+            // the share in this terminal.
+            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || comments;
             let wanted = app::Where::from_flags(app, here || local_only);
             let dir = context::data_dir()?;
             if let Some(client) = app::connect(&dir, wanted).await? {
-                exposure::check(&origin, share::store(&dir).ok().as_ref(), strict).await?;
-                return app::share(&client, &origin, stop_after, !no_qr, json, &host_header).await;
+                if folder.is_none() {
+                    exposure::check(&origin, share::store(&dir).ok().as_ref(), strict).await?;
+                }
+                let request = app::ShareRequest {
+                    origin: &origin,
+                    folder: folder.as_ref(),
+                    stop_after,
+                    host_header: &host_header,
+                };
+                return app::share(&client, &request, !no_qr, json).await;
             }
             let options = share::ShareOptions {
                 inspect: !no_inspect,

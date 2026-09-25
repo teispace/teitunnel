@@ -459,7 +459,7 @@ must come within 5 s; requests are rate-limited per connection (token bucket 40/
 | Method | Core call |
 |---|---|
 | `status`, `shares.list` | accounts, local tunnels + connector state, `QuickShares::list`, domain shares, `cli_shares::list` |
-| `shares.start` / `shares.stop` | `QuickShares::start` (waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
+| `shares.start` / `shares.stop` | `QuickShares::start`, or `start_folder` for a `folder` (checked again; waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
 | `routes.list` | `Engine::overview` |
 | `routes.preview` / `routes.apply` | `intent_for` → `preview` / `apply` by fingerprint, `with_actor(via: "control")` |
 | `open` | `Ui::open` → `OpenView` event → the webview navigates |

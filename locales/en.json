@@ -2569,6 +2569,7 @@
       "clientTitle": "Allow {client} to make this change?",
       "linkTitle": "Share from a link?",
       "share": "{client} wants to share {origin} at a public address. Anyone with the address can open it.",
+      "shareFolder": "{client} wants to share the files in {folder} at a public address. Anyone with the address can open them.",
       "linkShare": "A link opened in another app wants to share {origin} at a public address. Anyone with the address can open it. Only allow it if you opened the link on purpose.",
       "stop": "{client} wants to stop the share {share}.",
       "apply_one": "{client} wants to change your routes in Cloudflare ({count} step):\n{steps}",

@@ -489,7 +489,7 @@ Also noted for later: cloudflared drops Intel macOS and 32-bit Windows builds in
 **Why:** The same link every day, and one per branch, without typing it.
 
 ### D-119 · 2026-09-25 · Folder shares
-**Decision:** Lens serves a folder with the Snapshot rules for what never goes out (`snapshot::content::servable`, a `NameFilter`, links checked after they resolve), with optional listing and single-page-app fallback. The whole disk and the home folder are refused. Works as a Quick Share or on your domain, from the app (drop on the window, which turns on Tauri's native `dragDropEnabled`, or a folder picker), the CLI (`share ./dist [--on] [--listing] [--spa]`) and MCP (`share_folder`). A CLI folder share stays in the terminal (the control protocol has no folder field yet).
+**Decision:** Lens serves a folder with the Snapshot rules for what never goes out (`snapshot::content::servable`, a `NameFilter`, links checked after they resolve), with optional listing and single-page-app fallback. The whole disk and the home folder are refused. Works as a Quick Share or on your domain, from the app (drop on the window, which turns on Tauri's native `dragDropEnabled`, or a folder picker), the CLI (`share ./dist [--on] [--listing] [--spa]`) and MCP (`share_folder`). A CLI folder Quick Share goes to the running app like any other (`shares.start` carries an optional `folder` with the resolved path, listing and single-page choice; the app resolves and checks it again, the approval names the folder, and `teitunnel://` links never carry one).
 **Why:** Sharing a build folder shouldn't need a dev server, and must never leak dotfiles or keys beside it.
 
 ### D-120 · 2026-09-25 · OpenAPI from traffic

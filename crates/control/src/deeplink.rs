@@ -233,6 +233,7 @@ impl LinkHandler {
                     origin: port.to_string(),
                     stop_after_seconds: None,
                     host_header: HostHeader::Auto,
+                    folder: None,
                 };
                 let decision = host
                     .confirm(ConfirmRequest {
