@@ -27,28 +27,34 @@ fn failed(err: &std::io::Error) -> AppError {
 /// Whether the command line tool is on the PATH, and how to put it there.
 #[tauri::command]
 #[specta::specta]
-pub fn cli_status() -> CliState {
-    layout().map_or(CliState::Unavailable, |l| l.state())
+pub async fn cli_status() -> Result<CliState, AppError> {
+    super::off_main(|| layout().map_or(CliState::Unavailable, |l| l.state())).await
 }
 
 /// Puts the command line tool on the PATH.
 #[tauri::command]
 #[specta::specta]
-pub fn cli_install() -> Result<CliState, AppError> {
-    let Some(layout) = layout() else {
-        return Ok(CliState::Unavailable);
-    };
-    layout.install().map_err(|err| failed(&err))
+pub async fn cli_install() -> Result<CliState, AppError> {
+    super::off_main(|| {
+        let Some(layout) = layout() else {
+            return Ok(CliState::Unavailable);
+        };
+        layout.install().map_err(|err| failed(&err))
+    })
+    .await?
 }
 
 /// Removes the command line tool Teitunnel installed.
 #[tauri::command]
 #[specta::specta]
-pub fn cli_uninstall() -> Result<CliState, AppError> {
-    let Some(layout) = layout() else {
-        return Ok(CliState::Unavailable);
-    };
-    layout.uninstall().map_err(|err| failed(&err))
+pub async fn cli_uninstall() -> Result<CliState, AppError> {
+    super::off_main(|| {
+        let Some(layout) = layout() else {
+            return Ok(CliState::Unavailable);
+        };
+        layout.uninstall().map_err(|err| failed(&err))
+    })
+    .await?
 }
 
 /// At launch: an installed copy follows the app after an update.

@@ -155,23 +155,26 @@ pub async fn app_quit(
 /// Whether Teitunnel opens at login (hidden, in the menu bar).
 #[tauri::command]
 #[specta::specta]
-pub fn app_open_at_login(app: AppHandle) -> bool {
+pub async fn app_open_at_login(app: AppHandle) -> Result<bool, AppError> {
     use tauri_plugin_autostart::ManagerExt;
-    app.autolaunch().is_enabled().unwrap_or(false)
+    super::off_main(move || app.autolaunch().is_enabled().unwrap_or(false)).await
 }
 
 /// Turns opening at login on or off.
 #[tauri::command]
 #[specta::specta]
-pub fn app_set_open_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError> {
+pub async fn app_set_open_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError> {
     use tauri_plugin_autostart::ManagerExt;
-    let launcher = app.autolaunch();
-    let result = if enabled {
-        launcher.enable()
-    } else {
-        launcher.disable()
-    };
-    result.map_err(|e| AppError::internal(m::login_item(e)))
+    super::off_main(move || {
+        let launcher = app.autolaunch();
+        let result = if enabled {
+            launcher.enable()
+        } else {
+            launcher.disable()
+        };
+        result.map_err(|e| AppError::internal(m::login_item(e)))
+    })
+    .await?
 }
 
 /// Writes a file named `name` to Downloads (or home), shows it in Finder, and returns

@@ -38,6 +38,7 @@ These apply to humans and agents alike. CI enforces what it can. Review enforces
 
 ## Naming
 - IPC commands: `<area>_<verb>` (`routes_plan_add`). Events: `PascalCase` types (`EntityChanged`).
+- A command that touches the disk, other processes, the keychain or a system service is `async` (blocking work through `ipc::off_main`), and so is one that builds a window: synchronous commands run on the main thread, where they freeze every window on macOS and deadlock WebView2 on Windows. Synchronous commands only read memory.
 - Query keys: `['routes', accountId]`, built by `lib/ipc/query-keys.ts` only.
 - Branches: `<type>/<task-id>-<slug>` (e.g. `feat/m1-04-log-parser`).
 

@@ -151,16 +151,15 @@ pub async fn inspect_replay(
 /// are masked unless `redact` is false (an explicit choice).
 #[tauri::command]
 #[specta::specta]
-pub fn inspect_export(
+pub async fn inspect_export(
     state: State<'_, AppState>,
     ids: Vec<ExchangeId>,
     format: TrafficFormat,
     redact: bool,
 ) -> Result<String, AppError> {
-    state
-        .inspector
-        .export(&ids, format.into(), redact)
-        .map_err(err)
+    // Bodies may be read back from disk: off the main thread.
+    let inspector = state.inspector.clone();
+    super::off_main(move || inspector.export(&ids, format.into(), redact).map_err(err)).await?
 }
 
 /// Saves an export to Downloads and shows it in the file manager. Returns its path.

@@ -317,10 +317,11 @@ pub fn quick_share_qr(url: String) -> Result<String, AppError> {
 /// Quick Shares running in terminals (`teitunnel share`), oldest first.
 #[tauri::command]
 #[specta::specta]
-pub fn quick_share_cli_list(
+pub async fn quick_share_cli_list(
     state: State<'_, AppState>,
-) -> Vec<teitunnel_core::cli_shares::CliShare> {
-    teitunnel_core::cli_shares::list(&state.cli_runs)
+) -> Result<Vec<teitunnel_core::cli_shares::CliShare>, AppError> {
+    let runs = state.cli_runs.clone();
+    super::off_main(move || teitunnel_core::cli_shares::list(&runs)).await
 }
 
 /// Stops a terminal's Quick Share (asks its `teitunnel` to end).
