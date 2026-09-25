@@ -815,6 +815,14 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             }
             if !hostname_still_used {
                 front::remove_all(&mut b, hostname.as_str());
+                // Its WAF, header and rate-limit rules would guard a hostname that's gone.
+                if b.snapshot.edge.is_some() {
+                    edge::protect(
+                        &mut b,
+                        hostname,
+                        &crate::engine::edge::EdgeProtection::default(),
+                    )?;
+                }
             }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);

@@ -813,6 +813,9 @@ impl EdgeState {
 pub struct EdgeNeed {
     /// The hostname whose zone's rules to read.
     pub hostname: Option<String>,
+    /// The plan can't be made without them. Otherwise (removing a route) they're read
+    /// only when Teitunnel owns rules in the zone, and not being allowed is no error.
+    pub required: bool,
 }
 
 /// Why edge rules couldn't be read.

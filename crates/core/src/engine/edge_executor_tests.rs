@@ -323,3 +323,48 @@ pub(super) async fn edge_scenarios() -> Vec<(&'static str, CloudState, Intent)> 
         ),
     ]
 }
+
+async fn change(engine: &Engine, cloud: &FakeCloud, change: super::Change) {
+    let intent = engine.intent_for(cloud, CTX, &change).await.unwrap();
+    let (outcome, _) = apply(engine, cloud, &intent).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+#[tokio::test]
+async fn removing_the_last_route_takes_its_edge_rules_with_it() {
+    use super::{Change, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    let route = RouteInput {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    let (outcome, _) = apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        !engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let removal = Change::RemoveRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+    };
+    change(&engine, &cloud, removal).await;
+    assert_eq!(custom_rules(&cloud), ["Their own rule"], "theirs stays");
+    assert!(
+        engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

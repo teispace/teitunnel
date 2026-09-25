@@ -143,11 +143,17 @@ impl ObserveNeed {
                     },
                 })
                 .unwrap_or_default(),
-            edge: super::edge::EdgeNeed {
-                hostname: match intent {
-                    Intent::ProtectHostname { hostname, .. } => Some(hostname.to_string()),
-                    _ => None,
+            edge: match intent {
+                Intent::ProtectHostname { hostname, .. } => super::edge::EdgeNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: true,
                 },
+                // Removing a hostname's last route takes its edge rules with it.
+                Intent::RemoveRoute { hostname, .. } => super::edge::EdgeNeed {
+                    hostname: Some(hostname.to_string()),
+                    required: false,
+                },
+                _ => super::edge::EdgeNeed::default(),
             },
             service_tokens: matches!(
                 intent,
@@ -416,14 +422,15 @@ async fn observe_edge<C: CloudApi>(
     else {
         return Ok(None);
     };
-    let owned: HashSet<String> = local
-        .owned_edge_rules(account)
-        .await?
-        .into_iter()
-        .map(|r| r.rule_id)
-        .collect();
+    let rows = local.owned_edge_rules(account).await?;
+    if !need.required && !rows.iter().any(|r| r.zone_id == zone.id) {
+        return Ok(None);
+    }
+    let owned: HashSet<String> = rows.into_iter().map(|r| r.rule_id).collect();
     match super::edge::observe(api, &zone, &owned).await {
         Ok(state) => Ok(Some(state)),
+        // Removing a route doesn't fail because its edge rules can't be read.
+        Err(super::edge::EdgeReadError::Permission) if !need.required => Ok(None),
         Err(super::edge::EdgeReadError::Permission) => Err(ObserveError::EdgePermission),
         Err(super::edge::EdgeReadError::Api(err)) => Err(err.into()),
     }
