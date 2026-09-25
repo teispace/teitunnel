@@ -399,6 +399,10 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname, kind, path)
         ) STRICT;",
     ),
+    // 21: which refresh token an OAuth account's shared access token came from (a hash,
+    // never the token), so each API call can tell whether another process refreshed
+    // without reading the keychain (D-128).
+    M::up("ALTER TABLE accounts ADD COLUMN token_source TEXT;"),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
