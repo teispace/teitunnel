@@ -34,9 +34,9 @@ describe("inputs", () => {
     assert.throws(() => readInputs(env({ "cloudflare-api-token": "t", mode: "share" })), /port/);
     assert.throws(() => readInputs(env({ "cloudflare-api-token": "t", build: "maybe" })), /build/);
     const allow = readInputs(
-      env({ "cloudflare-api-token": "t", allow: "a@x.io, @team.io\nb@y.io" }),
+      env({ "cloudflare-api-token": "t", allow: "a@teispace.com, @teispace.dev\nb@teispace.app" }),
     );
-    assert.deepEqual(allow.allow, ["a@x.io", "@team.io", "b@y.io"]);
+    assert.deepEqual(allow.allow, ["a@teispace.com", "@teispace.dev", "b@teispace.app"]);
   });
 });
 
@@ -44,7 +44,7 @@ describe("hostname templates", () => {
   const event = {
     pull_request: { number: 42, head: { ref: "feat/New Login!", sha: "abcdef1234567" } },
   };
-  const context = templateContext({ GITHUB_REPOSITORY: "Acme/Web.App" }, event, "Example.com");
+  const context = templateContext({ GITHUB_REPOSITORY: "Teispace/Web.App" }, event, "Teispace.com");
 
   it("fills placeholders as DNS labels", () => {
     assert.equal(
@@ -55,7 +55,7 @@ describe("hostname templates", () => {
       renderHostname("{branch}.{repo}.{zone}", context),
       "feat-new-login.web-app.teispace.com",
     );
-    assert.equal(renderHostname("{sha}.{owner}.{zone}", context), "abcdef1.acme.teispace.com");
+    assert.equal(renderHostname("{sha}.{owner}.{zone}", context), "abcdef1.teispace.teispace.com");
   });
 
   it("refuses templates that can't make a hostname", () => {
@@ -122,7 +122,7 @@ describe("CLI arguments and output", () => {
       port: "3000",
       mode: "share",
       expires: "2h",
-      allow: "a@x.io",
+      allow: "a@teispace.com",
       account: "Acme",
       password: "hunter22",
       build: "true",
@@ -143,7 +143,7 @@ describe("CLI arguments and output", () => {
       "--for",
       "2h",
       "--allow",
-      "a@x.io",
+      "a@teispace.com",
     ]);
     const snapshot = snapshotArgs(inputs, "pr-1.teispace.com", "web-pr-1");
     assert.ok(snapshot.includes("--or-update") && snapshot.includes("--build"));

@@ -125,7 +125,7 @@ describe("the action", { skip }, () => {
     assert.ok(!publish.args.includes("cf-secret") && !publish.args.includes("hunter22"));
     assert.equal(publish.owner, "github-actions/acme/web");
     assert.equal(comments.length, 1);
-    assert.match(comments[0].body, /https:\/\/pr-7\.preview\.example\.com/);
+    assert.match(comments[0].body, /https:\/\/pr-7-preview\.teispace\.com/);
 
     const second = await step("main.mjs", { ...base, mode: "snapshot" }, work);
     assert.equal(second.code, 0, second.log);
