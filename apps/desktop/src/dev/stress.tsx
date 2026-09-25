@@ -46,7 +46,7 @@ export default function Stress() {
           : {
               time: null,
               level: "info",
-              message: `GET https://app.xyz.com/items/${n} HTTP/1.1 connIndex=${n % 4}`,
+              message: `GET https://app.teispace.com/items/${n} HTTP/1.1 connIndex=${n % 4}`,
               error: null,
             };
       });

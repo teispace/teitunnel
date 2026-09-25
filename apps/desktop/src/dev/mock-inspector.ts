@@ -356,7 +356,7 @@ export function mockDetail(id: string, reveal = false): ExchangeDetail {
   }
   if (row.path === "/login") {
     requestBody = text(
-      "email=ada%40example.com&remember=on",
+      "email=team%40teispace.com&remember=on",
       "application/x-www-form-urlencoded",
       "form",
     );

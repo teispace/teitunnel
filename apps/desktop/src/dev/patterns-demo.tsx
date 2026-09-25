@@ -16,11 +16,11 @@ interface DemoRoute {
 }
 
 const routes: readonly DemoRoute[] = [
-  { id: "1", hostname: "app.xyz.com", origin: "localhost:3000", status: "healthy" },
-  { id: "2", hostname: "api.xyz.com", origin: "localhost:8080", status: "healthy" },
-  { id: "3", hostname: "yx.com", origin: "localhost:5000", status: "connecting" },
-  { id: "4", hostname: "docs.yx.com", origin: "localhost:4321", status: "warning" },
-  { id: "5", hostname: "admin.xyz.com", origin: "localhost:9000", status: "idle" },
+  { id: "1", hostname: "app.teispace.com", origin: "localhost:3000", status: "healthy" },
+  { id: "2", hostname: "api.teispace.com", origin: "localhost:8080", status: "healthy" },
+  { id: "3", hostname: "teispace.dev", origin: "localhost:5000", status: "connecting" },
+  { id: "4", hostname: "docs.teispace.dev", origin: "localhost:4321", status: "warning" },
+  { id: "5", hostname: "admin.teispace.com", origin: "localhost:9000", status: "idle" },
 ];
 
 /** Sample list │ detail │ inspector layout for the gallery (fake data, dev only). */

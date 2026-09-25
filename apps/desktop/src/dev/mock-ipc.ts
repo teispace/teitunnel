@@ -77,12 +77,12 @@ let aiClients: AiClientView[] = [
 function updateStatus(): UpdateStatus {
   const ready = new URLSearchParams(window.location.search).has("update");
   return {
-    currentVersion: "0.1.0",
+    currentVersion: "0.2.0",
     unsupported: null,
     automatic: settings.checkForUpdates,
     lastChecked: now - 12 * 60_000,
     state: ready
-      ? { state: "ready", version: "0.2.0", notes: "### Features\n- Load balancing health" }
+      ? { state: "ready", version: "0.2.1", notes: "### Features\n- Load balancing health" }
       : { state: "upToDate" },
     installOnQuit: true,
   };
@@ -145,7 +145,7 @@ let shares: QuickShare[] = [
     startedAt: now - 6 * 60_000,
     stopAt: null,
     inspected: true,
-    folder: { path: "/Users/demo/Projects/docs/dist", listing: false, spa: true },
+    folder: { path: "~/Projects/docs/dist", listing: false, spa: true },
     hostHeader: null,
     check: null,
   },
@@ -207,12 +207,12 @@ const services: LocalService[] = [
 ];
 
 const accounts: Account[] = [
-  { id: "acc-personal", name: "Personal", credential: "apiToken", limitedZone: null },
+  { id: "acc-personal", name: "Teispace", credential: "apiToken", limitedZone: null },
 ];
 
 const domains: Domain[] = [
   {
-    id: "023e105f4ecef8ad9ca31a8372d0c353",
+    id: "00000000000000000000000000000a01",
     name: "teispace.com",
     status: "active",
     nameServers: ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
@@ -221,8 +221,8 @@ const domains: Domain[] = [
     paused: false,
   },
   {
-    id: "9a7806061c88ada191ed06f989cc3dac",
-    name: "xyz.dev",
+    id: "00000000000000000000000000000a02",
+    name: "teispace.dev",
     status: "active",
     nameServers: ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"],
     originalNameServers: [],
@@ -230,11 +230,11 @@ const domains: Domain[] = [
     paused: false,
   },
   {
-    id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
-    name: "yx.app",
+    id: "00000000000000000000000000000a03",
+    name: "teispace.app",
     status: "pending",
     nameServers: ["kate.ns.cloudflare.com", "rick.ns.cloudflare.com"],
-    originalNameServers: ["ns1.registrar.example", "ns2.registrar.example"],
+    originalNameServers: ["ns1.teispace.app", "ns2.teispace.app"],
     plan: "Free Website",
     paused: false,
   },
@@ -253,7 +253,7 @@ const capabilities: Capabilities = {
   zones: domains.map((d) => ({
     zoneId: d.id,
     zoneName: d.name,
-    dnsEdit: d.name === "yx.app" ? "no" : "yes",
+    dnsEdit: d.name === "teispace.app" ? "no" : "yes",
     workersRoutes: "yes",
   })),
 };
@@ -263,15 +263,15 @@ const snapshots: SnapshotView[] = [
     id: "s1",
     accountId: "a1",
     name: "Launch page",
-    url: "https://preview.xyz.com",
-    hostname: "preview.xyz.com",
+    url: "https://preview.teispace.com",
+    hostname: "preview.teispace.com",
     workersDev: false,
     script: "teitunnel-launch-page",
     source: {
       type: "build",
-      project: "/Users/me/Projects/launch",
+      project: "~/Projects/launch",
       command: "pnpm run build",
-      output: "/Users/me/Projects/launch/dist",
+      output: "~/Projects/launch/dist",
     },
     spa: true,
     password: false,
@@ -289,8 +289,8 @@ const snapshots: SnapshotView[] = [
     id: "s2",
     accountId: "a1",
     name: "Design review",
-    url: "https://teitunnel-design-review.acme.workers.dev",
-    hostname: "teitunnel-design-review.acme.workers.dev",
+    url: "https://teitunnel-design-review.teispace.workers.dev",
+    hostname: "teitunnel-design-review.teispace.workers.dev",
     workersDev: true,
     script: "teitunnel-design-review",
     source: { type: "crawl", url: "http://localhost:5173/" },
@@ -322,7 +322,7 @@ const snapshotPlan: PlanView = {
     },
     {
       kind: "snapshotAddress",
-      description: core("snapshot.step.attachDomain", { hostname: "preview.xyz.com" }),
+      description: core("snapshot.step.attachDomain", { hostname: "preview.teispace.com" }),
       command: null,
     },
   ],
@@ -331,7 +331,7 @@ const snapshotPlan: PlanView = {
   fingerprint: "snapshot",
 };
 
-const tunnelId = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
+const tunnelId = "00000000-0000-4000-8000-000000000001";
 const routesOverview: RoutesOverview = {
   tunnel: {
     id: tunnelId,
@@ -347,7 +347,7 @@ const routesOverview: RoutesOverview = {
       isDefault: true,
     },
     {
-      id: "0b8c3f1e-2d4a-4c6b-9e7f-a1b2c3d4e5f6",
+      id: "00000000-0000-4000-8000-000000000002",
       name: "staging",
       connector: null,
       isDefault: false,
@@ -383,7 +383,7 @@ const routesOverview: RoutesOverview = {
       client: null,
     },
     {
-      hostname: "xyz.dev",
+      hostname: "teispace.dev",
       path: null,
       origin: "http://localhost:3000",
       local: true,
@@ -391,13 +391,13 @@ const routesOverview: RoutesOverview = {
       temporary: false,
       balanced: false,
       options: {},
-      zone: "xyz.dev",
+      zone: "teispace.dev",
       dns: { state: "ok" },
-      access: { emails: ["me@xyz.dev"], emailDomains: ["teispace.com"] },
+      access: { emails: ["team@teispace.com"], emailDomains: ["teispace.com"] },
       client: null,
     },
     {
-      hostname: "ssh.xyz.dev",
+      hostname: "ssh.teispace.dev",
       path: null,
       origin: "ssh://localhost:22",
       local: true,
@@ -405,18 +405,18 @@ const routesOverview: RoutesOverview = {
       temporary: false,
       balanced: false,
       options: {},
-      zone: "xyz.dev",
+      zone: "teispace.dev",
       dns: { state: "ok" },
-      access: { emails: ["me@xyz.dev"], emailDomains: [] },
+      access: { emails: ["team@teispace.com"], emailDomains: [] },
       client: {
         protocol: "ssh",
-        command: 'ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.xyz.dev',
+        command: 'ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.teispace.dev',
         localAddress: null,
-        sshConfig: "Host ssh.xyz.dev\n  ProxyCommand cloudflared access ssh --hostname %h",
+        sshConfig: "Host ssh.teispace.dev\n  ProxyCommand cloudflared access ssh --hostname %h",
       },
     },
     {
-      hostname: "api.xyz.dev",
+      hostname: "api.teispace.dev",
       path: "^/v1/",
       origin: "http://localhost:8000",
       local: true,
@@ -424,16 +424,16 @@ const routesOverview: RoutesOverview = {
       temporary: false,
       balanced: false,
       options: {},
-      zone: "xyz.dev",
+      zone: "teispace.dev",
       dns: { state: "ok" },
       access: null,
       client: null,
     },
   ],
   zones: [
-    { id: "023e105f4ecef8ad9ca31a8372d0c353", name: "teispace.com" },
-    { id: "9a7806061c88ada191ed06f989cc3dac", name: "xyz.dev" },
-    { id: "5c1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", name: "yx.app" },
+    { id: "00000000000000000000000000000a01", name: "teispace.com" },
+    { id: "00000000000000000000000000000a02", name: "teispace.dev" },
+    { id: "00000000000000000000000000000a03", name: "teispace.app" },
   ],
   networks: [{ network: "192.168.1.0/24", private: true, owned: true }],
 };
@@ -447,7 +447,9 @@ const protectedPlan: PlanView = {
     },
     {
       kind: "accessApp",
-      description: rawText("Require a login for shop.yx.app: me@xyz.dev, anyone at @teispace.com"),
+      description: rawText(
+        "Require a login for shop.teispace.app: team@teispace.com, anyone at @teispace.com",
+      ),
       command: null,
     },
     {
@@ -457,10 +459,14 @@ const protectedPlan: PlanView = {
     },
     {
       kind: "createRecord",
-      description: rawText("Point shop.yx.app at tunnel “MacBook-Pro”"),
+      description: rawText("Point shop.teispace.app at tunnel “MacBook-Pro”"),
       command: null,
     },
-    { kind: "verify", description: rawText("Check https://shop.yx.app works"), command: null },
+    {
+      kind: "verify",
+      description: rawText("Check https://shop.teispace.app works"),
+      command: null,
+    },
   ],
   warnings: [],
   requiresConfirmation: false,
@@ -476,19 +482,19 @@ const addPlan: PlanView = {
     },
     {
       kind: "updateRecord",
-      description: rawText("Point shop.yx.app at tunnel “MacBook-Pro” (was A 192.0.2.10)"),
+      description: rawText("Point shop.teispace.app at tunnel “MacBook-Pro” (was A 192.0.2.10)"),
       command: null,
     },
     {
       kind: "verify",
-      description: rawText("Check https://shop.yx.app works"),
-      command: "curl -I https://shop.yx.app",
+      description: rawText("Check https://shop.teispace.app works"),
+      command: "curl -I https://shop.teispace.app",
     },
   ],
   warnings: [
     {
       type: "replacesForeignRecord",
-      hostname: "shop.yx.app",
+      hostname: "shop.teispace.app",
       kind: "A",
       content: "192.0.2.10",
     },
@@ -514,7 +520,7 @@ const activity: ActivityEntry[] = [
             kind: "putConfig",
             description: rawText("Update tunnel “MacBook-Pro” to serve 4 routes"),
             command:
-              'curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/6ff42ae2/configurations',
+              'curl -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/cfd_tunnel/00000000/configurations',
           },
           state: { state: "done" },
         },
@@ -532,7 +538,7 @@ const activity: ActivityEntry[] = [
           step: {
             kind: "deleteRecord",
             description: rawText(
-              "Delete DNS record app.teispace.com (CNAME 6ff42ae2.cfargotunnel.com)",
+              "Delete DNS record app.teispace.com (CNAME 00000000.cfargotunnel.com)",
             ),
             command:
               'curl -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" …/dns_records/r4',
@@ -559,7 +565,7 @@ const activity: ActivityEntry[] = [
           area: "dns",
           hostname: "app.teispace.com",
           path: null,
-          before: rawText("CNAME 6ff42ae2.cfargotunnel.com"),
+          before: rawText("CNAME 00000000.cfargotunnel.com"),
           after: null,
         },
         {
@@ -575,12 +581,12 @@ const activity: ActivityEntry[] = [
   {
     id: 2,
     at: now - 40 * 60_000,
-    summary: "Add api.xyz.dev (path ^/v1/) → http://localhost:8000",
+    summary: "Add api.teispace.dev (path ^/v1/) → http://localhost:8000",
     outcome: "rolledBack",
     detail: ["Failed: Cloudflare API error: record already exists (code 81053)"],
     record: {
       kind: "addRoute",
-      hostnames: ["api.xyz.dev"],
+      hostnames: ["api.teispace.dev"],
       tunnel: "MacBook-Pro",
       steps: [
         {
@@ -594,8 +600,8 @@ const activity: ActivityEntry[] = [
         {
           step: {
             kind: "createRecord",
-            description: rawText("Add DNS record api.xyz.dev → tunnel “MacBook-Pro”"),
-            command: "cloudflared tunnel route dns 'MacBook-Pro' api.xyz.dev",
+            description: rawText("Add DNS record api.teispace.dev → tunnel “MacBook-Pro”"),
+            command: "cloudflared tunnel route dns 'MacBook-Pro' api.teispace.dev",
           },
           state: {
             state: "failed",
@@ -606,14 +612,14 @@ const activity: ActivityEntry[] = [
       changes: [
         {
           area: "route",
-          hostname: "api.xyz.dev",
+          hostname: "api.teispace.dev",
           path: "^/v1/",
           before: null,
           after: rawText("http://localhost:8000"),
         },
         {
           area: "dns",
-          hostname: "api.xyz.dev",
+          hostname: "api.teispace.dev",
           path: null,
           before: null,
           after: rawText("proxied CNAME to tunnel “MacBook-Pro”"),
@@ -748,7 +754,7 @@ export function installMockIpc(): void {
                 resolve({
                   type: "applied",
                   tunnelId,
-                  verify: ["shop.yx.app"],
+                  verify: ["shop.teispace.app"],
                   connectorError: null,
                 }),
               600,
@@ -760,10 +766,10 @@ export function installMockIpc(): void {
               () =>
                 resolve({
                   hostname: String(payload["hostname"]),
-                  status: payload["hostname"] === "xyz.dev" ? 302 : 200,
+                  status: payload["hostname"] === "teispace.dev" ? 302 : 200,
                   failure: null,
                   message: null,
-                  protected: payload["hostname"] === "xyz.dev",
+                  protected: payload["hostname"] === "teispace.dev",
                 }),
               900,
             ),
@@ -816,7 +822,7 @@ export function installMockIpc(): void {
               routes: 4,
               connectors: [
                 {
-                  id: "a7edf147-b8b9-4cfa-bbb3-fe698d0c4cca",
+                  id: "00000000-0000-4000-8000-00000000c001",
                   version: "2026.9.1",
                   originIp: "203.0.113.7",
                   thisMac: true,
@@ -831,14 +837,14 @@ export function installMockIpc(): void {
               connector: { state: "healthy", connections: 4 },
             },
             {
-              id: "b1946ac9-2a6f-4e8e-9d51-1f0e7a3c2b11",
+              id: "00000000-0000-4000-8000-000000000003",
               name: "home-lab",
               status: "healthy",
               createdAt: new Date(now - 90 * 86_400_000).toISOString(),
               routes: 2,
               connectors: [
                 {
-                  id: "5d0f6c1e-3b2a-4f8e-9c7d-2e1f0a9b8c7d",
+                  id: "00000000-0000-4000-8000-00000000c002",
                   version: "2026.8.0",
                   originIp: "198.51.100.24",
                   thisMac: false,
@@ -875,9 +881,9 @@ export function installMockIpc(): void {
           return [
             {
               configPath: "~/.cloudflared/config.yml",
-              tunnel: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
+              tunnel: "00000000-0000-4000-8000-000000000004",
               accountId: "acc-personal",
-              tunnelId: "2b8a3f54-0c0d-4c1e-9f7a-1d2c3b4a5e6f",
+              tunnelId: "00000000-0000-4000-8000-000000000004",
               temporary: false,
               balanced: false,
               options: {},
@@ -889,7 +895,7 @@ export function installMockIpc(): void {
                   unsupported: null,
                 },
                 {
-                  hostname: "grafana.xyz.dev",
+                  hostname: "grafana.teispace.dev",
                   path: null,
                   service: "http://localhost:3001",
                   unsupported: null,
@@ -901,7 +907,7 @@ export function installMockIpc(): void {
                   unsupported: null,
                 },
                 {
-                  hostname: "nas.example.org",
+                  hostname: "nas.teispace.dev",
                   path: null,
                   service: "http://192.168.1.20:5000",
                   unsupported: null,
@@ -928,10 +934,10 @@ export function installMockIpc(): void {
           return {
             fileName: "config.yml",
             contents:
-              '# cloudflared configuration for tunnel "MacBook-Pro" (6ff42ae2-765d-4adf-8112-31c55c1551ef), exported by Teitunnel.\ntunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef\ncredentials-file: /etc/cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json\ningress:\n  - hostname: "app.teispace.com"\n    service: "http://localhost:5173"\n  - hostname: "api.xyz.dev"\n    path: "^/v1/"\n    service: "http://localhost:8000"\n  - service: "http_status:404"\n',
+              '# cloudflared configuration for tunnel "MacBook-Pro" (00000000-0000-4000-8000-000000000001), exported by Teitunnel.\ntunnel: 00000000-0000-4000-8000-000000000001\ncredentials-file: /etc/cloudflared/00000000-0000-4000-8000-000000000001.json\ningress:\n  - hostname: "app.teispace.com"\n    service: "http://localhost:5173"\n  - hostname: "api.teispace.dev"\n    path: "^/v1/"\n    service: "http://localhost:8000"\n  - service: "http_status:404"\n',
           };
         case "routes_logs":
-          return payload["hostname"] === "api.xyz.dev"
+          return payload["hostname"] === "api.teispace.dev"
             ? [
                 {
                   time: null,
@@ -947,7 +953,7 @@ export function installMockIpc(): void {
             {
               time: null,
               level: "info",
-              message: "Starting tunnel tunnelID=6ff42ae2",
+              message: "Starting tunnel tunnelID=00000000",
               error: null,
             },
             {
@@ -1016,35 +1022,35 @@ export function installMockIpc(): void {
               ],
             },
             {
-              id: "origin.not_listening:acc-personal:api.xyz.dev",
+              id: "origin.not_listening:acc-personal:api.teispace.dev",
               check: "origin.not_listening",
               severity: "warning",
               accountId: "acc-personal",
-              subject: "api.xyz.dev",
-              label: rawText("api.xyz.dev"),
+              subject: "api.teispace.dev",
+              label: rawText("api.teispace.dev"),
               title: core("doctor.originNotListening.title", { port: "8000" }),
               detail: core("doctor.originNotListening.detail"),
-              evidence: [rawText("api.xyz.dev → http://localhost:8000")],
+              evidence: [rawText("api.teispace.dev → http://localhost:8000")],
               fixes: [],
             },
             {
-              id: "dns.orphan_foreign:acc-personal:old.xyz.dev",
+              id: "dns.orphan_foreign:acc-personal:old.teispace.dev",
               check: "dns.orphan_foreign",
               severity: "warning",
               accountId: "acc-personal",
-              subject: "old.xyz.dev",
-              label: rawText("old.xyz.dev"),
-              title: core("doctor.orphanTunnel.title", { hostname: "old.xyz.dev" }),
+              subject: "old.teispace.dev",
+              label: rawText("old.teispace.dev"),
+              title: core("doctor.orphanTunnel.title", { hostname: "old.teispace.dev" }),
               detail: core("doctor.orphanTunnel.detail"),
-              evidence: [rawText("old.xyz.dev CNAME 0c1f…e2.cfargotunnel.com (proxied)")],
+              evidence: [rawText("old.teispace.dev CNAME 0000…09.cfargotunnel.com (proxied)")],
               fixes: [
                 {
                   type: "change",
                   label: core("doctor.fix.deleteRecord"),
                   change: {
                     type: "deleteRecord",
-                    zoneId: "9a7806061c88ada191ed06f989cc3dac",
-                    hostname: "old.xyz.dev",
+                    zoneId: "00000000000000000000000000000a02",
+                    hostname: "old.teispace.dev",
                     recordId: "r9",
                   },
                 },
@@ -1072,8 +1078,8 @@ export function installMockIpc(): void {
             cached: false,
             items: [
               {
-                hostname: "alice.teispace.com",
-                owner: "alice@Alice-MacBook",
+                hostname: "design.teispace.com",
+                owner: "design@Teispace-iMac",
                 until: Date.parse("2026-12-31T00:00:00Z"),
                 routed: true,
                 mine: false,
@@ -1081,7 +1087,7 @@ export function installMockIpc(): void {
               },
               {
                 hostname: "demo.teispace.com",
-                owner: "krishna@Krishnas-MacBook-Pro",
+                owner: "teispace@Teispace-MacBook",
                 until: null,
                 routed: false,
                 mine: true,
@@ -1090,12 +1096,12 @@ export function installMockIpc(): void {
             ],
           };
         case "reservations_availability":
-          return String(payload["hostname"]).startsWith("alice.")
+          return String(payload["hostname"]).startsWith("design.")
             ? {
                 state: "held",
                 hold: {
-                  hostname: "alice.teispace.com",
-                  owner: "alice@Alice-MacBook",
+                  hostname: "design.teispace.com",
+                  owner: "design@Teispace-iMac",
                   until: Date.parse("2026-12-31T00:00:00Z"),
                   kind: "reservation",
                 },
@@ -1132,13 +1138,13 @@ export function installMockIpc(): void {
             },
           ];
         case "snapshots_choose_folder":
-          return "/Users/me/Projects/launch/dist";
+          return "~/Projects/launch/dist";
         case "snapshots_prepare_folder":
         case "snapshots_prepare_crawl":
         case "snapshots_prepare_build":
           return {
             id: "prepared-1",
-            source: { type: "folder", path: "/Users/me/Projects/launch/dist" },
+            source: { type: "folder", path: "~/Projects/launch/dist" },
             suggestedName: "launch",
             files: 48,
             bytes: 1_840_000,

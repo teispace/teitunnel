@@ -221,8 +221,8 @@ export function analyticsMock(cmd: string, payload: Record<string, unknown>): un
     case "uptime_list":
       return [
         mockUptimeSummary("app.teispace.com", null),
-        mockUptimeSummary("xyz.dev", null),
-        mockUptimeSummary("api.xyz.dev", "/v1/"),
+        mockUptimeSummary("teispace.dev", null),
+        mockUptimeSummary("api.teispace.dev", "/v1/"),
       ];
     case "uptime_route":
       return mockUptimeDetail(String(payload["hostname"]), null, range);
