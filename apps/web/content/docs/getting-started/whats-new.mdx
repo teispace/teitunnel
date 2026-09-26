@@ -1,8 +1,62 @@
 ---
-title: What's new in 0.2.0
-description: Everything Teitunnel 0.2.0 adds since 0.1.1, from Sign in with Cloudflare and the inspector to Snapshots, edge protection, local HTTPS domains and AI agents, and why 0.1.x users should update before 5 October 2026.
+title: What's new in 0.3.0
+description: What Teitunnel 0.3.0 adds — tunnels that recover by themselves after sleep and network changes, inspector breakpoints and a live Overview, traffic numbers for every share, broken-link checks, and MCP sign-in for claude.ai and ChatGPT — and what 0.2.0 brought before it.
 ---
 
+0.3.0 makes tunnels look after themselves after sleep and network changes, adds
+breakpoints and a live Overview to the inspector, gives every share and route its own
+traffic numbers, and lets claude.ai and ChatGPT sign in to MCP servers you share. This page
+groups what changed, with a link to each guide; [0.2.0](#020) follows below.
+
+## 0.3.0
+
+### Reliability
+
+- **Tunnels recover by themselves.** After a wake, a new network or coming back online,
+  connectors reconnect within seconds instead of waiting out a retry, and one that kept
+  failing while you were offline is tried again every 10 minutes and as soon as the network
+  returns. "Down" notifications wait 90 seconds after a wake or network change.
+  [Observability](/docs/guides/observability)
+- **Pages that load but are broken.** After you share, the check reads the page and names
+  links visitors can't follow, to `localhost` or over plain `http://`, with the setting to
+  change for your framework. [Dev servers](/docs/tutorials/dev-servers)
+
+### Inspect and debug
+
+- **A live Overview**: traffic, errors, uptime and the latest requests.
+- **Breakpoints**: hold a request or its answer, change it, answer it yourself or drop it.
+  [Inspector](/docs/guides/inspector)
+- **WebSocket messages**: filter by direction, search, and open one to read it whole.
+- **Traffic Numbers** for any share or route, Quick Shares included: requests per second,
+  status codes, countries, browsers and bots. [Analytics](/docs/guides/analytics)
+
+### Sharing and protection
+
+- **Pause and resume a Quick Share** from its card; **pause and schedule routes** from the
+  Routes view. [Sharing](/docs/guides/sharing)
+- **Protect a Quick Share** with a password, a secret link or a token from its card.
+  [Protect a Quick Share](/docs/guides/sharing#protect-a-quick-share)
+- **Webhooks skip a route's login**: keep a login on the site while `/webhooks` stays open
+  for Stripe or GitHub. [Require a login](/docs/guides/require-login)
+- **The browser extension**: share the local page you're on from Chrome, Edge, Brave, Arc,
+  Vivaldi or Firefox. The store listings follow. [Browser extension](/docs/guides/browser-extension)
+
+### AI agents
+
+- **claude.ai and ChatGPT sign in** to MCP servers you share, each connection approved in
+  Teitunnel. [Put an MCP server online](/docs/tutorials/mcp-server)
+- New tools: test how an app copes with slow networks and failures, a route's health,
+  local HTTPS addresses for dev servers, offline pages and webhook inboxes.
+  [AI agents](/docs/guides/ai-agents)
+
+### Fixes
+
+- Settings opens on Windows; on macOS the app, the command and agents share keychain items.
+- Removing a hostname's last route, or a tunnel, removes everything attached to it, and the
+  Doctor cleans up what earlier versions left.
+- Undoing a change restores a signature-checking webhook inbox with its secret.
+
+## 0.2.0
 0.2.0 is the biggest release since the first beta: Teitunnel now inspects traffic,
 publishes static copies of sites, protects hostnames at Cloudflare's edge, serves local
 HTTPS domains and works with AI agents. This page groups what changed since 0.1.1, with a
@@ -17,7 +71,7 @@ link to each guide.
   [Updates](/docs/getting-started/install#updates) for Homebrew, apt, dnf and Docker.
 </Callout>
 
-## Accounts
+### Accounts
 
 - **Sign in with Cloudflare.** Connect an account with one consent screen instead of
   creating an API token. Four scopes are required; the rest are optional, and anything you
@@ -33,7 +87,7 @@ link to each guide.
 - The token link asks for the permissions of every new feature (Workers, D1, WAF,
   Transform Rules, service tokens, analytics). [Every permission](/docs/guides/accounts#every-permission-and-what-needs-it)
 
-## The teitunnel command
+### The teitunnel command
 
 - **It's `teitunnel` now**, not `teitunnel-cli`, everywhere: the archives, Homebrew, the
   Linux packages and the Docker image. Update scripts that call the old name.
@@ -46,7 +100,7 @@ link to each guide.
   **`teitunnel status`**. Shell completions now complete your hostnames, tunnels, domains
   and accounts. [Command line](/docs/reference/cli)
 
-## Sharing
+### Sharing
 
 - **Dev servers just work.** Vite, webpack, Angular, Next.js, Rails and Django refusing an
   unknown host is recognised, with a one-click fix. [Dev servers](/docs/tutorials/dev-servers)
@@ -61,7 +115,7 @@ link to each guide.
   [The menu bar and tray](/docs/guides/menu-bar)
 - Quick Shares ignore a leftover `~/.cloudflared/config.yml` that used to break them.
 
-## Inspect and debug
+### Inspect and debug
 
 - **The inspector** shows every request to a share or route: headers, bodies, timing.
   Replay, edit, compare and export them (cURL, HAR and more), with credentials masked.
@@ -75,7 +129,7 @@ link to each guide.
 - **Share an MCP server or a local AI server** behind a bearer token
   (`teitunnel share --mcp`, `--ai`). [Inspector](/docs/guides/inspector#put-an-mcp-server-or-a-local-ai-server-online)
 
-## Publish
+### Publish
 
 - **Snapshots**: a static copy of a folder, a build or a running site, published to your
   own Cloudflare account, online while your computer sleeps. Versions, rollback, passwords
@@ -87,7 +141,7 @@ link to each guide.
 - **Webhook inbox**: webhooks sent while your computer is off are kept and delivered in
   order when it's back. [Webhook inbox](/docs/guides/webhook-inbox)
 
-## Protect
+### Protect
 
 - **Edge protection** for one hostname: challenge or block bots and AI crawlers, rate
   limit visitors, set or remove headers. Never applied to a whole domain.
@@ -95,7 +149,7 @@ link to each guide.
 - **Service tokens** let CI, scripts and servers through a login. The secret is shown once
   and never stored. [Service tokens](/docs/guides/protection#service-tokens-for-machines)
 
-## On your computer
+### On your computer
 
 - **Local HTTPS domains**: `https://shop.test`, `app.localhost` or `name.local` for a local
   service, with a certificate browsers trust, no Cloudflare account needed.
@@ -105,7 +159,7 @@ link to each guide.
 - **Import finds every cloudflared setup**, including Windows service configs and files not
   named `config.yml`. [Import](/docs/guides/import)
 
-## Automate and work as a team
+### Automate and work as a team
 
 - **Project files**: a `teitunnel.yml` in your repository describes routes, shares,
   Snapshots and local domains; `teitunnel up` applies it. [Project files](/docs/guides/project-file)
@@ -115,7 +169,7 @@ link to each guide.
 - **Links and integrations**: `teitunnel://` links, a local control connection, and
   extensions for VS Code, Raycast and JetBrains IDEs. [Links and integrations](/docs/guides/integrations)
 
-## AI agents
+### AI agents
 
 - **An MCP server** gives Claude Code, Cursor, VS Code, Codex and other agents Teitunnel's
   abilities: share, add routes through reviewed plans, run the Doctor, read traffic.
@@ -124,7 +178,7 @@ link to each guide.
 - **You approve every change** in a native dialog when the app runs, and every agent
   change is in Activity. Secrets never reach the agent. [AI agents](/docs/guides/ai-agents)
 
-## Under the hood
+### Under the hood
 
 - **Current Cloudflare API throughout**: tunnel connections from their own endpoint,
   record type changes through Cloudflare's batch endpoint (pointing an existing A record at
@@ -135,7 +189,8 @@ link to each guide.
   everything Teitunnel remembered about it is deleted.
 - **The window opens drawn**, and slow Cloudflare waits say what they're waiting for.
 
-The full list of changes is in the
+
+The full list of changes for each version is in the
 [release notes on GitHub](https://github.com/teispace/teitunnel/releases).
 
 ## Related
