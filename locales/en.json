@@ -4042,7 +4042,19 @@
         "readOnly": "Read only",
         "ask": "Asks first",
         "full": "Full access"
-      }
+      },
+      "permissions": "What Agents May Do",
+      "permissionsFooter": "Applies to AI apps connected without their own mode, the next time they start Teitunnel's MCP server.",
+      "modeLabel": "Access",
+      "modeDetail": {
+        "readOnly": "Look only: no changes, no shares. Tools that change something aren't offered.",
+        "ask": "Every change waits for your answer, with the plan.",
+        "full": "Changes apply without asking, still through reviewed plans."
+      },
+      "approveInApp": "Approve Changes Yourself",
+      "approveInAppDetail": "A change needs your answer in Teitunnel or in the AI app. An agent saying you agreed isn't enough.",
+      "allowSecrets": "Show Secrets to Agents",
+      "allowSecretsDetail": "Authorization headers, cookies and API keys in captured requests and logs. Off keeps them masked."
     },
     "servers": {
       "intro": "Share an MCP server that runs on this computer at an address on your domain, and remote AI apps such as claude.ai and ChatGPT can use it. They sign in with OAuth: each app asks once, you approve it in a dialog here, and it gets its own tokens.",
@@ -4054,7 +4066,15 @@
       "disconnect": "Disconnect",
       "confirmTitle": "Disconnect {client} from {host}?",
       "confirmDetail": "It can't use the server any more until it signs in again and you approve it.",
-      "disconnected": "{client} was disconnected from {host}."
+      "disconnected": "{client} was disconnected from {host}.",
+      "policy": "Sign-in Policy",
+      "policyFooter": "Applies to the next MCP server you share.",
+      "registration": "Let Older Apps Register Themselves",
+      "registrationDetail": "Apps with a published identity, such as claude.ai, connect either way.",
+      "lifetime": "Connections Last",
+      "lifetimeDetail": "Then the app signs in again and you approve it.",
+      "days": "{count} days",
+      "expires": "ends {when}"
     },
     "browser": {
       "intro": "The Teitunnel browser extension shares the local page you're on and lists your shares. It talks to this app through a small helper the browser starts: Set Up tells a browser where the helper is.",

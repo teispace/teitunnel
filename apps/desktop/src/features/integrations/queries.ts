@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type Browser, commands, type IntegrationsPatch } from "@/lib/ipc/bindings";
+import {
+  type Browser,
+  commands,
+  type IntegrationsPatch,
+  type McpSettings,
+} from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys } from "@/lib/ipc/query-keys";
 
@@ -117,5 +122,21 @@ export function useRevokeClient() {
   return useMutation({
     mutationFn: (name: string) => call(commands.integrationsRevoke(name)),
     onSuccess: (value) => queryClient.setQueryData(integrationsKey, value),
+  });
+}
+
+const mcpSettingsKey = ["integrations", "mcpSettings"] as const;
+
+/** What AI agents may do, and the OAuth policy of shared MCP servers (`<data>/mcp.json`). */
+export function useMcpSettings() {
+  return useQuery({ queryKey: mcpSettingsKey, queryFn: () => call(commands.mcpSettingsGet()) });
+}
+
+/** Saves a change to them; AI apps use it the next time they start the server. */
+export function useSaveMcpSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (settings: McpSettings) => call(commands.mcpSettingsSave(settings)),
+    onSuccess: (saved) => queryClient.setQueryData(mcpSettingsKey, saved),
   });
 }

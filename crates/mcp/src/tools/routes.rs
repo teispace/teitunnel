@@ -68,11 +68,11 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              - removeRoute {hostname, path?}: remove a route and the DNS record Teitunnel created for it.\n\
              - requireLogin {hostname, path?, allow, signIn?}: put a route behind a login (Cloudflare Access, free with Zero Trust). removeLogin {hostname, path?}: make it public again.\n\
              - balanceRoute / unbalanceRoute {hostname}: load balance a hostname across every machine routing it (Cloudflare Load Balancing, paid).\n\
-             - addNetwork / removeNetwork {network}: let WARP clients reach a private range (e.g. 192.168.1.0/24) or a private hostname (e.g. wiki.internal, resolved by this machine's DNS) through this machine. Only WARP clients of the account's Zero Trust organization reach it; nothing becomes public.\n\
+             - addNetwork / removeNetwork {network}: let the account's WARP clients (only them) reach a private range (192.168.1.0/24) or hostname (wiki.internal) through this machine.\n\
              - createTunnel {name}: another tunnel for this machine. deleteTunnel {tunnel}: delete one of this machine's tunnels with its routes.\n\
              - importRoutes {routes: [{hostname, origin, path?}]}: add several routes at once (e.g. from import_scan).\n\
-             - restoreConfig {}: undo an outside edit of this machine's routes (made in the dashboard).\n\
-             - deleteDnsRecord {zoneId, hostname, recordId}: delete one DNS record (orphans the doctor found).\n\
+             - restoreConfig {}: undo an outside (dashboard) edit of this machine's routes.\n\
+             - deleteDnsRecord {zoneId, hostname, recordId}: delete one DNS record (a Doctor orphan).\n\
              \n\
              Example: {\"change\": {\"type\": \"addRoute\", \"hostname\": \"app.teispace.com\", \"origin\": \"3000\", \"allow\": [\"@teispace.com\"]}}",
             ToolClass::Read,
