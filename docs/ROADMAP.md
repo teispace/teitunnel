@@ -79,4 +79,5 @@ Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/compet
 - [x] M12-06 sharing: Snapshots (D-099), pause/resume (D-116), schedules (D-117), stable names (D-118), folder share (D-119), comments (D-122), offline page (D-123)
 - [x] M12-11 CI/CD and teams: PR previews (D-104), reservations (D-103)
 - [x] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop, OpenAPI from traffic (D-120), webhook inbox (D-123, D-124)
-- [ ] M12-07 everywhere: control connection, links, completion, `teitunnel top` (D-102), VS Code / Raycast / JetBrains, tray and global shortcut (D-112–D-114) done; local HTTPS domains (D-101, D-115) done; browser extension later
+- [x] M12-07 everywhere: control connection, links, completion, `teitunnel top` (D-102), VS Code / Raycast / JetBrains, tray and global shortcut (D-112–D-114), local HTTPS domains (D-101, D-115), browser extension (D-133)
+- [ ] M12-10 reach: comparison pages, webhook guides per provider and the MCP server tutorial done (D-138); listings and launch left (maintainer)

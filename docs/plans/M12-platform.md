@@ -130,7 +130,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere. (D-109; local domains included since D-115.)
 
 ## M12-10 · Reach
-- [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
+- [x] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide. (D-138: `/docs/compare`, `/docs/tutorials/webhooks/{stripe,github,shopify,slack}`, `/docs/tutorials/mcp-server`)
 - [ ] Listings: awesome-tunneling, Raycast Store, VS Code Marketplace, Homebrew core, winget, Flathub; Show HN / Product Hunt when M12-02 and M12-03 ship.
 
 ## Design: local HTTPS domains (decision 7)

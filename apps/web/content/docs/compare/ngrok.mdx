@@ -1,0 +1,61 @@
+---
+title: Teitunnel vs ngrok
+description: Teitunnel and ngrok compared — free plan limits, the browser warning page, custom domains, request inspection and logins — and how to move from ngrok commands to Teitunnel.
+---
+
+ngrok is a hosted tunnel service with its own network, a polished agent and many paid
+features. Teitunnel is a free app for Cloudflare Tunnel: your shares and routes run on
+Cloudflare, on your own account.
+
+| | Teitunnel | ngrok Free |
+|---|---|---|
+| Price | free, open source | free; paid from $10/month |
+| Traffic | no cap on tunnel traffic | 1 GB out and 20,000 HTTP requests a month |
+| Endpoints online at once | no limit of Teitunnel's | 3 |
+| Address | random `trycloudflare.com`, or any name on your domain | one assigned `*.ngrok-free.app` domain |
+| Your own domain | free, once it's on Cloudflare | paid plans |
+| Warning page for browsers | none on your domain | yes, until visitors click through |
+| Inspect and replay | the [inspector](/docs/guides/inspector), in the app and `teitunnel traffic` | `localhost:4040`, with replay |
+| Logins | [Cloudflare Access](/docs/guides/require-login), free up to 50 users | OAuth and OIDC |
+| Desktop app | macOS, Windows, Linux | no |
+
+<Callout title="Checked 2026-09-26">
+  From [ngrok's pricing](https://ngrok.com/pricing),
+  [free plan limits](https://ngrok.com/docs/pricing-limits/free-plan-limits/) and
+  [inspection interface](https://ngrok.com/docs/agent/web-inspection-interface/). ngrok's
+  pages are the final word.
+</Callout>
+
+## The warning page
+
+On ngrok's free plan, a browser opening your address first sees ngrok's warning page and
+has to click through; scripts can skip it with an `ngrok-skip-browser-warning` header.
+A share on your own domain with Teitunnel shows your site straight away, which matters for
+demos, previews sent to clients, and webhooks from services that load the page in a
+browser.
+
+## From ngrok commands
+
+| ngrok | Teitunnel |
+|---|---|
+| `ngrok http 3000` | `teitunnel share 3000` |
+| `ngrok http 3000 --url app.example.com` | `teitunnel share 3000 --on app.teispace.com` |
+| `ngrok http 3000 --traffic-policy-file policy.yml` with an OAuth action | `teitunnel share 3000 --on app.teispace.com --allow you@teispace.com` |
+| `localhost:4040`, **Replay** | **Inspector** in the app, or `teitunnel traffic ls` and `teitunnel traffic replay` |
+| `ngrok.yml` endpoints | [`teitunnel.yml`](/docs/guides/project-file) in your repository, or [routes](/docs/getting-started/first-route) |
+| an always-on agent service | **Keep running when Teitunnel quits** ([run modes](/docs/concepts/run-modes)) |
+
+## When ngrok fits better
+
+- Your domain can't move its nameservers to Cloudflare, and you need your own name.
+- You use ngrok's other products, such as its API gateway and Traffic Policy features, and
+  want them in one place.
+- Your company already pays for ngrok and manages access there.
+
+## Related
+
+<Cards>
+  <Card title="All comparisons" href="/docs/compare" />
+  <Card title="Quick Share" href="/docs/getting-started/quick-share" description="Share a port in one click." />
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks" />
+</Cards>

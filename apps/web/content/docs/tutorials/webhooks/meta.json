@@ -1,0 +1,4 @@
+{
+  "title": "Test webhooks on localhost",
+  "pages": ["stripe", "github", "shopify", "slack"]
+}

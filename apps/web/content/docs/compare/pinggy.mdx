@@ -1,0 +1,39 @@
+---
+title: Teitunnel vs Pinggy
+description: Teitunnel and Pinggy compared — starting a tunnel over SSH, session limits, UDP, domains and inspection.
+---
+
+Pinggy starts a tunnel with a plain `ssh` command, so nothing has to be installed, and it
+carries HTTP, TCP, UDP and TLS. Teitunnel is an app for Cloudflare Tunnel with a
+[CLI](/docs/reference/cli) for terminals and servers.
+
+| | Teitunnel | Pinggy Free |
+|---|---|---|
+| Start | one click, or `teitunnel share 3000` | `ssh -p 443 -R0:localhost:8000 … free.pinggy.io` |
+| How long | until you stop it | 60 minutes |
+| Address | random `trycloudflare.com`, or any name on your domain | random, new after each restart |
+| Your own domain | free, once it's on Cloudflare | Pro and Enterprise plans |
+| Protocols to the public | HTTP and WebSockets; TCP through Cloudflare | HTTP(S), TCP, UDP, TLS |
+| Inspect and replay | the [inspector](/docs/guides/inspector) | a web debugger in its dashboard |
+
+<Callout title="Checked 2026-09-26">
+  From [pinggy.io](https://pinggy.io/). Pinggy's pages are the final word.
+</Callout>
+
+## When Pinggy fits better
+
+- You're on a machine where you can't install anything, and `ssh` is all there is.
+- You need public UDP, for a game server for example.
+
+## When Teitunnel fits better
+
+- The share should outlast an hour, or keep its address.
+- You want your own domain at no extra cost, logins, or a [static copy](/docs/guides/snapshots)
+  online while you're away.
+
+## Related
+
+<Cards>
+  <Card title="All comparisons" href="/docs/compare" />
+  <Card title="SSH, RDP and databases" href="/docs/tutorials/ssh" description="TCP services through Cloudflare Tunnel." />
+</Cards>
