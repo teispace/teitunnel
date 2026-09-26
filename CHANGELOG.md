@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.3.0](https://github.com/teispace/teitunnel/compare/v0.2.0...v0.3.0) (2026-09-26)
+
+
+### Features
+
+* **access:** let webhooks skip a route's login ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **analytics:** request rates, browsers and bots, and numbers for every share ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **backup:** schedules move with a backup ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **browser:** an extension that shares the local page you're on ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **cli:** folder shares go to the running app ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **cli:** teitunnel share --comments ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **doctor:** leftovers on hostnames nothing serves are found and cleaned up ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **fronts:** save an inbox's signing secret in the app ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **inspector:** breakpoints hold requests and answers to change, answer or drop ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **inspector:** filter, search and read WebSocket frames whole ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **mcp:** agents can test how an app copes through the inspector ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **mcp:** agents give dev servers local HTTPS addresses ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **mcp:** OAuth sign-in for shared MCP servers, each connection approved ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **mcp:** offline page and webhook inbox tools ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **mcp:** route_health reports uptime, response times and incidents ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **overview:** live dashboard with traffic, errors, uptime and recent requests ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **quick-share:** protect a Quick Share from its card ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **routes:** pause and schedule a route from the Routes view ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **sharing:** pause and resume a Quick Share from its card, the CLI and MCP ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **verify:** name links visitors can't follow, with the framework's fix ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+
+
+### Bug Fixes
+
+* **cli:** servers without the app remove shares left behind ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **core:** a hostname's service tokens go with its last route ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **core:** deleting a tunnel cleans up its hostnames' tokens, pauses and schedules ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **core:** keychain items are shared by every Teitunnel program on macOS ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **core:** removing a hostname's last route removes everything attached to it ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **desktop:** Settings opens on Windows ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **engine:** a rolled-back plan puts a verifying inbox back with its secret ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **engine:** deleting a tunnel removes its hostnames' Workers and edge rules ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **runtime:** connectors recover from sleep, network changes and being offline ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **sharing:** folder shares and new addresses work on the first try ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+
+
+### Performance
+
+* **core:** API calls stop reading the keychain each time ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **desktop:** commands that do I/O run off the main thread ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **desktop:** connector changes refresh the views; Cloudflare is polled less ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+* **inspector:** 10,000 requests at 60 fps, measured on a production build ([a360f02](https://github.com/teispace/teitunnel/commit/a360f0212332d1a31412135c0625e8a4db23381f))
+
 ## [0.2.0](https://github.com/teispace/teitunnel/compare/v0.1.1...v0.2.0) (2026-09-25)
 
 
