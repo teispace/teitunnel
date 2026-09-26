@@ -1873,7 +1873,7 @@
         "unknownTunnel": "This Mac doesn't have that tunnel any more.",
         "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
         "unknownTunnel@linux": "This computer doesn't have that tunnel any more.",
-        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token.",
+        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token, or sign in to Cloudflare again and allow them.",
         "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token.",
         "workersPermission": "This needs the Workers Routes and D1 permissions. Add Zone › Workers Routes · Edit and Account › D1 · Edit to the account's API token; the token itself stays the same."
       },
@@ -2791,7 +2791,7 @@
         "quotaTransform_other": "{zone} already uses all {count} Transform Rules its plan allows. Remove header rules from another hostname first.",
         "quotaCache_one": "{zone} already uses the {count} Cache Rule its plan allows. Remove one in the dashboard or turn off another hostname's cache bypass first.",
         "quotaCache_other": "{zone} already uses all {count} Cache Rules its plan allows. Remove one in the dashboard or turn off another hostname's cache bypass first.",
-        "cacheRulesPermission": "Bypassing the cache needs the Cache Rules permission. Add it to the account's API token.",
+        "cacheRulesPermission": "Bypassing the cache needs the Cache Rules permission. Add it to the account's API token, or sign in to Cloudflare again and allow it.",
         "rateLimitConflict": "{zone}'s plan has room for no other rate limit, and Teitunnel's limit there (for {hostnames}) is {requests} requests per {period} seconds. Use the same limit, or remove it from those hostnames first.",
         "tokenLabel": "Name the token in 1 to 40 characters, for example “CI”.",
         "tokenLimit_one": "The account already has {count} service token, the most Cloudflare allows. Revoke one first.",
