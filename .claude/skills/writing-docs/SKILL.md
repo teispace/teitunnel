@@ -33,6 +33,7 @@ A page:
 ---
 title: Stripe webhooks on localhost
 description: One sentence that says what the reader gets, used for search and social cards.
+searchDescription: "70–160 characters for search results, when description is longer."
 ---
 
 Intro: what this page helps with, in two or three sentences.
@@ -65,6 +66,9 @@ UPDATE_DOCS=1 cargo test -p teitunnel-core --test permissions_doc
 (add a shot to its list; needs `cwebp`); run it from `apps/desktop` with
 `node scripts/shoot-site.ts [name…]`. For a one-off, `pnpm --filter @teitunnel/desktop shoot`
 with `?clean` on the route hides the developer section.
+Show one with `<Screenshot name="routes" alt="…" />`; its `alt` says what's on screen (it's
+what image search and screen readers read), and the sitemap and the page's structured data
+list it automatically (`apps/web/lib/page-facts.ts`), as they date the page from git.
 
 ## Contributor docs
 

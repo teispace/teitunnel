@@ -1,6 +1,7 @@
 ---
 title: Inspector
 description: "See every request to a share, route or local domain as it happens: headers, bodies, timings, WebSocket messages, webhook signatures. Filter and search, replay and edit, compare, export as HAR or cURL, stub, protect, slow down and break requests on purpose, from the app, the terminal or an AI agent. Everything stays on your computer."
+searchDescription: "Inspect every request to localhost shares and routes: headers, bodies, timings, WebSockets and webhook signatures. Replay, edit, mock and export."
 ---
 
 The inspector sits between Cloudflare and your service, on this computer, and records each
@@ -15,6 +16,9 @@ request, reproduce a bug with the exact request that caused it, or test how a cl
 errors. Captures stay on this computer and leave it only when you export or copy them.
 Credentials (`Authorization`, cookies, API keys, webhook signatures and token-like values) are
 **masked** everywhere unless you choose to show them.
+
+
+<Screenshot name="inspector" alt="Inspector: a list of requests with method, path, status, duration and size, and a selected GET /api/projects request with Replay, Edit and Replay, Export and Hold Requests Like This, its timing and headers" />
 
 ## What gets inspected
 

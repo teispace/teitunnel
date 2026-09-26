@@ -1,6 +1,7 @@
 ---
 title: DNS ownership
 description: "Which DNS records Teitunnel may change on its own, how it marks and remembers them, why it asks before touching any other record, --replace and --take-over, reservations for teams sharing an account, and how the Doctor cleans up dangling records safely."
+searchDescription: "Which Cloudflare DNS records Teitunnel may change, how it marks the ones it made, --replace and --take-over, reservations and safe cleanup."
 ---
 
 Your domain's DNS is shared with everything else you run: your website, email, verification
@@ -103,6 +104,8 @@ previous CI job) count as yours.
 
 A **reservation** claims a hostname for you without routing it yet, so teammates see it's
 taken: a feature branch's preview name, a demo you'll run on Friday.
+
+<Screenshot name="domains" alt="Domains: teispace.com with its plan, the permissions the account has on it, and its reservations with who holds each, until when, and Release" />
 
 - **App:** **Domains**, select the domain, **Reservations ▸ Reserve**. Enter the hostname
   and, optionally, **Until** a date. The list shows every reservation on the domain with

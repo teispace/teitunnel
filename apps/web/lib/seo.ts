@@ -20,20 +20,27 @@ export function pageMetadata({
   path,
   image,
   type = "website",
+  published,
+  modified,
 }: {
   title?: string;
   description: string;
   path: string;
   image: string;
   type?: "website" | "article";
+  /** For articles: when it was first published and last changed (ISO 8601). */
+  published?: string;
+  modified?: string;
 }): Metadata {
   const card = { url: image, width: 1200, height: 630, alt: title ?? site.name };
+  const dates = type === "article" ? { publishedTime: published, modifiedTime: modified } : {};
   return {
     ...(title ? { title } : {}),
     description,
     alternates: { canonical: absolute(path) },
     openGraph: {
       type,
+      ...dates,
       siteName: site.name,
       locale: "en_US",
       url: absolute(path),
@@ -125,11 +132,18 @@ export function techArticle({
   description,
   path,
   image,
+  images = [],
+  published,
+  modified,
 }: {
   title: string;
   description: string;
   path: string;
   image: string;
+  /** The screenshots it shows. */
+  images?: string[];
+  published?: string;
+  modified?: string;
 }): Thing {
   return {
     "@type": "TechArticle",
@@ -137,7 +151,9 @@ export function techArticle({
     description,
     url: absolute(path),
     mainEntityOfPage: absolute(path),
-    image,
+    image: [image, ...images],
+    ...(published ? { datePublished: published } : {}),
+    ...(modified ? { dateModified: modified } : {}),
     inLanguage: "en",
     isPartOf: { "@id": website["@id"] },
     about: { "@id": `${site.url}/#app` },

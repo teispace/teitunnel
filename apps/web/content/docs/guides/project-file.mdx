@@ -1,6 +1,7 @@
 ---
 title: Project files
 description: "Declare a project's routes, shares, Snapshots and local domains in a teitunnel.yml checked into its repository, and bring them up with teitunnel up or one click in the app: previewed first, idempotent, never holding a secret."
+searchDescription: "Declare routes, shares, Snapshots and local domains in a teitunnel.yml in your repository, and bring them up with teitunnel up or one click."
 ---
 
 A **project file** is a `teitunnel.yml` at the root of a repository. It says what the
@@ -12,6 +13,9 @@ Applying it goes through the same plan as every other change: you see exactly wh
 change in Cloudflare and on this computer before anything happens. Applying it again
 changes nothing ("Nothing to change."), so it's safe to run every time you start work, and
 in CI.
+
+
+<Screenshot name="projects" alt="Projects: the shop project's teitunnel.yml with a warning and what it declares (routes, a share, a Snapshot and a local domain), each Applied or Missing, and Apply" />
 
 ## An example
 

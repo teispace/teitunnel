@@ -1,6 +1,7 @@
 ---
 title: Edge protection
 description: "Challenge or block bots and AI crawlers, rate limit visitors, change headers, bypass Cloudflare's cache, and give machines service tokens: rules Cloudflare enforces for one hostname, planned and undoable like every change."
+searchDescription: "Block bots and AI crawlers, rate limit visitors, change headers and bypass Cloudflare's cache for one hostname, planned and undoable."
 ---
 
 A login ([Require a login](/docs/guides/require-login)) decides **who** may open a
@@ -24,6 +25,9 @@ Cloudflare enforces these rules, so they keep working while this computer is off
 blocked traffic never reaches it. Every rule applies to **one hostname** only: Teitunnel
 never changes anything for a whole domain. That's why it doesn't offer Bot Fight Mode or
 "Block AI bots", which are domain-wide switches in the dashboard.
+
+
+<Screenshot name="protection" alt="Protect app.teispace.com: automated clients Allow, Challenge or Block, Block AI crawlers, a rate limit (not on the Free plan), request and response header rules, and Bypass Cloudflare's cache" />
 
 ## Protect a hostname in the app
 

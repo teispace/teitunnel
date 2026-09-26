@@ -1,6 +1,7 @@
 ---
 title: Limits and costs
-description: What each Teitunnel feature costs on Cloudflare and which limits apply — Quick Tunnels, Cloudflare Tunnel, Zero Trust, Workers, D1, WAF and Transform Rules, analytics — with the free plan's numbers and when they were checked.
+description: What each Teitunnel feature costs on Cloudflare and which limits apply — Quick Tunnels, Cloudflare Tunnel, Zero Trust, Workers, D1, WAF, Transform and Cache Rules, analytics — with the free plan's numbers and when they were checked.
+searchDescription: "What each Teitunnel feature costs on Cloudflare and its limits: Quick Tunnels, Cloudflare Tunnel, Zero Trust, Workers, D1, WAF and Cache Rules."
 ---
 
 Teitunnel is free and open source, with no paid tier and no limits of its own on what
@@ -25,6 +26,7 @@ feature, what it uses on Cloudflare, what's free, and the limits that matter.
 | [Offline page](/docs/guides/offline-page), [webhook inbox](/docs/guides/webhook-inbox) | Workers routes | Yes, 100,000 requests a day |
 | [Comments](/docs/guides/comments) on Snapshots, webhook inbox storage | D1 | Yes |
 | [Edge protection](/docs/guides/protection): bot and header rules | WAF custom rules, Transform Rules | Yes |
+| [Edge protection](/docs/guides/protection): cache bypass | Cache Rules | Yes |
 | Edge protection: rate limiting one hostname | WAF rate limiting rules | No, Pro or higher |
 | [Analytics](/docs/guides/analytics) | GraphQL Analytics | Yes; history depends on the plan |
 | [Load balancing](/docs/guides/load-balancing) | Load Balancing | No, a paid add-on |
@@ -151,16 +153,18 @@ Rules are always scoped to one hostname and count against your domain's plan:
 | Rate limiting can match a hostname | **No** | Yes | Yes |
 | Rate limiting period | 10 s | up to 1 min | up to 10 min |
 | Transform Rules (headers) | 10 | 25 | 50 |
+| Cache Rules (cache bypass) | 10 | 25 | 50 |
 
 On Free, a rate limiting rule can only match paths, so it would apply to the whole domain.
 Teitunnel never changes a whole domain, so it refuses rate limiting on Free and explains
-why. Bot and header rules work on Free. The review shows how much of your plan's quota a
+why. Bot and header rules and the cache bypass work on Free. The review shows how much of your plan's quota a
 change uses.
 
 Checked 2026-09-24. Sources:
 [custom rules](https://developers.cloudflare.com/waf/custom-rules/),
 [rate limiting rules](https://developers.cloudflare.com/waf/rate-limiting-rules/),
-[Transform Rules](https://developers.cloudflare.com/rules/transform/).
+[Transform Rules](https://developers.cloudflare.com/rules/transform/);
+[Cache Rules](https://developers.cloudflare.com/cache/how-to/cache-rules/), checked 2026-09-26.
 
 ## Analytics and uptime
 
