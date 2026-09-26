@@ -1245,7 +1245,7 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
     grid-template-columns: minmax(0, 1fr) minmax(0, 27rem) minmax(0, 1fr);
     column-gap: 6.5rem;
     align-items: center;
-    padding: 3rem 0;
+    padding: 5rem 0;
   }
 
   .tt-pledges {

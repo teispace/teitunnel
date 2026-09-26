@@ -192,22 +192,33 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           });
         }
       }
-      // A few short traces into the core's top and bottom, from dots, for the circuit.
+      // Traces into the core's top and bottom from dots, each with two bends, for the circuit.
       const middle = (coreLeft + coreRight) / 2;
-      for (const [k, dx] of [-90, 0, 70].entries()) {
+      const above = [
+        { dx: -95, shift: -70, rise: 175, bend: 95 },
+        { dx: 5, shift: 55, rise: 150, bend: 70 },
+        { dx: 85, shift: 60, rise: 190, bend: 120 },
+      ];
+      for (const { dx, shift, rise, bend } of above) {
         const x = middle + dx;
-        const start = { x: x + (k === 0 ? -60 : k === 2 ? 50 : 0), y: Math.max(8, coreTop - 90) };
+        const start = { x: x + shift, y: Math.max(8, coreTop - rise) };
+        const turn = Math.max(start.y + 16, coreTop - bend);
         next.push({
-          ...route([start, { x, y: start.y }, { x, y: coreTop }]),
+          ...route([start, { x: start.x, y: turn }, { x, y: turn }, { x, y: coreTop }]),
           dot: start,
           pin: { x, y: coreTop, side: "top" },
         });
       }
-      for (const [k, dx] of [-50, 60].entries()) {
+      const below = [
+        { dx: -60, shift: -55, drop: 165, bend: 85 },
+        { dx: 65, shift: 70, drop: 185, bend: 110 },
+      ];
+      for (const { dx, shift, drop, bend } of below) {
         const x = middle + dx;
-        const start = { x: x + (k === 0 ? -40 : 40), y: Math.min(box.height - 8, coreBottom + 80) };
+        const start = { x: x + shift, y: Math.min(box.height - 8, coreBottom + drop) };
+        const turn = Math.min(start.y - 16, coreBottom + bend);
         next.push({
-          ...route([start, { x, y: start.y }, { x, y: coreBottom }]),
+          ...route([start, { x: start.x, y: turn }, { x, y: turn }, { x, y: coreBottom }]),
           dot: start,
           pin: { x, y: coreBottom, side: "bottom" },
         });
