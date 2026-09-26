@@ -24,7 +24,7 @@ Open the route in **Routes**. Under **While This Computer Is Off**, choose **Add
 Inbox…**.
 </Step>
 <Step>
-In **Webhook Inbox for hooks.teispace.com**, set:
+In **Webhook Inbox for hooks.yourhost.com**, set:
 
 - **Path:** webhooks to this path and below, for example `/webhooks/` or `/api/stripe`. It
   must start with `/` and have no `*`, `?` or spaces.
@@ -44,11 +44,11 @@ arrived, and whether it's **Waiting** or **Delivered** (with the status your app
 ## From the terminal
 
 ```sh
-teitunnel inbox add hooks.teispace.com /webhooks/ --max 500 --days 7
+teitunnel inbox add hooks.yourhost.com /webhooks/ --max 500 --days 7
 teitunnel inbox ls                                   # offline pages and inboxes
-teitunnel inbox items hooks.teispace.com /webhooks/  # recent webhooks, arrived and delivered
+teitunnel inbox items hooks.yourhost.com /webhooks/  # recent webhooks, arrived and delivered
 teitunnel inbox deliver                              # deliver waiting webhooks now
-teitunnel inbox rm hooks.teispace.com /webhooks/
+teitunnel inbox rm hooks.yourhost.com /webhooks/
 ```
 
 | Command | What it does |
@@ -121,9 +121,9 @@ signed webhooks**, paste the secret and click **Save Secret** (**Review** waits 
 a terminal:
 
 ```sh
-teitunnel inbox secret hooks.teispace.com stripe     # reads it from standard input
-TEITUNNEL_WEBHOOK_SECRET=whsec_… teitunnel inbox secret hooks.teispace.com stripe
-teitunnel inbox add hooks.teispace.com /webhooks/stripe --verify stripe
+teitunnel inbox secret hooks.yourhost.com stripe     # reads it from standard input
+TEITUNNEL_WEBHOOK_SECRET=whsec_… teitunnel inbox secret hooks.yourhost.com stripe
+teitunnel inbox add hooks.yourhost.com /webhooks/stripe --verify stripe
 ```
 
 The secret is never read from the command line. It's kept in your system's keychain, and
@@ -132,13 +132,13 @@ again, and never in the plan or Activity.
 
 ## What happens on Cloudflare
 
-The plan ("Keep webhooks to hooks.teispace.com/webhooks/ while this computer is off"):
+The plan ("Keep webhooks to hooks.yourhost.com/webhooks/ while this computer is off"):
 
 1. **Create the D1 database `teitunnel-data`** for comments and webhooks, only the first
    time. One database per account holds every inbox and
    [Snapshot comments](/docs/guides/comments).
 2. **Upload the webhook inbox Worker** (named `tt-inbox-` and a short hash).
-3. **Run it for `hooks.teispace.com/webhooks/*`** "(fails open past the free daily
+3. **Run it for `hooks.yourhost.com/webhooks/*`** "(fails open past the free daily
    requests)".
 
 Removing an inbox stops the Worker route and deletes the Worker. Undo in Activity reverses

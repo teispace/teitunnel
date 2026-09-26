@@ -7,12 +7,12 @@ searchDescription: "Receive Shopify webhooks on localhost at a stable HTTPS URL,
 Send a Shopify app's webhooks to a handler on your computer, watch them in the
 [inspector](/docs/guides/inspector), and replay them while you fix the handler. The
 examples use a handler at `http://localhost:3000/webhooks` and the hostname
-`hooks.teispace.com`.
+`hooks.yourhost.com`.
 
 ## 1. Share the handler
 
 ```sh
-teitunnel share 3000 --on hooks.teispace.com --watch "/webhooks/*"
+teitunnel share 3000 --on hooks.yourhost.com --watch "/webhooks/*"
 ```
 
 A stable address matters here: Shopify's subscriptions store the full URL, so a random
@@ -28,7 +28,7 @@ api_version = "2026-07"
 
 [[webhooks.subscriptions]]
 topics = ["products/create"]
-uri = "https://hooks.teispace.com/webhooks/products"
+uri = "https://hooks.yourhost.com/webhooks/products"
 ```
 
 Then `shopify app deploy`. (Subscriptions for one shop are made with the Admin API's
@@ -38,7 +38,7 @@ Then `shopify app deploy`. (Subscriptions for one shop are made with the Admin A
 
 ```sh
 shopify app webhook trigger --topic products/create --api-version 2026-07 \
-  --address https://hooks.teispace.com/webhooks/products --client-secret …
+  --address https://hooks.yourhost.com/webhooks/products --client-secret …
 ```
 
 The test is signed with your app's client secret, like a real delivery. To have the
@@ -71,7 +71,7 @@ can lose it. A [webhook inbox](/docs/guides/webhook-inbox) answers `202` while y
 so deliveries count as received, and passes them on in order when you're back:
 
 ```sh
-teitunnel inbox add hooks.teispace.com /webhooks/
+teitunnel inbox add hooks.yourhost.com /webhooks/
 ```
 
 The inbox can't check Shopify signatures itself, so anyone who knows the address can add

@@ -149,8 +149,8 @@ export function DoctorDemo() {
         <div className="min-w-0 flex-1">
           <p className="font-medium">
             {state === "fixed"
-              ? "docs.teispace.com is live"
-              : "docs.teispace.com has no DNS record"}
+              ? "docs.yourhost.com is live"
+              : "docs.yourhost.com has no DNS record"}
           </p>
           <p className="mt-1 text-xs text-fd-muted-foreground">
             {state === "fixed"

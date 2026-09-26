@@ -14,7 +14,7 @@ on port 5173), and, for the second part, a Cloudflare account with a domain
 ## Why the first visit often fails
 
 Dev servers protect you from DNS-rebinding attacks by refusing requests for hostnames they
-don't know. Through a tunnel, requests arrive for `demo.teispace.com` or
+don't know. Through a tunnel, requests arrive for `demo.yourhost.com` or
 `something.trycloudflare.com`, not `localhost`, so Vite answers *Blocked request. This host
 is not allowed*, webpack *Invalid Host header*, Rails *Blocked hosts* and Django
 *DisallowedHost*. Teitunnel recognises each of these and fixes them in place.
@@ -62,24 +62,24 @@ can carry server-sent events and long-lived streams.
 
 ```sh
 cd ~/code/shop
-teitunnel share 5173 --on "{branch}.teispace.com"     # feat/login → feat-login.teispace.com
+teitunnel share 5173 --on "{branch}.yourhost.com"     # feat/login → feat-login.yourhost.com
 teitunnel share 5173 --on                             # the same name as last time, in this folder
 ```
 
 `{branch}`, `{project}` and `{user}` are filled in from the current folder. In the app,
-choose **Address ▸ On teispace.com** in the share form and type the **Subdomain**; the form
-suggests names from the project and shows what they become ("It's feat-login.teispace.com
+choose **Address ▸ On yourhost.com** in the share form and type the **Subdomain**; the form
+suggests names from the project and shows what they become ("It's feat-login.yourhost.com
 here.").
 
 The share makes a temporary route and removes it again when you stop it, quit the app or
-end the command. Add `--allow @teispace.com` to put a [login](/docs/guides/require-login) in
+end the command. Add `--allow @yourhost.com` to put a [login](/docs/guides/require-login) in
 front of it.
 
 ## 3. When the dev server refuses the address
 
 When a share or route goes live, Teitunnel fetches it once through Cloudflare, like a
 visitor. If the dev server refuses the address, the card or route says **Your dev server
-rejects this address.** ("Next.js only answers addresses it knows, and demo.teispace.com
+rejects this address.** ("Next.js only answers addresses it knows, and demo.yourhost.com
 isn't one of them.") and offers two fixes:
 
 - **Send Host: localhost:5173**: the quickest fix, with no change to your project. A Quick
@@ -102,7 +102,7 @@ requests come from rather than the Host header, so for it only the config line w
 
 ```sh
 teitunnel share 5173 --host-header localhost:5173
-teitunnel route add app.teispace.com 5173 --host-header localhost:5173
+teitunnel route add app.yourhost.com 5173 --host-header localhost:5173
 ```
 
 In the app, for a route: **Edit route ▸ Advanced ▸ Origin settings ▸ Host header**. The dev
@@ -113,20 +113,20 @@ use option B.
 
 ### Option B: allow the hostname in your project
 
-These are the lines Teitunnel suggests. A leading dot (`.teispace.com`) allows every
+These are the lines Teitunnel suggests. A leading dot (`.yourhost.com`) allows every
 subdomain, and for Quick Shares Teitunnel suggests `.trycloudflare.com`, since the address
 changes each time.
 
 <Tabs items={["Vite", "Next.js", "Django", "Rails", "webpack", "Angular", "Laravel"]}>
   <Tab value="Vite">
     Vite 6.0.9 and later (and 5.4.12, 4.5.6) answer *Blocked request. This host
-    ("demo.teispace.com") is not allowed.* In `vite.config.js` (Astro: `astro.config.mjs`
+    ("demo.yourhost.com") is not allowed.* In `vite.config.js` (Astro: `astro.config.mjs`
     under `vite:`; Nuxt: `nuxt.config.ts` under `vite:`; SvelteKit: `vite.config.js`):
 
     ```ts
     export default defineConfig({
       server: {
-        allowedHosts: [".teispace.com"], // or [".trycloudflare.com"] for Quick Shares
+        allowedHosts: [".yourhost.com"], // or [".trycloudflare.com"] for Quick Shares
         hmr: { clientPort: 443 },         // hot reload through the tunnel
       },
     });
@@ -141,7 +141,7 @@ changes each time.
 
     ```js
     module.exports = {
-      allowedDevOrigins: ["demo.teispace.com", "*.trycloudflare.com"],
+      allowedDevOrigins: ["demo.yourhost.com", "*.trycloudflare.com"],
     };
     ```
   </Tab>
@@ -150,18 +150,18 @@ changes each time.
     (403). In `settings.py`:
 
     ```py
-    ALLOWED_HOSTS = [".teispace.com", "localhost", "127.0.0.1"]
-    CSRF_TRUSTED_ORIGINS = ["https://demo.teispace.com"]
+    ALLOWED_HOSTS = [".yourhost.com", "localhost", "127.0.0.1"]
+    CSRF_TRUSTED_ORIGINS = ["https://demo.yourhost.com"]
     ```
 
     Keep `localhost` in the list: setting `ALLOWED_HOSTS` replaces Django's default.
     `CSRF_TRUSTED_ORIGINS` needs the scheme (`https://`) since Django 4.0.
   </Tab>
   <Tab value="Rails">
-    Rails shows *Blocked hosts: demo.teispace.com*. In `config/environments/development.rb`:
+    Rails shows *Blocked hosts: demo.yourhost.com*. In `config/environments/development.rb`:
 
     ```rb
-    config.hosts << ".teispace.com"
+    config.hosts << ".yourhost.com"
     config.hosts << ".trycloudflare.com" # every Quick Share address
     ```
   </Tab>
@@ -172,7 +172,7 @@ changes each time.
     ```js
     module.exports = {
       devServer: {
-        allowedHosts: [".teispace.com"], // or "all"
+        allowedHosts: [".yourhost.com"], // or "all"
         client: { webSocketURL: "auto://0.0.0.0:0/ws" },
       },
     };
@@ -182,12 +182,12 @@ changes each time.
     In `angular.json`, under the `serve` target's `options`:
 
     ```json
-    "allowedHosts": [".teispace.com"]
+    "allowedHosts": [".yourhost.com"]
     ```
   </Tab>
   <Tab value="Laravel">
     `php artisan serve` accepts any host. If assets or links point at `http://localhost`,
-    set `APP_URL=https://demo.teispace.com` in `.env`, and trust the tunnel as a proxy so
+    set `APP_URL=https://demo.yourhost.com` in `.env`, and trust the tunnel as a proxy so
     Laravel knows the page is HTTPS (`$middleware->trustProxies(at: '*')` in
     `bootstrap/app.php` on Laravel 11). With Vite, also follow the Vite tab.
   </Tab>
@@ -200,13 +200,13 @@ reaches the browser. When the service answers with `text/event-stream` (a stream
 MCP server on the SSE transport), the card says "This service streams events (Server-Sent
 Events), which Quick Shares don't carry. Share it on your own domain instead, where streams
 work." Share it with `--on`, as in step 2. For a local MCP server, `teitunnel share 3000
---on mcp.teispace.com --mcp` adds a bearer token and keeps streams alive.
+--on mcp.yourhost.com --mcp` adds a bearer token and keeps streams alive.
 
 ## Changes that don't show up
 
 On your own domain, Cloudflare may cache files such as scripts, styles and images, so a
 change you just made can show the old copy. Turn on **Bypass Cloudflare's cache** in the
-hostname's **Edit Protection…** sheet, or run `teitunnel protect dev.teispace.com
+hostname's **Edit Protection…** sheet, or run `teitunnel protect dev.yourhost.com
 --bypass-cache`. Cloudflare then never caches that hostname, and nothing changes for the
 rest of the domain ([Edge protection](/docs/guides/protection)).
 
@@ -228,7 +228,7 @@ reach.
 
 The check after sharing reads the page and says so: *The page loads
 http://[::1]:5173/@vite/client from this computer, which visitors can't reach.* or *The page
-loads http://shop.teispace.com/build/app.css over plain HTTP, so browsers block it on the HTTPS
+loads http://shop.yourhost.com/build/app.css over plain HTTP, so browsers block it on the HTTPS
 address (mixed content).*, with the fix for your framework. `teitunnel share` prints the same,
 and `verify_route` gives it to AI agents.
 

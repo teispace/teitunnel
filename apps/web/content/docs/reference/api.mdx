@@ -138,7 +138,7 @@ answers `409` and nothing is changed: preview again.
 ```sh
 curl -s -X POST http://127.0.0.1:8765/api/preview \
   -H "Authorization: Bearer $TEITUNNEL_API_KEY" -H 'Content-Type: application/json' \
-  -d '{"accountId":"<account id>","change":{"type":"addRoute","route":{"hostname":"api.teispace.com","origin":"8080","path":null,"access":null}}}'
+  -d '{"accountId":"<account id>","change":{"type":"addRoute","route":{"hostname":"api.yourhost.com","origin":"8080","path":null,"access":null}}}'
 ```
 
 ```json
@@ -205,7 +205,7 @@ A `route`:
 - `hostname`: on one of the account's domains.
 - `origin`: a port (`"3000"`), `host:port`, or a URL (`"http://localhost:3000"`).
 - `path`: a path regex such as `"^/api"`, or `null`.
-- `access`: `{ "emails": ["team@teispace.com"], "emailDomains": ["teispace.com"] }` to
+- `access`: `{ "emails": ["team@yourhost.com"], "emailDomains": ["yourhost.com"] }` to
   require a login, or `null`. Add `"github": ["teispace/Developers"]` for GitHub teams and
   `"signIn": "github"` or `"google"` to allow only that login method. On `updateRoute`, `null` removes the login Teitunnel added.
 - `options`: origin settings (the same as the CLI's origin flags, camelCase), or leave it

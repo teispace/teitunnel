@@ -127,7 +127,7 @@ and uses `teitunnel routes --check` as its health check:
 
 ```sh
 docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
-  teispace/teitunnel route add app.teispace.com http://web:80 --yes
+  teispace/teitunnel route add app.yourhost.com http://web:80 --yes
 docker run -d --name teitunnel --restart unless-stopped \
   -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app teispace/teitunnel
 ```

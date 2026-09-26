@@ -9,7 +9,7 @@ colleague, a webhook endpoint for a provider, a built site for a review. There a
 
 | | Quick Share | Share on your domain |
 |---|---|---|
-| Address | Random: `https://quiet-river-1234.trycloudflare.com` | One you choose: `https://demo.teispace.com` |
+| Address | Random: `https://quiet-river-1234.trycloudflare.com` | One you choose: `https://demo.yourhost.com` |
 | Needs | Nothing: no account, no domain | A connected Cloudflare account with a domain |
 | What it is in Cloudflare | A throwaway Quick Tunnel | A temporary [route](/docs/concepts/routes-and-tunnels) on this computer's tunnel, with its DNS record |
 | Pause and schedules | Pause and resume per share (inspected ones), or all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
@@ -38,7 +38,7 @@ online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
   <Step>
     ### Choose the address
 
-    Under **Address**, keep **Random address** for a Quick Share, or pick **On teispace.com**
+    Under **Address**, keep **Random address** for a Quick Share, or pick **On yourhost.com**
     (one entry per domain of the account) and type a **Subdomain**, such as `demo`.
     Teitunnel suggests names from the service's project (the one you used last time first)
     and shows what a name with [placeholders](#names-from-your-project-and-branch) becomes.
@@ -86,11 +86,11 @@ line*.
 ```sh
 teitunnel share 3000                            # a Quick Share of localhost:3000
 teitunnel share 3000 --for 2h                   # stops by itself after 2 hours
-teitunnel share 3000 --on demo.teispace.com     # on your domain, until Ctrl-C
-teitunnel share 3000 --on demo.teispace.com --allow team@teispace.com   # behind a login
+teitunnel share 3000 --on demo.yourhost.com     # on your domain, until Ctrl-C
+teitunnel share 3000 --on demo.yourhost.com --allow team@yourhost.com   # behind a login
 teitunnel share ./dist                          # a folder
 teitunnel shares                                # every share, wherever it runs
-teitunnel shares --stop demo.teispace.com
+teitunnel shares --stop demo.yourhost.com
 ```
 
 ```text
@@ -152,16 +152,16 @@ A hostname may contain `{project}`, `{branch}` and `{user}`, the same placeholde
 [project files](/docs/guides/project-file):
 
 ```sh
-teitunnel share 3000 --on {branch}.dev.teispace.com     # login-fix.dev.teispace.com
-teitunnel share 3000 --on {project}-{user}.teispace.com # shop-<your user name>.teispace.com
+teitunnel share 3000 --on {branch}.dev.yourhost.com     # login-fix.dev.yourhost.com
+teitunnel share 3000 --on {project}-{user}.yourhost.com # shop-<your user name>.yourhost.com
 teitunnel share 3000 --on                               # the name used in this folder last time
 ```
 
 `{project}` is the name in the folder's `package.json`, `Cargo.toml`, `pyproject.toml`,
 `composer.json` or `go.mod` (else the folder's name), `{branch}` is read from the git
 repository the folder is in (no git process is started), and `{user}` is your user name. Every
-value becomes a valid DNS label, and the command says what the name became: *\{branch\}.dev.teispace.com
-is login-fix.dev.teispace.com here.* The name you used is remembered for the folder.
+value becomes a valid DNS label, and the command says what the name became: *\{branch\}.dev.yourhost.com
+is login-fix.dev.yourhost.com here.* The name you used is remembered for the folder.
 
 ## Pause and resume
 
@@ -173,8 +173,8 @@ serves your service again at once, with no DNS change to wait for.
 
 - **App:** **Pause** on the share's card. A **Paused** badge shows while it lasts;
   **Resume** ends it.
-- **Terminal:** `teitunnel shares --pause demo.teispace.com`, then
-  `teitunnel shares --resume demo.teispace.com`.
+- **Terminal:** `teitunnel shares --pause demo.yourhost.com`, then
+  `teitunnel shares --resume demo.yourhost.com`.
 - **Quick Shares:** **Pause** on the card, `teitunnel shares --pause <its URL or id>` for the
   app's, or **Pause All Shares** in the [menu bar](/docs/guides/menu-bar). The address stays
   too; only inspected shares pause, since the inspector shows the page.
@@ -203,17 +203,17 @@ site that's closed at night.
 - **Terminal:**
 
   ```sh
-  teitunnel schedule demo.teispace.com mon-fri 09:00-18:00
-  teitunnel schedule demo.teispace.com weekends 10:00-16:00 --tz Europe/Berlin
-  teitunnel schedule demo.teispace.com            # show it
-  teitunnel schedule demo.teispace.com --off      # remove it; the share stays as it is
+  teitunnel schedule demo.yourhost.com mon-fri 09:00-18:00
+  teitunnel schedule demo.yourhost.com weekends 10:00-16:00 --tz Europe/Berlin
+  teitunnel schedule demo.yourhost.com            # show it
+  teitunnel schedule demo.yourhost.com --off      # remove it; the share stays as it is
   teitunnel schedules                             # every schedule
-  teitunnel share 3000 --on demo.teispace.com --schedule "mon-fri 09:00-18:00"
+  teitunnel share 3000 --on demo.yourhost.com --schedule "mon-fri 09:00-18:00"
   ```
 
   ```text
   $ teitunnel schedules
-  https://demo.teispace.com	mon,tue,wed,thu,fri 09:00-18:00 (local time)	on, pauses at Wed 18:00
+  https://demo.yourhost.com	mon,tue,wed,thu,fri 09:00-18:00 (local time)	on, pauses at Wed 18:00
   ```
 
 - **AI agents:** `schedule_share`.
@@ -237,7 +237,7 @@ Share a folder of files (a built site, docs, a design export) without running a 
   folder has no `index.html`, so its address never answers *Not found*) and
   **Single-page app (every page opens index.html)**. **Share a service instead** goes back.
 - **Terminal:** `teitunnel share ./dist` (a random address; handed to the app when it runs)
-  or `teitunnel share ./dist --on docs.teispace.com`, with `--listing` / `--no-listing` and
+  or `teitunnel share ./dist --on docs.yourhost.com`, with `--listing` / `--no-listing` and
   `--spa`.
 - **AI agents:** `share_folder`.
 
@@ -254,7 +254,7 @@ people to see, like dist or public.*
 - **When nobody uses it:** **Settings ▸ Inspector ▸ Stop idle shares** stops any share after
   15 minutes to 8 hours without a request (off by default). Per share, it's in the share's
   **Inspection Settings… ▸ More**, or `--idle 30m` in the terminal. You get a notification:
-  *demo.teispace.com had no requests for 30 minutes, so it stopped.*
+  *demo.yourhost.com had no requests for 30 minutes, so it stopped.*
 
 ## Protect a Quick Share
 
@@ -288,14 +288,14 @@ Cloudflare's 125-second limit.
 - **The page loads but a dev server answers "Invalid Host header" or "Blocked request".**
   Set **Host header** to **Automatic** or **Custom** (`--host-header localhost:5173`).
   Teitunnel's check usually spots it and offers the fix.
-- **"The terminal that shared demo.teispace.com has stopped, so there's nothing to pause."**
+- **"The terminal that shared demo.yourhost.com has stopped, so there's nothing to pause."**
   The share ended with its terminal. Share it again.
-- **"demo.teispace.com runs in a terminal without Teitunnel's inspector (--no-inspect), which
+- **"demo.yourhost.com runs in a terminal without Teitunnel's inspector (--no-inspect), which
   is what shows the paused page."** Stop it and share it again without `--no-inspect`.
-- **"Pausing demo.teispace.com needs Teitunnel running on this computer to show the paused
+- **"Pausing demo.yourhost.com needs Teitunnel running on this computer to show the paused
   page: open the app, or run teitunnel up or teitunnel serve."**
-- **"No name was used for a share from this folder yet; give one: --on demo.teispace.com (or
-  --on \{branch\}.dev.teispace.com)."** `--on` alone only works after you've shared from this
+- **"No name was used for a share from this folder yet; give one: --on demo.yourhost.com (or
+  --on \{branch\}.dev.yourhost.com)."** `--on` alone only works after you've shared from this
   folder once.
 - **"\{branch\} has no value here (the branch comes from the git repository the share starts
   in)."** Run the command inside the repository, or use another placeholder.

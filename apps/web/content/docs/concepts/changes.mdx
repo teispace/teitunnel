@@ -42,8 +42,8 @@ apply.* Each step is written as its outcome, for example:
 
 1. Create tunnel “laptop” (only the first time)
 2. Update tunnel “laptop” to serve 3 routes
-3. Add DNS record app.teispace.com → tunnel “laptop”
-4. Check https://app.teispace.com works
+3. Add DNS record app.yourhost.com → tunnel “laptop”
+4. Check https://app.yourhost.com works
 
 The order is chosen so nothing is ever briefly broken or exposed:
 
@@ -66,9 +66,9 @@ explicitly before **Apply** is possible:
 
 | The plan says | What you confirm |
 |---|---|
-| *app.teispace.com already has a DNS record (A 203.0.113.4) that Teitunnel didn't create. It will be replaced.* | **Replace the existing records** |
-| *The CNAME record for old.teispace.com (…) wasn't created by Teitunnel. It will be deleted.* | **Replace the existing records** |
-| *app.teispace.com is reserved by … until …. Going ahead takes it over.* / *… is routed by … on another machine. Going ahead takes it over, and their route stops working.* | **Take this hostname from whoever holds it** |
+| *app.yourhost.com already has a DNS record (A 203.0.113.4) that Teitunnel didn't create. It will be replaced.* | **Replace the existing records** |
+| *The CNAME record for old.yourhost.com (…) wasn't created by Teitunnel. It will be deleted.* | **Replace the existing records** |
+| *app.yourhost.com is reserved by … until …. Going ahead takes it over.* / *… is routed by … on another machine. Going ahead takes it over, and their route stops working.* | **Take this hostname from whoever holds it** |
 | *… isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.* | **Send these public addresses through this Mac** |
 
 Others are for information only: a record left in place because Teitunnel didn't create it,
@@ -110,7 +110,7 @@ ended:
 - *Everything done before the failure was undone. Nothing was left behind.* The steps show
   **Undone**, and Activity records the change as **Failed and undone**.
 - If an undo itself fails (say, the network dropped mid-way), you get exactly what was left:
-  *Some changes couldn't be undone:* followed by lines like *DNS record app.teispace.com was
+  *Some changes couldn't be undone:* followed by lines like *DNS record app.yourhost.com was
   created and is still there*. The step shows **Couldn't undo**, Activity records **Failed,
   partly undone**, and the Doctor picks up anything left over.
 
@@ -143,7 +143,7 @@ to do:
 
 Brief failures right after a change (a connector still connecting, a record Cloudflare
 hasn't picked up) are retried every 2 seconds for up to 30 seconds. While it runs, the sheet
-says *Checking https://app.teispace.com works… The connector can take a few seconds to
+says *Checking https://app.yourhost.com works… The connector can take a few seconds to
 connect.* A route behind a login counts as working when Cloudflare asks for the login
 (*Protected by a login*). SSH, RDP and other TCP routes aren't checked; Teitunnel shows the
 `cloudflared access` command visitors use instead.
@@ -170,11 +170,11 @@ by text, or show **Only Problems** (failed changes and alerts).
 and check:
 
 ```text
-$ teitunnel route add app.teispace.com 3000
-! app.teispace.com already has an A record (203.0.113.4) that Teitunnel didn't create. It will be replaced.
+$ teitunnel route add app.yourhost.com 3000
+! app.yourhost.com already has an A record (203.0.113.4) that Teitunnel didn't create. It will be replaced.
  1. Update tunnel “laptop” to serve 2 routes
- 2. Point app.teispace.com at tunnel “laptop” (was A 203.0.113.4)
- 3. Check https://app.teispace.com works
+ 2. Point app.yourhost.com at tunnel “laptop” (was A 203.0.113.4)
+ 3. Check https://app.yourhost.com works
 teitunnel: This needs a confirmation (see above). Pass --replace to allow it.
 ```
 
@@ -186,7 +186,7 @@ teitunnel: This needs a confirmation (see above). Pass --replace to allow it.
 | `--account`, `-a` | The account, by name or id, when several are connected. |
 | `--tunnel` | One of this computer's tunnels, by name. |
 
-How it ended is printed and reflected in the exit status: `https://app.teispace.com works.`
+How it ended is printed and reflected in the exit status: `https://app.yourhost.com works.`
 (0), a failed check with its explanation (1), `Failed: … Everything was undone.` (1), or
 `Failed: … These couldn't be undone:` with the leftovers (1). *Nothing to change.* exits 0.
 

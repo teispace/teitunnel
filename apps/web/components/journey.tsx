@@ -18,7 +18,7 @@ const stops: Stop[] = [
   {
     icon: Smartphone,
     title: "A visitor",
-    detail: "app.teispace.com",
+    detail: "app.yourhost.com",
     at: 0,
     note: "GET /api/projects",
   },
@@ -48,7 +48,7 @@ const stops: Stop[] = [
 const steps = [
   {
     title: "A visitor opens your address",
-    body: "A phone anywhere asks for https://app.teispace.com. DNS points it at Cloudflare, never at your home or office.",
+    body: "A phone anywhere asks for https://app.yourhost.com. DNS points it at Cloudflare, never at your home or office.",
   },
   {
     title: "Cloudflare's edge decides who gets in",

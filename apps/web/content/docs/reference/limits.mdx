@@ -45,7 +45,7 @@ free, with no account. They're meant for testing:
   for up to 30 minutes.
 
 For any of these, share on your own domain instead (**Address ▸ On** *your domain*, or
-`teitunnel share 3000 --on demo.teispace.com`): same free plan, same URL each time.
+`teitunnel share 3000 --on demo.yourhost.com`): same free plan, same URL each time.
 
 Checked 2026-09-24. Source:
 [Quick Tunnels](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/).
@@ -60,7 +60,7 @@ apply to every request through a tunnel:
 |---|---|---|
 | Time to answer | 125 seconds (only Enterprise zones can raise it) | error 524 |
 | Request body size | 100 MB | error 413 |
-| Free certificate | one level of subdomain (`app.teispace.com`, not `a.b.teispace.com`) | SSL handshake error |
+| Free certificate | one level of subdomain (`app.yourhost.com`, not `a.b.yourhost.com`) | SSL handshake error |
 
 Checked 2026-09-26 (the timeout was 100 seconds before). Source:
 [connection limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/),

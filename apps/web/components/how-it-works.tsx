@@ -108,12 +108,12 @@ function Apply({ p }: { p: number }) {
     <div className="tt-how-stage">
       <span className="flex flex-col gap-1.5">
         <Tick done={p > 0.22}>Create tunnel “web-01”</Tick>
-        <Tick done={p > 0.44}>Route app.teispace.com → :3000</Tick>
+        <Tick done={p > 0.44}>Route app.yourhost.com → :3000</Tick>
         <Tick done={p > 0.64}>Add its DNS record</Tick>
       </span>
       <span className="tt-how-live" data-on={p > 0.84 ? "" : undefined}>
         <Globe className="size-3.5" aria-hidden />
-        <span className="font-mono">app.teispace.com</span>
+        <span className="font-mono">app.yourhost.com</span>
         <span className="tt-how-live-dot tt-live-dot" aria-hidden />
         Live
       </span>

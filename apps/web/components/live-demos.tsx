@@ -54,7 +54,7 @@ export const REQUEST_ARRIVED = "tt:request";
  * across the hero's sky (the page's own comets, or one sent with a click). Server HTML,
  * no JavaScript and Reduce Motion show a still list.
  */
-export function RequestStream({ host = "app.teispace.com" }: { host?: string }) {
+export function RequestStream({ host = "app.yourhost.com" }: { host?: string }) {
   const ref = useRef<HTMLElement>(null);
   const [next, setNext] = useState(ROWS);
   const [count, setCount] = useState(1284);
@@ -237,7 +237,7 @@ export function ApprovalDemo() {
           </p>
           <ul className="mt-2 space-y-1 text-xs text-fd-muted-foreground">
             <li>Update tunnel “MacBook-Pro” to serve 6 routes</li>
-            <li>Add DNS record api.teispace.com → tunnel “MacBook-Pro”</li>
+            <li>Add DNS record api.yourhost.com → tunnel “MacBook-Pro”</li>
           </ul>
           <div
             className="mt-3 flex min-h-7 items-center justify-end gap-2 text-xs"
@@ -290,7 +290,7 @@ export function CommentDemo() {
           </span>
           <span className="font-mono text-xs text-fd-muted-foreground">/pricing</span>
         </span>
-        <span className="text-xs text-fd-muted-foreground">preview.teispace.com</span>
+        <span className="text-xs text-fd-muted-foreground">preview.yourhost.com</span>
       </div>
       <div className="mt-3 space-y-2.5 text-[13px]">
         <p>

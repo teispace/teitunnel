@@ -96,7 +96,7 @@ Each route that can't be imported says why:
 |---|---|
 | *Not in this account's domains* | The hostname belongs to another Cloudflare account. Switch accounts in the toolbar and import from there. |
 | *Already routed* | A route with this hostname and path exists in Teitunnel. |
-| *Wildcards are only supported as the first label* | Only `*.teispace.com`-style wildcards work. Add the route by hand with another name. |
+| *Wildcards are only supported as the first label* | Only `*.yourhost.com`-style wildcards work. Add the route by hand with another name. |
 | *“…” isn't a service Teitunnel routes to* | The service isn't one of the kinds a route can point at. Add the route by hand. |
 | *It has settings Teitunnel can't carry over yet: access, bastionMode* | The rule has `originRequest` settings Teitunnel doesn't manage. Add the route by hand, then set those in the Cloudflare dashboard if you still need them. |
 
@@ -115,7 +115,7 @@ There's no import command. To move a route by hand, add it with the same setting
 confirm the record replacement:
 
 ```sh
-teitunnel route add app.teispace.com https://localhost:8443 --no-tls-verify --replace
+teitunnel route add app.yourhost.com https://localhost:8443 --no-tls-verify --replace
 ```
 
 The [CLI reference](/docs/reference/cli) lists every origin setting as a flag. For a whole

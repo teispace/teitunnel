@@ -5,7 +5,7 @@ searchDescription: "Pull request previews on your own Cloudflare domain with the
 ---
 
 Every pull request can get its own address on your domain, like
-`https://pr-42-preview.teispace.com`, published from CI to your own Cloudflare account:
+`https://pr-42-preview.yourhost.com`, published from CI to your own Cloudflare account:
 commented on the pull request, updated on every push, and removed when it closes. There's
 no preview service in between: the Action and the template run the `teitunnel` CLI in
 your job, against your account, through the same reviewed plan → apply engine as the app.
@@ -63,7 +63,7 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           build: true
-          zone: teispace.com
+          zone: yourhost.com
 
   cleanup:
     if: github.event.action == 'closed'
@@ -73,13 +73,13 @@ jobs:
         with:
           cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           mode: cleanup
-          zone: teispace.com
+          zone: yourhost.com
 ```
 </Step>
 <Step>
 ### Open a pull request
 
-The job builds the site, publishes it at `pr-<number>-preview.teispace.com`, and comments
+The job builds the site, publishes it at `pr-<number>-preview.yourhost.com`, and comments
 the URL on the pull request. Each push publishes a new version and edits the same comment.
 Closing or merging the pull request runs `cleanup`, which deletes the Snapshot.
 </Step>
@@ -97,7 +97,7 @@ Closing or merging the pull request runs `cleanup`, which deletes the Snapshot.
           mode: share
           port: 3000
           hostname: pr-{number}-{repo}.{zone}   # one level: covered by the free certificate
-          zone: teispace.com
+          zone: yourhost.com
       - run: npx playwright test
         env:
           BASE_URL: ${{ steps.preview.outputs.url }}
@@ -145,8 +145,8 @@ characters. When several repositories share a zone, include `{repo}`:
 `pr-{number}-{repo}.{zone}`.
 
 <Callout title="Keep previews one level deep">
-Cloudflare's free certificate covers one level of subdomain (`pr-42-preview.teispace.com`),
-not deeper names like `pr-42.preview.teispace.com`. The default templates stay one level
+Cloudflare's free certificate covers one level of subdomain (`pr-42-preview.yourhost.com`),
+not deeper names like `pr-42.preview.yourhost.com`. The default templates stay one level
 deep for that reason. If you choose a deeper template, Snapshots still work (Cloudflare
 issues their certificate), but shares need an Advanced Certificate for the deeper name.
 </Callout>
@@ -170,7 +170,7 @@ jobs:
   preview:
     uses: <owner>/<repo>/.github/workflows/reusable-preview.yml@main
     with:
-      zone: teispace.com
+      zone: yourhost.com
       start: npm run dev -- --port 3000
       port: "3000"
     secrets:
@@ -197,7 +197,7 @@ include:
   - remote: https://raw.githubusercontent.com/teispace/teitunnel/main/integrations/gitlab-ci/teitunnel.gitlab-ci.yml
 
 variables:
-  TEITUNNEL_ZONE: teispace.com
+  TEITUNNEL_ZONE: yourhost.com
 
 preview:
   extends: .teitunnel-snapshot
@@ -251,12 +251,12 @@ export CLOUDFLARE_API_TOKEN=…             # from your CI's secrets; never stor
 export TEITUNNEL_OWNER="ci/shop"          # who holds the names this job creates
 export TEITUNNEL_MACHINE_NAME="ci-shop-$JOB_ID"   # names the job's tunnel
 
-teitunnel snapshot publish dist --name shop-pr-42 --on pr-42-preview.teispace.com \
-  --or-update --yes --json                # {"url": "https://pr-42-preview.teispace.com", …}
-teitunnel snapshot rm pr-42-preview.teispace.com --missing-ok --yes
+teitunnel snapshot publish dist --name shop-pr-42 --on pr-42-preview.yourhost.com \
+  --or-update --yes --json                # {"url": "https://pr-42-preview.yourhost.com", …}
+teitunnel snapshot rm pr-42-preview.yourhost.com --missing-ok --yes
 
 teitunnel cloudflared install             # a verified cloudflared, if the machine has none
-teitunnel share 3000 --on pr-42-shop.teispace.com --json &     # up until stopped
+teitunnel share 3000 --on pr-42-shop.yourhost.com --json &     # up until stopped
 ```
 
 | Variable | |
@@ -281,10 +281,10 @@ teammate's hostname says so and needs your confirmation first.
 Reserve a hostname so nobody else takes it, optionally until a date:
 
 ```sh
-teitunnel reserve demo.teispace.com                            # no end date
-teitunnel reserve pr-402-preview.teispace.com --until 2026-12-31
+teitunnel reserve demo.yourhost.com                            # no end date
+teitunnel reserve pr-402-preview.yourhost.com --until 2026-12-31
 teitunnel reservations ls
-teitunnel release demo.teispace.com
+teitunnel release demo.yourhost.com
 ```
 
 In the app: **Domains ▸ Reservations ▸ Reserve** ("Reserve a hostname"). The hostname field

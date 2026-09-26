@@ -28,7 +28,7 @@ instead.
 ### Add the route on the first machine
 
 ```sh
-teitunnel route add app.teispace.com 3000
+teitunnel route add app.yourhost.com 3000
 ```
 </Step>
 <Step>
@@ -39,7 +39,7 @@ for a confirmation before it points the DNS record here. Confirm it in the app, 
 `--take-over`:
 
 ```sh
-teitunnel route add app.teispace.com 3000 --take-over
+teitunnel route add app.yourhost.com 3000 --take-over
 ```
 
 Until the next step, visitors go to whichever machine the DNS record points at.
@@ -51,19 +51,19 @@ Select the route in **Routes** and choose **Load Balance…** (the sheet is **Lo
 Route**; apply with **Load Balance**), or from the terminal:
 
 ```sh
-teitunnel route balance app.teispace.com
+teitunnel route balance app.yourhost.com
 ```
 
-The plan ("Load balance app.teispace.com across its tunnels") shows what's created before
+The plan ("Load balance app.yourhost.com across its tunnels") shows what's created before
 anything is (see below). With only one machine serving the route so far, it warns: "Only
-this tunnel serves app.teispace.com so far. Add the same route on another machine so the
+this tunnel serves app.yourhost.com so far. Add the same route on another machine so the
 load balancer has somewhere to fail over to."
 </Step>
 </Steps>
 
 ## What happens on Cloudflare
 
-- A **health check** that requests `https://app.teispace.com/` through each tunnel, with your
+- A **health check** that requests `https://app.yourhost.com/` through each tunnel, with your
   hostname as the Host header, and expects any 2xx answer after following redirects.
 - A **pool** with one endpoint per machine: each tunnel's `<tunnel id>.cfargotunnel.com`,
   with your hostname as the Host header, as Cloudflare recommends for tunnels.
@@ -72,7 +72,7 @@ load balancer has somewhere to fail over to."
 
 Teitunnel marks what it creates (`teitunnel:lb=<hostname>` in the description) and only
 changes those, from any machine. If a load balancer made elsewhere already answers for the
-hostname, the plan stops ("app.teispace.com already has a load balancer Teitunnel didn't
+hostname, the plan stops ("app.yourhost.com already has a load balancer Teitunnel didn't
 create. Change it in the Cloudflare dashboard."). Every step can be undone in Activity, and a
 failure part-way puts back what was there.
 
@@ -93,7 +93,7 @@ pool; when the last one goes, the load balancer, pool and health check go too.
 
 ## Turn it off
 
-**Stop Load Balancing…** (or `teitunnel route unbalance app.teispace.com`) deletes the load
+**Stop Load Balancing…** (or `teitunnel route unbalance app.yourhost.com`) deletes the load
 balancer, pool and health check. The hostname's DNS record serves it again, so visitors go
 to the machine the record points at.
 

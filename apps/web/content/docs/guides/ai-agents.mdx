@@ -196,8 +196,8 @@ long waits can be cancelled.
 **Share a dev server.** *"Put my Vite app online for my phone."* The agent finds the port
 with `list_local_services`, calls `share_port`, you approve, and it gives you the link.
 
-**On your domain, with a login.** *"Share port 8080 at demo.teispace.com, only for
-@teispace.com."* A temporary route with a Cloudflare Access login, removed when the session
+**On your domain, with a login.** *"Share port 8080 at demo.yourhost.com, only for
+@yourhost.com."* A temporary route with a Cloudflare Access login, removed when the session
 ends. For a permanent route the agent plans an `addRoute` change instead.
 
 **Debug a webhook.** *"Stripe webhooks to my app fail."* The agent shares the port, asks

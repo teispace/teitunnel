@@ -7,7 +7,7 @@ searchDescription: "Receive Stripe webhooks on localhost at a stable HTTPS URL, 
 Point a Stripe webhook endpoint at a handler running on your computer, watch each event
 arrive in the [inspector](/docs/guides/inspector), and replay it while you fix the handler.
 The examples use a handler at `http://localhost:4242/webhook` and the hostname
-`hooks.teispace.com`.
+`hooks.yourhost.com`.
 
 <Callout title="Or the Stripe CLI">
   `stripe listen --forward-to localhost:4242/webhook` forwards events to your computer
@@ -19,10 +19,10 @@ The examples use a handler at `http://localhost:4242/webhook` and the hostname
 ## 1. Share the handler
 
 ```sh
-teitunnel share 4242 --on hooks.teispace.com --watch "/webhook"
+teitunnel share 4242 --on hooks.yourhost.com --watch "/webhook"
 ```
 
-`https://hooks.teispace.com/webhook` reaches your handler for as long as the share runs,
+`https://hooks.yourhost.com/webhook` reaches your handler for as long as the share runs,
 and it's the same address tomorrow. For an address that's always there, make it a
 [route](/docs/getting-started/first-route) instead.
 
@@ -30,13 +30,13 @@ and it's the same address tomorrow. For an address that's always there, make it 
 
 In a sandbox, open **Workbench ▸ Webhooks ▸ Create an event destination**, choose
 **Your account**, the event types your handler needs, and **Webhook endpoint**. Enter
-`https://hooks.teispace.com/webhook`. On the endpoint's page, reveal the signing secret
+`https://hooks.yourhost.com/webhook`. On the endpoint's page, reveal the signing secret
 (`whsec_…`) and give it to your handler.
 
 Save the same secret in Teitunnel so the inspector checks every delivery's signature:
 
 ```sh
-teitunnel inbox secret hooks.teispace.com stripe  # asks for the secret
+teitunnel inbox secret hooks.yourhost.com stripe  # asks for the secret
 ```
 
 In the app: select a delivery in the **Inspector** and choose **Add Signing Secret…**.
@@ -84,7 +84,7 @@ that arrive while the computer is off and delivers them in order when it's back,
 only correctly signed ones:
 
 ```sh
-teitunnel inbox add hooks.teispace.com /webhook --verify stripe
+teitunnel inbox add hooks.yourhost.com /webhook --verify stripe
 ```
 
 A kept event reaches your handler later than 5 minutes, so its signature is too old for

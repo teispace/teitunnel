@@ -14,7 +14,7 @@ There are two ways, depending on how long the link should last.
 
 | | Quick Share | Route on your domain |
 |---|---|---|
-| Address | `random-words.trycloudflare.com` | `app.teispace.com` |
+| Address | `random-words.trycloudflare.com` | `app.yourhost.com` |
 | Cloudflare account | not needed | free account + a domain |
 | Same URL every time | no | yes |
 | Logins, keep running as a service | no | yes |
@@ -44,7 +44,7 @@ There are two ways, depending on how long the link should last.
 
 <Screenshot name="quick-share" alt="A Quick Share of localhost with its public URL" />
 
-For a stable address, connect Cloudflare and choose **Address ▸ On teispace.com** before
+For a stable address, connect Cloudflare and choose **Address ▸ On yourhost.com** before
 sharing; see [Quick Share on your own domain](/docs/getting-started/quick-share#on-your-own-domain).
 
 ## From the terminal
@@ -58,7 +58,7 @@ Common variations:
 
 ```sh
 teitunnel share 8080 --for 1h                 # stop by itself after an hour
-teitunnel share 3000 --on demo.teispace.com   # your own domain, same URL every time
+teitunnel share 3000 --on demo.yourhost.com   # your own domain, same URL every time
 teitunnel share https://localhost:8443        # an HTTPS dev server
 ```
 

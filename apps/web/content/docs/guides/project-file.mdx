@@ -26,19 +26,19 @@ project: shop            # default: the name in package.json, Cargo.toml… or t
 account: Teispace        # only needed when several accounts are connected
 
 routes:
-  - hostname: shop.teispace.com
+  - hostname: shop.yourhost.com
     origin: 3000
-  - hostname: api.teispace.com
+  - hostname: api.yourhost.com
     origin: http://localhost:4000
     path: ^/v1
-    login: [team@teispace.com, "@teispace.com"]   # require a Cloudflare Access login
+    login: [team@yourhost.com, "@yourhost.com"]   # require a Cloudflare Access login
     originRequest:
       httpHostHeader: localhost:4000
       connectTimeout: 10
 
 shares:
   - port: 5173
-    hostname: "{branch}-{project}.teispace.com"  # feat-login-shop.teispace.com
+    hostname: "{branch}-{project}.yourhost.com"  # feat-login-shop.yourhost.com
     expires: 2h
     hostHeader: localhost:5173
   - port: 8080                                   # a random trycloudflare.com address
@@ -46,7 +46,7 @@ shares:
 snapshots:
   - name: docs
     source: { folder: dist }                     # or { build: . } to build first
-    hostname: docs.teispace.com                  # without it: your workers.dev address
+    hostname: docs.yourhost.com                  # without it: your workers.dev address
     spa: true
     password: { env: DOCS_PASSWORD }             # never the password itself
     expires: 30d
@@ -119,7 +119,7 @@ The app watches the file. When you edit it, a banner ("teitunnel.yml changed") o
   configuration, and an Access login when `login` is set. Each route is planned again just
   before it's applied, and refused if its steps no longer match what you saw
   ("Cloudflare changed since the plan was shown. Review the plan again."). If one fails, the
-  ones after it aren't applied ("Stopped at api.teispace.com.").
+  ones after it aren't applied ("Stopped at api.yourhost.com.").
 - **Snapshots** are published the first time and get a new version when their files
   changed ("Publish a new version of Snapshot docs if its files changed").
 - **Shares** on a hostname are temporary routes, removed when the share stops. Shares

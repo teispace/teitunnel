@@ -132,20 +132,20 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     (
         "route add",
         &[
-            "teitunnel route add app.teispace.com 3000  # route a hostname to localhost:3000",
-            "teitunnel route add api.teispace.com 8000 --path '^/v1/'",
-            "teitunnel route add admin.teispace.com 3000 --allow team@teispace.com --allow @teispace.com",
-            "teitunnel route add beta.teispace.com 4000 --tunnel staging",
-            "teitunnel route add secure.teispace.com https://localhost:8443 --no-tls-verify",
-            "teitunnel route add dev.teispace.com 5173 --host-header localhost",
-            "teitunnel route add slow.teispace.com 8000 --connect-timeout 60 --keep-alive-timeout 300",
+            "teitunnel route add app.yourhost.com 3000  # route a hostname to localhost:3000",
+            "teitunnel route add api.yourhost.com 8000 --path '^/v1/'",
+            "teitunnel route add admin.yourhost.com 3000 --allow team@yourhost.com --allow @yourhost.com",
+            "teitunnel route add beta.yourhost.com 4000 --tunnel staging",
+            "teitunnel route add secure.yourhost.com https://localhost:8443 --no-tls-verify",
+            "teitunnel route add dev.yourhost.com 5173 --host-header localhost",
+            "teitunnel route add slow.yourhost.com 8000 --connect-timeout 60 --keep-alive-timeout 300",
         ],
     ),
     (
         "route balance",
-        &["teitunnel route balance app.teispace.com  # load balance across machines (paid add-on)"],
+        &["teitunnel route balance app.yourhost.com  # load balance across machines (paid add-on)"],
     ),
-    ("route remove", &["teitunnel route remove app.teispace.com"]),
+    ("route remove", &["teitunnel route remove app.yourhost.com"]),
     (
         "networks",
         &["teitunnel networks  # the ranges and hostnames this machine shares"],
@@ -175,21 +175,21 @@ const EXAMPLES: &[(&str, &[&str])] = &[
         &[
             "teitunnel share 3000  # a temporary public URL (in the app when it runs)",
             "teitunnel share 3000 --here --for 30m  # in this terminal, until Ctrl-C or 30 minutes",
-            "teitunnel share 3000 --on demo.teispace.com  # the same, on your own domain",
-            "teitunnel share 3000 --on {branch}.dev.teispace.com  # named after the git branch",
+            "teitunnel share 3000 --on demo.yourhost.com  # the same, on your own domain",
+            "teitunnel share 3000 --on {branch}.dev.yourhost.com  # named after the git branch",
             "teitunnel share 3000 --on  # the name used in this folder last time",
             "teitunnel share ./dist  # share a folder of files",
-            "teitunnel share ./dist --on docs.teispace.com --spa",
+            "teitunnel share ./dist --on docs.yourhost.com --spa",
             "teitunnel share 3000 --no-inspect  # skip the inspector (on by default)",
-            "teitunnel share 8000 --mcp --on mcp.teispace.com  # an MCP server for remote AI clients",
+            "teitunnel share 8000 --mcp --on mcp.yourhost.com  # an MCP server for remote AI clients",
             "teitunnel share 11434 --ai  # a local AI server behind a bearer token",
         ],
     ),
     (
         "inspect",
         &[
-            "teitunnel inspect app.teispace.com  # a route's requests, until Ctrl-C",
-            "teitunnel inspect app.teispace.com --off  # restore a route left inspected",
+            "teitunnel inspect app.yourhost.com  # a route's requests, until Ctrl-C",
+            "teitunnel inspect app.yourhost.com --off  # restore a route left inspected",
         ],
     ),
     ("traffic ls", &["teitunnel traffic ls --status 5xx"]),
@@ -216,33 +216,33 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     ),
     (
         "token",
-        &["teitunnel token mcp.teispace.com  # the token a shared MCP or AI server expects"],
+        &["teitunnel token mcp.yourhost.com  # the token a shared MCP or AI server expects"],
     ),
     (
         "reserve",
         &[
-            "teitunnel reserve review.dev.teispace.com --until 2026-12-31  # hold a name for yourself",
+            "teitunnel reserve review.dev.yourhost.com --until 2026-12-31  # hold a name for yourself",
         ],
     ),
     (
         "reservations",
         &["teitunnel reservations ls  # reserved names and who holds them"],
     ),
-    ("release", &["teitunnel release review.dev.teispace.com"]),
+    ("release", &["teitunnel release review.dev.yourhost.com"]),
     (
         "shares",
         &[
             "teitunnel shares  # every share: the app's, terminals', your domains'",
-            "teitunnel shares --stop demo.teispace.com",
-            "teitunnel shares --pause demo.teispace.com  # a paused page; the address stays",
-            "teitunnel shares --resume demo.teispace.com",
+            "teitunnel shares --stop demo.yourhost.com",
+            "teitunnel shares --pause demo.yourhost.com  # a paused page; the address stays",
+            "teitunnel shares --resume demo.yourhost.com",
         ],
     ),
     (
         "schedule",
         &[
-            "teitunnel schedule demo.teispace.com mon-fri 09:00-18:00  # on during office hours",
-            "teitunnel schedule demo.teispace.com --off",
+            "teitunnel schedule demo.yourhost.com mon-fri 09:00-18:00  # on during office hours",
+            "teitunnel schedule demo.yourhost.com --off",
         ],
     ),
     (
@@ -253,7 +253,7 @@ const EXAMPLES: &[(&str, &[&str])] = &[
         "analytics",
         &[
             "teitunnel analytics  # traffic of every route, from Cloudflare's edge",
-            "teitunnel analytics app.teispace.com --range week",
+            "teitunnel analytics app.yourhost.com --range week",
         ],
     ),
     (
@@ -263,10 +263,10 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     (
         "snapshot publish",
         &[
-            "teitunnel snapshot publish ./dist --on preview.teispace.com  # a copy online while you sleep",
+            "teitunnel snapshot publish ./dist --on preview.yourhost.com  # a copy online while you sleep",
             "teitunnel snapshot publish . --build  # build the project, then publish its output",
-            "teitunnel snapshot publish ./dist --on preview.teispace.com --comments  # reviewers can comment",
-            "teitunnel snapshot publish dist --name web-pr-7 --on pr-7.teispace.com --or-update --yes --json  # CI",
+            "teitunnel snapshot publish ./dist --on preview.yourhost.com --comments  # reviewers can comment",
+            "teitunnel snapshot publish dist --name web-pr-7 --on pr-7.yourhost.com --or-update --yes --json  # CI",
         ],
     ),
     (
@@ -275,69 +275,69 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     ),
     (
         "snapshot rollback",
-        &["teitunnel snapshot rollback preview.teispace.com"],
+        &["teitunnel snapshot rollback preview.yourhost.com"],
     ),
     (
         "snapshot rm",
-        &["teitunnel snapshot rm pr-7.teispace.com --missing-ok --yes"],
+        &["teitunnel snapshot rm pr-7.yourhost.com --missing-ok --yes"],
     ),
     (
         "protect",
         &[
-            "teitunnel protect app.teispace.com --bots challenge --block-ai  # rules at Cloudflare's edge",
-            "teitunnel protect app.teispace.com --rate-limit 30/1m  # Pro plans and up",
-            "teitunnel protect app.teispace.com --off  # remove Teitunnel's rules",
+            "teitunnel protect app.yourhost.com --bots challenge --block-ai  # rules at Cloudflare's edge",
+            "teitunnel protect app.yourhost.com --rate-limit 30/1m  # Pro plans and up",
+            "teitunnel protect app.yourhost.com --off  # remove Teitunnel's rules",
         ],
     ),
     (
         "service-token create",
         &[
-            "teitunnel service-token create api.teispace.com --name CI  # the secret is printed once",
+            "teitunnel service-token create api.yourhost.com --name CI  # the secret is printed once",
         ],
     ),
     (
         "service-token ls",
-        &["teitunnel service-token ls api.teispace.com"],
+        &["teitunnel service-token ls api.yourhost.com"],
     ),
     (
         "service-token revoke",
-        &["teitunnel service-token revoke api.teispace.com CI"],
+        &["teitunnel service-token revoke api.yourhost.com CI"],
     ),
     (
         "comments ls",
         &[
             "teitunnel comments ls  # shares and Snapshots with review comments",
-            "teitunnel comments ls preview.teispace.com --all  # its threads, resolved ones too",
+            "teitunnel comments ls preview.yourhost.com --all  # its threads, resolved ones too",
         ],
     ),
     (
         "comments reply",
-        &["teitunnel comments reply preview.teispace.com c1a2b3 \"Fixed, thanks\""],
+        &["teitunnel comments reply preview.yourhost.com c1a2b3 \"Fixed, thanks\""],
     ),
     (
         "comments resolve",
-        &["teitunnel comments resolve preview.teispace.com c1a2b3"],
+        &["teitunnel comments resolve preview.yourhost.com c1a2b3"],
     ),
     (
         "offline",
         &[
-            "teitunnel offline app.teispace.com --title \"Back soon\"  # your page instead of error 1033",
-            "teitunnel offline app.teispace.com --off",
+            "teitunnel offline app.yourhost.com --title \"Back soon\"  # your page instead of error 1033",
+            "teitunnel offline app.yourhost.com --off",
         ],
     ),
     (
         "inbox add",
         &[
-            "teitunnel inbox add app.teispace.com /webhooks/ --days 7  # keep webhooks while you're away",
+            "teitunnel inbox add app.yourhost.com /webhooks/ --days 7  # keep webhooks while you're away",
         ],
     ),
     (
         "inbox secret",
-        &["teitunnel inbox secret app.teispace.com stripe < secret.txt  # keychain; for --verify"],
+        &["teitunnel inbox secret app.yourhost.com stripe < secret.txt  # keychain; for --verify"],
     ),
     (
         "inbox items",
-        &["teitunnel inbox items app.teispace.com /webhooks/  # arrivals and deliveries"],
+        &["teitunnel inbox items app.yourhost.com /webhooks/  # arrivals and deliveries"],
     ),
     (
         "inbox deliver",
@@ -345,7 +345,7 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     ),
     (
         "inbox rm",
-        &["teitunnel inbox rm app.teispace.com /webhooks/"],
+        &["teitunnel inbox rm app.yourhost.com /webhooks/"],
     ),
     (
         "doctor",

@@ -14,13 +14,13 @@ the Doctor reports make sense.
 
 ```
 Visitor ──HTTPS──▶ Cloudflare's edge ◀══ outbound connections ══ cloudflared ──▶ localhost:3000
-                   (app.teispace.com)                            (your computer)
+                   (app.yourhost.com)                            (your computer)
 ```
 
 1. **cloudflared**, Cloudflare's open-source connector, runs on your computer and opens a
    few long-lived **outbound** connections to nearby Cloudflare data centers, on port 7844
    over QUIC (UDP), falling back to HTTP/2 (TCP) when UDP is blocked.
-2. A visitor opens `https://app.teispace.com`. The hostname's DNS record points at
+2. A visitor opens `https://app.yourhost.com`. The hostname's DNS record points at
    Cloudflare, which answers HTTPS with its own certificate, applies whatever rules the
    domain has (logins, firewall rules, caching) and looks up which tunnel serves the name.
 3. Cloudflare sends the request down one of that tunnel's connections. cloudflared matches
@@ -94,7 +94,7 @@ it says which limit was hit.
   413). Teitunnel's check reports it as *Cloudflare refused a request body over 100 MB, the
   limit on the Free and Pro plans.*
 - **Certificates:** Cloudflare's free certificate covers one level of subdomain
-  (`app.teispace.com`), not deeper names like `a.b.teispace.com`. Use single-level names, or
+  (`app.yourhost.com`), not deeper names like `a.b.yourhost.com`. Use single-level names, or
   add an Advanced Certificate.
 - **Quick Tunnels** are for testing: no uptime guarantee, at most 200 requests in flight
   at once, and no server-sent events. Share on your own domain when you need more.

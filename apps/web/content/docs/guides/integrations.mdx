@@ -93,7 +93,7 @@ work in Wayland sessions on Linux.
 |---|---|
 | `teitunnel://share?port=3000` | Asks whether to share `localhost:3000`, then shares it in Quick Share. |
 | `teitunnel://open` | Brings Teitunnel to the front. |
-| `teitunnel://open?route=app.teispace.com` | Opens the route in **Routes**. |
+| `teitunnel://open?route=app.yourhost.com` | Opens the route in **Routes**. |
 | `teitunnel://open?share=<id>` | Opens the share in Quick Share. |
 | `teitunnel://inspect?share=<id>` | Opens the share's requests in the Inspector. |
 
@@ -163,7 +163,7 @@ and events available. A wrong token or protocol version closes the connection.
 | `shares.stop` | `id` (a share's id, URL or hostname) | `{}` |
 | `shares.pause`, `shares.resume` | `id` (a share on your domain or a route: hostname or URL), `account` | `{}` |
 | `routes.list` | `account` (id or name; needed with several) | the account, its tunnels and routes with status |
-| `routes.preview` | `account`, `tunnel`, `change` (e.g. `{"type":"addRoute","route":{"hostname":"app.teispace.com","origin":"3000"}}`) | the plan: steps, warnings, `fingerprint` |
+| `routes.preview` | `account`, `tunnel`, `change` (e.g. `{"type":"addRoute","route":{"hostname":"app.yourhost.com","origin":"3000"}}`) | the plan: steps, warnings, `fingerprint` |
 | `routes.apply` | the same, plus `fingerprint` and `confirmed` | how it ended, and hostnames to check |
 | `open` | `{"view":"route","hostname":"…"}`, `{"view":"share","id":"…"}`, `{"view":"inspector","share":"…"}`, `{"view":"doctor"}` or `{"view":"overview"}` | `{}` |
 | `doctor.run` | none | the problems found |

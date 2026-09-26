@@ -135,7 +135,7 @@ AI agents use the same `addNetwork` and `removeNetwork` changes in the
   are `localhost` names, which always mean the WARP user's own device.
 - A name already routed to another tunnel is refused ("… is already shared through tunnel
   “…”. Remove that route first.").
-- A name on one of the account's domains, like `intranet.teispace.com`, needs a
+- A name on one of the account's domains, like `intranet.yourhost.com`, needs a
   confirmation (**Send this hostname through this Mac for WARP clients**, or `--replace`),
   because WARP users would reach this machine instead of its public address.
 - Removing this machine's tunnel removes the hostnames routed to it; other tunnels'
@@ -158,7 +158,7 @@ A route can carry SSH, Remote Desktop, SMB or any TCP service: use an origin lik
 `tcp://localhost:5432`.
 
 ```sh
-teitunnel route add ssh.teispace.com ssh://localhost:22 --allow team@teispace.com
+teitunnel route add ssh.yourhost.com ssh://localhost:22 --allow team@yourhost.com
 ```
 
 A browser can't open these, so the route's details show a **Connect** section with the
@@ -166,15 +166,15 @@ command visitors run, with **cloudflared** installed on their computer:
 
 | Origin | Visitors run | Then |
 |---|---|---|
-| `ssh://` | `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.teispace.com` | That's it. |
-| `rdp://` | `cloudflared access rdp --hostname rdp.teispace.com --url rdp://localhost:3389` | Point the Remote Desktop app at `localhost:3389`. |
-| `smb://` | `cloudflared access smb --hostname files.teispace.com --url localhost:8445` | Open `smb://localhost:8445` in the file browser. |
-| `tcp://` | `cloudflared access tcp --hostname db.teispace.com --url localhost:5432` | Point the app at `localhost:5432`. |
+| `ssh://` | `ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.yourhost.com` | That's it. |
+| `rdp://` | `cloudflared access rdp --hostname rdp.yourhost.com --url rdp://localhost:3389` | Point the Remote Desktop app at `localhost:3389`. |
+| `smb://` | `cloudflared access smb --hostname files.yourhost.com --url localhost:8445` | Open `smb://localhost:8445` in the file browser. |
+| `tcp://` | `cloudflared access tcp --hostname db.yourhost.com --url localhost:5432` | Point the app at `localhost:5432`. |
 
-For SSH it also gives an `~/.ssh/config` entry, so plain `ssh ssh.teispace.com` works:
+For SSH it also gives an `~/.ssh/config` entry, so plain `ssh ssh.yourhost.com` works:
 
 ```text
-Host ssh.teispace.com
+Host ssh.yourhost.com
   ProxyCommand cloudflared access ssh --hostname %h
 ```
 

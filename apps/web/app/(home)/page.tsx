@@ -88,7 +88,7 @@ const snapshotSteps = [
   },
   { text: "Make the new version live once every file is uploaded", detail: "version 4" },
   {
-    text: "Serve preview.teispace.com with the Snapshot",
+    text: "Serve preview.yourhost.com with the Snapshot",
     detail: "Cloudflare adds its DNS record and certificate",
   },
 ];
@@ -210,15 +210,15 @@ const faq: { q: string; a: string }[] = [
 // What the CLI prints (apps/cli/src/main.rs, locales/en.json).
 const cli = [
   "$ export CLOUDFLARE_API_TOKEN=…",
-  "$ teitunnel route add app.teispace.com 3000 --yes",
+  "$ teitunnel route add app.yourhost.com 3000 --yes",
   " 1. Create tunnel “web-01”",
   " 2. Update tunnel “web-01” to serve 1 route",
-  " 3. Add DNS record app.teispace.com → tunnel “web-01”",
+  " 3. Add DNS record app.yourhost.com → tunnel “web-01”",
   "    done: Create tunnel “web-01”",
   "    done: Update tunnel “web-01” to serve 1 route",
-  "    done: Add DNS record app.teispace.com → tunnel “web-01”",
-  "Checking https://app.teispace.com…",
-  "https://app.teispace.com works.",
+  "    done: Add DNS record app.yourhost.com → tunnel “web-01”",
+  "Checking https://app.yourhost.com…",
+  "https://app.yourhost.com works.",
   "$ sudo -E teitunnel always-on on",
   "Turning Always-on on for web-01…",
   "Done: the connectors run as a service and start again after a restart.",
@@ -429,7 +429,7 @@ export default async function Home() {
             id="publish"
             eyebrow="Publish"
             title="Your own domains, with nothing changed behind your back."
-            lead="Route app.teispace.com to localhost:3000. The tunnel and DNS record are made for you, as a plan you read before it's applied."
+            lead="Route app.yourhost.com to localhost:3000. The tunnel and DNS record are made for you, as a plan you read before it's applied."
             bullets={[
               <>
                 <strong>Every change is a plan:</strong> tunnels, DNS records, logins and pools. If
@@ -498,7 +498,7 @@ export default async function Home() {
                       <PlanDemo
                         title="Publish version 4 of Launch page"
                         steps={snapshotSteps}
-                        done="preview.teispace.com"
+                        done="preview.yourhost.com"
                         doneLabel="Online"
                       />
                     </div>

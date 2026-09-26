@@ -237,7 +237,7 @@ enum Command {
         /// Share at this hostname on one of your domains instead of a random
         /// trycloudflare.com address (removed again when the command ends). `{project}`,
         /// `{branch}` and `{user}` are filled in from this folder, e.g.
-        /// `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here.
+        /// `--on {branch}.dev.yourhost.com`; `--on` alone uses the name last used here.
         #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
         /// With a folder: list the files of folders that have no index.html (the
@@ -360,7 +360,7 @@ enum Command {
     /// DNS record with your name, until a date or until released). Reserving it again
     /// changes the end date; a route you add there keeps the reservation.
     Reserve {
-        /// The hostname, e.g. `review.dev.teispace.com`.
+        /// The hostname, e.g. `review.dev.yourhost.com`.
         hostname: String,
         /// When it ends: `2026-12-31` (end of that day, UTC) or `2026-12-31T18:00Z`.
         #[arg(long, value_name = "DATE")]
@@ -652,7 +652,7 @@ impl OriginArgs {
 
 #[derive(Debug, Subcommand)]
 enum RouteCommand {
-    /// Route a hostname to a service on this machine, e.g. `app.teispace.com 3000`.
+    /// Route a hostname to a service on this machine, e.g. `app.yourhost.com 3000`.
     Add {
         /// Public hostname on one of the account's domains.
         hostname: String,
@@ -1343,7 +1343,7 @@ async fn on_hostname(
             .await
             .map_err(|e| e.to_string())?
             .ok_or_else(|| {
-                "No name was used for a share from this folder yet; give one: --on demo.teispace.com (or --on {branch}.dev.teispace.com).".to_owned()
+                "No name was used for a share from this folder yet; give one: --on demo.yourhost.com (or --on {branch}.dev.yourhost.com).".to_owned()
             })?
     } else {
         typed.trim().to_owned()
@@ -1397,7 +1397,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
     }
     if list.is_empty() && terminals.is_empty() {
         out!(
-            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.teispace.com` for your own domain)."
+            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.yourhost.com` for your own domain)."
         )?;
     }
     let now = domain_shares::now_ms();
@@ -2429,8 +2429,8 @@ mod tests {
             "wiki.internal\thostname"
         );
         assert_eq!(
-            network_line(&view("intranet.teispace.com", NetworkKind::Hostname, false)),
-            "intranet.teispace.com\thostname on your domain"
+            network_line(&view("intranet.yourhost.com", NetworkKind::Hostname, false)),
+            "intranet.yourhost.com\thostname on your domain"
         );
     }
 
