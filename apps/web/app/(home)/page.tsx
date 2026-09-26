@@ -290,10 +290,10 @@ export default async function Home() {
             className="group mb-7 inline-flex max-w-full items-center gap-2 rounded-full border border-fd-border bg-fd-background py-1 ps-1.5 pe-3 text-xs transition-colors hover:bg-fd-accent"
           >
             <span className="shrink-0 rounded-full bg-fd-foreground px-2 py-0.5 font-medium text-fd-background">
-              New in 0.2.0
+              New in 0.3.0
             </span>
             <span className="truncate text-fd-muted-foreground">
-              Inspector, Snapshots, edge protection, AI agents
+              Self-healing tunnels, breakpoints, MCP sign-in
             </span>
             <ArrowRight
               className="size-3.5 shrink-0 text-fd-muted-foreground transition-transform group-hover:translate-x-0.5"
