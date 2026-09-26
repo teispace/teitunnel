@@ -14,7 +14,7 @@
 //!   [`Lens::wait_for`].
 //! - **Redaction** ([`Redaction`]): every read path masks secrets unless told not to.
 //! - **Replay** ([`Lens::replay`]), **exports** ([`export`]), **webhook signatures**
-//!   ([`webhook`]), **stubs** ([`StubRule`]), **gates** ([`Gates`]), **HTML injection**
+//!   ([`webhook`]), **stubs** ([`StubRule`]), **breakpoints** ([`BreakpointRule`]), **gates** ([`Gates`]), **HTML injection**
 //!   ([`Injection`], [`ReservedHandler`]), **paused page** ([`PausedPage`]), **header
 //!   rules** ([`HeaderRules`]) and **metrics** ([`MetricsSnapshot`]).
 //!
@@ -23,6 +23,7 @@
 #![forbid(unsafe_code)]
 
 mod body;
+mod breakpoint;
 mod capture;
 mod config;
 mod error;
@@ -36,6 +37,7 @@ mod keepalive;
 mod lens;
 mod listener;
 mod metrics;
+mod oauth;
 mod pages;
 mod pattern;
 mod recorder;
@@ -55,6 +57,10 @@ mod util;
 pub mod webhook;
 
 pub use body::{BoxError, LensBody, empty, full};
+pub use breakpoint::{
+    BREAK_TIMEOUT, BodyLock, BreakEdit, BreakRecord, BreakStage, BreakpointRule, MAX_EDIT_BODY,
+    MAX_PAUSED, Paused, Resume,
+};
 pub use capture::{
     BodyRecord, BodyView, ClientInfo, ContentKind, DecodeError, Direction, ErrorKind, Exchange,
     ExchangeError, ExchangeKind, ExchangeState, ExchangeView, FrameOpcode, FrameRecord,
@@ -78,6 +84,7 @@ pub use listener::{
     Routing,
 };
 pub use metrics::{LatencySummary, MetricsSnapshot, StatusCounts};
+pub use oauth::OAuthProvider;
 pub use pattern::PathPattern;
 pub use redact::{
     MASK, is_sensitive_header, is_sensitive_key, mask_header, mask_json, mask_query, mask_text,

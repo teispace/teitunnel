@@ -11,7 +11,6 @@ use crate::{
     discovery::{LocalService, ServiceKind},
     domain::OriginUrl,
     exposure::{self, ExposureReport},
-    inspect::{Inspector, TapPatch, TapScope},
     quick_share::{HostHeaderChoice, QuickShare, QuickShares, ShareStatus},
     store::Store,
     text::{Text, UserText},
@@ -256,45 +255,16 @@ pub enum PauseAll {
     Resume,
 }
 
-fn quick_taps(inspector: &Inspector, shares: &[QuickShare]) -> Vec<crate::inspect::lens::TapId> {
-    shares
-        .iter()
-        .filter(|s| s.inspected)
-        .filter_map(|s| {
-            inspector.tap_for(&TapScope::QuickShare {
-                share_id: s.id.clone(),
-            })
-        })
-        .collect()
-}
-
 /// What "Pause All" can do for these shares.
-pub fn pause_state(inspector: &Inspector, shares: &[QuickShare]) -> PauseAll {
-    let taps = quick_taps(inspector, shares);
-    if taps.is_empty() {
-        return PauseAll::Unavailable;
-    }
-    let paused = taps
-        .iter()
-        .any(|tap| inspector.view(tap).is_ok_and(|v| v.paused.is_some()));
-    if paused {
+pub fn pause_state(shares: &[QuickShare]) -> PauseAll {
+    let pausable: Vec<&QuickShare> = shares.iter().filter(|s| s.inspected).collect();
+    if pausable.is_empty() {
+        PauseAll::Unavailable
+    } else if pausable.iter().any(|s| s.paused) {
         PauseAll::Resume
     } else {
         PauseAll::Pause
     }
-}
-
-/// Pauses (visitors see the paused page, the address stays) or resumes every inspected
-/// share. Returns how many changed.
-pub fn set_all_paused(inspector: &Inspector, shares: &[QuickShare], paused: bool) -> usize {
-    let patch = TapPatch {
-        paused: Some(paused),
-        ..TapPatch::default()
-    };
-    quick_taps(inspector, shares)
-        .iter()
-        .filter(|tap| inspector.configure(tap, &patch).is_ok())
-        .count()
 }
 
 #[cfg(test)]
@@ -330,6 +300,7 @@ mod tests {
             check: None,
             inspected: false,
             folder: None,
+            paused: false,
         }
     }
 

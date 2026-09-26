@@ -96,7 +96,7 @@ each service.
   them.
 - **Uploads are limited** to 100 MB per request on Cloudflare's Free and Pro plans. Apps like
   Nextcloud upload large files in chunks, which works.
-- **Requests time out after about 100 seconds** if your server doesn't answer (error 524).
+- **Requests time out after 125 seconds** if your server doesn't answer (error 524).
 - **Certificates:** the free certificate covers one level of subdomain
   (`photos.teispace.com`), not `photos.home.teispace.com`.
 - **Several machines?** Put the same route on each and turn on

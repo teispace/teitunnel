@@ -24,9 +24,9 @@ use teitunnel_control::{
     Action, BoxFuture, ConfirmRequest, Decision, Host, HostResult, Requester,
     protocol::{
         self as wire, AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams,
-        ApplyResult, ClientInfo, DoctorIssue, Event, PauseShare, PlanInfo, PreviewParams,
-        RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare, Status, StepInfo,
-        StopShare, TunnelInfo, View, code,
+        ApplyResult, ClientInfo, DoctorIssue, Event, OAuthApproval, PauseShare, PlanInfo,
+        PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo, ShareKind, StartShare,
+        Status, StepInfo, StopShare, TunnelInfo, View, code,
     },
 };
 use tokio::sync::broadcast;
@@ -42,7 +42,7 @@ use crate::{
     quick_share::{HostHeaderChoice, QuickShare, QuickShareError, QuickShares, ShareStatus},
     runtime::ConnectorState,
     store::Store,
-    text::{Text, msg::control as m},
+    text::{Text, UserText, msg::control as m},
 };
 
 /// How long a Quick Share may take to get its address.
@@ -148,6 +148,23 @@ pub struct HostParts {
     pub inspector: crate::inspect::Inspector,
     /// Applies pauses to the app's taps.
     pub pauses: Arc<crate::pause::Enforcer>,
+}
+
+/// What the person reads before letting a client connect to a shared MCP server: who
+/// it is (verified or not), where sign-ins go, and the code to compare.
+pub fn oauth_message(request: &OAuthApproval) -> Text {
+    let identity = if request.redirect_loopback {
+        m::oauth_loopback()
+    } else {
+        match &request.published_by {
+            Some(publisher) => m::oauth_published(publisher, &request.redirect_host),
+            None => m::oauth_unverified(&request.redirect_host),
+        }
+    };
+    crate::text::msg::raw(format!(
+        "{}\n\n{identity}",
+        m::oauth_message(&request.client_name, &request.host, &request.code),
+    ))
 }
 
 /// The wire form of the local domains' status.
@@ -269,7 +286,7 @@ fn quick_info(share: &QuickShare, requests: Option<u64>) -> ShareInfo {
         expires_at: share.stop_at,
         requests,
         account_id: None,
-        paused: false,
+        paused: share.paused,
     }
 }
 
@@ -438,7 +455,9 @@ impl CoreHost {
             Action::StartShare(start) => {
                 let origin = OriginUrl::parse(&start.origin)
                     .map_or_else(|_| start.origin.clone(), |o| o.to_string());
-                if link {
+                if let Some(folder) = &start.folder {
+                    (m::share_folder(&client, &folder.path), false)
+                } else if link {
                     (m::link_share(&origin), true)
                 } else {
                     (m::share(&client, &origin), false)
@@ -541,25 +560,42 @@ impl Host for CoreHost {
 
     fn start_share(&self, request: StartShare) -> BoxFuture<'_, HostResult<ShareInfo>> {
         Box::pin(async move {
-            let origin = OriginUrl::parse(&request.origin)
-                .map_err(|e| RpcError::new(code::INVALID_PARAMS, e.to_string()))?;
             let stop_after = request.stop_after_seconds.map(Duration::from_secs);
-            let choice = match request.host_header {
-                wire::HostHeader::Auto => HostHeaderChoice::Auto,
-                wire::HostHeader::Off => HostHeaderChoice::Off,
-                wire::HostHeader::Set { value } => HostHeaderChoice::Set { value },
+            let started = match &request.folder {
+                // Checked again here: the app serves only a real folder that isn't the
+                // whole disk or the home folder.
+                Some(folder) => {
+                    let folder = crate::folder_share::FolderShare::resolve(
+                        &folder.path,
+                        folder.listing,
+                        folder.spa,
+                    )
+                    .map_err(|e| error(code::INVALID_PARAMS, &e.text()))?;
+                    self.parts
+                        .quick_shares
+                        .start_folder(folder, stop_after)
+                        .await
+                }
+                None => {
+                    let origin = OriginUrl::parse(&request.origin)
+                        .map_err(|e| RpcError::new(code::INVALID_PARAMS, e.to_string()))?;
+                    let choice = match request.host_header {
+                        wire::HostHeader::Auto => HostHeaderChoice::Auto,
+                        wire::HostHeader::Off => HostHeaderChoice::Off,
+                        wire::HostHeader::Set { value } => HostHeaderChoice::Set { value },
+                    };
+                    self.parts
+                        .quick_shares
+                        .start(origin, stop_after, &choice)
+                        .await
+                }
             };
-            let share = self
-                .parts
-                .quick_shares
-                .start(origin, stop_after, &choice)
-                .await
-                .map_err(|e| match e {
-                    QuickShareError::Binary(cloudflared::Error::NotFound) => {
-                        error(code::INTERNAL, &m::error::no_binary())
-                    }
-                    other => internal(other),
-                })?;
+            let share = started.map_err(|e| match e {
+                QuickShareError::Binary(cloudflared::Error::NotFound) => {
+                    error(code::INTERNAL, &m::error::no_binary())
+                }
+                other => internal(other),
+            })?;
             self.ui.changed(Changed::Shares);
             let live = self.await_url(&share.id).await?;
             Ok(quick_info(&live, Some(0)))
@@ -621,6 +657,22 @@ impl Host for CoreHost {
     fn pause_share(&self, request: PauseShare, paused: bool) -> BoxFuture<'_, HostResult<()>> {
         Box::pin(async move {
             let hostname = crate::pause::hostname_of(&request.id);
+            // One of this app's Quick Shares (by id or address): its tap pauses it.
+            let quick = self.parts.quick_shares.list().into_iter().find(|share| {
+                share.id == request.id
+                    || share
+                        .url
+                        .as_deref()
+                        .is_some_and(|url| crate::pause::hostname_of(url) == hostname)
+            });
+            if let Some(share) = quick {
+                use crate::text::UserText as _;
+                let result = self.parts.quick_shares.set_paused(&share.id, paused);
+                self.ui.changed(Changed::Shares);
+                return result
+                    .map(drop)
+                    .map_err(|e| error(code::INVALID_PARAMS, &e.text()));
+            }
             let store = &self.parts.store;
             let account = match crate::pause::share_account(store, &hostname)
                 .await
@@ -683,6 +735,33 @@ impl Host for CoreHost {
             let prompt = Prompt {
                 title: m::agent_title(&agent),
                 message: m::agent_message(&agent, &request.title, &request.details),
+                allow: m::allow(),
+                always: None,
+                deny: m::deny(),
+            };
+            let decision =
+                tokio::time::timeout(AGENT_APPROVAL_TIMEOUT, self.ui.confirm(prompt)).await;
+            lock(&self.approvals).remove(&id);
+            self.ui.changed(Changed::Agents);
+            matches!(decision, Ok(Decision::Once | Decision::Always))
+        })
+    }
+
+    fn approve_oauth(&self, request: OAuthApproval) -> BoxFuture<'_, bool> {
+        Box::pin(async move {
+            let id = self.next_approval.fetch_add(1, Ordering::Relaxed);
+            lock(&self.approvals).insert(
+                id,
+                PendingApproval {
+                    agent: request.client_name.clone(),
+                    title: m::oauth_pending(&request.host).to_string(),
+                    asked_at: crate::domain_shares::now_ms(),
+                },
+            );
+            self.ui.changed(Changed::Agents);
+            let prompt = Prompt {
+                title: m::oauth_title(&request.client_name, &request.host),
+                message: oauth_message(&request),
                 allow: m::allow(),
                 always: None,
                 deny: m::deny(),

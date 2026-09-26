@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { Info } from "lucide-react";
+import { Info, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t, translate } from "@/lib/i18n";
 import type { Verification } from "@/lib/ipc/bindings";
@@ -17,8 +17,9 @@ interface CheckNotesProps {
 /**
  * What a check through Cloudflare found, other than a dev server refusing the address
  * (that's `HostRejectionFix`): the failure with what to do next (the Doctor for a
- * connector that's down, a re-check for a server that isn't running), and a note when
- * a Quick Share's service streams events, which Quick Shares don't carry.
+ * connector that's down, a re-check for a server that isn't running), a note when a
+ * Quick Share's service streams events, which Quick Shares don't carry, and a page that
+ * loads but links to this computer or over plain HTTP, with what to change.
  */
 export function CheckNotes({
   check,
@@ -59,6 +60,20 @@ export function CheckNotes({
           <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
           {t("devServer.eventStream")}
         </p>
+      ) : null}
+      {check.links ? (
+        <div role="status" className="flex items-start gap-1.5 text-callout">
+          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0 text-warning" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <p className="text-warning">{translate(check.links.message)}</p>
+            <p className="select-text text-secondary">{translate(check.links.fix)}</p>
+            {onCheck ? (
+              <Button size="sm" className="self-start" pending={checking} onClick={onCheck}>
+                {t("devServer.checkAgain")}
+              </Button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </>
   );

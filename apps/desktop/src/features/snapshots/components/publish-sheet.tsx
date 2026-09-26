@@ -2,26 +2,12 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import {
-  missingNeeds,
-  PermissionFix,
-  type PermissionNeed,
-  useCapabilities,
-} from "@/features/accounts";
-import { joinHostname, PlanSteps, parseAllowed } from "@/features/routes";
-import { t, translate } from "@/lib/i18n";
-import type {
-  PlanView,
-  PreparedView,
-  SnapshotChange,
-  SnapshotOptions,
-  SnapshotView,
-  ZoneRef,
-} from "@/lib/ipc/bindings";
+import { missingNeeds, PermissionFix, useCapabilities } from "@/features/accounts";
+import { PlanSteps } from "@/features/routes";
+import { t } from "@/lib/i18n";
+import type { PlanView, PreparedView, SnapshotChange, ZoneRef } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { formatBytes } from "../format";
 import {
   chooseFolder,
   useDetectProject,
@@ -30,50 +16,23 @@ import {
   useSnapshotPreview,
 } from "../queries";
 import { type DetailsState, DetailsStep } from "./details-step";
+import { FailedOutcome, transferring, UploadProgress } from "./publish-progress";
+import {
+  changeFor,
+  collectVars,
+  initialDetails,
+  initialSource,
+  type PublishMode,
+  permissionNeeds,
+  sourceReady,
+} from "./publish-state";
 import { buildCommand, type SourceState, SourceStep } from "./source-step";
 
-/** What the sheet does: publish a new Snapshot, or a new version of one. */
-export type PublishMode =
-  | { kind: "new"; accountId: string; siteUrl?: string }
-  | { kind: "update"; snapshot: SnapshotView };
+export type { PublishMode } from "./publish-state";
 
 type Stage = "source" | "details" | "review" | "applying";
 
 const PERMISSION = "core.error.cloudflare.permission";
-
-function initialSource(mode: PublishMode): SourceState {
-  if (mode.kind === "new") {
-    return mode.siteUrl
-      ? { kind: "site", folder: null, project: null, url: mode.siteUrl }
-      : { kind: "folder", folder: null, project: null, url: "http://localhost:5173" };
-  }
-  const source = mode.snapshot.source;
-  switch (source?.type) {
-    case "folder":
-      return { kind: "folder", folder: source.path, project: null, url: "" };
-    case "crawl":
-      return { kind: "site", folder: null, project: null, url: source.url };
-    default:
-      return { kind: "keep", folder: null, project: null, url: "" };
-  }
-}
-
-function initialDetails(mode: PublishMode, zones: readonly ZoneRef[]): DetailsState {
-  const snapshot = mode.kind === "update" ? mode.snapshot : null;
-  return {
-    name: "",
-    address: zones.length > 0 ? "domain" : "workersDev",
-    hostname: joinHostname("preview", zones[0]?.name ?? ""),
-    protection: snapshot?.access ? "login" : snapshot?.password ? "password" : "none",
-    password: "",
-    allowed: snapshot?.access
-      ? [...snapshot.access.emails, ...snapshot.access.emailDomains.map((d) => `@${d}`)].join(", ")
-      : "",
-    spa: snapshot?.spa ?? false,
-    expires: "never",
-    comments: snapshot?.comments ?? false,
-  };
-}
 
 interface PublishSheetProps {
   mode: PublishMode | null;
@@ -137,15 +96,8 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
   };
 
   const collect = () => {
-    const vars =
-      source.kind === "site"
-        ? ({ kind: "site", url: source.url } as const)
-        : source.kind === "build" && source.project
-          ? ({ kind: "build", dir: source.project.dir } as const)
-          : source.folder
-            ? ({ kind: "folder", path: source.folder } as const)
-            : null;
-    if (source.kind === "keep" || !vars) {
+    const vars = collectVars(source);
+    if (!vars) {
       setStage("details");
       return;
     }
@@ -162,19 +114,6 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
     });
   };
 
-  const options = (): SnapshotOptions => ({
-    spa: details.spa,
-    password:
-      details.protection !== "password"
-        ? { type: "remove" }
-        : details.password
-          ? { type: "set", password: details.password }
-          : { type: "keep" },
-    access: details.protection === "login" ? parseAllowed(details.allowed) : null,
-    expiresInDays: details.expires === "never" ? null : Number(details.expires),
-    comments: details.comments,
-  });
-
   const review = (next: SnapshotChange) => {
     setChange(next);
     setConfirmed(false);
@@ -187,26 +126,8 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
   };
 
   const submitDetails = () => {
-    if (!mode) return;
-    if (mode.kind === "update") {
-      review({
-        type: "update",
-        snapshot: mode.snapshot.id,
-        prepared: prepared?.id ?? null,
-        options: options(),
-      });
-    } else if (prepared) {
-      review({
-        type: "publish",
-        prepared: prepared.id,
-        name: details.name,
-        address:
-          details.address === "domain" && zones.length > 0
-            ? { type: "domain", hostname: details.hostname }
-            : { type: "workersDev" },
-        options: options(),
-      });
-    }
+    const next = mode && changeFor(mode, details, prepared, zones);
+    if (next) review(next);
   };
 
   const runApply = () => {
@@ -232,16 +153,7 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
     );
   };
 
-  const zone = zones.find(
-    (z) => details.hostname === z.name || details.hostname.endsWith(`.${z.name}`),
-  );
-  const needs: PermissionNeed[] = [
-    { kind: "workers" },
-    ...(!updating && details.address === "domain" && zone
-      ? [{ kind: "workersRoutes" as const, zone: zone.name }]
-      : []),
-    ...(details.protection === "login" ? [{ kind: "access" as const }] : []),
-  ];
+  const needs = permissionNeeds(details, zones, updating);
   const failure = preview.error
     ? toIpcError(preview.error)
     : apply.error
@@ -259,7 +171,7 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
       ? failure.message
       : null;
   const outcome = apply.data;
-  const transfer = Object.values(apply.steps).find((s) => s.state === "transferring");
+  const transfer = apply.isPending ? transferring(apply.steps) : undefined;
 
   const footer = (() => {
     switch (stage) {
@@ -270,11 +182,7 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
             <Button
               variant="primary"
               pending={prepare.isPending}
-              disabled={
-                (source.kind === "folder" && !source.folder) ||
-                (source.kind === "build" && !source.project) ||
-                (source.kind === "site" && !source.url.trim())
-              }
+              disabled={!sourceReady(source)}
               onClick={collect}
             >
               {source.kind === "build" && source.project && buildCommand(source.project)
@@ -388,35 +296,8 @@ export function PublishSheet({ mode, zones, onClose, onPublished }: PublishSheet
           {stage === "review" && plan?.steps.length === 0 ? (
             <p className="text-callout text-secondary">{t("snapshots.sheet.nothing")}</p>
           ) : null}
-          {transfer?.state === "transferring" && apply.isPending ? (
-            <div className="flex flex-col gap-1">
-              <ProgressBar
-                label={t("snapshots.sheet.uploading")}
-                value={
-                  (transfer.totalBytes ?? 0) === 0
-                    ? 1
-                    : (transfer.bytes ?? 0) / (transfer.totalBytes ?? 1)
-                }
-              />
-              <p className="text-callout text-secondary tabular">
-                {t("snapshots.sheet.uploadProgress", {
-                  files: transfer.files ?? 0,
-                  total: transfer.totalFiles ?? 0,
-                  size: formatBytes(transfer.totalBytes ?? 0),
-                })}
-              </p>
-            </div>
-          ) : null}
-          {outcome && outcome.type !== "applied" ? (
-            <p role="alert" className="text-callout text-error">
-              {outcome.type === "rolledBack"
-                ? t("snapshots.sheet.rolledBack", { error: translate(outcome.error) })
-                : t("snapshots.sheet.partial", {
-                    error: translate(outcome.error),
-                    leftovers: outcome.leftovers.map(translate).join("; "),
-                  })}
-            </p>
-          ) : null}
+          {transfer ? <UploadProgress transfer={transfer} /> : null}
+          {outcome && outcome.type !== "applied" ? <FailedOutcome outcome={outcome} /> : null}
           {stage === "details" && gaps.length > 0 ? (
             <PermissionFix accountId={accountId} needs={needs} />
           ) : null}

@@ -36,7 +36,7 @@ import type {
 /**
  * Dev-only IPC fixtures, used when the UI runs in a plain browser (WebKit screenshots,
  * design review). Never bundled in release builds: `main.tsx` imports this module only
- * when `import.meta.env.DEV` is true and the Tauri runtime is absent.
+ * when `__DEV_PAGES__` is true and the Tauri runtime is absent.
  */
 const now = Date.now();
 
@@ -97,6 +97,7 @@ let shares: QuickShare[] = [
     startedAt: now - 12 * 60_000,
     stopAt: now + 48 * 60_000,
     inspected: true,
+    paused: false,
     folder: null,
     hostHeader: { value: "localhost:5173", autoFor: "vite" },
     check: {
@@ -106,6 +107,8 @@ let shares: QuickShare[] = [
       message: null,
       protected: false,
       eventStream: false,
+      links: null,
+      transient: false,
     },
   },
   {
@@ -116,6 +119,7 @@ let shares: QuickShare[] = [
     startedAt: now - 2 * 60_000,
     stopAt: null,
     inspected: true,
+    paused: false,
     folder: null,
     hostHeader: null,
     check: {
@@ -135,6 +139,8 @@ let shares: QuickShare[] = [
       message: { key: "core.verify.hostRejected", args: { server: "Rails" } },
       protected: false,
       eventStream: false,
+      links: null,
+      transient: false,
     },
   },
   {
@@ -145,6 +151,7 @@ let shares: QuickShare[] = [
     startedAt: now - 6 * 60_000,
     stopAt: null,
     inspected: true,
+    paused: false,
     folder: { path: "~/Projects/docs/dist", listing: false, spa: true },
     hostHeader: null,
     check: null,
@@ -157,6 +164,7 @@ let shares: QuickShare[] = [
     startedAt: now - 3_000,
     stopAt: null,
     inspected: true,
+    paused: false,
     folder: null,
     hostHeader: null,
     check: null,
@@ -362,6 +370,7 @@ const routesOverview: RoutesOverview = {
       tunnelId,
       temporary: false,
       balanced: true,
+      paused: false,
       options: {},
       zone: "teispace.com",
       dns: { state: "ok" },
@@ -376,6 +385,7 @@ const routesOverview: RoutesOverview = {
       tunnelId,
       temporary: false,
       balanced: false,
+      paused: false,
       options: {},
       zone: "teispace.com",
       dns: { state: "missing" },
@@ -390,6 +400,7 @@ const routesOverview: RoutesOverview = {
       tunnelId,
       temporary: false,
       balanced: false,
+      paused: false,
       options: {},
       zone: "teispace.dev",
       dns: { state: "ok" },
@@ -404,6 +415,7 @@ const routesOverview: RoutesOverview = {
       tunnelId,
       temporary: false,
       balanced: false,
+      paused: false,
       options: {},
       zone: "teispace.dev",
       dns: { state: "ok" },
@@ -423,6 +435,7 @@ const routesOverview: RoutesOverview = {
       tunnelId,
       temporary: false,
       balanced: false,
+      paused: false,
       options: {},
       zone: "teispace.dev",
       dns: { state: "ok" },
@@ -716,6 +729,7 @@ export function installMockIpc(): void {
             startedAt: Date.now(),
             stopAt: null,
             inspected: true,
+            paused: false,
             folder: null,
             hostHeader: null,
             check: null,
@@ -799,6 +813,7 @@ export function installMockIpc(): void {
                 tunnelId,
                 temporary: false,
                 balanced: false,
+                paused: false,
                 options: {},
                 appliedVersion: 7,
                 currentVersion: 8,
@@ -886,6 +901,7 @@ export function installMockIpc(): void {
               tunnelId: "00000000-0000-4000-8000-000000000004",
               temporary: false,
               balanced: false,
+              paused: false,
               options: {},
               routes: [
                 {
@@ -1161,6 +1177,30 @@ export function installMockIpc(): void {
               600,
             ),
           );
+        case "browser_host_status":
+        case "browser_host_install":
+          return {
+            available: true,
+            browsers: [
+              { browser: "chrome", name: "Google Chrome", detected: true, installed: true },
+              { browser: "firefox", name: "Firefox", detected: true, installed: false },
+            ],
+          };
+        case "browser_host_uninstall":
+          return { available: true, browsers: [] };
+        case "mcp_connections":
+          return [
+            {
+              id: "ttgr_demo",
+              host: "mcp.teispace.com",
+              clientName: "Claude",
+              redirectHost: "claude.ai",
+              createdAt: now - 26 * 3_600_000,
+              lastUsedAt: now - 4 * 60_000,
+            },
+          ];
+        case "mcp_disconnect":
+          return null;
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:

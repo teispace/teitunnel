@@ -121,6 +121,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
     resume_machine_tunnels(app.clone(), accounts.clone(), machine.clone());
     watch_tray_routes(app.clone());
     watch_connector_health(app.clone());
+    forward_connector_states(app.clone(), &supervisor);
     watch_doctor(app.clone());
     watch_domain_shares(app.clone());
     watch_uptime(app.clone());
@@ -134,7 +135,7 @@ pub fn init<R: Runtime>(app: &AppHandle<R>) -> Result<AppState, Box<dyn std::err
         edge,
         "app",
     );
-    let engine = Arc::new(Engine::new(local));
+    let engine = Arc::new(Engine::new(local).with_secrets(secrets.clone()));
     let control = control(
         app,
         &data_dir,
@@ -801,6 +802,34 @@ pub(crate) fn toggle_machine_routes<R: Runtime>(app: &AppHandle<R>) {
     });
 }
 
+/// Refreshes the Routes view and the menu bar when a connector changes state (starts,
+/// connects, drops, stops), so neither waits for a poll. Bursts (a connector registering
+/// its four connections) become one refresh.
+fn forward_connector_states<R: Runtime>(app: AppHandle<R>, supervisor: &Supervisor) {
+    use teitunnel_core::runtime::RuntimeEvent;
+    use tokio::sync::broadcast::error::RecvError;
+    let mut events = supervisor.subscribe();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            match events.recv().await {
+                Ok(RuntimeEvent::State { .. }) | Err(RecvError::Lagged(_)) => {}
+                Ok(RuntimeEvent::Log { .. }) => continue,
+                Err(RecvError::Closed) => return,
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            while let Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) =
+                events.try_recv()
+            {}
+            let _ = EntityChanged {
+                kind: EntityKind::Routes,
+                id: None,
+            }
+            .emit(&app);
+            refresh_tray_routes(&app);
+        }
+    });
+}
+
 /// Keeps the menu bar's route statuses current (connector state changes on its own).
 fn watch_tray_routes<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
@@ -940,6 +969,9 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+            if let Some(at) = state.supervisor.disrupted_at_ms() {
+                watch.disrupted(at);
+            }
             let mut tunnels = Vec::new();
             for account in state.accounts.list().await.unwrap_or_default() {
                 tunnels.extend(

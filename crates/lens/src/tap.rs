@@ -40,6 +40,9 @@ impl Active {
         for fault in &config.faults {
             fault.validate()?;
         }
+        for breakpoint in &config.breakpoints {
+            breakpoint.validate()?;
+        }
         if let crate::HostHeader::Custom(host) = &config.host_header {
             http::HeaderValue::from_str(host)
                 .map_err(|_| LensError::InvalidConfig(format!("invalid Host header {host:?}")))?;

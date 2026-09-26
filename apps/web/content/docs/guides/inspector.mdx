@@ -127,6 +127,21 @@ signature, so you can replay a webhook after changing your handler without the p
 you need them, and the sheet warns: *This export includes credentials. Share it only where
 they're safe.*
 
+### WebSocket and event-stream messages
+
+A WebSocket or event stream's **Messages** tab lists what went each way, with time, size and
+a preview (the last 500 WebSocket frames, the first 4 KB of each). Filter by **Visitor** or
+**Service** or search the text, and click a message to read it whole, JSON indented, with a copy
+button.
+
+### Traffic numbers
+
+**Traffic Numbers** (the chart button in the toolbar, with a share or route selected) sums up
+its captured requests: requests over time and per second, bytes sent, answers by class,
+response times (P50 · P95 · P99), top paths, countries, browsers, and bots as they name
+themselves. It refreshes every few seconds while open. See
+[Analytics](/docs/guides/analytics) for Cloudflare's view of your routes.
+
 ## Per share or route
 
 Choose **Inspection Settings…** with a tap selected. These are done by the inspector on this
@@ -135,10 +150,35 @@ computer, so they apply only while Teitunnel (or the command serving it) runs.
 | Tab | Settings |
 |---|---|
 | **Responses** | **Stubs**: answer a method and path with a saved status, content type and body, **Always** or **When the service is down** (webhook senders stay happy while you restart). **Paused page**: keep the address and show a "back soon" page with your heading and message. |
+| **Breakpoints** | Hold matching requests (a method and path, such as `POST /webhooks/*`) before they go to your service, their answers before they go back, or both. See [breakpoints](#breakpoints). |
 | **Headers** | Rules that **Set**, **Add** or **Remove** request and response headers; the **Host header** sent to your service; **Allow requests from any site (CORS)** for development. |
 | **Network** | **Simulated network**: **3G** (300 ms ± 100 ms, about 200 KB/s down), **4G** (70 ms ± 20 ms, about 4 MB/s down), **Satellite** (600 ms ± 50 ms, about 2 MB/s down) or **Custom** latency and bandwidth. **Faults**: make a percentage of matching requests fail: **Answer with** a status code, **Drop connection**, **Delay**, or **Time out after**. |
-| **More** | **Keep event streams alive** (a comment line after 25 seconds of silence by default, so Cloudflare's 100-second limit never cuts a long stream); **Record requests** (off passes requests through without keeping them); **Watched paths**; **Stop after no requests for**. |
+| **More** | **Keep event streams alive** (a comment line after 25 seconds of silence by default, so Cloudflare's 125-second limit never cuts a long stream); **Record requests** (off passes requests through without keeping them); **Watched paths**; **Stop after no requests for**. |
 | **Protection** | See below. |
+
+### Breakpoints
+
+A breakpoint holds a request so you can look at it and decide what happens. Add one in the
+**Breakpoints** tab, or select a captured request and click **Hold Requests Like This**. When a
+request is held, the list shows it as **Held**, a banner counts what's waiting, and the
+Inspector opens it:
+
+- **Continue** sends it on as it is. Change the method, path, headers or body first and the
+  button becomes **Continue with Changes** (**⌘↩** works too);
+- **Answer Myself…** (before the request reaches your service) sends your own status,
+  headers and body, and your service never sees it;
+- **Drop** closes the connection: the visitor gets no answer;
+- **Continue All** in the banner lets everything waiting go on.
+
+A held answer (the response side) can have its status, headers and body changed the same way.
+
+A held request goes on by itself after a minute, so it's answered before Cloudflare stops
+waiting after 125 seconds (a 524 error). It also goes on when the visitor leaves, when you
+remove the breakpoints or stop recording, or when the share stops. At most 50 requests are held
+at once; more go through. Bodies can be edited when they're text up to 1 MB whose size is
+known; others (binary, compressed, larger, or still arriving) go on untouched. WebSocket
+connections and event streams are never held. Breakpoints last until the share or route stops
+being inspected; they're never saved, so a restart can't leave traffic stuck.
 
 ### Protection on this computer
 
@@ -235,6 +275,14 @@ masked unless you started the server with `--allow-secrets`. See
   Code. The token is kept in your keychain for that hostname, so clients keep working the next
   time you share it; `teitunnel token mcp.teispace.com` shows it and `--new` replaces it.
   `--mcp-path` sets the endpoint when it isn't `/mcp`, `/sse` or `/`.
+- **claude.ai, ChatGPT and other remote clients** sign in with OAuth instead of a fixed token:
+  add the MCP URL as a custom connector and sign in. The browser shows a short code and waits;
+  Teitunnel asks you, in a dialog showing the same code, whether that app may connect (when the
+  app isn't running, `share --mcp` asks in the terminal). Only allow a connection you just made
+  yourself: an app's name (even "Claude") says nothing about who is using it. Approved
+  connections are listed in **Settings ▸ General ▸ AI Tools**, where **Disconnect** stops one
+  at once. Tokens are for that server only, last an hour and renew themselves; Teitunnel keeps
+  only their hashes. A server that asks for credentials itself keeps its own sign-in.
 - `teitunnel share 11434 --ai` (Ollama; also LM Studio on 1234 and vLLM on 8000) shares a local
   AI server behind a bearer token and prints the OpenAI-compatible base URL and key to use. Add
   `--on ai.teispace.com` for streaming answers.

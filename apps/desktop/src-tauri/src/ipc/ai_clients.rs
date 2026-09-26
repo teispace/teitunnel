@@ -52,6 +52,31 @@ pub fn ai_agents(state: tauri::State<'_, crate::state::AppState>) -> AiAgentsVie
     }
 }
 
+/// Clients connected with OAuth to MCP servers shared from this computer, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_connections(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<teitunnel_core::mcp_auth::McpConnection>, AppError> {
+    teitunnel_core::mcp_auth::connections(&state.store, None)
+        .await
+        .map_err(|e| teitunnel_core::Error::from(e).into())
+}
+
+/// Disconnects a client from a shared MCP server: its tokens stop working within 30
+/// seconds (at once for servers this app shares).
+#[tauri::command]
+#[specta::specta]
+pub async fn mcp_disconnect(
+    state: tauri::State<'_, crate::state::AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    teitunnel_core::mcp_auth::disconnect(&state.store, &id)
+        .await
+        .map(|_| ())
+        .map_err(|e| teitunnel_core::Error::from(e).into())
+}
+
 /// Every client, and whether Teitunnel can connect them (it needs its command line tool).
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -123,15 +148,19 @@ fn failed(err: &clients::ClientError) -> AppError {
 /// The AI clients on this computer and whether each is connected.
 #[tauri::command]
 #[specta::specta]
-pub fn ai_clients_status() -> AiClientsView {
-    view()
+pub async fn ai_clients_status() -> Result<AiClientsView, AppError> {
+    super::off_main(view).await
 }
 
 /// Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup).
 #[tauri::command]
 #[specta::specta]
-pub fn ai_clients_connect(client_id: String) -> Result<AiClientsView, AppError> {
-    let client = client(&client_id)?;
+pub async fn ai_clients_connect(client_id: String) -> Result<AiClientsView, AppError> {
+    super::off_main(move || connect(&client_id)).await?
+}
+
+fn connect(client_id: &str) -> Result<AiClientsView, AppError> {
+    let client = client(client_id)?;
     let command = command().ok_or_else(|| AppError::internal(m::no_cli()))?;
     let paths = Paths::detect().map_err(|e| failed(&e))?;
     let server = ServerCommand {
@@ -146,8 +175,12 @@ pub fn ai_clients_connect(client_id: String) -> Result<AiClientsView, AppError> 
 /// Disconnects an AI client: removes Teitunnel from its MCP configuration.
 #[tauri::command]
 #[specta::specta]
-pub fn ai_clients_disconnect(client_id: String) -> Result<AiClientsView, AppError> {
-    let client = client(&client_id)?;
+pub async fn ai_clients_disconnect(client_id: String) -> Result<AiClientsView, AppError> {
+    super::off_main(move || disconnect(&client_id)).await?
+}
+
+fn disconnect(client_id: &str) -> Result<AiClientsView, AppError> {
+    let client = client(client_id)?;
     let paths = Paths::detect().map_err(|e| failed(&e))?;
     clients::uninstall(client, &paths).map_err(|e| failed(&e))?;
     Ok(view())

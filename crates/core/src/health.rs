@@ -1,6 +1,7 @@
 //! When to tell the user a connector went down or came back. Pure and time-driven, so
-//! the policy is testable: brief blips (a reconnect, a restart) never notify, and each
-//! outage produces at most one "down" and one "back".
+//! the policy is testable: brief blips (a reconnect, a restart) never notify, reconnecting
+//! after a wake or a network change gets longer ([`crate::runtime::network::SETTLE`]), and
+//! each outage produces at most one "down" and one "back".
 
 use std::{collections::HashMap, time::Duration};
 
@@ -34,6 +35,8 @@ struct Track {
 #[derive(Debug, Default)]
 pub struct HealthWatch {
     tracks: HashMap<String, Track>,
+    /// Nothing is reported down before this (ms): connectors are reconnecting.
+    settle_until: u64,
 }
 
 fn healthy(state: Option<&ConnectorState>) -> bool {
@@ -55,18 +58,30 @@ impl HealthWatch {
             *track = Track::default();
             return was_reported.then_some(Notice::Back);
         }
+        let since = *track.unhealthy_since.get_or_insert(now_ms);
+        // Waking up or changing networks: reconnecting takes a moment, and an outage that
+        // outlasts it is still reported once it has.
+        if now_ms < self.settle_until {
+            return None;
+        }
         if matches!(state, Some(ConnectorState::CrashLoop { .. })) && !track.looped {
             track.looped = true;
             track.reported = true;
             return Some(Notice::CrashLoop);
         }
-        let since = *track.unhealthy_since.get_or_insert(now_ms);
         let grace = u64::try_from(GRACE.as_millis()).unwrap_or(u64::MAX);
         if !track.reported && now_ms.saturating_sub(since) >= grace {
             track.reported = true;
             return Some(Notice::Down);
         }
         None
+    }
+
+    /// The computer woke or changed networks at `at_ms`: give connectors
+    /// [`SETTLE`](crate::runtime::network::SETTLE) to reconnect before reporting any down.
+    pub fn disrupted(&mut self, at_ms: u64) {
+        let settle = u64::try_from(crate::runtime::network::SETTLE.as_millis()).unwrap_or(0);
+        self.settle_until = self.settle_until.max(at_ms.saturating_add(settle));
     }
 
     /// Forgets a tunnel (deleted, or stopped on purpose).
@@ -114,5 +129,36 @@ mod tests {
         assert_eq!(watch.observe("t", Some(&UP), 70_000), Some(Notice::Back));
         watch.forget("t");
         assert_eq!(watch.observe("t", None, 0), None);
+    }
+
+    #[test]
+    fn reconnecting_after_a_wake_is_quiet_unless_it_lasts() {
+        let mut watch = HealthWatch::default();
+        assert_eq!(watch.observe("t", Some(&UP), 0), None);
+        assert_eq!(watch.observe("u", Some(&UP), 0), None);
+        watch.disrupted(1_000);
+        let looping = ConnectorState::CrashLoop { exit_code: Some(1) };
+        assert_eq!(
+            watch.observe("t", Some(&ConnectorState::Degraded), 1_000),
+            None
+        );
+        assert_eq!(
+            watch.observe("u", Some(&ConnectorState::Degraded), 1_000),
+            None
+        );
+        assert_eq!(
+            watch.observe("t", Some(&looping), 60_000),
+            None,
+            "offline for a bit"
+        );
+        assert_eq!(
+            watch.observe("u", Some(&UP), 70_000),
+            None,
+            "back in time: silence"
+        );
+        assert_eq!(watch.observe("t", None, 85_000), None);
+        // Still down once the settling time is over: reported.
+        assert_eq!(watch.observe("t", None, 91_000), Some(Notice::Down));
+        assert_eq!(watch.observe("u", Some(&UP), 91_000), None);
     }
 }

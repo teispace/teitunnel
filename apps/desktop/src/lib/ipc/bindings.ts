@@ -18,10 +18,23 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
+	/**  Which browsers can use the extension. */
+	browserHostStatus: () => __TAURI_INVOKE<BrowserHostView>("browser_host_status"),
+	/**  Lets the extension talk to the app, in every installed browser. */
+	browserHostInstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_install"),
+	/**  Stops letting the extension talk to the app. */
+	browserHostUninstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall"),
 	/**  The AI clients on this computer and whether each is connected. */
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
 	/**  Agents connected now, and approvals waiting. */
 	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
+	/**  Clients connected with OAuth to MCP servers shared from this computer, newest first. */
+	mcpConnections: () => __TAURI_INVOKE<McpConnection[]>("mcp_connections"),
+	/**
+	 *  Disconnects a client from a shared MCP server: its tokens stop working within 30
+	 *  seconds (at once for servers this app shares).
+	 */
+	mcpDisconnect: (id: string) => __TAURI_INVOKE<null>("mcp_disconnect", { id }),
 	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
 	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
 	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
@@ -80,6 +93,12 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 } | null, hostHeader: HostHeaderChoice, folder: string | null) => __TAURI_INVOKE<Outcome>("domain_shares_start", { accountId, hostname, origin, stopAfterMinutes, access, hostHeader, folder }),
 	/**  Stops a share on your domain: its route, DNS record and login are removed. */
 	domainSharesStop: (accountId: string, hostname: string) => __TAURI_INVOKE<null>("domain_shares_stop", { accountId, hostname }),
@@ -118,7 +137,7 @@ export const commands = {
 	 *  Checks a folder chosen or dropped for sharing (it must exist and not be the whole
 	 *  disk or the home folder).
 	 */
-	sharingFolder: (path: string, listing: boolean, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
+	sharingFolder: (path: string, listing: boolean | null, spa: boolean) => __TAURI_INVOKE<FolderShare>("sharing_folder", { path, listing, spa }),
 	/**  Asks the person to choose a folder to share (a native panel). `null`: cancelled. */
 	sharingChooseFolder: () => __TAURI_INVOKE<string | null>("sharing_choose_folder"),
 	/**
@@ -131,6 +150,12 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 } | null) => __TAURI_INVOKE<Outcome>("sharing_start_folder_on_domain", { accountId, hostname, folder, stopAfterMinutes, access }),
 	/**  Quick Shares running in terminals (`teitunnel share`), oldest first. */
 	quickShareCliList: () => __TAURI_INVOKE<CliShare[]>("quick_share_cli_list"),
@@ -517,6 +542,42 @@ export const commands = {
 	inspectOpenapiSave: (host: string | null) => __TAURI_INVOKE<OpenApiSaved>("inspect_openapi_save", { host }),
 	/**  Forgets captured requests of one tap, or all (in memory and on disk). */
 	inspectClear: (tap: string | null) => __TAURI_INVOKE<null>("inspect_clear", { tap }),
+	/**  Requests waiting at breakpoints (one tap's, or all), oldest first. */
+	inspectPaused: (tap: string | null) => __TAURI_INVOKE<Paused[]>("inspect_paused", { tap }),
+	/**  One request waiting at a breakpoint, as it would go on (`None` once it went on). */
+	inspectPausedExchange: (id: ExchangeId) => __TAURI_INVOKE<{
+	/**  The exchange. */
+	exchange: ExchangeId,
+	/**  Its tap. */
+	tap: TapId,
+	/**  Where it waits. */
+	stage: BreakStage,
+	/**  When it stopped (Unix milliseconds). */
+	sinceMs: number | null,
+	/**  When it goes on by itself (Unix milliseconds). */
+	resumesAtMs: number | null,
+	/**  Request method. */
+	method: string,
+	/**  Request path and query. */
+	target: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Response status (at the response stage). */
+	status: number | null,
+	/**  Headers of the request, or of the answer at the response stage, in order. */
+	headers: ([string, string])[],
+	/**  The body as text, when it can be changed. */
+	body: string | null,
+	/**  Why the body can't be changed. */
+	bodyLocked: BodyLock | null,
+} | null>("inspect_paused_exchange", { id }),
+	/**
+	 *  Lets a request waiting at a breakpoint go on: as it is, changed, answered from here
+	 *  or dropped.
+	 */
+	inspectResume: (id: ExchangeId, resume: Resume) => __TAURI_INVOKE<null>("inspect_resume", { id, resume }),
+	/**  Lets every waiting request (of one tap, or all) go on unchanged; returns how many. */
+	inspectResumeAll: (tap: string | null) => __TAURI_INVOKE<number>("inspect_resume_all", { tap }),
 	/**
 	 *  Changes a tap's settings at once: capturing, the paused page, stubs, header rules,
 	 *  network simulation, faults, stream keep-alive, the Host header, watched paths, idle
@@ -530,6 +591,53 @@ export const commands = {
 	inspectProtect: (tap: TapId, input: ProtectionInput) => __TAURI_INVOKE<ProtectionResult>("inspect_protect", { tap, input }),
 	/**  A tap's counters and latency percentiles. */
 	inspectMetrics: (tap: TapId) => __TAURI_INVOKE<MetricsSnapshot>("inspect_metrics", { tap }),
+	/**
+	 *  A tap's traffic over `range`: requests over time, answers, response times, paths,
+	 *  countries, browsers and bots (null: a tap this app doesn't know).
+	 */
+	inspectStats: (tap: TapId, range: AnalyticsRange) => __TAURI_INVOKE<{
+	/**  Where the numbers come from. */
+	source: SourceKind,
+	/**  The route. */
+	route: RouteRef,
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  Requests over time. */
+	series: StatsSeries,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Requests per second. */
+	rate: RequestRate,
+	/**  Bytes sent to visitors. */
+	bytes: number,
+	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */
+	classes: StatusClasses,
+	/**  Requests per status code. */
+	statuses: Ranked[],
+	/**  Top paths. */
+	paths: Ranked[],
+	/**  Top countries. */
+	countries: Ranked[],
+	/**  Top browsers. */
+	browsers: Ranked[],
+	/**  Verified bot categories (the empty key: people and unverified bots). */
+	bots: Ranked[],
+	/**  Cache statuses. */
+	cache: Ranked[],
+	/**  Origin response time. */
+	originMs: Percentiles | null,
+	/**  Edge time to first byte. */
+	ttfbMs: Percentiles | null,
+	/**
+	 *  Data starts here, not at the range's start (the plan keeps less history);
+	 *  milliseconds since the epoch.
+	 */
+	availableFrom: number | null,
+	/**  Parts the plan or the source doesn't offer. */
+	unavailable: StatsPart[],
+	/**  When the numbers were fetched, milliseconds since the epoch. */
+	fetchedAt: number,
+} | null>("inspect_stats", { tap, range }),
 	/**
 	 *  Webhook senders with a signing secret saved for a tap's share or route (never the
 	 *  secrets).
@@ -595,6 +703,11 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	 *  gets a new URL (the UI says so before).
 	 */
 	quickShareSetInspected: (id: string, inspect: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_inspected", { id, inspect }),
+	/**
+	 *  Pauses or resumes a share: visitors see the "paused" page and the address stays
+	 *  (inspected shares only: the inspector serves the page).
+	 */
+	quickShareSetPaused: (id: string, paused: boolean) => __TAURI_INVOKE<QuickShare>("quick_share_set_paused", { id, paused }),
 	/**  The domains, the listeners, `.test` names and the CA (no prompts). */
 	localDomainsStatus: () => __TAURI_INVOKE<LocalDomainsStatus>("local_domains_status"),
 	/**  Adds a local domain and serves it. */
@@ -650,6 +763,17 @@ leftovers: Text[] } | null>("inspect_route_apply", { accountId, hostname, path, 
 	frontsUndoChange: (accountId: string, change: FrontChange) => __TAURI_INVOKE<FrontChange>("fronts_undo_change", { accountId, change }),
 	/**  Applies a reviewed change; step progress streams on `on_progress`. */
 	frontsApply: (accountId: string, change: FrontChange, fingerprint: string, confirmed: boolean, onProgress: Channel<Progress>) => __TAURI_INVOKE<Outcome>("fronts_apply", { accountId, change, fingerprint, confirmed, onProgress }),
+	/**
+	 *  Which senders have a signing secret saved for `hostname`'s inboxes (never the
+	 *  secrets themselves).
+	 */
+	frontsInboxSecrets: (hostname: string) => __TAURI_INVOKE<InboxVerify[]>("fronts_inbox_secrets", { hostname }),
+	/**
+	 *  Saves the signing secret `hostname`'s verifying inboxes check `verify`'s webhooks
+	 *  with, in the keychain (it goes to Cloudflare only as a Worker secret, never back
+	 *  across IPC).
+	 */
+	frontsInboxSecretSet: (hostname: string, verify: InboxVerify, secret: string) => __TAURI_INVOKE<null>("fronts_inbox_secret_set", { hostname, verify, secret }),
 	/**  A webhook inbox's recent webhooks: when each arrived and when it was delivered. */
 	inboxItems: (accountId: string, hostname: string, path: string) => __TAURI_INVOKE<InboxItem[]>("inbox_items", { accountId, hostname, path }),
 	/**  Delivers waiting webhooks now (the app also does every 30 seconds). */
@@ -670,6 +794,12 @@ export type AccessRule = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+	 *  and other machines that can't log in). Each is its own application that lets
+	 *  everyone through.
+	 */
+	bypass?: string[],
 };
 
 /**  A connected Cloudflare account. */
@@ -729,6 +859,8 @@ export type ActivityKind =
 "restoreConfig" | 
 /**  A login whose route was gone was removed (Doctor cleanup). */
 "removeLogin" | 
+/**  What Teitunnel left on a hostname without routes was removed. */
+"cleanUpHostname" | 
 /**  A private network was shared. */
 "addNetwork" | 
 /**  A private network stopped being shared. */
@@ -1049,6 +1181,15 @@ export type BinaryInfo = {
 	supported: boolean,
 };
 
+/**  Why a body can't be changed. */
+export type BodyLock = 
+/**  It isn't text (or is compressed). */
+"binary" | 
+/**  It's larger than [`MAX_EDIT_BODY`]. */
+"tooLarge" | 
+/**  Its size isn't known up front (it's still arriving). */
+"streamed";
+
 /**  A body in a view. */
 export type BodyView = {
 	/**  Bytes on the wire. */
@@ -1081,6 +1222,76 @@ export type BotMode =
 "challenge" | 
 /**  Refused. */
 "block";
+
+/**  Changes to a paused exchange; fields left out stay as they are. */
+export type BreakEdit = {
+	/**  Request method (request stage). */
+	method?: string | null,
+	/**  Request path and query, starting with `/` (request stage). */
+	target?: string | null,
+	/**  Response status (response stage). */
+	status?: number | null,
+	/**  Every header, replacing them all. */
+	headers?: ([string, string])[] | null,
+	/**  The body (only when it could be changed). */
+	body?: string | null,
+};
+
+/**  A breakpoint's mark on a captured exchange. */
+export type BreakRecord = {
+	/**  Where it waits now (`None` once it went on). */
+	waiting?: BreakStage | null,
+	/**  The request was changed at the breakpoint. */
+	requestEdited?: boolean,
+	/**  The answer was changed at the breakpoint. */
+	responseEdited?: boolean,
+	/**  It went on by itself after [`BREAK_TIMEOUT`]. */
+	timedOut?: boolean,
+};
+
+/**  Where an exchange stops. */
+export type BreakStage = 
+/**  Before the request goes to the service. */
+"request" | 
+/**  Before the answer goes back to the visitor. */
+"response";
+
+/**  Stops requests matching a method and path. */
+export type BreakpointRule = {
+	/**  Method to match (case-insensitive); `None` matches any. */
+	method: string | null,
+	/**  Path to match. */
+	path: string,
+	/**  Stop before the request goes to the service. */
+	request: boolean,
+	/**  Stop before the answer goes back. */
+	response: boolean,
+};
+
+/**  A browser that can start the host. */
+export type Browser = "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox";
+
+/**  One browser's state. */
+export type BrowserHostStatus = {
+	browser: Browser,
+	/**  Its name. */
+	name: string,
+	/**  It's installed on this computer. */
+	detected: boolean,
+	/**  Teitunnel's manifest is there and points at `exe`. */
+	installed: boolean,
+};
+
+/**
+ *  The browser extension's link to the app (D-133): which browsers can start the
+ *  bundled `teitunnel` as its native messaging host.
+ */
+export type BrowserHostView = {
+	/**  This build carries the command line tool (development builds don't). */
+	available: boolean,
+	/**  Every supported browser. */
+	browsers: BrowserHostStatus[],
+};
 
 /**  How to save the CA certificate for another device. */
 export type CaFormat = 
@@ -1193,6 +1404,10 @@ name: string }) & { domain?: never; hostname?: never; network?: never; path?: ne
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
 domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**  Remove what Teitunnel attached to a hostname without routes (Doctor). */
+({ type: "cleanUpHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
@@ -1279,6 +1494,10 @@ name: string }) & { domain?: never; hostname?: never; network?: never; path?: ne
 ({ type: "removeLogin"; 
 /**  The Access domain, e.g. `app.example.com` or `app.example.com/admin`. */
 domain: string }) & { hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
+/**  Remove what Teitunnel attached to a hostname without routes (Doctor). */
+({ type: "cleanUpHostname"; 
+/**  The hostname. */
+hostname: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Add several routes at once (import from an existing cloudflared setup). */
 ({ type: "importRoutes"; 
 /**  The routes. */
@@ -1973,6 +2192,10 @@ export type ExchangeRow = {
 	answeredLocally: boolean,
 	/**  An error reaching the service, in English (technical). */
 	error: string | null,
+	/**  Waiting at a breakpoint, and where. */
+	paused: BreakStage | null,
+	/**  Changed or answered at a breakpoint. */
+	edited: boolean,
 };
 
 /**  Where an exchange is in its life. */
@@ -2020,6 +2243,8 @@ export type ExchangeView = {
 	replayOf: ExchangeId | null,
 	/**  The fault rule applied, if any. */
 	fault: FaultRecord | null,
+	/**  Whether it stopped at a breakpoint, and what happened there. */
+	breakpoint: BreakRecord | null,
 	/**  Whether secrets are masked in this view. */
 	redacted: boolean,
 };
@@ -2289,8 +2514,13 @@ action: LocalDomainFix }) & { accountId?: never; change?: never; label?: never; 
 export type FolderShare = {
 	/**  The folder (absolute once resolved). */
 	path: string,
-	/**  List a folder's files when it has no `index.html`. */
-	listing?: boolean,
+	/**
+	 *  List a folder's files when it has no `index.html`. `None`: only when the shared
+	 *  folder itself has none, so its address never answers "Not found".
+	 */
+	listing?: boolean | null,
+	/**  The folder has an `index.html` (set by [`FolderShare::resolve`]). */
+	hasIndex?: boolean,
 	/**  A single-page app: unknown paths that ask for a page get `/index.html`. */
 	spa?: boolean,
 };
@@ -2495,7 +2725,9 @@ export type GateOutcome =
 /**  HTTP basic credentials are missing or wrong. */
 "basicAuthRequired" | 
 /**  A bearer token is missing or wrong. */
-"bearerRequired";
+"bearerRequired" | 
+/**  An OAuth access token is missing, wrong or expired. */
+"oauthRequired";
 
 /**  A system-wide shortcut, off by default. */
 export type GlobalShortcut = {
@@ -2992,6 +3224,25 @@ export type LimitAction =
 /**  A managed challenge until the period ends. */
 "challenge";
 
+/**  What's wrong with a page's links. */
+export type LinkKind = 
+/**  It loads something from this computer, which visitors can't reach. */
+"local" | 
+/**  It loads something from its public address over plain HTTP (mixed content). */
+"insecure";
+
+/**  A page linking where visitors can't follow, with what to change. */
+export type LinkProblem = {
+	/**  Which mistake. */
+	kind: LinkKind,
+	/**  A link from the page, e.g. `http://localhost:5173/@vite/client`. */
+	example: string,
+	/**  What it means, in a sentence. */
+	message: Text,
+	/**  What to change, for the framework when it's known. */
+	fix: Text,
+};
+
 /**  What changed since the last batch. */
 export type LiveBatch = {
 	/**  New or changed exchanges (their latest state), oldest change first. */
@@ -3196,6 +3447,22 @@ export type LogLine = {
 	message: string,
 	/**  The `error` field, if any. */
 	error: string | null,
+};
+
+/**  A client connected to a shared MCP server (for the app's list). */
+export type McpConnection = {
+	/**  Id (to disconnect it). */
+	id: string,
+	/**  The shared server's hostname. */
+	host: string,
+	/**  The client's name. */
+	clientName: string,
+	/**  Where its authorization went. */
+	redirectHost: string,
+	/**  When it was approved (milliseconds since the epoch). */
+	createdAt: number | null,
+	/**  When it last got a token. */
+	lastUsedAt: number | null,
 };
 
 /**  Emitted when a menu-bar item that the webview handles is chosen. */
@@ -3517,6 +3784,34 @@ export type PasswordInput =
 { type: "set"; 
 /**  The password. */
 password: string };
+
+/**  A paused exchange, as it would go on. */
+export type Paused = {
+	/**  The exchange. */
+	exchange: ExchangeId,
+	/**  Its tap. */
+	tap: TapId,
+	/**  Where it waits. */
+	stage: BreakStage,
+	/**  When it stopped (Unix milliseconds). */
+	sinceMs: number | null,
+	/**  When it goes on by itself (Unix milliseconds). */
+	resumesAtMs: number | null,
+	/**  Request method. */
+	method: string,
+	/**  Request path and query. */
+	target: string,
+	/**  Host the visitor asked for. */
+	host: string,
+	/**  Response status (at the response stage). */
+	status: number | null,
+	/**  Headers of the request, or of the answer at the response stage, in order. */
+	headers: ([string, string])[],
+	/**  The body as text, when it can be changed. */
+	body: string | null,
+	/**  Why the body can't be changed. */
+	bodyLocked: BodyLock | null,
+};
 
 /**  The page served while a tap is paused. */
 export type PausedPage = {
@@ -3895,6 +4190,8 @@ export type QuickShare = {
 	inspected: boolean,
 	/**  A folder served by the inspector (`origin` is then the inspector's address). */
 	folder: FolderShare | null,
+	/**  Visitors get the "paused" page; the address stays ([`QuickShares::set_paused`]). */
+	paused: boolean,
 };
 
 /**
@@ -3992,6 +4289,14 @@ export type ReplayInput = {
 	resign?: boolean,
 };
 
+/**  Requests per second over a range. */
+export type RequestRate = {
+	/**  Over the whole range (or the part with data). */
+	average: number | null,
+	/**  The busiest bucket's average (a minute at best, so short bursts read lower). */
+	peak: number | null,
+};
+
 /**  The request part of a view. */
 export type RequestView = {
 	/**  Method. */
@@ -4079,6 +4384,8 @@ reason: GateOutcome } |
 { type: "fault"; 
 /**  Index of the rule in [`crate::TapConfig::faults`]. */
 rule: number } | 
+/**  Someone answered it at a breakpoint. */
+{ type: "breakpoint" } | 
 /**  Lens itself (reserved `/__teitunnel/` paths, CORS preflight, error pages). */
 { type: "lens" };
 
@@ -4095,6 +4402,25 @@ export type ResponseView = {
 	/**  Body. */
 	body: BodyView,
 };
+
+/**  How a paused exchange goes on. */
+export type Resume = 
+/**  As it is. */
+{ type: "continue" } | 
+/**  With changes. */
+{ type: "edited"; 
+/**  The changes. */
+edit: BreakEdit } | 
+/**  Answer the visitor from here, without the service (request stage). */
+{ type: "answer"; 
+/**  Status. */
+status: number; 
+/**  Headers. */
+headers: ([string, string])[]; 
+/**  Body (text). */
+body: string } | 
+/**  Drop the connection: the visitor gets no answer. */
+{ type: "abort" };
 
 /**  A route change of the project, with its reviewed plan. */
 export type RouteAction = RouteAction_Serialize | RouteAction_Deserialize;
@@ -4208,6 +4534,8 @@ export type RouteStats = {
 	series: StatsSeries,
 	/**  Requests in the range. */
 	requests: number,
+	/**  Requests per second. */
+	rate: RequestRate,
 	/**  Bytes sent to visitors. */
 	bytes: number,
 	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */
@@ -4266,6 +4594,8 @@ export type RouteView_Deserialize = {
 	temporary: boolean,
 	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
 	balanced: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
 	/**  Its origin settings. */
 	options: OriginOptions_Deserialize,
 };
@@ -4294,6 +4624,8 @@ export type RouteView_Serialize = {
 	temporary: boolean,
 	/**  Load balanced across tunnels (Cloudflare Load Balancing). */
 	balanced: boolean,
+	/**  Visitors get the "paused" page ([`crate::pause`]). */
+	paused: boolean,
 	/**  Its origin settings. */
 	options: OriginOptions_Serialize,
 };
@@ -5021,6 +5353,8 @@ export type TapPatch = {
 	network?: NetworkConfig | null,
 	/**  Injected faults (replacing the list). */
 	faults?: FaultRule[] | null,
+	/**  Breakpoints (replacing the list; an empty list lets everything waiting go on). */
+	breakpoints?: BreakpointRule[] | null,
 	/**
 	 *  Keep-alive for event streams after this many seconds of silence; 0 turns it
 	 *  off.
@@ -5112,6 +5446,8 @@ export type TapView = {
 	network: NetworkConfig,
 	/**  Injected faults. */
 	faults: FaultRule[],
+	/**  Requests stopped for a look. */
+	breakpoints: BreakpointRule[],
 	/**  Paths that notify when requested. */
 	watchedPaths: string[],
 	/**  Minutes without a request before the share stops (`None`: never). */
@@ -5492,6 +5828,16 @@ export type Verification = {
 	 *  them).
 	 */
 	eventStream: boolean,
+	/**
+	 *  The page works but links where visitors can't follow (this computer, or plain
+	 *  HTTP), with what to change.
+	 */
+	links: LinkProblem | null,
+	/**
+	 *  The failure usually passes by itself (a new record or connector still settling):
+	 *  check again rather than asking for a fix.
+	 */
+	transient: boolean,
 };
 
 /**  Where the main window should go (asked by the control connection or a link). */

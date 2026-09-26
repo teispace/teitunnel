@@ -68,21 +68,26 @@ one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio se
 | `undo_last` | Plans the reverse of the latest change. |
 | `get_protection`, `protect_hostname` | A hostname's rules at Cloudflare's edge (bots, AI crawlers, rate limit, headers) and quotas; plans a change, applied with `apply_plan` ([Edge protection](/docs/guides/protection)). |
 | `service_token_list`, `service_token_create`, `service_token_revoke` | Service tokens that let machines through a login. A new token's secret is returned once, after your approval, marked sensitive. |
+| `get_offline_page_and_inboxes`, `set_offline_page`, `set_webhook_inbox` | A hostname's [offline page](/docs/guides/offline-page) and [webhook inboxes](/docs/guides/webhook-inbox): what it has, and setting or removing either after your approval of the plan. A verifying inbox uses the signing secret already saved in the inspector. |
 | `list_reservations`, `reserve_hostname`, `release_hostname` | Hostnames reserved on the account and who holds them; reserve one (optionally until a date) or give it up ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). |
 | `comments_list`, `comments_reply`, `comments_resolve` | Reviewers' comments on shares and Snapshots ([Comments](/docs/guides/comments)); reviewers' email addresses are never included. |
 | `doctor`, `fix_issue` | The Doctor's issues and their fixes ([Doctor checks](/docs/reference/doctor)). |
 | `logs_tail`, `remote_logs`, `connector_status` | This machine's connector logs (per route), another machine's live logs, connector health. |
+| `list_local_domains`, `add_local_domain`, `remove_local_domain` | [Local HTTPS domains](/docs/guides/local-domains) such as `https://shop.test` for a dev server, on this computer only. Served by the app while it runs, otherwise by the MCP server until its session ends; trusting the certificate authority is left to you (it asks for your password). |
+| `route_traffic` | Who uses a route or share and how: requests over time and per second, answers, the 5xx share, response times, top paths, countries, browsers and bots by kind, from the inspector when it's in front of it and otherwise from Cloudflare's analytics ([Analytics](/docs/guides/analytics)). |
+| `route_health` | Whether each route is up, its uptime over a day, week and month, response times, the outage going on and recent incidents, from the checks the app runs every minute ([Analytics](/docs/guides/analytics)). |
 | `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |
 | `traffic_list`, `traffic_get`, `traffic_replay`, `wait_for_request`, `traffic_stats`, `traffic_export` | Requests the [inspector](/docs/guides/inspector) captured on the server's shares and its recent history: list, inspect, replay, wait for the next one (for webhooks; progress is reported while waiting), numbers, cURL/HAR/Markdown. |
 | `traffic_openapi` | An OpenAPI 3.1 description of the API the captured requests show ([OpenAPI from traffic](/docs/guides/openapi)). |
-| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`). |
+| `expose_mcp_server` | Puts an MCP server running on this machine online at a hostname on your domain for remote AI clients: checks it answers MCP, keeps streams alive, requires a bearer token or, for claude.ai and ChatGPT, an OAuth sign-in you approve in Teitunnel, and returns configurations for Claude Code, Cursor and VS Code. The agent never sees the token (you get it with `teitunnel token <hostname>`). |
+| `inspection_settings`, `configure_inspection` | What the inspector does for the server's shares, and changing it to test how an app copes: mock responses (always, or only while the service is down), a share of requests failing (a status, a dropped connection, a delay, a timeout), a slow network (3G, 4G, satellite), header rules and CORS, watched paths, idle stop. On this computer only; your approval first in `ask` mode. |
 
 It also offers **resources** your tool can attach as context (`teitunnel://routes`,
 `teitunnel://shares`, `teitunnel://domains`, `teitunnel://issues`, `teitunnel://activity`,
 `teitunnel://route/{hostname}`, `teitunnel://logs/{tunnel}`) and **prompts**: *Put my dev
-server online*, *Debug a failing webhook*, *Why is my route down?* and *Move my routes to a
-server*.
+server online*, *Debug a failing webhook*, *Why is my route down?*, *Move my routes to a
+server* and *Test how my app copes*.
 
 ## Modes
 

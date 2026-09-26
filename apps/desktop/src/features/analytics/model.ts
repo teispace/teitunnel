@@ -68,6 +68,18 @@ export function formatPercent(share: number | null | undefined): string {
   return `${Number(percent.toFixed(percent >= 10 ? 1 : 2)).toString()}%`;
 }
 
+const rateFormats = [0, 1, 2].map(
+  (digits) => new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }),
+);
+
+/** Requests per second: "12", "3.4", "0.05", "<0.01" (two significant digits below 10). */
+export function formatRate(perSecond: number | null): string {
+  if (perSecond === null || !Number.isFinite(perSecond) || perSecond <= 0) return "0";
+  if (perSecond < 0.01) return `<${rateFormats[2]?.format(0.01)}`;
+  const digits = perSecond >= 10 ? 0 : perSecond >= 1 ? 1 : 2;
+  return rateFormats[digits]?.format(perSecond) ?? String(perSecond);
+}
+
 export function formatMs(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return "–";
   return ms >= 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;

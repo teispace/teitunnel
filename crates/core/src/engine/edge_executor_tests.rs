@@ -323,3 +323,201 @@ pub(super) async fn edge_scenarios() -> Vec<(&'static str, CloudState, Intent)> 
         ),
     ]
 }
+
+async fn change(engine: &Engine, cloud: &FakeCloud, change: super::Change) {
+    let intent = engine.intent_for(cloud, CTX, &change).await.unwrap();
+    let (outcome, _) = apply(engine, cloud, &intent).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+#[tokio::test]
+async fn removing_the_last_route_takes_its_edge_rules_with_it() {
+    use super::{Change, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    let route = RouteInput {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    let (outcome, _) = apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(
+        !engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let removal = Change::RemoveRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+    };
+    change(&engine, &cloud, removal).await;
+    assert_eq!(custom_rules(&cloud), ["Their own rule"], "theirs stays");
+    assert!(
+        engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn removing_the_last_route_revokes_the_service_tokens_made_for_it() {
+    use super::{Change, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("free")));
+    let route = RouteInput {
+        hostname: "api.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    let (outcome, issued) = apply(&engine, &cloud, &create_token("api.xyz.com", "CI")).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(issued.len(), 1);
+
+    let removal = Change::RemoveRoute {
+        hostname: "api.xyz.com".into(),
+        path: None,
+    };
+    change(&engine, &cloud, removal).await;
+    let state = cloud.snapshot();
+    assert!(
+        state.service_tokens.is_empty(),
+        "{:?}",
+        state.service_tokens
+    );
+    assert!(state.access_apps.is_empty(), "the login went too");
+    assert!(
+        engine
+            .local()
+            .owned_service_tokens("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn deleting_the_tunnel_revokes_the_service_tokens_of_its_hostnames() {
+    use super::{Change, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("free")));
+    let route = RouteInput {
+        hostname: "api.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    apply(&engine, &cloud, &create_token("api.xyz.com", "CI")).await;
+    let (outcome, _) = apply(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    assert!(state.tunnels.is_empty());
+    assert!(
+        state.service_tokens.is_empty(),
+        "{:?}",
+        state.service_tokens
+    );
+    assert!(
+        engine
+            .local()
+            .owned_service_tokens("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn cleaning_up_a_hostname_left_behind_removes_its_rules_only_once_nothing_serves_it() {
+    use super::{Change, EngineError, PlanError, RouteInput};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    let route = RouteInput {
+        hostname: "app.xyz.com".into(),
+        path: None,
+        origin: "3000".into(),
+        access: None,
+        options: None,
+    };
+    change(&engine, &cloud, Change::AddRoute { route }).await;
+    apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    let clean_up = Change::CleanUpHostname {
+        hostname: "app.xyz.com".into(),
+    };
+    // Still routed: refused.
+    let intent = engine.intent_for(&cloud, CTX, &clean_up).await.unwrap();
+    assert!(matches!(
+        engine.preview(&cloud, CTX, &intent).await,
+        Err(EngineError::Plan(PlanError::HostnameRouted(_)))
+    ));
+
+    // Someone deleted its DNS record in the dashboard: deleting the tunnel no longer
+    // knows the hostname was served from here, and leaves its edge rules behind.
+    cloud.edit(|state| state.records.clear());
+    apply(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(
+        !engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    change(&engine, &cloud, clean_up).await;
+    assert_eq!(custom_rules(&cloud), ["Their own rule"]);
+    assert!(
+        engine
+            .local()
+            .owned_edge_rules("acc")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn deleting_the_tunnel_takes_its_hostnames_workers_and_edge_rules() {
+    use super::{Change, RouteInput, front::OfflinePage};
+    let (engine, cloud) = (engine(), FakeCloud::new(zone("pro")));
+    for hostname in ["app.xyz.com", "api.xyz.com"] {
+        let route = RouteInput {
+            hostname: hostname.into(),
+            path: None,
+            origin: "3000".into(),
+            access: None,
+            options: None,
+        };
+        change(&engine, &cloud, Change::AddRoute { route }).await;
+    }
+    apply(&engine, &cloud, &protect("app.xyz.com", everything(true))).await;
+    let offline = Intent::SetOfflinePage {
+        hostname: host("api.xyz.com"),
+        page: Some(OfflinePage::default()),
+    };
+    let (outcome, _) = apply(&engine, &cloud, &offline).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(cloud.snapshot().worker_routes.len(), 1);
+
+    let (outcome, _) = apply(&engine, &cloud, &Intent::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    assert!(state.tunnels.is_empty());
+    assert!(state.worker_routes.is_empty(), "{:?}", state.worker_routes);
+    assert!(state.workers.is_empty(), "{:?}", state.workers.keys());
+    assert_eq!(custom_rules(&cloud), ["Their own rule"], "theirs stays");
+    let local = engine.local();
+    assert!(local.owned_edge_rules("acc").await.unwrap().is_empty());
+    assert!(local.fronts(Some("acc"), None).await.unwrap().is_empty());
+}

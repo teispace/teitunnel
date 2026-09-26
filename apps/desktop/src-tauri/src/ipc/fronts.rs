@@ -6,10 +6,10 @@
 use tauri::{AppHandle, State, ipc::Channel};
 use tauri_specta::Event;
 use teitunnel_core::{
-    engine::{Approval, Context, Outcome, PlanView, Progress},
+    engine::{Approval, Context, Outcome, PlanView, Progress, front::InboxVerify},
     fronts::{self, FrontChange, FrontView},
     inbox::{DrainReport, InboxItem},
-    text::msg,
+    text::{UserText as _, msg},
 };
 
 use crate::{
@@ -34,6 +34,44 @@ pub async fn fronts_list(
     account_id: Option<String>,
 ) -> Result<Vec<FrontView>, AppError> {
     Ok(fronts::list(&state.engine, account_id.as_deref()).await?)
+}
+
+/// Which senders have a signing secret saved for `hostname`'s inboxes (never the
+/// secrets themselves).
+#[tauri::command]
+#[specta::specta]
+pub async fn fronts_inbox_secrets(
+    state: State<'_, AppState>,
+    hostname: String,
+) -> Result<Vec<InboxVerify>, AppError> {
+    fronts::inbox_secrets(&state.secrets, &hostname)
+        .await
+        .map_err(|e| AppError::internal(e.text()))
+}
+
+/// Saves the signing secret `hostname`'s verifying inboxes check `verify`'s webhooks
+/// with, in the keychain (it goes to Cloudflare only as a Worker secret, never back
+/// across IPC).
+#[tauri::command]
+#[specta::specta]
+pub async fn fronts_inbox_secret_set(
+    state: State<'_, AppState>,
+    hostname: String,
+    verify: InboxVerify,
+    secret: String,
+) -> Result<(), AppError> {
+    let secret = secret.trim().to_owned();
+    if secret.is_empty() {
+        return Err(AppError::invalid("secret", msg::fronts::secret_empty()));
+    }
+    fronts::set_inbox_secret(
+        &state.secrets,
+        &hostname,
+        verify,
+        teitunnel_core::Secret::new(secret),
+    )
+    .await
+    .map_err(|e| AppError::internal(e.text()))
 }
 
 /// Plans an offline page or inbox change for review. Nothing is changed.

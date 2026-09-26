@@ -23,8 +23,9 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 ### Credentials
 - Stored only in the OS keychain (`keyring`). Never in SQLite, config files, logs, or IPC responses.
+- On macOS, items Teitunnel creates trust exactly its own signed programs (the app, the bundled and `PATH` `teitunnel` command; by designated requirement), so they share items without keychain prompts and no other program gains access (D-127). The only `unsafe` code in the workspace is this access-list call.
 - IPC commands take an `AccountId`, never a token. The token-add command accepts a token as input and never echoes it back.
-- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out. Cloudflare rotates the refresh token on every refresh, so the current access token is kept in the keychain too (`cf:<account>:oauth-access`, with its expiry and a hash of the refresh token it belongs to): the app, the CLI and the MCP server share one refresh instead of revoking each other's tokens. Removing the account deletes both items.
+- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out. Cloudflare rotates the refresh token on every refresh, so the current access token is kept in the keychain too (`cf:<account>:oauth-access`, with its expiry and a hash of the refresh token it belongs to): the app, the CLI and the MCP server share one refresh instead of revoking each other's tokens. Removing the account deletes both items. The database records only a SHA-256 hash of the current refresh token (`accounts.token_source`), so processes notice a rotation without reading the keychain on every call (D-128); a process keeps credentials it read in memory for at most a minute.
 - The permissions are documented in the token template. It includes Access (apps and login methods) so logins work without a second trip (D-065); Teitunnel still changes only Access applications it created (ownership index, D-057), and a token without Access keeps working for plain routes. OAuth scopes for Access stay optional.
 - In-memory token values are wrapped in a `Secret<T>` type whose `Debug`/`Display` impls redact them.
 
@@ -109,7 +110,9 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   create is asked every time. Route changes are recorded in Activity with the program's
   name. The program's name is self-declared: the token and file permissions, not the name,
   keep other users out; a process running as the same user is trusted like the rest of this
-  model.
+  model. A folder share names the folder in the question, and the app resolves and checks
+  the folder itself (a real folder, never the whole disk or the home folder, served with the
+  Snapshot rules that keep dotfiles, keys and `.env*` out); links can't share a folder.
 - `teitunnel://` links are parsed strictly (known actions and parameters only, a port, a
   hostname or an id). Sharing from a link always asks, is never remembered, and only one
   question is shown at a time; links that only open a view don't ask. Links can be turned
@@ -140,6 +143,22 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
   (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
   export, or the MCP server runs with `--allow-secrets`.
+- The browser extension (D-133) reaches the app only through native messaging: browsers start
+  the bundled `teitunnel` for the extension ids its manifest names, and it relays five calls
+  (status, list, share a local page, stop, open) to the control connection, where sharing is
+  approved like for any program. It can't share a public site or a folder, and asks the
+  browser for `nativeMessaging` and `activeTab` only.
+- MCP servers shared with OAuth (D-132): every authorization is approved by the person, who
+  compares a code shown in the browser and in the app; clients are identified by a verified
+  metadata document (fetched only from public addresses, pinned, no redirects, small, timed
+  out) or by registration; PKCE S256 only; tokens bound to the server, never forwarded to it,
+  short-lived, refresh tokens rotated with replay detection; codes single-use. Only SHA-256
+  hashes of tokens, codes and client secrets are stored. OAuth endpoints' bodies are never
+  captured by the inspector.
+- A request held at a breakpoint is shown unmasked (IPC `inspect_paused_exchange`), since
+  it's what goes on and can be changed; like a revealed request it's read on demand, never
+  cached or stored, and not offered to agents. Holding is bounded: 60 seconds per request,
+  50 at once, only while recording, and rules are never persisted (D-130).
 - Webhook signing secrets and bearer tokens for exposed services live only in the
   keychain; they cross IPC only as input (never echoed back). A generated secret link key
   or bearer token is returned once, to show the person.
@@ -187,7 +206,8 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   when full. A verifying inbox's signing secret comes from the keychain (never IPC outward,
   never argv: the CLI reads it from the environment or standard input), is sent only as a
   `secret_text` binding and kept on later versions with `keep_bindings`; it's never in a
-  plan, Activity or the local database. Delivery goes only to the route's own local service
+  plan, Activity or the local database. The engine reads it from the keychain only to put a
+  verifying inbox back when a plan that removed or changed it rolls back (D-129). Delivery goes only to the route's own local service
   (its ingress rule), without following redirects.
 
 ### Logs & diagnostics

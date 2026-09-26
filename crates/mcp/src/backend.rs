@@ -385,6 +385,45 @@ pub trait Backend: Send + Sync + 'static {
         Box::pin(async { Err(unsupported_protection()) })
     }
 
+    /// Teitunnel's offline pages and webhook inboxes in an account (from the local
+    /// records).
+    fn fronts<'a>(
+        &'a self,
+        _account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::fronts::FrontView>>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Plans an offline page or inbox change for review. Nothing changes.
+    fn preview_front<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Applies a reviewed offline page or inbox change, on behalf of `actor`.
+    fn apply_front<'a>(
+        &'a self,
+        _account: &'a str,
+        _change: &'a teitunnel_core::fronts::FrontChange,
+        _approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// Pauses or resumes one of this server's Quick Shares (by id): the address stays and
+    /// visitors get a "paused" page from its inspector tap.
+    fn set_quick_paused<'a>(
+        &'a self,
+        _id: &'a str,
+        _paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async { Err(unsupported_extras()) })
+    }
+
     /// Pauses (`paused`) or resumes a share on your domain or a route: the address stays
     /// and visitors get a "paused" page, served by whichever Teitunnel process serves it
     /// (M12-06).
@@ -424,6 +463,36 @@ pub trait Backend: Send + Sync + 'static {
         _actor: Option<Actor>,
     ) -> BoxFuture<'_, BackendResult<ShareInfo>> {
         Box::pin(async { Err(unsupported_extras()) })
+    }
+
+    /// One route's or share's traffic over `range`: from this process's inspector when
+    /// it's in front of it (exact), else from Cloudflare's edge analytics.
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        let _ = (route, range);
+        Box::pin(async {
+            Err(BackendError::Unsupported(
+                "Traffic numbers aren't available from this host.".into(),
+            ))
+        })
+    }
+
+    /// Uptime of this machine's routes (one hostname's, or all) over `range`, from the
+    /// checks through Cloudflare the app runs every minute.
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        let _ = (hostname, range);
+        Box::pin(async {
+            Err(BackendError::Unsupported(
+                "Uptime isn't available from this host.".into(),
+            ))
+        })
     }
 
     /// Shares, routes and Snapshots with comments, with their counts.

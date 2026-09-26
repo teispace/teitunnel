@@ -22,6 +22,16 @@ export function formatAllowed(rule: AccessRule | null): string {
   return [...rule.emails, ...rule.emailDomains.map((d) => `@${d}`)].join(", ");
 }
 
+/** Paths that skip a login, as typed (commas, spaces or new lines between them). */
+export function parsePaths(text: string): string[] {
+  return text.split(/[\s,;]+/).filter((entry) => entry !== "");
+}
+
+/** Paths as they're typed (the inverse of {@link parsePaths}). */
+export function formatPaths(paths: readonly string[] | undefined): string {
+  return (paths ?? []).join(", ");
+}
+
 /** A rule in a sentence fragment, e.g. `me@xyz.com and anyone at @team.io`. */
 export function describeAllowed(rule: AccessRule): string {
   const parts = [

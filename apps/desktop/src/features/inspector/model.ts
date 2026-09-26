@@ -1,9 +1,16 @@
 import { formatBytes } from "@/features/snapshots/format";
+import { numberFormat } from "@/lib/format";
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n";
 import type {
+  BreakEdit,
+  Direction,
   ExchangeRow,
   HeaderView,
+  Paused,
   ReplayInput,
+  Resume,
+  StreamStats,
+  TapProtectionView,
   TrafficFormat,
   WebhookSender,
 } from "@/lib/ipc/bindings";
@@ -54,7 +61,7 @@ export const isFiltered = (filters: Filters) =>
 /** "84 ms", "1.24 s", "12.5 s". */
 export function formatMs(ms: number): string {
   const format = (value: number, unit: "millisecond" | "second", digits: number) =>
-    new Intl.NumberFormat(currentLanguage(), {
+    numberFormat({
       style: "unit",
       unit,
       unitDisplay: "short",
@@ -90,6 +97,7 @@ export function formatClock(at: number | null): string {
 
 /** The status cell: the code, or where the exchange is. */
 export function statusText(row: ExchangeRow): string {
+  if (row.paused) return t("inspector.list.held");
   if (row.status !== null) return String(row.status);
   if (row.state === "failed") return t("inspector.list.failed");
   return t("inspector.list.pending");
@@ -112,6 +120,13 @@ export const toneText: Record<Tone, string> = {
   error: "text-error",
   neutral: "text-secondary",
 };
+
+/** The status cell's colour: held rows stand out, unanswered ones recede. */
+export function statusClass(row: ExchangeRow): string {
+  if (row.paused) return "text-accent";
+  if (row.status === null) return "text-secondary";
+  return toneText[statusTone(row.status, row.state === "failed")];
+}
 
 export const providerNames: Record<WebhookSender, string> = {
   stripe: "Stripe",
@@ -243,6 +258,105 @@ export function parseHeaders(text: string): [string, string][] {
       if (colon <= 0) return [];
       return [[line.slice(0, colon).trim(), line.slice(colon + 1).trim()]];
     });
+}
+
+/** What protects a tap, in words (empty when nothing does). */
+export function protectionSummary(protection: TapProtectionView): string[] {
+  return [
+    protection.password ? t("inspector.protection.password") : null,
+    protection.secretLink ? t("inspector.protection.link") : null,
+    protection.basicUser ? t("inspector.protection.basic") : null,
+    protection.bearerTokens > 0
+      ? t("inspector.share.tokens", { count: protection.bearerTokens })
+      : null,
+    protection.ipAllow.length > 0 ? t("inspector.protection.allow") : null,
+    protection.ipDeny.length > 0 ? t("inspector.protection.deny") : null,
+    protection.agentPresets.length > 0 || protection.agentPatterns.length > 0
+      ? t("inspector.protection.agents")
+      : null,
+  ].filter((item): item is string => item !== null);
+}
+
+// Breakpoints ----------------------------------------------------------------------
+
+/** A held request, as the editor shows it. */
+export interface HeldDraft {
+  method: string;
+  /** Path and query. */
+  target: string;
+  status: string;
+  /** `Name: value` lines. */
+  headers: string;
+  /** Only when the body can be changed. */
+  body: string;
+}
+
+const headerLines = (headers: readonly (readonly [string, string])[]) =>
+  headers.map(([name, value]) => `${name}: ${value}`).join("\n");
+
+export function heldDraft(held: Paused): HeldDraft {
+  return {
+    method: held.method,
+    target: held.target,
+    status: held.status === null ? "" : String(held.status),
+    headers: headerLines(held.headers),
+    body: held.body ?? "",
+  };
+}
+
+/** Whether the draft differs from what's held. */
+export function heldChanged(held: Paused, draft: HeldDraft): boolean {
+  return JSON.stringify(heldDraft(held)) !== JSON.stringify(draft);
+}
+
+/**
+ * How a held request goes on with `draft`: as it is when nothing changed, else with
+ * only what changed (the inspector fixes `Content-Length` for a new body).
+ */
+export function heldResume(held: Paused, draft: HeldDraft): Resume {
+  const original = heldDraft(held);
+  const edit: BreakEdit = {};
+  if (held.stage === "request") {
+    if (draft.method.trim().toUpperCase() !== original.method) {
+      edit.method = draft.method.trim().toUpperCase();
+    }
+    if (draft.target.trim() !== original.target) edit.target = draft.target.trim();
+  } else if (draft.status.trim() !== original.status) {
+    edit.status = Number(draft.status.trim());
+  }
+  const headers = parseHeaders(draft.headers);
+  if (JSON.stringify(headers) !== JSON.stringify(parseHeaders(original.headers))) {
+    edit.headers = headers;
+  }
+  if (held.body !== null && draft.body !== original.body) edit.body = draft.body;
+  return Object.keys(edit).length === 0 ? { type: "continue" } : { type: "edited", edit };
+}
+
+/** An answer written at a breakpoint. */
+export interface AnswerDraft {
+  status: string;
+  headers: string;
+  body: string;
+}
+
+export const newAnswer = (): AnswerDraft => ({
+  status: "200",
+  headers: "content-type: application/json",
+  body: "",
+});
+
+export function answerResume(draft: AnswerDraft): Resume {
+  return {
+    type: "answer",
+    status: Number(draft.status.trim()),
+    headers: parseHeaders(draft.headers),
+    body: draft.body,
+  };
+}
+
+/** Seconds until a held request goes on by itself (0 once due). */
+export function secondsLeft(held: Paused, now: number): number {
+  return held.resumesAtMs === null ? 0 : Math.max(0, Math.ceil((held.resumesAtMs - now) / 1000));
 }
 
 /** Headers Teitunnel sets itself; editing them makes no sense in a replay. */
@@ -379,3 +493,67 @@ export function diffHeaders(a: readonly HeaderView[], b: readonly HeaderView[]):
 
 /** Body text for comparing: pretty JSON where it parses. */
 export const comparable = (text: string | null) => (text ? (prettyJson(text) ?? text) : "");
+
+/** One WebSocket frame or event-stream message, as the Messages list shows it. */
+export interface MessageRow {
+  direction: Direction;
+  atUs: number;
+  /** The frame's opcode, or the message's kind. */
+  kind: string;
+  size: number;
+  /** What it says (null: compressed, unreadable); close frames: code and reason. */
+  text: string | null;
+  truncated: boolean;
+}
+
+/** The frames when there are any (WebSocket), else the message previews (events). */
+export function messageRows(stream: StreamStats): MessageRow[] {
+  if (stream.frames.length > 0) {
+    return stream.frames.map((frame) => ({
+      direction: frame.direction,
+      atUs: frame.atUs,
+      kind: frame.opcode,
+      size: frame.size,
+      text:
+        frame.closeCode !== null
+          ? `${frame.closeCode} ${frame.closeReason ?? ""}`.trim()
+          : frame.preview,
+      truncated: frame.truncated,
+    }));
+  }
+  return stream.previews.map((message) => ({
+    direction: message.direction,
+    atUs: message.atUs,
+    kind: message.kind,
+    size: message.size,
+    text: message.compressed && !message.inflated ? null : message.preview,
+    truncated: message.truncated,
+  }));
+}
+
+export type DirectionFilter = "all" | Direction;
+
+/** Rows going `direction` whose text contains `query` (case-insensitive). */
+export function filterMessages(
+  rows: readonly MessageRow[],
+  direction: DirectionFilter,
+  query: string,
+): MessageRow[] {
+  const needle = query.trim().toLowerCase();
+  return rows.filter(
+    (row) =>
+      (direction === "all" || row.direction === direction) &&
+      (needle === "" || (row.text ?? "").toLowerCase().includes(needle)),
+  );
+}
+
+/** `text` indented when it's a JSON object or array, else as it is. */
+export function prettyMessage(text: string): string {
+  const trimmed = text.trim();
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return text;
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return text;
+  }
+}

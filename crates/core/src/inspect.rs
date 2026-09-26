@@ -80,6 +80,9 @@ pub enum InspectError {
     NotInspected(String),
     /// The exchange was captured by a tap that has stopped.
     TapGone,
+    /// The request isn't waiting at a breakpoint any more (it went on by itself, or the
+    /// visitor left).
+    NotPaused,
     /// A value was rejected (a path pattern, a network…).
     Invalid(String),
     /// The keychain failed.
@@ -101,6 +104,7 @@ impl UserText for InspectError {
             Self::NotRoute(hostname) => m::not_route(hostname),
             Self::NotInspected(hostname) => m::not_inspected(hostname),
             Self::TapGone => m::tap_gone(),
+            Self::NotPaused => m::not_paused(),
             Self::Invalid(detail) => m::invalid(detail),
             Self::Secret(err) => err.text(),
             Self::Store(err) => err.text(),
@@ -184,6 +188,9 @@ pub struct TapSpec {
     pub bearer: Vec<Secret<String>>,
     /// Serve this folder instead of forwarding to `origin` (which then names it).
     pub folder: Option<crate::folder_share::FolderShare>,
+    /// OAuth in front of it (a shared MCP server, [`crate::mcp_auth`]); the bearer
+    /// tokens keep working next to it.
+    pub oauth: Option<std::sync::Arc<dyn lens::OAuthProvider>>,
 }
 
 impl TapSpec {
@@ -198,6 +205,7 @@ impl TapSpec {
             public_url: None,
             bearer: Vec::new(),
             folder: None,
+            oauth: None,
         }
     }
 }
@@ -527,6 +535,7 @@ impl Inspector {
         for token in &spec.bearer {
             config.gates.bearer.push(BearerToken::new(token.expose())?);
         }
+        config.oauth.clone_from(&spec.oauth);
         Ok(config)
     }
 
@@ -835,6 +844,7 @@ impl Inspector {
             header_rules: config.headers.clone(),
             network: config.network,
             faults: config.faults.clone(),
+            breakpoints: config.breakpoints.clone(),
             watched_paths: entry.watched,
             idle_stop_minutes: entry
                 .idle_stop
@@ -965,6 +975,9 @@ impl Inspector {
             }
             if let Some(faults) = &patch.faults {
                 config.faults.clone_from(faults);
+            }
+            if let Some(breakpoints) = &patch.breakpoints {
+                config.breakpoints.clone_from(breakpoints);
             }
             if let Some(secs) = patch.sse_keepalive_secs {
                 config.sse_keepalive = (secs > 0).then(|| Duration::from_secs(u64::from(secs)));
@@ -1164,6 +1177,39 @@ impl Inspector {
     /// The raw captured exchange (for exports and replays in this process).
     pub fn exchange(&self, id: ExchangeId) -> Option<Arc<Exchange>> {
         self.inner.captures.get(id)
+    }
+
+    /// Requests waiting at breakpoints (one tap's, or all), oldest first. Values aren't
+    /// masked: they're what goes on, and can be changed.
+    pub fn paused(&self, tap: Option<&TapId>) -> Vec<lens::Paused> {
+        self.running()
+            .map(|lens| lens.paused(tap))
+            .unwrap_or_default()
+    }
+
+    /// One request waiting at a breakpoint.
+    pub fn paused_exchange(&self, id: ExchangeId) -> Option<lens::Paused> {
+        self.running().and_then(|lens| lens.paused_exchange(id))
+    }
+
+    /// Lets a request waiting at a breakpoint go on: as it is, changed, answered from
+    /// here, or dropped.
+    ///
+    /// # Errors
+    /// [`InspectError::NotPaused`] when it isn't waiting any more;
+    /// [`InspectError::Invalid`] when the changes don't fit (it keeps waiting).
+    pub fn resume(&self, id: ExchangeId, resume: lens::Resume) -> Result<(), InspectError> {
+        let lens = self.running().ok_or(InspectError::NotPaused)?;
+        lens.resume(id, resume).map_err(|err| match err {
+            LensError::NotPaused(_) => InspectError::NotPaused,
+            LensError::InvalidConfig(detail) => InspectError::Invalid(detail),
+            other => InspectError::Lens(other),
+        })
+    }
+
+    /// Lets every waiting request (of one tap, or all) go on unchanged; returns how many.
+    pub fn resume_all(&self, tap: Option<&TapId>) -> usize {
+        self.running().map_or(0, |lens| lens.resume_all(tap))
     }
 
     /// Whether an exchange came from the history on disk (credentials masked).

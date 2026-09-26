@@ -13,7 +13,7 @@ use teitunnel_core::{
         ExchangeDetail, ExchangePage, ExchangeQuery, ExchangeRow, InspectError, InspectorSettings,
         InspectorSettingsPatch, KnownTap, LiveBatch, ProtectionInput, ProtectionResult,
         ReplayInput, TapPatch, TapView, TrafficFormat, WebhookCheck, WebhookSender as Provider,
-        lens::{ExchangeId, MetricsSnapshot, TapId},
+        lens::{ExchangeId, MetricsSnapshot, Paused, Resume, TapId},
         routes::{self, InspectPlan, InspectedRoute},
         secrets,
     },
@@ -151,16 +151,15 @@ pub async fn inspect_replay(
 /// are masked unless `redact` is false (an explicit choice).
 #[tauri::command]
 #[specta::specta]
-pub fn inspect_export(
+pub async fn inspect_export(
     state: State<'_, AppState>,
     ids: Vec<ExchangeId>,
     format: TrafficFormat,
     redact: bool,
 ) -> Result<String, AppError> {
-    state
-        .inspector
-        .export(&ids, format.into(), redact)
-        .map_err(err)
+    // Bodies may be read back from disk: off the main thread.
+    let inspector = state.inspector.clone();
+    super::off_main(move || inspector.export(&ids, format.into(), redact).map_err(err)).await?
 }
 
 /// Saves an export to Downloads and shows it in the file manager. Returns its path.
@@ -226,6 +225,39 @@ pub struct OpenApiSaved {
     pub summary: teitunnel_core::openapi::Summary,
 }
 
+/// Requests waiting at breakpoints (one tap's, or all), oldest first.
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_paused(state: State<'_, AppState>, tap: Option<TapId>) -> Vec<Paused> {
+    state.inspector.paused(tap.as_ref())
+}
+
+/// One request waiting at a breakpoint, as it would go on (`None` once it went on).
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_paused_exchange(state: State<'_, AppState>, id: ExchangeId) -> Option<Paused> {
+    state.inspector.paused_exchange(id)
+}
+
+/// Lets a request waiting at a breakpoint go on: as it is, changed, answered from here
+/// or dropped.
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_resume(
+    state: State<'_, AppState>,
+    id: ExchangeId,
+    resume: Resume,
+) -> Result<(), AppError> {
+    state.inspector.resume(id, resume).map_err(err)
+}
+
+/// Lets every waiting request (of one tap, or all) go on unchanged; returns how many.
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_resume_all(state: State<'_, AppState>, tap: Option<TapId>) -> u32 {
+    u32::try_from(state.inspector.resume_all(tap.as_ref())).unwrap_or(u32::MAX)
+}
+
 /// Forgets captured requests of one tap, or all (in memory and on disk).
 #[tauri::command]
 #[specta::specta]
@@ -272,6 +304,19 @@ pub fn inspect_metrics(
     tap: TapId,
 ) -> Result<MetricsSnapshot, AppError> {
     state.inspector.metrics(&tap).map_err(err)
+}
+
+/// A tap's traffic over `range`: requests over time, answers, response times, paths,
+/// countries, browsers and bots (null: a tap this app doesn't know).
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_stats(
+    state: State<'_, AppState>,
+    tap: TapId,
+    range: teitunnel_core::analytics::AnalyticsRange,
+) -> Option<teitunnel_core::analytics::RouteStats> {
+    teitunnel_core::inspect::analytics::LensSource::new(state.inspector.clone())
+        .tap_stats(&tap, range)
 }
 
 fn webhook_scope(state: &AppState, tap: &TapId) -> Result<String, AppError> {

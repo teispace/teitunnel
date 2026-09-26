@@ -1,0 +1,61 @@
+---
+title: Teitunnel and other tunnels
+description: How Teitunnel compares with ngrok, Tailscale Funnel, Microsoft Dev Tunnels, Pinggy and LocalCan, what each is good at, and when to pick something else.
+---
+
+Teitunnel is a free, open-source app for Cloudflare Tunnel. It doesn't run tunnels of its
+own: shares and routes go through Cloudflare, on your own Cloudflare account (or on
+Cloudflare's no-account Quick Tunnels). Other tools run their own service and sell plans
+for it. That one difference explains most of the table.
+
+<Callout title="Checked 2026-09-26">
+  Other products change their plans. Every fact about them below comes from their own
+  pages on that date, linked on each comparison. Their pages are the final word.
+</Callout>
+
+| | Teitunnel | ngrok | Tailscale Funnel | Dev Tunnels | Pinggy | LocalCan |
+|---|---|---|---|---|---|---|
+| Price | free, open source | free plan; paid from $10/month | all Tailscale plans | free, in preview | free plan; paid plans | free plan; paid from $8/month |
+| Your own domain | free, on Cloudflare | paid plans | no, `*.ts.net` only | no, `*.devtunnels.ms` | paid plans | paid plans |
+| Caps on the free plan | none on tunnel traffic | 1 GB and 20,000 requests a month | "non-configurable bandwidth limits" | monthly limits | 60-minute sessions | 1 GB a month, 60-minute sessions |
+| Warning page for browsers | none on your domain | on the free plan | | on the first visit | | |
+| Logins for visitors | Cloudflare Access, free up to 50 users | OAuth and OIDC | no, Funnel is public | Microsoft, Entra or GitHub accounts | basic, bearer, IP rules | passwords and IP rules on paid plans |
+| Inspect and replay requests | on your computer, with breakpoints and mocks | yes | no | browser DevTools | web debugger | yes |
+| Local HTTPS domains | `.localhost`, `.test` | no | no | no | no | `.local` |
+| Static copy while you're offline | Snapshots, on your Cloudflare | no | no | no | no | Snapshots |
+| AI agents | MCP server, changes wait for approval | Agent Skill | no | no | MCP server | MCP server |
+| Desktop app | macOS, Windows, Linux | no, CLI and web dashboard | Tailscale's app; Funnel from its CLI | inside VS Code and Visual Studio | yes | macOS, Windows, Linux |
+
+An empty cell means their documentation doesn't say.
+
+## Where Teitunnel fits
+
+- **You want your own domain without a subscription.** A Cloudflare account and a domain
+  on it are enough; Cloudflare doesn't charge for traffic through a tunnel
+  ([Limits and costs](/docs/reference/limits)).
+- **You want to see every change first.** Tunnels, DNS records, logins and rules are shown
+  as a plan, applied with rollback, and can be undone from Activity
+  ([Changes](/docs/concepts/changes)). Records you made yourself are never deleted
+  ([DNS ownership](/docs/concepts/dns-ownership)).
+- **You debug on your own computer.** The [inspector](/docs/guides/inspector), request
+  replay, breakpoints and mocks run locally; captured traffic doesn't leave the machine.
+
+## Where something else fits better
+
+- **Your domain isn't on Cloudflare and won't move.** Routes need a domain whose
+  nameservers point to Cloudflare. Quick Shares work without one, with a random address.
+- **Public UDP.** Cloudflare Tunnel carries HTTP and TCP to the public; UDP only reaches
+  [private networks](/docs/guides/private-networks) through WARP. Pinggy has UDP tunnels.
+- **Everyone is already on one tailnet.** Tailscale Serve, without Funnel, keeps a service
+  private to your devices with nothing else to set up.
+
+## Also compared
+
+<Cards>
+  <Card title="ngrok" href="/docs/compare/ngrok" description="Plans, the warning page, inspection and domains." />
+  <Card title="Tailscale Funnel" href="/docs/compare/tailscale-funnel" description="Public access from a tailnet, three ports, ts.net names." />
+  <Card title="Microsoft Dev Tunnels" href="/docs/compare/dev-tunnels" description="Built into VS Code, private by default, in preview." />
+  <Card title="Pinggy" href="/docs/compare/pinggy" description="Tunnels over plain SSH, with UDP." />
+  <Card title="LocalCan" href="/docs/compare/localcan" description="A desktop app with local domains and snapshots." />
+  <Card title="cloudflared and the Cloudflare dashboard" href="/docs/concepts/compare" description="Cloudflare's own tools for the same tunnels." />
+</Cards>

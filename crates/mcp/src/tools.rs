@@ -4,6 +4,7 @@
 
 mod diagnostics;
 mod extras;
+mod fronts;
 mod protection;
 mod routes;
 mod setup;
@@ -30,6 +31,7 @@ use crate::{
     traffic::TrafficSource,
 };
 
+pub use fronts::FrontTools;
 pub use protection::ProtectionTools;
 
 /// The default time a tool may take.
@@ -153,6 +155,8 @@ impl ToolProvider for CoreTools {
                 "logs_tail" => diagnostics::logs_tail(backend, arguments).await,
                 "remote_logs" => diagnostics::remote_logs(backend, arguments, ctx).await,
                 "connector_status" => diagnostics::connector_status(backend, arguments).await,
+                "route_health" => diagnostics::route_health(backend, arguments).await,
+                "route_traffic" => diagnostics::route_traffic(backend, arguments).await,
                 "export_config" => setup::export_config(backend, arguments).await,
                 "import_scan" => setup::import_scan(backend, arguments).await,
                 "accounts" => setup::accounts(backend, arguments).await,
@@ -290,18 +294,10 @@ pub(crate) async fn tunnel_id(
 }
 
 /// `allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or
-/// `xyz.com`) everyone at a domain. The engine validates them.
-pub(crate) fn access_rule(allow: &[String]) -> Option<AccessRule> {
-    if allow.is_empty() {
-        return None;
-    }
-    let (emails, domains): (Vec<&String>, Vec<&String>) = allow
-        .iter()
-        .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
-    Some(AccessRule {
-        emails: emails.into_iter().map(|e| e.trim().to_owned()).collect(),
-        email_domains: domains.into_iter().map(|d| d.trim().to_owned()).collect(),
-    })
+/// `xyz.com`) everyone at a domain; `skip` the paths that skip it (`/webhooks`). The
+/// engine validates them.
+pub(crate) fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip)
 }
 
 /// A plan warning in English.

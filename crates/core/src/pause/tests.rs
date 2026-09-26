@@ -292,3 +292,44 @@ async fn an_inspected_share_only_toggles_its_tap() {
     assert_eq!(send(&tap.address, "GET", "/", &[]).await.0, 200);
     inspector.shutdown().await;
 }
+
+#[tokio::test]
+async fn removing_a_hostnames_last_route_forgets_its_pause_and_schedule() {
+    let (engine, cloud, conns) = routed("http://localhost:3000").await;
+    let store = engine.local().store().clone();
+    claim_host(&store, APP_OWNER, true).await.unwrap();
+    request(&store, ACCOUNT, "app.xyz.com", false)
+        .await
+        .unwrap();
+    let schedule = crate::schedule::Schedule::parse("mon-fri 09:00-18:00", Some("UTC")).unwrap();
+    crate::schedule::set(&store, ACCOUNT, "app.xyz.com", Some(&schedule))
+        .await
+        .unwrap();
+
+    let change = Change::RemoveRoute {
+        hostname: "app.xyz.com".into(),
+        path: None,
+    };
+    let intent = engine.intent_for(&cloud, ctx(), &change).await.unwrap();
+    let plan = engine.preview(&cloud, ctx(), &intent).await.unwrap();
+    let approval = Approval {
+        fingerprint: &plan.fingerprint,
+        confirmed: false,
+    };
+    engine
+        .apply(&cloud, &conns, ctx(), &intent, approval, |_| {})
+        .await
+        .unwrap();
+    assert!(
+        find(&store, ACCOUNT, "app.xyz.com")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        crate::schedule::list(&store, Some(ACCOUNT))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

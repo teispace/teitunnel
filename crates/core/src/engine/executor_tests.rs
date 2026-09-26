@@ -60,6 +60,7 @@ fn me() -> AccessRule {
     AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
+        bypass: Vec::new(),
     }
 }
 
@@ -581,6 +582,48 @@ async fn adopt(engine: &Engine, state: &CloudState) {
         }
     }
     super::front_tests::adopt_fronts(engine, state).await;
+}
+
+#[tokio::test]
+async fn webhooks_skip_the_login_until_the_route_goes() {
+    let (engine, cloud, conns) = (
+        engine(),
+        FakeCloud::new(zero_trust()),
+        FakeConnectors::default(),
+    );
+    let mut intent = protected(add("r1", "app.xyz.com", "3000"));
+    if let Intent::AddRoute { route } = &mut intent {
+        route.access = Some(AccessRule {
+            bypass: vec!["/webhooks".into()],
+            ..me()
+        });
+    }
+    let outcome = run(&engine, &cloud, &conns, &intent).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let mut domains: Vec<String> = cloud
+        .snapshot()
+        .access_apps
+        .values()
+        .map(|app| app.domain.clone())
+        .collect();
+    domains.sort();
+    assert_eq!(domains, ["app.xyz.com", "app.xyz.com/webhooks"]);
+
+    // The overview reads the path back with the login.
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(
+        overview.routes[0].access.as_ref().map(|a| a.bypass.clone()),
+        Some(vec!["/webhooks".to_owned()])
+    );
+    let again = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    assert!(again.steps.is_empty(), "{again:?}");
+
+    // Removing the route takes both down.
+    engine.invalidate("acc");
+    let removed = run(&engine, &cloud, &conns, &remove("app.xyz.com")).await;
+    assert!(matches!(removed, Outcome::Applied { .. }), "{removed:?}");
+    assert!(cloud.snapshot().access_apps.is_empty());
 }
 
 #[tokio::test]
@@ -2197,8 +2240,20 @@ async fn a_route_leaving_a_balanced_hostname_leaves_its_pool() {
     let ours = engine.local().machine_tunnel("acc").await.unwrap().unwrap();
     let theirs = other_machine(&cloud, "app.xyz.com");
     run(&engine, &cloud, &conns, &balance("app.xyz.com")).await;
+    let protect = super::edge_executor_tests::protect(
+        "app.xyz.com",
+        super::edge_executor_tests::everything(false),
+    );
+    run(&engine, &cloud, &conns, &protect).await;
+    let rules = engine.local().owned_edge_rules("acc").await.unwrap().len();
+    assert!(rules > 0);
 
     run(&engine, &cloud, &conns, &remove("app.xyz.com")).await;
+    // The other machine still serves it: its edge rules stay.
+    assert_eq!(
+        engine.local().owned_edge_rules("acc").await.unwrap().len(),
+        rules
+    );
     let state = cloud.snapshot();
     let pool = state
         .lb_pools

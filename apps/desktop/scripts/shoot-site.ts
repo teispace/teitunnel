@@ -82,6 +82,22 @@ const shots: Shot[] = [
     steps: ['click:role=tab[name="Integrations"]'],
   },
   {
+    name: "offline-inbox",
+    route: "/routes",
+    steps: ['click:role=option >> text="app.teispace.com"', "scroll:text=Service Tokens"],
+  },
+  {
+    name: "route-pause",
+    route: "/routes",
+    steps: ['click:role=option >> text="teispace.dev"', "scroll:text=Pause and Schedule"],
+  },
+  {
+    name: "move-computer",
+    route: "/settings",
+    size: [620, 380],
+    steps: ["scroll:text=Move to Another Computer"],
+  },
+  {
     name: "agents",
     route: "/settings?agents",
     size: [620, 620],

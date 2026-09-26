@@ -158,6 +158,9 @@ pub struct AccountFacts {
     pub orphan_logins: Vec<String>,
     /// Routes left pointing at an inspector that nobody runs (`inspect.orphan`).
     pub lens_orphans: Vec<crate::inspect::routes::InspectedRoute>,
+    /// Hostnames with nothing to serve them that still have Teitunnel's front Workers,
+    /// edge rules or service tokens (`host.orphan`).
+    pub orphan_hosts: Vec<OrphanHost>,
     /// How WARP clients are set up; read only when this Mac shares private networks.
     pub warp: WarpFacts,
 }
@@ -269,6 +272,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         .map(|t| connectors.recent_logs(&t.id, 500))
         .unwrap_or_default();
     let orphan_logins = orphan_logins(engine, api, ctx.account, &snapshot).await;
+    let orphan_hosts = orphan_hosts(engine, api, ctx.account, &snapshot).await;
     let lens_orphans = {
         let remembered = crate::inspect::routes::list(engine.local().store(), Some(ctx.account))
             .await
@@ -307,6 +311,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         logs,
         orphan_logins,
         lens_orphans,
+        orphan_hosts,
         warp,
     })
 }
@@ -410,6 +415,88 @@ async fn orphan_logins<C: CloudApi>(
     found.sort_unstable();
     found.dedup();
     found
+}
+
+/// What Teitunnel still has in Cloudflare for a hostname nothing serves.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OrphanHost {
+    /// The hostname.
+    pub hostname: String,
+    /// An offline page or webhook inbox Worker.
+    pub front: bool,
+    /// Edge rules.
+    pub edge: bool,
+    /// Service tokens made for it.
+    pub tokens: u64,
+}
+
+/// Hostnames in the ownership index (front Workers, edge rules, service tokens) that no
+/// route here uses and that have no DNS record at all, so nothing anywhere serves them
+/// (another computer's tunnel or a Snapshot would need one). Best effort: an unreadable
+/// zone finds none.
+async fn orphan_hosts<C: CloudApi>(
+    engine: &Engine,
+    api: &C,
+    account: &str,
+    snapshot: &Snapshot,
+) -> Vec<OrphanHost> {
+    let local = engine.local();
+    let mut hosts: std::collections::BTreeMap<String, OrphanHost> = Default::default();
+    let mut touch = |hostname: &str, f: &dyn Fn(&mut OrphanHost)| {
+        let key = hostname.to_ascii_lowercase();
+        let host = hosts.entry(key.clone()).or_insert_with(|| OrphanHost {
+            hostname: key,
+            ..OrphanHost::default()
+        });
+        f(host);
+    };
+    for (_, row) in local.fronts(Some(account), None).await.unwrap_or_default() {
+        touch(&row.hostname, &|h| h.front = true);
+    }
+    for row in local.owned_edge_rules(account).await.unwrap_or_default() {
+        if let Some(hostname) = &row.hostname {
+            touch(hostname, &|h| h.edge = true);
+        }
+    }
+    for row in local
+        .owned_service_tokens(account)
+        .await
+        .unwrap_or_default()
+    {
+        touch(&row.hostname, &|h| h.tokens += 1);
+    }
+    let routed: HashSet<String> = snapshot
+        .routes()
+        .into_iter()
+        .filter_map(|r| r.hostname.as_deref().map(str::to_ascii_lowercase))
+        .chain(
+            snapshot
+                .elsewhere
+                .iter()
+                .map(|r| r.hostname.to_ascii_lowercase()),
+        )
+        .collect();
+    let candidates: Vec<(OrphanHost, String)> = hosts
+        .into_values()
+        .filter(|h| !routed.contains(&h.hostname))
+        .filter_map(|h| {
+            let zone = Hostname::parse(&h.hostname)
+                .ok()?
+                .zone_in(&snapshot.zones)?
+                .id
+                .clone();
+            Some((h, zone))
+        })
+        .collect();
+    stream::iter(candidates)
+        .map(|(host, zone)| async move {
+            let records = api.records_named(&zone, &host.hostname).await.ok()?;
+            records.is_empty().then_some(host)
+        })
+        .buffered(4)
+        .filter_map(std::future::ready)
+        .collect()
+        .await
 }
 
 /// Checks everything: the binary and every connected account. An account that can't
@@ -548,7 +635,10 @@ pub fn safe_change(issue: &Issue) -> Option<&Change> {
         Fix::Change { change, .. }
             if matches!(
                 change,
-                Change::AddRoute { .. } | Change::DeleteRecord { .. } | Change::RemoveLogin { .. }
+                Change::AddRoute { .. }
+                    | Change::DeleteRecord { .. }
+                    | Change::RemoveLogin { .. }
+                    | Change::CleanUpHostname { .. }
             ) =>
         {
             Some(change)
@@ -1234,6 +1324,34 @@ fn diagnose_account(
         );
     }
 
+    for host in &facts.orphan_hosts {
+        use m::host_orphan as o;
+        let mut what = Vec::new();
+        if host.front {
+            what.push(o::front());
+        }
+        if host.edge {
+            what.push(o::edge());
+        }
+        if host.tokens > 0 {
+            what.push(o::tokens(host.tokens));
+        }
+        found.add(
+            "host.orphan",
+            Severity::Info,
+            &host.hostname,
+            o::title(&host.hostname),
+            o::detail(),
+            what,
+            vec![Fix::Change {
+                label: m::fix::clean_up_hostname(),
+                change: Change::CleanUpHostname {
+                    hostname: host.hostname.clone(),
+                },
+            }],
+        );
+    }
+
     for route in &facts.lens_orphans {
         use m::inspect_orphan as o;
         found.add(
@@ -1316,10 +1434,10 @@ mod tests {
                 held: Vec::new(),
                 owner: String::new(),
                 now: 0,
-                edge: None,
+                edge: Vec::new(),
                 service_tokens: None,
                 database: None,
-                front: None,
+                front: Vec::new(),
                 records: vec![ObservedRecord {
                     zone_id: "z".into(),
                     record: record("r1", "app.xyz.com", "CNAME", &target, true),
@@ -1341,6 +1459,7 @@ mod tests {
             listening: HashMap::from([(3000, true)]),
             logs: Vec::new(),
             orphan_logins: Vec::new(),
+            orphan_hosts: Vec::new(),
             lens_orphans: Vec::new(),
             warp: WarpFacts::default(),
         }
@@ -1506,6 +1625,33 @@ mod tests {
         assert!(
             safe_change(issue).is_some(),
             "safe: only Teitunnel's own login"
+        );
+    }
+
+    #[test]
+    fn leftovers_on_a_hostname_nothing_serves_are_a_safe_clean_up() {
+        let mut facts = healthy();
+        facts.orphan_hosts.push(OrphanHost {
+            hostname: "old.xyz.com".into(),
+            front: true,
+            edge: true,
+            tokens: 2,
+        });
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts],
+            foreign: Vec::new(),
+        });
+        let issue = issues.iter().find(|i| i.check == "host.orphan").unwrap();
+        assert_eq!(issue.severity, Severity::Info);
+        assert_eq!(issue.evidence.len(), 3, "front, edge and tokens");
+        assert!(matches!(
+            &issue.fixes[0],
+            Fix::Change { change: Change::CleanUpHostname { hostname }, .. } if hostname == "old.xyz.com"
+        ));
+        assert!(
+            safe_change(issue).is_some(),
+            "only Teitunnel's own things go"
         );
     }
 

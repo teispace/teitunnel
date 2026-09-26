@@ -247,7 +247,7 @@ pub(super) async fn share_port(
         }
         Some(hostname) => {
             let account = account_for_hostname(backend, args.account.as_deref(), hostname).await?;
-            let access = super::access_rule(&args.allow);
+            let access = super::access_rule(&args.allow, &[]);
             let who = access.as_ref().map_or_else(
                 || "public (no login)".to_owned(),
                 |rule| format!("login required: {}", rule.people()),
@@ -341,7 +341,7 @@ pub(crate) struct StopResult {
 }
 
 /// Finds a share by id, URL or hostname.
-fn find<'a>(shares: &'a [ShareInfo], wanted: &str) -> Option<&'a ShareInfo> {
+pub(super) fn find<'a>(shares: &'a [ShareInfo], wanted: &str) -> Option<&'a ShareInfo> {
     let wanted = wanted.trim().trim_end_matches('/');
     let host = wanted
         .trim_start_matches("https://")

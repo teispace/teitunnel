@@ -813,6 +813,12 @@ impl EdgeState {
 pub struct EdgeNeed {
     /// The hostname whose zone's rules to read.
     pub hostname: Option<String>,
+    /// The plan can't be made without them. Otherwise (removing a route) they're read
+    /// only when Teitunnel owns rules in the zone, and not being allowed is no error.
+    pub required: bool,
+    /// Also the zones of every routed hostname where Teitunnel owns rules (removing a
+    /// tunnel cleans up after all its routes).
+    pub routed: bool,
 }
 
 /// Why edge rules couldn't be read.
@@ -893,6 +899,8 @@ pub struct ObservedServiceToken {
     pub expires_at: Option<String>,
     /// Teitunnel created it (ownership index).
     pub owned: bool,
+    /// The hostname Teitunnel made it for (its tokens go with the hostname's last route).
+    pub made_for: Option<String>,
 }
 
 /// A service token's credentials right after it was created or rotated: the only time

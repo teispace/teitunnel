@@ -3,14 +3,18 @@
 //! It keeps one account with two zones in memory and implements the endpoints Teitunnel
 //! uses: token verify, accounts, zones, tunnels, remote configuration, tunnel token, DNS
 //! records, Access (a Zero Trust organization, login methods, applications) and private
-//! networks (routes, virtual networks, WARP device settings), with
+//! networks (routes, virtual networks, WARP device settings), plus what runs in front
+//! of routes (Workers, Worker routes, D1, edge rules, service tokens; `workers.rs`), with
 //! Cloudflare's response envelope. Requests whose `Host` isn't the server itself are
 //! answered as the edge would: a redirect to the login page for a hostname with an
 //! Access application, otherwise `200` from a working route, so the verifier can run
-//! against it too.
+//! against it too. A response from a hostname with a Worker route names the Worker in
+//! `x-fake-worker` (the test double's own header), so tests can see what's in front.
 //!
 //! Usage: `fake-cloudflare [port]` (0 or absent: any free port). Prints
 //! `listening on 127.0.0.1:<port>` once ready. Any token is accepted except `bad`.
+
+mod workers;
 
 use std::{
     collections::BTreeMap,
@@ -41,6 +45,8 @@ struct State {
     login_methods: Vec<Value>,
     /// Private network routes.
     network_routes: Vec<Value>,
+    /// Workers, Worker routes, D1, rulesets and service tokens.
+    workers: workers::Workers,
 }
 
 impl State {
@@ -110,6 +116,8 @@ struct Request {
     host: String,
     auth: String,
     body: Value,
+    /// The body as sent (multipart uploads).
+    raw: Vec<u8>,
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -139,6 +147,12 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
     }
     let mut s = state.lock().unwrap_or_else(PoisonError::into_inner);
     let parts: Vec<&str> = req.path.trim_matches('/').split('/').collect();
+    let State {
+        workers, next_id, ..
+    } = &mut *s;
+    if let Some(response) = workers.handle(next_id, req, &parts) {
+        return response;
+    }
     let method = req.method.as_str();
     match (method, parts.as_slice()) {
         ("GET", ["user", "tokens", "verify"]) => ok(json!({ "id": "tok", "status": "active" })),
@@ -210,8 +224,7 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
                 None => err(404, 1003, "Tunnel not found"),
             }
         }
-        // No Load Balancing add-on: no load balancers. No Workers either: no Custom
-        // Domains (a cleanup job finds no Snapshot).
+        // No Load Balancing add-on: no load balancers. No Snapshots: no Custom Domains.
         ("GET", ["zones", _, "load_balancers"] | ["accounts", _, "workers", "domains"]) => {
             ok(json!([]))
         }
@@ -543,7 +556,8 @@ async fn read_request(socket: &mut TcpStream) -> Option<Request> {
         }
         data.extend_from_slice(&buf[..n]);
     }
-    let body = serde_json::from_slice(&data[header_end..]).unwrap_or(Value::Null);
+    let raw = data[header_end..].to_vec();
+    let body = serde_json::from_slice(&raw).unwrap_or(Value::Null);
     let (path, query) = target.split_once('?').unwrap_or((&target, ""));
     let query = query
         .split('&')
@@ -557,6 +571,7 @@ async fn read_request(socket: &mut TcpStream) -> Option<Request> {
         host,
         auth,
         body,
+        raw,
     })
 }
 
@@ -595,6 +610,15 @@ async fn serve(mut socket: TcpStream, state: Arc<Mutex<State>>, own_host: String
         (302, String::new(), "text/html")
     } else {
         // The edge, serving a route: pretend the origin answered.
+        let host = req.host.split(':').next().unwrap_or_default();
+        if let Some((script, _)) = state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .workers
+            .in_front(host, &req.path)
+        {
+            headers = format!("x-fake-worker: {script}\r\n");
+        }
         (200, format!("hello from {}\n", req.host), "text/plain")
     };
     let response = format!(

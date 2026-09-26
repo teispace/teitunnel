@@ -15,6 +15,7 @@ macro_rules! out {
 mod analytics;
 mod app;
 mod backup;
+mod browser;
 mod comments;
 mod complete;
 mod context;
@@ -53,9 +54,6 @@ use teitunnel_core::{
 
 use crate::context::App;
 
-/// How long a fresh route may take to start answering.
-const VERIFY_PATIENCE: Duration = Duration::from_secs(30);
-
 #[derive(Debug, Parser)]
 #[command(
     name = "teitunnel",
@@ -91,6 +89,9 @@ enum Command {
     /// Local HTTPS domains on this computer: https://shop.test with a trusted certificate.
     #[command(subcommand, name = "local-domain", visible_alias = "local")]
     LocalDomain(local::LocalCommand),
+    /// The Teitunnel browser extension: let it talk to the app from your browsers.
+    #[command(subcommand)]
+    Browser(browser::BrowserCommand),
     /// Move to another computer: an encrypted backup of Teitunnel's setup (never a
     /// token or password), and restoring it.
     #[command(subcommand)]
@@ -235,9 +236,13 @@ enum Command {
         /// `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here.
         #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
-        /// With a folder: list the files of folders that have no index.html.
-        #[arg(long)]
+        /// With a folder: list the files of folders that have no index.html (the
+        /// default when the folder itself has none).
+        #[arg(long, conflicts_with = "no_listing")]
         listing: bool,
+        /// With a folder: never list files, even when it has no index.html.
+        #[arg(long)]
+        no_listing: bool,
         /// With a folder: a single-page app (unknown paths get /index.html).
         #[arg(long)]
         spa: bool,
@@ -290,6 +295,10 @@ enum Command {
         /// Say so when a request hits this path, e.g. `/webhooks/*` (repeatable).
         #[arg(long, value_name = "PATH", conflicts_with = "no_inspect")]
         watch: Vec<String>,
+        /// Let visitors pin comments on its pages (read and answer them with
+        /// `teitunnel comments` or in the app).
+        #[arg(long, conflicts_with = "no_inspect")]
+        comments: bool,
         /// Share a local MCP server for remote AI clients: checks it answers MCP, keeps
         /// streams alive and requires a bearer token (needs --on: Quick Tunnels don't
         /// carry event streams). Prints configurations for Claude Code, Cursor and VS
@@ -375,12 +384,12 @@ enum Command {
         /// Stop a share: its URL, its hostname on your domain, or its id.
         #[arg(long, value_name = "URL|HOSTNAME", conflicts_with_all = ["pause", "resume"])]
         stop: Option<String>,
-        /// Pause a share on your domain (or a route): the address stays, and visitors see
-        /// a paused page until it's resumed.
-        #[arg(long, value_name = "HOSTNAME", conflicts_with = "resume")]
+        /// Pause a share (on your domain, a route, or one of the app's Quick Shares by its
+        /// URL or id): the address stays, and visitors see a paused page until it's resumed.
+        #[arg(long, value_name = "URL|HOSTNAME", conflicts_with = "resume")]
         pause: Option<String>,
         /// Serve a paused share or route again, at the same address.
-        #[arg(long, value_name = "HOSTNAME")]
+        #[arg(long, value_name = "URL|HOSTNAME")]
         resume: Option<String>,
         /// With --pause or --resume on a route: the account, when several are connected.
         #[arg(long, short)]
@@ -647,8 +656,12 @@ enum RouteCommand {
         /// Repeat for more people. Needs Cloudflare Zero Trust (free).
         #[arg(long, value_name = "EMAIL|@DOMAIN")]
         allow: Vec<String>,
+        /// With --allow: a path that skips the login, e.g. `/webhooks`, so webhook
+        /// senders get through; repeatable.
+        #[arg(long, value_name = "PATH", requires = "allow")]
+        skip_login: Vec<String>,
         #[command(flatten)]
-        origin_options: OriginArgs,
+        origin_options: Box<OriginArgs>,
         /// Don't add the route when the exposure check finds a leak in the service;
         /// by default it only warns.
         #[arg(long)]
@@ -765,6 +778,12 @@ impl From<Format> for ExportFormat {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    // A browser starting this command for the Teitunnel extension (native messaging):
+    // no arguments to parse, and standard output carries only its messages.
+    let args: Vec<String> = std::env::args().collect();
+    if teitunnel_core::browser_host::started_by_browser(&args) {
+        return browser::host().await;
+    }
     let cli = Cli::parse();
     // On the heap: the future for every command together is large.
     match Box::pin(run(cli.command)).await {
@@ -799,6 +818,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
+                comments: false,
             };
             return expose::ai(
                 &origin,
@@ -827,22 +848,29 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             idle,
             watch,
             listing,
+            no_listing,
             spa,
+            comments,
             ..
         } => {
             let host_header = share::host_header_choice(host_header, no_host_header);
-            let folder = folder_arg(&origin, listing, spa)?;
-            if folder.is_some() && app {
-                return Err("Folders are shared from this terminal; leave out --app.".into());
-            }
-            // The app inspects by its own settings; options about the inspector (and
-            // folders, which the inspector serves) keep the share in this terminal.
-            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || folder.is_some();
+            let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
+            // The app inspects by its own settings; options about the inspector keep
+            // the share in this terminal.
+            let local_only = no_inspect || idle.is_some() || !watch.is_empty() || comments;
             let wanted = app::Where::from_flags(app, here || local_only);
             let dir = context::data_dir()?;
             if let Some(client) = app::connect(&dir, wanted).await? {
-                exposure::check(&origin, share::store(&dir).ok().as_ref(), strict).await?;
-                return app::share(&client, &origin, stop_after, !no_qr, json, &host_header).await;
+                if folder.is_none() {
+                    exposure::check(&origin, share::store(&dir).ok().as_ref(), strict).await?;
+                }
+                let request = app::ShareRequest {
+                    origin: &origin,
+                    folder: folder.as_ref(),
+                    stop_after,
+                    host_header: &host_header,
+                };
+                return app::share(&client, &request, !no_qr, json).await;
             }
             let options = share::ShareOptions {
                 inspect: !no_inspect,
@@ -850,6 +878,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
+                comments,
             };
             return share::run(
                 &origin,
@@ -936,6 +966,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Project(command) => return project::run(command).await,
         Command::LocalDomain(command) => return local::run(command).await,
+        Command::Browser(command) => return browser::run(command).await,
         Command::Mcp {
             command: Some(command),
             ..
@@ -981,6 +1012,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
+                comments: false,
             };
             expose::mcp(
                 &app,
@@ -1009,12 +1042,14 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             idle,
             watch,
             listing,
+            no_listing,
             spa,
             schedule,
             tz,
+            comments,
             ..
         } => {
-            let folder = folder_arg(&origin, listing, spa)?;
+            let folder = folder_arg(&origin, listing_choice(listing, no_listing), spa)?;
             if folder.is_some() && no_inspect {
                 return Err(
                     "A folder is served by Teitunnel's inspector; leave out --no-inspect.".into(),
@@ -1031,6 +1066,8 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 watch,
                 log: !quiet,
                 bearer: None,
+                oauth: None,
+                comments,
             };
             share::run_on_domain(
                 &app,
@@ -1038,7 +1075,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 &origin,
                 share::DomainShareOptions {
                     account,
-                    allow: access_rule(&allow),
+                    allow: access_rule(&allow, &[]),
                     stop_after,
                     json,
                     strict,
@@ -1095,6 +1132,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         | Command::Setup
         | Command::Project(_)
         | Command::LocalDomain(_)
+        | Command::Browser(_)
         | Command::Mcp { .. } => {
             unreachable!("handled above")
         }
@@ -1194,6 +1232,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             path,
             allow,
+            skip_login,
             origin_options,
             strict,
             apply,
@@ -1204,7 +1243,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     hostname,
                     path,
                     origin,
-                    access: access_rule(&allow),
+                    access: access_rule(&allow, &skip_login),
                     options: origin_options.options(),
                 },
             };
@@ -1247,17 +1286,22 @@ async fn run(command: Command) -> Result<ExitCode, String> {
     }
 }
 
+/// `--listing` / `--no-listing`; neither: lists only a folder without an index.html.
+fn listing_choice(listing: bool, no_listing: bool) -> Option<bool> {
+    (listing || no_listing).then_some(listing)
+}
+
 /// A folder to share, when `origin` names one (`./dist`, `/srv/site`).
 fn folder_arg(
     origin: &str,
-    listing: bool,
+    listing: Option<bool>,
     spa: bool,
 ) -> Result<Option<teitunnel_core::folder_share::FolderShare>, String> {
     use teitunnel_core::folder_share::{FolderShare, looks_like_folder};
     if !looks_like_folder(origin) {
-        if listing || spa {
+        if listing.is_some() || spa {
             return Err(format!(
-                "--listing and --spa are for folders, and {origin} isn't one."
+                "--listing, --no-listing and --spa are for folders, and {origin} isn't one."
             ));
         }
         return Ok(None);
@@ -1764,19 +1808,10 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
     Ok(ExitCode::SUCCESS)
 }
 
-/// `--allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or `xyz.com`)
-/// everyone at a domain. The engine validates them.
-fn access_rule(allow: &[String]) -> Option<AccessRule> {
-    if allow.is_empty() {
-        return None;
-    }
-    let (emails, domains): (Vec<&String>, Vec<&String>) = allow
-        .iter()
-        .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
-    Some(AccessRule {
-        emails: emails.into_iter().cloned().collect(),
-        email_domains: domains.into_iter().cloned().collect(),
-    })
+/// `--allow` values as a login rule (see [`AccessRule::from_allow`]); `skip` are the
+/// `--skip-login` paths.
+fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip)
 }
 
 fn warning_text(warning: &Warning) -> String {
@@ -2065,7 +2100,7 @@ async fn check(
             app.context(account),
             &host,
             context::edge(),
-            VERIFY_PATIENCE,
+            teitunnel_core::engine::VERIFY_PATIENCE,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -2184,6 +2219,26 @@ mod tests {
     }
 
     #[test]
+    fn comments_need_the_inspector_and_folders_choose_their_listing() {
+        let share = |args: &[&str]| {
+            Cli::try_parse_from(["teitunnel", "share", "5173"].iter().chain(args))
+                .map(|c| c.command)
+        };
+        let Ok(Command::Share { comments, .. }) = share(&["--comments"]) else {
+            panic!("--comments parses");
+        };
+        assert!(comments);
+        assert!(
+            share(&["--comments", "--no-inspect"]).is_err(),
+            "the inspector shows them"
+        );
+        assert!(share(&["--listing", "--no-listing"]).is_err());
+        assert_eq!(listing_choice(false, false), None, "automatic");
+        assert_eq!(listing_choice(true, false), Some(true));
+        assert_eq!(listing_choice(false, true), Some(false));
+    }
+
+    #[test]
     fn parses_tunnel_commands() {
         let cli =
             Cli::try_parse_from(["teitunnel", "tunnel", "create", "staging", "--yes"]).unwrap();
@@ -2221,6 +2276,8 @@ mod tests {
             "me@xyz.com",
             "--allow",
             "@team.io",
+            "--skip-login",
+            "/webhooks",
             "--no-tls-verify",
             "--host-header",
             "app.local",
@@ -2234,6 +2291,7 @@ mod tests {
             origin,
             path,
             allow,
+            skip_login,
             origin_options,
             apply,
             ..
@@ -2247,13 +2305,27 @@ mod tests {
         );
         assert!(apply.yes && !apply.replace);
         assert_eq!(
-            access_rule(&allow),
+            access_rule(&allow, &skip_login),
             Some(AccessRule {
                 emails: vec!["me@xyz.com".into()],
                 email_domains: vec!["@team.io".into()],
+                bypass: vec!["/webhooks".into()],
             })
         );
-        assert_eq!(access_rule(&[]), None);
+        assert_eq!(access_rule(&[], &[]), None);
+        // A path can only skip a login the route has.
+        assert!(
+            Cli::try_parse_from([
+                "teitunnel",
+                "route",
+                "add",
+                "a.example.com",
+                "3000",
+                "--skip-login",
+                "/webhooks"
+            ])
+            .is_err()
+        );
         let options = origin_options.options().unwrap();
         assert!(options.no_tls_verify);
         assert_eq!(options.http_host_header.as_deref(), Some("app.local"));

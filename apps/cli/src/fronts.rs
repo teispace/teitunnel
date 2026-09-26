@@ -19,8 +19,6 @@ use teitunnel_core::{
     text::UserText,
 };
 
-use teitunnel_core::inspect::lens::webhook::Provider;
-
 use crate::context::App;
 
 /// Shared by every change.
@@ -314,16 +312,16 @@ pub(crate) async fn inbox(app: &App, command: InboxCommand) -> Result<ExitCode, 
             if secret.is_empty() {
                 return Err("The secret is empty.".into());
             }
-            let provider = match provider {
-                Verify::Github => Provider::GitHub,
-                Verify::Stripe => Provider::Stripe,
-                Verify::Standard => Provider::StandardWebhooks,
+            let verify = match provider {
+                Verify::Github => InboxVerify::Github,
+                Verify::Stripe => InboxVerify::Stripe,
+                Verify::Standard => InboxVerify::Standard,
             };
             let host = hostname.to_ascii_lowercase();
-            teitunnel_core::inspect::secrets::set_webhook_secret(
+            teitunnel_core::fronts::set_inbox_secret(
                 app.secrets(),
-                &format!("host:{host}"),
-                provider,
+                &host,
+                verify,
                 teitunnel_core::Secret::new(secret),
             )
             .await

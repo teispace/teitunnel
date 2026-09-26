@@ -478,7 +478,7 @@ mod tests {
         std::fs::write(dir.path().join("index.html"), "<p>docs</p>").unwrap();
         std::fs::write(dir.path().join(".env"), "SECRET=1").unwrap();
         let folder =
-            crate::folder_share::FolderShare::resolve(dir.path().to_str().unwrap(), false, false)
+            crate::folder_share::FolderShare::resolve(dir.path().to_str().unwrap(), None, false)
                 .unwrap();
         let inspector =
             crate::inspect::Inspector::new(Some(engine.local().store().clone()), None, APP_OWNER);

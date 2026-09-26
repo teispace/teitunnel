@@ -41,7 +41,7 @@ println!("{}", export::markdown(&hook, &Redaction::masked()));
 | Replay | `Lens::replay(id, ReplayOptions { edits, times, target, resign, timeout })` |
 | Export | `export::{curl, httpie, fetch, raw_http, har, har_string, json_string, markdown, export}` |
 | Webhooks | `webhook::{detect, verify, verify_exchange, resign}` for Stripe, GitHub, Slack, Shopify, Standard Webhooks (Svix, Clerk, Resend…), Twilio, Linear, Discord |
-| Per-tap features | `Gates` (password page, secret link, basic auth, bearer tokens, IP allow/deny, user-agent presets, bypass paths), `StubRule` (always / when unreachable), `HeaderRules` (+ CORS helper), `Injection` + `ReservedHandler` (`/__teitunnel/…`), `PausedPage`, `sse_keepalive` |
+| Per-tap features | `Gates` (password page, secret link, basic auth, bearer tokens, IP allow/deny, user-agent presets, bypass paths), `StubRule` (always / when unreachable), `BreakpointRule` (hold a request or its answer: `Lens::paused`, `resume`, `resume_all`; 60 s, 50 at once), `HeaderRules` (+ CORS helper), `Injection` + `ReservedHandler` (`/__teitunnel/…`), `PausedPage`, `sse_keepalive` |
 | Simulation | `NetworkConfig` (`Latency::{THREE_G, FOUR_G, SATELLITE}` or custom, up/down bytes per second), `FaultRule` + `FaultAction::{Status, Reset, Delay, Timeout}` on a share of matching requests; `LensOptions::random` for deterministic tests |
 | Metrics | `Lens::metrics(tap)` → counts by status class, errors, blocked, stubbed, bytes, active connections/requests/streams, latency p50/p95/p99 |
 
@@ -80,8 +80,8 @@ println!("{}", export::markdown(&hook, &Redaction::masked()));
   `trust_cf_connecting_ip`. Bearer tokens are compared in constant time against every configured
   token. Lens's session cookie and validated basic or bearer credentials are removed
   before forwarding.
-- **SSE keep-alive.** Cloudflare ends a response that stays silent for 100 s (524 on
-  Free/Pro). For `text/event-stream` responses Lens writes `: keep-alive` after 25 s of
+- **SSE keep-alive.** Cloudflare ends a response that stays silent for 125 s (524;
+  only Enterprise zones can raise it). For `text/event-stream` responses Lens writes `: keep-alive` after 25 s of
   downstream silence (configurable, `None` to turn off), only between events: if the
   origin is mid-event, it waits. Heartbeats aren't part of the capture.
 - **Simulation.** Latency is added before a request is handled; bandwidth limits are
@@ -100,21 +100,21 @@ println!("{}", export::markdown(&hook, &Redaction::masked()));
 ## Overhead
 
 Measured with `cargo bench -p teitunnel-lens --bench overhead` (release, Apple M-series,
-loopback, one keep-alive connection, 20,000 sequential small `GET`s, capture on):
+10 cores, load average 5–8, loopback, one keep-alive connection, 20,000 sequential small
+`GET`s, capture on), three runs on 2026-09-26:
 
 | | p50 | p95 | p99 |
 |---|---|---|---|
-| direct | 72 µs | 537 µs | 1.5 ms |
-| via Lens | 256 µs | 1.2 ms | 3.1 ms |
-| added | 183 µs | 626 µs | 1.6 ms |
+| direct | 31 µs | 61 µs | 86 µs |
+| via Lens | 63–70 µs | 109–118 µs | 154–209 µs |
+| added | 37–41 µs | 48–58 µs | 68–120 µs |
 
-256 MiB download: 1,018 MiB/s direct, 814 MiB/s through Lens.
+256 MiB download: 3,154–3,930 MiB/s direct, 2,656–3,044 MiB/s through Lens. The added
+p99 stays well under the 1 ms budget. (An earlier run with the load average near 70
+measured 183 µs added at p50 and 1.6 ms at p99: the tails there were the machine, not
+Lens.)
 
-These were taken while other builds kept the machine's load average near 70, which
-inflates the tails for both paths (direct p99 moved between 1.5 and 12 ms across runs);
-the p50 difference (one extra loopback hop through hyper, plus capture) is the stable
-figure. Re-measure on an idle machine before quoting the p99 budget. Upstream
-connections are pooled and returned as soon as a response body ends (a test asserts one
+Upstream connections are pooled and returned as soon as a response body ends (a test asserts one
 origin connection serves sequential requests).
 
 ## Deferred and limits

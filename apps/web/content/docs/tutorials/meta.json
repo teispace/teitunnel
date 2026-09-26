@@ -4,6 +4,7 @@
     "expose-localhost",
     "dev-servers",
     "webhooks",
+    "mcp-server",
     "home-assistant",
     "self-host",
     "ssh",

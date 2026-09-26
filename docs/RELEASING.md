@@ -198,3 +198,19 @@ in the `release` environment, writes the public key to `apps/web/public/linux/te
 password manager and delete it. If the key is lost, publish a new public key and every user
 has to fetch it again; if it leaks, do the same at once.
 
+### 9. Browser extension stores
+
+`integrations/browser` builds with `pnpm --filter @teitunnel/browser-extension build` into
+`dist/chrome` and `dist/firefox`; zip each folder's contents.
+
+- **Chrome Web Store** (also serves Brave, Arc, Vivaldi): upload `dist/chrome`. The store keeps
+  its own key, so the published extension gets a new id: add it to
+  `CHROMIUM_EXTENSION_IDS` in `crates/core/src/browser_host.rs` (next to the unpacked one, from
+  the manifest's `key`), ship an app release, and users choose **Set Up** again (or it's
+  rewritten at the next **Set Up**). Optionally put the store's public key in
+  `static/manifest.json` `key` so unpacked builds share the store id.
+- **Edge Add-ons**: upload the same package; its id is different again: add it too.
+- **Firefox Add-ons**: upload `dist/firefox`; the id is fixed (`browser@teitunnel.teispace.com`).
+
+The extension only asks for `nativeMessaging` and `activeTab`; the listing explains that it
+works with the Teitunnel app, which must be installed and set up (Settings ▸ Integrations).

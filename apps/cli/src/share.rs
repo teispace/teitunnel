@@ -162,6 +162,10 @@ pub(crate) fn explain(result: &Verification, via: Via, print: &mut dyn FnMut(&st
     if result.event_stream && via == Via::QuickShare {
         print(&m::event_stream().to_string());
     }
+    if let Some(links) = &result.links {
+        print(&links.message.to_string());
+        print(&links.fix.to_string());
+    }
 }
 
 /// How a share goes through the inspector.
@@ -177,7 +181,13 @@ pub(crate) struct ShareOptions {
     pub(crate) log: bool,
     /// Require this bearer token (`Authorization: Bearer …`).
     pub(crate) bearer: Option<Secret<String>>,
+    /// OAuth in front of it too (a shared MCP server).
+    pub(crate) oauth: Option<std::sync::Arc<dyn teitunnel_core::inspect::lens::OAuthProvider>>,
+    /// Let visitors leave comments on pages (the overlay).
+    pub(crate) comments: bool,
 }
+
+const COMMENTS_ON: &str = "Comments are on: visitors can pin comments on its pages. Read and answer them with `teitunnel comments` or in the app.";
 
 /// Configures an inspected share's tap: idle stop and watched paths.
 fn configure_tap(inspector: &Inspector, tap: &TapId, options: &ShareOptions) -> Result<(), String> {
@@ -306,7 +316,7 @@ pub(crate) async fn run(
         status(&format!(
             "Serving the files in {}{}{}. Dotfiles, .env files, keys, .git and node_modules are never served.",
             folder.path,
-            if folder.listing {
+            if folder.lists() {
                 ", with file listings"
             } else {
                 ""
@@ -326,6 +336,14 @@ pub(crate) async fn run(
         && let Some(tap) = &tap
     {
         configure_tap(&inspector, tap, options)?;
+        if options.comments {
+            // A Quick Share has no login whose email header could be trusted.
+            inspector
+                .set_comments(tap, true, false)
+                .await
+                .map_err(|e| e.to_string())?;
+            status(COMMENTS_ON);
+        }
         if let Some(token) = &options.bearer {
             inspector
                 .require_bearer(tap, token)
@@ -635,9 +653,16 @@ pub(crate) async fn run_on_domain(
         spec.public_url = Some(format!("https://{hostname}"));
         spec.host_header = host_header.as_ref().map(|h| h.value.clone());
         spec.bearer = options.bearer.iter().cloned().collect();
+        spec.oauth.clone_from(&options.oauth);
         spec.folder.clone_from(&folder);
         let tap = inspector.start(spec).await.map_err(|e| e.to_string())?;
         configure_tap(&inspector, &tap.id, options)?;
+        if options.comments {
+            teitunnel_core::comments::set_on_tap(&inspector, app.engine.local(), &tap.id, true)
+                .await
+                .map_err(|e| e.to_string())?;
+            status(COMMENTS_ON);
+        }
         (tap.address.clone(), None, Some(tap.id))
     } else {
         (
@@ -844,6 +869,8 @@ mod tests {
             message: None,
             protected: false,
             event_stream: false,
+            transient: false,
+            links: None,
         };
         let vite = explained(&rejected(DevServer::Vite), Via::QuickShare);
         assert_eq!(
@@ -881,6 +908,8 @@ mod tests {
             message: None,
             protected: false,
             event_stream: true,
+            transient: false,
+            links: None,
         };
         assert_eq!(explained(&result, Via::QuickShare).len(), 1);
         assert!(
@@ -888,6 +917,16 @@ mod tests {
             "domains carry streams"
         );
         result.event_stream = false;
+        result.links = Some(teitunnel_core::dev_server::links::problem(
+            teitunnel_core::dev_server::links::LinkKind::Insecure,
+            "http://quiet-river.trycloudflare.com/app.css".into(),
+            "quiet-river.trycloudflare.com",
+            Some(teitunnel_core::discovery::ServiceKind::Rails),
+        ));
+        let lines = explained(&result, Via::QuickShare);
+        assert!(lines[0].contains("mixed content"), "{lines:?}");
+        assert!(lines[1].contains("config.assume_ssl"), "{lines:?}");
+        result.links = None;
         result.failure = Some(Failure::TooManyRequests);
         assert!(explained(&result, Via::QuickShare)[0].contains("200 requests"));
         result.failure = Some(Failure::EdgeUnreachable {

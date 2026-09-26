@@ -13,6 +13,7 @@ const kindLabels: Record<ActivityKind, MessageKey> = {
   restoreConfig: "activity.kind.restoreConfig",
   removeTunnel: "activity.kind.removeTunnel",
   removeLogin: "activity.kind.removeLogin",
+  cleanUpHostname: "activity.kind.cleanUpHostname",
   addNetwork: "activity.kind.addNetwork",
   removeNetwork: "activity.kind.removeNetwork",
   createTunnel: "activity.kind.createTunnel",

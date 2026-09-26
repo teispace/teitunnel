@@ -1,0 +1,102 @@
+---
+title: Stripe webhooks on localhost
+description: Receive Stripe webhooks on your computer at a stable HTTPS URL, check the Stripe-Signature header, replay deliveries with a fresh signature, and keep events while you're offline.
+---
+
+Point a Stripe webhook endpoint at a handler running on your computer, watch each event
+arrive in the [inspector](/docs/guides/inspector), and replay it while you fix the handler.
+The examples use a handler at `http://localhost:4242/webhook` and the hostname
+`hooks.teispace.com`.
+
+<Callout title="Or the Stripe CLI">
+  `stripe listen --forward-to localhost:4242/webhook` forwards events to your computer
+  without a public URL, and is the quickest way to start. Use a Teitunnel address when you
+  want the real endpoint: its own signing secret, the event types you chose, Stripe's
+  retries and **Event deliveries** list, or events while the Stripe CLI isn't running.
+</Callout>
+
+## 1. Share the handler
+
+```sh
+teitunnel share 4242 --on hooks.teispace.com --watch "/webhook"
+```
+
+`https://hooks.teispace.com/webhook` reaches your handler for as long as the share runs,
+and it's the same address tomorrow. For an address that's always there, make it a
+[route](/docs/getting-started/first-route) instead.
+
+## 2. Add the endpoint in Stripe
+
+In a sandbox, open **Workbench ▸ Webhooks ▸ Create an event destination**, choose
+**Your account**, the event types your handler needs, and **Webhook endpoint**. Enter
+`https://hooks.teispace.com/webhook`. On the endpoint's page, reveal the signing secret
+(`whsec_…`) and give it to your handler.
+
+Save the same secret in Teitunnel so the inspector checks every delivery's signature:
+
+```sh
+teitunnel inbox secret hooks.teispace.com stripe  # asks for the secret
+```
+
+In the app: select a delivery in the **Inspector** and choose **Add Signing Secret…**.
+
+## 3. Send an event
+
+```sh
+stripe trigger payment_intent.succeeded
+```
+
+The share prints the delivery; the inspector shows it marked **Webhook** with
+**Signature valid**, your handler's answer and how long it took. Stripe's **Event
+deliveries** tab shows the same delivery as `Delivered`, `Pending` or `Failed`.
+
+## 4. Fix and replay
+
+Stripe signs a timestamp, and its libraries reject a signature older than 5 minutes. A
+plain replay of an older delivery fails your handler's check, so turn on **Re-sign** in
+**Edit and Replay…**: each replay gets a fresh `Stripe-Signature` with the saved secret.
+
+```sh
+teitunnel traffic ls --path /webhook --last 5
+teitunnel traffic replay 7f3a
+```
+
+## Things Stripe is strict about
+
+- **The raw body.** Verification needs the body exactly as sent. If your framework parses
+  JSON first (for example `express.json()`), verify before parsing, or keep the raw bytes
+  for the webhook route.
+- **Answer quickly with 2xx**, then do the work. A slow handler times out and is retried.
+- **Redirects fail.** Stripe treats a `3xx` as a failure: register the exact URL your
+  handler answers, including a trailing slash if it wants one.
+- **CSRF.** Rails, Django and similar frameworks reject a POST without a CSRF token.
+  Exempt the webhook route.
+- **Order and duplicates.** Stripe doesn't promise order and may send an event twice.
+  Record event ids you've handled.
+- **Test and live secrets differ.** Each endpoint has its own secret per mode.
+
+## While your computer is off
+
+In live mode Stripe retries a failed delivery for up to three days; in a sandbox only
+three times over a few hours. A [webhook inbox](/docs/guides/webhook-inbox) keeps events
+that arrive while the computer is off and delivers them in order when it's back, keeping
+only correctly signed ones:
+
+```sh
+teitunnel inbox add hooks.teispace.com /webhook --verify stripe
+```
+
+A kept event reaches your handler later than 5 minutes, so its signature is too old for
+Stripe's default check. The inbox checked it on arrival; see
+[Signatures and replays](/docs/guides/webhook-inbox#signatures-and-replays).
+
+<Callout title="Checked 2026-09-26">
+  From Stripe's [webhooks documentation](https://docs.stripe.com/webhooks).
+</Callout>
+
+## Related
+
+<Cards>
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks" description="The full walk-through, for any provider." />
+  <Card title="Webhook inbox" href="/docs/guides/webhook-inbox" />
+</Cards>

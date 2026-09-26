@@ -91,3 +91,15 @@ Sources: https://developers.cloudflare.com/cloudflare-one/access-controls/servic
 The documented template keys (`account-owned-token-template.mdx`) include `firewall_services` but no key for Zone WAF, Transform Rules or Access service tokens. Unknown keys are dropped silently from the pre-filled link, so capability probes (`GET …/phases/http_request_firewall_custom/entrypoint`, `GET …/phases/http_request_late_transform/entrypoint` and `GET /accounts/{id}/access/service_tokens`, 403 = missing) and the in-place fix name the dashboard permission to add. The keys were checked on 2026-09-25 by opening the pre-filled link signed in to the dashboard and reading which rows it filled (`d1` gives Account › D1 › Edit too). The OAuth scope names were read from the Teitunnel OAuth client's scope list after adding them as optional scopes on 2026-09-25. Access apps and policies at the account level are `access-app.write` and `access-policy.write`; the dashboard's "Access: Apps and Policies" scope is `zone-access.write` (zone-level apps only).
 
 Sources: https://developers.cloudflare.com/fundamentals/api/reference/permissions/ (updated 2026-09-16) · https://github.com/cloudflare/cloudflare-docs/blob/production/src/content/docs/fundamentals/api/how-to/account-owned-token-template.mdx · https://developers.cloudflare.com/waf/custom-rules/create-api/ · https://developers.cloudflare.com/ruleset-engine/rulesets-api/delete-rule/
+
+## Cache Rules (checked 2026-09-26, for "bypass cache for dev", M12-08)
+Sources: developers.cloudflare.com/cache/how-to/cache-rules/create-api/ and
+/cache/how-to/cache-rules/ and /fundamentals/api/reference/permissions/ (2026-09-26).
+- Phase `http_request_cache_settings`; action `set_cache_settings`; bypass is
+  `"action_parameters": { "cache": false }`, e.g. expression `(http.host eq "app.example.com")`.
+- Rules per zone: Free 10, Pro 25, Business 50, Enterprise 300.
+- Token permission: "Cache Rules Edit" (Zone; also listed as "Cache Settings Write"), read
+  with "Cache Rules Read". **Not verified:** the token template's short key and the OAuth
+  scope name (not in the docs' tables; the others were checked against the dashboard's
+  pre-filled form on the maintainer's account). Reading this phase must stay optional:
+  existing tokens lack the permission, and a failed read must not break the other rules.

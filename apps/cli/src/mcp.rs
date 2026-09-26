@@ -280,7 +280,22 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         accounts: app.accounts.clone(),
     };
     let inspector = inspector(&app);
-    let backend = backend(&app, source, machine, supervisor.clone(), &inspector);
+    let backend = backend(
+        &app,
+        source,
+        machine.clone(),
+        supervisor.clone(),
+        &inspector,
+    );
+    // Connections to MCP servers an agent shares are approved in the app (stdio has no
+    // terminal to ask in).
+    let oauth = teitunnel_core::mcp_auth::McpAuth::open(
+        app.store().clone(),
+        teitunnel_core::mcp_auth::AskApp::new(app.dir(), None),
+    )
+    .await
+    .map_err(|err| status(&format!("OAuth for shared MCP servers is off: {err}")))
+    .ok();
     let server = McpServer::builder(Arc::clone(&backend), settings.clone())
         .traffic(Arc::new(InspectorTraffic::new(
             inspector.clone(),
@@ -292,9 +307,25 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         .provider(Arc::new(teitunnel_mcp::CommentsTools::new(Arc::clone(
             &backend,
         ))))
-        .provider(Arc::new(ExposeTools::new(
-            Arc::clone(&backend),
+        .provider(Arc::new(match &oauth {
+            Some(auth) => {
+                ExposeTools::new(Arc::clone(&backend), inspector.clone()).with_oauth(auth.clone())
+            }
+            None => ExposeTools::new(Arc::clone(&backend), inspector.clone()),
+        }))
+        .provider(Arc::new(teitunnel_mcp::InspectionTools::new(
             inspector.clone(),
+        )))
+        .provider(Arc::new(teitunnel_mcp::LocalDomainTools::new(
+            teitunnel_core::local_domains::LocalDomains::new(
+                app.store().clone(),
+                inspector.clone(),
+                teitunnel_core::local_domains::LocalDomainsConfig::detect(
+                    app.dir(),
+                    Some(Arc::clone(app.secrets())),
+                ),
+            ),
+            app.dir(),
         )))
         .approver(teitunnel_mcp::AppApprover::new(app.dir(), settings.mode))
         .build();
@@ -304,6 +335,8 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
     ));
     // Pauses and schedules of the shares on a domain this server starts.
     let share_loop = crate::sharing::spawn_share_loop(app.store().clone(), inspector.clone());
+    // What killed agents and terminals left behind, while the app isn't running.
+    let sweeper = crate::inspect::sweep_left_behind(&app, machine.clone());
     let stop = CancellationToken::new();
     let serving = tokio::spawn(teitunnel_mcp::serve_stdio(server, stop.clone()));
     tokio::pin!(serving);
@@ -321,6 +354,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         }
     };
     share_loop.abort();
+    sweeper.abort();
     backend.stop_own_shares().await;
     supervisor.stop_all().await;
     inspector.shutdown().await;

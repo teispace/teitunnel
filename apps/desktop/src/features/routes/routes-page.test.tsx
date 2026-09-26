@@ -103,6 +103,7 @@ beforeEach(() => {
       tunnelId: "t1",
       temporary: false,
       balanced: false,
+      paused: false,
       options: {},
       zone: "xyz.com",
       dns: { state: "ok" },
@@ -125,6 +126,15 @@ beforeEach(() => {
     switch (cmd) {
       case "accounts_list":
         return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+      case "sharing_schedules":
+        return [];
+      case "sharing_set_paused":
+        routes = routes.map((route) =>
+          route.hostname === payload["hostname"]
+            ? { ...route, paused: payload["paused"] === true }
+            : route,
+        );
+        return null;
       case "routes_overview":
         return {
           tunnel: mac,
@@ -204,6 +214,7 @@ beforeEach(() => {
               tunnelId: "t1",
               temporary: false,
               balanced: false,
+              paused: false,
               options: {},
               zone: "yx.com",
               dns: { state: "ok" },
@@ -216,6 +227,7 @@ beforeEach(() => {
             tunnelId: "t1",
             temporary: false,
             balanced: false,
+            paused: false,
             options: {},
             verify: [change.route.hostname],
             connectorError: null,
@@ -249,6 +261,7 @@ beforeEach(() => {
             message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
             protected: false,
             eventStream: false,
+            links: null,
           };
         }
         const guarded = routes.some((r) => r.hostname === payload["hostname"] && r.access);
@@ -266,6 +279,7 @@ beforeEach(() => {
               tunnelId: "t1",
               temporary: false,
               balanced: false,
+              paused: false,
               options: {},
               appliedVersion: 1,
               currentVersion: 2,
@@ -361,6 +375,7 @@ describe("RoutesPage", () => {
         tunnelId: "t1",
         temporary: false,
         balanced: false,
+        paused: false,
         options: {},
         zone: "xyz.com",
         dns: { state: "ok" },
@@ -392,6 +407,23 @@ describe("RoutesPage", () => {
     expect(calls.some((c) => c.cmd === "routes_logs" && c.args["hostname"] === "app.xyz.com")).toBe(
       true,
     );
+  });
+
+  it("pauses a route and says so, keeping its address", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "app.xyz.com" });
+    const section = (await screen.findByRole("heading", { name: "Pause and Schedule" }))
+      .parentElement as HTMLElement;
+    fireEvent.click(within(section).getByRole("button", { name: "Pause" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "sharing_set_paused")?.args).toEqual({
+        accountId: "acc",
+        hostname: "app.xyz.com",
+        paused: true,
+      }),
+    );
+    expect(await within(section).findByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(within(section).getByText(/Visitors see a paused page/)).toBeTruthy();
   });
 
   it("imports a route with its origin settings from a config file", async () => {
@@ -514,11 +546,16 @@ describe("RoutesPage", () => {
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Who can sign in" }), {
       target: { value: "me@xyz.com, @team.io" },
     });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Paths that skip the login" }), {
+      target: { value: "/webhooks" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Review" }));
     await within(dialog).findByText("Update tunnel “Mac” to serve 2 routes");
     const preview = calls.find((c) => c.cmd === "routes_preview");
     expect(preview?.args["change"]).toMatchObject({
-      route: { access: { emails: ["me@xyz.com"], emailDomains: ["team.io"] } },
+      route: {
+        access: { emails: ["me@xyz.com"], emailDomains: ["team.io"], bypass: ["/webhooks"] },
+      },
     });
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Route" }));

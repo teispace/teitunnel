@@ -882,6 +882,9 @@ pub(crate) async fn run(app: App, options: Options) -> Result<ExitCode, String> 
                     backend,
                     inspector.clone(),
                 )))
+                .provider(Arc::new(teitunnel_mcp::InspectionTools::new(
+                    inspector.clone(),
+                )))
                 .build();
             let store = app.store().clone();
             let verify: teitunnel_mcp::http::KeyVerifier = Arc::new(move |key: String| {

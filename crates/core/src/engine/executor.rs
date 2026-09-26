@@ -33,10 +33,10 @@ static EMPTY: Snapshot = Snapshot {
     held: Vec::new(),
     owner: String::new(),
     now: 0,
-    edge: None,
+    edge: Vec::new(),
     service_tokens: None,
     database: None,
-    front: None,
+    front: Vec::new(),
 };
 use super::verify::{Edge, Failure, Verification, check_dns, probe};
 use super::{
@@ -94,6 +94,11 @@ english_display!(EngineError);
 
 /// How often a transient verification failure is retried.
 const VERIFY_RETRY: Duration = Duration::from_secs(2);
+
+/// How long a check right after a change waits out transient failures: Cloudflare takes
+/// about half a minute to connect a new record to a tunnel (1016 until then; measured
+/// 2026-09-25), so 30 s cut it short.
+pub const VERIFY_PATIENCE: Duration = Duration::from_secs(60);
 
 /// Who is asking: the account and this Mac's name for a new tunnel.
 #[derive(Debug, Clone, Copy)]
@@ -248,6 +253,8 @@ enum Undo {
     DeleteAccessApp {
         id: String,
         domain: String,
+        /// It let everyone through a path (not a login).
+        bypass: bool,
     },
     RestoreAccessApp {
         id: String,
@@ -371,8 +378,16 @@ impl Undo {
             }
             Self::StartConnector(_) => m::start_connector(),
             Self::DeleteLoginMethod(_) => m::delete_login_method(),
+            Self::DeleteAccessApp {
+                domain,
+                bypass: true,
+                ..
+            } => m::delete_access_bypass(domain),
             Self::DeleteAccessApp { domain, .. } => m::delete_access_app(domain),
             Self::RestoreAccessApp { previous, .. } => m::restore_access_app(&previous.domain),
+            Self::RecreateAccessApp(previous) if super::access::is_bypass(previous) => {
+                m::recreate_access_bypass(&previous.domain)
+            }
             Self::RecreateAccessApp(previous) => m::recreate_access_app(&previous.domain),
             Self::DeleteNetworkRoute { network, .. } => m::delete_network_route(network),
             Self::RecreateNetworkRoute(route) => m::recreate_network_route(&route.network),
@@ -451,6 +466,9 @@ type Locks = HashMap<String, Arc<tokio::sync::Mutex<()>>>;
 #[derive(Debug)]
 pub struct Engine {
     local: Local,
+    /// The keychain, for putting back a verifying inbox's signing secret when a plan
+    /// that removed its Worker rolls back (never read otherwise).
+    secrets: Option<crate::secrets::Secrets>,
     /// Who this is, for the DNS comments it writes (`person@machine`).
     owner: String,
     locks: Mutex<Locks>,
@@ -462,6 +480,7 @@ impl Engine {
     pub fn new(local: Local) -> Self {
         Self {
             local,
+            secrets: None,
             owner: super::ownership::owner_label(),
             locks: Mutex::default(),
             cache: Mutex::default(),
@@ -473,6 +492,14 @@ impl Engine {
     #[must_use]
     pub fn with_owner(mut self, owner: &str) -> Self {
         self.owner = super::ownership::sanitize_owner(owner);
+        self
+    }
+
+    /// The same engine with the keychain, so a rollback restores a verifying inbox with
+    /// its signing secret.
+    #[must_use]
+    pub fn with_secrets(mut self, secrets: crate::secrets::Secrets) -> Self {
+        self.secrets = Some(secrets);
         self
     }
 
@@ -510,18 +537,12 @@ impl Engine {
                     .join(",")
             },
         );
+        // Everything the observation reads, so two intents share one only when it
+        // would be the same.
         let need = ObserveNeed::of(intent);
         format!(
-            "{account}\n{}\n{scope}\n{}{}{}\n{:?}{}\n{}\n{}\n{}",
-            tunnel.unwrap_or_default(),
-            u8::from(need.access.setup),
-            u8::from(need.access.owned),
-            need.access.domains.join(","),
-            need.networks,
-            u8::from(need.tunnel_names),
-            need.site.script.as_deref().unwrap_or_default(),
-            need.edge.hostname.as_deref().unwrap_or_default(),
-            u8::from(need.service_tokens),
+            "{account}\n{}\n{scope}\n{need:?}",
+            tunnel.unwrap_or_default()
         )
     }
 
@@ -662,8 +683,16 @@ impl Engine {
             .balanced(ctx.account)
             .await
             .map_err(ObserveError::from)?;
+        let paused: std::collections::HashSet<String> =
+            crate::pause::list(self.local.store(), Some(ctx.account))
+                .await
+                .map_err(ObserveError::from)?
+                .into_iter()
+                .map(|p| p.hostname.to_ascii_lowercase())
+                .collect();
         for route in &mut merged.routes {
             route.balanced = balanced.contains(&route.hostname.to_ascii_lowercase());
+            route.paused = paused.contains(&route.hostname.to_ascii_lowercase());
             route.temporary = route.path.is_none()
                 && shares
                     .iter()
@@ -1015,6 +1044,7 @@ impl Engine {
             api,
             connectors,
             local: &self.local,
+            secrets: self.secrets.as_ref(),
             snapshot: &snapshot,
             account: ctx.account,
             slot: match (intent, ctx.tunnel) {
@@ -1088,6 +1118,28 @@ impl Engine {
             }
             Outcome::Applied { .. } => {}
         }
+        // A hostname with no route left keeps no pause or schedule (they'd come back if
+        // the name were used again).
+        if matches!(outcome, Outcome::Applied { .. })
+            && matches!(intent, Intent::RemoveRoute { .. } | Intent::RemoveTunnel)
+        {
+            for hostname in &record.hostnames {
+                if let Ok(None) = self.local.tunnel_routing(ctx.account, hostname).await {
+                    let store = self.local.store();
+                    warn_local(crate::pause::forget(store, ctx.account, hostname).await);
+                    warn_local(crate::schedule::set(store, ctx.account, hostname, None).await);
+                }
+            }
+        }
+        // The app log says what changed too, so a report ("the record wasn't removed")
+        // can be traced without the database.
+        tracing::info!(
+            account = ctx.account,
+            outcome = outcome.label(),
+            steps = %detail.join("; "),
+            "{}",
+            intent.summary().english()
+        );
         if let Err(err) = self
             .local
             .log(
@@ -1114,6 +1166,7 @@ struct Run<'a, C, K> {
     api: &'a C,
     connectors: &'a K,
     local: &'a Local,
+    secrets: Option<&'a crate::secrets::Secrets>,
     snapshot: &'a Snapshot,
     account: &'a str,
     /// How a tunnel this run creates is remembered.
@@ -1566,6 +1619,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 Ok(Some(Undo::DeleteAccessApp {
                     id: created.id,
                     domain: app.domain.clone(),
+                    bypass: super::access::is_bypass(app),
                 }))
             }
             Step::UpdateAccessApp { id, app, previous } => {
@@ -1988,6 +2042,7 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                         Ok(Some(Undo::DeleteAccessApp {
                             id: created.id,
                             domain: domain.clone(),
+                            bypass: false,
                         }))
                     }
                 }
@@ -2447,8 +2502,28 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                 config,
                 database,
             } => {
-                self.put_front(hostname, zone_id, script, config, database.as_deref(), None)
-                    .await?;
+                // A verifying inbox gets its signing secret back: a Worker that was
+                // deleted has none, and one whose verification changed has the new one.
+                let secret = match (config, self.secrets) {
+                    (super::front::FrontConfig::Inbox { settings, .. }, Some(secrets)) => {
+                        match settings.verify {
+                            Some(verify) => {
+                                super::front::saved_inbox_secret(secrets, hostname, verify).await
+                            }
+                            None => None,
+                        }
+                    }
+                    _ => None,
+                };
+                self.put_front(
+                    hostname,
+                    zone_id,
+                    script,
+                    config,
+                    database.as_deref(),
+                    secret.as_ref(),
+                )
+                .await?;
             }
             Undo::DeleteWorkerRoute {
                 zone,

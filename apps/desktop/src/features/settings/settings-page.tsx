@@ -17,6 +17,7 @@ import { AiAgents } from "./ai-agents";
 import { AiTools } from "./ai-tools";
 import { ApiDescription } from "./api-description";
 import { IntegrationsPane } from "./integrations";
+import { McpConnections } from "./mcp-connections";
 import { MoveComputer } from "./move-computer";
 import {
   useCliStatus,
@@ -188,6 +189,7 @@ function GeneralPane() {
       <CommandLine />
       <AiTools />
       <AiAgents />
+      <McpConnections />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}

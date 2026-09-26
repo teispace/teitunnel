@@ -1,0 +1,47 @@
+---
+title: Teitunnel vs Tailscale Funnel
+description: Teitunnel and Tailscale Funnel compared — ports, custom domains, logins, inspection and bandwidth — and when each fits.
+---
+
+Tailscale Funnel makes a service on a Tailscale device reachable from the public internet
+at a `ts.net` name. It's part of Tailscale, so it's a natural choice when your devices are
+already on a tailnet. Teitunnel is an app for Cloudflare Tunnel, reachable at a random
+address or on your own domain.
+
+| | Teitunnel | Tailscale Funnel |
+|---|---|---|
+| Price | free, open source | on every Tailscale plan |
+| Names | random `trycloudflare.com`, or any name on your domain | `*.ts.net` names in your tailnet only |
+| Public ports | 443 (HTTPS); TCP services through Cloudflare | 443, 8443 and 10000 |
+| Bandwidth | no cap on tunnel traffic | "non-configurable bandwidth limits" |
+| Set up | the app, or a Cloudflare account for your own domain | Tailscale 1.38.3+, MagicDNS, HTTPS certificates, a `funnel` attribute in the policy file |
+| Logins for visitors | [Cloudflare Access](/docs/guides/require-login), free up to 50 users | none: Funnel is public; Tailscale Serve keeps it private to the tailnet |
+| Inspect and replay | the [inspector](/docs/guides/inspector) | no |
+| Desktop app | macOS, Windows, Linux | Tailscale's app; Funnel is set up from the CLI |
+
+<Callout title="Checked 2026-09-26">
+  From [Tailscale Funnel's documentation](https://tailscale.com/kb/1223/funnel). Tailscale's
+  pages are the final word.
+</Callout>
+
+## When Funnel fits better
+
+- Your devices are on a tailnet already, and a `ts.net` name is fine.
+- You want one tool for private access (Serve) and the occasional public share (Funnel).
+
+## When Teitunnel fits better
+
+- You want your own domain, or several names for one computer.
+- Visitors should sign in, or machines should pass with a
+  [service token](/docs/guides/protection#service-tokens-for-machines).
+- You want to see and replay requests, share a folder, or keep a
+  [static copy](/docs/guides/snapshots) online while the computer is off.
+
+Both can run on the same computer: a Funnel on one port and a Teitunnel route on another.
+
+## Related
+
+<Cards>
+  <Card title="All comparisons" href="/docs/compare" />
+  <Card title="Private networks" href="/docs/guides/private-networks" description="Reach a whole network through WARP, like a VPN." />
+</Cards>

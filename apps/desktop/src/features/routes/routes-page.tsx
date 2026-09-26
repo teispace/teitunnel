@@ -40,6 +40,7 @@ import {
   ServiceTokens,
   useProtection,
 } from "@/features/protection";
+import { RoutePauseSection } from "@/features/quick-share";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t, translate } from "@/lib/i18n";
 import type { ClientAccess, RouteView, TunnelView, Verification } from "@/lib/ipc/bindings";
@@ -143,13 +144,16 @@ function TestResult({
       <CheckNotes check={result} showMessage={false} onCheck={onTest} checking={testing} />
     </>
   ) : (
-    <p role="status" className="text-callout text-healthy">
-      {result.protected
-        ? t("routes.test.protected")
-        : result.status
-          ? t("routes.test.worksStatus", { status: String(result.status) })
-          : t("routes.test.works")}
-    </p>
+    <>
+      <p role="status" className="text-callout text-healthy">
+        {result.protected
+          ? t("routes.test.protected")
+          : result.status
+            ? t("routes.test.worksStatus", { status: String(result.status) })
+            : t("routes.test.works")}
+      </p>
+      {result.links ? <CheckNotes check={result} onCheck={onTest} checking={testing} /> : null}
+    </>
   );
 }
 
@@ -262,6 +266,15 @@ function RouteInspector({
               label: t("routes.detail.login"),
               value: route.access ? describeAllowed(route.access) : t("routes.detail.noLogin"),
             },
+            ...(route.access?.bypass?.length
+              ? [
+                  {
+                    label: t("routes.detail.skipLogin"),
+                    value: route.access.bypass.join(", "),
+                    mono: true,
+                  },
+                ]
+              : []),
             {
               label: t("routes.detail.dns"),
               value:
@@ -287,6 +300,9 @@ function RouteInspector({
           hostname={route.hostname}
           localTunnelIds={localTunnelIds}
         />
+      ) : null}
+      {route.local && !route.temporary && !route.client ? (
+        <RoutePauseSection accountId={accountId} hostname={route.hostname} paused={route.paused} />
       ) : null}
       {route.client ? null : (
         <InspectRouteSection

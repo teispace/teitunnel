@@ -51,11 +51,11 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Export: cURL, HTTPie, fetch, raw HTTP, HAR, JSON, Markdown (for issues and agents); redacted by default. (backend and CLI.)
 - [x] Webhooks: recognise Stripe, GitHub, Slack, Shopify, Clerk, Twilio, Linear, Discord and standard-webhooks signatures; verify with a secret kept in the keychain; show "signature valid / invalid / expired timestamp"; replay keeps or recomputes the signature (user's choice). (backend and CLI.)
 - [x] Mock/stub: answer a path with a saved response when the origin is down (keeps webhook senders happy while you restart).
-- [ ] Breakpoints (later): pause matching requests, edit, continue.
-- [ ] Performance budget: 60 fps list with 10,000 exchanges (virtualised, like the log viewer, D-051).
+- [x] Breakpoints: hold matching requests or answers, edit, answer from here, drop, continue (D-130; 60 s limit, 50 at once, bodies up to 1 MB of known-size text).
+- [x] Performance budget: 60 fps list with 10,000 exchanges (virtualised, like the log viewer, D-051). (D-137: measured on a production build with 200 new requests/s while scrolling every frame: 60 fps, no long frames; rows memoised with their cells apart, number formatters cached.)
 - [x] Network simulation per tap: latency and jitter presets (3G, 4G, satellite), bandwidth limits; fault injection per path (a share of 500/504/429 answers, dropped connections, slow first byte). HTTP-level: connection resets and timeouts stand in for packet loss.
 - [x] Stream keep-alive: during idle periods Lens writes SSE comment lines into `text/event-stream` responses so Cloudflare's 100-second idle timeout (524 on Free/Pro) never cuts a long AI tool call.
-- [ ] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded).
+- [x] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded). (The last 500 frames, 4 KiB each; filter by direction or text, open a frame to read it whole with JSON indented, and copy it.)
 
 ## M12-03 · Agents (MCP) and AI
 - [x] `teitunnel mcp`: MCP server over stdio (Claude Code, Cursor, VS Code, Codex, Windsurf, Zed), and Streamable HTTP from `teitunnel serve` with API keys for remote agents.
@@ -67,21 +67,21 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] No built-in LLM or cloud AI service (decision Q4): agents bring the model; Teitunnel stays local and free.
 - [x] MCP exposure preset: detect a local MCP server (Streamable HTTP probe on `/mcp`, SSE), share it on your own domain (Quick Tunnels don't carry SSE) with stream keep-alive and a bearer token checked by Lens (`Authorization: Bearer`, what MCP clients send), and print ready configs for Claude Code, Cursor, VS Code, Claude.ai and ChatGPT connectors. (`share --mcp`, MCP `expose_mcp_server`; Claude.ai/ChatGPT connectors get notes, not configs.)
 - [x] Bearer protection preset for local AI servers (Ollama, vLLM, LM Studio): OpenAI-compatible clients send `Authorization: Bearer`, which Lens checks; Access service tokens as the Cloudflare-enforced alternative. (`share --ai`.)
-- [ ] Later phase: OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key.
+- [x] OAuth 2.1 authorization in front of a local MCP server (Lens as the authorization server, each new client approved in the app), so claude.ai and ChatGPT can connect without a static key. (D-132; CIMD and DCR, PKCE S256, resource binding, `iss`, rotation with replay detection; Settings ▸ AI Tools lists and disconnects connections. Not yet tried against the real claude.ai and ChatGPT.)
 
 ## M12-04 · Protection
-- [ ] Password page, secret link (`?key=` sets a cookie), HTTP basic auth, IP/CIDR allow and deny, user-agent block (bots), per share or route, enforced in Lens (works on Quick Shares too).
-- [ ] Cloudflare-enforced options where the user has Access: email code (exists), GitHub/Google login presets, service tokens for machine callers, and "bypass for /webhooks/*" so a protected app still receives webhooks.
-- [ ] Clear labels on where it's enforced ("on this computer" vs "at Cloudflare": the latter keeps working when the app is closed).
+- [x] Password page, secret link (`?key=` sets a cookie), HTTP basic auth, IP/CIDR allow and deny, user-agent block (bots), per share or route, enforced in Lens (works on Quick Shares too). (Inspection Settings ▸ Protection, and the shield on a Quick Share card.)
+- [ ] Cloudflare-enforced options where the user has Access: email code (exists), GitHub/Google login presets, service tokens for machine callers (done, D-106), and "bypass for /webhooks/*" so a protected app still receives webhooks (done, D-131). Left: GitHub/Google login presets.
+- [x] Clear labels on where it's enforced ("on this computer" vs "at Cloudflare": the latter keeps working when the app is closed).
 - [x] Edge rules scoped to one hostname (never zone-wide: Bot Fight Mode applies to the whole domain, so there's no toggle for it): challenge or block bots/AI crawlers, rate limiting (Free: one rate-limiting rule per zone, 10-second window, per IP; five custom rules), header rules (Transform Rules, 10 on Free, no regex). Teitunnel owns only the rules it creates, merges its hostnames into one expression where the quota is one rule, shows the quota, and goes through plan → apply with undo. (Done: app, CLI `protect`, MCP. Verified 2026-09-24: a Free zone's rate limit can't match `http.host`, so rate limits need Pro; hostnames with the same limit share one rule. [research](../research/cloudflare-edge-rules.md))
 - [x] Access service tokens for machine callers (free), created and shown once. (Done: the secret is never stored anywhere, not even the keychain: copied from Rust in the app, printed once by `teitunnel service-token create`, returned once to an approved agent; only id and client id are kept.)
 - [x] No mTLS: client-certificate enforcement needs paid plans (Access: Enterprise), so free users couldn't use it.
 
 ## M12-05 · Analytics, uptime, alerts
-- [ ] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3).
+- [x] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3). (D-134: a request rate from every source; browsers and bots by `User-Agent` in the inspector's numbers; Traffic Numbers per share or route in the Inspector, Quick Shares included; MCP `route_traffic`, inspector first then the edge; `teitunnel analytics` prints the rate and bots.)
 - [x] Uptime: every route checked through the edge on a schedule; history, incidents, response time chart; notification when down/recovered; optional status badge.
 - [x] Alerts: 5xx rate, latency, connector down, certificate/DNS problems, quota-like limits (429s on Quick Share), with quiet hours.
-- [ ] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance.
+- [x] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance. (Traffic, Errors (5xx and unreachable over 5 min) and Uptime tiles; Recent Requests from the inspector, live, each opening selected in the Inspector.)
 
 ## M12-06 · Sharing power-ups
 - [x] Pause/resume a share on your domain: the hostname stays reserved (route kept, connector paused, a friendly "paused" page served by Lens); resume with the same URL.
@@ -95,7 +95,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 ## M12-07 · Everywhere
 - [x] Tray/menu bar: share a detected service in one click, copy recent URLs, pause all. (`core::quick_actions`; pause and resume need an inspected share; also stop all.)
 - [x] `teitunnel://` deep links (share port, open route, open inspector) for Raycast, Alfred and scripts. (D-102; registration by the installers, unverified in packaged builds.)
-- [x] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), in `integrations/` on a shared TypeScript client. The Ports view gets a context-menu item (its data API is still proposed); the inspector opens in the app. Not published yet. The optional browser extension is left for later.
+- [x] Raycast extension (share, list, copy, stop), VS Code extension (Ports view integration, inspector panel, status bar), in `integrations/` on a shared TypeScript client. The Ports view gets a context-menu item (its data API is still proposed); the inspector opens in the app. Not published yet. The browser extension (Chromium browsers and Firefox) shares the local page you're on and lists shares, through native messaging (D-133); not published yet.
 - [x] Global shortcut to share the frontmost dev server. (Off by default, Settings ▸ Integrations; shares the one running dev server, else opens Quick Share; "frontmost" isn't detectable portably.)
 - [x] Local HTTPS domains (`app.test`/`.local` with a local CA, LocalCan parity; decision Q7). (D-101, D-115; untested on real systems; share/route targets and a one-click `name.localhost` for detected services later.)
 - [x] First: a local control connection to the running app (Unix socket / named pipe, current user only) that the CLI, extensions and launchers use; everything below builds on it. (D-102, `crates/control`; the Windows pipe is untested on Windows.)
@@ -111,9 +111,9 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Optional WAF/rate-limit toggles per route (Rulesets API) and cache bypass for dev.
 
 ## M12-09 · Robustness (from competitors' and cloudflared's issues)
-- [ ] Large and multipart uploads, WebSocket and SSE through every path (E2E tests with fake-cloudflared streaming).
-- [ ] Framework guides and automatic `X-Forwarded-Host`/`X-Forwarded-Proto` for Laravel/Livewire, Rails, Django, Next.js, Nuxt (wrong-domain assets, CORS).
-- [ ] Sleep/wake and network change: reconnect fast, verify, notify only if it stays down.
+- [x] Large and multipart uploads, WebSocket and SSE through every path (E2E tests with fake-cloudflared streaming). (Lens: 200 MB uploads and downloads, SSE, WebSocket, any upgrade, backpressure and aborts, plus one tap with every feature on at once: bearer gate, header rules, CORS, injection, breakpoints, keep-alives; folders stream large files. The fake cloudflared doesn't proxy, so the edge itself stays covered by the live checks: Quick Shares don't carry SSE, which the share check reports.)
+- [x] Framework guides and automatic `X-Forwarded-Host`/`X-Forwarded-Proto` for Laravel/Livewire, Rails, Django, Next.js, Nuxt (wrong-domain assets, CORS). (D-136: cloudflared sends `X-Forwarded-Proto`, the inspector adds `X-Forwarded-Host`; the check after sharing reads the page and names links to this computer or over plain HTTP with the framework's fix, in the app, `teitunnel share` and `verify_route`; per-framework table in the dev-servers tutorial.)
+- [x] Sleep/wake and network change: reconnect fast, verify, notify only if it stays down. (D-135: wall-clock gap and address changes every 5 s; nudged connectors skip their backoff or crash loop, running ones without a connection after 15 s restart, Quick Shares excepted; notifications wait 90 s; a crash loop now retries every 10 min instead of giving up.)
 - [ ] WSL: detect services in WSL and rewrite localhost (FlareDeck parity).
 - [x] A leftover `~/.cloudflared/config.yml` never breaks Quick Shares (pass an empty config explicitly).
 
@@ -130,7 +130,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Move to a new computer: an encrypted export of Teitunnel's setup (accounts by name only, routes, settings, local domains; never tokens) to restore elsewhere. (D-109; local domains included since D-115.)
 
 ## M12-10 · Reach
-- [ ] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide.
+- [x] Comparison pages (vs ngrok, LocalCan, Pinggy, Dev Tunnels, Tailscale Funnel, raw cloudflared), webhook guides per provider, "expose an MCP server" guide. (D-138: `/docs/compare`, `/docs/tutorials/webhooks/{stripe,github,shopify,slack}`, `/docs/tutorials/mcp-server`)
 - [ ] Listings: awesome-tunneling, Raycast Store, VS Code Marketplace, Homebrew core, winget, Flathub; Show HN / Product Hunt when M12-02 and M12-03 ship.
 
 ## Design: local HTTPS domains (decision 7)

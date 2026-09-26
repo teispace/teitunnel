@@ -28,7 +28,7 @@ beforeEach(() => {
   });
 });
 
-function renderPage(props: { tap?: string } = {}) {
+function renderPage(props: { tap?: string; exchange?: string } = {}) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <TooltipProvider>
@@ -69,6 +69,65 @@ describe("InspectorPage", () => {
     await waitFor(() => expect(options()[0]?.textContent).toContain("503"));
     view.unmount();
     await waitFor(() => expect(called("inspect_unsubscribe")[0]?.args["id"]).toBe(7));
+  });
+
+  it("opens with a linked request selected", async () => {
+    renderPage({ exchange: "ex-3" });
+    const detail = await screen.findByRole("region", { name: "Request details" });
+    await waitFor(() => expect(called("inspect_exchange")[0]?.args["id"]).toBe("ex-3"));
+    expect(detail).toBeTruthy();
+  });
+
+  it("lands on a held request, lets it go changed or answered, or all at once", async () => {
+    window.history.replaceState({}, "", "/?held");
+    try {
+      renderPage();
+      const heading = await screen.findByRole("heading", {
+        name: "Held before it goes to your service",
+      });
+      expect(heading).toBeTruthy();
+      expect(screen.getByText("1 request is held at a breakpoint.")).toBeTruthy();
+      expect(screen.getByText(/Goes on by itself in \d+ s/)).toBeTruthy();
+
+      const body = screen.getByLabelText("Body");
+      fireEvent.change(body, { target: { value: '{"name":"Renamed"}' } });
+      fireEvent.click(screen.getByRole("button", { name: "Continue with Changes" }));
+      await waitFor(() => expect(called("inspect_resume")).toHaveLength(1));
+      expect(called("inspect_resume")[0]?.args).toMatchObject({
+        id: "ex-48",
+        resume: { type: "edited", edit: { body: '{"name":"Renamed"}' } },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Undo Changes" }));
+      fireEvent.click(screen.getByRole("button", { name: "Answer Myself…" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Answer" }));
+      await waitFor(() => expect(called("inspect_resume")).toHaveLength(2));
+      expect(called("inspect_resume")[1]?.args["resume"]).toMatchObject({
+        type: "answer",
+        status: 200,
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Continue All" }));
+      await waitFor(() => expect(called("inspect_resume_all")).toHaveLength(1));
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("holds requests like the one selected, in one click", async () => {
+    renderPage();
+    await list();
+    await waitFor(() => expect(options().length).toBeGreaterThan(10));
+    fireEvent.mouseDown(options()[0] as HTMLElement, { button: 0 });
+    const hold = await screen.findByRole("button", { name: "Hold Requests Like This" });
+    fireEvent.click(hold);
+    await waitFor(() => expect(called("inspect_configure")).toHaveLength(1));
+    const patch = called("inspect_configure")[0]?.args["patch"] as {
+      breakpoints: { method: string; path: string; request: boolean }[];
+    };
+    expect(patch.breakpoints).toHaveLength(1);
+    expect(patch.breakpoints[0]).toMatchObject({ request: true, response: false });
+    expect(patch.breakpoints[0]?.path.startsWith("/")).toBe(true);
   });
 
   it("holds live requests back while paused", async () => {

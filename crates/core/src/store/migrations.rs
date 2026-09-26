@@ -399,6 +399,40 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname, kind, path)
         ) STRICT;",
     ),
+    // 21: which refresh token an OAuth account's shared access token came from (a hash,
+    // never the token), so each API call can tell whether another process refreshed
+    // without reading the keychain (D-128).
+    M::up("ALTER TABLE accounts ADD COLUMN token_source TEXT;"),
+    // 22: OAuth for shared MCP servers (D-132): clients that registered themselves, and
+    // what each approved connection holds. Only hashes of secrets (SHA-256 of 256-bit
+    // random values) are kept, never tokens, codes or client secrets.
+    M::up(
+        "CREATE TABLE mcp_oauth_clients (
+            client_id     TEXT PRIMARY KEY,
+            host          TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            redirect_uris TEXT NOT NULL,
+            secret_hash   TEXT,
+            created_at    INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX mcp_oauth_clients_host ON mcp_oauth_clients (host, created_at);
+        CREATE TABLE mcp_oauth_grants (
+            id                    TEXT PRIMARY KEY,
+            host                  TEXT NOT NULL,
+            client_id             TEXT NOT NULL,
+            client_name           TEXT NOT NULL,
+            redirect_host         TEXT NOT NULL,
+            created_at            INTEGER NOT NULL,
+            last_used_at          INTEGER NOT NULL,
+            access_hash           TEXT,
+            access_expires_at     INTEGER,
+            refresh_hash          TEXT NOT NULL UNIQUE,
+            previous_refresh_hash TEXT,
+            refresh_expires_at    INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX mcp_oauth_grants_host ON mcp_oauth_grants (host);
+        CREATE INDEX mcp_oauth_grants_previous ON mcp_oauth_grants (previous_refresh_hash);",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

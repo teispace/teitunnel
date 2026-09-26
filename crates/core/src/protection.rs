@@ -184,6 +184,8 @@ pub async fn view<C: CloudApi>(
     let snapshot = engine.observation(api, ctx, &intent).await?;
     let state = snapshot
         .edge
+        .into_iter()
+        .next()
         .ok_or_else(|| crate::engine::PlanError::NoZone(host.to_string()))?;
     let protection = state.protection_of(&host);
     let shares_rate_limit_with = state

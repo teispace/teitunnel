@@ -118,6 +118,7 @@ beforeEach(() => {
           startedAt: Date.now(),
           stopAt: null,
           inspected: true,
+          paused: false,
           folder: null,
           hostHeader: null,
           check: null,
@@ -128,6 +129,10 @@ beforeEach(() => {
       case "quick_share_stop":
         shares = [];
         return null;
+      case "quick_share_set_paused": {
+        shares = shares.map((share) => ({ ...share, paused: payload["paused"] === true }));
+        return shares[0];
+      }
       case "quick_share_stats":
         return { requests: 5, errors: 0 };
       case "quick_share_set_host_header": {
@@ -145,6 +150,8 @@ beforeEach(() => {
             message: null,
             protected: false,
             eventStream: false,
+            links: null,
+            transient: false,
           },
         };
         shares = [restarted];
@@ -181,6 +188,16 @@ describe("QuickSharePage", () => {
       mode: "auto",
     });
 
+    // Pausing keeps the address; the card says so until it's resumed.
+    fireEvent.click(within(card).getByRole("button", { name: "Pause" }));
+    expect(await within(card).findByText("Paused")).toBeTruthy();
+    expect(calls.find((c) => c.cmd === "quick_share_set_paused")?.args).toEqual({
+      id: "qs-a",
+      paused: true,
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(within(card).queryByText("Paused")).toBeNull());
+
     fireEvent.click(within(card).getByRole("button", { name: "Stop Sharing" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
   });
@@ -215,6 +232,7 @@ describe("QuickSharePage", () => {
         startedAt: Date.now(),
         stopAt: null,
         inspected: true,
+        paused: false,
         folder: null,
         hostHeader: null,
         check: {
@@ -234,6 +252,8 @@ describe("QuickSharePage", () => {
           message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
           protected: false,
           eventStream: false,
+          links: null,
+          transient: false,
         },
       },
     ];
@@ -265,6 +285,7 @@ describe("QuickSharePage", () => {
         startedAt: Date.now(),
         stopAt: null,
         inspected: true,
+        paused: false,
         folder: null,
         hostHeader: { value: "localhost:5173", autoFor: "vite" },
         check: {
@@ -274,6 +295,8 @@ describe("QuickSharePage", () => {
           message: null,
           protected: false,
           eventStream: true,
+          links: null,
+          transient: false,
         },
       },
     ];

@@ -23,7 +23,15 @@ pub struct AccessRule {
     pub emails: Vec<String>,
     /// Email domains, e.g. `xyz.com`.
     pub email_domains: Vec<String>,
+    /// Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
+    /// and other machines that can't log in). Each is its own application that lets
+    /// everyone through.
+    #[serde(default)]
+    pub bypass: Vec<String>,
 }
+
+/// Paths that skip a login, at most.
+pub(crate) const MAX_BYPASS: usize = 10;
 
 /// Why an access rule was rejected. Messages are shown next to the field.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -34,6 +42,10 @@ pub enum AccessRuleError {
     Email(String),
     /// Not a domain.
     Domain(String),
+    /// Not a plain path.
+    BypassPath(String),
+    /// More paths than [`MAX_BYPASS`].
+    TooManyBypass,
 }
 
 impl UserText for AccessRuleError {
@@ -42,6 +54,8 @@ impl UserText for AccessRuleError {
             Self::Empty => msg::error::access_rule::empty(),
             Self::Email(value) => msg::error::access_rule::email(value),
             Self::Domain(value) => msg::error::access_rule::domain(value),
+            Self::BypassPath(value) => msg::error::access_rule::bypass_path(value),
+            Self::TooManyBypass => msg::error::access_rule::too_many_bypass(MAX_BYPASS as u64),
         }
     }
 }
@@ -84,10 +98,48 @@ impl AccessRule {
         if let Some(bad) = email_domains.iter().find(|d| !valid_domain(d)) {
             return Err(AccessRuleError::Domain(bad.clone()));
         }
+        let mut bypass = Vec::new();
+        for raw in &self.bypass {
+            let path = bypass_path(raw).ok_or_else(|| AccessRuleError::BypassPath(raw.clone()))?;
+            if !bypass.contains(&path) {
+                bypass.push(path);
+            }
+        }
+        if bypass.len() > MAX_BYPASS {
+            return Err(AccessRuleError::TooManyBypass);
+        }
+        bypass.sort();
         Ok(Self {
             emails,
             email_domains,
+            bypass,
         })
+    }
+
+    /// A login from typed entries: `me@xyz.com` is a person, `@xyz.com` (or `xyz.com`)
+    /// everyone at a domain; `bypass` the paths that skip it. `None` without entries.
+    /// Checked by [`Self::normalized`] (the engine does when planning).
+    pub fn from_allow(allow: &[String], bypass: &[String]) -> Option<Self> {
+        if allow.is_empty() {
+            return None;
+        }
+        let (emails, domains): (Vec<&String>, Vec<&String>) = allow
+            .iter()
+            .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
+        Some(Self {
+            emails: emails.into_iter().map(|e| e.trim().to_owned()).collect(),
+            email_domains: domains.into_iter().map(|d| d.trim().to_owned()).collect(),
+            bypass: bypass.to_vec(),
+        })
+    }
+
+    /// Only who may log in (what one application's policy says; the paths that skip
+    /// the login are applications of their own).
+    pub fn people_only(&self) -> Self {
+        Self {
+            bypass: Vec::new(),
+            ..self.clone()
+        }
     }
 
     /// Who's allowed, in any language: `me@xyz.com, @team.com` (`@domain` is everyone
@@ -132,6 +184,24 @@ impl AccessRule {
         }
         rule.normalized().ok()
     }
+}
+
+/// A path that skips a login, as Access writes it: `/webhooks` from `webhooks`,
+/// `/webhooks/`, `/webhooks/*` or `/webhooks*`; `None` unless it's a plain path.
+fn bypass_path(raw: &str) -> Option<String> {
+    let trimmed = raw.trim().trim_end_matches('*').trim_end_matches('/');
+    let path = if trimmed.starts_with('/') {
+        trimmed.to_owned()
+    } else {
+        format!("/{trimmed}")
+    };
+    let plain = path.len() > 1
+        && path[1..]
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_./~".contains(&b))
+        && !path.contains("//")
+        && !path.split('/').any(|segment| segment == "..");
+    plain.then_some(path)
 }
 
 /// Why a route can't be protected as asked.
@@ -207,6 +277,57 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
             app_count: None,
         }],
     }
+}
+
+/// The application that lets everyone through `domain` (a path under a protected
+/// route), without a login.
+pub(crate) fn bypass_definition(domain: &str) -> NewAccessApp {
+    NewAccessApp {
+        name: format!("{}{domain}", cf_api::TEITUNNEL_PREFIX),
+        domain: domain.to_owned(),
+        kind: "self_hosted".into(),
+        session_duration: "24h".into(),
+        app_launcher_visible: false,
+        policies: vec![AccessPolicy {
+            id: None,
+            name: BYPASS_POLICY.into(),
+            decision: "bypass".into(),
+            include: vec![cf_api::everyone_rule()],
+            precedence: Some(1),
+            reusable: false,
+            app_count: None,
+        }],
+    }
+}
+
+/// The name of the policy that lets everyone through a path.
+const BYPASS_POLICY: &str = "Anyone, without a login";
+
+/// Whether an application only lets everyone through (a path that skips a login).
+pub(crate) fn is_bypass(app: &NewAccessApp) -> bool {
+    matches!(app.policies.as_slice(), [policy]
+        if policy.decision == "bypass"
+            && policy.include.len() == 1
+            && policy.include.iter().all(cf_api::rule_is_everyone))
+}
+
+/// The paths under `domain` that skip its login: Teitunnel's bypass applications
+/// there, sorted.
+pub(crate) fn bypass_paths(state: &AccessState, domain: &str) -> Vec<String> {
+    let prefix = format!("{domain}/");
+    let mut paths: Vec<String> = state
+        .apps
+        .iter()
+        .filter(|app| app.owned && is_bypass(&app.definition))
+        .filter_map(|app| {
+            app.domain
+                .get(..prefix.len())
+                .filter(|head| head.eq_ignore_ascii_case(&prefix))
+                .map(|_| app.domain[domain.len()..].to_owned())
+        })
+        .collect();
+    paths.sort();
+    paths
 }
 
 /// The name of the Service Auth policy Teitunnel adds for service tokens.
@@ -370,15 +491,20 @@ impl AccessNeed {
 
     /// What planning `intent` needs.
     pub fn of(intent: &Intent) -> Self {
-        let requested = |route: &RouteSpec| {
-            route
-                .access
-                .as_ref()
-                .and_then(|_| access_domain(&route.hostname, route.path.as_ref()).ok())
+        // The route's application, and those of the paths that skip its login.
+        let requested = |route: &RouteSpec| -> Vec<String> {
+            let Some(rule) = route.access.as_ref() else {
+                return Vec::new();
+            };
+            let Ok(domain) = access_domain(&route.hostname, route.path.as_ref()) else {
+                return Vec::new();
+            };
+            let bypass = rule.bypass.iter().map(|path| format!("{domain}{path}"));
+            std::iter::once(domain.clone()).chain(bypass).collect()
         };
         match intent {
             Intent::AddRoute { route } => {
-                let domains: Vec<String> = requested(route).into_iter().collect();
+                let domains = requested(route);
                 Self {
                     setup: !domains.is_empty(),
                     domains,
@@ -386,7 +512,7 @@ impl AccessNeed {
                 }
             }
             Intent::UpdateRoute { route, .. } => {
-                let domains: Vec<String> = requested(route).into_iter().collect();
+                let domains = requested(route);
                 Self {
                     setup: !domains.is_empty(),
                     domains,
@@ -394,6 +520,11 @@ impl AccessNeed {
                 }
             }
             Intent::RemoveRoute { .. } | Intent::RemoveTunnel => Self {
+                owned: true,
+                ..Self::default()
+            },
+            Intent::CleanUpHostname { hostname } => Self {
+                domains: vec![hostname.to_string()],
                 owned: true,
                 ..Self::default()
             },
@@ -502,6 +633,7 @@ mod tests {
         AccessRule {
             emails: emails.iter().map(|s| (*s).to_owned()).collect(),
             email_domains: domains.iter().map(|s| (*s).to_owned()).collect(),
+            bypass: Vec::new(),
         }
     }
 
@@ -524,6 +656,69 @@ mod tests {
             rule(&["me@xyz.com"], &["team.io"]).people(),
             "me@xyz.com, @team.io"
         );
+    }
+
+    #[test]
+    fn paths_that_skip_the_login_are_plain_and_few() {
+        let with = |paths: &[&str]| AccessRule {
+            bypass: paths.iter().map(|s| (*s).to_owned()).collect(),
+            ..rule(&["me@xyz.com"], &[])
+        };
+        assert_eq!(
+            with(&["webhooks/*", "/webhooks/", "/api/hooks*"])
+                .normalized()
+                .unwrap()
+                .bypass,
+            ["/api/hooks", "/webhooks"]
+        );
+        for bad in ["/", "/a b", "/../etc", "/a//b", "re:^/x"] {
+            assert_eq!(
+                with(&[bad]).normalized(),
+                Err(AccessRuleError::BypassPath(bad.into())),
+                "{bad}"
+            );
+        }
+        let many: Vec<String> = (0..=MAX_BYPASS).map(|i| format!("/p{i}")).collect();
+        let many: Vec<&str> = many.iter().map(String::as_str).collect();
+        assert_eq!(
+            with(&many).normalized(),
+            Err(AccessRuleError::TooManyBypass)
+        );
+        assert_eq!(
+            with(&["/webhooks"]).people_only(),
+            rule(&["me@xyz.com"], &[])
+        );
+
+        // Read back from Teitunnel's applications under the route, not others'.
+        let state = AccessState {
+            organization: None,
+            login_methods: None,
+            apps: [
+                "app.xyz.com/webhooks",
+                "app.xyz.com/admin",
+                "other.xyz.com/webhooks",
+            ]
+            .iter()
+            .enumerate()
+            .map(|(i, domain)| ObservedAccessApp {
+                id: format!("a{i}"),
+                domain: (*domain).to_owned(),
+                owned: true,
+                rule: None,
+                definition: if domain.ends_with("admin") {
+                    app_definition(domain, &rule(&["me@xyz.com"], &[]))
+                } else {
+                    bypass_definition(domain)
+                },
+            })
+            .collect(),
+        };
+        assert_eq!(bypass_paths(&state, "app.xyz.com"), ["/webhooks"]);
+        assert!(is_bypass(&bypass_definition("app.xyz.com/webhooks")));
+        assert!(!is_bypass(&app_definition(
+            "app.xyz.com",
+            &rule(&["me@xyz.com"], &[])
+        )));
     }
 
     #[test]

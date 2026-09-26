@@ -13,7 +13,7 @@ export function detectPlatform(): Platform {
 
 function readPlatform(): Platform {
   // Development in a browser (screenshots): `?platform=windows` previews another chrome.
-  if (import.meta.env.DEV && !isTauri()) {
+  if (__DEV_PAGES__ && !isTauri()) {
     const wanted = new URLSearchParams(window.location.search).get("platform");
     if (wanted === "macos" || wanted === "windows" || wanted === "linux") return wanted;
   }

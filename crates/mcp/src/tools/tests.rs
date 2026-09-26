@@ -58,6 +58,8 @@ pub(crate) struct FakeState {
     pub(crate) protection_applied: Vec<teitunnel_core::protection::ProtectionChange>,
     /// Pauses (`true`) and resumes, by hostname.
     pub(crate) paused: Vec<(String, bool)>,
+    pub(crate) quick_paused: Vec<(String, bool)>,
+    pub(crate) fronts_applied: Vec<teitunnel_core::fronts::FrontChange>,
     /// Schedules set (`None`: removed), by hostname.
     pub(crate) schedules: Vec<(String, Option<teitunnel_core::schedule::Schedule>)>,
     /// Folders shared.
@@ -86,6 +88,7 @@ pub(crate) fn route(hostname: &str, origin: &str) -> RouteView {
         tunnel_id: Some("t1".into()),
         temporary: false,
         balanced: false,
+        paused: false,
         options: OriginOptions::default(),
     }
 }
@@ -317,6 +320,8 @@ impl Backend for FakeBackend {
             failure,
             protected: false,
             event_stream: false,
+            transient: false,
+            links: None,
         }))
     }
 
@@ -549,6 +554,117 @@ impl Backend for FakeBackend {
         self.changes.subscribe()
     }
 
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        use teitunnel_core::analytics::{
+            Percentiles, Ranked, RequestRate, RouteStats, SourceKind, StatsPart, StatsSeries,
+            StatusClasses,
+        };
+        let ranked = |key: &str, requests| Ranked {
+            key: key.into(),
+            requests,
+        };
+        let stats = RouteStats {
+            source: SourceKind::Edge,
+            route: route.clone(),
+            range,
+            series: StatsSeries {
+                at: vec![60_000.0, 120_000.0, 180_000.0],
+                span: vec![60.0; 3],
+                requests: vec![3, 0, 7],
+                client_errors: vec![0; 3],
+                server_errors: vec![0, 0, 1],
+                bytes: vec![0.0; 3],
+            },
+            requests: 10,
+            rate: RequestRate {
+                average: 10.0 / 180.0,
+                peak: 7.0 / 60.0,
+            },
+            bytes: 2_048,
+            classes: StatusClasses {
+                ok: 9,
+                redirects: 0,
+                client_errors: 0,
+                server_errors: 1,
+            },
+            statuses: vec![ranked("200", 9), ranked("502", 1)],
+            paths: vec![ranked("/", 10)],
+            countries: vec![ranked("NL", 10)],
+            browsers: vec![ranked("Safari", 6)],
+            bots: vec![ranked("", 6), ranked("AI Crawler", 4)],
+            cache: Vec::new(),
+            origin_ms: Some(Percentiles {
+                p50: Some(12.0),
+                p95: Some(80.0),
+                p99: None,
+            }),
+            ttfb_ms: None,
+            available_from: None,
+            unavailable: vec![StatsPart::Cache],
+            fetched_at: 0.0,
+        };
+        let found = route.hostname == "app.xyz.com";
+        Box::pin(async move {
+            if found {
+                Ok(stats)
+            } else {
+                Err(BackendError::Message(
+                    "No connected account has a domain for other.com.".into(),
+                ))
+            }
+        })
+    }
+
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        _range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        use teitunnel_core::{
+            analytics::RouteRef,
+            uptime::{Cause, Incident, LatencySeries, UptimeDetail, UptimeSummary},
+        };
+        let route = RouteRef {
+            hostname: "app.xyz.com".into(),
+            path: None,
+        };
+        let outage = Incident {
+            id: 1,
+            account_id: "acc".into(),
+            route: route.clone(),
+            started_at: 1_000,
+            ended_at: None,
+            cause: Cause::NoConnector,
+        };
+        let detail = UptimeDetail {
+            summary: UptimeSummary {
+                account_id: "acc".into(),
+                route,
+                up: Some(false),
+                last_checked: Some(2_000),
+                last_latency_ms: None,
+                last_cause: Some(Cause::NoConnector),
+                uptime_day: Some(0.98765),
+                uptime_week: Some(0.999),
+                uptime_month: None,
+                p95_ms: Some(120.0),
+                open_incident: Some(outage.clone()),
+            },
+            bars: Vec::new(),
+            latency: LatencySeries {
+                at: Vec::new(),
+                ms: Vec::new(),
+            },
+            incidents: vec![outage],
+        };
+        let found = hostname.is_none_or(|h| h == "app.xyz.com");
+        Box::pin(async move { Ok(if found { vec![detail] } else { Vec::new() }) })
+    }
+
     fn stop_own_shares(&self) -> BoxFuture<'_, usize> {
         let mut state = self.lock();
         let before = state.shares.len();
@@ -563,6 +679,15 @@ impl Backend for FakeBackend {
         paused: bool,
     ) -> BoxFuture<'a, BackendResult<()>> {
         self.lock().paused.push((hostname.to_owned(), paused));
+        ready(Ok(()))
+    }
+
+    fn set_quick_paused<'a>(
+        &'a self,
+        id: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        self.lock().quick_paused.push((id.to_owned(), paused));
         ready(Ok(()))
     }
 
@@ -635,6 +760,39 @@ impl Backend for FakeBackend {
         _hostname: &'a str,
     ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::protection::ServiceTokenView>>> {
         ready(Ok(self.lock().tokens.clone()))
+    }
+
+    fn preview_front<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        ready(Ok(PlanView {
+            steps: vec![StepView {
+                kind: StepKind::ServiceToken,
+                description: msg::raw(format!("Put a Worker in front of {}", change.hostname())),
+                command: None,
+            }],
+            warnings: Vec::new(),
+            requires_confirmation: false,
+            fingerprint: "fp-front".into(),
+        }))
+    }
+
+    fn apply_front<'a>(
+        &'a self,
+        _account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+        approval: ApplyApproval,
+        _actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        assert_eq!(approval.fingerprint, "fp-front");
+        self.lock().fronts_applied.push(change.clone());
+        ready(Ok(Outcome::Applied {
+            tunnel_id: None,
+            verify: Vec::new(),
+            connector_error: None,
+        }))
     }
 
     fn preview_protection<'a>(
@@ -1005,6 +1163,8 @@ fn every_tool_is_listed_with_schemas_and_annotations() {
         "logs_tail",
         "remote_logs",
         "connector_status",
+        "route_health",
+        "route_traffic",
         "export_config",
         "import_scan",
         "accounts",
@@ -1267,6 +1427,7 @@ async fn edits_keep_what_they_dont_mention() {
     h.backend.lock().routes[0].access = Some(teitunnel_core::engine::AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
+        bypass: vec!["/webhooks".into()],
     });
     h.call(
         Mode::Full,
@@ -1702,6 +1863,68 @@ async fn traffic_is_masked_and_waited_for() {
 }
 
 #[tokio::test]
+async fn an_agent_pauses_its_own_quick_share_without_asking() {
+    let h = harness();
+    let shared = h
+        .call(Mode::Full, "share_port", json!({ "target": "3000" }))
+        .await
+        .unwrap();
+    let url = shared["share"]["url"].as_str().unwrap().to_owned();
+    let paused = h
+        .call(Mode::Ask, "pause_share", json!({ "share": url }))
+        .await
+        .unwrap();
+    assert_eq!(paused["outcome"], "paused", "{paused}");
+    let id = shared["share"]["id"].as_str().unwrap().to_owned();
+    assert_eq!(h.backend.lock().quick_paused, [(id, true)]);
+    assert!(
+        h.backend.lock().paused.is_empty(),
+        "not treated as a domain"
+    );
+}
+
+#[tokio::test]
+async fn an_offline_page_is_shown_to_the_person_before_it_goes_up() {
+    let h = harness();
+    let shared: SharedBackend = h.backend.clone();
+    let fronts = super::FrontTools::new(shared);
+    let call = |args: Value| {
+        let ctx = ToolContext::detached(settings(Mode::Ask), actor());
+        let Value::Object(args) = args else {
+            panic!("an object")
+        };
+        let fronts = &fronts;
+        async move {
+            fronts
+                .call("set_offline_page", args, &ctx)
+                .await
+                .map(|out| out.structured)
+                .unwrap()
+        }
+    };
+    let args = json!({ "hostname": "demo.xyz.com", "title": "Back at 5" });
+    let asked = call(args).await;
+    assert_eq!(asked["outcome"], "needsApproval");
+    assert!(
+        h.backend.lock().fronts_applied.is_empty(),
+        "nothing unasked"
+    );
+    let args = json!({ "hostname": "demo.xyz.com", "title": "Back at 5", "confirmed": true });
+    let done = call(args).await;
+    assert_eq!(done["outcome"], "applied", "{done}");
+    let applied = h.backend.lock().fronts_applied.clone();
+    let [
+        teitunnel_core::fronts::FrontChange::Offline {
+            page: Some(page), ..
+        },
+    ] = applied.as_slice()
+    else {
+        panic!("{applied:?}");
+    };
+    assert_eq!(page.title, "Back at 5");
+}
+
+#[tokio::test]
 async fn pausing_and_scheduling_ask_first() {
     let h = harness();
     // Ask mode without a client that can ask: the agent must show the person first.
@@ -1815,7 +2038,7 @@ async fn folders_are_shared_with_approval() {
     assert_eq!(shared["outcome"], "shared");
     assert_eq!(shared["share"]["url"], "https://docs.xyz.com");
     let folders = h.backend.lock().folders.clone();
-    assert!(folders[0].listing && !folders[0].spa);
+    assert!(folders[0].lists() && !folders[0].spa);
     assert!(
         h.call(
             Mode::Full,
@@ -1871,9 +2094,97 @@ async fn pages_long_lists() {
 
 #[test]
 fn builds_login_rules_from_allow_lists() {
-    let rule =
-        super::access_rule(&["me@xyz.com".into(), "@team.io".into(), "corp.com".into()]).unwrap();
+    let rule = super::access_rule(
+        &["me@xyz.com".into(), "@team.io".into(), "corp.com".into()],
+        &["/webhooks".into()],
+    )
+    .unwrap();
     assert_eq!(rule.emails, ["me@xyz.com"]);
     assert_eq!(rule.email_domains, ["@team.io", "corp.com"]);
-    assert!(super::access_rule(&[]).is_none());
+    assert_eq!(rule.bypass, ["/webhooks"]);
+    assert!(super::access_rule(&[], &["/webhooks".into()]).is_none());
+}
+
+#[tokio::test]
+async fn says_who_uses_a_route() {
+    let h = harness();
+    let out = h
+        .call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "App.xyz.com", "path": "^/api/.*", "range": "hour"}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out["source"], "edge");
+    assert_eq!(out["hostname"], "app.xyz.com");
+    assert_eq!(out["path"], "/api/");
+    assert_eq!(out["range"], "hour");
+    assert_eq!(out["perSecond"]["peak"], 0.117);
+    assert_eq!(out["serverErrorPercent"], 10.0);
+    assert_eq!(out["bots"], json!([["people", 6], ["AI Crawler", 4]]));
+    assert_eq!(
+        out["timeline"].as_array().unwrap().len(),
+        2,
+        "quiet minutes left out"
+    );
+    assert_eq!(out["unavailable"], json!(["cache"]));
+    assert_eq!(out["originMs"]["p95"], 80.0);
+    let missing = h
+        .call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "other.com"}),
+        )
+        .await
+        .unwrap_err();
+    assert!(missing.contains("No connected account"), "{missing}");
+    assert!(
+        h.call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "not a host"})
+        )
+        .await
+        .unwrap_err()
+        .contains("isn't a hostname")
+    );
+}
+
+#[tokio::test]
+async fn says_how_routes_have_been_doing() {
+    let h = harness();
+    let out = h
+        .call(Mode::ReadOnly, "route_health", json!({"range": "week"}))
+        .await
+        .unwrap();
+    let route = &out["routes"][0];
+    assert_eq!(route["hostname"], "app.xyz.com");
+    assert_eq!(route["up"], false);
+    assert_eq!(route["uptimeDay"], 98.77);
+    assert_eq!(
+        route["ongoing"]["cause"],
+        "No connector is connected to the tunnel."
+    );
+    assert_eq!(route["incidents"].as_array().unwrap().len(), 1);
+    let none = h
+        .call(
+            Mode::ReadOnly,
+            "route_health",
+            json!({"hostname": "other.xyz.com"}),
+        )
+        .await
+        .unwrap();
+    assert!(
+        none["note"]
+            .as_str()
+            .unwrap()
+            .contains("isn't a route of this machine")
+    );
+    assert!(
+        h.call(Mode::ReadOnly, "route_health", json!({"range": "year"}))
+            .await
+            .unwrap_err()
+            .contains("hour, day, week or month")
+    );
 }

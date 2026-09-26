@@ -125,6 +125,7 @@ fn the_published_schema_knows_every_key() {
             "origin",
             "originRequest",
             "path",
+            "skipLogin",
             "tunnel"
         ]
     );
@@ -309,6 +310,14 @@ fn checks_values_with_the_cores_validators() {
         (
             "routes:\n  - hostname: a.example.com\n    origin: 3000\n    originRequest: { connectTimeout: 0 }\n",
             "originRequest",
+        ),
+        (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    skipLogin: [/webhooks]\n",
+            "needs login",
+        ),
+        (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [me@example.com]\n    skipLogin: [\"/a b\"]\n",
+            "plain path",
         ),
         (
             "shares:\n  - port: 3000\n    hostname: \"{team}.example.com\"\n",
@@ -658,4 +667,14 @@ fn resolves_secret_references() {
     .unwrap_err();
     let text: Text = crate::text::UserText::text(&missing);
     assert!(text.english().contains("TEITUNNEL_TEST_UNSET_VARIABLE"));
+}
+
+#[test]
+fn paths_can_skip_a_routes_login() {
+    let parsed = parse(
+        "version: 1\nroutes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [me@example.com]\n    skipLogin: [webhooks/*, /api/hooks]\n",
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics);
+    let login = parsed.file.unwrap().routes[0].login.clone().unwrap();
+    assert_eq!(login.bypass, ["/api/hooks", "/webhooks"]);
 }

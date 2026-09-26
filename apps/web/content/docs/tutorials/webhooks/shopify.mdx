@@ -1,0 +1,90 @@
+---
+title: Shopify webhooks on localhost
+description: Receive Shopify app webhooks on your computer at a stable HTTPS URL, check X-Shopify-Hmac-SHA256, replay deliveries, and keep your subscription alive while you're offline.
+---
+
+Send a Shopify app's webhooks to a handler on your computer, watch them in the
+[inspector](/docs/guides/inspector), and replay them while you fix the handler. The
+examples use a handler at `http://localhost:3000/webhooks` and the hostname
+`hooks.teispace.com`.
+
+## 1. Share the handler
+
+```sh
+teitunnel share 3000 --on hooks.teispace.com --watch "/webhooks/*"
+```
+
+A stable address matters here: Shopify's subscriptions store the full URL, so a random
+address would need a new deploy every session.
+
+## 2. Subscribe
+
+In your app's `shopify.app.toml`:
+
+```toml
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+topics = ["products/create"]
+uri = "https://hooks.teispace.com/webhooks/products"
+```
+
+Then `shopify app deploy`. (Subscriptions for one shop are made with the Admin API's
+`webhookSubscriptionCreate` instead.)
+
+## 3. Send a test webhook
+
+```sh
+shopify app webhook trigger --topic products/create --api-version 2026-07 \
+  --address https://hooks.teispace.com/webhooks/products --client-secret …
+```
+
+The test is signed with your app's client secret, like a real delivery. To have the
+inspector check signatures, select the delivery in the **Inspector** and choose **Add
+Signing Secret…** with the same client secret.
+
+## 4. Fix and replay
+
+`X-Shopify-Hmac-SHA256` is a base64 HMAC-SHA256 of the raw body with the app's client
+secret. It has no timestamp, so a plain replay still verifies; **Re-sign** in **Edit and
+Replay…** signs an edited body again.
+
+```sh
+teitunnel traffic ls --path /webhooks --last 5
+teitunnel traffic replay 7f3a
+```
+
+## Things Shopify is strict about
+
+- **Fast answers.** Shopify allows 1 second to connect and 5 seconds for the whole request.
+  Answer 200 first and queue the work.
+- **The raw body.** A body parser such as `express.json()` running before verification
+  breaks the check.
+
+## While your computer is off
+
+Shopify retries a failed delivery 8 times over 4 hours, and **deletes a subscription made
+with the Admin API after 8 failures in a row**. A laptop that's closed for an afternoon
+can lose it. A [webhook inbox](/docs/guides/webhook-inbox) answers `202` while you're away,
+so deliveries count as received, and passes them on in order when you're back:
+
+```sh
+teitunnel inbox add hooks.teispace.com /webhooks/
+```
+
+The inbox can't check Shopify signatures itself, so anyone who knows the address can add
+to it; your handler still checks each one when it's delivered.
+
+<Callout title="Checked 2026-09-26">
+  From Shopify's documentation on [HTTPS delivery](https://shopify.dev/docs/apps/build/webhooks/subscribe/https),
+  [subscribing](https://shopify.dev/docs/apps/build/webhooks/subscribe) and
+  [`app webhook trigger`](https://shopify.dev/docs/api/shopify-cli/app/app-webhook-trigger).
+</Callout>
+
+## Related
+
+<Cards>
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks" description="The full walk-through, for any provider." />
+  <Card title="Webhook inbox" href="/docs/guides/webhook-inbox" />
+</Cards>

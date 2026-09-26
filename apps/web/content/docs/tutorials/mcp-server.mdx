@@ -1,0 +1,93 @@
+---
+title: Put an MCP server online
+description: Make an MCP server running on your computer reachable by claude.ai, ChatGPT, Claude Code on another machine and other remote AI clients, behind a bearer token or an OAuth sign-in you approve.
+---
+
+An MCP server on `localhost` works for AI tools on the same computer. claude.ai, ChatGPT
+and a teammate's Claude Code connect from elsewhere: claude.ai, for example, connects from
+Anthropic's cloud, not from your computer, so the server needs a public HTTPS address. In
+this tutorial you put a local MCP server online at `https://mcp.teispace.com/mcp`, connect
+claude.ai to it, and see who's connected.
+
+**You need:** Teitunnel, a Cloudflare account with a domain
+([first route](/docs/getting-started/first-route#before-you-start)), and an MCP server
+that speaks Streamable HTTP or SSE, here on port 8000.
+
+<Callout title="Why your own domain">
+  MCP keeps event streams open, and Cloudflare's no-account Quick Tunnels don't carry
+  Server-Sent Events ([Limits](/docs/reference/limits#quick-shares)). `--mcp` therefore needs
+  `--on` with a hostname on your domain.
+</Callout>
+
+## 1. Share it
+
+```sh
+teitunnel share 8000 --mcp --on mcp.teispace.com
+```
+
+Teitunnel first checks that port 8000 answers MCP (at `/mcp`, then `/sse`, then `/`; set
+another path with `--mcp-path`). Then it shares it with streams kept alive, requires a
+bearer token, and prints ready configurations for Claude Code, Cursor and VS Code.
+
+The token is kept in your system's keychain for that hostname, so clients keep working
+the next time you share on it. `teitunnel token mcp.teispace.com` shows it again, and
+`--new-token` makes a new one.
+
+An AI agent can do the same with the `expose_mcp_server` tool of
+[Teitunnel's own MCP server](/docs/guides/ai-agents); the agent never sees the token.
+
+## 2. Connect claude.ai
+
+In claude.ai, **Customize ▸ Connectors**, then **+**. Give it a name and the URL
+`https://mcp.teispace.com/mcp`, and click **Add**. (On Claude's free plan you can add one
+custom connector.)
+
+claude.ai can't use a fixed token, so it signs in with OAuth:
+
+1. The browser shows a short code and waits.
+2. Teitunnel shows a dialog with the same code and the app's name, asking whether it may
+   connect. When the app isn't running, `teitunnel share` asks in the terminal instead.
+3. Check that the codes match, and allow it.
+
+<Callout type="warn" title="Only allow what you just did">
+  An app's name, even "Claude", says nothing about who is using it. Allow a connection only
+  when you started it yourself a moment ago.
+</Callout>
+
+ChatGPT and other clients that support remote MCP servers sign in the same way.
+
+## 3. Connect Claude Code, Cursor or VS Code
+
+These accept a URL and a header, so they use the bearer token. Paste the configuration
+`teitunnel share` printed, for example on another computer. The token is in it, so share
+it only with people who should use the server.
+
+## 4. See who's connected
+
+Approved OAuth connections are listed in **Settings ▸ General ▸ AI Tools**. **Disconnect**
+stops one at once. Their tokens are for this server only, last an hour and renew
+themselves; Teitunnel keeps only their hashes.
+
+Every request goes through the [inspector](/docs/guides/inspector), so you can see each
+tool call a client makes and replay it.
+
+## Keep it online
+
+The share lasts as long as the command runs. Share on the same hostname again and clients
+reconnect with the same token or sign-in.
+
+## Troubleshooting
+
+- **"No MCP server answered at …"**: the server isn't running on that port, or its
+  endpoint is elsewhere: pass `--mcp-path /your/path`.
+- **The client says it's unauthorized:** a client with a fixed token needs the current
+  one (`teitunnel token mcp.teispace.com`). After `--new-token`, update every client.
+- **Your server has its own sign-in:** it keeps it. Teitunnel adds OAuth only in front of
+  servers that don't ask for credentials themselves.
+
+## Related
+
+<Cards>
+  <Card title="AI agents" href="/docs/guides/ai-agents" description="Teitunnel's own MCP server, for your AI tools." />
+  <Card title="Inspector" href="/docs/guides/inspector" description="Every request, captured and replayable." />
+</Cards>

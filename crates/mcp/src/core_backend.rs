@@ -106,6 +106,8 @@ pub struct CoreBackend<S: ConnectorSource> {
     owner: String,
     changes: broadcast::Sender<ChangeEvent>,
     own_domain: Mutex<HashSet<(String, String)>>,
+    /// Edge analytics, cached for this process.
+    analytics: teitunnel_core::analytics::Analytics,
 }
 
 impl<S: ConnectorSource> std::fmt::Debug for CoreBackend<S> {
@@ -148,6 +150,7 @@ impl<S: ConnectorSource> CoreBackend<S> {
             source,
             changes,
             own_domain: Mutex::default(),
+            analytics: teitunnel_core::analytics::Analytics::default(),
         });
         tokio::spawn(backend.parts.quick_shares.clone().watch_runtime());
         // Forget the record of a Quick Share that ended by itself (`expiresIn`).
@@ -961,6 +964,56 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
         self.changes.subscribe()
     }
 
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        use teitunnel_core::analytics::{AnalyticsError, AnalyticsSource};
+        Box::pin(async move {
+            if let Some(inspector) = self.parts.quick_shares.inspector() {
+                let lens = teitunnel_core::inspect::analytics::LensSource::new(inspector.clone());
+                if let Ok(Some(stats)) = lens.route_stats(route, range).await {
+                    return Ok(stats);
+                }
+            }
+            self.analytics
+                .route_in_any(&self.parts.accounts, None, route, range)
+                .await
+                .map_err(|err| match err {
+                    AnalyticsError::NoZone(host) => BackendError::Message(format!(
+                        "No connected account has a domain for {host}, and this server's inspector isn't in front of it."
+                    )),
+                    AnalyticsError::Permission => BackendError::Message(format!(
+                        "{err} The person can add Zone ▸ Analytics ▸ Read to the account in Teitunnel (Settings ▸ Accounts)."
+                    )),
+                    other => msg(other),
+                })
+        })
+    }
+
+    fn uptime<'a>(
+        &'a self,
+        hostname: Option<&'a str>,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::uptime::UptimeDetail>>> {
+        Box::pin(async move {
+            let store = teitunnel_core::uptime::UptimeStore::new(self.parts.store.clone());
+            let now = i64::try_from(teitunnel_core::domain_shares::now_ms()).unwrap_or(i64::MAX);
+            let mut out = Vec::new();
+            for target in
+                teitunnel_core::uptime::targets(&self.parts.accounts, self.engine().local()).await
+            {
+                if hostname.is_some_and(|h| !h.trim().eq_ignore_ascii_case(&target.route.hostname))
+                {
+                    continue;
+                }
+                out.push(store.detail(&target, range, now).await.map_err(msg)?);
+            }
+            Ok(out)
+        })
+    }
+
     fn comment_subjects(
         &self,
     ) -> BoxFuture<'_, BackendResult<Vec<teitunnel_core::comments::SubjectView>>> {
@@ -1060,6 +1113,95 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
                 let _ = self.changes.send(ChangeEvent::Shares);
             }
             stopped
+        })
+    }
+
+    fn fronts<'a>(
+        &'a self,
+        account: &'a str,
+    ) -> BoxFuture<'a, BackendResult<Vec<teitunnel_core::fronts::FrontView>>> {
+        Box::pin(async move {
+            teitunnel_core::fronts::list(self.engine(), Some(account))
+                .await
+                .map_err(msg)
+        })
+    }
+
+    fn preview_front<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+    ) -> BoxFuture<'a, BackendResult<PlanView>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            // A verifying inbox's signing secret is the inspector's.
+            let secrets = self
+                .parts
+                .quick_shares
+                .inspector()
+                .and_then(|i| i.secrets());
+            teitunnel_core::fronts::preview(
+                self.engine(),
+                &api,
+                secrets,
+                self.context(account, None),
+                change,
+            )
+            .await
+            .map_err(|e| engine_error(e, account))
+        })
+    }
+
+    fn apply_front<'a>(
+        &'a self,
+        account: &'a str,
+        change: &'a teitunnel_core::fronts::FrontChange,
+        approval: ApplyApproval,
+        actor: Option<Actor>,
+    ) -> BoxFuture<'a, BackendResult<Outcome>> {
+        Box::pin(async move {
+            let api = self.api(account).await?;
+            let connectors = self.source.connectors(Some(account)).await;
+            let secrets = self
+                .parts
+                .quick_shares
+                .inspector()
+                .and_then(|i| i.secrets());
+            let run = teitunnel_core::fronts::apply(
+                self.engine(),
+                &api,
+                &connectors,
+                secrets,
+                self.context(account, None),
+                change,
+                Approval {
+                    fingerprint: &approval.fingerprint,
+                    confirmed: approval.confirmed,
+                },
+                |_| {},
+            );
+            let outcome = match actor {
+                Some(actor) => with_actor(actor, run).await,
+                None => run.await,
+            }
+            .map_err(|e| engine_error(e, account))?;
+            let _ = self.changes.send(ChangeEvent::Routes);
+            Ok(outcome)
+        })
+    }
+
+    fn set_quick_paused<'a>(
+        &'a self,
+        id: &'a str,
+        paused: bool,
+    ) -> BoxFuture<'a, BackendResult<()>> {
+        Box::pin(async move {
+            self.parts
+                .quick_shares
+                .set_paused(id, paused)
+                .map_err(|e| BackendError::Message(e.to_string()))?;
+            let _ = self.changes.send(ChangeEvent::Shares);
+            Ok(())
         })
     }
 

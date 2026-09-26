@@ -3,12 +3,20 @@
 //! clients), `teitunnel share <port> --ai` (a local AI server behind a bearer token),
 //! and `teitunnel token <hostname>` (the token a protected hostname expects).
 
-use std::{process::ExitCode, time::Duration};
+use std::{
+    future::Future,
+    io::{BufRead as _, IsTerminal as _, Write as _},
+    pin::Pin,
+    process::ExitCode,
+    sync::Arc,
+    time::Duration,
+};
 
 use teitunnel_core::{
     Secret,
     domain::OriginUrl,
     inspect::expose::{self, AiServer, McpTransport},
+    mcp_auth::{Approver, AskApp, ConsentRequest, McpAuth},
     quick_share::HostHeaderChoice,
 };
 
@@ -33,6 +41,72 @@ async fn token(app: &App, hostname: &str, new: bool) -> Result<Secret<String>, S
         ));
     }
     Ok(token)
+}
+
+/// Asks in this terminal when the app isn't running to ask (only an interactive one),
+/// one question at a time.
+struct Terminal {
+    turn: Arc<tokio::sync::Mutex<()>>,
+}
+
+impl Approver for Terminal {
+    fn approve(&self, request: ConsentRequest) -> Pin<Box<dyn Future<Output = bool> + Send>> {
+        let turn = Arc::clone(&self.turn);
+        Box::pin(async move {
+            if !std::io::stdin().is_terminal() {
+                return false;
+            }
+            let _turn = turn.lock().await;
+            let identity = if request.redirect_loopback {
+                "Sign-ins go to an app on the visitor's own computer, which any app there could claim.".to_owned()
+            } else {
+                match &request.published_by {
+                    Some(publisher) => format!(
+                        "Its identity was confirmed by {publisher}. Sign-ins go to {}.",
+                        request.redirect_host
+                    ),
+                    None => format!(
+                        "It registered itself, so its name isn't confirmed. Sign-ins go to {}.",
+                        request.redirect_host
+                    ),
+                }
+            };
+            let question = format!(
+                "\n{} wants to use the MCP server at {} (from {}). {identity}\nOnly allow it if you just connected it yourself and the browser shows the code {}.\nAllow? [y/N] ",
+                request.client_name, request.host, request.client_ip, request.code
+            );
+            let answer = tokio::time::timeout(
+                Duration::from_secs(170),
+                tokio::task::spawn_blocking(move || {
+                    let mut err = std::io::stderr();
+                    let _ = err.write_all(question.as_bytes());
+                    let _ = err.flush();
+                    let mut line = String::new();
+                    std::io::stdin().lock().read_line(&mut line).ok()?;
+                    Some(line)
+                }),
+            )
+            .await;
+            matches!(answer, Ok(Ok(Some(line))) if matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes"))
+        })
+    }
+}
+
+/// The authorization server for MCP servers this command shares: asks in the app, else
+/// in this terminal. `None` when it can't start (the share keeps its bearer token).
+pub(crate) async fn mcp_auth(app: &App) -> Option<McpAuth> {
+    let terminal: Arc<dyn Approver> = Arc::new(Terminal {
+        turn: Arc::default(),
+    });
+    match McpAuth::open(app.store().clone(), AskApp::new(app.dir(), Some(terminal))).await {
+        Ok(auth) => Some(auth),
+        Err(err) => {
+            status(&format!(
+                "OAuth isn't available ({err}); clients need the bearer token."
+            ));
+            None
+        }
+    }
 }
 
 /// `teitunnel share <origin> --mcp --on <hostname>`.
@@ -93,8 +167,18 @@ pub(crate) async fn mcp(
         })
         .collect::<String>();
     let secret = token.expose().clone();
+    // A server that asks for credentials itself keeps its own sign-in.
+    let oauth = if probe.requires_auth {
+        None
+    } else {
+        mcp_auth(app)
+            .await
+            .map(|auth| auth.provider(&hostname, &probe.path, &name))
+    };
+    let with_oauth = oauth.is_some();
     let options = ShareOptions {
         bearer: Some(token),
+        oauth,
         ..options
     };
     share::run_on_domain(
@@ -122,7 +206,12 @@ pub(crate) async fn mcp(
             status(&configs.cursor);
             status("VS Code (.vscode/mcp.json):");
             status(&configs.vscode);
-            for note in teitunnel_mcp::expose::connector_notes(host) {
+            if with_oauth {
+                status(&format!(
+                    "Claude.ai, ChatGPT and other remote clients: add {url} as a custom connector and sign in; each connection waits for your approval in Teitunnel (or here)."
+                ));
+            }
+            for note in teitunnel_mcp::expose::connector_notes(host, with_oauth) {
                 status(&note);
             }
             Ok(())

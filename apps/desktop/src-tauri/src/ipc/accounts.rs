@@ -85,8 +85,8 @@ pub fn accounts_open_token_page(app: AppHandle, page: TokenPage) -> Result<(), A
 /// Whether `~/.cloudflared/cert.pem` (from `cloudflared tunnel login`) exists.
 #[tauri::command]
 #[specta::specta]
-pub fn accounts_detect_cert(app: AppHandle) -> bool {
-    cert_path(&app).is_some_and(|path| path.is_file())
+pub async fn accounts_detect_cert(app: AppHandle) -> Result<bool, AppError> {
+    super::off_main(move || cert_path(&app).is_some_and(|path| path.is_file())).await
 }
 
 /// Imports the login from `~/.cloudflared/cert.pem` (the file is only read).

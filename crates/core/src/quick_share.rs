@@ -20,7 +20,8 @@ use crate::{
     engine::{Edge, Failure, Verification},
     inspect::{Inspector, TapScope, TapSpec},
     runtime::{
-        ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, RuntimeEvent, Supervisor,
+        ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, RestartPolicy, RuntimeEvent,
+        Supervisor,
     },
     store::Store,
 };
@@ -61,6 +62,8 @@ pub enum QuickShareError {
     Inspector(Text),
     /// A folder share always goes through the inspector (it's what serves the files).
     FolderNeedsInspector,
+    /// Pausing needs the inspector, which serves the paused page.
+    NotInspected,
 }
 
 impl UserText for QuickShareError {
@@ -68,6 +71,7 @@ impl UserText for QuickShareError {
         match self {
             Self::Inspector(text) => text.clone(),
             Self::FolderNeedsInspector => msg::error::quick_share::folder_needs_inspector(),
+            Self::NotInspected => msg::error::quick_share::not_inspected(),
             Self::Binary(err) => err.text(),
             Self::Runtime(err) => err.text(),
             Self::NoFreePort => msg::error::quick_share::no_free_port(),
@@ -128,6 +132,8 @@ pub struct QuickShare {
     pub inspected: bool,
     /// A folder served by the inspector (`origin` is then the inspector's address).
     pub folder: Option<crate::folder_share::FolderShare>,
+    /// Visitors get the "paused" page; the address stays ([`QuickShares::set_paused`]).
+    pub paused: bool,
 }
 
 /// A Host header a share sends to its service.
@@ -331,6 +337,53 @@ impl QuickShares {
         }
     }
 
+    /// Pauses or resumes a share: visitors get the "paused" page (HTTP 503) and the
+    /// address stays. Its inspector tap serves the page, so it must be inspected.
+    ///
+    /// # Errors
+    /// [`QuickShareError::NotFound`], [`QuickShareError::NotInspected`], or the
+    /// inspector refused.
+    pub fn set_paused(&self, id: &str, paused: bool) -> Result<QuickShare, QuickShareError> {
+        use crate::text::UserText as _;
+        let tap = self
+            .lock()
+            .get(id)
+            .ok_or(QuickShareError::NotFound)?
+            .tap
+            .clone()
+            .ok_or(QuickShareError::NotInspected)?;
+        let inspector = self
+            .inspector
+            .as_ref()
+            .ok_or(QuickShareError::NotInspected)?;
+        let patch = crate::inspect::TapPatch {
+            paused: Some(paused),
+            ..crate::inspect::TapPatch::default()
+        };
+        inspector
+            .configure(&tap, &patch)
+            .map_err(|e| QuickShareError::Inspector(e.text()))?;
+        self.update(id, |share| share.paused = paused);
+        self.lock()
+            .get(id)
+            .map(|entry| entry.share.clone())
+            .ok_or(QuickShareError::NotFound)
+    }
+
+    /// Pauses or resumes every share that can be (the inspected ones). Returns how many
+    /// changed.
+    pub fn set_all_paused(&self, paused: bool) -> usize {
+        let ids: Vec<String> = self
+            .lock()
+            .iter()
+            .filter(|(_, entry)| entry.tap.is_some() && entry.share.paused != paused)
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.iter()
+            .filter(|id| self.set_paused(id, paused).is_ok())
+            .count()
+    }
+
     /// All running shares, newest first.
     pub fn list(&self) -> Vec<QuickShare> {
         let mut shares: Vec<_> = self.lock().values().map(|e| e.share.clone()).collect();
@@ -456,6 +509,7 @@ impl QuickShares {
             check: None,
             inspected: inspect,
             folder: None,
+            paused: false,
         };
         let (url, cloudflared_host, tap) = match self.target(&share, inspect).await {
             Ok(target) => target,
@@ -470,7 +524,10 @@ impl QuickShares {
         {
             Ok(command) => self
                 .supervisor
-                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .start(ConnectorSpec {
+                    policy: RestartPolicy::quick_share(),
+                    ..ConnectorSpec::new(ConnectorId(id.clone()), command, port)
+                })
                 .map_err(QuickShareError::from),
             Err(err) => Err(err),
         };
@@ -535,6 +592,7 @@ impl QuickShares {
             check: None,
             inspected: true,
             folder: Some(folder),
+            paused: false,
         };
         let (url, _, tap) = match self.target(&share, true).await {
             Ok(target) => target,
@@ -549,7 +607,10 @@ impl QuickShares {
         let started = match self.command(&binary.path, &url, port, None).await {
             Ok(command) => self
                 .supervisor
-                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .start(ConnectorSpec {
+                    policy: RestartPolicy::quick_share(),
+                    ..ConnectorSpec::new(ConnectorId(id.clone()), command, port)
+                })
                 .map_err(QuickShareError::from),
             Err(err) => Err(err),
         };
@@ -681,6 +742,8 @@ impl QuickShares {
             share.url = None;
             share.check = None;
             share.status = ShareStatus::Starting;
+            // A new tap (or none) serves it: not paused.
+            share.paused = false;
             (
                 share.clone(),
                 entry.port,
@@ -705,10 +768,10 @@ impl QuickShares {
                     return Err(err);
                 }
             };
-            if let Err(err) = self
-                .supervisor
-                .start(ConnectorSpec::new(connector, command, port))
-            {
+            if let Err(err) = self.supervisor.start(ConnectorSpec {
+                policy: RestartPolicy::quick_share(),
+                ..ConnectorSpec::new(connector, command, port)
+            }) {
                 self.stop_tap(tap.as_ref()).await;
                 return Err(QuickShareError::from(err));
             }

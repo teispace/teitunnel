@@ -11,7 +11,7 @@ colleague, a webhook endpoint for a provider, a built site for a review. There a
 | Address | Random: `https://quiet-river-1234.trycloudflare.com` | One you choose: `https://demo.teispace.com` |
 | Needs | Nothing: no account, no domain | A connected Cloudflare account with a domain |
 | What it is in Cloudflare | A throwaway Quick Tunnel | A temporary [route](/docs/concepts/routes-and-tunnels) on this computer's tunnel, with its DNS record |
-| Pause and schedules | Pause all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
+| Pause and schedules | Pause and resume per share (inspected ones), or all from the [menu bar](/docs/guides/menu-bar) | Pause, resume and schedules per share |
 | Limits | 200 requests in flight, no server-sent events, no uptime guarantee | Your domain's plan |
 | Ends | When you stop it, it times out, or Teitunnel quits | The same; its route and DNS record are then removed |
 
@@ -58,7 +58,8 @@ online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
       **Custom** sends the value you type, such as `localhost:5173`.
     - **Inspect requests**: on by default. Off sends requests straight to the service: faster
       for large downloads, but no request list, pausing or protection.
-    - For folders: file listings and single-page-app mode.
+    - For folders: file listings (on by default when the folder has no `index.html`) and
+      single-page-app mode.
   </Step>
   <Step>
     ### Share
@@ -71,7 +72,8 @@ online while this computer sleeps, publish a [Snapshot](/docs/guides/snapshots).
 
 Each running share has a card with its address and status, **Open in browser**, the copy
 button, **Show QR code** (for opening it on a phone), request and error counts, *Stops in …*,
-its **Log**, **Stop Sharing**, and, for shares on your domain, **Pause** and **Schedule**.
+its **Log**, **Stop Sharing**, **Pause** (for inspected Quick Shares and every share on your
+domain), and, for shares on your domain, **Schedule**.
 **Publish a Snapshot** turns the shared site into a static copy that stays online.
 
 Shares started from a terminal appear on the same page under **From a terminal**, and shares on
@@ -105,11 +107,11 @@ scripts; `--json` prints `{"url": …, "hostname": …}` instead), and everythin
 standard error. A QR code is printed when the output is a terminal (`--no-qr` leaves it out),
 and a line per request unless you pass `--quiet`.
 
-**When the app is running**, `teitunnel share` hands a Quick Share to the app (which may ask
-you to allow it) and returns; the share keeps running there. `--here` keeps it in the
-terminal instead, and `--app` fails if the app isn't running. A share on your domain, a
-folder, or one with `--no-inspect`, `--idle` or `--watch` always runs in the terminal, for as
-long as the command runs.
+**When the app is running**, `teitunnel share` hands a Quick Share (of a service or a
+folder) to the app (which may ask you to allow it) and returns; the share keeps running there.
+`--here` keeps it in the terminal instead, and `--app` fails if the app isn't running. A share
+on your domain, or one with `--no-inspect`, `--idle`, `--watch` or `--comments`, always runs in
+the terminal, for as long as the command runs.
 
 | Flag | What it does |
 |---|---|
@@ -119,7 +121,7 @@ long as the command runs.
 | `--allow EMAIL\|@DOMAIN` | With `--on`: require a [login](/docs/guides/require-login) (repeatable). |
 | `--schedule "DAYS HH:MM-HH:MM"`, `--tz ZONE` | With `--on`: serve only during these hours ([schedules](#on-a-schedule)). |
 | `--host-header HOST` / `--no-host-header` | Send this Host header to the service, or pass the visitor's through unchanged. |
-| `--listing`, `--spa` | With a folder: list files, or serve `index.html` for unknown paths. |
+| `--listing` / `--no-listing`, `--spa` | With a folder: list files (the default when it has no `index.html`) or never, or serve `index.html` for unknown paths. |
 | `--no-inspect` | Don't send requests through the inspector. |
 | `--idle DURATION` | Stop after this long without a request. |
 | `--watch PATH` | Say so when a request hits this path, such as `/webhooks/*` (repeatable). |
@@ -162,6 +164,8 @@ is login-fix.dev.teispace.com here.* The name you used is remembered for the fol
 
 ## Pause and resume
 
+<Screenshot name="route-pause" alt="A route in Routes: Pause and Schedule, above its requests, edge protection and offline page" />
+
 Pausing keeps the address: the route and its DNS record stay, and visitors get a small
 "paused" page (HTTP 503 with `Retry-After`) until you resume. Resume, and the same address
 serves your service again at once, with no DNS change to wait for.
@@ -170,16 +174,19 @@ serves your service again at once, with no DNS change to wait for.
   **Resume** ends it.
 - **Terminal:** `teitunnel shares --pause demo.teispace.com`, then
   `teitunnel shares --resume demo.teispace.com`.
-- **Quick Shares:** **Pause All Shares** in the [menu bar](/docs/guides/menu-bar) pauses
-  every inspected Quick Share.
-- **AI agents:** `pause_share` and `resume_share`, with your approval.
+- **Quick Shares:** **Pause** on the card, `teitunnel shares --pause <its URL or id>` for the
+  app's, or **Pause All Shares** in the [menu bar](/docs/guides/menu-bar). The address stays
+  too; only inspected shares pause, since the inspector shows the page.
+- **AI agents:** `pause_share` and `resume_share`, with your approval (an agent pauses the
+  Quick Shares it started itself without asking).
 
 The paused page is shown by Teitunnel's inspector in the process that serves the share: the
 app, the terminal running `teitunnel share --on`, or `teitunnel up`/`serve`. A share that
 isn't inspected is pointed at the inspector first (the same reviewed change as
 **Inspect this route**) and pointed back when you resume.
 
-You can pause one of this computer's **permanent routes** the same way, while the app,
+You can pause one of this computer's **permanent routes** the same way (**Routes** ▸ the route ▸
+**Pause and Schedule**, with its schedule next to it), while the app,
 `teitunnel up` or `teitunnel serve` runs to show the page. When none of them runs, Teitunnel
 says so rather than pretending.
 
@@ -225,10 +232,12 @@ routes, when none of them runs, routes are served normally.
 Share a folder of files (a built site, docs, a design export) without running a server:
 
 - **App:** drop a folder on the Quick Share window, or choose **Share a Folder…**. Under
-  **Advanced**, turn on **List the files of folders without an index page**, or
+  **Advanced**: **List the files of folders without an index page** (already on when the
+  folder has no `index.html`, so its address never answers *Not found*) and
   **Single-page app (every page opens index.html)**. **Share a service instead** goes back.
-- **Terminal:** `teitunnel share ./dist` (a random address) or
-  `teitunnel share ./dist --on docs.teispace.com`, with `--listing` and `--spa`.
+- **Terminal:** `teitunnel share ./dist` (a random address; handed to the app when it runs)
+  or `teitunnel share ./dist --on docs.teispace.com`, with `--listing` / `--no-listing` and
+  `--spa`.
 - **AI agents:** `share_folder`.
 
 Teitunnel's inspector serves the files, so a folder share can't turn inspection off. *Hidden
@@ -246,6 +255,16 @@ people to see, like dist or public.*
   **Inspection Settings… ▸ More**, or `--idle 30m` in the terminal. You get a notification:
   *demo.teispace.com had no requests for 30 minutes, so it stopped.*
 
+## Protect a Quick Share
+
+Click the shield on a Quick Share's card to put a password page, a secret link, basic
+authentication or a bearer token in front of it, allow or refuse networks, or block bots and
+AI crawlers. The inspector enforces it on this computer, so it needs **Inspect requests** on
+and works only while Teitunnel runs. Once something protects the share, the shield is filled
+in and the card says what (*Protected on this computer: Password page*). Shares on your own
+domain also have **Protect at Cloudflare**, which keeps working while this computer is off.
+The options are the same as in the [inspector](/docs/guides/inspector#protection-on-this-computer).
+
 ## Inspection on or off
 
 Shares go through the inspector unless you turn it off. Turning it off or on for a running
@@ -256,7 +275,7 @@ Inspect Quick Shares**.
 Without the inspector, a share has no request list, no paused page, no idle stop and no
 [protection on this computer](/docs/guides/inspector#per-share-or-route). With it, the
 inspector adds a few milliseconds per request, and keeps event streams alive past
-Cloudflare's 100-second limit.
+Cloudflare's 125-second limit.
 
 ## Troubleshooting
 

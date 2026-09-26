@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
-import { commands, type FrontChange, type Progress, type StepState } from "@/lib/ipc/bindings";
+import {
+  commands,
+  type FrontChange,
+  type InboxVerify,
+  type Progress,
+  type StepState,
+} from "@/lib/ipc/bindings";
 import { call } from "@/lib/ipc/client";
 import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
@@ -32,6 +38,24 @@ export function useDeliverNow(accountId: string) {
   return useMutation({
     mutationFn: () => call(commands.inboxDeliver(accountId)),
     onSettled: () => refresh(queryClient, queryKeys.fronts.all()),
+  });
+}
+
+/** Which senders have a signing secret saved for `hostname` (never the secrets). */
+export function useInboxSecrets(hostname: string) {
+  return useQuery({
+    queryKey: queryKeys.fronts.secrets(hostname),
+    queryFn: () => call(commands.frontsInboxSecrets(hostname)),
+  });
+}
+
+/** Saves a signing secret for a hostname's verifying inboxes (into the keychain). */
+export function useSaveInboxSecret(hostname: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ verify, secret }: { verify: InboxVerify; secret: string }) =>
+      call(commands.frontsInboxSecretSet(hostname, verify, secret)),
+    onSettled: () => refresh(queryClient, queryKeys.fronts.secrets(hostname)),
   });
 }
 

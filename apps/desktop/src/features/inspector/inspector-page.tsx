@@ -1,14 +1,16 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ChartColumn,
   FileOutput,
   GitCompareArrows,
+  OctagonPause,
   Pause,
   Play,
   ScanSearch,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
@@ -27,9 +29,11 @@ import { ExchangeDetail } from "./components/exchange-detail";
 import { ExchangeList } from "./components/exchange-list";
 import { ExportSheet } from "./components/export-sheet";
 import { FilterBar } from "./components/filter-bar";
+import { HeldRequest } from "./components/held-request";
 import { InspectRouteSheet } from "./components/inspect-route-sheet";
 import { ReplaySheet } from "./components/replay-sheet";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
+import { TapStatsSheet } from "./components/tap-stats-sheet";
 import { useLiveExchanges, useRows } from "./live";
 import { type Filters, formatMs, isFiltered, matches, noFilters } from "./model";
 import {
@@ -37,6 +41,7 @@ import {
   useClearExchanges,
   useInspectedRoutes,
   useKnownTaps,
+  useResumeAll,
   useTapMetrics,
   useTaps,
 } from "./queries";
@@ -48,6 +53,8 @@ interface InspectorPageProps {
   tap?: string | undefined;
   /** Show this hostname's requests first (a route or a share on your domain). */
   host?: string | undefined;
+  /** Open with this request selected. */
+  exchange?: string | undefined;
 }
 
 /** Order for the picker: running taps first, then by name. */
@@ -60,7 +67,7 @@ const byRunning = (a: KnownTap, b: KnownTap) =>
  * request's headers, bodies, timing and webhook signature; replay, compare and export;
  * and what the inspector does for each share or route.
  */
-export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
+export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageProps) {
   const navigate = useNavigate();
   const known = useKnownTaps();
   const taps = useTaps();
@@ -80,18 +87,26 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
   const rows = useRows(live.store);
   const visible = useMemo(() => rows.filter((row) => matches(row, filters)), [rows, filters]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(exchange ?? null);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
   const [replaying, setReplaying] = useState<Detail | null>(null);
   const [exporting, setExporting] = useState<readonly string[]>([]);
   const [comparing, setComparing] = useState<readonly [string, string] | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [restoring, setRestoring] = useState<InspectRouteTarget | null>(null);
   const clear = useClearExchanges();
   const tapView = taps.data?.find((tap) => tap.id === current) ?? null;
   const metrics = useTapMetrics(tapView ? tapView.id : null);
 
   const selected = visible.find((row) => row.id === selectedId) ?? null;
+  const held = useMemo(() => rows.filter((row) => row.paused), [rows]);
+  const resumeAll = useResumeAll();
+  // Land on a request as soon as it's held, unless something else is being looked at.
+  const firstHeld = held.at(-1)?.id ?? null;
+  useEffect(() => {
+    if (firstHeld && selectedId === null) setSelectedId(firstHeld);
+  }, [firstHeld, selectedId]);
   const names = useMemo(
     () => new Map((known.data ?? []).map((tap) => [tap.id, tap.name])),
     [known.data],
@@ -188,6 +203,12 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
         onClick={() => setExporting(exportIds)}
       />
       <IconButton
+        icon={ChartColumn}
+        label={t("inspector.stats.open")}
+        disabled={current === null}
+        onClick={() => setStatsOpen(true)}
+      />
+      <IconButton
         icon={SlidersHorizontal}
         label={t("inspector.tap.open")}
         disabled={!tapView}
@@ -226,6 +247,20 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
           </Button>
         </div>
       ))}
+      {held.length > 0 ? (
+        <div
+          role="status"
+          className="mx-3 mt-2 flex items-center gap-2 rounded-row bg-accent/10 px-3 py-2 text-callout"
+        >
+          <OctagonPause aria-hidden className="size-4 shrink-0 text-accent" strokeWidth={2} />
+          <span className="min-w-0 flex-1">
+            {t("inspector.held.banner", { count: held.length })}
+          </span>
+          <Button size="sm" pending={resumeAll.isPending} onClick={() => resumeAll.mutate(current)}>
+            {t("inspector.held.continueAll")}
+          </Button>
+        </div>
+      ) : null}
       {live.status === "loading" && rows.length === 0 ? (
         <div className="flex flex-col gap-1.5 px-3 pt-8" aria-busy>
           {Array.from({ length: 6 }, (_, row) => (
@@ -310,7 +345,9 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
             minListWidth={340}
             maxListWidth={900}
           >
-            {selected ? (
+            {selected?.paused ? (
+              <HeldRequest key={selected.id} row={selected} />
+            ) : selected ? (
               <ExchangeDetail
                 key={selected.id}
                 row={selected}
@@ -333,6 +370,11 @@ export function InspectorPage({ tap: wantedTap, host }: InspectorPageProps) {
       <ExportSheet ids={exporting} onClose={() => setExporting([])} />
       <CompareSheet pair={comparing} onClose={() => setComparing(null)} />
       <TapSettingsSheet tap={tapView} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <TapStatsSheet
+        tap={statsOpen ? current : null}
+        name={current ? (names.get(current) ?? current) : ""}
+        onClose={() => setStatsOpen(false)}
+      />
       <InspectRouteSheet target={restoring} restore onClose={() => setRestoring(null)} />
     </>
   );

@@ -21,10 +21,19 @@ pub struct RestartPolicy {
     pub health_interval: Duration,
     /// Grace period between SIGTERM and SIGKILL.
     pub stop_grace: Duration,
+    /// After a nudge (wake, network change), how long a running connector gets to have
+    /// a connection again before it's restarted; `None` never restarts a running one
+    /// (a Quick Share would get a new address; cloudflared reconnects by itself).
+    pub nudge_check: Option<Duration>,
+    /// A connector in a crash loop is tried again this often anyway (and at once on a
+    /// nudge): a laptop offline for a few minutes loops too, and must come back by
+    /// itself.
+    pub crash_loop_retry: Duration,
 }
 
 impl Default for RestartPolicy {
-    /// ARCHITECTURE §5.1: 1 s → 60 s backoff; more than 5 crashes in 2 min is a loop.
+    /// ARCHITECTURE §5.1: 1 s → 60 s backoff; more than 5 crashes in 2 min is a loop,
+    /// tried again every 10 min or when the network changes.
     fn default() -> Self {
         Self {
             initial_backoff: Duration::from_secs(1),
@@ -34,11 +43,22 @@ impl Default for RestartPolicy {
             connect_timeout: Duration::from_secs(30),
             health_interval: Duration::from_secs(2),
             stop_grace: Duration::from_secs(5),
+            nudge_check: Some(Duration::from_secs(15)),
+            crash_loop_retry: Duration::from_secs(10 * 60),
         }
     }
 }
 
 impl RestartPolicy {
+    /// For a Quick Share: restarting it gives it a new address, so a nudge never
+    /// restarts one that's running.
+    pub fn quick_share() -> Self {
+        Self {
+            nudge_check: None,
+            ..Self::default()
+        }
+    }
+
     /// Exponential backoff for `attempt` (1-based), capped, with ±20% jitter so many
     /// connectors don't restart in lockstep.
     pub fn backoff(&self, attempt: u32) -> Duration {

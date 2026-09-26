@@ -101,6 +101,7 @@ by someone else (a share never takes one; other commands need `--take-over`).
 | [`up`](#up) | Run this machine's tunnels in the foreground until stopped (servers, containers). |
 | [`project`](#project) | Work with the project file (teitunnel.yml): check, diff, apply, init, down. |
 | [`local-domain`](#local-domain) | Local HTTPS domains on this computer: https://shop.test with a trusted certificate. |
+| [`browser`](#browser) | The Teitunnel browser extension: let it talk to the app from your browsers. |
 | [`backup`](#backup) | Move to another computer: an encrypted backup of Teitunnel's setup (never a token or password), and restoring it. |
 | [`serve`](#serve) | Run this machine's tunnels plus a web dashboard and JSON API (servers). |
 | [`mcp`](#mcp) | Run Teitunnel's MCP server for AI agents (Claude Code, Cursor, VS Code, Codex…) over stdio, or connect a client to it (`teitunnel mcp install cursor`). |
@@ -464,6 +465,48 @@ Examples:
 ```sh
 teitunnel local-domain status  # CA, trust, ports, .test names, what to fix
 ```
+
+## browser
+
+The Teitunnel browser extension: let it talk to the app from your browsers.
+
+```sh
+teitunnel browser <COMMAND>
+```
+
+| Command | What it does |
+|---|---|
+| [`browser install`](#browser-install) | Let the Teitunnel browser extension talk to the app, in every installed browser. |
+| [`browser uninstall`](#browser-uninstall) | Stop letting the extension talk to the app. |
+| [`browser status`](#browser-status) | Which browsers can use the extension. |
+
+### browser install
+
+Let the Teitunnel browser extension talk to the app, in every installed browser.
+
+```sh
+teitunnel browser install
+```
+
+### browser uninstall
+
+Stop letting the extension talk to the app.
+
+```sh
+teitunnel browser uninstall
+```
+
+### browser status
+
+Which browsers can use the extension.
+
+```sh
+teitunnel browser status [OPTIONS]
+```
+
+| Option | Description |
+|---|---|
+| `--json` | JSON output. |
 
 ## backup
 
@@ -848,6 +891,7 @@ teitunnel route add [OPTIONS] <HOSTNAME> <ORIGIN>
 |---|---|
 | `--path <PATH>` | Only requests whose path matches this regex, e.g. `^/api`. |
 | `--allow <EMAIL\|@DOMAIN>` | Require a login: an email address, or `@domain` for anyone at that domain. Repeat for more people. Needs Cloudflare Zero Trust (free). |
+| `--skip-login <PATH>` | With --allow: a path that skips the login, e.g. `/webhooks`, so webhook senders get through; repeatable. |
 
 **Origin settings**
 
@@ -1188,7 +1232,8 @@ teitunnel share [OPTIONS] <ORIGIN>
 | `--for <DURATION>` | Stop by itself after this long, e.g. `30m`, `2h`, `90s`. |
 | `--no-qr` | Don't print a QR code. |
 | `--on [HOSTNAME]` | Share at this hostname on one of your domains instead of a random trycloudflare.com address (removed again when the command ends). `{project}`, `{branch}` and `{user}` are filled in from this folder, e.g. `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here. |
-| `--listing` | With a folder: list the files of folders that have no index.html. |
+| `--listing` | With a folder: list the files of folders that have no index.html (the default when the folder itself has none). |
+| `--no-listing` | With a folder: never list files, even when it has no index.html. |
 | `--spa` | With a folder: a single-page app (unknown paths get /index.html). |
 | `--schedule <DAYS HH:MM-HH:MM>` | With --on: on only during these hours, paused otherwise, e.g. `"mon-fri 09:00-18:00"`. |
 | `--tz <ZONE>` | With --schedule: its time zone, e.g. `Europe/Berlin` (default: this computer's). |
@@ -1204,6 +1249,7 @@ teitunnel share [OPTIONS] <ORIGIN>
 | `-q, --quiet` | Don't print a line for each request. |
 | `--idle <DURATION>` | Stop after this long without a request, e.g. `30m`. |
 | `--watch <PATH>` | Say so when a request hits this path, e.g. `/webhooks/*` (repeatable). |
+| `--comments` | Let visitors pin comments on its pages (read and answer them with `teitunnel comments` or in the app). |
 | `--mcp` | Share a local MCP server for remote AI clients: checks it answers MCP, keeps streams alive and requires a bearer token (needs --on: Quick Tunnels don't carry event streams). Prints configurations for Claude Code, Cursor and VS Code. |
 | `--mcp-path <PATH>` | With --mcp: the server's endpoint path (default: /mcp, then /sse and /). |
 | `--ai` | Share a local AI server (Ollama, LM Studio, vLLM) behind a bearer token, for OpenAI-compatible clients. |
@@ -1548,8 +1594,8 @@ teitunnel shares [OPTIONS]
 | Option | Description |
 |---|---|
 | `--stop <URL\|HOSTNAME>` | Stop a share: its URL, its hostname on your domain, or its id. |
-| `--pause <HOSTNAME>` | Pause a share on your domain (or a route): the address stays, and visitors see a paused page until it's resumed. |
-| `--resume <HOSTNAME>` | Serve a paused share or route again, at the same address. |
+| `--pause <URL\|HOSTNAME>` | Pause a share (on your domain, a route, or one of the app's Quick Shares by its URL or id): the address stays, and visitors see a paused page until it's resumed. |
+| `--resume <URL\|HOSTNAME>` | Serve a paused share or route again, at the same address. |
 | `-a, --account <ACCOUNT>` | With --pause or --resume on a route: the account, when several are connected. |
 | `--json` | Print JSON. |
 | `--app` | Ask the running app; fails if it isn't running. By default the app is used when it runs. |

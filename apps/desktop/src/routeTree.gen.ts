@@ -26,6 +26,7 @@ import { Route as MainSnapshotsRouteImport } from "./routes/_main/snapshots"
 import { Route as MainTunnelsRouteImport } from "./routes/_main/tunnels"
 import { Route as MainDevGalleryRouteImport } from "./routes/_main/dev.gallery"
 import { Route as MainDevStressRouteImport } from "./routes/_main/dev.stress"
+import { Route as MainDevStressInspectorRouteImport } from "./routes/_main/dev.stress-inspector"
 
 const MainRoute = MainRouteImport.update({
   id: "/_main",
@@ -111,6 +112,11 @@ const MainDevStressRoute = MainDevStressRouteImport.update({
   path: "/dev/stress",
   getParentRoute: () => MainRoute,
 } as any)
+const MainDevStressInspectorRoute = MainDevStressInspectorRouteImport.update({
+  id: "/dev/stress-inspector",
+  path: "/dev/stress-inspector",
+  getParentRoute: () => MainRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof MainIndexRoute
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   "/tunnels": typeof MainTunnelsRoute
   "/dev/gallery": typeof MainDevGalleryRoute
   "/dev/stress": typeof MainDevStressRoute
+  "/dev/stress-inspector": typeof MainDevStressInspectorRoute
 }
 export interface FileRoutesByTo {
   "/settings": typeof SettingsRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   "/": typeof MainIndexRoute
   "/dev/gallery": typeof MainDevGalleryRoute
   "/dev/stress": typeof MainDevStressRoute
+  "/dev/stress-inspector": typeof MainDevStressInspectorRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -167,6 +175,7 @@ export interface FileRoutesById {
   "/_main/": typeof MainIndexRoute
   "/_main/dev/gallery": typeof MainDevGalleryRoute
   "/_main/dev/stress": typeof MainDevStressRoute
+  "/_main/dev/stress-inspector": typeof MainDevStressInspectorRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | "/tunnels"
     | "/dev/gallery"
     | "/dev/stress"
+    | "/dev/stress-inspector"
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/settings"
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | "/"
     | "/dev/gallery"
     | "/dev/stress"
+    | "/dev/stress-inspector"
   id:
     | "__root__"
     | "/_main"
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | "/_main/"
     | "/_main/dev/gallery"
     | "/_main/dev/stress"
+    | "/_main/dev/stress-inspector"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -352,6 +364,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainDevStressRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/dev/stress-inspector": {
+      id: "/_main/dev/stress-inspector"
+      path: "/dev/stress-inspector"
+      fullPath: "/dev/stress-inspector"
+      preLoaderRoute: typeof MainDevStressInspectorRouteImport
+      parentRoute: typeof MainRoute
+    }
   }
 }
 
@@ -371,6 +390,7 @@ interface MainRouteChildren {
   MainIndexRoute: typeof MainIndexRoute
   MainDevGalleryRoute: typeof MainDevGalleryRoute
   MainDevStressRoute: typeof MainDevStressRoute
+  MainDevStressInspectorRoute: typeof MainDevStressInspectorRoute
 }
 
 const MainRouteChildren: MainRouteChildren = {
@@ -389,6 +409,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainIndexRoute: MainIndexRoute,
   MainDevGalleryRoute: MainDevGalleryRoute,
   MainDevStressRoute: MainDevStressRoute,
+  MainDevStressInspectorRoute: MainDevStressInspectorRoute,
 }
 
 const MainRouteWithChildren = MainRoute._addFileChildren(MainRouteChildren)

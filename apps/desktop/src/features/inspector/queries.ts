@@ -3,6 +3,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { quickSharesQuery } from "@/features/quick-share/queries";
 import {
+  type AnalyticsRange,
   commands,
   type ExchangeId,
   type ExchangeQuery,
@@ -11,6 +12,7 @@ import {
   type ProtectionInput,
   type QuickShare,
   type ReplayInput,
+  type Resume,
   type StepState,
   type TapId,
   type TapPatch,
@@ -29,6 +31,8 @@ const keys = {
     [...queryKeys.inspector.all(), "exchange", id, version] as const,
   webhookSecrets: (tap: string) => [...queryKeys.inspector.all(), "webhookSecrets", tap] as const,
   metrics: (tap: string) => [...queryKeys.inspector.all(), "metrics", tap] as const,
+  stats: (tap: string, range: AnalyticsRange) =>
+    [...queryKeys.inspector.all(), "stats", tap, range] as const,
   export: (ids: readonly string[], format: TrafficFormat, redact: boolean) =>
     [...queryKeys.inspector.all(), "export", ids.join(","), format, redact] as const,
 };
@@ -90,6 +94,30 @@ export function useExchange(id: ExchangeId | null, version: string) {
  */
 export function revealExchange(id: ExchangeId) {
   return call(commands.inspectExchange(id, true));
+}
+
+/**
+ * A request held at a breakpoint, as it would go on (`null` once it went on). Unmasked,
+ * since it's what goes on and can be changed, so, like a revealed request, it's read on
+ * demand and never cached.
+ */
+export function heldExchange(id: ExchangeId) {
+  return call(commands.inspectPausedExchange(id));
+}
+
+/** Lets a held request go on: as it is, changed, answered from here or dropped. */
+export function useResume() {
+  return useMutation({
+    mutationFn: ({ id, resume }: { id: ExchangeId; resume: Resume }) =>
+      call(commands.inspectResume(id, resume)),
+  });
+}
+
+/** Lets every held request (of one tap, or all) go on unchanged. */
+export function useResumeAll() {
+  return useMutation({
+    mutationFn: (tap: TapId | null) => call(commands.inspectResumeAll(tap)),
+  });
 }
 
 /** A page of requests (masked), newest first. */
@@ -162,6 +190,19 @@ export function useTapMetrics(tap: TapId | null) {
     queryFn: () => call(commands.inspectMetrics(tap ?? "")),
     enabled: tap !== null,
     refetchInterval: 2000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/** A tap's traffic over `range`, from its captures (null: a tap the app doesn't know). */
+export function useTapStats(tap: TapId | null, range: AnalyticsRange) {
+  return useQuery({
+    queryKey: keys.stats(tap ?? "", range),
+    queryFn: () => call(commands.inspectStats(tap ?? "", range)),
+    enabled: tap !== null,
+    // Local and exact: fresh enough to watch a test run.
+    refetchInterval: 5_000,
     placeholderData: keepPreviousData,
     retry: false,
   });

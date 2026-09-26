@@ -19,9 +19,13 @@ use crate::text::{Text, UserText, english_display, msg};
 pub struct FolderShare {
     /// The folder (absolute once resolved).
     pub path: String,
-    /// List a folder's files when it has no `index.html`.
+    /// List a folder's files when it has no `index.html`. `None`: only when the shared
+    /// folder itself has none, so its address never answers "Not found".
     #[serde(default)]
-    pub listing: bool,
+    pub listing: Option<bool>,
+    /// The folder has an `index.html` (set by [`FolderShare::resolve`]).
+    #[serde(default)]
+    pub has_index: bool,
     /// A single-page app: unknown paths that ask for a page get `/index.html`.
     #[serde(default)]
     pub spa: bool,
@@ -54,7 +58,7 @@ impl FolderShare {
     ///
     /// # Errors
     /// See [`FolderError`].
-    pub fn resolve(path: &str, listing: bool, spa: bool) -> Result<Self, FolderError> {
+    pub fn resolve(path: &str, listing: Option<bool>, spa: bool) -> Result<Self, FolderError> {
         let raw = path.trim();
         let expanded = match raw.strip_prefix('~') {
             Some(rest) if rest.is_empty() || rest.starts_with(['/', '\\']) => std::env::home_dir()
@@ -74,6 +78,7 @@ impl FolderShare {
             return Err(FolderError::TooBroad(canonical.display().to_string()));
         }
         Ok(Self {
+            has_index: canonical.join("index.html").is_file(),
             path: canonical.display().to_string(),
             listing,
             spa,
@@ -83,11 +88,16 @@ impl FolderShare {
     /// Lens's settings for serving it.
     pub fn config(&self) -> FolderConfig {
         let mut config = FolderConfig::new(&self.path);
-        config.listing = self.listing;
+        config.listing = self.lists();
         config.spa_fallback = self.spa;
         config.hidden = false;
         config.allow = NameFilter::new(crate::snapshot::content::servable);
         config
+    }
+
+    /// Whether visitors get a file list where there's no `index.html`.
+    pub fn lists(&self) -> bool {
+        self.listing.unwrap_or(!self.has_index)
     }
 
     /// The folder's name, for display.
@@ -110,7 +120,7 @@ pub fn looks_like_folder(argument: &str) -> bool {
         || argument.ends_with(['/', '\\'])
         || (argument.len() > 2 && argument.as_bytes()[1] == b':');
     let exists =
-        FolderShare::resolve(argument, false, false).is_ok() || Path::new(argument).is_dir();
+        FolderShare::resolve(argument, None, false).is_ok() || Path::new(argument).is_dir();
     exists && (pathlike || !argument.contains(':'))
 }
 
@@ -124,25 +134,25 @@ mod tests {
         let site = dir.path().join("site");
         std::fs::create_dir_all(&site).unwrap();
         std::fs::write(site.join("index.html"), "hi").unwrap();
-        let share = FolderShare::resolve(site.to_str().unwrap(), true, false).unwrap();
+        let share = FolderShare::resolve(site.to_str().unwrap(), Some(true), false).unwrap();
         assert!(Path::new(&share.path).is_absolute());
-        assert!(share.listing && !share.spa);
+        assert!(share.lists() && share.has_index && !share.spa);
         assert_eq!(share.name(), "site");
         assert!(matches!(
-            FolderShare::resolve(site.join("index.html").to_str().unwrap(), false, false),
+            FolderShare::resolve(site.join("index.html").to_str().unwrap(), None, false),
             Err(FolderError::NotFolder(_))
         ));
         assert!(matches!(
-            FolderShare::resolve("/definitely/not/here", false, false),
+            FolderShare::resolve("/definitely/not/here", None, false),
             Err(FolderError::NotFolder(_))
         ));
         assert!(matches!(
-            FolderShare::resolve("/", false, false),
+            FolderShare::resolve("/", None, false),
             Err(FolderError::TooBroad(_))
         ));
         if std::env::home_dir().is_some() {
             assert!(matches!(
-                FolderShare::resolve("~", false, false),
+                FolderShare::resolve("~", None, false),
                 Err(FolderError::TooBroad(_))
             ));
         }
@@ -151,7 +161,7 @@ mod tests {
     #[test]
     fn serves_nothing_a_snapshot_wouldnt_publish() {
         let dir = tempfile::tempdir().unwrap();
-        let config = FolderShare::resolve(dir.path().to_str().unwrap(), false, true)
+        let config = FolderShare::resolve(dir.path().to_str().unwrap(), None, true)
             .unwrap()
             .config();
         assert!(config.spa_fallback);
@@ -162,6 +172,38 @@ mod tests {
         assert!(!config.allow.allows("node_modules", true));
         assert!(config.allow.allows(".well-known", true));
         assert!(config.allow.allows("index.html", false));
+    }
+
+    #[test]
+    fn lists_a_folder_without_an_index_unless_told_not_to() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_str().unwrap();
+        let photos = FolderShare::resolve(path, None, false).unwrap();
+        assert!(!photos.has_index);
+        assert!(
+            photos.config().listing,
+            "otherwise its address says Not found"
+        );
+        assert!(
+            !FolderShare::resolve(path, Some(false), false)
+                .unwrap()
+                .config()
+                .listing
+        );
+
+        std::fs::write(dir.path().join("index.html"), "hi").unwrap();
+        let site = FolderShare::resolve(path, None, false).unwrap();
+        assert!(site.has_index);
+        assert!(
+            !site.config().listing,
+            "a site shows its index, not its files"
+        );
+        assert!(
+            FolderShare::resolve(path, Some(true), false)
+                .unwrap()
+                .config()
+                .listing
+        );
     }
 
     #[test]

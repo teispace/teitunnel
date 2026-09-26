@@ -57,7 +57,9 @@ pub use activity::{
 };
 pub use cloud::{CloudApi, Connectors};
 pub use drift::{Drift, RuleChange, diff};
-pub use executor::{Approval, Context, Engine, EngineError, Outcome, Progress, StepState};
+pub use executor::{
+    Approval, Context, Engine, EngineError, Outcome, Progress, StepState, VERIFY_PATIENCE,
+};
 pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
 pub use local_edge::{EdgeRuleRow, ServiceTokenRow};

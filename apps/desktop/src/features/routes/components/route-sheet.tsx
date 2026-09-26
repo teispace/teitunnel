@@ -35,7 +35,7 @@ import type {
 } from "@/lib/ipc/bindings";
 import { type IpcError, toIpcError } from "@/lib/ipc/client";
 import { openUrl } from "@/lib/open-url";
-import { formatAllowed, parseAllowed } from "../access";
+import { formatAllowed, formatPaths, parseAllowed, parsePaths } from "../access";
 import { applyDirectly, useApply, usePreview, useVerify } from "../queries";
 import { HostnameInput, joinHostname } from "./hostname-input";
 import { hasOriginSettings, OriginSettings, originSettingsToSend } from "./origin-settings";
@@ -121,6 +121,8 @@ interface Form {
   path: string;
   /** Who can sign in, as typed; `null`: no login. */
   allowed: string | null;
+  /** Paths that skip the login, as typed. */
+  skipLogin: string;
   /** A private network, as typed. */
   network: string;
   /** A new tunnel's name, as typed. */
@@ -134,6 +136,7 @@ const emptyForm: Form = {
   origin: "",
   path: "",
   allowed: null,
+  skipLogin: "",
   network: "",
   tunnelName: "",
   options: {},
@@ -166,7 +169,10 @@ function changeFor(mode: SheetMode, form: Form) {
     hostname: form.hostname,
     origin: form.origin,
     path: form.path.trim() || null,
-    access: form.allowed === null ? null : parseAllowed(form.allowed),
+    access:
+      form.allowed === null
+        ? null
+        : { ...parseAllowed(form.allowed), bypass: parsePaths(form.skipLogin) },
   };
   switch (mode.kind) {
     case "add":
@@ -297,6 +303,7 @@ export function RouteSheet({
   const [origin, setOrigin] = useState("");
   const [path, setPath] = useState("");
   const [allowed, setAllowed] = useState<string | null>(null);
+  const [skipLogin, setSkipLogin] = useState("");
   const [network, setNetwork] = useState("");
   const [tunnelName, setTunnelName] = useState("");
   const [options, setOptions] = useState<OriginOptions>({});
@@ -345,6 +352,7 @@ export function RouteSheet({
     setOrigin(route ? shortOrigin(route.origin) : "");
     setPath(route?.path ?? "");
     setAllowed(route?.access ? formatAllowed(route.access) : null);
+    setSkipLogin(formatPaths(route?.access?.bypass));
     setOptions(route?.options ?? {});
     setNetwork("");
     setTunnelName("");
@@ -367,7 +375,18 @@ export function RouteSheet({
   const submitForm = (event: FormEvent) => {
     event.preventDefault();
     if (mode)
-      review(changeFor(mode, { hostname, origin, path, allowed, network, tunnelName, options }));
+      review(
+        changeFor(mode, {
+          hostname,
+          origin,
+          path,
+          allowed,
+          skipLogin,
+          network,
+          tunnelName,
+          options,
+        }),
+      );
   };
 
   const runApply = () => {
@@ -459,7 +478,16 @@ export function RouteSheet({
     review(
       stage === "review" && change
         ? change
-        : changeFor(mode, { hostname, origin, path, allowed, network, tunnelName, options }),
+        : changeFor(mode, {
+            hostname,
+            origin,
+            path,
+            allowed,
+            skipLogin,
+            network,
+            tunnelName,
+            options,
+          }),
     );
   };
   const fixCard = refusedNeeds ? (
@@ -745,6 +773,21 @@ export function RouteSheet({
                         autoComplete="off"
                         value={allowed}
                         onChange={(event) => setAllowed(event.target.value)}
+                      />
+                    )}
+                  </Field>
+                ) : null}
+                {allowed !== null ? (
+                  <Field label={t("routeSheet.login.skip")} help={t("routeSheet.login.skipHelp")}>
+                    {(control) => (
+                      <Input
+                        {...control}
+                        className="font-mono text-mono"
+                        placeholder="/webhooks"
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={skipLogin}
+                        onChange={(event) => setSkipLogin(event.target.value)}
                       />
                     )}
                   </Field>

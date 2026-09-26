@@ -411,6 +411,11 @@ impl FakeCloud {
         self.state.lock().unwrap().clone()
     }
 
+    /// Changes the account behind Teitunnel's back (someone in the dashboard).
+    pub(crate) fn edit(&self, change: impl FnOnce(&mut CloudState)) {
+        change(&mut self.state.lock().unwrap());
+    }
+
     pub(crate) fn fail_once(&self, n: u32) {
         *self.fail_once.lock().unwrap() = Some(n);
     }

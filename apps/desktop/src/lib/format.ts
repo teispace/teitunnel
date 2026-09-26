@@ -1,18 +1,23 @@
 import { currentLanguage, t } from "@/lib/i18n";
 
-const units = new Map<string, Intl.NumberFormat>();
-function unit(value: number, name: "second" | "minute" | "hour") {
-  const key = `${currentLanguage()}:${name}`;
-  let format = units.get(key);
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+/**
+ * A number formatter for the current language, made once per set of options: creating
+ * one costs far more than using it, and lists format thousands of values a second.
+ */
+export function numberFormat(options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const key = `${currentLanguage()}:${JSON.stringify(options)}`;
+  let format = numberFormats.get(key);
   if (!format) {
-    format = new Intl.NumberFormat(currentLanguage(), {
-      style: "unit",
-      unit: name,
-      unitDisplay: "short",
-    });
-    units.set(key, format);
+    format = new Intl.NumberFormat(currentLanguage(), options);
+    numberFormats.set(key, format);
   }
-  return format.format(value);
+  return format;
+}
+
+function unit(value: number, name: "second" | "minute" | "hour") {
+  return numberFormat({ style: "unit", unit: name, unitDisplay: "short" }).format(value);
 }
 
 /** "12 sec", "4 min", "1 hr 5 min" in English (compact, for elapsed time). */

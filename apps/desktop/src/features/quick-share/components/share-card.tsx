@@ -3,13 +3,19 @@ import { Camera, ExternalLink } from "lucide-react";
 import { m } from "motion/react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { IconButton } from "@/components/ui/icon-button";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { Tooltip } from "@/components/ui/tooltip";
 import { CommentsToggle } from "@/features/comments";
-import { InspectShareButton, ShareInspectSwitch } from "@/features/inspector";
+import {
+  InspectShareButton,
+  ProtectShareButton,
+  ShareInspectSwitch,
+  ShareProtectionNote,
+} from "@/features/inspector";
 import { siteUrl } from "@/features/snapshots";
 import { formatDuration, stripScheme } from "@/lib/format";
 import { t, translate } from "@/lib/i18n";
@@ -18,8 +24,15 @@ import { toIpcError } from "@/lib/ipc/client";
 import { spring } from "@/lib/motion-tokens";
 import { openUrl } from "@/lib/open-url";
 import { useNow } from "@/lib/use-now";
-import { useCheckShare, useSetShareHostHeader, useShareStats, useStopShare } from "../queries";
+import {
+  useCheckShare,
+  useSetQuickSharePaused,
+  useSetShareHostHeader,
+  useShareStats,
+  useStopShare,
+} from "../queries";
 import { cardClass } from "./card";
+import { PauseButton } from "./pause-button";
 import { QrButton } from "./qr-button";
 import { HostHeaderNote, ShareCheck } from "./share-check";
 import { ShareLog } from "./share-log";
@@ -45,6 +58,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
   const stop = useStopShare();
   const setHostHeader = useSetShareHostHeader();
   const check = useCheckShare();
+  const pause = useSetQuickSharePaused();
   const navigate = useNavigate();
   const { dot, label } = statusOf(share);
   // A folder is served by the inspector: show the folder, not the inspector's address.
@@ -64,6 +78,7 @@ export function ShareCard({ share }: { share: QuickShare }) {
           <StatusDot status={dot} label={label} />
         </m.span>
         <span className="font-medium text-primary">{label}</span>
+        {share.paused ? <Badge tone="warning">{t("quickShare.pause.badge")}</Badge> : null}
         <span className="text-tertiary">·</span>
         <span className="selectable min-w-0 truncate font-mono text-mono text-secondary">
           {shown}
@@ -104,6 +119,20 @@ export function ShareCard({ share }: { share: QuickShare }) {
               </Tooltip>
               <QrButton url={share.url} />
               <InspectShareButton share={share} />
+              <ProtectShareButton share={share} />
+              {/* The inspector serves the paused page: only inspected shares pause. */}
+              {share.inspected ? (
+                <PauseButton
+                  paused={share.paused}
+                  pending={pause.isPending}
+                  onToggle={() =>
+                    pause.mutate(
+                      { id: share.id, paused: !share.paused },
+                      { onError: (error) => toast.error(toIpcError(error).message) },
+                    )
+                  }
+                />
+              ) : null}
               {share.folder ? null : (
                 <Tooltip content={t("quickShare.snapshot")}>
                   <IconButton
@@ -126,6 +155,10 @@ export function ShareCard({ share }: { share: QuickShare }) {
         </div>
       )}
 
+      {share.paused ? (
+        <p className="text-callout text-secondary">{t("quickShare.pause.detail")}</p>
+      ) : null}
+      <ShareProtectionNote share={share} />
       {share.hostHeader ? <HostHeaderNote header={share.hostHeader} /> : null}
       {share.status.status === "failed" ? null : (
         <ShareCheck

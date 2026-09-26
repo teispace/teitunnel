@@ -322,11 +322,17 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     site.workers_dev = false;
                 }
             }
-            Step::CreateEdgeRule { phase, rule, .. } => {
+            Step::CreateEdgeRule {
+                zone_id,
+                phase,
+                rule,
+                ..
+            } => {
                 record_ids += 1;
                 if let Some(ruleset) = next
                     .edge
-                    .as_mut()
+                    .iter_mut()
+                    .find(|e| e.zone_id == *zone_id)
                     .and_then(|e| e.rulesets.iter_mut().find(|r| r.phase == *phase))
                 {
                     ruleset
@@ -340,20 +346,19 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                 }
             }
             Step::UpdateEdgeRule { rule_id, rule, .. } => {
-                if let Some(found) = next.edge.as_mut().and_then(|e| {
-                    e.rulesets
-                        .iter_mut()
-                        .flat_map(|r| &mut r.rules)
-                        .find(|r| r.id == *rule_id)
-                }) {
+                if let Some(found) = next
+                    .edge
+                    .iter_mut()
+                    .flat_map(|e| &mut e.rulesets)
+                    .flat_map(|r| &mut r.rules)
+                    .find(|r| r.id == *rule_id)
+                {
                     found.rule = rule.clone();
                 }
             }
             Step::DeleteEdgeRule { rule_id, .. } => {
-                if let Some(edge) = next.edge.as_mut() {
-                    for ruleset in &mut edge.rulesets {
-                        ruleset.rules.retain(|r| r.id != *rule_id);
-                    }
+                for ruleset in next.edge.iter_mut().flat_map(|e| &mut e.rulesets) {
+                    ruleset.rules.retain(|r| r.id != *rule_id);
                 }
             }
             Step::CreateServiceToken { name, .. } => {
@@ -364,6 +369,7 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                         client_id: "sim-token.access".into(),
                         expires_at: None,
                         owned: true,
+                        made_for: None,
                     },
                 );
             }
@@ -402,8 +408,13 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                     id: Some("new-database".into()),
                 });
             }
-            Step::PutFrontWorker { script, config, .. } => {
-                if let Some(front) = next.front.as_mut() {
+            Step::PutFrontWorker {
+                hostname,
+                script,
+                config,
+                ..
+            } => {
+                if let Some(front) = next.front.iter_mut().find(|f| f.hostname == *hostname) {
                     match front.fronts.iter_mut().find(|f| {
                         f.config.kind() == config.kind() && f.config.path() == config.path()
                     }) {
@@ -421,17 +432,20 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                 }
             }
             Step::CreateWorkerRoute {
+                hostname,
                 pattern,
                 script,
                 kind,
                 path,
                 ..
             } => {
-                if let Some(front) = next.front.as_mut().and_then(|f| {
-                    f.fronts
-                        .iter_mut()
-                        .find(|x| x.config.kind() == *kind && x.config.path() == path)
-                }) {
+                if let Some(front) = next
+                    .front
+                    .iter_mut()
+                    .filter(|f| f.hostname == *hostname)
+                    .flat_map(|f| &mut f.fronts)
+                    .find(|x| x.config.kind() == *kind && x.config.path() == path)
+                {
                     front.route = Some(cf_api::WorkerRoute {
                         id: format!("route-{script}"),
                         pattern: pattern.clone(),
@@ -441,16 +455,14 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                 }
             }
             Step::DeleteWorkerRoute { route, .. } => {
-                if let Some(state) = next.front.as_mut() {
-                    for front in &mut state.fronts {
-                        if front.route.as_ref().is_some_and(|r| r.id == route.id) {
-                            front.route = None;
-                        }
+                for front in next.front.iter_mut().flat_map(|s| &mut s.fronts) {
+                    if front.route.as_ref().is_some_and(|r| r.id == route.id) {
+                        front.route = None;
                     }
                 }
             }
             Step::DeleteFrontWorker { script, .. } => {
-                if let Some(state) = next.front.as_mut() {
+                for state in &mut next.front {
                     state.fronts.retain(|f| f.script != *script);
                 }
             }

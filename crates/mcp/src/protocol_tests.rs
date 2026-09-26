@@ -174,8 +174,9 @@ async fn introduces_itself_with_instructions_and_capabilities() {
 async fn lists_tools_by_mode() {
     let ask = connect(Mode::Ask, None, false).await;
     let tools = ask.client.list_all_tools().await.unwrap();
-    // Teitunnel's 26, the 5 sharing extras and OpenAPI, and the 5 edge protection tools.
-    assert_eq!(tools.len(), 36);
+    // Teitunnel's 28 (with route_health and route_traffic), the 5 sharing extras and
+    // OpenAPI, the 5 edge protection tools, and the offline page and inbox tools.
+    assert_eq!(tools.len(), 41);
     for tool in &tools {
         assert_eq!(
             tool.input_schema.get("type"),
@@ -189,11 +190,13 @@ async fn lists_tools_by_mode() {
     let tools = read_only.client.list_all_tools().await.unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
     assert!(names.contains(&"plan_change") && names.contains(&"wait_for_request"));
-    assert!(names.contains(&"traffic_openapi"));
+    assert!(names.contains(&"traffic_openapi") && names.contains(&"route_health"));
     for hidden in [
         "share_port",
         "pause_share",
         "share_folder",
+        "set_offline_page",
+        "set_webhook_inbox",
         "apply_plan",
         "stop_share",
         "fix_issue",
@@ -357,7 +360,7 @@ async fn serves_resources_and_prompts() {
             .is_err()
     );
     let prompts = c.client.list_all_prompts().await.unwrap();
-    assert_eq!(prompts.len(), 4);
+    assert_eq!(prompts.len(), 5);
     let mut args = serde_json::Map::new();
     args.insert("path".into(), "/webhooks/stripe".into());
     let prompt = c

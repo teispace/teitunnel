@@ -1,0 +1,45 @@
+---
+title: Teitunnel vs LocalCan
+description: Teitunnel and LocalCan compared — prices, public URLs, custom domains, local domains, snapshots and AI agents.
+---
+
+LocalCan is a desktop app for local domains and public URLs, with inspection, snapshots
+and an MCP server; it runs its own tunnel service with paid plans. Teitunnel does much of
+the same on Cloudflare Tunnel, on your own Cloudflare account, for free.
+
+| | Teitunnel | LocalCan |
+|---|---|---|
+| Price | free, open source | Free; Solo $8, Pro $12, Teams $45 a month; lifetime $99 |
+| Public URLs | as many as you like | Free 1, Solo 5, Pro 10, Teams unlimited |
+| Sessions | until you stop them | 60 minutes on Free |
+| Traffic | no cap on tunnel traffic | 1 GB a month on Free |
+| Your own domain | free, once it's on Cloudflare | Solo 2, Pro 4, Teams unlimited |
+| Local HTTPS domains | `.localhost` and `.test` ([local domains](/docs/guides/local-domains)) | `.local` |
+| Snapshots | on your Cloudflare account ([Snapshots](/docs/guides/snapshots)) | 150 MB on Free |
+| Protection | passwords, secret links, tokens, networks; logins with Cloudflare Access | passwords and IP rules on paid plans |
+| AI agents | MCP server, changes wait for your approval by default | MCP server |
+| Platforms | macOS, Windows, Linux, servers, Docker | Mac, Windows, Linux |
+
+<Callout title="Checked 2026-09-26">
+  From [LocalCan's pricing](https://www.localcan.com/pricing). LocalCan's pages are the
+  final word.
+</Callout>
+
+## When LocalCan fits better
+
+- You want `.local` names that phones on your Wi-Fi can open.
+- You'd rather pay for a hosted service than keep a domain on Cloudflare.
+
+## When Teitunnel fits better
+
+- You already have a domain on Cloudflare, or want no plan limits.
+- You want every change to your DNS and tunnels shown first and undoable
+  ([Changes](/docs/concepts/changes)).
+- You also run servers: the same CLI and routes work on Linux servers and in Docker.
+
+## Related
+
+<Cards>
+  <Card title="All comparisons" href="/docs/compare" />
+  <Card title="Local domains" href="/docs/guides/local-domains" />
+</Cards>

@@ -49,12 +49,29 @@ their domains → a service on a machine), **shares** (temporary public URLs), l
 5. `traffic_replay {id}` until it answers 2xx.
 
 **A route is down**
-1. `verify_route {hostname}`: where it breaks (DNS, edge, tunnel, origin).
+1. `verify_route {hostname}`: where it breaks (DNS, edge, tunnel, origin); `route_health
+   {hostname}`: since when, and earlier incidents.
 2. `doctor`; `connector_status` when every route of a tunnel is down; `logs_tail
    {hostname}` for 502/504.
 3. Fix with `fix_issue {issueId}`, a plan, or tell the user what to do (start the dev server,
    open Teitunnel, turn on Always-on).
 4. `verify_route` again.
+
+**Test how an app copes**
+1. Share it (`share_port`) or reuse a share; note its URL.
+2. `configure_inspection {scope: url, ...}`, one thing at a time, then use or call the app and
+   watch `traffic_list`/`traffic_stats`: `faults: [{path, percent, kind: "status", status: 503}]`,
+   `kind: "timeout"`/`"reset"`, `network: "3g"`, `stubs: [{path, status, body, when: "always"}]`.
+3. Report what broke and suggest fixes; put it back (`faults: []`, `stubs: []`, `network: "off"`).
+
+**Put a local MCP server online**: `expose_mcp_server {origin, hostname}`. Claude Code, Cursor
+and VS Code use the returned configuration (the user gets the token with `teitunnel token
+<hostname>`); claude.ai and ChatGPT add the URL as a connector and sign in, which the user
+approves in Teitunnel.
+
+**Give a dev server a local HTTPS address**: `add_local_domain {name: "shop.test", target:
+"3000"}`; relay the notes (trusting the certificate or a `.test` resolver entry is done by the
+user, it asks for their password).
 
 **Move routes to a server**: `list_routes`, then `export_config {format: "dockerCompose"}`;
 explain that the token is set on the server (`TUNNEL_TOKEN`), never pasted into chat.
@@ -65,8 +82,10 @@ Read: `list_routes`, `list_domains`, `list_tunnels`, `list_shares`,
 `list_local_services`, `plan_change`, `verify_route`, `undo_last`, `doctor`, `logs_tail`,
 `remote_logs`, `connector_status`, `export_config`, `import_scan`, `accounts`,
 `recent_activity`, `traffic_list`, `traffic_get`, `traffic_stats`, `traffic_export`,
-`wait_for_request`.
+`wait_for_request`, `inspection_settings`, `route_health`, `route_traffic`,
+`list_local_domains`.
 Change (need approval in `ask` mode, absent in `read-only`): `share_port`, `stop_share`,
-`apply_plan`, `fix_issue`, `traffic_replay`.
+`apply_plan`, `fix_issue`, `traffic_replay`, `configure_inspection`, `expose_mcp_server`,
+`add_local_domain`, `remove_local_domain`.
 
 Docs: https://teitunnel.teispace.com/docs/guides/ai-agents/

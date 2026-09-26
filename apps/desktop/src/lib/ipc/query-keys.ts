@@ -27,6 +27,8 @@ export const queryKeys = {
   /** AI agents connected through `teitunnel mcp`, and their approvals waiting. */
   agents: {
     all: () => ["agents"] as const,
+    /** Clients connected with OAuth to MCP servers shared from here. */
+    mcp: () => ["agents", "mcp"] as const,
   },
   qr: (value: string) => ["qr", value] as const,
   services: {
@@ -116,6 +118,8 @@ export const queryKeys = {
     list: () => ["fronts", "list"] as const,
     inbox: (accountId: string, hostname: string, path: string) =>
       ["fronts", "inbox", accountId, hostname, path] as const,
+    /** Which senders have a signing secret saved for a hostname. */
+    secrets: (hostname: string) => ["fronts", "secrets", hostname] as const,
   },
   binary: {
     status: () => ["binary", "status"] as const,

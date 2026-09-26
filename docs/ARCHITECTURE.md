@@ -49,7 +49,7 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
 crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
-                     replay, exports, webhooks, gates, stubs, simulation. Pure library, no Tauri,
+                     replay, exports, webhooks, gates, stubs, breakpoints, simulation. Pure library, no Tauri,
                      no core; an optional `specta` feature derives IPC types.
 crates/localdomains  Local HTTPS domains (D-101): the name-constrained CA, leaves issued per SNI
                      name, trust installers per OS (privileged steps returned as data), the `.test`
@@ -320,7 +320,8 @@ Stopped ─start─▶ Starting ─spawned─▶ Connecting ─ready≥1─▶ H
 - **Health:** poll `GET /ready` every 250 ms until the first connection, then every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
 - **Logs:** JSON lines on stderr are parsed into `LogEvent { ts, level, message, fields }`. They go into a per-connector ring buffer (100k events) and are fanned out to subscribers.
 - **Metrics:** scrape `/metrics` every 1 s while a traffic view polls (a 5 s lease per read, D-046), otherwise every 10 s. Values go into a ring buffer (3,600 samples), and 1-min rollups are persisted for 7 days.
-- **Restarts:** exponential backoff with jitter (1 s → 60 s cap). More than 5 crashes in 2 min is a **crash loop**: stop retrying and raise a Doctor issue with the last 50 log lines.
+- **Restarts:** exponential backoff with jitter (1 s → 60 s cap). More than 5 crashes in 2 min is a **crash loop**: raise a Doctor issue with the last 50 log lines and wait, retrying every 10 min or at once when the network changes (a laptop offline for a few minutes loops too).
+- **Sleep, wake and network changes** (`runtime::network`, D-135): the supervisor looks every 5 s for the wall clock jumping ahead (the computer slept) and for its routable addresses changing, and nudges every connector: a backoff or crash loop ends at once, and a running connector with no connection 15 s later is restarted (not Quick Shares, whose address would change). `core::health` stays quiet for 90 s after such a change.
 - **Shutdown:** SIGTERM, then SIGKILL after 5 s. On app exit (`RunEvent::ExitRequested`), stop all Session connectors concurrently within the deadline.
 
 ### 5.2 Run modes
@@ -459,7 +460,7 @@ must come within 5 s; requests are rate-limited per connection (token bucket 40/
 | Method | Core call |
 |---|---|
 | `status`, `shares.list` | accounts, local tunnels + connector state, `QuickShares::list`, domain shares, `cli_shares::list` |
-| `shares.start` / `shares.stop` | `QuickShares::start` (waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
+| `shares.start` / `shares.stop` | `QuickShares::start`, or `start_folder` for a `folder` (checked again; waits for the URL) / `stop`, `domain_shares::stop`, `cli_shares::stop` |
 | `routes.list` | `Engine::overview` |
 | `routes.preview` / `routes.apply` | `intent_for` → `preview` / `apply` by fingerprint, `with_actor(via: "control")` |
 | `open` | `Ui::open` → `OpenView` event → the webview navigates |

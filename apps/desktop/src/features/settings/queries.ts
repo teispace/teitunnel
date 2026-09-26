@@ -58,6 +58,45 @@ export function useAiAgents() {
   });
 }
 
+/**
+ * Clients connected with OAuth to MCP servers shared from this computer. A connection
+ * appears once the client finishes signing in, which no event announces: checked again
+ * every 15 s while shown.
+ */
+export function useMcpConnections() {
+  return useQuery({
+    queryKey: queryKeys.agents.mcp(),
+    queryFn: () => call(commands.mcpConnections()),
+    refetchInterval: 15_000,
+  });
+}
+
+/** Disconnects a client from a shared MCP server. */
+export function useMcpDisconnect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => call(commands.mcpDisconnect(id)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.agents.mcp() }),
+  });
+}
+
+const browserHostKey = ["browserHost"] as const;
+
+/** Which browsers can use the Teitunnel extension. */
+export function useBrowserHost() {
+  return useQuery({ queryKey: browserHostKey, queryFn: () => call(commands.browserHostStatus()) });
+}
+
+/** Sets the extension up in every installed browser, or removes it. */
+export function useSetBrowserHost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (install: boolean) =>
+      call(install ? commands.browserHostInstall() : commands.browserHostUninstall()),
+    onSuccess: (view) => queryClient.setQueryData(browserHostKey, view),
+  });
+}
+
 /** Saves an OpenAPI description of the captured requests to Downloads. */
 export function useSaveOpenApi() {
   return useMutation({

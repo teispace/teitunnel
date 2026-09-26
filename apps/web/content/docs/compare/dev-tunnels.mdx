@@ -1,0 +1,46 @@
+---
+title: Teitunnel vs Microsoft Dev Tunnels
+description: Teitunnel and Microsoft Dev Tunnels compared — accounts, who can open a tunnel, the anti-phishing page, domains and production use.
+---
+
+Microsoft Dev Tunnels share local ports from VS Code, Visual Studio or the `devtunnel`
+CLI. They're private to your Microsoft or GitHub account by default, which makes them a
+good fit for testing on your own devices. Teitunnel shares through Cloudflare Tunnel, at a
+random address or on your own domain.
+
+| | Teitunnel | Dev Tunnels |
+|---|---|---|
+| Status | released | public preview, "not for production workloads" |
+| Account to share | none for a Quick Share; Cloudflare for your domain | Microsoft, Entra ID or GitHub |
+| Who can open it | anyone, or those you [let sign in](/docs/guides/require-login) | only you, by default; your tenant, a GitHub organization, or anyone |
+| Names | random `trycloudflare.com`, or any name on your domain | `*.devtunnels.ms` |
+| Warning page for browsers | none on your domain | an anti-phishing page on the first visit |
+| Unused addresses | a route stays until you remove it | deleted after 30 days without use, by default |
+| Inspect | the [inspector](/docs/guides/inspector), with replay | browser DevTools |
+| Where | the app on macOS, Windows, Linux; the CLI; servers | VS Code, Visual Studio, the CLI |
+
+<Callout title="Checked 2026-09-26">
+  From Microsoft's [overview](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/overview),
+  [FAQ](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/faq) and
+  [security](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/security) pages.
+  Usage limits are on [Microsoft's limits page](https://aka.ms/devtunnels/limits).
+</Callout>
+
+## When Dev Tunnels fit better
+
+- You work in VS Code or Visual Studio and want a port on your phone or another computer,
+  signed in with the same account.
+- You share with colleagues in the same Microsoft Entra tenant or GitHub organization.
+
+## When Teitunnel fits better
+
+- The address should last: a site, an API, a webhook endpoint, a home server.
+- Visitors shouldn't see a warning page, or need a Microsoft or GitHub account.
+- You want your own domain and logins with any email address.
+
+## Related
+
+<Cards>
+  <Card title="All comparisons" href="/docs/compare" />
+  <Card title="Editor integrations" href="/docs/guides/integrations" description="Share from VS Code, JetBrains IDEs and Raycast." />
+</Cards>

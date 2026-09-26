@@ -8,8 +8,8 @@ use tokio::sync::broadcast;
 
 use crate::protocol::{
     AgentApproval, AgentInfo, AppInfo, ApplyParams, ApplyResult, ClientInfo, DoctorIssue, Event,
-    LocalDomainsInfo, PauseShare, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError,
-    ShareInfo, StartShare, Status, StopShare, View, code,
+    LocalDomainsInfo, OAuthApproval, PauseShare, PlanInfo, PreviewParams, RoutesList, RoutesParams,
+    RpcError, ShareInfo, StartShare, Status, StopShare, View, code,
 };
 
 /// A boxed, sendable future (the trait is object-safe).
@@ -108,6 +108,14 @@ pub trait Host: Send + Sync + 'static {
     /// plan). Dismissing or a timeout is a no.
     fn approve_for_agent(&self, session: u64, request: AgentApproval) -> BoxFuture<'_, bool> {
         let _ = (session, request);
+        Box::pin(async { false })
+    }
+
+    /// Asks the person, in the app, whether a client may connect to a shared MCP server
+    /// (the dialog shows the code the client's browser shows). Dismissing or a timeout
+    /// is a no.
+    fn approve_oauth(&self, request: OAuthApproval) -> BoxFuture<'_, bool> {
+        let _ = request;
         Box::pin(async { false })
     }
 

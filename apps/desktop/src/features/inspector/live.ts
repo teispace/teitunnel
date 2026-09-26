@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { commands, type ExchangeId, type LiveBatch } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { fetchExchanges, inspectorKeys } from "./queries";
-import { ExchangeStore } from "./store";
+import { ExchangeStore, MAX_ROWS } from "./store";
 
 /** Requests read per page (the inspector's maximum). */
 export const PAGE = 1000;
@@ -35,9 +35,15 @@ export interface LiveExchanges {
  * is active new traffic re-runs it instead of being matched here. Pausing holds batches
  * back until resumed.
  */
-export function useLiveExchanges(tap: string | null, search: string): LiveExchanges {
+export function useLiveExchanges(
+  tap: string | null,
+  search: string,
+  /** Read and keep only the newest this many (a glance, not the list). */
+  limit?: number,
+): LiveExchanges {
   const queryClient = useQueryClient();
-  const store = useMemo(() => new ExchangeStore(tap), [tap]);
+  const page = limit ?? PAGE;
+  const store = useMemo(() => new ExchangeStore(tap, limit ?? MAX_ROWS), [tap, limit]);
   const [status, setStatus] = useState<LiveExchanges["status"]>("loading");
   const [error, setError] = useState<string | null>(null);
   const [older, setOlder] = useState<ExchangeId | null>(null);
@@ -53,10 +59,11 @@ export function useLiveExchanges(tap: string | null, search: string): LiveExchan
   const load = useCallback(async () => {
     const mine = ++generation.current;
     try {
-      const page = await fetchExchanges({ tap, text: text || null, limit: PAGE });
+      const read = await fetchExchanges({ tap, text: text || null, limit: page });
       if (mine !== generation.current) return;
-      store.reset(page.items);
-      setOlder(page.next);
+      store.reset(read.items);
+      // A glance never reads further back.
+      setOlder(limit === undefined ? read.next : null);
       setStatus("ready");
       setError(null);
     } catch (failure) {
@@ -64,7 +71,7 @@ export function useLiveExchanges(tap: string | null, search: string): LiveExchan
       setStatus("error");
       setError(toIpcError(failure).message);
     }
-  }, [store, tap, text]);
+  }, [store, tap, text, page, limit]);
 
   useEffect(() => {
     let cancelled = false;

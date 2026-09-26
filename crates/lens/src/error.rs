@@ -44,6 +44,9 @@ pub enum LensError {
     /// No listener has this id.
     #[error("no listener with id {0}")]
     UnknownListener(ListenerId),
+    /// The exchange isn't paused at a breakpoint (any more).
+    #[error("exchange {0} isn't paused")]
+    NotPaused(ExchangeId),
     /// No captured exchange has this id (it may have been evicted from the ring).
     #[error("no captured exchange {0}")]
     UnknownExchange(ExchangeId),

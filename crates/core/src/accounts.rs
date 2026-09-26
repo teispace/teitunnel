@@ -14,7 +14,7 @@ mod template;
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use cf_api::{ApiToken, Client};
@@ -176,6 +176,13 @@ impl HeldAccess {
 /// Access tokens this process holds, by account.
 type AccessCache = HashMap<String, HeldAccess>;
 
+/// Keychain values this process read or wrote recently, by key, with when.
+type RecentSecrets = HashMap<String, (Secret<String>, Instant)>;
+
+/// How long a credential read from the keychain is used before it's read again (another
+/// process may have replaced or removed it). Refreshing always reads it afresh.
+const RECHECK: Duration = Duration::from_secs(60);
+
 /// A newly issued access token, marked with the refresh token it goes with.
 fn held(
     access: &Secret<String>,
@@ -221,6 +228,9 @@ pub struct Accounts {
     oauth: Option<oauth::OAuthConfig>,
     http: reqwest::Client,
     access: Arc<tokio::sync::Mutex<AccessCache>>,
+    /// So API calls don't each read the keychain (slow, and a prompt for an item this
+    /// program isn't trusted with yet).
+    recent: Arc<std::sync::Mutex<RecentSecrets>>,
 }
 
 impl std::fmt::Debug for Accounts {
@@ -254,6 +264,7 @@ impl Accounts {
             oauth,
             http: reqwest::Client::new(),
             access: Arc::default(),
+            recent: Arc::default(),
         }
     }
 
@@ -373,14 +384,22 @@ impl Accounts {
     /// invalidates another's token.
     async fn access_token(&self, account_id: &str) -> Result<Secret<String>, AccountError> {
         let mut cache = self.access.lock().await;
-        let refresh = self
-            .secret(secret_key(account_id, CredentialKind::OAuth))
-            .await?;
-        let source = fingerprint(&refresh);
-        let usable = |held: &HeldAccess| held.source == source && held.fresh(now_ms());
-        if let Some(held) = cache.get(account_id).filter(|h| usable(h)) {
+        let key = secret_key(account_id, CredentialKind::OAuth);
+        // The current refresh token's hash, from the database every process updates when
+        // it refreshes: no keychain read per call.
+        let current = match self.token_source(account_id).await {
+            Some(source) => source,
+            None => fingerprint(&self.remembered(&key).await?),
+        };
+        let usable =
+            |held: &HeldAccess, source: &str| held.source == source && held.fresh(now_ms());
+        if let Some(held) = cache.get(account_id).filter(|h| usable(h, &current)) {
             return Ok(Secret::new(held.access.clone()));
         }
+        // Refreshing: read the refresh token afresh, another process may have rotated it.
+        let refresh = self.secret(key).await?;
+        let source = fingerprint(&refresh);
+        let usable = |held: &HeldAccess| usable(held, &source);
         // Another process may have refreshed already.
         if let Some(held) = self.shared(account_id).await.filter(|h| usable(h)) {
             cache.insert(account_id.to_owned(), held.clone());
@@ -402,22 +421,61 @@ impl Accounts {
             }
         };
         let current = tokens.refresh_token.unwrap_or(refresh);
-        let secrets = Arc::clone(&self.secrets);
-        let key = secret_key(account_id, CredentialKind::OAuth);
-        let stored = current.clone();
-        spawn_blocking(move || secrets.set(&key, &stored)).await?;
+        self.write(
+            secret_key(account_id, CredentialKind::OAuth),
+            current.clone(),
+        )
+        .await?;
         let held = held(&tokens.access_token, tokens.expires_in, &current);
         self.share(account_id, &held).await;
         cache.insert(account_id.to_owned(), held);
         Ok(tokens.access_token)
     }
 
-    /// A keychain item, or [`AccountError::NotFound`].
+    /// A keychain item as last read or written, if that was within [`RECHECK`].
+    async fn remembered(&self, key: &str) -> Result<Secret<String>, AccountError> {
+        let recent = self
+            .recent_lock()
+            .get(key)
+            .filter(|(_, at)| at.elapsed() < RECHECK)
+            .map(|(value, _)| value.clone());
+        match recent {
+            Some(value) => Ok(value),
+            None => self.secret(key.to_owned()).await,
+        }
+    }
+
+    fn recent_lock(&self) -> std::sync::MutexGuard<'_, RecentSecrets> {
+        self.recent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Stores a keychain item (and remembers it).
+    async fn write(&self, key: String, value: Secret<String>) -> Result<(), AccountError> {
+        let secrets = Arc::clone(&self.secrets);
+        let (stored_key, stored) = (key.clone(), value.clone());
+        spawn_blocking(move || secrets.set(&stored_key, &stored)).await?;
+        self.recent_lock().insert(key, (value, Instant::now()));
+        Ok(())
+    }
+
+    /// A keychain item read afresh, or [`AccountError::NotFound`].
     async fn secret(&self, key: String) -> Result<Secret<String>, AccountError> {
         let secrets = Arc::clone(&self.secrets);
-        spawn_blocking(move || secrets.get(&key))
-            .await?
-            .ok_or(AccountError::NotFound)
+        let read = key.clone();
+        let value = spawn_blocking(move || secrets.get(&read)).await?;
+        let mut recent = self.recent_lock();
+        match value {
+            Some(value) => {
+                recent.insert(key, (value.clone(), Instant::now()));
+                Ok(value)
+            }
+            None => {
+                recent.remove(&key);
+                Err(AccountError::NotFound)
+            }
+        }
     }
 
     /// The access token another process shared, if any.
@@ -432,12 +490,41 @@ impl Accounts {
         let Ok(json) = serde_json::to_string(held) else {
             return;
         };
-        let secrets = Arc::clone(&self.secrets);
-        let key = shared_access_key(account_id);
-        let value = Secret::new(json);
-        if let Err(err) = spawn_blocking(move || secrets.set(&key, &value)).await {
+        if let Err(err) = self
+            .write(shared_access_key(account_id), Secret::new(json))
+            .await
+        {
             tracing::warn!(%err, "couldn't share the access token");
         }
+        let (id, source) = (account_id.to_owned(), held.source.clone());
+        if let Err(err) = self
+            .store
+            .call(move |conn| {
+                Ok(conn.execute(
+                    "UPDATE accounts SET token_source = ?2 WHERE id = ?1",
+                    params![id, source],
+                )?)
+            })
+            .await
+        {
+            tracing::warn!(%err, "couldn't record the access token's source");
+        }
+    }
+
+    /// The hash of the refresh token the shared access token came from, as last recorded.
+    async fn token_source(&self, account_id: &str) -> Option<String> {
+        let id = account_id.to_owned();
+        self.store
+            .call(move |conn| {
+                Ok(conn.query_row(
+                    "SELECT token_source FROM accounts WHERE id = ?1",
+                    params![id],
+                    |row| row.get::<_, Option<String>>(0),
+                )?)
+            })
+            .await
+            .ok()
+            .flatten()
     }
 
     /// After a failed refresh: the token another process got with a newer refresh token
@@ -492,10 +579,8 @@ impl Accounts {
     }
 
     async fn save(&self, account: &Account, secret: &Secret<String>) -> Result<(), AccountError> {
-        let secrets = Arc::clone(&self.secrets);
-        let key = secret_key(&account.id, account.credential);
-        let secret = secret.clone();
-        spawn_blocking(move || secrets.set(&key, &secret)).await?;
+        self.write(secret_key(&account.id, account.credential), secret.clone())
+            .await?;
         let row = account.clone();
         let added_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -542,6 +627,12 @@ impl Accounts {
             .map(|kind| secret_key(&id, *kind))
             .chain(std::iter::once(shared_access_key(&id)))
             .collect();
+        {
+            let mut recent = self.recent_lock();
+            for key in &keys {
+                recent.remove(key);
+            }
+        }
         spawn_blocking(move || keys.iter().try_for_each(|key| secrets.delete(key))).await?;
         let removed = self
             .store
@@ -620,11 +711,9 @@ impl Accounts {
             let token = self.access_token(account_id).await?;
             return self.client_with(&token);
         }
-        let secrets = Arc::clone(&self.secrets);
-        let key = secret_key(&account.id, account.credential);
-        let token = spawn_blocking(move || secrets.get(&key))
-            .await?
-            .ok_or(AccountError::NotFound)?;
+        let token = self
+            .remembered(&secret_key(&account.id, account.credential))
+            .await?;
         self.client_with(&token)
     }
 }
@@ -908,6 +997,91 @@ mod tests {
             .respond_with(envelope(serde_json::json!({"id": "t1", "status": if active { "active" } else { "disabled" }})))
             .mount(server)
             .await;
+    }
+
+    /// A keychain that counts reads.
+    #[derive(Debug, Default)]
+    struct Counting {
+        inner: MemoryStore,
+        reads: std::sync::atomic::AtomicUsize,
+    }
+
+    impl SecretStore for Counting {
+        fn set(&self, key: &str, value: &Secret<String>) -> Result<(), SecretError> {
+            self.inner.set(key, value)
+        }
+        fn get(&self, key: &str) -> Result<Option<Secret<String>>, SecretError> {
+            self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.inner.get(key)
+        }
+        fn delete(&self, key: &str) -> Result<(), SecretError> {
+            self.inner.delete(key)
+        }
+    }
+
+    #[tokio::test]
+    async fn api_calls_dont_each_read_the_keychain() {
+        let server = MockServer::start().await;
+        let keychain = Arc::new(Counting::default());
+        let accounts = Accounts::with_api_base(
+            Store::open_in_memory().unwrap(),
+            keychain.clone(),
+            &server.uri(),
+            Some(oauth::OAuthConfig::with_base(
+                "client".into(),
+                &server.uri(),
+            )),
+        );
+        mount_verify(&server, true).await;
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(
+                serde_json::json!([{"id": "a1", "name": "Personal"}]),
+            ))
+            .mount(&server)
+            .await;
+        accounts.add_token(Secret::new("tok".into())).await.unwrap();
+        let reads = || keychain.reads.load(std::sync::atomic::Ordering::SeqCst);
+        let before = reads();
+        for _ in 0..20 {
+            accounts.client("a1").await.unwrap();
+        }
+        assert_eq!(reads(), before, "the token was just stored: no read needed");
+    }
+
+    #[tokio::test]
+    async fn oauth_calls_dont_each_read_the_keychain() {
+        let server = MockServer::start().await;
+        let keychain = Arc::new(Counting::default());
+        let accounts = Accounts::with_api_base(
+            Store::open_in_memory().unwrap(),
+            keychain.clone(),
+            &server.uri(),
+            Some(oauth::OAuthConfig::with_base(
+                "client".into(),
+                &server.uri(),
+            )),
+        );
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(
+                serde_json::json!([{"id": "a1", "name": "Personal"}]),
+            ))
+            .mount(&server)
+            .await;
+        accounts
+            .add_oauth(tokens("access", Some("refresh"), 3600))
+            .await
+            .unwrap();
+        let before = keychain.reads.load(std::sync::atomic::Ordering::SeqCst);
+        for _ in 0..20 {
+            assert_eq!(
+                accounts.access_token("a1").await.unwrap().expose(),
+                "access"
+            );
+        }
+        assert_eq!(
+            keychain.reads.load(std::sync::atomic::Ordering::SeqCst),
+            before
+        );
     }
 
     #[tokio::test]

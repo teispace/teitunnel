@@ -52,6 +52,12 @@ error for each failed request.
 DNS record points at a tunnel ID that no longer exists or a mistyped target. Run the Doctor:
 *A record points at a tunnel that no longer exists* offers to delete or reroute it.
 
+Right after a route or a share on your domain is added, Cloudflare takes up to about half a
+minute to connect the new record to the tunnel and answers 1016 until then (measured
+2026-09-25). Teitunnel waits that out: the share says *Cloudflare is still connecting this
+address* and checks again by itself. After you stop a share, a browser that visited it may
+show 1016 for a few more minutes from its DNS cache, although the record is already gone.
+
 ### The site can't be reached (DNS)
 
 `DNS_PROBE_FINISHED_NXDOMAIN` or *server IP address could not be found*:
@@ -92,7 +98,7 @@ or allow the hostname in the project.
 
 ### 524 timeout, 413 too large, or 429 on a Quick Share
 
-- **524** means your service took more than 100 seconds to answer. Make long jobs
+- **524** means your service took more than 125 seconds to answer. Make long jobs
   asynchronous, or stream progress.
 - **413** means the upload was over 100 MB (Free and Pro plans). Upload in chunks.
 - **429** on a Quick Share means 200 requests were in flight at once, a Quick Share's limit.

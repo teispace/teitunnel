@@ -97,6 +97,16 @@ pub fn email_rule(email: &str) -> Value {
     json!({ "email": { "email": email } })
 }
 
+/// A rule matching everyone (for a policy that lets everyone through without a login).
+pub fn everyone_rule() -> Value {
+    json!({ "everyone": {} })
+}
+
+/// Whether a rule matches everyone.
+pub fn rule_is_everyone(rule: &Value) -> bool {
+    rule.get("everyone").is_some_and(Value::is_object)
+}
+
 /// A rule matching every address at an email domain.
 pub fn email_domain_rule(domain: &str) -> Value {
     json!({ "email_domain": { "domain": domain } })

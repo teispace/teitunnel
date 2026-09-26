@@ -6,7 +6,13 @@ import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  define: {
+    // Developer pages and fixture data in a browser (gallery, stress benches, mock IPC):
+    // in development and tests, and in `vite build --mode perf` builds that measure them
+    // with production React. Replaced as text, so release builds drop everything behind it.
+    __DEV_PAGES__: JSON.stringify(["development", "test", "perf"].includes(mode)),
+  },
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true, quoteStyle: "double" }),
     react(),
@@ -43,4 +49,4 @@ export default defineConfig({
     testTimeout: 15_000,
     restoreMocks: true,
   },
-});
+}));

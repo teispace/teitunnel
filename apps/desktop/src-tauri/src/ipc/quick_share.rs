@@ -223,6 +223,18 @@ pub async fn quick_share_set_inspected(
     Ok(state.quick_shares.set_inspected(&id, inspect).await?)
 }
 
+/// Pauses or resumes a share: visitors see the "paused" page and the address stays
+/// (inspected shares only: the inspector serves the page).
+#[tauri::command]
+#[specta::specta]
+pub async fn quick_share_set_paused(
+    state: State<'_, AppState>,
+    id: String,
+    paused: bool,
+) -> Result<QuickShare, AppError> {
+    Ok(state.quick_shares.set_paused(&id, paused)?)
+}
+
 /// Sends `host_header` to a share's service (`null`: none), for a dev server that
 /// refuses the public address. An inspected share changes at once and keeps its URL;
 /// otherwise it restarts with a new URL. Either way it's checked again once live.
@@ -317,10 +329,11 @@ pub fn quick_share_qr(url: String) -> Result<String, AppError> {
 /// Quick Shares running in terminals (`teitunnel share`), oldest first.
 #[tauri::command]
 #[specta::specta]
-pub fn quick_share_cli_list(
+pub async fn quick_share_cli_list(
     state: State<'_, AppState>,
-) -> Vec<teitunnel_core::cli_shares::CliShare> {
-    teitunnel_core::cli_shares::list(&state.cli_runs)
+) -> Result<Vec<teitunnel_core::cli_shares::CliShare>, AppError> {
+    let runs = state.cli_runs.clone();
+    super::off_main(move || teitunnel_core::cli_shares::list(&runs)).await
 }
 
 /// Stops a terminal's Quick Share (asks its `teitunnel` to end).

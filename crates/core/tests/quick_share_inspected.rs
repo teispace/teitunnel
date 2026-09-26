@@ -154,6 +154,23 @@ async fn quick_shares_go_through_the_inspector() {
     let (_, host) = through(&tap.address).await;
     assert_eq!(host, "localhost:5173");
 
+    // Pausing keeps the address: visitors get the paused page until it's resumed.
+    let paused = shares.set_paused(&share.id, true).unwrap();
+    assert!(paused.paused);
+    assert_eq!(paused.url, url, "same address");
+    let answer = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+        .get(format!("{}/hello", tap.address))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(answer.status().as_u16(), 503);
+    assert_eq!(shares.set_all_paused(false), 1);
+    assert!(!shares.list()[0].paused);
+    assert_eq!(through(&tap.address).await.0, 200);
+
     // Turning inspection off restarts cloudflared straight to the service.
     let direct = shares.set_inspected(&share.id, false).await.unwrap();
     assert!(!direct.inspected);
@@ -174,6 +191,10 @@ async fn quick_shares_go_through_the_inspector() {
         .await
         .unwrap();
     assert!(!plain.inspected);
+    assert!(matches!(
+        shares.set_paused(&plain.id, true),
+        Err(teitunnel_core::quick_share::QuickShareError::NotInspected)
+    ));
 
     shares.stop_all().await;
     assert!(
@@ -272,7 +293,7 @@ async fn folders_are_shared_through_the_inspector() {
     tokio::spawn(shares.clone().watch_runtime());
 
     let folder =
-        teitunnel_core::folder_share::FolderShare::resolve(site.to_str().unwrap(), false, true)
+        teitunnel_core::folder_share::FolderShare::resolve(site.to_str().unwrap(), None, true)
             .unwrap();
     let share = shares.start_folder(folder.clone(), None).await.unwrap();
     assert_eq!(share.folder.as_ref(), Some(&folder));

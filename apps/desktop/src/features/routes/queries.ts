@@ -14,6 +14,9 @@ import { call, toIpcError } from "@/lib/ipc/client";
 import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 import { appendSeries } from "@/lib/traffic";
 
+/** How often views that read Cloudflare refresh on their own while open. */
+const CLOUDFLARE_POLL_MS = 30_000;
+
 export function useRoutesOverview(accountId: string | null) {
   return useQuery({
     queryKey: queryKeys.routes.overview(accountId ?? ""),
@@ -21,8 +24,9 @@ export function useRoutesOverview(accountId: string | null) {
     enabled: accountId !== null,
     staleTime: 10_000,
     refetchOnWindowFocus: true,
-    // Connector state changes on its own; keep it fresh while the view is open.
-    refetchInterval: 5_000,
+    // Connector changes arrive as events; this catches changes made on Cloudflare
+    // elsewhere (each refresh reads the account's tunnels and DNS).
+    refetchInterval: CLOUDFLARE_POLL_MS,
   });
 }
 
@@ -122,7 +126,8 @@ export function useTunnels(accountId: string | null) {
     queryFn: () => call(commands.tunnelsList(accountId ?? "")),
     enabled: accountId !== null,
     staleTime: 10_000,
-    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: CLOUDFLARE_POLL_MS,
   });
 }
 

@@ -52,7 +52,9 @@
     "login": {
       "toggle": "Require a login",
       "label": "Who can sign in",
-      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free)."
+      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free).",
+      "skip": "Paths that skip the login",
+      "skipHelp": "For webhooks and other machines that can't log in, e.g. /webhooks. Anyone can reach these paths."
     },
     "nothingToChange": "Nothing to change: it's already set up.",
     "reading": "Reading your Cloudflare account…",
@@ -208,7 +210,12 @@
       "dnsOk@linux": "Points to this computer's tunnel",
       "remote@windows": "The service isn't on this PC",
       "remote@linux": "The service isn't on this computer",
-      "balancing": "Load balancing"
+      "balancing": "Load balancing",
+      "skipLogin": "No login on"
+    },
+    "pause": {
+      "title": "Pause and Schedule",
+      "hint": "Pause it, or serve it only during set hours: visitors see a paused page, and the address stays."
     },
     "activity": {
       "undone": " · undone after an error"
@@ -526,6 +533,7 @@
       "restoreConfig": "Restores",
       "removeTunnel": "Tunnel Removals",
       "removeLogin": "Login Removals",
+      "cleanUpHostname": "Clean-ups",
       "addNetwork": "Networks Shared",
       "removeNetwork": "Networks Unshared",
       "createTunnel": "Tunnels Created",
@@ -715,6 +723,15 @@
       "saved_one": "Saved {paths} paths from {count} request to Downloads.",
       "saved_other": "Saved {paths} paths from {count} requests to Downloads.",
       "empty": "No API requests captured yet. Use the API through a share, then save again."
+    },
+    "mcpConnections": {
+      "title": "Connected to Your MCP Servers",
+      "footer": "Apps you let sign in to MCP servers you share on your domain, such as claude.ai or ChatGPT. Disconnect one to stop it at once.",
+      "detail": "{host} · approved {approved}, last used {used}",
+      "disconnect": "Disconnect",
+      "confirmTitle": "Disconnect {client} from {host}?",
+      "confirmDetail": "It stops working right away. To use the server again, it has to connect and be approved again.",
+      "disconnected": "{client} was disconnected."
     }
   },
   "cliOffer": {
@@ -869,7 +886,20 @@
     "traffic@linux": "Traffic on this computer",
     "loading": "Loading what's running",
     "checkingRoutes": "Checking your routes on Cloudflare…",
-    "routesFailed": "Couldn't load your routes."
+    "routesFailed": "Couldn't load your routes.",
+    "errors": "Errors",
+    "errorsNone": "None",
+    "errorsDetail_one": "{failed} of {count} request in 5 min",
+    "errorsDetail_other": "{failed} of {count} requests in 5 min",
+    "errorsQuiet": "No requests in 5 min",
+    "uptime": "Uptime",
+    "uptimeAllUp": "All up",
+    "uptimeDown_one": "{count} down",
+    "uptimeDown_other": "{count} down",
+    "uptimeLowest": "Lowest in 24 h: {percent}",
+    "uptimeDownMore": "{hostname} and {count} more",
+    "recent": "Recent Requests",
+    "showAll": "Show All"
   },
   "accounts": {
     "credential": {
@@ -1088,7 +1118,8 @@
       "spa": "Single-page app (every page opens index.html)",
       "safety": "Hidden files, .env files, keys, .git and node_modules are never shared.",
       "drop": "Drop a folder to share it."
-    }
+    },
+    "settling": "Cloudflare is still connecting this address. It usually takes under a minute."
   },
   "inspector": {
     "title": "Inspector",
@@ -1134,7 +1165,8 @@
       "replay": "Replay",
       "webhook": "Webhook",
       "newAbove_one": "{count} newer request",
-      "newAbove_other": "{count} newer requests"
+      "newAbove_other": "{count} newer requests",
+      "held": "Held"
     },
     "state": {
       "pending": "Waiting for the service",
@@ -1185,7 +1217,8 @@
       "hide": "Hide Secrets",
       "revealHelp": "Credentials are masked. Show them for this request; they're not kept.",
       "revealed": "Secrets are shown for this request until you hide them or select another.",
-      "restored": "Kept in history with credentials masked when it was saved, so they can't be shown."
+      "restored": "Kept in history with credentials masked when it was saved, so they can't be shown.",
+      "breakpoint": "Breakpoint"
     },
     "responder": {
       "upstream": "Your service",
@@ -1195,7 +1228,8 @@
       "gate": "Protection on this computer: {reason}",
       "paused": "The paused page",
       "fault": "A simulated fault",
-      "lens": "The inspector"
+      "lens": "The inspector",
+      "breakpoint": "You, at a breakpoint"
     },
     "gate": {
       "ipNotAllowed": "address not allowed",
@@ -1208,7 +1242,8 @@
       "linkAccepted": "secret link used",
       "linkRequired": "secret link missing",
       "basicAuthRequired": "asked for basic authentication",
-      "bearerRequired": "bearer token missing or wrong"
+      "bearerRequired": "bearer token missing or wrong",
+      "oauthRequired": "asked to sign in with OAuth"
     },
     "errorKind": {
       "connectionRefused": "Nothing is listening on the service's port",
@@ -1263,7 +1298,15 @@
       "compressed": "(compressed)",
       "none": "No messages yet.",
       "dropped_one": "{count} older frame isn't kept.",
-      "dropped_other": "{count} older frames aren't kept."
+      "dropped_other": "{count} older frames aren't kept.",
+      "direction": "Direction",
+      "all": "All",
+      "sent": "Visitor",
+      "received": "Service",
+      "search": "Search Messages",
+      "noMatch": "No messages match.",
+      "copy": "Message",
+      "truncated": "Only the start is kept; the whole message was {size}."
     },
     "webhook": {
       "title": "Webhook",
@@ -1371,7 +1414,13 @@
       "offTitle": "Stop inspecting this share?",
       "newAddress": "The share restarts, so it gets a new address. Anyone using the old one needs the new one.",
       "confirmOn": "Restart with Inspector",
-      "confirmOff": "Restart Without Inspector"
+      "confirmOff": "Restart Without Inspector",
+      "protect": "Protect This Share",
+      "protectNeedsInspect": "Protect this share (turn on Inspect requests first: the inspector enforces it)",
+      "protectTitle": "Protect {name}",
+      "protected": "Protected on this computer: {list}",
+      "tokens_one": "{count} bearer token",
+      "tokens_other": "{count} bearer tokens"
     },
     "tap": {
       "open": "Inspection Settings…",
@@ -1383,7 +1432,8 @@
         "headers": "Headers",
         "network": "Network",
         "protection": "Protection",
-        "more": "More"
+        "more": "More",
+        "breakpoints": "Breakpoints"
       },
       "save": "Save",
       "saved": "Saved settings for {name}",
@@ -1464,7 +1514,7 @@
       },
       "keepAlive": {
         "title": "Keep event streams alive",
-        "help": "Sends a comment line after this many seconds of silence, so Cloudflare's 100-second limit doesn't cut long streams. 0 turns it off.",
+        "help": "Sends a comment line after this many seconds of silence, so Cloudflare's 125-second limit doesn't cut long streams. 0 turns it off.",
         "seconds": "seconds"
       },
       "capturing": "Record requests",
@@ -1476,6 +1526,19 @@
       "idle": {
         "title": "Stop after no requests for",
         "help": "The share stops by itself after this long without a request."
+      },
+      "breakpoints": {
+        "title": "Breakpoints",
+        "help": "Hold matching requests so you can look at them, change them, answer them yourself or drop them. A held request goes on by itself after a minute, before Cloudflare gives up waiting. Only while requests are recorded.",
+        "add": "Add Breakpoint",
+        "empty": "No breakpoints.",
+        "stage": "Hold",
+        "stages": {
+          "request": "Request",
+          "response": "Answer",
+          "both": "Both"
+        },
+        "remove": "Remove breakpoint"
       }
     },
     "protection": {
@@ -1546,6 +1609,44 @@
       "watched": "Watched paths",
       "watchedFooter": "A notification when a request to any share or route hits one of these paths, e.g. /webhooks/*. One per line.",
       "save": "Save"
+    },
+    "held": {
+      "banner_one": "{count} request is held at a breakpoint.",
+      "banner_other": "{count} requests are held at breakpoints.",
+      "continueAll": "Continue All",
+      "request": "Held before it goes to your service",
+      "response": "Held before the answer goes back",
+      "resumesIn": "Goes on by itself in {seconds} s",
+      "method": "Method",
+      "target": "Path",
+      "status": "Status",
+      "headers": "Headers",
+      "headersHelp": "One per line, as name: value.",
+      "body": "Body",
+      "locked": {
+        "binary": "The body isn't text, so it goes on as it is.",
+        "tooLarge": "The body is larger than 1 MB, so it goes on as it is.",
+        "streamed": "The body is still arriving, so it goes on as it is."
+      },
+      "continue": "Continue",
+      "continueChanged": "Continue with Changes",
+      "revert": "Undo Changes",
+      "answer": "Answer Myself…",
+      "answerTitle": "Your answer",
+      "sendAnswer": "Send Answer",
+      "backToRequest": "Back to the Request",
+      "drop": "Drop",
+      "dropHelp": "The visitor gets no answer.",
+      "gone": "This request isn't held any more.",
+      "added": "Requests to {method} {path} will be held.",
+      "addHere": "Hold Requests Like This",
+      "edited": "Changed at a breakpoint",
+      "timedOut": "Went on by itself after a minute"
+    },
+    "stats": {
+      "open": "Traffic Numbers",
+      "title": "Traffic Numbers",
+      "gone": "This share's history is gone."
     }
   },
   "nav": {
@@ -1733,7 +1834,9 @@
       "accessRule": {
         "empty": "Add at least one email address or email domain.",
         "email": "{value} isn't an email address.",
-        "domain": "{value} isn't an email domain, like teispace.com."
+        "domain": "{value} isn't an email domain, like teispace.com.",
+        "bypassPath": "“{value}” can't skip the login: use a plain path, such as /webhooks.",
+        "tooManyBypass": "At most {count} paths can skip the login."
       },
       "accessDomain": {
         "pathPattern": "A login can only protect a plain path like /admin, not the pattern {pattern}. Remove the path, or protect the whole hostname."
@@ -1818,7 +1921,8 @@
         "notFound": "That Quick Share isn't running.",
         "invalidHostHeader": "That isn't a host name. Use one like localhost:5173.",
         "config": "Couldn't prepare cloudflared's settings: {detail}",
-        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share."
+        "folderNeedsInspector": "A folder share needs Teitunnel's inspector, which serves the files, so it can't be turned off for this share.",
+        "notInspected": "This share doesn't go through the inspector, which shows the paused page. Turn on Inspect requests to pause it (it gets a new address)."
       },
       "connector": {
         "alreadyRunning": "That connector is already running.",
@@ -1851,6 +1955,7 @@
         "notRoute": "{hostname} isn't a route served by this computer.",
         "notInspected": "{hostname} isn't being inspected.",
         "tapGone": "The share or route that captured this request isn't inspected any more, so it can't be sent again from here.",
+        "notPaused": "This request isn't waiting any more: it went on by itself after a minute, or the visitor left.",
         "invalid": "{detail}"
       },
       "shortcut": {
@@ -1891,6 +1996,7 @@
         "restoreConfig": "Restore this Mac's routes after an outside edit",
         "deleteRecord": "Delete the DNS record for {hostname}",
         "removeLogin": "Remove the login from {domain}",
+        "cleanUpHostname": "Remove what Teitunnel left on {hostname}",
         "addNetwork": "Share private network {network}",
         "removeNetwork": "Stop sharing private network {network}",
         "importRoutes_one": "Import {count} route from cloudflared",
@@ -1929,7 +2035,9 @@
         "createLoadBalancer": "Load balance {hostname} across its tunnels",
         "deleteLoadBalancer": "Stop load balancing {hostname}",
         "deleteLbPool": "Delete the pool “{name}”",
-        "deleteLbMonitor": "Delete the health check"
+        "deleteLbMonitor": "Delete the health check",
+        "createAccessBypass": "Let everyone reach {domain} without a login (webhooks)",
+        "deleteAccessBypass": "Require the login again for {domain}"
       }
     },
     "activity": {
@@ -1939,7 +2047,8 @@
         "loginRequired": "login required: {people}",
         "routedTo": "routed to tunnel “{tunnel}”",
         "endpoints_one": "load balanced across {count} tunnel",
-        "endpoints_other": "load balanced across {count} tunnels"
+        "endpoints_other": "load balanced across {count} tunnels",
+        "loginBypassed": "no login (webhooks)"
       }
     },
     "apply": {
@@ -1966,7 +2075,9 @@
         "deleteLoadBalancer": "A load balancer for {hostname} was created and is still there",
         "recreateLoadBalancer": "The load balancer for {hostname} wasn't put back",
         "recreateLbPool": "The load-balancing pool “{name}” wasn't put back",
-        "recreateLbMonitor": "The health check wasn't put back"
+        "recreateLbMonitor": "The health check wasn't put back",
+        "deleteAccessBypass": "{domain} was opened without a login and still is",
+        "recreateAccessBypass": "{domain} needs the login again: it was opened without one before"
       },
       "lbNotCreated": "The load-balancing pool or health check wasn't created."
     },
@@ -2151,12 +2262,20 @@
         "detail": "Teitunnel added this login for a route that was removed outside Teitunnel. It protects nothing now, but would ask for a login if the hostname is routed again elsewhere. Remove it, or add the route back.",
         "app": "Access application “Teitunnel · {domain}”"
       },
+      "hostOrphan": {
+        "title": "{hostname} has no route, but Teitunnel’s settings for it are still in Cloudflare",
+        "detail": "Its route was removed without them (an older version, a DNS record deleted in the dashboard, an interrupted change or another computer). They serve or protect nothing now, but count against your plan’s limits and would come back into play if the hostname were routed again. Only what Teitunnel created is removed.",
+        "front": "An offline page or webhook inbox Worker",
+        "edge": "Edge rules (bots, headers or a rate limit)",
+        "tokens": "Service tokens made for it: {count}"
+      },
       "fix": {
         "restoreMine": "Restore Mine",
         "fixDns": "Fix the DNS Record",
         "deleteTunnel": "Delete the Tunnel",
         "deleteRecord": "Delete the Record",
-        "removeLogin": "Remove the Login"
+        "removeLogin": "Remove the Login",
+        "cleanUpHostname": "Clean Up"
       },
       "unreadable": {
         "title": "Couldn't check {account}",
@@ -2433,7 +2552,21 @@
       "routeHostHeader": "Or have the route send Host: {host} (--host-header {host}), which {server} accepts.",
       "hostHeaderUnsafe": "Sending Host: {host} would also work, but {server} compares it with the browser's address for forms, redirects and sign-in, so allowing the address is better.",
       "nextOrigin": "Next.js checks where requests come from, not the Host header, so only the config change helps.",
-      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead."
+      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead.",
+      "links": {
+        "local": "The page loads {example} from this computer, which visitors can't reach.",
+        "localLaravel": "Laravel is loading assets from its Vite dev server. While you share, stop npm run dev and run npm run build so Laravel serves the built files, and set APP_URL={url} in .env.",
+        "localRails": "Rails builds these links from a setting that points at this computer: leave config.asset_host unset, or precompile the assets (bin/rails assets:precompile) while you share.",
+        "localDjango": "Django builds these links from a setting that points at this computer: make STATIC_URL and MEDIA_URL paths such as /static/ instead of full URLs.",
+        "localOther": "The app builds these links from a base URL set to this computer. Set it to {url} (often APP_URL, BASE_URL, PUBLIC_URL or SITE_URL), or use relative links.",
+        "insecure": "The page loads {example} over plain HTTP, so browsers block it on the HTTPS address (mixed content).",
+        "insecureLaravel": "Trust the proxy so Laravel builds https:// links: in bootstrap/app.php add $middleware->trustProxies(at: '*'); (Laravel 11 and later), or set $proxies = '*' in the TrustProxies middleware.",
+        "insecureRails": "Tell Rails that requests arrive over HTTPS: set config.assume_ssl = true (Rails 7.1 and later) in config/environments/development.rb.",
+        "insecureDjango": "Trust the proxy's scheme: add SECURE_PROXY_SSL_HEADER = (\"HTTP_X_FORWARDED_PROTO\", \"https\") to settings.py.",
+        "insecurePython": "Trust the proxy headers: wrap the app in Werkzeug's ProxyFix for Flask, or run uvicorn with --proxy-headers --forwarded-allow-ips='*' for FastAPI.",
+        "insecureNode": "Trust the proxy's X-Forwarded-Proto header: app.set(\"trust proxy\", true) in Express, or build links from the forwarded protocol.",
+        "insecureOther": "Tell the app it's behind an HTTPS proxy: trust the X-Forwarded-Proto: https header cloudflared sends, or use relative links."
+      }
     },
     "uptime": {
       "cause": {
@@ -2553,6 +2686,7 @@
       "clientTitle": "Allow {client} to make this change?",
       "linkTitle": "Share from a link?",
       "share": "{client} wants to share {origin} at a public address. Anyone with the address can open it.",
+      "shareFolder": "{client} wants to share the files in {folder} at a public address. Anyone with the address can open them.",
       "linkShare": "A link opened in another app wants to share {origin} at a public address. Anyone with the address can open it. Only allow it if you opened the link on purpose.",
       "stop": "{client} wants to stop the share {share}.",
       "apply_one": "{client} wants to change your routes in Cloudflare ({count} step):\n{steps}",
@@ -2581,7 +2715,13 @@
       "pause": "{client} wants to pause {share}. Its address stays, and visitors see a paused page until it's resumed.",
       "resume": "{client} wants to serve {share} again.",
       "agentTitle": "Allow {agent} to make this change?",
-      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}"
+      "agentMessage": "{agent}, an AI agent, asks Teitunnel to: {title}\n\n{details}",
+      "oauthTitle": "Let {client} connect to {host}?",
+      "oauthMessage": "{client} wants to use the MCP server you share at {host}. Only allow it if you just connected it yourself, and the browser shows the code {code}.",
+      "oauthPublished": "Its identity was confirmed by {publisher}. Sign-ins go to {redirect}.",
+      "oauthUnverified": "It registered itself, so its name isn't confirmed. Sign-ins go to {redirect}.",
+      "oauthLoopback": "Sign-ins go to an app on the visitor's own computer, which any app there could claim.",
+      "oauthPending": "Connect to {host}"
     },
     "protection": {
       "summary": {
@@ -2715,7 +2855,8 @@
       "noteTemporary": "A temporary share uses this hostname now.",
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
       "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
-      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs)."
+      "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs).",
+      "skipLoginNeedsLogin": "skipLogin needs login: paths can only skip a login the route has."
     },
     "exposure": {
       "envFile": {
@@ -2816,7 +2957,8 @@
         "serviceTokens": "Service tokens",
         "localDomains": "Local domains",
         "cloudDatabases": "Databases Teitunnel created",
-        "frontWorkers": "Offline pages and webhook inboxes"
+        "frontWorkers": "Offline pages and webhook inboxes",
+        "routeSchedules": "Schedules of routes and shares"
       }
     },
     "localDomains": {
@@ -2899,6 +3041,9 @@
         "needsSecret": "Verifying signatures needs the webhook's signing secret.",
         "noDatabase": "The D1 database wasn't created."
       }
+    },
+    "fronts": {
+      "secretEmpty": "Paste the signing secret from the sender’s webhook settings."
     }
   },
   "permissionFix": {
@@ -3036,6 +3181,8 @@
     "section": "Analytics",
     "requestsChart": "Requests over {period}",
     "requests": "Requests",
+    "perSecond": "Per second",
+    "perSecondValue": "{average} on average · {peak} at peak",
     "serverErrors": "5xx",
     "sent": "Sent",
     "responses": "Responses",
@@ -3046,6 +3193,7 @@
     "countries": "Countries",
     "browsers": "Browsers",
     "bots": "Verified bots",
+    "botsClaimed": "Bots, as they name themselves",
     "cache": "Cache",
     "people": "People and other clients",
     "noTraffic": "No requests in {period}.",
@@ -3292,7 +3440,17 @@
       "openQuickShare": "Open Quick Share",
       "openQuickShareDetail": "Brings Teitunnel to the front, ready to share a port."
     },
-    "error": "Couldn't save the change: {message}"
+    "error": "Couldn't save the change: {message}",
+    "browser": {
+      "title": "Browser Extension",
+      "footer": "The Teitunnel extension shares the local page you're on and lists your shares, from Chrome, Edge, Brave, Chromium, Vivaldi, Arc or Firefox. Anything it changes is asked here first.",
+      "setUp": "Set Up",
+      "remove": "Remove",
+      "ready": "Ready",
+      "notSetUp": "Not set up",
+      "none": "No supported browser found.",
+      "unavailable": "Available in the installed app."
+    }
   },
   "protection": {
     "title": "Edge Protection",
@@ -3737,13 +3895,19 @@
       "days": "days",
       "verify": {
         "label": "Keep only signed webhooks",
-        "help": "Uses the signing secret saved for this hostname in the keychain (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
+        "help": "Checks each webhook’s signature with the sender’s signing secret, saved in the keychain for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
         "none": "Keep every webhook",
         "github": "GitHub",
         "stripe": "Stripe",
         "standard": "Standard Webhooks (Svix, Clerk, Resend…)",
-        "help@windows": "Uses the signing secret saved for this hostname in Windows Credential Manager (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown.",
-        "help@linux": "Uses the signing secret saved for this hostname in your keyring (`teitunnel inbox secret`). It's sent to Cloudflare as a Worker secret and never shown."
+        "help@windows": "Checks each webhook’s signature with the sender’s signing secret, saved in Windows Credential Manager for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
+        "help@linux": "Checks each webhook’s signature with the sender’s signing secret, saved in your keyring for this hostname. It’s sent to Cloudflare as a Worker secret and never shown.",
+        "secret": "Signing secret",
+        "secretSaved": "Signing secret saved",
+        "secretReplace": "Replace…",
+        "secretSave": "Save Secret",
+        "secretPlaceholder": "From the sender’s webhook settings",
+        "secretNeeded": "Save the signing secret to keep only signed webhooks."
       },
       "activity": "Webhooks to {path}",
       "empty": "No webhooks kept yet.",

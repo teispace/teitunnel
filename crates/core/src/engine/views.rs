@@ -89,6 +89,11 @@ pub enum Change {
         /// The Access domain, e.g. `app.example.com` or `app.example.com/admin`.
         domain: String,
     },
+    /// Remove what Teitunnel attached to a hostname without routes (Doctor).
+    CleanUpHostname {
+        /// The hostname.
+        hostname: String,
+    },
     /// Add several routes at once (import from an existing cloudflared setup).
     ImportRoutes {
         /// The routes.
@@ -301,6 +306,9 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
         },
         Change::RemoveLogin { domain } => Intent::RemoveLogin {
             domain: domain.trim().to_ascii_lowercase(),
+        },
+        Change::CleanUpHostname { hostname } => Intent::CleanUpHostname {
+            hostname: parse_hostname(hostname)?,
         },
         // Filled in by the engine from the drift record.
         Change::RestoreConfig => Intent::RestoreConfig {
@@ -540,6 +548,8 @@ pub struct RouteView {
     pub temporary: bool,
     /// Load balanced across tunnels (Cloudflare Load Balancing).
     pub balanced: bool,
+    /// Visitors get the "paused" page ([`crate::pause`]).
+    pub paused: bool,
     /// Its origin settings.
     pub options: OriginOptions,
 }
@@ -711,7 +721,9 @@ pub(crate) fn overview(
             let access = snapshot.access.as_ref().and_then(|a| {
                 let domain = access_domain(parsed.as_ref()?, path.as_ref()).ok()?;
                 let app = a.app(&domain).filter(|app| app.owned)?;
-                app.rule.clone()
+                let mut rule = app.rule.clone()?;
+                rule.bypass = super::access::bypass_paths(a, &domain);
+                Some(rule)
             });
             let origin = RouteOrigin::parse(&rule.service).ok();
             Some(RouteView {
@@ -729,6 +741,7 @@ pub(crate) fn overview(
                 tunnel_id: snapshot.tunnel.as_ref().map(|t| t.id.clone()),
                 temporary: false,
                 balanced: false,
+                paused: false,
                 options: OriginOptions::from_map(&rule.origin_request),
             })
         })
@@ -828,6 +841,7 @@ mod tests {
             tunnel_id: None,
             temporary: false,
             balanced: false,
+            paused: false,
             hostname: host.into(),
             path: None,
             origin: "http://localhost:3000".into(),

@@ -1,0 +1,72 @@
+---
+title: Slack events on localhost
+description: Receive Slack Events API requests on your computer at a stable HTTPS URL, pass the url_verification challenge, check X-Slack-Signature, and replay events with a fresh signature.
+---
+
+Point a Slack app's Events API (or interactivity) at a handler on your computer, watch
+each request in the [inspector](/docs/guides/inspector), and replay it while you fix the
+handler. The examples use a handler at `http://localhost:3000/slack/events` and the
+hostname `hooks.teispace.com`.
+
+<Callout title="Or Socket Mode">
+  Slack's Socket Mode delivers events over a WebSocket your app opens, with no public URL.
+  Use a Teitunnel address when your app will use HTTP in production and you want to test
+  that, or to inspect and replay requests.
+</Callout>
+
+## 1. Share the handler
+
+```sh
+teitunnel share 3000 --on hooks.teispace.com --watch "/slack/*"
+```
+
+## 2. Set the Request URL
+
+In your app's settings, **Event Subscriptions ▸ Request URL**:
+`https://hooks.teispace.com/slack/events`. Slack sends a `url_verification` request first;
+your handler must answer with the `challenge` value it contains. Bolt does this for you.
+
+Copy the **Signing Secret** from **Basic Information**. To have the inspector check
+signatures, select a request in the **Inspector** and choose **Add Signing Secret…**.
+
+## 3. Fix and replay
+
+Slack signs `v0:<timestamp>:<body>` into `X-Slack-Signature` (`v0=` and a hex
+HMAC-SHA256), with the time in `X-Slack-Request-Timestamp`, and requests more than 5
+minutes old are rejected. Turn on **Re-sign** in **Edit and Replay…** so each replay gets a
+fresh timestamp and signature.
+
+```sh
+teitunnel traffic ls --path /slack --last 5
+teitunnel traffic replay 7f3a
+```
+
+## Things Slack is strict about
+
+- **Answer within 3 seconds** with a 2xx, then do the work.
+- **Retries.** A failed or slow request is retried up to 3 times (at once, after a minute,
+  after 5 minutes) with `x-slack-retry-num` and `x-slack-retry-reason`. Check them to skip
+  work you've already started.
+- **Redirects.** More than two count as a failure.
+- **Failures switch you off.** If more than 95% of deliveries fail within 60 minutes,
+  Slack temporarily disables the app's event subscriptions. Remove the Request URL, or
+  switch to Socket Mode, before leaving a share off for long.
+
+## While your computer is off
+
+Slack gives up after about 5 minutes of retries. A
+[webhook inbox](/docs/guides/webhook-inbox) would keep events, but Slack's 5-minute
+timestamp check then rejects them on delivery, and interactive requests need an answer
+while someone waits. For Slack, prefer Socket Mode or a route that's always running.
+
+<Callout title="Checked 2026-09-26">
+  From Slack's documentation on [verifying requests](https://docs.slack.dev/authentication/verifying-requests-from-slack)
+  and the [Events API](https://docs.slack.dev/apis/events-api/).
+</Callout>
+
+## Related
+
+<Cards>
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks" description="The full walk-through, for any provider." />
+  <Card title="Keep running when Teitunnel quits" href="/docs/concepts/run-modes" />
+</Cards>

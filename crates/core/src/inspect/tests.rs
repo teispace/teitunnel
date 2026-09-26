@@ -300,6 +300,151 @@ async fn tap_settings_change_at_once() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_breakpoint_holds_a_request_until_it_is_let_go() {
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let tap = inspector
+        .start(TapSpec::new(quick("qs-break"), "demo", &origin))
+        .await
+        .unwrap();
+    let rule = lens::BreakpointRule {
+        method: Some("POST".into()),
+        path: lens::PathPattern::parse("/hooks").unwrap(),
+        request: true,
+        response: false,
+    };
+    let view = inspector
+        .configure(
+            &tap.id,
+            &TapPatch {
+                breakpoints: Some(vec![rule]),
+                ..TapPatch::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(view.breakpoints.len(), 1);
+
+    let address = tap.address.clone();
+    let sent = tokio::spawn(async move { send(&address, "POST", "/hooks", &[]).await });
+    let mut waiting = Vec::new();
+    for _ in 0..500 {
+        waiting = inspector.paused(Some(&tap.id));
+        if !waiting.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let paused = waiting.first().expect("the request waits").clone();
+    // Values aren't masked while it waits: they're what goes on.
+    assert!(
+        paused
+            .body
+            .as_deref()
+            .unwrap()
+            .contains("sk_live_0123456789abcdef")
+    );
+    let row = inspector
+        .list(&ExchangeQuery::default())
+        .items
+        .into_iter()
+        .find(|r| r.id == paused.exchange)
+        .unwrap();
+    assert_eq!(row.paused, Some(lens::BreakStage::Request));
+
+    let wrong = lens::Resume::Edited {
+        edit: lens::BreakEdit {
+            status: Some(500),
+            ..lens::BreakEdit::default()
+        },
+    };
+    assert!(matches!(
+        inspector.resume(paused.exchange, wrong),
+        Err(InspectError::Invalid(_))
+    ));
+    inspector
+        .resume(
+            paused.exchange,
+            lens::Resume::Edited {
+                edit: lens::BreakEdit {
+                    body: Some("{}".into()),
+                    ..lens::BreakEdit::default()
+                },
+            },
+        )
+        .unwrap();
+    assert_eq!(sent.await.unwrap().0, 200);
+    assert!(matches!(
+        inspector.resume(paused.exchange, lens::Resume::Continue),
+        Err(InspectError::NotPaused)
+    ));
+    settle(&inspector, 1).await;
+    let row = inspector
+        .list(&ExchangeQuery::default())
+        .items
+        .into_iter()
+        .find(|r| r.id == paused.exchange)
+        .unwrap();
+    assert_eq!(row.paused, None);
+    assert!(row.edited);
+    assert_eq!(inspector.resume_all(None), 0);
+    inspector.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_shared_mcp_server_asks_for_oauth_and_says_where() {
+    struct Nobody;
+    impl crate::mcp_auth::Approver for Nobody {
+        fn approve(
+            &self,
+            _: crate::mcp_auth::ConsentRequest,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
+            Box::pin(async { false })
+        }
+    }
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let auth = crate::mcp_auth::McpAuth::open(
+        crate::store::Store::open_in_memory().unwrap(),
+        Arc::new(Nobody),
+    )
+    .await
+    .unwrap();
+    let mut spec = TapSpec::new(quick("qs-mcp"), "mcp", &origin);
+    spec.oauth = Some(auth.provider("mcp.example.com", "/mcp", "docs"));
+    let tap = inspector.start(spec).await.unwrap();
+
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let denied = client
+        .post(format!("{}/mcp", tap.address))
+        .header("host", "mcp.example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 401);
+    assert_eq!(
+        denied.headers()["www-authenticate"],
+        "Bearer resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\""
+    );
+    let metadata: serde_json::Value = client
+        .get(format!(
+            "{}/.well-known/oauth-protected-resource/mcp",
+            tap.address
+        ))
+        .header("host", "mcp.example.com")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        metadata["authorization_servers"][0],
+        "https://mcp.example.com"
+    );
+    inspector.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn reports_watched_paths() {
     let origin = origin().await;
     let inspector = Inspector::new(None, None, "app");
@@ -698,4 +843,47 @@ async fn a_route_left_inspected_is_swept_back() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_shares_numbers_come_from_its_tap() {
+    use crate::analytics::{AnalyticsRange, SourceKind};
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let tap = inspector
+        .start(TapSpec::new(quick("qs-stats"), "demo", &origin))
+        .await
+        .unwrap();
+    let chrome =
+        "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+    send(&tap.address, "GET", "/", &[("user-agent", chrome)]).await;
+    send(&tap.address, "GET", "/about", &[("user-agent", chrome)]).await;
+    send(
+        &tap.address,
+        "POST",
+        "/hook",
+        &[("user-agent", "Stripe/1.0")],
+    )
+    .await;
+    settle(&inspector, 3).await;
+    let source = analytics::LensSource::new(inspector.clone());
+    let stats = source.tap_stats(&tap.id, AnalyticsRange::Hour).unwrap();
+    assert_eq!(stats.source, SourceKind::Proxy);
+    assert_eq!(stats.requests, 3);
+    assert_eq!(stats.classes.ok, 3);
+    assert_eq!(stats.browsers[0].key, "Chrome");
+    assert_eq!(stats.browsers[0].requests, 2);
+    let bots: Vec<(&str, u64)> = stats
+        .bots
+        .iter()
+        .map(|r| (r.key.as_str(), r.requests))
+        .collect();
+    assert_eq!(bots, [("", 2), ("Webhooks", 1)]);
+    assert!(stats.rate.average > 0.0 && stats.rate.peak >= stats.rate.average);
+    assert!(
+        source
+            .tap_stats(&lens::TapId::new("nope").unwrap(), AnalyticsRange::Hour)
+            .is_none()
+    );
+    inspector.shutdown().await;
 }

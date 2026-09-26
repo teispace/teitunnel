@@ -230,6 +230,39 @@ impl UserText for PlanError {
 
 english_display!(PlanError);
 
+/// Removes what Teitunnel attached to `hostname` once no route uses it: its front
+/// Workers, edge rules and the service tokens it made for it (after its login, which
+/// may name them). Logins go per route.
+fn release_hostname(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), PlanError> {
+    release_workers_and_rules(b, hostname)?;
+    let tokens: Vec<_> = b
+        .snapshot
+        .service_tokens
+        .iter()
+        .flatten()
+        .filter(|t| t.owned && t.made_for.as_deref() == Some(hostname.as_str()))
+        .cloned()
+        .collect();
+    b.steps.extend(
+        tokens
+            .into_iter()
+            .map(|token| Step::DeleteServiceToken { token }),
+    );
+    Ok(())
+}
+
+/// Removes `hostname`'s front Workers and edge rules (those observed).
+fn release_workers_and_rules(b: &mut Builder<'_>, hostname: &Hostname) -> Result<(), PlanError> {
+    front::remove_all(b, hostname.as_str());
+    let observed = hostname
+        .zone_in(&b.snapshot.zones)
+        .is_some_and(|zone| b.snapshot.edge_in(&zone.id).is_some());
+    if observed {
+        edge::protect(b, hostname, &crate::engine::edge::EdgeProtection::default())?;
+    }
+    Ok(())
+}
+
 fn same_route(rule: &IngressRule, hostname: &Hostname, path: Option<&PathRule>) -> bool {
     rule.hostname.as_deref() == Some(hostname.as_str())
         && rule.path.as_deref() == path.map(PathRule::as_str)
@@ -546,9 +579,12 @@ impl<'a> Builder<'a> {
     /// it lets in different people. Someone else's application is never changed.
     fn protect(&mut self, domain: &str, rule: &AccessRule) -> Result<(), PlanError> {
         let access = self.snapshot.access.as_ref();
+        // The application says who may log in; paths that skip it are applications of
+        // their own.
+        let people = rule.people_only();
         match access.and_then(|a| a.app(domain)) {
             Some(app) if !app.owned => {
-                if app.rule.as_ref() != Some(rule) {
+                if app.rule.as_ref() != Some(&people) {
                     return Err(PlanError::AccessAppExists(domain.to_owned()));
                 }
             }
@@ -556,7 +592,7 @@ impl<'a> Builder<'a> {
                 // Service tokens keep passing when who may log in changes.
                 let wanted =
                     super::access::keep_machines(&app_definition(domain, rule), &app.definition);
-                if app.rule.as_ref() != Some(rule) || app.definition.name != wanted.name {
+                if app.rule.as_ref() != Some(&people) || app.definition.name != wanted.name {
                     self.steps.push(Step::UpdateAccessApp {
                         id: app.id.clone(),
                         app: wanted,
@@ -577,7 +613,59 @@ impl<'a> Builder<'a> {
                 });
             }
         }
+        self.bypass(domain, &rule.bypass)
+    }
+
+    /// Makes the paths under `domain` that skip its login exactly `paths`: an
+    /// application letting everyone through each, created or removed as needed. An
+    /// application someone else made at one of those paths is never changed.
+    fn bypass(&mut self, domain: &str, paths: &[String]) -> Result<(), PlanError> {
+        let access = self.snapshot.access.as_ref();
+        let current = access
+            .map(|a| super::access::bypass_paths(a, domain))
+            .unwrap_or_default();
+        for path in paths.iter().filter(|p| !current.contains(p)) {
+            let at = format!("{domain}{path}");
+            if access.and_then(|a| a.app(&at)).is_some() {
+                // A login (or anything else) is already there: not Teitunnel's to open.
+                return Err(PlanError::AccessAppExists(at));
+            }
+            self.steps.push(Step::CreateAccessApp {
+                app: super::access::bypass_definition(&at),
+            });
+        }
+        for path in current.iter().filter(|p| !paths.contains(p)) {
+            self.close_bypass(&format!("{domain}{path}"));
+        }
         Ok(())
+    }
+
+    fn close_bypass(&mut self, at: &str) {
+        if let Some(app) = self
+            .snapshot
+            .access
+            .as_ref()
+            .and_then(|a| a.app(at))
+            .filter(|a| a.owned && super::access::is_bypass(&a.definition))
+        {
+            self.steps.push(Step::DeleteAccessApp {
+                id: app.id.clone(),
+                previous: app.definition.clone(),
+            });
+        }
+    }
+
+    /// Removes every path under `domain` that skips its login.
+    fn close_bypasses(&mut self, domain: &str) {
+        let paths = self
+            .snapshot
+            .access
+            .as_ref()
+            .map(|a| super::access::bypass_paths(a, domain))
+            .unwrap_or_default();
+        for path in paths {
+            self.close_bypass(&format!("{domain}{path}"));
+        }
     }
 
     /// Removes the people's login from `domain` but keeps its service tokens passing
@@ -596,6 +684,8 @@ impl<'a> Builder<'a> {
             self.unprotect(domain);
             return;
         }
+        // Without a login there's nothing to skip.
+        self.close_bypasses(domain);
         self.steps.push(Step::UpdateAccessApp {
             id: app.id.clone(),
             app: super::access::keep_machines(
@@ -606,8 +696,10 @@ impl<'a> Builder<'a> {
         });
     }
 
-    /// Removes the login from `domain`, if Teitunnel put it there.
+    /// Removes the login from `domain` (and the paths that skip it), if Teitunnel put
+    /// it there.
     fn unprotect(&mut self, domain: &str) {
+        self.close_bypasses(domain);
         if let Some(app) = self
             .snapshot
             .access
@@ -800,6 +892,9 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.warnings.push(Warning::TunnelEmpty);
             }
             b.put_config(&TunnelRef::Existing(tunnel_id.clone()), desired);
+            // Other computers still serving a balanced hostname keep what's in front
+            // of it.
+            let mut served_elsewhere = false;
             if !hostname_still_used {
                 b.release_dns(hostname.as_str(), &tunnel_id);
                 // Leaving a balanced hostname: out of its pool, or, as the last tunnel
@@ -810,14 +905,15 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                         b.unbalance();
                     } else {
                         b.sync_pool(hostname.as_str(), endpoints);
+                        served_elsewhere = true;
                     }
                 }
             }
-            if !hostname_still_used {
-                front::remove_all(&mut b, hostname.as_str());
-            }
             if let Ok(domain) = access_domain(hostname, path.as_ref()) {
                 b.unprotect(&domain);
+            }
+            if !hostname_still_used && !served_elsewhere {
+                release_hostname(&mut b, hostname)?;
             }
         }
         Intent::BalanceRoute { hostname } => {
@@ -939,6 +1035,19 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 record: record.record.clone(),
             });
         }
+        Intent::CleanUpHostname { hostname } => {
+            // Only a hostname nothing can serve: no route here, and no DNS record for
+            // another computer's tunnel, a Snapshot or anything else.
+            let served = rules
+                .iter()
+                .any(|r| r.hostname.as_deref() == Some(hostname.as_str()))
+                || snapshot.records_named(hostname.as_str()).next().is_some();
+            if served {
+                return Err(PlanError::HostnameRouted(hostname.to_string()));
+            }
+            b.unprotect(hostname.as_str());
+            release_hostname(&mut b, hostname)?;
+        }
         Intent::RemoveLogin { domain } => {
             let routed = rules.iter().any(|r| {
                 r.hostname
@@ -1041,9 +1150,37 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             if !rules.is_empty() {
                 b.put_config(&TunnelRef::Existing(tunnel.id.clone()), Vec::new());
             }
-            for hostname in hostnames {
+            for hostname in &hostnames {
                 b.release_dns(hostname, &tunnel.id);
             }
+            // A hostname whose record pointed here stops resolving: its offline page,
+            // inboxes and edge rules go too (a balanced hostname, which other
+            // computers may still serve, has no such record and keeps them).
+            let target = tunnel_target(&tunnel.id);
+            for hostname in &hostnames {
+                let Ok(host) = Hostname::parse(hostname) else {
+                    continue;
+                };
+                let resolves_here = snapshot
+                    .records_named(hostname)
+                    .any(|r| r.owned && r.record.content.eq_ignore_ascii_case(&target));
+                if resolves_here {
+                    release_workers_and_rules(&mut b, &host)?;
+                }
+            }
+            // The service tokens Teitunnel made for its hostnames would open nothing.
+            let doomed: Vec<_> = snapshot
+                .service_tokens
+                .iter()
+                .flatten()
+                .filter(|t| {
+                    t.owned
+                        && t.made_for
+                            .as_deref()
+                            .is_some_and(|h| hostnames.contains(&h))
+                })
+                .cloned()
+                .collect();
             // Logins come down once no route reaches them, but before the tunnel is
             // deleted: that step can't be undone, so it stays last.
             let owned: Vec<String> = snapshot
@@ -1055,6 +1192,11 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
             for domain in owned {
                 b.unprotect(&domain);
             }
+            b.steps.extend(
+                doomed
+                    .into_iter()
+                    .map(|token| Step::DeleteServiceToken { token }),
+            );
             // Private network routes would point at a tunnel that no longer exists.
             let networks: Vec<ObservedNetworkRoute> = snapshot
                 .networks

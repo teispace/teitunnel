@@ -82,10 +82,29 @@ fn bring_to_front<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
 }
 
 /// Opens the Settings window (⌘,), or brings it to the front if it is already open.
+///
+/// The window is built on the async runtime: on Windows, building a webview from the
+/// main thread (a synchronous command, a menu or tray event) deadlocks in WebView2, so
+/// the sidebar, menu and tray entries did nothing there.
 pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(SETTINGS) {
         return bring_to_front(&window);
     }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // A second click may have built it meanwhile.
+        let result = match app.get_webview_window(SETTINGS) {
+            Some(window) => bring_to_front(&window),
+            None => build_settings(&app),
+        };
+        if let Err(err) = result {
+            tracing::warn!(error = %err, "failed to open settings");
+        }
+    });
+    Ok(())
+}
+
+fn build_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let builder = WebviewWindowBuilder::new(app, SETTINGS, WebviewUrl::App("settings".into()))
         .title(teitunnel_core::text::msg::menu::settings_window().to_string())
         .inner_size(620.0, 500.0)

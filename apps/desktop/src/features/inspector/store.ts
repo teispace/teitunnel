@@ -15,9 +15,12 @@ export class ExchangeStore {
   private listeners = new Set<() => void>();
   /** Only this tap's requests (`null`: every tap). */
   private readonly tap: string | null;
+  /** Requests kept at most. */
+  private readonly capacity: number;
 
-  constructor(tap: string | null = null) {
+  constructor(tap: string | null = null, capacity = MAX_ROWS) {
     this.tap = tap;
+    this.capacity = capacity;
   }
 
   subscribe = (listener: () => void) => {
@@ -32,7 +35,8 @@ export class ExchangeStore {
   /** Replaces everything with a page read from the inspector (newest first). */
   reset(rows: readonly ExchangeRow[]) {
     this.byId = new Map(rows.map((row) => [row.id, row]));
-    this.order = rows.map((row) => row.id).slice(0, MAX_ROWS);
+    this.order = rows.map((row) => row.id);
+    this.trim();
     this.emit();
   }
 
@@ -91,8 +95,8 @@ export class ExchangeStore {
   }
 
   private trim() {
-    if (this.order.length <= MAX_ROWS) return;
-    for (const id of this.order.splice(MAX_ROWS)) this.byId.delete(id);
+    if (this.order.length <= this.capacity) return;
+    for (const id of this.order.splice(this.capacity)) this.byId.delete(id);
   }
 
   private emit() {

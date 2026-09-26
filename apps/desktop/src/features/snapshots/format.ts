@@ -1,4 +1,5 @@
-import { currentLanguage, t } from "@/lib/i18n";
+import { numberFormat } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { SnapshotSource, SnapshotView } from "@/lib/ipc/bindings";
 
 /** A size for people: `980 bytes`, `12.4 KB`, `3.1 MB` (decimal units, like Finder). */
@@ -11,7 +12,7 @@ export function formatBytes(bytes: number): string {
     value /= 1000;
     unit += 1;
   }
-  return new Intl.NumberFormat(currentLanguage(), {
+  return numberFormat({
     style: "unit",
     unit: units[unit],
     unitDisplay: "short",

@@ -20,7 +20,7 @@ async function mount() {
   await setLanguage(pickLanguage(navigator.languages));
   // In a plain browser during development (screenshots, design review), serve fixture
   // data instead of the Rust backend. Tree-shaken from release builds.
-  if (import.meta.env.DEV && !isTauri()) {
+  if (__DEV_PAGES__ && !isTauri()) {
     const { installMockIpc } = await import("@/dev/mock-ipc");
     installMockIpc();
   }

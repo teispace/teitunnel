@@ -140,9 +140,10 @@ pub struct Snapshot {
     /// When it was observed (milliseconds since the epoch; not part of the fingerprint).
     #[serde(skip)]
     pub now: u64,
-    /// A zone's edge rules; read only when a change protects a hostname.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub edge: Option<super::edge::EdgeState>,
+    /// Zones' edge rules, one entry per zone; read only when a change protects a
+    /// hostname or removes routes from zones where Teitunnel has rules.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge: Vec<super::edge::EdgeState>,
     /// The account's Access service tokens; read only when a change involves one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_tokens: Option<Vec<super::edge::ObservedServiceToken>>,
@@ -150,10 +151,10 @@ pub struct Snapshot {
     /// needs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub database: Option<super::front::DatabaseState>,
-    /// Worker routes on the hostname (offline page, webhook inbox); read only when a
-    /// change involves them.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub front: Option<super::front::FrontState>,
+    /// Worker routes on hostnames (offline page, webhook inbox), one entry per
+    /// hostname; read only when a change involves them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub front: Vec<super::front::FrontState>,
 }
 
 impl Snapshot {
@@ -168,6 +169,18 @@ impl Snapshot {
                 let _ = write!(out, "{b:02x}");
                 out
             })
+    }
+
+    /// The edge rules observed for zone `zone_id`.
+    pub(crate) fn edge_in(&self, zone_id: &str) -> Option<&super::edge::EdgeState> {
+        self.edge.iter().find(|e| e.zone_id == zone_id)
+    }
+
+    /// The Workers observed in front of `hostname`.
+    pub(crate) fn front_of(&self, hostname: &str) -> Option<&super::front::FrontState> {
+        self.front
+            .iter()
+            .find(|f| f.hostname.eq_ignore_ascii_case(hostname))
     }
 
     pub(crate) fn records_named<'a>(
@@ -263,6 +276,12 @@ pub enum Intent {
     RemoveLogin {
         /// The Access domain (hostname and optional path).
         domain: String,
+    },
+    /// Remove what Teitunnel attached to a hostname that no longer has a route: its
+    /// front Workers, edge rules, service tokens and login.
+    CleanUpHostname {
+        /// The hostname.
+        hostname: Hostname,
     },
     /// Put back the routes Teitunnel last wrote, undoing an edit made elsewhere.
     RestoreConfig {
@@ -388,7 +407,8 @@ impl Intent {
             | Self::RevokeServiceToken { hostname, .. }
             | Self::RotateServiceToken { hostname, .. }
             | Self::SetOfflinePage { hostname, .. }
-            | Self::SetInbox { hostname, .. } => Some(vec![hostname]),
+            | Self::SetInbox { hostname, .. }
+            | Self::CleanUpHostname { hostname } => Some(vec![hostname]),
             Self::RemoveTunnel => None,
             Self::RestoreConfig { .. }
             | Self::RemoveLogin { .. }
@@ -447,6 +467,7 @@ impl Intent {
             Self::RestoreConfig { .. } => m::restore_config(),
             Self::DeleteRecord { hostname, .. } => m::delete_record(hostname),
             Self::RemoveLogin { domain } => m::remove_login(domain),
+            Self::CleanUpHostname { hostname } => m::clean_up_hostname(hostname.as_str()),
             Self::AddNetwork { network } => m::add_network(network),
             Self::RemoveNetwork { network } => m::remove_network(network),
             Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),
@@ -986,8 +1007,14 @@ impl Step {
             Self::StopConnector { .. } => m::stop_connector(),
             Self::DeleteTunnel { .. } => m::delete_tunnel(tunnel_name),
             Self::AddLoginMethod => m::add_login_method(),
+            Self::CreateAccessApp { app } if super::access::is_bypass(app) => {
+                m::create_access_bypass(&app.domain)
+            }
             Self::CreateAccessApp { app } => m::create_access_app(&app.domain, people(app)),
             Self::UpdateAccessApp { app, .. } => m::update_access_app(people(app), &app.domain),
+            Self::DeleteAccessApp { previous, .. } if super::access::is_bypass(previous) => {
+                m::delete_access_bypass(&previous.domain)
+            }
             Self::DeleteAccessApp { previous, .. } => m::delete_access_app(&previous.domain),
             Self::CreateNetworkRoute { network, .. } => {
                 m::create_network_route(network, tunnel_name)

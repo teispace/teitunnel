@@ -5,7 +5,6 @@ import type {
   Outcome,
   PlanView,
   SubjectView,
-  TapView,
   Thread_Serialize as Thread,
 } from "@/lib/ipc/bindings";
 
@@ -213,8 +212,6 @@ const frontPlan: PlanView = {
   fingerprint: "fp-front",
 };
 
-const taps: TapView[] = [];
-
 /** Answers the commands of this feature, or `undefined` to fall through. */
 export function commentsMock(cmd: string, payload: Record<string, unknown>): unknown {
   switch (cmd) {
@@ -227,8 +224,6 @@ export function commentsMock(cmd: string, payload: Record<string, unknown>): unk
       return threads[0];
     case "comments_forget":
       return null;
-    case "inspect_taps":
-      return taps;
     case "fronts_list":
       return fronts;
     case "inbox_items":

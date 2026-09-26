@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Camera, ExternalLink, Folder, Globe, Pause, Play, Shield } from "lucide-react";
+import { Camera, ExternalLink, Folder, Globe, Shield } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CopyField } from "@/components/patterns/copy-field";
@@ -26,6 +26,7 @@ import {
 } from "../queries";
 import { nextChangeLabel, scheduleLabel } from "../schedule";
 import { cardClass } from "./card";
+import { PauseButton } from "./pause-button";
 import { QrButton } from "./qr-button";
 import { ScheduleButton } from "./schedule-editor";
 import { HostHeaderNote, ShareCheck } from "./share-check";
@@ -35,7 +36,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
   const now = useNow();
   const stop = useStopDomainShare();
   const pause = useSetSharePaused();
-  const check = useDomainShareCheck(share.accountId, share.hostname);
+  const check = useDomainShareCheck(share.accountId, share.hostname, share.createdAt);
   const route = useRoute(share.accountId, share.hostname).data ?? null;
   const sendHost = useSendHostOnRoute(share.accountId);
   const schedule =
@@ -49,7 +50,6 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
   const [protecting, setProtecting] = useState(false);
   const protection = useProtection(share.accountId, share.hostname, protecting);
   const shared = share.source ?? share.origin;
-  const pauseLabel = share.paused ? t("quickShare.pause.resume") : t("quickShare.pause.pause");
   const next = schedule ? nextChangeLabel(schedule) : null;
   return (
     <article
@@ -88,21 +88,16 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
         </Tooltip>
         <QrButton url={url} />
         <InspectDomainShareButton accountId={share.accountId} hostname={share.hostname} />
-        <Tooltip content={pauseLabel}>
-          <IconButton
-            icon={share.paused ? Play : Pause}
-            label={pauseLabel}
-            variant="secondary"
-            size="lg"
-            pending={pause.isPending}
-            onClick={() =>
-              pause.mutate(
-                { accountId: share.accountId, hostname: share.hostname, paused: !share.paused },
-                { onError: (error) => toast.error(toIpcError(error).message) },
-              )
-            }
-          />
-        </Tooltip>
+        <PauseButton
+          paused={share.paused}
+          pending={pause.isPending}
+          onToggle={() =>
+            pause.mutate(
+              { accountId: share.accountId, hostname: share.hostname, paused: !share.paused },
+              { onError: (error) => toast.error(toIpcError(error).message) },
+            )
+          }
+        />
         <ScheduleButton
           accountId={share.accountId}
           hostname={share.hostname}
@@ -159,6 +154,7 @@ export function DomainShareCard({ share }: { share: DomainShare }) {
         sending={sendHost.isPending}
         onCheck={() => check.refetch()}
         checking={check.isFetching}
+        settling={check.settling}
       />
       {schedule ? (
         <p className="text-callout text-secondary">

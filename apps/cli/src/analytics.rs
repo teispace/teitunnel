@@ -33,6 +33,17 @@ fn millis(ms: Option<f64>) -> String {
     ms.map_or_else(|| "–".to_owned(), |v| format!("{} ms", v.round()))
 }
 
+/// Requests per second: `12/s`, `3.4/s`, `0.05/s`, `<0.01/s`.
+pub(crate) fn per_second(rate: f64) -> String {
+    match rate {
+        r if r >= 10.0 => format!("{r:.0}/s"),
+        r if r >= 1.0 => format!("{r:.1}/s"),
+        r if r >= 0.01 => format!("{r:.2}/s"),
+        r if r > 0.0 => "<0.01/s".to_owned(),
+        _ => "0/s".to_owned(),
+    }
+}
+
 fn bytes(n: u64) -> String {
     #[allow(clippy::cast_precision_loss)]
     let n = n as f64;
@@ -85,6 +96,13 @@ fn print_route(stats: &RouteStats) -> Result<(), String> {
     let route = stats.route.key();
     out!("{route}")?;
     out!("  Requests      {}", stats.requests)?;
+    if stats.requests > 0 {
+        out!(
+            "  Per second    {} average · {} peak",
+            per_second(stats.rate.average),
+            per_second(stats.rate.peak)
+        )?;
+    }
     out!("  Sent          {}", bytes(stats.bytes))?;
     let c = stats.classes;
     out!(
@@ -106,6 +124,7 @@ fn print_route(stats: &RouteStats) -> Result<(), String> {
         ("Top paths", &stats.paths),
         ("Countries", &stats.countries),
         ("Browsers", &stats.browsers),
+        ("Bots", &stats.bots),
         ("Cache", &stats.cache),
     ] {
         if rows.is_empty() {
@@ -113,10 +132,10 @@ fn print_route(stats: &RouteStats) -> Result<(), String> {
         }
         out!("  {title}")?;
         for row in rows.iter().take(5) {
-            let key = if row.key.is_empty() {
-                "(none)"
-            } else {
-                &row.key
+            let key = match row.key.as_str() {
+                "" if title == "Bots" => "People",
+                "" => "(none)",
+                key => key,
             };
             out!("    {:>8}  {key}", row.requests)?;
         }
@@ -146,41 +165,39 @@ pub(crate) async fn analytics(
     json: bool,
 ) -> Result<ExitCode, String> {
     let analytics = Analytics::default();
-    let accounts = match account {
-        Some(wanted) => vec![app.account(Some(wanted)).await?],
-        None => app.accounts.list().await.map_err(|e| e.to_string())?,
-    };
     if let Some(hostname) = hostname {
         let route = RouteRef {
             hostname: hostname.trim().to_ascii_lowercase(),
             path: path
                 .and_then(|p| path_prefix(p).or_else(|| p.starts_with('/').then(|| p.to_owned()))),
         };
-        for account in &accounts {
-            match analytics
-                .route(&app.accounts, &account.id, &route, range)
-                .await
-            {
-                Ok(stats) => {
-                    if json {
-                        out!(
-                            "{}",
-                            serde_json::to_string(&stats).map_err(|e| e.to_string())?
-                        )?;
-                    } else {
-                        print_route(&stats)?;
-                    }
-                    return Ok(ExitCode::SUCCESS);
+        let only = match account {
+            Some(wanted) => Some(app.account(Some(wanted)).await?.id),
+            None => None,
+        };
+        let stats = analytics
+            .route_in_any(&app.accounts, only.as_deref(), &route, range)
+            .await
+            .map_err(|err| match err {
+                AnalyticsError::NoZone(_) => {
+                    format!("No connected account has a domain for {}.", route.hostname)
                 }
-                Err(AnalyticsError::NoZone(_)) => {}
-                Err(err) => return Err(explain(&err)),
-            }
+                other => explain(&other),
+            })?;
+        if json {
+            out!(
+                "{}",
+                serde_json::to_string(&stats).map_err(|e| e.to_string())?
+            )?;
+        } else {
+            print_route(&stats)?;
         }
-        return Err(format!(
-            "No connected account has a domain for {}.",
-            route.hostname
-        ));
+        return Ok(ExitCode::SUCCESS);
     }
+    let accounts = match account {
+        Some(wanted) => vec![app.account(Some(wanted)).await?],
+        None => app.accounts.list().await.map_err(|e| e.to_string())?,
+    };
     let targets = uptime::targets(&app.accounts, app.engine.local()).await;
     let monitor = app.monitor(analytics.clone(), "cli-read");
     let uptimes = monitor
@@ -329,5 +346,10 @@ mod tests {
         assert_eq!(millis(Some(12.4)), "12 ms");
         assert_eq!(bytes(2_500), "2.5 kB");
         assert_eq!(bytes(12), "12 B");
+        assert_eq!(per_second(42.4), "42/s");
+        assert_eq!(per_second(3.44), "3.4/s");
+        assert_eq!(per_second(0.05), "0.05/s");
+        assert_eq!(per_second(0.001), "<0.01/s");
+        assert_eq!(per_second(0.0), "0/s");
     }
 }

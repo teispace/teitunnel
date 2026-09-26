@@ -176,6 +176,35 @@ pub enum InboxVerify {
     Standard,
 }
 
+impl InboxVerify {
+    /// The inspector's webhook provider it checks signatures of.
+    pub fn provider(self) -> lens::webhook::Provider {
+        match self {
+            Self::Github => lens::webhook::Provider::GitHub,
+            Self::Stripe => lens::webhook::Provider::Stripe,
+            Self::Standard => lens::webhook::Provider::StandardWebhooks,
+        }
+    }
+}
+
+/// The signing secret saved in the keychain for `verify`'s webhooks on `hostname`
+/// (shared with the hostname's inspector); `None` when there's none or the keychain
+/// refused.
+pub(crate) async fn saved_inbox_secret(
+    secrets: &crate::secrets::Secrets,
+    hostname: &str,
+    verify: InboxVerify,
+) -> Option<Secret<String>> {
+    crate::inspect::secrets::webhook_secret_text(
+        secrets,
+        &crate::inspect::secrets::host_scope(hostname),
+        verify.provider(),
+    )
+    .await
+    .ok()
+    .flatten()
+}
+
 /// A webhook inbox's settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -432,6 +461,9 @@ pub struct FrontNeed {
     pub required: bool,
     /// The account's D1 database is needed.
     pub database: bool,
+    /// Also every routed hostname the local index has Workers for (removing a
+    /// tunnel cleans up after all its routes).
+    pub routed: bool,
 }
 
 /// A local index row, as observation needs it.

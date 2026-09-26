@@ -365,6 +365,36 @@ fn has_control(text: &str, allow_newlines: bool) -> bool {
 ///
 /// # Errors
 /// [`CommentsError::InvalidBody`].
+/// Turns comments on or off for a tap's share or route. Commenters' emails come from
+/// the Access login header only on a route whose login Teitunnel made (so the header is
+/// Cloudflare's, not a visitor's).
+///
+/// # Errors
+/// Unknown tap; the inspector refused.
+pub async fn set_on_tap(
+    inspector: &crate::inspect::Inspector,
+    local: &crate::engine::Local,
+    tap: &crate::inspect::lens::TapId,
+    on: bool,
+) -> Result<crate::inspect::TapView, crate::inspect::InspectError> {
+    use crate::inspect::TapScope;
+    let view = inspector.view(tap)?;
+    let trust = match &view.scope {
+        TapScope::Route {
+            account_id,
+            hostname,
+            ..
+        } => local
+            .owned_access_apps(account_id)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .any(|(_, domain)| domain.split('/').next() == Some(hostname.as_str())),
+        TapScope::QuickShare { .. } | TapScope::LocalDomain { .. } => false,
+    };
+    inspector.set_comments(tap, on, trust).await
+}
+
 pub fn clean_body(body: &str) -> Result<String, CommentsError> {
     let body = body.replace("\r\n", "\n").replace('\r', "\n");
     let body = body.trim();

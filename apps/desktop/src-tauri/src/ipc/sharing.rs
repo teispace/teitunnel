@@ -146,7 +146,11 @@ pub async fn sharing_choose_folder(app: AppHandle) -> Result<Option<String>, App
 /// disk or the home folder).
 #[tauri::command]
 #[specta::specta]
-pub fn sharing_folder(path: String, listing: bool, spa: bool) -> Result<FolderShare, AppError> {
+pub fn sharing_folder(
+    path: String,
+    listing: Option<bool>,
+    spa: bool,
+) -> Result<FolderShare, AppError> {
     FolderShare::resolve(&path, listing, spa).map_err(|e| invalid("folder", e.text()))
 }
 

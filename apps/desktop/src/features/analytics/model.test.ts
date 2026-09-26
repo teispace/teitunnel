@@ -5,6 +5,7 @@ import {
   formatBytes,
   formatMs,
   formatPercent,
+  formatRate,
   pathPrefix,
   routeKey,
   sortRows,
@@ -24,6 +25,7 @@ const route = (hostname: string, path: string | null = null, local = true): Rout
     tunnelId: "t",
     temporary: false,
     balanced: false,
+    paused: false,
     options: {},
   }) as unknown as RouteView;
 
@@ -61,6 +63,15 @@ describe("formatting", () => {
     expect(formatPercent(0.052)).toBe("5.2%");
     expect(formatPercent(0)).toBe("0%");
     expect(formatPercent(null)).toBe("–");
+  });
+
+  it("formats request rates with two significant digits", () => {
+    expect(formatRate(42.4)).toBe("42");
+    expect(formatRate(3.44)).toBe("3.4");
+    expect(formatRate(0.054)).toBe("0.05");
+    expect(formatRate(0.001)).toBe("<0.01");
+    expect(formatRate(0)).toBe("0");
+    expect(formatRate(Number.NaN)).toBe("0");
   });
 
   it("formats times and sizes", () => {

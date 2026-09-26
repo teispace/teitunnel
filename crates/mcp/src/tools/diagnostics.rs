@@ -96,7 +96,359 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             Hints::READ_CLOUD,
             super::DEFAULT_TIMEOUT,
         ),
+        spec::<HealthArgs, HealthResult>(
+            "route_health",
+            "Route uptime and incidents",
+            "How this machine's routes have been doing: whether each is up now, its uptime over the last day, week and month, response times (last and 95th percentile), the outage going on (with its cause) and recent incidents. The app checks every route through Cloudflare's edge once a minute while it runs; routes it hasn't checked say so.\n\
+             \n\
+             Use it to answer \"has my site been up?\" or to find when an outage started before reading logs.\n\
+             \n\
+             Example: {\"hostname\": \"app.teispace.com\", \"range\": \"week\"}",
+            ToolClass::Read,
+            Hints::READ_LOCAL,
+            super::DEFAULT_TIMEOUT,
+        ),
+        spec::<RouteTrafficArgs, RouteTrafficResult>(
+            "route_traffic",
+            "Route traffic",
+            "Who uses a route or share and how: requests over time and per second (average and peak), bytes sent, answers by class and status code, the 5xx share, response times (p50/p95/p99), the busiest paths, countries, browsers, and bots by kind (search engines, AI crawlers and assistants, link previews, monitors, webhooks). Numbers come from Teitunnel's inspector when it's in front of the route (exact, this computer's traffic) and otherwise from Cloudflare's analytics (every request at the edge, whichever computer served it; needs Zone ▸ Analytics ▸ Read, and some parts need a paid plan: `unavailable` lists what's missing).\n\
+             \n\
+             Use it for \"how much traffic does my site get?\", \"is anyone using the API?\", \"are AI crawlers hitting it?\" or to see when errors started. For single requests use traffic_list; for uptime, route_health.\n\
+             \n\
+             Example: {\"hostname\": \"app.teispace.com\", \"range\": \"day\"}",
+            ToolClass::Read,
+            Hints::READ_CLOUD,
+            Duration::from_secs(60),
+        ),
     ]
+}
+
+/// `hour`, `day` (the default), `week` or `month`.
+fn range_arg(value: Option<&str>) -> Result<teitunnel_core::analytics::AnalyticsRange, ToolError> {
+    use teitunnel_core::analytics::AnalyticsRange;
+    match value.map(str::trim) {
+        None | Some("day") => Ok(AnalyticsRange::Day),
+        Some("hour") => Ok(AnalyticsRange::Hour),
+        Some("week") => Ok(AnalyticsRange::Week),
+        Some("month") => Ok(AnalyticsRange::Month),
+        Some(other) => Err(ToolError::new(format!(
+            "`range` is hour, day, week or month, not \"{other}\"."
+        ))),
+    }
+}
+
+/// Which route, over how long.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct RouteTrafficArgs {
+    /// The route's or share's hostname.
+    hostname: String,
+    /// Only requests under this path (`/api`), for a route with a path rule.
+    #[serde(default)]
+    path: Option<String>,
+    /// The last `hour`, `day` (default), `week` or `month`.
+    #[serde(default)]
+    range: Option<String>,
+}
+
+/// Requests per second.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RateOut {
+    /// Over the range.
+    average: f64,
+    /// In the busiest bucket (a minute at best).
+    peak: f64,
+}
+
+/// Answers by class.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClassesOut {
+    /// 1xx and 2xx.
+    ok: u64,
+    /// 3xx.
+    redirects: u64,
+    /// 4xx.
+    client_errors: u64,
+    /// 5xx.
+    server_errors: u64,
+}
+
+/// Percentiles in milliseconds.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PercentilesOut {
+    p50: Option<f64>,
+    p95: Option<f64>,
+    p99: Option<f64>,
+}
+
+/// A bucket with traffic.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BucketOut {
+    /// End of the bucket (milliseconds since the epoch).
+    at: i64,
+    requests: u32,
+    /// 5xx answers.
+    server_errors: u32,
+}
+
+/// A route's traffic.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RouteTrafficResult {
+    /// `inspector` (exact, this computer), `edge` (Cloudflare) or `connector` (this
+    /// computer's cloudflared, per tunnel).
+    source: String,
+    hostname: String,
+    path: Option<String>,
+    range: String,
+    requests: u64,
+    per_second: RateOut,
+    /// Bytes sent to visitors.
+    bytes_sent: u64,
+    responses: ClassesOut,
+    /// Share of 5xx answers, as a percentage (absent without requests).
+    server_error_percent: Option<f64>,
+    /// Response time at the origin.
+    origin_ms: Option<PercentilesOut>,
+    /// Cloudflare's time to first byte.
+    ttfb_ms: Option<PercentilesOut>,
+    /// Most first, as `[value, requests]`.
+    statuses: Vec<(String, u64)>,
+    top_paths: Vec<(String, u64)>,
+    countries: Vec<(String, u64)>,
+    browsers: Vec<(String, u64)>,
+    /// By kind; `people` is people and whatever didn't say it's a bot.
+    bots: Vec<(String, u64)>,
+    /// Cloudflare's cache statuses.
+    cache: Vec<(String, u64)>,
+    /// Seconds per bucket of `timeline`.
+    bucket_seconds: u32,
+    /// Buckets with requests, oldest first (quiet buckets are left out).
+    timeline: Vec<BucketOut>,
+    /// Data starts here, not at the range's start (the plan keeps less history).
+    available_from: Option<i64>,
+    /// Parts the plan or the source doesn't offer.
+    unavailable: Vec<String>,
+}
+
+fn pairs(rows: &[teitunnel_core::analytics::Ranked]) -> Vec<(String, u64)> {
+    rows.iter().map(|r| (r.key.clone(), r.requests)).collect()
+}
+
+fn percentiles(p: Option<teitunnel_core::analytics::Percentiles>) -> Option<PercentilesOut> {
+    p.map(|p| PercentilesOut {
+        p50: p.p50,
+        p95: p.p95,
+        p99: p.p99,
+    })
+}
+
+fn round3(n: f64) -> f64 {
+    (n * 1_000.0).round() / 1_000.0
+}
+
+pub(super) async fn route_traffic(backend: &SharedBackend, args: JsonObject) -> ToolResult {
+    use teitunnel_core::analytics::{RouteRef, SourceKind, path_prefix};
+    let args: RouteTrafficArgs = arguments(args)?;
+    let range = range_arg(args.range.as_deref())?;
+    let hostname = teitunnel_core::domain::Hostname::parse(&args.hostname)
+        .map_err(|_| ToolError::new(format!("\"{}\" isn't a hostname.", args.hostname)))?;
+    let path =
+        match args.path.as_deref().map(str::trim) {
+            None | Some("" | "/") => None,
+            Some(p) if p.starts_with('/') => Some(p.to_owned()),
+            Some(p) => Some(path_prefix(p).ok_or_else(|| {
+                ToolError::new("`path` is a path starting with /, e.g. \"/api\".")
+            })?),
+        };
+    let route = RouteRef {
+        hostname: hostname.as_str().to_owned(),
+        path,
+    };
+    let stats = backend.route_traffic(&route, range).await?;
+    #[allow(clippy::cast_possible_truncation)]
+    let timeline = stats
+        .series
+        .at
+        .iter()
+        .enumerate()
+        .filter_map(|(i, at)| {
+            let requests = stats.series.requests.get(i).copied().unwrap_or(0);
+            (requests > 0).then(|| BucketOut {
+                at: *at as i64,
+                requests,
+                server_errors: stats.series.server_errors.get(i).copied().unwrap_or(0),
+            })
+        })
+        .collect();
+    let mut bots = pairs(&stats.bots);
+    for bot in &mut bots {
+        if bot.0.is_empty() {
+            "people".clone_into(&mut bot.0);
+        }
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let server_error_percent = (stats.requests > 0).then(|| {
+        (stats.classes.server_errors as f64 / stats.requests as f64 * 10_000.0).round() / 100.0
+    });
+    let c = stats.classes;
+    #[allow(clippy::cast_possible_truncation)]
+    let out = RouteTrafficResult {
+        source: match stats.source {
+            SourceKind::Proxy => "inspector",
+            SourceKind::Edge => "edge",
+            SourceKind::Connector => "connector",
+        }
+        .to_owned(),
+        hostname: stats.route.hostname.clone(),
+        path: stats.route.path.clone(),
+        range: format!("{range:?}").to_lowercase(),
+        requests: stats.requests,
+        per_second: RateOut {
+            average: round3(stats.rate.average),
+            peak: round3(stats.rate.peak),
+        },
+        bytes_sent: stats.bytes,
+        responses: ClassesOut {
+            ok: c.ok,
+            redirects: c.redirects,
+            client_errors: c.client_errors,
+            server_errors: c.server_errors,
+        },
+        server_error_percent,
+        origin_ms: percentiles(stats.origin_ms),
+        ttfb_ms: percentiles(stats.ttfb_ms),
+        statuses: pairs(&stats.statuses),
+        top_paths: pairs(&stats.paths),
+        countries: pairs(&stats.countries),
+        browsers: pairs(&stats.browsers),
+        bots,
+        cache: pairs(&stats.cache),
+        bucket_seconds: u32::try_from(range.bucket().seconds()).unwrap_or(u32::MAX),
+        timeline,
+        available_from: stats.available_from.map(|ms| ms as i64),
+        unavailable: stats
+            .unavailable
+            .iter()
+            .map(|p| {
+                let name = format!("{p:?}");
+                name[..1].to_lowercase() + &name[1..]
+            })
+            .collect(),
+    };
+    Ok(ToolOutput::new(&out))
+}
+
+/// Which routes, over how long.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct HealthArgs {
+    /// One hostname (default: every route of this machine).
+    #[serde(default)]
+    hostname: Option<String>,
+    /// Incidents from the last `hour`, `day` (default), `week` or `month`.
+    #[serde(default)]
+    range: Option<String>,
+}
+
+/// An outage.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncidentOut {
+    /// When checks started failing (milliseconds since the epoch).
+    started_at: i64,
+    /// When they passed again (absent while it goes on).
+    ended_at: Option<i64>,
+    /// Why, in a sentence.
+    cause: String,
+}
+
+/// One route's health.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RouteHealth {
+    hostname: String,
+    path: Option<String>,
+    /// Up at the last check (absent: never checked).
+    up: Option<bool>,
+    /// When it was last checked.
+    last_checked: Option<i64>,
+    /// How long the last check took.
+    last_latency_ms: Option<u32>,
+    /// Share of passing checks, as percentages.
+    uptime_day: Option<f64>,
+    uptime_week: Option<f64>,
+    uptime_month: Option<f64>,
+    /// 95th percentile response time over a day.
+    p95_ms: Option<f64>,
+    /// The outage going on.
+    ongoing: Option<IncidentOut>,
+    /// Incidents in the range, newest first.
+    incidents: Vec<IncidentOut>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct HealthResult {
+    routes: Vec<RouteHealth>,
+    /// Said when something needs explaining (nothing checked yet…).
+    note: Option<String>,
+}
+
+fn incident(incident: &teitunnel_core::uptime::Incident) -> IncidentOut {
+    IncidentOut {
+        started_at: incident.started_at,
+        ended_at: incident.ended_at,
+        cause: incident.cause.message().english(),
+    }
+}
+
+fn percent(share: Option<f64>) -> Option<f64> {
+    share.map(|s| (s * 10_000.0).round() / 100.0)
+}
+
+pub(super) async fn route_health(backend: &SharedBackend, args: JsonObject) -> ToolResult {
+    let args: HealthArgs = arguments(args)?;
+    let range = range_arg(args.range.as_deref())?;
+    let details = backend.uptime(args.hostname.as_deref(), range).await?;
+    let routes: Vec<RouteHealth> = details
+        .iter()
+        .map(|d| {
+            let s = &d.summary;
+            RouteHealth {
+                hostname: s.route.hostname.clone(),
+                path: s.route.path.clone(),
+                up: s.up,
+                last_checked: s.last_checked,
+                last_latency_ms: s.last_latency_ms,
+                uptime_day: percent(s.uptime_day),
+                uptime_week: percent(s.uptime_week),
+                uptime_month: percent(s.uptime_month),
+                p95_ms: s.p95_ms,
+                ongoing: s.open_incident.as_ref().map(incident),
+                incidents: d.incidents.iter().map(incident).collect(),
+            }
+        })
+        .collect();
+    let note = if routes.is_empty() {
+        Some(match &args.hostname {
+            Some(host) => format!(
+                "{host} isn't a route of this machine (only this machine's routes are checked)."
+            ),
+            None => "This machine serves no routes.".to_owned(),
+        })
+    } else if routes.iter().all(|r| r.up.is_none()) {
+        Some(
+            "Not checked yet: Teitunnel checks routes once a minute while the app runs.".to_owned(),
+        )
+    } else {
+        None
+    };
+    Ok(ToolOutput::new(&HealthResult { routes, note }))
 }
 
 /// Filters.

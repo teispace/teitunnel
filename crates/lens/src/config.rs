@@ -363,16 +363,23 @@ pub struct TapConfig {
     pub injection: Option<Injection>,
     /// Handler for `/__teitunnel/…` paths (overlay assets and APIs).
     pub reserved: Option<Arc<dyn ReservedHandler>>,
+    /// An OAuth authorization server in front of the tap (a shared MCP server): every
+    /// request needs one of its access tokens (or a static bearer token from
+    /// [`Gates::bearer`](crate::Gates)).
+    pub oauth: Option<Arc<dyn crate::OAuthProvider>>,
     /// Serve the paused page instead of forwarding.
     pub paused: Option<PausedPage>,
     /// For `text/event-stream` responses: write `: keep-alive` after this much
     /// downstream silence (at an event boundary), so Cloudflare doesn't end the stream
-    /// after 100 s. `None` turns it off.
+    /// after 125 s. `None` turns it off.
     pub sse_keepalive: Option<Duration>,
     /// Simulated latency and bandwidth.
     pub network: NetworkConfig,
     /// Fault injection, checked in order.
     pub faults: Vec<FaultRule>,
+    /// Requests to stop for a look (the first matching rule applies); only while
+    /// capturing.
+    pub breakpoints: Vec<crate::BreakpointRule>,
 }
 
 impl TapConfig {
@@ -391,10 +398,12 @@ impl TapConfig {
             headers: HeaderRules::default(),
             injection: None,
             reserved: None,
+            oauth: None,
             paused: None,
             sse_keepalive: Some(crate::keepalive::DEFAULT_SSE_KEEPALIVE),
             network: NetworkConfig::default(),
             faults: Vec::new(),
+            breakpoints: Vec::new(),
         }
     }
 }

@@ -3,7 +3,6 @@ import { ChevronRight, LayoutGrid, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { SlowHint } from "@/components/patterns/loading-state";
-import { Sparkline } from "@/components/patterns/sparkline";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,8 +10,8 @@ import { type Status, StatusDot } from "@/components/ui/status-dot";
 import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { useIssues } from "@/features/doctor/queries";
+import { RecentRequests } from "@/features/inspector";
 import { useQuickShares } from "@/features/quick-share";
-import { useLiveTraffic } from "@/features/routes";
 import { useRoutesOverview } from "@/features/routes/queries";
 import { routeStatus } from "@/features/routes/status";
 import { CliOffer } from "@/features/settings";
@@ -20,8 +19,8 @@ import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { QuickShare } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { formatRate, perSecond, recentRate } from "@/lib/traffic";
 import { useNow } from "@/lib/use-now";
+import { Glance } from "./components/glance";
 
 const dots: Record<QuickShare["status"]["status"], Status> = {
   live: "healthy",
@@ -30,10 +29,21 @@ const dots: Record<QuickShare["status"]["status"], Status> = {
   failed: "error",
 };
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-2.5">
-      <h2 className="px-2.5 text-headline">{title}</h2>
+      <div className="flex items-baseline justify-between gap-3 px-2.5">
+        <h2 className="text-headline">{title}</h2>
+        {action}
+      </div>
       <ul className="flex flex-col divide-y-(length:--hairline) divide-inset rounded-card bg-surface-inset px-2.5">
         {children}
       </ul>
@@ -41,7 +51,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** What's running right now, at a glance. */
+/** Requests the Overview shows. */
+const RECENT = 6;
+
+/** What's running right now: health, traffic, errors, uptime and the newest requests. */
 export function OverviewPage() {
   const sharesQuery = useQuickShares();
   const shares = sharesQuery.data ?? [];
@@ -156,7 +169,10 @@ export function OverviewPage() {
             <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
           </Link>
         ) : null}
-        {tunnel && routes.length > 0 ? <TrafficCard tunnelId={tunnel.id} /> : null}
+        <Glance
+          tunnelId={tunnel && routes.length > 0 ? tunnel.id : null}
+          accountId={active?.id ?? null}
+        />
         {routes.length > 0 ? (
           <Section title={t("overview.routes")}>
             {routes.map((route) => {
@@ -211,37 +227,21 @@ export function OverviewPage() {
             ))}
           </Section>
         ) : null}
+        <RecentRequests limit={RECENT}>
+          {(rows) => (
+            <Section
+              title={t("overview.recent")}
+              action={
+                <Link to="/inspector" className="text-callout text-accent">
+                  {t("overview.showAll")}
+                </Link>
+              }
+            >
+              {rows}
+            </Section>
+          )}
+        </RecentRequests>
       </div>
     </>
-  );
-}
-
-/** This Mac's traffic in the last hour, at a glance; opens Analytics. */
-function TrafficCard({ tunnelId }: { tunnelId: string }) {
-  // Every 10 s is enough for a glance, and keeps the connector on its idle sampling rate.
-  const traffic = useLiveTraffic(tunnelId, 10_000).data;
-  if (!traffic || traffic.series.at.length < 2) return null;
-  const now = recentRate(traffic.series, 60);
-  const rates = perSecond(traffic.series.requests, traffic.series.span).map((v) => v ?? 0);
-  return (
-    <Link
-      to="/analytics"
-      className="flex items-center gap-4 rounded-card bg-surface-inset px-3 py-2.5 outline-offset-0"
-    >
-      <div className="flex w-36 shrink-0 flex-col">
-        <span className="text-callout text-secondary">{t("overview.traffic")}</span>
-        <span className="tabular text-title3">
-          {now === null ? "–" : formatRate(now)}
-          <span className="text-callout text-secondary"> {t("overview.requestsPerSecond")}</span>
-        </span>
-        <span className="tabular text-callout text-secondary">
-          {t("overview.sinceStart", { count: traffic.totalRequests })}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <Sparkline values={rates} label={t("overview.sparkline")} height={40} />
-      </div>
-      <ChevronRight aria-hidden className="size-3.5 shrink-0 text-tertiary" strokeWidth={2} />
-    </Link>
   );
 }

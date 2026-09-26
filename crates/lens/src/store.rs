@@ -448,6 +448,7 @@ pub(crate) mod tests {
             stream: None,
             replay_of: None,
             fault: None,
+            breakpoint: None,
         }
     }
 

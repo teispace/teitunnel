@@ -28,9 +28,10 @@ fn outcome(outcome: &Outcome) -> Result<(), String> {
     }
 }
 
-/// Every 30 s, points routes back at their own service when the `teitunnel inspect`
-/// that pointed them at its inspector has exited without doing so (for servers without
-/// the app, which does the same).
+/// Every 30 s, cleans up after processes that ended without doing so (for servers
+/// without the app, which does the same): points routes back at their own service when
+/// the `teitunnel inspect` that pointed them at its inspector has exited, and removes
+/// shares on a domain that expired or whose `share`/`mcp` process was killed.
 pub(crate) fn sweep_left_behind(
     app: &App,
     machine: teitunnel_core::machine::MachineTunnels,
@@ -51,6 +52,18 @@ pub(crate) fn sweep_left_behind(
             {
                 status(&format!(
                     "Couldn't end an inspection left behind: {}",
+                    failure.english()
+                ));
+            }
+            let now = teitunnel_core::domain_shares::now_ms();
+            for failure in
+                teitunnel_core::domain_shares::sweep(&accounts, &engine, &machine, &name, |share| {
+                    share.is_over(now)
+                })
+                .await
+            {
+                status(&format!(
+                    "Couldn't remove a share left behind: {}",
                     failure.english()
                 ));
             }

@@ -197,7 +197,7 @@ fn parse_days(input: &str) -> Result<u32, String> {
 
 /// `--allow` values as an Access rule (as for routes).
 fn access(allow: &[String]) -> Option<teitunnel_core::engine::AccessRule> {
-    crate::access_rule(allow)
+    crate::access_rule(allow, &[])
 }
 
 fn read_password() -> Result<String, String> {
