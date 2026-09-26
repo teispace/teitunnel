@@ -1205,6 +1205,68 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
   text-align: center;
 }
 
+/* Pointing at the core: a streak of light runs around its border, with a soft glow. */
+@property --tt-spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes tt-spin {
+  to {
+    --tt-spin: 360deg;
+  }
+}
+
+.tt-core::before,
+.tt-core::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--tt-spin),
+    transparent 0turn,
+    transparent 0.6turn,
+    color-mix(in oklab, var(--tt-accent) 35%, transparent) 0.82turn,
+    var(--tt-accent) 0.97turn,
+    transparent 1turn
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s var(--tt-ease);
+  pointer-events: none;
+}
+
+.tt-core::after {
+  inset: -3px;
+  padding: 5px;
+  filter: blur(10px);
+}
+
+.tt-core:hover::before,
+.tt-core:hover::after,
+.tt-core:focus-within::before,
+.tt-core:focus-within::after {
+  opacity: 1;
+}
+
+html.tt-motion .tt-core::before,
+html.tt-motion .tt-core::after {
+  animation: tt-spin 2.6s linear infinite;
+  animation-play-state: paused;
+}
+
+html.tt-motion .tt-core:is(:hover, :focus-within)::before,
+html.tt-motion .tt-core:is(:hover, :focus-within)::after {
+  animation-play-state: running;
+}
+
 .tt-pledges {
   position: relative;
   z-index: 1;
