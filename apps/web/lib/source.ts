@@ -12,6 +12,8 @@ const docs = defineDocs({
        * line) is longer than they display: at most 160 characters.
        */
       searchDescription: z.string().max(160).optional(),
+      /** Its `<Accordion>` questions and answers are also FAQ structured data. */
+      faq: z.boolean().optional(),
     }),
   },
 });

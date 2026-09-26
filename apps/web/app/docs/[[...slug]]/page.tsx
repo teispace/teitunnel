@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   DocsBody,
   DocsDescription,
@@ -11,9 +12,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/json-ld";
 import { getMDXComponents } from "@/components/mdx";
+import { faqFrom } from "@/lib/faq";
 import { sectionOf } from "@/lib/og-pages";
 import { docDates, docScreenshots } from "@/lib/page-facts";
-import { breadcrumbs, ogImage, pageMetadata, techArticle } from "@/lib/seo";
+import { breadcrumbs, faqPage, ogImage, pageMetadata, techArticle } from "@/lib/seo";
 import { site } from "@/lib/site";
 import { source } from "@/lib/source";
 
@@ -57,6 +59,9 @@ export default async function Page({ params }: Props) {
             ...dates,
           }),
           breadcrumbs([{ name: site.name, path: "/" }, ...trail]),
+          ...(page.data.faq
+            ? [faqPage(faqFrom(readFileSync(`content/docs/${page.path}`, "utf8")))]
+            : []),
         ]}
       />
       {page.slugs.length > 0 ? (
