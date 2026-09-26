@@ -88,6 +88,7 @@ fn bring_to_front<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
 /// the sidebar, menu and tray entries did nothing there.
 pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(SETTINGS) {
+        warn_if_never_built(window.clone());
         return bring_to_front(&window);
     }
     let app = app.clone();
@@ -102,6 +103,23 @@ pub(crate) fn open_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()>
         }
     });
     Ok(())
+}
+
+/// A window whose webview failed to build (e.g. `TaskCanceled` when the app was asked to
+/// quit during the build) stays registered with no native window until the app restarts:
+/// showing it succeeds and does nothing, but its getters fail. Says so in the log instead
+/// of staying silent. Asked off the main thread, the getter waits behind a build still in
+/// progress, so a window that's just slow to build isn't reported.
+fn warn_if_never_built<R: Runtime>(window: WebviewWindow<R>) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(err) = window.is_visible() {
+            tracing::warn!(
+                window = window.label(),
+                error = %err,
+                "window has no native window (it failed to build); restart Teitunnel"
+            );
+        }
+    });
 }
 
 fn build_settings<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
