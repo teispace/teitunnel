@@ -65,6 +65,15 @@ command and the MCP server keep the current access token in the keychain too
 (`cf:<account-id>:oauth-access`, with its expiry and a hash of the refresh token it came
 from) and share one refresh, rather than cancelling each other's tokens.
 
+## Least privilege on servers
+
+Cloudflare's tunnel permissions cover a whole account: an API token can't be limited to one
+tunnel. A server that only needs to keep one tunnel running doesn't need an API token at
+all. [`teitunnel export docker-compose`](/docs/guides/export) writes a plain `cloudflared`
+service for it, which runs with that tunnel's run token alone. A run token can connect that
+one tunnel and nothing else: it can't change routes, DNS records or any other tunnel. Keep
+Teitunnel, and its API token, on the computer where you manage the routes.
+
 ## Every Cloudflare change is reviewed
 
 - Every change to your account (DNS records, tunnels, logins, rules, Workers, databases)
