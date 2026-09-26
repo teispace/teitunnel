@@ -64,6 +64,17 @@ pub struct NewDnsRecord {
     pub comment: Option<String>,
 }
 
+/// The most records one batch call may change on every plan (Free allows 200, paid plans
+/// 3,500).
+pub const MAX_DNS_BATCH: usize = 200;
+
+/// What a batch call created.
+#[derive(Deserialize)]
+struct Batch {
+    #[serde(default)]
+    posts: Vec<DnsRecord>,
+}
+
 fn records_path(zone: &str) -> String {
     format!("/zones/{}/dns_records", crate::encode(zone))
 }
@@ -155,6 +166,31 @@ impl Client {
         .await
     }
 
+    /// Creates several records in one batch: Cloudflare applies all of them or none, and
+    /// returns them in the order given. At most [`MAX_DNS_BATCH`] records per call.
+    /// <https://developers.cloudflare.com/dns/manage-dns-records/how-to/batch-record-changes/>
+    ///
+    /// # Errors
+    /// API or network errors (the first record Cloudflare refused); nothing changed then.
+    pub async fn create_dns_records(
+        &self,
+        zone: &str,
+        records: &[NewDnsRecord],
+    ) -> Result<Vec<DnsRecord>> {
+        let posts = self
+            .batch(zone, &serde_json::json!({ "posts": records }))
+            .await?
+            .posts;
+        if posts.len() != records.len() {
+            return Err(crate::Error::Decode(serde::de::Error::custom(format!(
+                "the batch created {} of {} records",
+                posts.len(),
+                records.len()
+            ))));
+        }
+        Ok(posts)
+    }
+
     /// Replaces a record with another in one batch (the delete runs first, and neither
     /// applies unless both do). Cloudflare doesn't change a record's type in place
     /// (since 2026-06-30), so an A or AAAA record becomes a CNAME this way.
@@ -167,20 +203,24 @@ impl Client {
         id: &str,
         record: &NewDnsRecord,
     ) -> Result<DnsRecord> {
-        #[derive(serde::Deserialize)]
-        struct Batch {
-            #[serde(default)]
-            posts: Vec<DnsRecord>,
-        }
-        let batch: Batch = self
-            .post(
-                &format!("{}/batch", records_path(zone)),
-                &serde_json::json!({ "deletes": [{ "id": id }], "posts": [record] }),
-            )
-            .await?;
-        batch.posts.into_iter().next().ok_or_else(|| {
+        self.batch(
+            zone,
+            &serde_json::json!({ "deletes": [{ "id": id }], "posts": [record] }),
+        )
+        .await?
+        .posts
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
             crate::Error::Decode(serde::de::Error::custom("the batch created no record"))
         })
+    }
+
+    /// One call to the batch endpoint: deletes, patches, puts, then posts, in one
+    /// transaction.
+    async fn batch(&self, zone: &str, body: &serde_json::Value) -> Result<Batch> {
+        self.post(&format!("{}/batch", records_path(zone)), body)
+            .await
     }
 
     /// Deletes a record (already-gone counts as success).
@@ -329,5 +369,97 @@ mod tests {
             (created.id.as_str(), created.kind.as_str()),
             ("new", "CNAME")
         );
+    }
+
+    fn cname(name: &str) -> NewDnsRecord {
+        NewDnsRecord {
+            name: name.into(),
+            kind: "CNAME".into(),
+            content: "t1.cfargotunnel.com".into(),
+            proxied: true,
+            ttl: 1,
+            comment: Some("teitunnel:route=r".into()),
+        }
+    }
+
+    #[tokio::test]
+    async fn creates_records_in_one_batch() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/zones/z1/dns_records/batch"))
+            .respond_with(|req: &Request| {
+                let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+                assert!(body.get("deletes").is_none());
+                let posts = body["posts"].as_array().unwrap();
+                let created: Vec<_> = posts
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| {
+                        let mut record = p.clone();
+                        record["id"] = serde_json::json!(format!("r{i}"));
+                        record
+                    })
+                    .collect();
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "success": true, "errors": [], "messages": [],
+                    "result": {"posts": created}
+                }))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+        let created = client
+            .create_dns_records("z1", &[cname("a.xyz.com"), cname("b.xyz.com")])
+            .await
+            .unwrap();
+        let names: Vec<_> = created
+            .iter()
+            .map(|r| (r.id.as_str(), r.name.as_str()))
+            .collect();
+        assert_eq!(names, [("r0", "a.xyz.com"), ("r1", "b.xyz.com")]);
+    }
+
+    #[tokio::test]
+    async fn a_refused_batch_is_an_error() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/zones/z1/dns_records/batch"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "success": false, "messages": [], "result": null,
+                "errors": [{"code": 81053, "message": "An A, AAAA, or CNAME record with that host already exists."}]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let error = client
+            .create_dns_records("z1", &[cname("a.xyz.com"), cname("b.xyz.com")])
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&error, crate::Error::Api { errors, .. } if errors[0].code == 81053),
+            "{error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_batch_that_creates_fewer_records_is_an_error() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/zones/z1/dns_records/batch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "success": true, "errors": [], "messages": [],
+                "result": {"posts": [{"id": "r0", "name": "a.xyz.com", "type": "CNAME",
+                                      "content": "t1.cfargotunnel.com", "proxied": true}]}
+            })))
+            .mount(&server)
+            .await;
+        let error = client
+            .create_dns_records("z1", &[cname("a.xyz.com"), cname("b.xyz.com")])
+            .await
+            .unwrap_err();
+        assert!(matches!(error, crate::Error::Decode(_)), "{error:?}");
     }
 }

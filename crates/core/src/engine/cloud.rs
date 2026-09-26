@@ -96,6 +96,13 @@ pub trait CloudApi: Send + Sync {
         zone: &str,
         record: &NewDnsRecord,
     ) -> impl Future<Output = cf_api::Result<DnsRecord>> + Send;
+    /// Creates several records in one zone at once: all of them or none, returned in
+    /// the order given (at most [`cf_api::MAX_DNS_BATCH`]).
+    fn create_records(
+        &self,
+        zone: &str,
+        records: &[NewDnsRecord],
+    ) -> impl Future<Output = cf_api::Result<Vec<DnsRecord>>> + Send;
     /// Updates a record.
     fn update_record(
         &self,
@@ -565,6 +572,14 @@ impl CloudApi for Client {
 
     async fn create_record(&self, zone: &str, record: &NewDnsRecord) -> cf_api::Result<DnsRecord> {
         self.create_dns_record(zone, record).await
+    }
+
+    async fn create_records(
+        &self,
+        zone: &str,
+        records: &[NewDnsRecord],
+    ) -> cf_api::Result<Vec<DnsRecord>> {
+        self.create_dns_records(zone, records).await
     }
 
     async fn update_record(

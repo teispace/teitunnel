@@ -389,6 +389,7 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
 
     vec![
         ("first route", zones(), add("r1", "app.xyz.com", "3000")),
+        ("several routes in two zones", zones(), import_three()),
         (
             "replace foreign records",
             with_foreign,
@@ -1500,6 +1501,84 @@ async fn a_login_left_behind_by_an_outside_edit_is_found_and_removed() {
     );
     let log = engine.local().activity("acc", 1).await.unwrap();
     assert_eq!(log[0].summary, "Remove the login from app.xyz.com");
+}
+
+/// Three new routes: two in xyz.com and one in yx.com.
+fn import_three() -> Intent {
+    let route = |id: &str, hostname: &str, origin: &str| RouteSpec {
+        id: id.into(),
+        hostname: Hostname::parse(hostname).unwrap(),
+        path: None,
+        origin: RouteOrigin::parse(origin).unwrap(),
+        options: Map::new(),
+        access: None,
+    };
+    Intent::ImportRoutes {
+        routes: vec![
+            route("r1", "app.xyz.com", "3000"),
+            route("r2", "yx.com", "5000"),
+            route("r3", "api.xyz.com", "8080"),
+        ],
+    }
+}
+
+#[tokio::test]
+async fn creates_the_records_of_several_routes_with_one_call_per_zone() {
+    use super::types::Step;
+
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let intent = import_three();
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    let records: Vec<u32> = (0..)
+        .zip(&plan.steps)
+        .filter(|(_, s)| matches!(s, Step::CreateRecord { .. }))
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(records.len(), 3, "the plan keeps one step per route");
+
+    let mut progress = Vec::new();
+    let outcome = engine
+        .apply(
+            &cloud,
+            &conns,
+            CTX,
+            &intent,
+            Approval {
+                fingerprint: &plan.fingerprint,
+                confirmed: true,
+            },
+            |p| progress.push(p),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // The tunnel, its configuration, then one call for xyz.com and one for yx.com.
+    assert_eq!(cloud.mutations(), 4);
+    for step in &records {
+        assert!(
+            progress
+                .iter()
+                .any(|p| p.step == *step && matches!(p.state, StepState::Done)),
+            "step {step} reported done: {progress:?}"
+        );
+    }
+
+    let state = cloud.snapshot();
+    let tunnel = state.tunnels.keys().next().unwrap();
+    let names = |zone: &str| -> Vec<String> {
+        state.records[zone]
+            .iter()
+            .inspect(|r| assert!(r.content.starts_with(tunnel.as_str()) && r.proxied))
+            .map(|r| r.name.clone())
+            .collect()
+    };
+    assert_eq!(names("z-xyz"), ["app.xyz.com", "api.xyz.com"]);
+    assert_eq!(names("z-yx"), ["yx.com"]);
+
+    // Teitunnel owns every record it created, so removing the routes removes them.
+    engine.invalidate("acc");
+    run(&engine, &cloud, &conns, &Intent::RemoveTunnel).await;
+    assert_eq!(cloud.snapshot().record_count(), 0);
 }
 
 #[tokio::test]

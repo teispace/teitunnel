@@ -463,6 +463,35 @@ impl FakeCloud {
     }
 }
 
+/// A record as Cloudflare would create it next to `records`, or its refusal.
+fn new_record(
+    records: &[DnsRecord],
+    id: String,
+    record: &NewDnsRecord,
+) -> cf_api::Result<DnsRecord> {
+    let clash = records.iter().any(|r| {
+        r.name.eq_ignore_ascii_case(&record.name) && (r.kind == "CNAME" || record.kind == "CNAME")
+    });
+    if clash {
+        return Err(cf_api::Error::Api {
+            status: 400,
+            errors: vec![ApiMessage {
+                code: 81053,
+                message: "An A, AAAA, or CNAME record with that host already exists.".into(),
+            }],
+        });
+    }
+    Ok(DnsRecord {
+        id,
+        name: record.name.clone(),
+        kind: record.kind.clone(),
+        content: record.content.clone(),
+        proxied: record.proxied,
+        comment: record.comment.clone(),
+        ttl: record.ttl,
+    })
+}
+
 fn tunnel_view(id: &str, t: &FakeTunnel) -> Tunnel {
     Tunnel {
         id: id.to_owned(),
@@ -593,30 +622,28 @@ impl CloudApi for FakeCloud {
         self.mutate()?;
         let id = self.next_id("rec");
         self.with_zone(zone, |records| {
-            let clash = records.iter().any(|r| {
-                r.name.eq_ignore_ascii_case(&record.name)
-                    && (r.kind == "CNAME" || record.kind == "CNAME")
-            });
-            if clash {
-                return Err(cf_api::Error::Api {
-                    status: 400,
-                    errors: vec![ApiMessage {
-                        code: 81053,
-                        message: "An A, AAAA, or CNAME record with that host already exists."
-                            .into(),
-                    }],
-                });
-            }
-            let created = DnsRecord {
-                id,
-                name: record.name.clone(),
-                kind: record.kind.clone(),
-                content: record.content.clone(),
-                proxied: record.proxied,
-                comment: record.comment.clone(),
-                ttl: record.ttl,
-            };
+            let created = new_record(records, id, record)?;
             records.push(created.clone());
+            Ok(created)
+        })
+    }
+
+    async fn create_records(
+        &self,
+        zone: &str,
+        records: &[NewDnsRecord],
+    ) -> cf_api::Result<Vec<DnsRecord>> {
+        // One call, all or nothing, like Cloudflare's batch endpoint.
+        self.mutate()?;
+        let ids: Vec<_> = records.iter().map(|_| self.next_id("rec")).collect();
+        self.with_zone(zone, |existing| {
+            let mut next = existing.clone();
+            for (id, record) in ids.into_iter().zip(records) {
+                let created = new_record(&next, id, record)?;
+                next.push(created);
+            }
+            let created = next[existing.len()..].to_vec();
+            *existing = next;
             Ok(created)
         })
     }

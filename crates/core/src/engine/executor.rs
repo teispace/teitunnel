@@ -449,6 +449,35 @@ fn route_id_from(comment: Option<&str>) -> String {
         .unwrap_or_default()
 }
 
+/// A [`Step::CreateRecord`], borrowed.
+struct NewRecord<'a> {
+    zone_id: &'a str,
+    hostname: &'a str,
+    tunnel: &'a TunnelRef,
+    route_id: &'a str,
+}
+
+/// The [`Step::CreateRecord`] steps at the start of `steps`.
+fn record_run(steps: &[Step]) -> Vec<NewRecord<'_>> {
+    steps
+        .iter()
+        .map_while(|step| match step {
+            Step::CreateRecord {
+                zone_id,
+                hostname,
+                tunnel,
+                route_id,
+            } => Some(NewRecord {
+                zone_id,
+                hostname,
+                tunnel,
+                route_id,
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
 fn tunnel_cname(hostname: &str, tunnel_id: &str, comment: &str) -> NewDnsRecord {
     NewDnsRecord {
         name: hostname.to_owned(),
@@ -1338,7 +1367,16 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
         let mut verify = Vec::new();
         let mut index = 0u32;
         let mut deleted_tunnel = false;
-        for step in &plan.steps {
+        while let Some(step) = plan.steps.get(index as usize) {
+            // New DNS records in a row go to Cloudflare together, one call per zone.
+            let run = record_run(&plan.steps[index as usize..]);
+            if run.len() > 1 {
+                if let Err((failed, message)) = self.create_records(index, &run, progress).await {
+                    return self.roll_back(failed, message, progress).await;
+                }
+                index += u32::try_from(run.len()).unwrap_or(u32::MAX);
+                continue;
+            }
             if let Step::Verify { hostname } = step {
                 verify.push(hostname.clone());
                 progress(Progress {
@@ -1417,6 +1455,97 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
             verify,
             connector_error,
         }
+    }
+
+    /// Creates the records of consecutive [`Step::CreateRecord`] steps (starting at step
+    /// `first`) with one call per zone and up to [`cf_api::MAX_DNS_BATCH`] records. A call
+    /// applies all its records or none, so each step still has its own undo, and a refused
+    /// call fails its steps, returning the first one's index.
+    async fn create_records(
+        &mut self,
+        first: u32,
+        run: &[NewRecord<'_>],
+        progress: &mut impl FnMut(Progress),
+    ) -> Result<(), (u32, Text)> {
+        let (api, account) = (self.api, self.account);
+        let mut zones: Vec<&str> = Vec::new();
+        for record in run {
+            if !zones.contains(&record.zone_id) {
+                zones.push(record.zone_id);
+            }
+        }
+        for zone in zones {
+            let in_zone: Vec<(u32, &NewRecord<'_>)> = (first..)
+                .zip(run)
+                .filter(|(_, r)| r.zone_id == zone)
+                .collect();
+            for chunk in in_zone.chunks(cf_api::MAX_DNS_BATCH) {
+                let mut records = Vec::with_capacity(chunk.len());
+                for (index, record) in chunk {
+                    let target = self.resolve(record.tunnel).map_err(|message| {
+                        progress(Progress {
+                            step: *index,
+                            state: StepState::Failed {
+                                message: message.clone(),
+                            },
+                        });
+                        (*index, message)
+                    })?;
+                    records.push(tunnel_cname(
+                        record.hostname,
+                        &target,
+                        &self.comment(record.route_id, None),
+                    ));
+                }
+                for (index, _) in chunk {
+                    progress(Progress {
+                        step: *index,
+                        state: StepState::Running,
+                    });
+                }
+                let created = match api.create_records(zone, &records).await {
+                    Ok(created) => created,
+                    Err(error) => {
+                        let message = error.text();
+                        for (index, _) in chunk {
+                            progress(Progress {
+                                step: *index,
+                                state: StepState::Failed {
+                                    message: message.clone(),
+                                },
+                            });
+                        }
+                        return Err((chunk[0].0, message));
+                    }
+                };
+                for ((index, record), created) in chunk.iter().zip(created) {
+                    warn_local(
+                        self.local
+                            .own_record(
+                                account,
+                                zone,
+                                &created.id,
+                                record.hostname,
+                                record.route_id,
+                            )
+                            .await,
+                    );
+                    self.done.push((
+                        *index,
+                        Undo::DeleteRecord {
+                            zone: zone.to_owned(),
+                            id: created.id,
+                            name: record.hostname.to_owned(),
+                        },
+                    ));
+                    progress(Progress {
+                        step: *index,
+                        state: StepState::Done,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn step(&mut self, step: &Step) -> Result<Option<Undo>, Text> {

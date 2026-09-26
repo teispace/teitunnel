@@ -69,6 +69,10 @@ A `Step` (`engine/types.rs`) is one Cloudflare or local operation. Each step:
 On failure, completed steps are undone in reverse order. A step that can't be undone must be
 last, or be explicitly confirmed by the person.
 
+Consecutive `Step::CreateRecord` steps aren't run one by one: `create_records` in
+`engine/executor.rs` sends them as one batch per zone (`CloudApi::create_records`). A test
+that counts `FakeCloud::mutations()` sees one mutation per zone for them.
+
 ## 6. The planner (`engine/planner.rs`, `engine/planner/*.rs`)
 
 `plan(intent, snapshot)` is pure: no I/O, no clock, deterministic. It must:
