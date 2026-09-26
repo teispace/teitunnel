@@ -241,37 +241,39 @@ async fn server_sent_events_arrive_as_they_are_sent() {
     assert_eq!(stream.previews[1].preview, "data: two");
 }
 
-/// A WebSocket echo origin (upgrades with hyper, then speaks tungstenite).
-async fn websocket_origin() -> Origin {
-    origin(|mut request: Request<Incoming>| async move {
-        let key = request.headers()["sec-websocket-key"].clone();
-        let upgrade = hyper::upgrade::on(&mut request);
-        tokio::spawn(async move {
-            let upgraded = upgrade.await.unwrap();
-            let mut ws = tokio_tungstenite::WebSocketStream::from_raw_socket(
-                TokioIo::new(upgraded),
-                Role::Server,
-                None,
-            )
-            .await;
-            while let Some(Ok(message)) = ws.next().await {
-                match message {
-                    Message::Text(_) | Message::Binary(_) => ws.send(message).await.unwrap(),
-                    Message::Close(_) => break,
-                    _ => {}
-                }
+/// Answers a WebSocket upgrade and echoes every message (hyper, then tungstenite).
+fn websocket_echo(mut request: Request<Incoming>) -> Response<LensBody> {
+    let key = request.headers()["sec-websocket-key"].clone();
+    let upgrade = hyper::upgrade::on(&mut request);
+    tokio::spawn(async move {
+        let upgraded = upgrade.await.unwrap();
+        let mut ws = tokio_tungstenite::WebSocketStream::from_raw_socket(
+            TokioIo::new(upgraded),
+            Role::Server,
+            None,
+        )
+        .await;
+        while let Some(Ok(message)) = ws.next().await {
+            match message {
+                Message::Text(_) | Message::Binary(_) => ws.send(message).await.unwrap(),
+                Message::Close(_) => break,
+                _ => {}
             }
-        });
-        let accept = tokio_tungstenite::tungstenite::handshake::derive_accept_key(key.as_bytes());
-        Response::builder()
-            .status(StatusCode::SWITCHING_PROTOCOLS)
-            .header("upgrade", "websocket")
-            .header("connection", "Upgrade")
-            .header("sec-websocket-accept", accept)
-            .body(lens::empty())
-            .unwrap()
-    })
-    .await
+        }
+    });
+    let accept = tokio_tungstenite::tungstenite::handshake::derive_accept_key(key.as_bytes());
+    Response::builder()
+        .status(StatusCode::SWITCHING_PROTOCOLS)
+        .header("upgrade", "websocket")
+        .header("connection", "Upgrade")
+        .header("sec-websocket-accept", accept)
+        .body(lens::empty())
+        .unwrap()
+}
+
+/// A WebSocket echo origin.
+async fn websocket_origin() -> Origin {
+    origin(|request: Request<Incoming>| async move { websocket_echo(request) }).await
 }
 
 #[tokio::test]
@@ -417,4 +419,149 @@ async fn client_abort_mid_download_is_recorded() {
         exchange.error.as_ref().unwrap().kind,
         lens::ErrorKind::ClientAborted
     );
+}
+
+/// Every tap feature that touches requests or answers at once (a bearer gate, header
+/// rules, CORS, the page injection, breakpoints and failures on other paths, event
+/// stream keep-alives): streams, sockets and uploads must still pass unbuffered.
+#[tokio::test]
+async fn streams_pass_with_every_feature_on() {
+    use lens::{
+        BearerToken, BreakpointRule, Gates, HeaderOp, HeaderRules, Injection, PathPattern, Upstream,
+    };
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    const TOKEN: &str = "stream-test-token-0123456789";
+    let (release_tx, release_rx) = oneshot::channel::<()>();
+    let release = Arc::new(std::sync::Mutex::new(Some(release_rx)));
+    let origin = origin(move |request: Request<Incoming>| {
+        let release = Arc::clone(&release);
+        async move {
+            match request.uri().path() {
+                "/socket" => websocket_echo(request),
+                "/events" => {
+                    // The second event waits for the test, which lets it go only once
+                    // the first has reached the client.
+                    let (tx, body) = channel_body(4);
+                    let wait = release.lock().unwrap().take();
+                    tokio::spawn(async move {
+                        tx.send(Bytes::from_static(b"data: one\n\n")).await.unwrap();
+                        if let Some(wait) = wait {
+                            let _ = wait.await;
+                        }
+                        let _ = tx.send(Bytes::from_static(b"data: two\n\n")).await;
+                    });
+                    let mut response = Response::new(body);
+                    response
+                        .headers_mut()
+                        .insert("content-type", "text/event-stream".parse().unwrap());
+                    response
+                }
+                _ => {
+                    let ruled = request.headers().contains_key("x-through-rules");
+                    let mut body = request.into_body();
+                    let mut total = 0usize;
+                    while let Some(frame) = body.frame().await {
+                        if let Ok(data) = frame.unwrap().into_data() {
+                            total += data.len();
+                        }
+                    }
+                    text_response(200, format!("{total} {ruled}"))
+                }
+            }
+        }
+    })
+    .await;
+    let (_lens, tap) = lens_with(Upstream::origin(&origin.url).unwrap(), |config| {
+        config.gates = Gates {
+            bearer: vec![BearerToken::new(TOKEN).unwrap()],
+            ..Gates::default()
+        };
+        config.headers = HeaderRules {
+            request: vec![HeaderOp::Set {
+                name: "x-through-rules".into(),
+                value: "1".into(),
+            }],
+            response: vec![HeaderOp::Set {
+                name: "x-frame-options".into(),
+                value: "DENY".into(),
+            }],
+            cors: true,
+        };
+        config.injection = Some(Injection::new("<script>/* overlay */</script>"));
+        config.breakpoints = vec![BreakpointRule {
+            method: None,
+            path: PathPattern::parse("/held/*").unwrap(),
+            request: true,
+            response: true,
+        }];
+        config.sse_keepalive = Some(Duration::from_secs(30));
+    })
+    .await;
+    let bearer = format!("Bearer {TOKEN}");
+
+    // The gate is on.
+    assert_eq!(
+        get(tap.addr, "/upload").await.status,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // An event arrives while the stream is still open.
+    let response = send(
+        tap.addr,
+        request(Method::GET, "/events")
+            .header("authorization", &bearer)
+            .body(lens::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["x-frame-options"], "DENY");
+    let mut events = response.into_body();
+    let first = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let frame = events.frame().await.unwrap().unwrap();
+            if let Ok(data) = frame.into_data() {
+                break data;
+            }
+        }
+    })
+    .await
+    .expect("the first event isn't held back");
+    assert_eq!(&first[..], b"data: one\n\n");
+    release_tx.send(()).unwrap();
+    let rest = events.collect().await.unwrap().to_bytes();
+    assert_eq!(&rest[..], b"data: two\n\n");
+
+    // A socket echoes.
+    let mut ws_request = format!("ws://{}/socket", tap.addr)
+        .into_client_request()
+        .unwrap();
+    ws_request
+        .headers_mut()
+        .insert("authorization", bearer.parse().unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(ws_request).await.unwrap();
+    ws.send(Message::text("through everything")).await.unwrap();
+    assert_eq!(
+        ws.next().await.unwrap().unwrap(),
+        Message::text("through everything")
+    );
+    ws.close(None).await.unwrap();
+
+    // A large upload goes through whole, with the header rules applied.
+    const TOTAL: usize = 32 * MB;
+    let (tx, upload) = channel_body(4);
+    let reply = tokio::spawn(fetch(
+        tap.addr,
+        request(Method::POST, "/upload")
+            .header("authorization", &bearer)
+            .header("content-type", "application/octet-stream")
+            .body(upload)
+            .unwrap(),
+    ));
+    let chunk = Bytes::from(vec![3u8; 256 * 1024]);
+    for _ in 0..(TOTAL / chunk.len()) {
+        tx.send(chunk.clone()).await.unwrap();
+    }
+    drop(tx);
+    assert_eq!(reply.await.unwrap().text(), format!("{TOTAL} true"));
 }
