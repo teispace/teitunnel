@@ -37,13 +37,8 @@ import { ButtonLink, delay, Eyebrow, Section, Shot, Words } from "@/components/l
 import { ApprovalDemo, ExposureDemo, ReplayDemo, RequestStream } from "@/components/live-demos";
 import { NativeShowcase } from "@/components/native-showcase";
 import { PlanDemo } from "@/components/plan-demo";
-import {
-  Manifesto,
-  type Pledge,
-  PromiseField,
-  StepLine,
-  ToolMarquee,
-} from "@/components/scroll-sections";
+import { Manifesto, StepLine, ToolMarquee } from "@/components/scroll-sections";
+import { SecurityCore } from "@/components/security-core";
 import { ShareLoop } from "@/components/share-loop";
 import { Terminal } from "@/components/terminal";
 import { latestRelease } from "@/lib/release";
@@ -108,7 +103,7 @@ const tools = [
   { icon: Bot, name: "MCP", note: "13 AI apps, tested in one click" },
 ];
 
-const security: Pledge[] = [
+const security: { icon: typeof KeyRound; title: string; body: string }[] = [
   {
     icon: KeyRound,
     title: "Credentials in your keychain",
@@ -720,21 +715,31 @@ export default async function Home() {
         <NativeShowcase />
       </Section>
 
-      {/* Security and privacy: promises flying past a headline that stays */}
-      <PromiseField promises={security}>
-        <div data-reveal>
+      {/* Security and privacy: every promise wired to one core, data flowing into it */}
+      <section
+        id="security"
+        aria-labelledby="security-title"
+        className="mx-auto w-full max-w-7xl px-6 py-20 md:py-28"
+      >
+        <SecurityCore
+          pledges={security.map(({ icon: Icon, title, body }) => ({
+            icon: <Icon aria-hidden />,
+            title,
+            body,
+          }))}
+        >
           <Eyebrow text="Security and privacy" />
           <h2
             id="security-title"
-            className="text-3xl font-semibold tracking-tight text-balance md:text-5xl"
+            className="text-3xl font-semibold tracking-tight text-balance md:text-4xl"
           >
             <Words>Your account, your keys, your computer.</Words>
           </h2>
-          <p className="mt-5 text-fd-muted-foreground md:text-lg">
+          <p className="mt-4 text-fd-muted-foreground">
             Teitunnel asks only for the permissions a feature needs, shows what each one is for, and
             checks again when you come back.
           </p>
-          <p className="mt-4 text-sm">
+          <p className="mt-5 text-sm">
             <Link
               href="/docs/reference/security/"
               className="font-medium underline-offset-4 hover:underline"
@@ -746,8 +751,8 @@ export default async function Home() {
               Privacy
             </Link>
           </p>
-        </div>
-      </PromiseField>
+        </SecurityCore>
+      </section>
 
       {/* How it works */}
       <Section id="how-it-works" eyebrow="How it works" title="Three steps, a few minutes.">

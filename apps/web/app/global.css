@@ -1185,79 +1185,128 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
   height: 0.7cqw;
 }
 
-/* Security: promises flying past a headline that stays (wide screens with motion). */
-.tt-field-stage {
-  padding: 6rem 0;
-}
-
-.tt-field-cards {
+/* Security: the promises wired to one core, data flowing along the traces into it. */
+.tt-core-grid {
+  position: relative;
   display: grid;
   gap: 1rem;
-  max-width: 72rem;
-  margin: 3rem auto 0;
-  padding: 0 1.5rem;
 }
 
-@media (min-width: 640px) {
-  .tt-field-cards {
-    grid-template-columns: repeat(2, 1fr);
+.tt-core {
+  position: relative;
+  z-index: 1;
+  padding: 2rem 1.75rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--color-fd-card) 55%, transparent),
+    var(--tt-window-shadow);
+  text-align: center;
+}
+
+.tt-pledges {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 1023px) {
+  .tt-core {
+    order: -1;
+  }
+}
+
+.tt-pledge {
+  border-radius: 1.1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  padding: 1.25rem 1.35rem;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .tt-core-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tt-core {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .tt-pledges {
+    align-content: start;
   }
 }
 
 @media (min-width: 1024px) {
-  .tt-field-cards {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.tt-field-card {
-  border-radius: 1.25rem;
-  border: 1px solid var(--color-fd-border);
-  background: var(--color-fd-card);
-  padding: 1.5rem;
-  box-shadow: var(--tt-window-shadow);
-}
-
-@media (min-width: 1024px) and (min-height: 700px) {
-  html.tt-motion .tt-field {
-    height: 320vh;
-  }
-
-  html.tt-motion .tt-field-stage {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    display: flex;
+  .tt-core-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem) minmax(0, 1fr);
+    column-gap: 6.5rem;
     align-items: center;
-    justify-content: center;
-    padding: 0;
-    overflow: clip;
+    padding: 3rem 0;
   }
 
-  html.tt-motion .tt-field-center {
-    max-width: 34rem;
+  .tt-pledges {
+    gap: 1.5rem;
   }
+}
 
-  html.tt-motion .tt-field-cards {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    max-width: none;
-    padding: 0;
-    display: block;
-    pointer-events: none;
-  }
+.tt-traces {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
 
-  html.tt-motion .tt-field-card {
-    position: absolute;
-    left: var(--x);
-    top: 0;
-    width: 25%;
-    pointer-events: auto;
-    transform: translate3d(0, calc(100vh - (var(--p) - var(--start)) * var(--speed) * 260vh), 0)
-      rotate(calc((var(--p) - var(--start) - 0.2) * var(--speed) * -6deg));
-    will-change: transform;
+.tt-trace {
+  fill: none;
+  stroke: color-mix(in oklab, var(--color-fd-muted-foreground) 32%, transparent);
+  stroke-width: 1;
+}
+
+.tt-trace-pulse {
+  fill: none;
+  stroke: var(--tt-accent);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-dasharray: 0.07 1;
+  stroke-dashoffset: 0.07;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px var(--tt-accent));
+}
+
+@keyframes tt-trace-run {
+  0% {
+    stroke-dashoffset: 0.07;
+    opacity: 0;
   }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+html.tt-motion .tt-trace-pulse {
+  animation: tt-trace-run var(--duration, 3s) linear var(--delay, 0s) infinite;
+}
+
+.tt-trace-dot {
+  fill: var(--color-fd-muted-foreground);
+  opacity: 0.6;
+}
+
+.tt-trace-pin {
+  fill: var(--color-fd-muted-foreground);
+  opacity: 0.8;
 }
 
 /* How it works: the line between the steps draws itself. */

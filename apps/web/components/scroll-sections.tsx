@@ -1,4 +1,4 @@
-import type { ComponentType, CSSProperties, ReactNode } from "react";
+import type { ComponentType, CSSProperties } from "react";
 
 /** `--i` and friends as inline style. */
 const vars = (values: Record<string, number | string>) => values as CSSProperties;
@@ -101,56 +101,6 @@ export function ToolMarquee({ tools }: { tools: ToolChip[] }) {
         </div>
       ))}
     </div>
-  );
-}
-
-export interface Pledge {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-}
-
-/**
- * Security promises flying past a headline that stays in place (wide screens with motion):
- * each card rises through the view at its own speed. Elsewhere, a grid.
- */
-export function PromiseField({ promises, children }: { promises: Pledge[]; children: ReactNode }) {
-  // Where each card flies: its column (percent from the left) and speed.
-  const lanes = [
-    { x: 4, speed: 1.1, start: 0.02 },
-    { x: 71, speed: 0.95, start: 0.1 },
-    { x: 7, speed: 1.05, start: 0.24 },
-    { x: 68, speed: 1.15, start: 0.33 },
-    { x: 3, speed: 0.95, start: 0.45 },
-    { x: 72, speed: 1.1, start: 0.54 },
-  ];
-  return (
-    <section
-      id="security"
-      aria-labelledby="security-title"
-      data-scene="pin"
-      className="tt-field relative"
-    >
-      <div className="tt-field-stage">
-        <div className="tt-field-center mx-auto max-w-3xl px-6 text-center">{children}</div>
-        <ul className="tt-field-cards">
-          {promises.map(({ icon: Icon, title, body }, index) => {
-            const lane = lanes[index % lanes.length] ?? { x: 0, speed: 1, start: 0 };
-            return (
-              <li
-                key={title}
-                className="tt-field-card"
-                style={vars({ "--x": `${lane.x}%`, "--speed": lane.speed, "--start": lane.start })}
-              >
-                <Icon className="size-5 text-[var(--tt-accent-text)]" aria-hidden />
-                <p className="mt-3 font-medium">{title}</p>
-                <p className="mt-1.5 text-sm text-fd-muted-foreground">{body}</p>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </section>
   );
 }
 
