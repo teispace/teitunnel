@@ -88,7 +88,10 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 ### AI agents (MCP server, `crates/mcp`)
 - Agents get the app's abilities through `teitunnel mcp` (stdio, started by the client) and `/mcp` on `teitunnel serve` (Streamable HTTP), never more: every Cloudflare change is a plan from the engine, applied by its fingerprint.
-- **Modes** per server: `read-only` (tools that change anything aren't listed and are refused), `ask` (default: each change needs the person's approval, asked through the client with MCP elicitation when it can, else the tool answers `needsApproval` and only a second call with `confirmed: true` proceeds; an agent's `confirmed` never overrides a person who can be asked or said no), `full`. Records Teitunnel didn't create need an explicit confirmation in every mode.
+- **Modes** per server: `read-only` (tools that change anything aren't listed and are refused), `ask` (default: each change needs the person's approval: in the app's dialog while it runs, else through the client, with server-initiated elicitation before protocol 2026-07-28 and multi round-trip requests from it), `full`. Records Teitunnel didn't create need an explicit confirmation in every mode.
+- **An agent can't approve its own change.** Agents read attacker-controlled text (pages, issues, captured requests), so with `approveInApp` on (the default, `mcp.json`) `confirmed: true` from the agent is never an approval: when neither the app nor the client can ask, the call fails with what the person must do (open Teitunnel). Only with `approveInApp` off does a second call with `confirmed: true` proceed when nobody can be asked; it never overrides a person who can be asked or said no. "Another question is open in the app" is reported as such, never as a no.
+- **Multi round-trip approvals:** the `requestState` a client echoes back is sealed with HMAC-SHA256 under a per-process random key, bound to the tool, a digest of its arguments (without `confirmed`), the caller, a digest of the title and details the person was shown, and a 10-minute expiry. A state that fails any check is a protocol error; an approval is used once (a replayed answer asks again).
+- **Outside content is marked:** tools whose results carry text anyone could have written (captured traffic, review comments, logs, `verify_route` pages) return `untrusted: true` and fence their text in `<untrusted-data>`; the instructions and those tools' descriptions tell the agent it's data, never instructions.
 - **Secrets never reach agents:** tools return core types that hold no credentials; every string in every answer passes through the redaction rules again; captured `Authorization`, `Cookie`, `Set-Cookie`, API-key and webhook-signature headers are masked unless the server was started with `--allow-secrets`. Account credentials are fixed only in the app.
 - Every agent-initiated change is recorded in Activity with an `actor` (the client's name and version, and for HTTP the API key's name), so people can see and undo it.
 - Rate limits per tool class (reads, waits, changes, destructive changes), bounded and paged answers, timeouts, and cancellation.
@@ -149,12 +152,22 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   approved like for any program. It can't share a public site or a folder, and asks the
   browser for `nativeMessaging` and `activeTab` only.
 - MCP servers shared with OAuth: every authorization is approved by the person, who
-  compares a code shown in the browser and in the app; clients are identified by a verified
-  metadata document (fetched only from public addresses, pinned, no redirects, small, timed
-  out) or by registration; PKCE S256 only; tokens bound to the server, never forwarded to it,
-  short-lived, refresh tokens rotated with replay detection; codes single-use. Only SHA-256
-  hashes of tokens, codes and client secrets are stored. OAuth endpoints' bodies are never
-  captured by the inspector.
+  compares a 5-character code (uniformly drawn, no look-alikes) shown in the browser and in
+  the app; clients are identified by a verified metadata document (fetched only from public
+  addresses, pinned, no redirects, small, timed out) or by registration (deprecated in MCP
+  2026-07-28; `oauth.dynamicRegistration: false` in `mcp.json` turns it off); PKCE S256
+  only; tokens bound to the server's host and path (the RFC 8707 `resource` is stored with
+  the connection and checked on every request; connections that named none keep working),
+  never forwarded to it, short-lived; refresh tokens rotated with a compare-and-swap, so two
+  uses of one refresh token end the connection; codes single-use; client secrets compared in
+  constant time. Connections end after `oauth.maxGrantDays` (90 by default) however they're
+  used. Disconnecting in the app stops a connection at once in every sharing process that
+  follows the app on the control connection (`mcpConnectionEnded`), and within 5 seconds in
+  one that can't. Waiting authorizations are capped per client address and per hostname,
+  and authorizations are rate-limited per address and per hostname: the address comes from
+  `CF-Connecting-IP`, which a process on this computer could forge on the loopback listener,
+  so the per-hostname caps bound what it can do. Only SHA-256 hashes of tokens, codes and
+  client secrets are stored. OAuth endpoints' bodies are never captured by the inspector.
 - A request held at a breakpoint is shown unmasked (IPC `inspect_paused_exchange`), since
   it's what goes on and can be changed; like a revealed request it's read on demand, never
   cached or stored, and not offered to agents. Holding is bounded: 60 seconds per request,

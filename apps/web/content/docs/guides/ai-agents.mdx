@@ -134,6 +134,17 @@ every tool), then the environment variable `TEITUNNEL_MCP_MODE`, then the `--mod
 later one wins. `teitunnel mcp install <tool> --mode read-only` writes the flag into that
 tool's entry, so it sets the mode per tool.
 
+`mcp.json` holds the server's other settings too; each takes effect the next time an AI tool
+starts Teitunnel's MCP server:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `mode` | `"ask"` | `read-only`, `ask` or `full`, as above. |
+| `approveInApp` | `true` | In `ask` mode, a change needs your answer in Teitunnel or in your AI tool; the agent saying you agreed isn't enough. See [Approvals](#approvals-in-the-app). |
+| `allowSecrets` | `false` | Show agents credentials in captured requests and logs. |
+| `oauth.dynamicRegistration` | `true` | MCP servers you [share with OAuth](/docs/guides/inspector#put-an-mcp-server-or-a-local-ai-server-online) accept apps that register themselves. |
+| `oauth.maxGrantDays` | `90` | How many days a connection to a shared MCP server lasts before you approve it again (1 to 365). |
+
 ## Approvals in the app
 
 In `ask` mode, a change is approved by you, in this order of preference:
@@ -142,10 +153,19 @@ In `ask` mode, a change is approved by you, in this order of preference:
    its local [control connection](/docs/guides/integrations#the-control-connection), and
    the app shows a native dialog: "Allow Claude Code to make this change?" with the plan's
    steps. There's no Always Allow for agents. An agent's own "confirmed" never counts while
-   you can be asked, and no answer within about three minutes counts as no.
-2. **Your AI tool**, if it can show a question (MCP elicitation).
-3. **The conversation:** the agent gets `needsApproval`, has to show you the plan, and can
-   only go ahead by calling again after you agree.
+   you can be asked, and no answer within about three minutes counts as no. The app shows
+   one question at a time: while one waits, the agent is told to try again after you answer
+   it, not that you said no.
+2. **Your AI tool**, if it can show a question (MCP elicitation; on protocol 2026-07-28 the
+   tool call comes back asking for your answer, and the tool calls again with it).
+3. **Nobody can ask you** (the app isn't running and the tool can't show a question): the
+   change doesn't happen, and the agent is told to have you open Teitunnel and try again.
+   Agents read web pages, issues and captured requests, and text there can try to talk them
+   into things, so an agent saying you agreed isn't enough.
+
+If you'd rather approve in the conversation when nobody can ask you, set `"approveInApp":
+false` in `mcp.json` (or `TEITUNNEL_MCP_APPROVE_IN_APP=0`). The agent then gets
+`needsApproval`, has to show you the plan, and can go ahead by calling again after you agree.
 
 A person's "no" always wins. **Settings ▸ General ▸ Connected Agents** lists the agents
 using Teitunnel right now, with their mode ("Asks first", "Read only", "Full access") and
@@ -161,6 +181,10 @@ are redacted. Bearer tokens for shared AI and MCP servers appear as `<TOKEN>`. O
 `teitunnel mcp --allow-secrets` (or `TEITUNNEL_MCP_ALLOW_SECRETS=1`) shows captured
 credentials, and only to that server. The one exception is a service token an agent
 creates: its secret is returned once, after you approved the change, marked sensitive.
+
+What anyone could have written (captured requests, review comments, logs, pages checked by
+`verify_route`) comes back marked `untrusted: true` and fenced, and the agent is told to read
+it as data, never as instructions.
 
 Every Cloudflare change an agent makes is in **Activity**, marked with its name, and
 `undo_last` (or you, in the app) can reverse it. Calls are rate limited (240 reads, 30
@@ -202,7 +226,10 @@ Configure the client with the URL `http://127.0.0.1:8765/mcp` (or your HTTPS add
 front of it) and the header `Authorization: Bearer ttk_…`. Requests from browsers (with an
 `Origin` header) are refused unless you allow that origin with `--mcp-allow-origin`, and
 changes are recorded with the key's name. Over HTTP, approvals in `ask` mode go through
-your tool's questions or the conversation. See the [Server API](/docs/reference/api).
+your tool's questions; a tool that can't ask can make changes only in `full` mode, or with
+`"approveInApp": false` in the server's `mcp.json` (then through the conversation). Tools on
+protocol 2026-07-28 don't keep a session open, so shares an agent starts over HTTP last 60
+minutes unless it asks for another time. See the [Server API](/docs/reference/api).
 
 ## Agent Skill
 
@@ -247,6 +274,10 @@ The route is set up, but a connector must run on this machine: the app, Always-o
 </Accordion>
 <Accordion title="The agent keeps asking for approval in the chat">
 Open the Teitunnel app: while it runs, approvals appear there as dialogs.
+</Accordion>
+<Accordion title="The agent says the change needs your approval and nobody can be asked">
+Open Teitunnel and ask the agent to try again: the question appears in the app. If another
+question is already waiting there, answer it first.
 </Accordion>
 <Accordion title="Stopping an agent's share in the app">
 It stops the shares that agent started; its session carries on.

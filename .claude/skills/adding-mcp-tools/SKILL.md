@@ -15,9 +15,19 @@ misled by what they read, so every tool is designed for safety first.
   results. Captured traffic is masked (`redaction.rs`) unless the server runs with
   `--allow-secrets`.
 - **Changes wait for the person.** A tool that changes something is `ToolClass::Change` or
-  `ToolClass::Destructive`; in `ask` mode the person approves it (in the app, or through the
-  client). A Cloudflare change returns a plan and is applied with `apply_plan` after approval;
-  it never calls the API directly (see `changing-cloudflare-resources`).
+  `ToolClass::Destructive`; in `ask` mode it calls `ctx.approve(&ApprovalRequest { … })`
+  before changing anything, and on `Approval::NeedsConfirmation` returns its
+  `needsApproval` answer without side effects: the server may replace that answer with an
+  MRTR question or an "open Teitunnel" error (`Held` in `registry.rs`), so the tool never
+  needs to know how the person is asked. `Approval::by_person(how)` tells a person's answer
+  (`app`, `client`) from `mode` or `confirmed`. A Cloudflare change returns a plan and is
+  applied with `apply_plan` after approval; it never calls the API directly (see
+  `changing-cloudflare-resources`).
+- **Outside content is data.** A tool whose results carry text anyone could have written
+  (captured traffic, comments, logs, fetched pages) ends its spec with
+  `.with_untrusted()`: the server adds `untrusted: true` and fences the text.
+- **Errors.** Bad arguments are a `ToolError` (the model reads it and corrects itself);
+  only an unknown tool is a protocol error, and the server handles that.
 - **Bounded.** Every tool has a timeout; list results are paginated or capped.
 
 ## Checklist
@@ -91,7 +101,11 @@ Add the name to the `match` in `crates/mcp/src/tools.rs` that routes calls to th
 - A test calling the tool through the fake backend: arguments, result shape, and the error
   for invalid input (see `crates/mcp/src/tools/tests.rs` and `crates/mcp/src/protocol_tests.rs`).
 - A change tool: a test that it asks for approval in `ask` mode and is refused in
-  `read-only` mode.
+  `read-only` mode. `tools::tests::settings(mode)` turns `approveInApp` off, so the tool's
+  own `needsApproval` / `confirmed: true` round trip is what's tested; how the server asks
+  (app, MRTR, elicitation) is tested in `protocol_tests.rs`.
+- `protocol_tests::the_tool_list_stays_small` bounds the `tools/list` size and each
+  description's length: keep descriptions to what the model needs.
 - Update the tool counts: `assert_eq!(tools.len(), …)` in `crates/mcp/src/protocol_tests.rs`
   and `assert_eq!(names.len(), …)` in `apps/cli/tests/mcp.rs`.
 

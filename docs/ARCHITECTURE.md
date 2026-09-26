@@ -471,7 +471,7 @@ must come within 5 s; requests are rate-limited per connection (token bucket 40/
 | `open` | `Ui::open` → `OpenView` event → the webview navigates |
 | `doctor.run` | `doctor::run` plus local-domain issues, minus ignored issues |
 | `localDomains.list` / `localDomains.reload` | `LocalDomains::status` / `sync` then `status` (no approval: it only re-reads the app's own database) |
-| `events.subscribe` | notifications from `EntityChanged` (shares, routes) and `requestArrived` (inspector) |
+| `events.subscribe` | notifications from `EntityChanged` (shares, routes), `requestArrived` (inspector) and `mcpConnectionEnded` (the person disconnected an OAuth client in Settings; processes sharing MCP servers follow it with `McpAuth::follow_app` and drop its tokens at once) |
 
 Changes (`shares.start`, `shares.stop`, `routes.apply`) go through the server's gate:
 unless the client's name is in `integrations.clients` ("Always Allow"), the host asks with a
@@ -487,6 +487,41 @@ The CLI connects with `ControlClient` (`apps/cli/src/app.rs`): `share` uses the 
 answers (`--app` requires it, `--here` never), `shares`/`routes`/`status`/`top` read
 through it. Shell completion (`teitunnel __complete`, scripts from `completions`) reads
 names from the database read-only (`core::completion`) and never the network.
+
+### 10.2 MCP server (`crates/mcp`)
+
+`McpServer` (rmcp) speaks MCP 2024-11-05 through 2026-07-28 (`supported_protocol_versions`
+pins the tested set). Clients before 2026-07-28 do the `initialize` handshake and keep a
+session; clients on 2026-07-28 don't: each request carries `_meta`
+`io.modelcontextprotocol/{protocolVersion,clientInfo,clientCapabilities,logLevel}`, which
+rmcp exposes through `RequestContext::client_info()`/`client_capabilities()`, so the
+server reads the caller from every request and introduces the agent to the app on its first
+request of any kind (not `notifications/initialized`).
+
+- **Approvals** (`registry::ToolContext::approve`): the app (`AppApprover`, `agent.approve`
+  on the control connection; "busy" is its own answer), then the client: legacy
+  `elicitation/create` before 2026-07-28, multi round-trip requests from it (`mrtr.rs`:
+  the tool's own `needsApproval` answer is replaced by `resultType: "input_required"` with
+  an `approve` elicitation and a sealed `requestState`; the retry runs the tool again with
+  the answer). When nobody can ask, `approveInApp` (default on) turns the call into an error
+  saying what the person must do; off, `confirmed: true` counts. The server, not the tool,
+  decides what the client sees (`Held`).
+- **Results**: compact JSON text plus `structuredContent`; tools whose results hold outside
+  content (`ToolSpec::with_untrusted`) add `untrusted: true` and fence the text. Unknown
+  tools are JSON-RPC `-32602`; bad arguments stay tool errors (`isError`).
+- **Caching** (SEP-2549): list results and `server/discover` carry `ttlMs` (1 h) and
+  `cacheScope: "private"`; `resources/read` 5 s.
+- **Logging**: from 2026-07-28 only for a request that sets `logLevel` in `_meta`; before,
+  after `logging/setLevel`.
+- **Settings** (`config::Settings`, `<data>/mcp.json`): `mode`, `allowSecrets`,
+  `approveInApp`, and `oauth` (`dynamicRegistration`, `maxGrantDays`) for MCP servers
+  shared with OAuth (`core::mcp_auth::Policy`). Read by `teitunnel mcp`, `teitunnel serve`
+  and `teitunnel share --mcp` when they start; the app reads and writes them with the
+  `mcp_settings_get` / `mcp_settings_save` commands.
+- **HTTP** (`teitunnel serve`, `/mcp`): stateless from 2026-07-28, so shares an agent starts
+  there last `HTTP_SHARE_MINUTES` (60) unless it asks otherwise.
+- `teitunnel mcp` makes the OAuth server (`McpAuth`, with its database watch and app
+  follower) only when an agent first exposes an MCP server (`ExposeTools::with_lazy_oauth`).
 
 ---
 
