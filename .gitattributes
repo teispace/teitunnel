@@ -1,0 +1,21 @@
+# Line endings: LF everywhere, so formatters and tests behave the same on every system.
+* text=auto eol=lf
+
+# Files that must keep their bytes exactly.
+crates/core/src/exposure/fixtures/redis.txt -text
+integrations/jetbrains/gradlew.bat -text
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+
+# Generated files: collapsed in diffs and left out of language statistics.
+apps/desktop/src/lib/ipc/bindings.ts linguist-generated=true
+apps/desktop/src/routeTree.gen.ts linguist-generated=true
+apps/web/content/docs/reference/cli.mdx linguist-generated=true
+apps/web/content/docs/reference/permissions.mdx linguist-generated=true
+CHANGELOG.md linguist-generated=true

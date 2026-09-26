@@ -8,7 +8,7 @@
 //! signed binary) is covered by the one inside the app.
 //!
 //! The access-list API is only in the file-based keychain's C interface, which is why
-//! this is the one module allowed `unsafe` (D-127). Reads, updates and deletes go through
+//! this is the one module allowed `unsafe`. Reads, updates and deletes go through
 //! `keyring` as before.
 #![allow(deprecated)] // SecAccess and SecTrustedApplication: no replacement for file-based keychains.
 

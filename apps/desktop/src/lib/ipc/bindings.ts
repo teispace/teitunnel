@@ -321,7 +321,7 @@ export const commands = {
 	routesExportSave: (accountId: string, tunnelId: string | null, format: ExportFormat) => __TAURI_INVOKE<string>("routes_export_save", { accountId, tunnelId, format }),
 	/**
 	 *  This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
-	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
+	 *  without it) and the latest numbers. Polling this keeps sampling at 1 s.
 	 */
 	tunnelsTraffic: (tunnelId: string, since: number | null) => __TAURI_INVOKE<{
 	/**  Samples newer than the read's `since` (all of them without it), oldest first. */
@@ -1083,7 +1083,7 @@ export type Anchor = {
 
 /**
  *  An error as shown to the user: what happened, and what to do about it. The text is
- *  translated by the UI (D-062).
+ *  translated by the UI.
  */
 export type AppError = {
 	/**  Category for programmatic handling. */
@@ -1283,7 +1283,7 @@ export type BrowserHostStatus = {
 };
 
 /**
- *  The browser extension's link to the app (D-133): which browsers can start the
+ *  The browser extension's link to the app: which browsers can start the
  *  bundled `teitunnel` as its native messaging host.
  */
 export type BrowserHostView = {
@@ -1430,7 +1430,7 @@ hostname: string;
 recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
 /**
  *  Reserve a hostname for this owner, so teammates sharing the account see it's
- *  taken (M12-11). Reserving it again changes the end date.
+ *  taken. Reserving it again changes the end date.
  */
 ({ type: "reserveHostname"; 
 /**  The hostname. */
@@ -1520,7 +1520,7 @@ hostname: string;
 recordId: string }) & { domain?: never; name?: never; network?: never; path?: never; protection?: never; route?: never; routes?: never; until?: never } | 
 /**
  *  Reserve a hostname for this owner, so teammates sharing the account see it's
- *  taken (M12-11). Reserving it again changes the end date.
+ *  taken. Reserving it again changes the end date.
  */
 ({ type: "reserveHostname"; 
 /**  The hostname. */
@@ -3018,7 +3018,7 @@ export type InspectedRoute = {
 
 /**  How the inspector behaves. */
 export type InspectorSettings = {
-	/**  Quick Shares go through the inspector (maintainer decision Q1: on by default). */
+	/**  Quick Shares go through the inspector (on by default). */
 	inspectQuickShares?: boolean,
 	/**  Keep recent captures on disk, credentials masked, so a restart keeps them. */
 	keepHistory?: boolean,
@@ -4807,7 +4807,7 @@ export type Settings = {
 	checkForUpdates: boolean,
 	/**
 	 *  The one-time "Install teitunnel?" offer was answered (Install or Not now), on
-	 *  installs where the CLI isn't put on the PATH by the installer (D-090).
+	 *  installs where the CLI isn't put on the PATH by the installer.
 	 */
 	cliOfferDismissed: boolean,
 	/**

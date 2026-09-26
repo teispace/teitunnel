@@ -1,4 +1,4 @@
-// Teitunnel comments overlay (M12-06, docs/guides: comments).
+// Teitunnel comments overlay (docs/guides: comments).
 //
 // Served at /__teitunnel/comments/overlay.js by Lens (live shares) and by a Snapshot's
 // Worker, and added to HTML pages as <script src=… defer>. Reviewers pin comments to a

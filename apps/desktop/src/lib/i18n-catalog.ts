@@ -55,7 +55,7 @@ export function missingPlatformWording(
   const all = flatten(source);
   const out: string[] = [];
   for (const [key, text] of all) {
-    // The menu bar is macOS-only (D-063); variants are checked through their base.
+    // The menu bar is macOS-only; variants are checked through their base.
     if (key.includes("@") || key.startsWith("core.menu.") || !MAC_WORDING.test(text)) continue;
     for (const platform of platforms) {
       const variant = all.get(`${key}@${platform}`);

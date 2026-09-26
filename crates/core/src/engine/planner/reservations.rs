@@ -1,4 +1,4 @@
-//! Planning reservations (M12-11): leases on hostnames, kept in DNS so every Teitunnel
+//! Planning reservations: leases on hostnames, kept in DNS so every Teitunnel
 //! sharing the account sees who holds a name.
 //!
 //! - reserve a free name: a placeholder record (proxied `AAAA 100::`) with the lease;

@@ -1,4 +1,4 @@
-//! Comments reviewers pinned to shares, routes and Snapshots (M12-06), as a
+//! Comments reviewers pinned to shares, routes and Snapshots, as a
 //! [`ToolProvider`]: `comments_list`, `comments_reply` and `comments_resolve`, so an
 //! agent can read feedback and close the loop. Replies and resolutions are written as
 //! the owner and need the person's approval like any change; reviewers' email addresses

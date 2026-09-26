@@ -1,5 +1,5 @@
 //! The inspector: Lens (`crates/lens`) in this process, and which share or route each
-//! of its taps inspects (M12-02, D-100).
+//! of its taps inspects.
 //!
 //! One [`Inspector`] per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`);
 //! its Lens starts on first use. A tap sits between cloudflared and a local service:

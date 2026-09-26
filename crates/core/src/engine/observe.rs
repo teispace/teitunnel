@@ -436,7 +436,7 @@ async fn observe_front<C: CloudApi>(
     Ok((fronts, database))
 }
 
-/// Who observes, to tell their names from other people's (M12-11).
+/// Who observes, to tell their names from other people's.
 #[derive(Debug, Clone, Copy)]
 pub struct Who<'a> {
     /// This machine's owner label (`person@machine`).

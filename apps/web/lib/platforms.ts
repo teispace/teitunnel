@@ -52,12 +52,12 @@ const formats: Record<Kind, { label: string; hint: string }> = {
 
 const archOrder: Arch[] = ["universal", "x64", "arm64"];
 
-/** Package managers and images that follow the releases (D-084). */
+/** Package managers and images that follow the releases. */
 const channels = {
   cask: "brew install --cask teispace/tap/teitunnel",
   formula: "brew install teispace/tap/teitunnel-cli",
   docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel",
-  // The signed repositories at teitunnel.teispace.com/linux/ (D-086).
+  // The signed repositories at teitunnel.teispace.com/linux/.
   apt: [
     "curl -fsSL https://teitunnel.teispace.com/linux/teitunnel.asc | sudo gpg --dearmor -o /usr/share/keyrings/teitunnel.gpg",
     'echo "deb [signed-by=/usr/share/keyrings/teitunnel.gpg] https://teitunnel.teispace.com/linux/deb stable main" | sudo tee /etc/apt/sources.list.d/teitunnel.list',

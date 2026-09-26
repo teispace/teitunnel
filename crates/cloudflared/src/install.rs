@@ -22,7 +22,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::{Error, Result, Version, locate::read_version};
 
-/// Cloudflare's Apple Developer Team ID (see `docs/research/cloudflare.md`).
+/// Cloudflare's Apple Developer Team ID, which signs the macOS `cloudflared` release.
 pub const CLOUDFLARE_TEAM_ID: &str = "68WVV388M8";
 
 const GITHUB_API: &str = "https://api.github.com/repos/cloudflare/cloudflared/releases/latest";

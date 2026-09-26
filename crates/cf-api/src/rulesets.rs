@@ -3,7 +3,7 @@
 //!
 //! Teitunnel changes rules one at a time (add, change or delete by id) and never
 //! replaces a whole ruleset, so rules someone else made are never touched. Shapes per
-//! `docs/research/cloudflare-edge-rules.md` (checked 2026-09-24).
+//! the [Rulesets API](https://developers.cloudflare.com/ruleset-engine/rulesets-api/).
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

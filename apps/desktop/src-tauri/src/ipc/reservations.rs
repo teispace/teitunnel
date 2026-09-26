@@ -1,4 +1,4 @@
-//! Reservations (M12-11): the account's reserved hostnames, and a hostname's
+//! Reservations: the account's reserved hostnames, and a hostname's
 //! availability while it's typed. Reserving and releasing are route changes
 //! (`Change::ReserveHostname`, `Change::ReleaseHostname`) through `routes_preview` and
 //! `routes_apply`.

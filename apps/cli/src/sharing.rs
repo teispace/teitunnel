@@ -1,4 +1,4 @@
-//! Sharing extras from the terminal (M12-06): pausing and resuming (`shares --pause`,
+//! Sharing extras from the terminal: pausing and resuming (`shares --pause`,
 //! `--resume`), schedules (`schedule`, `schedules`), and the loops that apply them in
 //! the processes that serve routes: a terminal's `share --on`, `teitunnel mcp`, and
 //! `teitunnel up`/`serve` (which also hold the route host lease when the app doesn't).

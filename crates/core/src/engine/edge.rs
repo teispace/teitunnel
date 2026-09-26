@@ -1,6 +1,6 @@
 //! Edge protection for one hostname: bot and AI-crawler rules, a rate limit and header
 //! rules, written as Cloudflare Ruleset Engine rules scoped to that hostname, never to a
-//! whole domain (docs/research/cloudflare-edge-rules.md). Pure, except [`observe`].
+//! whole domain (<https://developers.cloudflare.com/ruleset-engine/>). Pure, except [`observe`].
 //!
 //! Teitunnel owns only the rules it creates: they carry a `teitunnel:` description
 //! marker and are listed in the local ownership index (migration 15). Per-hostname
@@ -313,7 +313,7 @@ pub enum ZonePlan {
     Enterprise,
 }
 
-/// What a plan allows (docs/research/cloudflare-edge-rules.md, 2026-09-24).
+/// What a plan allows (checked 2026-09-24).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlanLimits {
     /// Custom rules.

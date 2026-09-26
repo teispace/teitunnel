@@ -39,7 +39,7 @@ case "$package" in
 esac
 
 echo "$files" >"$out/files.txt"
-# The app is /usr/bin/Teitunnel; the command /usr/bin/teitunnel (D-091).
+# The app is /usr/bin/Teitunnel; the command /usr/bin/teitunnel.
 app=$(grep -x '/usr/bin/Teitunnel' <<<"$files" || true)
 [ -n "$app" ] || { fail "No /usr/bin/Teitunnel in the package"; exit 1; }
 grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the package"

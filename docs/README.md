@@ -1,14 +1,18 @@
-# Teitunnel docs
+# Contributor documentation
 
-Reading order for new contributors and agents:
+How Teitunnel is built, and the standards changes are held to. For using Teitunnel, see the
+[user documentation](https://teitunnel.teispace.com/docs/).
 
-1. [STATUS.md](STATUS.md): where we are, what's next. **Start here every session.**
-1a. [AUTONOMOUS.md](AUTONOMOUS.md): the protocol for unattended "start/continue" sessions.
-2. [VISION.md](VISION.md): what we're building and why.
-3. [ARCHITECTURE.md](ARCHITECTURE.md): how it's built (crates, engine, runtime, IPC, frontend).
-4. [DESIGN.md](DESIGN.md): the native design system (macOS 27, materials, motion, tokens, components).
-5. [CONVENTIONS.md](CONVENTIONS.md): code, testing, commits, and the docs-update rule.
-6. [SECURITY_MODEL.md](SECURITY_MODEL.md): how secrets, processes, DNS and supply chain are protected.
-7. [ROADMAP.md](ROADMAP.md) and [plans/](plans): milestones and task-level implementation plans.
-8. [DECISIONS.md](DECISIONS.md): why things are the way they are (append-only log).
-9. [research/](research): verified external facts with sources and dates.
+| Document | Read it when |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | You change anything beyond one screen: the crates and their boundaries, the plan → apply engine, the runtime, persistence, IPC and the frontend. |
+| [CONVENTIONS.md](CONVENTIONS.md) | Always: Rust and TypeScript style, naming, which tests a change needs, commits and docs. |
+| [DESIGN.md](DESIGN.md) | You touch the UI: the native design system, tokens, components, motion, copy and the UI review checklist. |
+| [SECURITY_MODEL.md](SECURITY_MODEL.md) | You touch credentials, processes, DNS, the network, the inspector, the MCP server or the release pipeline. |
+| [RELEASING.md](RELEASING.md) | You maintain releases: how a version is cut and published, and the secrets it needs. |
+| [release-notes/](release-notes) | Hand-written notes for each release, used in place of the generated ones. |
+
+Start with the [contributing guide](../CONTRIBUTING.md) for setup, workflow and pull requests.
+Proposals and design discussions happen in
+[issues labelled `proposal`](https://github.com/teispace/teitunnel/labels/proposal) and in
+[Discussions](https://github.com/teispace/teitunnel/discussions).

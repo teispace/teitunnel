@@ -36,7 +36,7 @@ const themes = [
   { value: "dark", label: "Dark" },
 ] as const;
 
-/** Dev-only showcase of every primitive and pattern (D-016). */
+/** Dev-only showcase of every primitive and pattern. */
 export default function Gallery() {
   const [theme, setTheme] = useState<ThemePreference>("system");
   const [protocol, setProtocol] = useState<"http" | "https" | "tcp">("http");

@@ -3,7 +3,7 @@ name: Image
 # Publishes ghcr.io/teispace/teitunnel and docker.io/teispace/teitunnel (the same image,
 # the same digest; linux/amd64, linux/arm64) for a release, built
 # from that release's own teitunnel binaries after checking their checksums and build
-# provenance, so the image runs exactly what the release ships (D-084). Tags: 0.1.0, 0.1,
+# provenance, so the image runs exactly what the release ships. Tags: 0.1.0, 0.1,
 # and latest when it's the latest release.
 #
 # release.yml starts it after publishing a release. Run it by hand (Actions ▸ Image ▸ Run

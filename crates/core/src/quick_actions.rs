@@ -1,5 +1,5 @@
 //! One-click sharing from outside the window: the menu bar (tray) and the global
-//! shortcut (M12-07). The shell draws the menu and registers the shortcut; what to list,
+//! shortcut. The shell draws the menu and registers the shortcut; what to list,
 //! what a click or key press does, and the waiting all live here.
 
 use std::time::Duration;
@@ -216,7 +216,7 @@ pub enum ShareNow {
 }
 
 /// Shares `origin` from the menu or the shortcut: runs the exposure check first when it's
-/// on (D-108; findings leave the choice to the person in the window), then waits for
+/// on (findings leave the choice to the person in the window), then waits for
 /// the address.
 pub async fn share_now(shares: &QuickShares, store: &Store, origin: &str) -> ShareNow {
     let origin = match OriginUrl::parse(origin) {

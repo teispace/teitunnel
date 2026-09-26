@@ -1,5 +1,5 @@
 //! What a connected credential can do, so the UI can disable what it can't (with the
-//! reason) instead of failing later (M2-03).
+//! reason) instead of failing later.
 
 use cf_api::{Access, Client, NIL_ID, NIL_UUID, Zone};
 use serde::Serialize;

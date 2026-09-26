@@ -29,7 +29,7 @@ pub enum ErrorCode {
 }
 
 /// An error as shown to the user: what happened, and what to do about it. The text is
-/// translated by the UI (D-062).
+/// translated by the UI.
 #[derive(Debug, Clone, Serialize, Type, thiserror::Error)]
 #[serde(rename_all = "camelCase")]
 pub struct AppError {

@@ -1,4 +1,4 @@
-// Teitunnel's webhook inbox (docs/research/cloudflare-workers-features.md).
+// Teitunnel's webhook inbox.
 //
 // A Worker route on hostname/path* in front of a tunnel. A webhook (POST, PUT, PATCH or
 // DELETE) goes straight to the tunnel when nothing is waiting; when the tunnel is down

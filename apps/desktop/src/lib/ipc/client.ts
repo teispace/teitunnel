@@ -3,7 +3,7 @@ import type { AppError, ErrorCode, Text } from "./bindings";
 
 /**
  * An error returned by a Rust command, with the fields of `AppError`. Its message and
- * hint arrive as catalog keys and are translated here, once (D-062).
+ * hint arrive as catalog keys and are translated here, once.
  */
 export class IpcError extends Error {
   readonly code: ErrorCode;

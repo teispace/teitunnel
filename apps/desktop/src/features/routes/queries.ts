@@ -276,7 +276,7 @@ export function useTunnelLogs(tunnelId: string, enabled: boolean) {
 
 /**
  * A connector's live traffic, polled every second while shown (which also keeps the
- * backend sampling at 1 s, D-046). Each poll fetches only samples newer than the last
+ * backend sampling at 1 s). Each poll fetches only samples newer than the last
  * one held, and appends them.
  */
 export function useLiveTraffic(tunnelId: string | null, intervalMs = 1_000) {

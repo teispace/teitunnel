@@ -323,7 +323,7 @@ pub enum Intent {
         /// The Snapshot.
         site: SiteSpec,
     },
-    /// Reserve a hostname for this owner (a lease in DNS, M12-11).
+    /// Reserve a hostname for this owner (a lease in DNS).
     Reserve {
         /// The hostname.
         hostname: Hostname,

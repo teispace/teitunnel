@@ -48,10 +48,10 @@ crates/cloudflared   Everything about the cloudflared binary: locate, install, v
                      log/metrics parsing, local endpoints, config.yml + credentials files.
 crates/core          The product: domain model, engine (observe → plan → apply → verify), runtime
                      (supervisor, services), discovery, doctor, store, secrets, events.
-crates/lens          Lens, the local inspecting reverse proxy (M12-02, D-100): taps, capture, masking,
+crates/lens          Lens, the local inspecting reverse proxy: taps, capture, masking,
                      replay, exports, webhooks, gates, stubs, breakpoints, simulation. Pure library, no Tauri,
                      no core; an optional `specta` feature derives IPC types.
-crates/localdomains  Local HTTPS domains (D-101): the name-constrained CA, leaves issued per SNI
+crates/localdomains  Local HTTPS domains: the name-constrained CA, leaves issued per SNI
                      name, trust installers per OS (privileged steps returned as data), the `.test`
                      name server, mDNS, port checks. No Tauri, no SQLite, no proxying; `core`
                      persists and serves through Lens.
@@ -59,7 +59,7 @@ crates/mcp           The MCP server for AI agents (rmcp): tools, resources, prom
                      redaction, the Streamable HTTP endpoint, and AI-client config writers. Talks
                      to Teitunnel through its `Backend` trait (`CoreBackend` over core); tools
                      come from `ToolProvider`s, traffic from a `TrafficSource`.
-crates/control       The local control connection (M12-07): newline-delimited JSON-RPC 2.0 over a
+crates/control       The local control connection: newline-delimited JSON-RPC 2.0 over a
                      Unix socket / named pipe only the user can open, the server (auth, limits,
                      approvals) over a `Host` trait, `ControlClient`, and `teitunnel://` links.
                      Knows nothing about the core; `core::control::CoreHost` implements `Host`.
@@ -195,8 +195,8 @@ Planner rules:
 - **Ingress ordering:** rules are sorted by specificity (exact host before wildcard, longer path before shorter). The catch-all `http_status:404` is always last. Manual order is allowed in Advanced mode.
 - **DNS conflicts:** an existing A/AAAA/CNAME on the hostname that we don't own produces `requires_confirmation` with the existing record shown. It is never overwritten silently.
 - **Idempotent:** planning the same intent against an already-converged state yields an empty plan ("Nothing to change").
-- **Private networks (D-060):** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed). Removing the tunnel deletes the ranges routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
-- **Text:** steps, warnings and errors carry `Text` (catalog key + arguments), never English sentences; the UI translates them (D-062).
+- **Private networks:** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed). Removing the tunnel deletes the ranges routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
+- **Text:** steps, warnings and errors carry `Text` (catalog key + arguments), never English sentences; the UI translates them.
 - **Verify** is planned only for routes a browser can open; SSH/RDP/SMB/TCP routes show `cloudflared access` commands instead.
 - Every step has a human description and a "Copy as command" rendering (`cloudflared …` or `curl` for the API).
 
@@ -213,7 +213,7 @@ Planner rules:
 
 End-to-end probe for a hostname, reported by stage so failures are actionable:
 
-1. **DNS:** read the record through the API and confirm it's a proxied CNAME to this Mac's tunnel. The verifier never resolves the hostname itself: a lookup made before the record propagated caches NXDOMAIN for up to 30 minutes in the Mac's and ISP's resolvers (D-037, D-040).
+1. **DNS:** read the record through the API and confirm it's a proxied CNAME to this Mac's tunnel. The verifier never resolves the hostname itself: a lookup made before the record propagated caches NXDOMAIN for up to 30 minutes in the Mac's and ISP's resolvers.
 2. **Edge → tunnel:** HTTPS GET sent straight to a Cloudflare edge address (from resolving `api.cloudflare.com`) with the hostname as SNI and Host. Cloudflare error 1033 means no connector; 530/1016 means DNS/tunnel mismatch; 1001 means not on Cloudflare yet; a certificate error on a multi-level subdomain means Universal SSL doesn't cover it.
 3. **Tunnel → origin:** 502/504 means the origin is unreachable. The probe cross-checks that the local port is listening and names the port. Cloudflare's own 413 page means a body over the plan's limit; 429 on a Quick Share means its 200 in-flight requests are used up.
 4. **Origin:** any other status is a success, and the status code is shown, unless the answer is a dev server refusing the address (`dev_server::detect`: Vite, webpack-dev-server, Rails, Django from a bounded read of the body; Next.js by asking for a `/_next/` resource with the public `Origin`). That's a failure with its fix: the Host header the server expects (where sending it is safe) and the config line that allows the address. A `text/event-stream` answer is flagged (Quick Shares don't carry it).
@@ -233,10 +233,10 @@ Teitunnel stores the remote config `version` it last applied for each tunnel. A 
 
 ---
 
-### 4.8 Snapshots (M12-06)
+### 4.8 Snapshots
 
 A Snapshot is a static copy of a site hosted on the user's own account as a **Worker with
-static assets** (research: [cloudflare-snapshots.md](research/cloudflare-snapshots.md)).
+static assets** ([Workers static assets](https://developers.cloudflare.com/workers/static-assets/)).
 `core::snapshot` prepares the files (a folder, a project's build through a typed
 `<manager> run <script>` command, or a bounded same-origin crawl of a local site), hashes
 them, and keeps them in memory under an id while the plan is reviewed. The engine
@@ -270,10 +270,10 @@ first) → `PutFrontWorker` → `CreateWorkerRoute`; removal `DeleteWorkerRoute`
 `front_workers` index (migration 20). `core::inbox` delivers kept webhooks to the route's
 own service.
 
-### 4.9 Edge protection and service tokens (M12-04)
+### 4.9 Edge protection and service tokens
 
-Rules Cloudflare enforces for **one hostname** (research:
-[cloudflare-edge-rules.md](research/cloudflare-edge-rules.md)): a custom rule that blocks
+Rules Cloudflare enforces for **one hostname** (the
+[Ruleset Engine](https://developers.cloudflare.com/ruleset-engine/)): a custom rule that blocks
 automated clients and/or AI crawlers, one that challenges them
 (`http_request_firewall_custom`), request and response header rules
 (`http_request_late_transform`, `http_response_headers_transform`), each
@@ -315,13 +315,13 @@ Stopped ─start─▶ Starting ─spawned─▶ Connecting ─ready≥1─▶ H
    └──stop──── Stopping ◀──stop──── Crashed(backoff) ◀── Degraded
 ```
 
-- **Spawn:** `cloudflared tunnel --no-autoupdate --output json --loglevel info --metrics 127.0.0.1:<port> run`, spawned directly with `tokio::process` (tests use `tools/fake-cloudflared`, D-032). The token is passed via the `TUNNEL_TOKEN` environment variable, **never in argv**. `kill_on_drop`, own process group. See `crates/cloudflared/src/command.rs`.
+- **Spawn:** `cloudflared tunnel --no-autoupdate --output json --loglevel info --metrics 127.0.0.1:<port> run`, spawned directly with `tokio::process` (tests use `tools/fake-cloudflared`). The token is passed via the `TUNNEL_TOKEN` environment variable, **never in argv**. `kill_on_drop`, own process group. See `crates/cloudflared/src/command.rs`.
 - **Metrics port:** each tunnel gets a stable port from `20300..20399` (Quick Shares use `20400..20499`), stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide.
 - **Health:** poll `GET /ready` every 250 ms until the first connection, then every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
 - **Logs:** JSON lines on stderr are parsed into `LogEvent { ts, level, message, fields }`. They go into a per-connector ring buffer (100k events) and are fanned out to subscribers.
-- **Metrics:** scrape `/metrics` every 1 s while a traffic view polls (a 5 s lease per read, D-046), otherwise every 10 s. Values go into a ring buffer (3,600 samples), and 1-min rollups are persisted for 7 days.
+- **Metrics:** scrape `/metrics` every 1 s while a traffic view polls (a 5 s lease per read), otherwise every 10 s. Values go into a ring buffer (3,600 samples), and 1-min rollups are persisted for 7 days.
 - **Restarts:** exponential backoff with jitter (1 s → 60 s cap). More than 5 crashes in 2 min is a **crash loop**: raise a Doctor issue with the last 50 log lines and wait, retrying every 10 min or at once when the network changes (a laptop offline for a few minutes loops too).
-- **Sleep, wake and network changes** (`runtime::network`, D-135): the supervisor looks every 5 s for the wall clock jumping ahead (the computer slept) and for its routable addresses changing, and nudges every connector: a backoff or crash loop ends at once, and a running connector with no connection 15 s later is restarted (not Quick Shares, whose address would change). `core::health` stays quiet for 90 s after such a change.
+- **Sleep, wake and network changes** (`runtime::network`): the supervisor looks every 5 s for the wall clock jumping ahead (the computer slept) and for its routable addresses changing, and nudges every connector: a backoff or crash loop ends at once, and a running connector with no connection 15 s later is restarted (not Quick Shares, whose address would change). `core::health` stays quiet for 90 s after such a change.
 - **Shutdown:** SIGTERM, then SIGKILL after 5 s. On app exit (`RunEvent::ExitRequested`), stop all Session connectors concurrently within the deadline.
 
 ### 5.2 Run modes
@@ -342,7 +342,7 @@ macOS always-on: `~/Library/LaunchAgents/com.teispace.teitunnel.connector.<tunne
 
 With the inspector (default, setting **Inspect Quick Shares**; per share `inspect`), `--url` is the share's Lens tap (`http://127.0.0.1:<random>`), which forwards to the origin and sets the Host header itself (Lens `HostHeader::Custom`), so changing the header updates the tap at once and keeps the URL. Turning inspection on or off restarts cloudflared (new URL).
 
-### 5.5 The inspector (`core::inspect`, M12-02)
+### 5.5 The inspector (`core::inspect`)
 
 One `Inspector` per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`) owns a lazily started Lens. Taps have a scope: a Quick Share (tap id = share id) or a route (`rt-<digest>-<random>`, new each run). Captures live in Lens's ring (1,000 per tap) through `inspect::history::Captures`, which also sends finished exchanges, masked (`record.rs`: credential headers, secret query/form/JSON values, token-like strings; text bodies decoded and masked; 64 KiB per body), to a writer task that batches them into `lens_exchanges` (24 h by default, 5,000 per tap, 256 MB in all); `load()` restores recent history into memory at start. Other processes read that table (`history*` functions: `teitunnel traffic`). Settings are one JSON value (`inspector`) in `settings`.
 
@@ -353,7 +353,7 @@ One `Inspector` per process (the app, `teitunnel share`/`inspect`/`serve`/`mcp`)
 - **Analytics**: `inspect::analytics::LensSource` answers first for routes a tap inspects.
 - **Presets** (`inspect::expose`): MCP server probe (Streamable HTTP `initialize`, SSE `endpoint`), local AI server probe (Ollama, LM Studio, vLLM), client configurations, and exposing a service on a domain share through a bearer-gated tap.
 
-### 5.5a Local HTTPS domains (`core::local_domains`, M12-07)
+### 5.5a Local HTTPS domains (`core::local_domains`)
 
 `LocalDomains` (one per process that serves them: the app, `teitunnel local-domain add|serve`) serves the `local_domains` registry through the process's `Inspector`: each domain is a hosted tap (`TapScope::LocalDomain`, `ld-<digest>-<random>`, `Inspector::start_hosted`; capture on only with `inspect`), and two listeners route by host: HTTPS (443, else 8443) with `CheckedTls` (rustls through `tokio-rustls`, certificates from `localdomains::SniResolver` over a `DomainRegistry` of the HTTPS domains, so a handshake for any other name fails) and plain HTTP (80, else 8080) with Lens's `Routing::HttpsRedirect` (308 to HTTPS for HTTPS domains, served for HTTP-only ones). Both acceptors check the peer before anything is read: loopback and this computer's interface addresses (`if-addrs`) always; private-network peers only with LAN access on, and over TLS only for `.local` SNI. Listeners bind loopback (`127.0.0.1` plus `::1`), or the wildcard address when macOS refuses a low port on loopback, a `.local` domain exists or LAN access is on. `.test` names get a `DnsResponder` on `127.0.0.1:53535` (53 on Windows) and `.local` names an `MdnsAdvertiser`. The CA is loaded or made once (`LocalCa::load_or_create`, key through `KeychainCaStore` over `SecretStore`, account `localdomains:ca`; its public certificate at `<data>/localdomains/ca.pem` for the installers); leaves live only in memory (30 days, renewed 10 days before expiry). `run()` ticks every 30 s: restarts dead listeners, renews hourly and after a wake (a gap of more than 90 s), re-advertises mDNS and refreshes the peer check's addresses. Trust goes through a `TrustBackend` port (`SystemTrust` over `localdomains::TrustManager`; `FileTrust` when `TEITUNNEL_TEST_TRUST_FILE` is set). The `.test` resolver entry, the Linux system store and low-port fixes are `PrivilegedAction`s shown as copyable commands, run through `pkexec` on Linux with consent. The Doctor adds `local.*` checks (`local_domains::diagnose`) with `Fix::LocalDomains`. Project files' `localDomains` are applied by `project::apply_local_domains`; backups copy the table. The CLI saves to the registry and asks the running app to `localDomains.reload`, or serves from the terminal.
 
@@ -397,12 +397,12 @@ trait Check { fn id(&self) -> CheckId; async fn run(&self, ctx: &CheckCtx) -> Ve
 struct Issue { id, check, severity: Info|Warning|Error, subject: Subject, title, detail, evidence: Vec<Evidence>, fix: Option<Intent> }
 ```
 
-- Each check lives in its own file under `crates/core/src/doctor/checks/`.
+- Checks are pure functions over gathered facts in `crates/core/src/doctor.rs` (`gather`, then `diagnose`); `doctor_monitor.rs` runs them in the background.
 - A **fix is an Intent**, so it goes through the planner: previewed, logged and rollback-safe.
 - "Fix all safe issues" only applies fixes whose plans touch nothing but owned resources and need no confirmation.
 - Checks run on app start, after every apply, on connector state changes, and on demand. They are cheap and share one observed snapshot.
 
-The check catalogue is in [plans/M4-discovery-doctor.md](plans/M4-discovery-doctor.md).
+Every check, with its fix, is listed in the [Doctor reference](https://teitunnel.teispace.com/docs/reference/doctor/).
 
 ---
 
@@ -447,7 +447,7 @@ App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (
 - **Streams:** logs, metrics and plan progress use `tauri::ipc::Channel<T>` per subscription, batched every ~100 ms, and cancelled when the subscriber drops.
 - **Long operations** (binary download, plan apply, verify) return immediately with an operation id, then report progress on a channel.
 
-### 10.1 Control connection (M12-07)
+### 10.1 Control connection
 
 The app listens (unless Settings ▸ Integrations turns it off) on `<data>/control/sock`
 (Unix socket, 0600, in a 0700 folder; peers must run as the same uid) or a named pipe with
@@ -513,7 +513,7 @@ Rules:
 
 - `crates/core/src/platform/{macos,linux,windows}.rs` covers service manager, data paths, process signals and binary asset names, selected with `cfg`.
 - `apps/desktop/src-tauri/src/shell/` covers window effects, tray, menus and notifications per OS.
-- macOS is first-class through v1.0. Linux and Windows must **compile and pass tests in CI** from M0. Their UX polish comes after v1.0 (M7/M8).
+- macOS, Windows and Linux are all supported. Every change must build and pass tests on the three systems in CI, and the release workflow installs and launches the packaged app on each.
 
 ---
 

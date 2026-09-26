@@ -1,5 +1,5 @@
 //! `teitunnel local-domain add|ls|rm|serve|trust|untrust|status`: local HTTPS domains
-//! (`https://shop.test`) on this computer (M12-07). The registry is the app's database;
+//! (`https://shop.test`) on this computer. The registry is the app's database;
 //! when the app runs it serves them (it's asked to reload), otherwise `add` and `serve`
 //! serve them from this terminal until Ctrl-C. Nothing here touches Cloudflare.
 

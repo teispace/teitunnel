@@ -1,7 +1,7 @@
 // Measures the M5 exit criteria on the dev stress page (src/dev/stress.tsx) in WebKit:
 // a log at 2,000 lines/s and a 3,600-point chart at 20 Hz, rendered together. With
 // `inspector`, the Inspector list instead (src/dev/stress-inspector.tsx): 10,000
-// requests, 200/s more arriving, filtered, scrolled every frame (M12-02), measured on a
+// requests, 200/s more arriving, filtered, scrolled every frame, measured on a
 // production build (`vite build --mode perf`), since React's development checks
 // dominate a list this busy.
 // Reports frame-interval percentiles, long frames and DOM size over time.

@@ -1,4 +1,4 @@
-//! User-facing text as data (D-062).
+//! User-facing text as data.
 //!
 //! The core never builds English sentences for the user. It returns a [`Text`]: a key
 //! into the catalogs (`locales/<language>.json` at the repository root, under `core`)

@@ -1,42 +1,101 @@
 name: Bug report
-description: Something isn't working as expected
-labels: ["bug", "triage"]
+description: Something in Teitunnel doesn't work as it should.
+title: "[Bug]: "
+labels: ["bug", "needs triage"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search [existing issues](https://github.com/teispace/teitunnel/issues) first, and check [troubleshooting](https://teitunnel.teispace.com/docs/reference/troubleshooting/).
+        **Security issues go to [private reporting](https://github.com/teispace/teitunnel/security/advisories/new), never here.**
   - type: textarea
     id: what
     attributes:
       label: What happened?
-      description: What did you do, what did you expect, and what happened instead?
+      description: What did you do, what did you expect, and what happened instead? Include error messages exactly.
     validations:
       required: true
   - type: textarea
     id: repro
     attributes:
       label: Steps to reproduce
-      placeholder: "1. …\n2. …\n3. …"
+      placeholder: |
+        1. Open …
+        2. Choose …
+        3. See …
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Teitunnel version
-      placeholder: "e.g. 0.1.0 (Settings → About)"
+      description: Shown in the app's Settings, or run `teitunnel --version`.
+      placeholder: e.g. 0.3.0
     validations:
       required: true
-  - type: input
+  - type: dropdown
     id: os
     attributes:
-      label: OS and version
-      placeholder: "e.g. macOS 27.0 (Apple silicon)"
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Docker or a server (the teitunnel command)
     validations:
       required: true
   - type: input
-    id: cloudflared
+    id: os-version
     attributes:
-      label: cloudflared version and source
-      placeholder: "e.g. 2026.9.1 (managed) / Homebrew"
+      label: OS version and architecture
+      placeholder: e.g. macOS 27.0 (Apple silicon), Windows 11 24H2 (x64), Ubuntu 24.04 (arm64)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Download from the website or GitHub Releases
+        - Homebrew
+        - apt or dnf repository
+        - Docker image
+        - Built from source
+        - Other
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Quick Share or sharing on a domain
+        - Routes, tunnels or DNS
+        - Accounts and sign-in
+        - Doctor
+        - Inspector
+        - Analytics or uptime
+        - Snapshots, offline page or webhook inbox
+        - Protection or logins
+        - Local HTTPS domains
+        - AI agents (MCP)
+        - Command line
+        - Integrations (VS Code, JetBrains, Raycast, browser)
+        - Installing or updating
+        - Other
   - type: textarea
     id: diagnostics
     attributes:
-      label: Diagnostics
-      description: Help → Export diagnostics produces a redacted bundle. Attach it or paste relevant parts. Never paste API tokens.
+      label: Diagnostics and logs
+      description: |
+        **Export Diagnostics** (Help menu on macOS, command palette on Windows and Linux) produces a redacted bundle; attach it or paste the relevant part.
+        Never paste API tokens or other credentials.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been reported.
+          required: true
+        - label: I'm using the latest release, or I've said why not.
+          required: true

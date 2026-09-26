@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One version for the whole product (D-074): the Cargo workspace, every workspace crate
+// One version for the whole product: the Cargo workspace, every workspace crate
 // in Cargo.lock, and the desktop app's package.json (which Tauri reads) must agree, and
 // release-please must bump every workspace crate in Cargo.lock. Run by `pnpm check` and
 // the release build.

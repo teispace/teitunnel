@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Builds the CLI (crate teitunnel-cli, command `teitunnel`) for a target and puts it where
-// Tauri bundles it next to the app (`bundle.externalBin`, D-077, D-091). Linux packages
+// Tauri bundles it next to the app (`bundle.externalBin`). Linux packages
 // carry it as `teitunnel` (tauri.cli.linux.conf.json); macOS and Windows as `teitunnel-cli`
 // (tauri.cli.conf.json), because their file systems ignore case and the app itself is
 // `Teitunnel`. What people type is always `teitunnel`.

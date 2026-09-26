@@ -1,4 +1,4 @@
-//! Generates typed constructors for the core's messages (D-062).
+//! Generates typed constructors for the core's messages.
 //!
 //! The catalogs live in `locales/<language>.json` at the repository root, shared with
 //! the desktop UI. Messages the core produces are under the top-level `core` key. For

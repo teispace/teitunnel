@@ -1,4 +1,4 @@
-// Teitunnel's offline page (docs/research/cloudflare-workers-features.md).
+// Teitunnel's offline page.
 //
 // A Worker route on hostname/* sends every request on to the tunnel unchanged
 // (fetch(request): the origin in DNS). When the tunnel has no connector, Cloudflare

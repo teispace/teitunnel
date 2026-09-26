@@ -1,0 +1,23 @@
+name: Documentation
+description: Something in the docs is wrong, unclear or missing.
+title: "[Docs]: "
+labels: ["documentation", "needs triage"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The address of the page, or the file in the repository.
+      placeholder: https://teitunnel.teispace.com/docs/…
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording

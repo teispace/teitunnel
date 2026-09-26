@@ -1,6 +1,6 @@
 //! Snapshots: a static copy of what the user is sharing, hosted as a Worker with static
 //! assets on their own Cloudflare account, so it stays online while their computer
-//! sleeps (M12-06, docs/research/cloudflare-snapshots.md).
+//! sleeps.
 //!
 //! The files come from a folder, from a project's build, or from crawling a running
 //! site. They're collected and hashed first ("prepared"); publishing is then a plan

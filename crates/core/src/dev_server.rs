@@ -1,4 +1,4 @@
-//! Dev servers that refuse requests for addresses they don't know (M12-01).
+//! Dev servers that refuse requests for addresses they don't know.
 //!
 //! Since early 2025 most dev servers check the `Host` header against an allow list to
 //! stop DNS-rebinding attacks, so a request for `quiet-river.trycloudflare.com` gets a

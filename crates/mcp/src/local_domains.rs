@@ -1,4 +1,4 @@
-//! Local HTTPS domains for agents (M12-07): `https://shop.test` for a dev server, with a
+//! Local HTTPS domains for agents: `https://shop.test` for a dev server, with a
 //! trusted certificate, on this computer only (nothing at Cloudflare). They're saved in
 //! the app's database; the app serves them while it runs, otherwise this server does
 //! until its session ends. Trusting Teitunnel's certificate authority asks for the

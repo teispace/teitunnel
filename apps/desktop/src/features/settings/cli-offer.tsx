@@ -6,7 +6,7 @@ import { toIpcError } from "@/lib/ipc/client";
 import { useCliStatus, useSetCliInstalled, useSettings, useUpdateSettings } from "./queries";
 
 /**
- * A one-time offer to put the `teitunnel` command on the PATH (D-090). It only shows where
+ * A one-time offer to put the `teitunnel` command on the PATH. It only shows where
  * the installer didn't already do it: the Windows installer and the Linux packages put it
  * there, and Homebrew links it, so in practice the macOS disk image and the AppImage.
  * Answering either way hides it for good; Settings ▸ General ▸ Command line stays.

@@ -1,6 +1,6 @@
 name: Release
 
-# One version for app, CLI and image (D-074):
+# One version for app, CLI and image:
 #   push to main → release-please keeps a "chore: release x.y.z" PR (version bump +
 #   CHANGELOG). Merging it creates the tag and a DRAFT release, builds every platform,
 #   signs, and publishes the release only once every file is attached, so the updater
@@ -173,7 +173,7 @@ jobs:
             echo "APPLE_API_KEY=$APPLE_API_KEY"
           } >> "$GITHUB_ENV"
 
-      # The CLI ships inside the app too, for "Install Command Line Tool" (D-077).
+      # The CLI ships inside the app too, for "Install Command Line Tool".
       - name: Build the CLI
         run: node scripts/release/sidecar.mjs ${{ matrix.target }}
       - name: Build the app
@@ -192,7 +192,7 @@ jobs:
           cp "$bundle/dmg/Teitunnel_${v}_universal.dmg" dist/
           # The updater's archive of the (signed, notarized, stapled) app.
           COPYFILE_DISABLE=1 tar -czf "dist/Teitunnel_${v}_universal.app.tar.gz" -C "$bundle/macos" Teitunnel.app
-          # The command is `teitunnel` (D-091); inside the app bundle it's teitunnel-cli.
+          # The command is `teitunnel`; inside the app bundle it's teitunnel-cli.
           cli="$RUNNER_TEMP/teitunnel"
           cp "$out/teitunnel-cli" "$cli"
           if [ "${SIGNED:-}" = 1 ]; then
@@ -366,7 +366,7 @@ jobs:
           fi
 
       # Windows Authenticode signing (SignPath) goes here, before the updater signatures,
-      # once Teitunnel is accepted (D-074).
+      # once Teitunnel is accepted.
 
       - name: Sign the updates
         env:
@@ -428,7 +428,7 @@ jobs:
     steps:
       # Opens the pull request for the new version in microsoft/winget-pkgs (Komac reads the
       # installers and carries over the rest of the manifest). Needs WINGET_TOKEN, a classic
-      # token with public_repo from a maintainer (RELEASING.md step 7).
+      # token with public_repo from a maintainer (docs/RELEASING.md, "winget").
       - name: Submit the new version to winget
         run: |
           if [ -z "$WINGET_TOKEN" ]; then

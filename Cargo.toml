@@ -22,7 +22,7 @@ teitunnel-lens = { path = "crates/lens" }
 teitunnel-localdomains = { path = "crates/localdomains" }
 teitunnel-mcp = { path = "crates/mcp" }
 
-# Tauri (stay on 2.x, D-015)
+# Tauri (stay on 2.x)
 tauri = { version = "2.11.6", features = ["tray-icon", "image-png"] }
 tauri-build = { version = "2.5" }
 tauri-plugin-single-instance = "2.4.5"
@@ -33,13 +33,13 @@ tauri-plugin-notification = "2.4.0"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-updater = "2.12.0"
 tauri-plugin-dialog = "2.7.3"
-# `teitunnel://` links (M12-07)
+# `teitunnel://` links
 tauri-plugin-deep-link = "2.4.10"
 tauri-plugin-global-shortcut = "2.3.2"
 # E2E only (never in release builds): embedded WebDriver for @wdio/tauri-service.
 tauri-plugin-wdio-webdriver = "1.4.0"
 tauri-plugin-wdio = "1.4.0"
-# Pinned exactly: release candidates (D-014)
+# Pinned exactly: release candidates
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
@@ -55,7 +55,7 @@ tokio-util = "0.7"
 ipnet = "2.12"
 # Time zones for scheduled shares (the system's tz database; bundled on Windows)
 jiff = "0.2.37"
-# Localization (D-062)
+# Localization
 intl_pluralrules = "7.0.2"
 unic-langid = "0.9.6"
 sys-locale = "0.3.2"
@@ -120,7 +120,7 @@ if-addrs = "0.15"
 # Web dashboard for servers (teitunnel-cli serve)
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 
-# MCP server (teitunnel mcp, M12-03)
+# MCP server (teitunnel mcp)
 rmcp = { version = "3.4.1", default-features = false }
 schemars = "1.2"
 jsonc-parser = { version = "0.33.2", features = ["cst", "serde_json"] }
@@ -142,7 +142,7 @@ tempfile = "3"
 wiremock = "0.6.5"
 
 [workspace.lints.rust]
-# Denied everywhere; the keychain access-list module is the one exception (D-127).
+# Denied everywhere; the keychain access-list module is the one exception.
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

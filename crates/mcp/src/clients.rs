@@ -7,7 +7,7 @@
 //! written when the entry is already right; otherwise the file is backed up first
 //! (`<file>.teitunnel-backup`) and replaced atomically. A file that can't be parsed is
 //! never touched. Locations and formats were checked against each client's
-//! documentation on 2026-09-24 (docs/research/mcp-2026-09.md).
+//! documentation on 2026-09-24.
 
 use std::{
     collections::BTreeMap,

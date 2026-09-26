@@ -1,4 +1,4 @@
-//! Local HTTPS domains (M12-07, decision Q7): `https://shop.test`, `https://app.localhost`
+//! Local HTTPS domains: `https://shop.test`, `https://app.localhost`
 //! and `https://phone.local` for services on this computer, with certificates browsers
 //! trust.
 //!

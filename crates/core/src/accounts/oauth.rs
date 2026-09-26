@@ -1,4 +1,4 @@
-//! OAuth 2.0 Authorization Code + PKCE (S256) with a loopback redirect (M2-04).
+//! OAuth 2.0 Authorization Code + PKCE (S256) with a loopback redirect.
 //!
 //! Cloudflare requires an exact redirect match and rejects custom URL schemes, so the
 //! app registers `http://127.0.0.1:{53682,53683,53684}/callback` and listens on the
@@ -18,13 +18,13 @@ use crate::Secret;
 
 use crate::text::{Text, UserText, english_display, msg, msg::oauth_page as page};
 
-/// Redirect ports registered with the OAuth client (docs/research/cloudflare.md).
+/// Redirect ports registered with the OAuth client.
 pub const REDIRECT_PORTS: [u16; 3] = [53682, 53683, 53684];
 /// How long to wait for the browser to come back.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// The public client "Teitunnel" in the Teispace Cloudflare account (registered
-/// 2026-09-24, research/cloudflare.md); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for tests.
+/// 2026-09-24); `TEITUNNEL_OAUTH_CLIENT_ID` overrides it for tests.
 /// A client id isn't a secret: PKCE protects the flow.
 const CLIENT_ID: Option<&str> = Some("57fe3059e8fc6db30d9e3e07e50e94ea");
 

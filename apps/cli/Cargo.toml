@@ -23,7 +23,7 @@ teitunnel-control.workspace = true
 jiff.workspace = true
 tokio-util.workspace = true
 base64.workspace = true
-# `teitunnel top` (M12-07)
+# `teitunnel top`
 ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
 clap = { version = "4.6.7", features = ["derive"] }
 clap_complete = "4.6.11"

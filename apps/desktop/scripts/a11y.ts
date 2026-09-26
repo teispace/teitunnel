@@ -1,7 +1,7 @@
 // Accessibility audit: runs axe-core (WCAG 2.2 A/AA rules) on every screen in WebKit,
 // light and dark, with the dev IPC mock, and lists violations. Exits 1 if any.
 //
-// Contrast policy (D-052): the default appearance uses macOS's own label colours, which
+// Contrast policy: the default appearance uses macOS's own label colours, which
 // sit below 4.5:1 for secondary text by design, so colour contrast is checked with
 // Increase Contrast on, where every rule must pass. All other rules apply in both.
 //
@@ -29,7 +29,7 @@ const base = server.resolvedUrls?.local[0] ?? "http://localhost:1432/";
 const browser = await webkit.launch();
 let total = 0;
 
-// The sidebar's native material, as the screenshot tool paints it (D-024), so contrast
+// The sidebar's native material, as the screenshot tool paints it, so contrast
 // is measured against what's really behind the text.
 const VIBRANCY =
   "aside[aria-label=Sidebar]{background-color:light-dark(#e7e7e7,#454646)!important;background-image:linear-gradient(var(--surface-sidebar),var(--surface-sidebar))}";

@@ -1,6 +1,6 @@
 //! Snapshot comments on Cloudflare: the D1 database the Snapshot's Worker writes to,
 //! read and answered here through the D1 query endpoint with the account's own token
-//! (docs/research/cloudflare-workers-features.md). The Worker's copy of the schema is in
+//! (<https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/>). The Worker's copy of the schema is in
 //! `engine/snapshot-worker.js`; a test keeps the two identical.
 
 use std::collections::BTreeMap;

@@ -16,7 +16,7 @@
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 
   /* Accent: Apple's default blue. On macOS the shell overrides it with the user's system
-     accent at runtime (`app/platform.ts`, D-023); WKWebView's `AccentColor` is static. */
+     accent at runtime (`app/platform.ts`); WKWebView's `AccentColor` is static. */
   --accent: light-dark(#007aff, #0a84ff);
 
   /* Surfaces */

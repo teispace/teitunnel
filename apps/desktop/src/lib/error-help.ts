@@ -1,7 +1,7 @@
 import type { MessageKey } from "@/lib/i18n";
 
 /**
- * How the app helps with each error the core can report (D-066). Every `core.error.*`
+ * How the app helps with each error the core can report. Every `core.error.*`
  * message is listed, so a new one can't ship without deciding (a test checks it):
  *
  * - `fix`: a card resolves it in place (PermissionFix, ZeroTrustFix, the binary notice).

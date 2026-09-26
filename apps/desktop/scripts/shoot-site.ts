@@ -1,5 +1,5 @@
 // Renders the screenshots of the website (apps/web/public/screens) from the dev mocks, in
-// WebKit, light and dark, and saves them as WebP. Same browser setup as shoot.ts (D-030).
+// WebKit, light and dark, and saves them as WebP. Same browser setup as shoot.ts.
 //
 // Usage: node scripts/shoot-site.ts [name ...]   (default: every shot below)
 // Needs `cwebp` on the PATH (Homebrew: `brew install webp`).
@@ -105,7 +105,7 @@ const shots: Shot[] = [
   },
 ];
 
-// Measured NSVisualEffectView `sidebar` material on macOS 27 (D-024), before our tint.
+// Measured NSVisualEffectView `sidebar` material on macOS 27, before our tint.
 const VIBRANCY =
   "aside[aria-label=Sidebar]{background-color:light-dark(#e7e7e7,#454646)!important;background-image:linear-gradient(var(--surface-sidebar),var(--surface-sidebar))}";
 

@@ -1,9 +1,9 @@
-//! OpenAPI from traffic (M12-12): an OpenAPI 3.1 description inferred from requests the
+//! OpenAPI from traffic: an OpenAPI 3.1 description inferred from requests the
 //! inspector captured: paths with parameters (`/users/123` → `/users/{id}`), methods,
 //! query and header parameters, request and response bodies as JSON Schemas merged
 //! across samples, status codes and the authentication seen. For docs and agents.
 //!
-//! It reads the masked captures (the history holds no secrets, D-110), copies no values
+//! It reads the masked captures (the history holds no secrets), copies no values
 //! into the document (no examples), and leaves out what isn't an API: pages, scripts,
 //! styles, images and fonts, answers Teitunnel gave itself (paused, sign-in, stubs,
 //! faults), `OPTIONS` and `HEAD`.
@@ -480,7 +480,7 @@ fn paths_out_len(document: &Value) -> usize {
 pub const MAX_EXCHANGES: usize = 5_000;
 
 /// Describes the traffic this process's `inspector` captured (live and restored) or,
-/// without one, the history every process keeps in `store` (masked, D-110).
+/// without one, the history every process keeps in `store` (masked).
 ///
 /// # Errors
 /// The history can't be read.

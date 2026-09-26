@@ -1,4 +1,4 @@
-//! Teams sharing one account, and CI (M12-11), end to end against the fakes: names
+//! Teams sharing one account, and CI, end to end against the fakes: names
 //! reserved in DNS with their owner, refused to someone else unless taken over, and a
 //! share on a domain from a machine where nothing else runs its tunnel (a CI job),
 //! printed as JSON, then cleaned up.

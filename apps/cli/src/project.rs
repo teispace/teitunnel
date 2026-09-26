@@ -1,7 +1,7 @@
 //! `teitunnel project …` and the project part of `teitunnel up`: a `teitunnel.yml`
 //! checked into a repository declares the project's routes, shares, Snapshots and local
 //! domains. Applying it shows one combined plan first, then applies it through the
-//! engine; applying an applied file changes nothing (M12-12).
+//! engine; applying an applied file changes nothing.
 
 use std::{
     io::Write as _,

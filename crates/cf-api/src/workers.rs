@@ -1,4 +1,5 @@
-//! Workers with static assets: what Snapshots are hosted on (docs/research/cloudflare-snapshots.md).
+//! Workers with static assets: what Snapshots are hosted on
+//! (<https://developers.cloudflare.com/workers/static-assets/>).
 //!
 //! The flow: an upload session with a manifest of file hashes → upload the files
 //! Cloudflare doesn't have yet, bucket by bucket, with the session's JWT → a script (or a
@@ -440,7 +441,7 @@ impl Client {
     /// Runs `script` for requests matching `pattern`, failing open (the site keeps
     /// working without the Worker once the account's free requests are used up).
     /// `request_limit_fail_open` isn't in the create reference but is part of the
-    /// routes API (docs/research/cloudflare-workers-features.md).
+    /// routes API.
     ///
     /// # Errors
     /// API errors, e.g. a pattern another route already has.

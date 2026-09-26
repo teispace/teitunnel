@@ -16,7 +16,7 @@ interface UiState {
   /** The Cloudflare account shown in Domains/Routes. */
   activeAccountId: string | null;
   /**
-   * Doctor issues ignored before ignores moved to settings (D-048). The Doctor moves
+   * Doctor issues ignored before ignores moved to settings. The Doctor moves
    * them to settings once and clears this; remove after v0.5.
    */
   legacyIgnoredIssues: string[];

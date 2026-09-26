@@ -30,7 +30,7 @@ const [width = 1120, height = 720] = (process.env["SHOOT_SIZE"] ?? "")
   .map(Number)
   .filter(Boolean);
 
-// Measured NSVisualEffectView `sidebar` material on macOS 27 (D-024), before our tint.
+// Measured NSVisualEffectView `sidebar` material on macOS 27, before our tint.
 const VIBRANCY =
   "aside[aria-label=Sidebar]{background-color:light-dark(#e7e7e7,#454646)!important;background-image:linear-gradient(var(--surface-sidebar),var(--surface-sidebar))}";
 

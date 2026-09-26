@@ -1,6 +1,6 @@
 import type { ExchangeRow, LiveBatch } from "@/lib/ipc/bindings";
 
-/** Requests kept for the list at most; the oldest go first (D-051's budget: 10,000). */
+/** Requests kept for the list at most; the oldest go first (10,000). */
 export const MAX_ROWS = 10_000;
 
 /**

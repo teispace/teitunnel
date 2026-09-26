@@ -1,6 +1,6 @@
 //! `teitunnel backup create|restore`: moving Teitunnel's setup to another computer in
 //! one encrypted file. Tokens and passwords never go in it; accounts are connected
-//! again after restoring (M12-12).
+//! again after restoring.
 
 use std::{
     io::{self, BufRead as _, IsTerminal as _, Write as _},

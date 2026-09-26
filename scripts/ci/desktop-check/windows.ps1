@@ -72,7 +72,7 @@ if (-not (Test-Path (Join-Path $dir 'teitunnel-cli.exe'))) { Fail 'teitunnel-cli
 $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Teitunnel.lnk'
 if (-not (Test-Path $shortcut)) { Fail 'No Start menu shortcut' }
 
-# The installer puts the `teitunnel` command on the PATH (installer-hooks.nsh, D-090, D-091).
+# The installer puts the `teitunnel` command on the PATH (installer-hooks.nsh).
 $cliDir = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps'
 $cli = Join-Path $cliDir 'teitunnel.exe'
 $cliMarker = Join-Path $cliDir 'teitunnel.teitunnel'

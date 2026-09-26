@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      // The catalogs, shared with the Rust core (D-062).
+      // The catalogs, shared with the Rust core.
       "@locales": fileURLToPath(new URL("../../locales", import.meta.url)),
     },
   },
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => ({
   },
   envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
-    // WKWebView on macOS 14+ (D-023); WebView2 and WebKitGTK are newer still.
+    // WKWebView on macOS 14+; WebView2 and WebKitGTK are newer still.
     target: ["safari17", "chrome120"],
     sourcemap: false,
     reportCompressedSize: true,

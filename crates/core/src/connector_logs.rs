@@ -1,6 +1,6 @@
 //! Connector log files and per-route filtering.
 //!
-//! Always-on connectors log to a file launchd appends to (D-045). Nothing rotates it,
+//! Always-on connectors log to a file launchd appends to. Nothing rotates it,
 //! so the app keeps it bounded ([`rotate_if_large`]) and reads only its tail
 //! ([`tail_lines`]), never the whole file.
 //!

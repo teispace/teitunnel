@@ -561,7 +561,7 @@ fn watch_inspected_routes<R: Runtime>(app: AppHandle<R>) {
     });
 }
 
-/// Serves paused pages and runs schedules (M12-06): the app holds the route host lease
+/// Serves paused pages and runs schedules: the app holds the route host lease
 /// (renewed every 30 s), evaluates schedules every 30 s (or at once when one changes),
 /// and applies pauses to its inspector's taps every 3 s, so a pause asked for by
 /// another process (`teitunnel shares --pause`, an agent) shows within seconds. Starts
@@ -1147,7 +1147,7 @@ fn watch_doctor<R: Runtime>(app: AppHandle<R>) {
 }
 
 /// Turns Quick Share changes into `EntityChanged` events, refreshes the menu bar menu,
-/// and posts notifications for events the user might not see (M1-11).
+/// and posts notifications for events the user might not see.
 fn forward_quick_share_changes<R: Runtime>(app: AppHandle<R>, quick_shares: &QuickShares) {
     let mut changes = quick_shares.subscribe();
     let quick_shares = quick_shares.clone();

@@ -7,7 +7,7 @@ updates:
       rust:
         patterns: ["*"]
     ignore:
-      # Release candidates are pinned on purpose (D-014); Tauri stays on 2.x (D-015).
+      # Release candidates are pinned on purpose; Tauri stays on 2.x.
       - dependency-name: "specta*"
       - dependency-name: "tauri-specta"
       - dependency-name: "tauri*"
@@ -22,7 +22,7 @@ updates:
       - dependency-name: "@tauri-apps/*"
         update-types: ["version-update:semver-major"]
       # The website stays on TypeScript 5 (Next's type check needs the classic compiler
-      # API, D-073); the desktop app's TypeScript is upgraded by hand.
+      # API); the desktop app's TypeScript is upgraded by hand.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions

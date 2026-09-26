@@ -62,7 +62,7 @@ function OpenAtLogin() {
   );
 }
 
-/** Settings ▸ General ▸ Command line: `teitunnel` on the PATH (D-077). */
+/** Settings ▸ General ▸ Command line: `teitunnel` on the PATH. */
 function CommandLine() {
   const { data: state } = useCliStatus();
   const change = useSetCliInstalled();

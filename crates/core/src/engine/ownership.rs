@@ -1,4 +1,4 @@
-//! Who holds a hostname, for teams sharing one Cloudflare account (M12-11).
+//! Who holds a hostname, for teams sharing one Cloudflare account.
 //!
 //! Teitunnel marks every DNS record it writes with a comment. Since 0.3 the comment also
 //! names the owner (person and machine, e.g. `alice@Alice-MacBook`), and a hostname can

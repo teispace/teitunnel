@@ -1,9 +1,9 @@
-//! App updates (M6-02, D-075): when to check, and the status the app shows. Checking,
+//! App updates: when to check, and the status the app shows. Checking,
 //! downloading and installing are Tauri's updater plugin, in the shell; every update is
 //! verified against the public key built into the app before it's installed.
 //!
 //! A check fetches one static file (`latest.json` of the latest GitHub release) and
-//! sends nothing about the user (D-019).
+//! sends nothing about the user.
 
 use std::time::Duration;
 

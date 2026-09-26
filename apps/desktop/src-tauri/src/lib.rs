@@ -83,7 +83,7 @@ pub fn run() -> Result<(), tauri::Error> {
         ))
         .invoke_handler(specta.invoke_handler());
     // Only macOS has a global menu bar. Windows and Linux apps keep their commands in
-    // the window: shortcuts and the command palette (D-063).
+    // the window: shortcuts and the command palette.
     #[cfg(target_os = "macos")]
     let builder = builder.menu(shell::menu::build);
     builder

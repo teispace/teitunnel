@@ -3,7 +3,7 @@
 //!
 //! It never queries DNS for the route's hostname. A lookup made before a new record has
 //! propagated caches NXDOMAIN (for up to 30 minutes) in the Mac's and the ISP's
-//! resolvers, which would break the URL for the user (D-037). Instead, the DNS stage
+//! resolvers, which would break the URL for the user. Instead, the DNS stage
 //! reads the record through the API, and the HTTPS probe connects straight to a
 //! Cloudflare edge address (any edge address serves any proxied hostname) with the
 //! hostname as SNI and Host.

@@ -1,7 +1,6 @@
 # teitunnel-lens
 
-Lens is Teitunnel's local inspecting reverse proxy (M12-02, see
-[docs/plans/M12-platform.md](../../docs/plans/M12-platform.md)). It sits between cloudflared
+Lens is Teitunnel's local inspecting reverse proxy. It sits between cloudflared
 and the user's origin and records every exchange while bodies stream through untouched:
 
 ```
@@ -119,8 +118,9 @@ origin connection serves sequential requests).
 
 ## Deferred and limits
 
-- TLS termination (local HTTPS domains): the `Acceptor` trait is the hook; a rustls
-  acceptor with SNI → `Accepted::server_name` comes with M12-07.
+- TLS termination (local HTTPS domains): the `Acceptor` trait is the hook; core's
+  rustls acceptor (`core::local_domains::acceptor`) picks the certificate by SNI and
+  passes `Accepted::server_name` on.
 - Persistence lives in core (`core::inspect::history`: a `CaptureStore` over
   `MemoryStore` that writes finished exchanges, masked, to SQLite from a writer task);
   Lens has no SQLite.

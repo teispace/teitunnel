@@ -1,4 +1,4 @@
-//! Sharing extras (M12-06) end to end against the fakes: a folder shared on a domain at
+//! Sharing extras end to end against the fakes: a folder shared on a domain at
 //! a name made from the project (`{project}`), served by the inspector without its
 //! secrets, paused and resumed from another command, scheduled, and the name reused
 //! with `--on` alone.

@@ -1,4 +1,4 @@
-//! A route's origin settings (`originRequest`), typed (M3-02, D-078).
+//! A route's origin settings (`originRequest`), typed.
 //!
 //! Every field Cloudflare's API accepts for a remotely managed tunnel
 //! (`tunnel_originRequest` in `cloudflare/api-schemas`, checked 2026-09-23) except

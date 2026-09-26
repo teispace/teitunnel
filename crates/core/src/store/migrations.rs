@@ -218,7 +218,7 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (snapshot_id, number)
         ) STRICT;",
     ),
-    // 14: a cache of the account's reservations (the truth is in DNS comments, M12-11)
+    // 14: a cache of the account's reservations (the truth is in DNS comments)
     M::up(
         "CREATE TABLE IF NOT EXISTS reservations_cache (
             account_id TEXT NOT NULL,
@@ -231,7 +231,7 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
-    // 15: Edge protection (M12-04): the ownership index of the edge rules Teitunnel
+    // 15: Edge protection: the ownership index of the edge rules Teitunnel
     // created (a backup for their `teitunnel:` description marker), and of its Access
     // service tokens (never their secrets)
     M::up(
@@ -299,7 +299,7 @@ const MIGRATIONS: &[M<'static>] = &[
         CREATE INDEX lens_exchanges_tap ON lens_exchanges (tap, seq DESC);
         CREATE INDEX lens_exchanges_started ON lens_exchanges (started_at DESC);",
     ),
-    // 17: local HTTPS domains (M12-07): the registry Lens routes by. `target` is the
+    // 17: local HTTPS domains: the registry Lens routes by. `target` is the
     // JSON of `localdomains::DomainTarget`; `project` is the project file that declared
     // it, if any. The CA's key lives in the keychain, never here.
     M::up(
@@ -313,7 +313,7 @@ const MIGRATIONS: &[M<'static>] = &[
             created_at INTEGER NOT NULL
         ) STRICT;",
     ),
-    // 18: Sharing power-ups (M12-06): what a share on your domain serves when its route
+    // 18: Sharing power-ups: what a share on your domain serves when its route
     // points at an inspector (a service or a folder), routes paused behind a "paused"
     // page (who enforces it, and whether inspection started only for the pause), and
     // schedules (on during set hours, paused otherwise).
@@ -337,7 +337,7 @@ const MIGRATIONS: &[M<'static>] = &[
             PRIMARY KEY (account_id, hostname)
         ) STRICT;",
     ),
-    // 19: Comments (M12-06): comments on live shares and routes (kept here), the
+    // 19: Comments: comments on live shares and routes (kept here), the
     // subjects the app lists with Snapshot counts read from Cloudflare, whether a
     // Snapshot's live version takes comments, and the D1 database Teitunnel created on
     // an account (ownership index: only this one is ever deleted).
@@ -382,7 +382,7 @@ const MIGRATIONS: &[M<'static>] = &[
             created_at  INTEGER NOT NULL
         ) STRICT;",
     ),
-    // 20: Workers in front of a route (M12-06 offline page, M12-12 webhook inbox): the
+    // 20: Workers in front of a route (the offline page and the webhook inbox): the
     // ownership index of the Worker scripts and Worker routes Teitunnel created, with
     // the settings each was deployed with (to put them back on undo).
     M::up(
@@ -401,9 +401,9 @@ const MIGRATIONS: &[M<'static>] = &[
     ),
     // 21: which refresh token an OAuth account's shared access token came from (a hash,
     // never the token), so each API call can tell whether another process refreshed
-    // without reading the keychain (D-128).
+    // without reading the keychain.
     M::up("ALTER TABLE accounts ADD COLUMN token_source TEXT;"),
-    // 22: OAuth for shared MCP servers (D-132): clients that registered themselves, and
+    // 22: OAuth for shared MCP servers: clients that registered themselves, and
     // what each approved connection holds. Only hashes of secrets (SHA-256 of 256-bit
     // random values) are kept, never tokens, codes or client secrets.
     M::up(

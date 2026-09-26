@@ -16,7 +16,7 @@ pub const MAX_RETENTION_HOURS: u32 = 7 * 24;
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase", default)]
 pub struct InspectorSettings {
-    /// Quick Shares go through the inspector (maintainer decision Q1: on by default).
+    /// Quick Shares go through the inspector (on by default).
     pub inspect_quick_shares: bool,
     /// Keep recent captures on disk, credentials masked, so a restart keeps them.
     pub keep_history: bool,

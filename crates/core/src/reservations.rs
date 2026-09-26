@@ -1,4 +1,4 @@
-//! Reservations for teams sharing one Cloudflare account (M12-11): which hostnames are
+//! Reservations for teams sharing one Cloudflare account: which hostnames are
 //! held and by whom, read from the DNS comments Teitunnel writes (see
 //! [`crate::engine::ownership`]), with a local cache for when Cloudflare can't be
 //! reached. Reserving and releasing are engine changes (`Change::ReserveHostname`,

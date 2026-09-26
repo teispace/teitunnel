@@ -1,5 +1,5 @@
 /**
- * Spring tokens: the single source for all motion (DESIGN §7, D-022).
+ * Spring tokens: the single source for all motion (DESIGN §7).
  *
  * `visualDuration` and `bounce` follow SwiftUI's spring model and Motion's
  * `{ type: "spring", visualDuration, bounce }`. `scripts/gen-motion-css.ts` bakes the same

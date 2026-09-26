@@ -23,10 +23,10 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 ### Credentials
 - Stored only in the OS keychain (`keyring`). Never in SQLite, config files, logs, or IPC responses.
-- On macOS, items Teitunnel creates trust exactly its own signed programs (the app, the bundled and `PATH` `teitunnel` command; by designated requirement), so they share items without keychain prompts and no other program gains access (D-127). The only `unsafe` code in the workspace is this access-list call.
+- On macOS, items Teitunnel creates trust exactly its own signed programs (the app, the bundled and `PATH` `teitunnel` command; by designated requirement), so they share items without keychain prompts and no other program gains access. The only `unsafe` code in the workspace is this access-list call.
 - IPC commands take an `AccountId`, never a token. The token-add command accepts a token as input and never echoes it back.
-- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out. Cloudflare rotates the refresh token on every refresh, so the current access token is kept in the keychain too (`cf:<account>:oauth-access`, with its expiry and a hash of the refresh token it belongs to): the app, the CLI and the MCP server share one refresh instead of revoking each other's tokens. Removing the account deletes both items. The database records only a SHA-256 hash of the current refresh token (`accounts.token_source`), so processes notice a rotation without reading the keychain on every call (D-128); a process keeps credentials it read in memory for at most a minute.
-- The permissions are documented in the token template. It includes Access (apps and login methods) so logins work without a second trip (D-065); Teitunnel still changes only Access applications it created (ownership index, D-057), and a token without Access keeps working for plain routes. OAuth scopes for Access stay optional.
+- OAuth: Authorization Code + PKCE (S256), a random `state` checked on callback, a loopback listener bound to `127.0.0.1` only, a single use, and a 5-minute timeout. Refresh tokens are revoked on sign-out. Cloudflare rotates the refresh token on every refresh, so the current access token is kept in the keychain too (`cf:<account>:oauth-access`, with its expiry and a hash of the refresh token it belongs to): the app, the CLI and the MCP server share one refresh instead of revoking each other's tokens. Removing the account deletes both items. The database records only a SHA-256 hash of the current refresh token (`accounts.token_source`), so processes notice a rotation without reading the keychain on every call; a process keeps credentials it read in memory for at most a minute.
+- The permissions are documented in the token template. It includes Access (apps and login methods) so logins work without a second trip; Teitunnel still changes only Access applications it created (ownership index), and a token without Access keeps working for plain routes. OAuth scopes for Access stay optional.
 - In-memory token values are wrapped in a `Secret<T>` type whose `Debug`/`Display` impls redact them.
 
 ### Tunnel run tokens
@@ -52,9 +52,9 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 
 ### Supply chain
 - **cloudflared downloads:** HTTPS from GitHub Releases. SHA256 is checked against the checksums published in the release notes. On macOS, `codesign --verify --strict` is also run and the Developer ID Team ID is checked against Cloudflare's. The install is atomic, and the previous version is kept for rollback.
-- **App updates:** Tauri updater with signature verification (minisign key; the public key is built into the app, the private key lives only in CI secrets, with an offline backup held by the maintainer). The download is verified before it's kept, and installed only at restart or quit. A check fetches `latest.json` from the latest GitHub release and sends nothing about the user (D-075).
+- **App updates:** Tauri updater with signature verification (minisign key; the public key is built into the app, the private key lives only in CI secrets, with an offline backup held by the maintainer). The download is verified before it's kept, and installed only at restart or quit. A check fetches `latest.json` from the latest GitHub release and sends nothing about the user.
 - **Dependencies:** `cargo deny` (advisories, licenses, bans, sources) in CI. Lockfiles are committed. Dependabot opens grouped weekly updates (Cargo, npm, Actions) and security-fix PRs; alerts are fixed, or dismissed with the reason recorded here.
-- **Repository:** secret scanning with push protection is on, so a commit containing a credential is refused. A ruleset on `main` (D-082) requires a pull request with passing CI (Rust on three systems, Web, IPC bindings, cargo-deny) and forbids force pushes and deleting the branch; only organization members can merge, so outside changes are always reviewed by one. Release signing keys live only in the protected `release` environment (D-074).
+- **Repository:** secret scanning with push protection is on, so a commit containing a credential is refused. A ruleset on `main` requires a pull request with passing CI (Rust on three systems, Web, IPC bindings, cargo-deny) and forbids force pushes and deleting the branch; only organization members can merge, so outside changes are always reviewed by one. Release signing keys live only in the protected `release` environment.
 - **Releases** are built only in GitHub Actions from tagged commits. macOS builds are signed with a Developer ID and notarized.
 
 ### Snapshots
@@ -131,7 +131,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   reported quietly.
 - The menu bar's one-click share and the global shortcut (off by default) act on the
   person's own click or key press, so they don't ask; they run the exposure check first
-  (D-108) and open the Quick Share sheet instead of sharing when it finds something. A
+  and open the Quick Share sheet instead of sharing when it finds something. A
   shortcut another app holds is refused, and nothing is registered while it's off.
 
 ### Inspector (captured traffic, `core::inspect` over `crates/lens`)
@@ -143,12 +143,12 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   `/api/traffic`, or an agent's traffic tools; all masked unless the person clicks to reveal
   (IPC `inspect_exchange` with `reveal`, never persisted) or unticks **Redact** on an
   export, or the MCP server runs with `--allow-secrets`.
-- The browser extension (D-133) reaches the app only through native messaging: browsers start
+- The browser extension reaches the app only through native messaging: browsers start
   the bundled `teitunnel` for the extension ids its manifest names, and it relays five calls
   (status, list, share a local page, stop, open) to the control connection, where sharing is
   approved like for any program. It can't share a public site or a folder, and asks the
   browser for `nativeMessaging` and `activeTab` only.
-- MCP servers shared with OAuth (D-132): every authorization is approved by the person, who
+- MCP servers shared with OAuth: every authorization is approved by the person, who
   compares a code shown in the browser and in the app; clients are identified by a verified
   metadata document (fetched only from public addresses, pinned, no redirects, small, timed
   out) or by registration; PKCE S256 only; tokens bound to the server, never forwarded to it,
@@ -158,7 +158,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
 - A request held at a breakpoint is shown unmasked (IPC `inspect_paused_exchange`), since
   it's what goes on and can be changed; like a revealed request it's read on demand, never
   cached or stored, and not offered to agents. Holding is bounded: 60 seconds per request,
-  50 at once, only while recording, and rules are never persisted (D-130).
+  50 at once, only while recording, and rules are never persisted.
 - Webhook signing secrets and bearer tokens for exposed services live only in the
   keychain; they cross IPC only as input (never echoed back). A generated secret link key
   or bearer token is returned once, to show the person.
@@ -207,7 +207,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   never argv: the CLI reads it from the environment or standard input), is sent only as a
   `secret_text` binding and kept on later versions with `keep_bindings`; it's never in a
   plan, Activity or the local database. The engine reads it from the keychain only to put a
-  verifying inbox back when a plan that removed or changed it rolls back (D-129). Delivery goes only to the route's own local service
+  verifying inbox back when a plan that removed or changed it rolls back. Delivery goes only to the route's own local service
   (its ingress rule), without following redirects.
 
 ### Logs & diagnostics

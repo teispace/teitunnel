@@ -16,7 +16,7 @@ const LOG_WINDOW = 1_000; // what the backend returns at most
 const CHART_EVERY_MS = 50; // 20 Hz: 20× the live rate
 
 /**
- * A stress bench for the M5 exit criteria (D-051): the log viewer under 2,000 lines/s
+ * A stress bench for the M5 exit criteria: the log viewer under 2,000 lines/s
  * and a 3,600-point chart updating at 20 Hz, while every frame's interval is recorded.
  */
 export default function Stress() {

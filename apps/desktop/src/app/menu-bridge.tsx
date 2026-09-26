@@ -33,7 +33,7 @@ export function MenuBridge() {
   const queryClient = useQueryClient();
   useEffect(() => {
     const platform = detectPlatform();
-    // macOS's menu bar owns the shortcuts there. Windows and Linux have none (D-063),
+    // macOS's menu bar owns the shortcuts there. Windows and Linux have none,
     // and a plain browser (tests, screenshots) neither.
     const stopKeys =
       platform !== "macos" || !isTauri()

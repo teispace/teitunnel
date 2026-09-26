@@ -1,8 +1,14 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Question
+    url: https://github.com/teispace/teitunnel/discussions/categories/q-a
+    about: Ask how to do something, or why something happens.
+  - name: Idea
+    url: https://github.com/teispace/teitunnel/discussions/categories/ideas
+    about: Share an idea to discuss before it becomes a feature request.
+  - name: Documentation
+    url: https://teitunnel.teispace.com/docs/
+    about: Guides, the CLI reference and troubleshooting.
   - name: Security vulnerability
     url: https://github.com/teispace/teitunnel/security/advisories/new
-    about: Please report security issues privately.
-  - name: Questions & ideas
-    url: https://github.com/teispace/teitunnel/discussions
-    about: Ask questions and discuss ideas.
+    about: Report security issues privately, never in a public issue.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates the key that signs Teitunnel's apt and dnf repositories (D-086). Run once, by a
+# Creates the key that signs Teitunnel's apt and dnf repositories. Run once, by a
 # maintainer, from the repository root:
 #
 #   scripts/release/linux-repo-key.sh

@@ -1,11 +1,11 @@
 //! Workers in front of a route, on the user's own account
-//! (docs/research/cloudflare-workers-features.md):
+//! (<https://developers.cloudflare.com/workers/configuration/routing/routes/>):
 //!
-//! - the **offline page** (M12-06): a Worker route `hostname/*` whose script passes
+//! - the **offline page**: a Worker route `hostname/*` whose script passes
 //!   every request to the tunnel (`fetch(request)`) and, when the tunnel answers 530
 //!   (error 1033: no connector, the computer is off), shows the person's own page
 //!   instead of Cloudflare's error;
-//! - the **webhook inbox** (M12-12): a Worker route `hostname/path*` that stores
+//! - the **webhook inbox**: a Worker route `hostname/path*` that stores
 //!   webhooks in the account's D1 database while the tunnel is down (or while earlier
 //!   ones are still waiting, so order is kept) and answers `202`; Teitunnel delivers
 //!   them in order when the computer is back (`crate::inbox`).

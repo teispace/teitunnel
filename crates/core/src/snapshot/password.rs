@@ -9,7 +9,7 @@ use super::SnapshotError;
 use crate::Secret;
 
 /// Iterations: slow enough to make guessing costly, fast enough for the Worker's CPU
-/// budget on a login attempt (docs/research/cloudflare-snapshots.md).
+/// budget on a login attempt.
 pub const ITERATIONS: u32 = 20_000;
 /// Shortest password accepted.
 pub const MIN_LENGTH: usize = 6;

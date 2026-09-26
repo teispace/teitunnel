@@ -10,7 +10,7 @@ const SCROLL_PX = 36; // per frame, like a fast trackpad fling
 const NONE: ReadonlySet<string> = new Set();
 
 /**
- * The Inspector list's budget (M12-02, D-051): 10,000 requests, 200 more a second
+ * The Inspector list's budget: 10,000 requests, 200 more a second
  * arriving on top, a status filter applied, and the list scrolled every frame, while
  * every frame's interval is recorded for `scripts/perf.ts inspector`.
  */

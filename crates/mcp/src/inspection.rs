@@ -1,5 +1,5 @@
 //! What the inspector does for a share or route this server serves, for agents testing
-//! how an app copes (M12-02): mock responses, failures, a slow network, header rules and
+//! how an app copes: mock responses, failures, a slow network, header rules and
 //! CORS, watched paths, idle stop and recording. Changes apply at once to that share or
 //! route only, on this computer (nothing at Cloudflare), and the person approves them
 //! first in `ask` mode.
