@@ -82,7 +82,8 @@ Read: `list_routes`, `list_domains`, `list_tunnels`, `list_shares`,
 `list_local_services`, `plan_change`, `verify_route`, `undo_last`, `doctor`, `logs_tail`,
 `remote_logs`, `connector_status`, `export_config`, `import_scan`, `accounts`,
 `recent_activity`, `traffic_list`, `traffic_get`, `traffic_stats`, `traffic_export`,
-`wait_for_request`, `inspection_settings`, `route_health`, `list_local_domains`.
+`wait_for_request`, `inspection_settings`, `route_health`, `route_traffic`,
+`list_local_domains`.
 Change (need approval in `ask` mode, absent in `read-only`): `share_port`, `stop_share`,
 `apply_plan`, `fix_issue`, `traffic_replay`, `configure_inspection`, `expose_mcp_server`,
 `add_local_domain`, `remove_local_domain`.

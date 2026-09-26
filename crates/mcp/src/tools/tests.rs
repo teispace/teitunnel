@@ -553,6 +553,71 @@ impl Backend for FakeBackend {
         self.changes.subscribe()
     }
 
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        use teitunnel_core::analytics::{
+            Percentiles, Ranked, RequestRate, RouteStats, SourceKind, StatsPart, StatsSeries,
+            StatusClasses,
+        };
+        let ranked = |key: &str, requests| Ranked {
+            key: key.into(),
+            requests,
+        };
+        let stats = RouteStats {
+            source: SourceKind::Edge,
+            route: route.clone(),
+            range,
+            series: StatsSeries {
+                at: vec![60_000.0, 120_000.0, 180_000.0],
+                span: vec![60.0; 3],
+                requests: vec![3, 0, 7],
+                client_errors: vec![0; 3],
+                server_errors: vec![0, 0, 1],
+                bytes: vec![0.0; 3],
+            },
+            requests: 10,
+            rate: RequestRate {
+                average: 10.0 / 180.0,
+                peak: 7.0 / 60.0,
+            },
+            bytes: 2_048,
+            classes: StatusClasses {
+                ok: 9,
+                redirects: 0,
+                client_errors: 0,
+                server_errors: 1,
+            },
+            statuses: vec![ranked("200", 9), ranked("502", 1)],
+            paths: vec![ranked("/", 10)],
+            countries: vec![ranked("NL", 10)],
+            browsers: vec![ranked("Safari", 6)],
+            bots: vec![ranked("", 6), ranked("AI Crawler", 4)],
+            cache: Vec::new(),
+            origin_ms: Some(Percentiles {
+                p50: Some(12.0),
+                p95: Some(80.0),
+                p99: None,
+            }),
+            ttfb_ms: None,
+            available_from: None,
+            unavailable: vec![StatsPart::Cache],
+            fetched_at: 0.0,
+        };
+        let found = route.hostname == "app.xyz.com";
+        Box::pin(async move {
+            if found {
+                Ok(stats)
+            } else {
+                Err(BackendError::Message(
+                    "No connected account has a domain for other.com.".into(),
+                ))
+            }
+        })
+    }
+
     fn uptime<'a>(
         &'a self,
         hostname: Option<&'a str>,
@@ -1098,6 +1163,7 @@ fn every_tool_is_listed_with_schemas_and_annotations() {
         "remote_logs",
         "connector_status",
         "route_health",
+        "route_traffic",
         "export_config",
         "import_scan",
         "accounts",
@@ -2036,6 +2102,52 @@ fn builds_login_rules_from_allow_lists() {
     assert_eq!(rule.email_domains, ["@team.io", "corp.com"]);
     assert_eq!(rule.bypass, ["/webhooks"]);
     assert!(super::access_rule(&[], &["/webhooks".into()]).is_none());
+}
+
+#[tokio::test]
+async fn says_who_uses_a_route() {
+    let h = harness();
+    let out = h
+        .call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "App.xyz.com", "path": "^/api/.*", "range": "hour"}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out["source"], "edge");
+    assert_eq!(out["hostname"], "app.xyz.com");
+    assert_eq!(out["path"], "/api/");
+    assert_eq!(out["range"], "hour");
+    assert_eq!(out["perSecond"]["peak"], 0.117);
+    assert_eq!(out["serverErrorPercent"], 10.0);
+    assert_eq!(out["bots"], json!([["people", 6], ["AI Crawler", 4]]));
+    assert_eq!(
+        out["timeline"].as_array().unwrap().len(),
+        2,
+        "quiet minutes left out"
+    );
+    assert_eq!(out["unavailable"], json!(["cache"]));
+    assert_eq!(out["originMs"]["p95"], 80.0);
+    let missing = h
+        .call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "other.com"}),
+        )
+        .await
+        .unwrap_err();
+    assert!(missing.contains("No connected account"), "{missing}");
+    assert!(
+        h.call(
+            Mode::ReadOnly,
+            "route_traffic",
+            json!({"hostname": "not a host"})
+        )
+        .await
+        .unwrap_err()
+        .contains("isn't a hostname")
+    );
 }
 
 #[tokio::test]

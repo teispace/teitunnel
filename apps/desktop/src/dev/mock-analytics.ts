@@ -92,6 +92,10 @@ export function mockRouteStats(
     range,
     series,
     requests,
+    rate: {
+      average: requests / sum(series.span),
+      peak: Math.max(0, ...series.requests.map((n, i) => n / (series.span[i] ?? 1))),
+    },
     bytes: sum(series.bytes),
     classes: {
       ok: requests - errors - clientErrors - Math.round(requests * 0.03),

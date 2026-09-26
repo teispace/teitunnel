@@ -1634,6 +1634,11 @@
       "addHere": "Hold Requests Like This",
       "edited": "Changed at a breakpoint",
       "timedOut": "Went on by itself after a minute"
+    },
+    "stats": {
+      "open": "Traffic Numbers",
+      "title": "Traffic Numbers",
+      "gone": "This share's history is gone."
     }
   },
   "nav": {
@@ -3154,6 +3159,8 @@
     "section": "Analytics",
     "requestsChart": "Requests over {period}",
     "requests": "Requests",
+    "perSecond": "Per second",
+    "perSecondValue": "{average} on average · {peak} at peak",
     "serverErrors": "5xx",
     "sent": "Sent",
     "responses": "Responses",
@@ -3164,6 +3171,7 @@
     "countries": "Countries",
     "browsers": "Browsers",
     "bots": "Verified bots",
+    "botsClaimed": "Bots, as they name themselves",
     "cache": "Cache",
     "people": "People and other clients",
     "noTraffic": "No requests in {period}.",

@@ -156,6 +156,7 @@ impl ToolProvider for CoreTools {
                 "remote_logs" => diagnostics::remote_logs(backend, arguments, ctx).await,
                 "connector_status" => diagnostics::connector_status(backend, arguments).await,
                 "route_health" => diagnostics::route_health(backend, arguments).await,
+                "route_traffic" => diagnostics::route_traffic(backend, arguments).await,
                 "export_config" => setup::export_config(backend, arguments).await,
                 "import_scan" => setup::import_scan(backend, arguments).await,
                 "accounts" => setup::accounts(backend, arguments).await,

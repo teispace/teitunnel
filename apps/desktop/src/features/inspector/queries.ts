@@ -3,6 +3,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { quickSharesQuery } from "@/features/quick-share/queries";
 import {
+  type AnalyticsRange,
   commands,
   type ExchangeId,
   type ExchangeQuery,
@@ -30,6 +31,8 @@ const keys = {
     [...queryKeys.inspector.all(), "exchange", id, version] as const,
   webhookSecrets: (tap: string) => [...queryKeys.inspector.all(), "webhookSecrets", tap] as const,
   metrics: (tap: string) => [...queryKeys.inspector.all(), "metrics", tap] as const,
+  stats: (tap: string, range: AnalyticsRange) =>
+    [...queryKeys.inspector.all(), "stats", tap, range] as const,
   export: (ids: readonly string[], format: TrafficFormat, redact: boolean) =>
     [...queryKeys.inspector.all(), "export", ids.join(","), format, redact] as const,
 };
@@ -187,6 +190,19 @@ export function useTapMetrics(tap: TapId | null) {
     queryFn: () => call(commands.inspectMetrics(tap ?? "")),
     enabled: tap !== null,
     refetchInterval: 2000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/** A tap's traffic over `range`, from its captures (null: a tap the app doesn't know). */
+export function useTapStats(tap: TapId | null, range: AnalyticsRange) {
+  return useQuery({
+    queryKey: keys.stats(tap ?? "", range),
+    queryFn: () => call(commands.inspectStats(tap ?? "", range)),
+    enabled: tap !== null,
+    // Local and exact: fresh enough to watch a test run.
+    refetchInterval: 5_000,
     placeholderData: keepPreviousData,
     retry: false,
   });

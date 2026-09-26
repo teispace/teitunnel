@@ -407,6 +407,38 @@ impl Analytics {
             .await
     }
 
+    /// One route's traffic from whichever connected account has its domain (or from
+    /// `account` only, when given).
+    ///
+    /// # Errors
+    /// [`AnalyticsError::NoZone`] when no account has it; else see [`AnalyticsError`].
+    pub async fn route_in_any(
+        &self,
+        accounts: &Accounts,
+        account: Option<&str>,
+        route: &RouteRef,
+        range: AnalyticsRange,
+    ) -> Result<RouteStats, AnalyticsError> {
+        let ids: Vec<String> = match account {
+            Some(id) => vec![id.to_owned()],
+            None => accounts.list().await?.into_iter().map(|a| a.id).collect(),
+        };
+        let mut first_error = None;
+        for id in &ids {
+            match self.zones(accounts, id).await {
+                Ok(zones) if zone_for(&zones, &route.hostname).is_some() => {
+                    return self.route(accounts, id, route, range).await;
+                }
+                Ok(_) => {}
+                // An account that can't be read may still not be the one.
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                }
+            }
+        }
+        Err(first_error.unwrap_or_else(|| AnalyticsError::NoZone(route.hostname.clone())))
+    }
+
     /// [`Analytics::route`] with the client, zones and time given.
     ///
     /// # Errors
@@ -461,6 +493,7 @@ impl Analytics {
             route: route.clone(),
             range,
             requests: series.requests.iter().map(|n| u64::from(*n)).sum(),
+            rate: series.rate(),
             bytes: series.bytes.iter().sum::<f64>().max(0.0).round() as u64,
             series,
             classes,

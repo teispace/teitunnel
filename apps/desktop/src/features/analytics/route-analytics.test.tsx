@@ -78,6 +78,8 @@ describe("RouteAnalytics", () => {
     ).toBeTruthy();
     expect(screen.getByText("/api/session")).toBeTruthy();
     expect(screen.getByText("People and other clients")).toBeTruthy();
+    expect(screen.getByText("Per second")).toBeTruthy();
+    expect(screen.getByText("Verified bots")).toBeTruthy();
     expect(screen.getByText("P50 42 ms · P95 184 ms · P99 402 ms")).toBeTruthy();
   });
 

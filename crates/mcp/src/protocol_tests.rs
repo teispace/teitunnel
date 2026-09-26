@@ -174,9 +174,9 @@ async fn introduces_itself_with_instructions_and_capabilities() {
 async fn lists_tools_by_mode() {
     let ask = connect(Mode::Ask, None, false).await;
     let tools = ask.client.list_all_tools().await.unwrap();
-    // Teitunnel's 27 (with route_health), the 5 sharing extras and OpenAPI, the 5 edge
-    // protection tools, and the offline page and inbox tools.
-    assert_eq!(tools.len(), 40);
+    // Teitunnel's 28 (with route_health and route_traffic), the 5 sharing extras and
+    // OpenAPI, the 5 edge protection tools, and the offline page and inbox tools.
+    assert_eq!(tools.len(), 41);
     for tool in &tools {
         assert_eq!(
             tool.input_schema.get("type"),

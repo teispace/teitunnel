@@ -844,3 +844,46 @@ async fn a_route_left_inspected_is_swept_back() {
             .is_empty()
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_shares_numbers_come_from_its_tap() {
+    use crate::analytics::{AnalyticsRange, SourceKind};
+    let origin = origin().await;
+    let inspector = Inspector::new(None, None, "app");
+    let tap = inspector
+        .start(TapSpec::new(quick("qs-stats"), "demo", &origin))
+        .await
+        .unwrap();
+    let chrome =
+        "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
+    send(&tap.address, "GET", "/", &[("user-agent", chrome)]).await;
+    send(&tap.address, "GET", "/about", &[("user-agent", chrome)]).await;
+    send(
+        &tap.address,
+        "POST",
+        "/hook",
+        &[("user-agent", "Stripe/1.0")],
+    )
+    .await;
+    settle(&inspector, 3).await;
+    let source = analytics::LensSource::new(inspector.clone());
+    let stats = source.tap_stats(&tap.id, AnalyticsRange::Hour).unwrap();
+    assert_eq!(stats.source, SourceKind::Proxy);
+    assert_eq!(stats.requests, 3);
+    assert_eq!(stats.classes.ok, 3);
+    assert_eq!(stats.browsers[0].key, "Chrome");
+    assert_eq!(stats.browsers[0].requests, 2);
+    let bots: Vec<(&str, u64)> = stats
+        .bots
+        .iter()
+        .map(|r| (r.key.as_str(), r.requests))
+        .collect();
+    assert_eq!(bots, [("", 2), ("Webhooks", 1)]);
+    assert!(stats.rate.average > 0.0 && stats.rate.peak >= stats.rate.average);
+    assert!(
+        source
+            .tap_stats(&lens::TapId::new("nope").unwrap(), AnalyticsRange::Hour)
+            .is_none()
+    );
+    inspector.shutdown().await;
+}

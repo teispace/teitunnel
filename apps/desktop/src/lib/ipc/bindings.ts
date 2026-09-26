@@ -592,6 +592,53 @@ export const commands = {
 	/**  A tap's counters and latency percentiles. */
 	inspectMetrics: (tap: TapId) => __TAURI_INVOKE<MetricsSnapshot>("inspect_metrics", { tap }),
 	/**
+	 *  A tap's traffic over `range`: requests over time, answers, response times, paths,
+	 *  countries, browsers and bots (null: a tap this app doesn't know).
+	 */
+	inspectStats: (tap: TapId, range: AnalyticsRange) => __TAURI_INVOKE<{
+	/**  Where the numbers come from. */
+	source: SourceKind,
+	/**  The route. */
+	route: RouteRef,
+	/**  The range asked for. */
+	range: AnalyticsRange,
+	/**  Requests over time. */
+	series: StatsSeries,
+	/**  Requests in the range. */
+	requests: number,
+	/**  Requests per second. */
+	rate: RequestRate,
+	/**  Bytes sent to visitors. */
+	bytes: number,
+	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */
+	classes: StatusClasses,
+	/**  Requests per status code. */
+	statuses: Ranked[],
+	/**  Top paths. */
+	paths: Ranked[],
+	/**  Top countries. */
+	countries: Ranked[],
+	/**  Top browsers. */
+	browsers: Ranked[],
+	/**  Verified bot categories (the empty key: people and unverified bots). */
+	bots: Ranked[],
+	/**  Cache statuses. */
+	cache: Ranked[],
+	/**  Origin response time. */
+	originMs: Percentiles | null,
+	/**  Edge time to first byte. */
+	ttfbMs: Percentiles | null,
+	/**
+	 *  Data starts here, not at the range's start (the plan keeps less history);
+	 *  milliseconds since the epoch.
+	 */
+	availableFrom: number | null,
+	/**  Parts the plan or the source doesn't offer. */
+	unavailable: StatsPart[],
+	/**  When the numbers were fetched, milliseconds since the epoch. */
+	fetchedAt: number,
+} | null>("inspect_stats", { tap, range }),
+	/**
 	 *  Webhook senders with a signing secret saved for a tap's share or route (never the
 	 *  secrets).
 	 */
@@ -4223,6 +4270,14 @@ export type ReplayInput = {
 	resign?: boolean,
 };
 
+/**  Requests per second over a range. */
+export type RequestRate = {
+	/**  Over the whole range (or the part with data). */
+	average: number | null,
+	/**  The busiest bucket's average (a minute at best, so short bursts read lower). */
+	peak: number | null,
+};
+
 /**  The request part of a view. */
 export type RequestView = {
 	/**  Method. */
@@ -4460,6 +4515,8 @@ export type RouteStats = {
 	series: StatsSeries,
 	/**  Requests in the range. */
 	requests: number,
+	/**  Requests per second. */
+	rate: RequestRate,
 	/**  Bytes sent to visitors. */
 	bytes: number,
 	/**  Responses by class (only 4xx and 5xx are known without [`StatsPart::Statuses`]). */

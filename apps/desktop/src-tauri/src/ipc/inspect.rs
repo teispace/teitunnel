@@ -306,6 +306,19 @@ pub fn inspect_metrics(
     state.inspector.metrics(&tap).map_err(err)
 }
 
+/// A tap's traffic over `range`: requests over time, answers, response times, paths,
+/// countries, browsers and bots (null: a tap this app doesn't know).
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_stats(
+    state: State<'_, AppState>,
+    tap: TapId,
+    range: teitunnel_core::analytics::AnalyticsRange,
+) -> Option<teitunnel_core::analytics::RouteStats> {
+    teitunnel_core::inspect::analytics::LensSource::new(state.inspector.clone())
+        .tap_stats(&tap, range)
+}
+
 fn webhook_scope(state: &AppState, tap: &TapId) -> Result<String, AppError> {
     state
         .inspector

@@ -106,6 +106,8 @@ pub struct CoreBackend<S: ConnectorSource> {
     owner: String,
     changes: broadcast::Sender<ChangeEvent>,
     own_domain: Mutex<HashSet<(String, String)>>,
+    /// Edge analytics, cached for this process.
+    analytics: teitunnel_core::analytics::Analytics,
 }
 
 impl<S: ConnectorSource> std::fmt::Debug for CoreBackend<S> {
@@ -148,6 +150,7 @@ impl<S: ConnectorSource> CoreBackend<S> {
             source,
             changes,
             own_domain: Mutex::default(),
+            analytics: teitunnel_core::analytics::Analytics::default(),
         });
         tokio::spawn(backend.parts.quick_shares.clone().watch_runtime());
         // Forget the record of a Quick Share that ended by itself (`expiresIn`).
@@ -959,6 +962,34 @@ impl<S: ConnectorSource> Backend for CoreBackend<S> {
 
     fn subscribe(&self) -> broadcast::Receiver<ChangeEvent> {
         self.changes.subscribe()
+    }
+
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        use teitunnel_core::analytics::{AnalyticsError, AnalyticsSource};
+        Box::pin(async move {
+            if let Some(inspector) = self.parts.quick_shares.inspector() {
+                let lens = teitunnel_core::inspect::analytics::LensSource::new(inspector.clone());
+                if let Ok(Some(stats)) = lens.route_stats(route, range).await {
+                    return Ok(stats);
+                }
+            }
+            self.analytics
+                .route_in_any(&self.parts.accounts, None, route, range)
+                .await
+                .map_err(|err| match err {
+                    AnalyticsError::NoZone(host) => BackendError::Message(format!(
+                        "No connected account has a domain for {host}, and this server's inspector isn't in front of it."
+                    )),
+                    AnalyticsError::Permission => BackendError::Message(format!(
+                        "{err} The person can add Zone ▸ Analytics ▸ Read to the account in Teitunnel (Settings ▸ Accounts)."
+                    )),
+                    other => msg(other),
+                })
+        })
     }
 
     fn uptime<'a>(

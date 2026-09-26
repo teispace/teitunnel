@@ -1,16 +1,18 @@
 //! The inspector as an analytics source: exact numbers for a route or share it's in
 //! front of, from its captures (status classes and codes, p50/p95/p99 time to first
-//! byte, bytes, paths, countries). The most precise source, so it's asked first.
+//! byte, bytes, paths, countries, browsers and bots by `User-Agent`). The most precise
+//! source, so it's asked first; the only one for Quick Shares and local domains.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use futures_util::future::BoxFuture;
-use lens::{Exchange, Filter, Query, Redaction};
+use lens::{Exchange, Filter, Query, Redaction, TapId};
 
 use super::{Inspector, TapScope};
 use crate::analytics::{
     AnalyticsError, AnalyticsRange, AnalyticsSource, Percentiles, Ranked, RouteRef, RouteStats,
-    SourceKind, StatsPart, StatsSeries, StatusClasses,
+    SourceKind, StatsPart, StatsSeries, StatusClasses, path_prefix,
+    user_agent::{self, Agent},
 };
 
 /// Top entries kept per breakdown.
@@ -41,6 +43,76 @@ impl LensSource {
             TapScope::LocalDomain { .. } => false,
         })
     }
+
+    /// Captured exchanges matching `filter` and `keep` (replays left out), every page.
+    fn collect(&self, filter: Filter, keep: impl Fn(&Exchange) -> bool) -> Vec<Arc<Exchange>> {
+        let mut query = Query {
+            filter,
+            limit: Some(lens::MAX_PAGE),
+            before: None,
+        };
+        let mut all = Vec::new();
+        loop {
+            let page = self.inspector.list_raw(&query);
+            all.extend(
+                page.items
+                    .into_iter()
+                    .filter(|e| e.replay_of.is_none() && keep(e)),
+            );
+            match page.next {
+                Some(next) => query.before = Some(next),
+                None => break,
+            }
+        }
+        all
+    }
+
+    /// A share's or route's numbers over `range` by its tap, running or from the
+    /// history; `None` for a tap this process doesn't know.
+    pub fn tap_stats(&self, tap: &TapId, range: AnalyticsRange) -> Option<RouteStats> {
+        let known = self
+            .inspector
+            .known_taps()
+            .into_iter()
+            .find(|t| t.id == *tap)?;
+        let route = match known.scope {
+            TapScope::Route { hostname, path, .. } => RouteRef {
+                hostname,
+                path: path.and_then(|p| path_prefix(&p)).filter(|p| p != "/"),
+            },
+            TapScope::LocalDomain { name } => RouteRef {
+                hostname: name,
+                path: None,
+            },
+            TapScope::QuickShare { .. } => RouteRef {
+                hostname: known
+                    .name
+                    .strip_prefix("https://")
+                    .unwrap_or(&known.name)
+                    .trim_end_matches('/')
+                    .to_owned(),
+                path: None,
+            },
+        };
+        let now = crate::analytics::now_ms();
+        let found = self.collect(
+            Filter {
+                tap: Some(tap.clone()),
+                since_ms: Some(since(now, range)),
+                ..Filter::default()
+            },
+            |_| true,
+        );
+        let refs: Vec<&Exchange> = found.iter().map(AsRef::as_ref).collect();
+        Some(stats(&refs, &route, range, now))
+    }
+}
+
+/// Start of `range` back from `now` (milliseconds since the epoch).
+fn since(now: f64, range: AnalyticsRange) -> u64 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let now = now as u64;
+    now.saturating_sub(range.seconds() * 1_000)
 }
 
 fn ranked(counts: HashMap<String, u64>) -> Vec<Ranked> {
@@ -90,6 +162,7 @@ pub(crate) fn stats(
     );
     let mut classes = StatusClasses::default();
     let (mut statuses, mut paths, mut countries) = (HashMap::new(), HashMap::new(), HashMap::new());
+    let (mut browsers, mut bots) = (HashMap::new(), HashMap::new());
     let mut ttfb = Vec::new();
     let mut total_bytes = 0;
     for exchange in exchanges {
@@ -122,6 +195,22 @@ pub(crate) fn stats(
         if let Some(country) = &exchange.client.country {
             *countries.entry(country.clone()).or_insert(0) += 1;
         }
+        let agent = exchange
+            .request
+            .headers
+            .get(http::header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .and_then(user_agent::classify);
+        // As at the edge, the empty key is people and whatever didn't say it's a bot.
+        let bot = match agent {
+            Some(Agent::Browser(family)) => {
+                *browsers.entry(family.to_owned()).or_insert(0) += 1;
+                String::new()
+            }
+            Some(Agent::Bot(kind)) => kind.to_owned(),
+            None => String::new(),
+        };
+        *bots.entry(bot).or_insert(0) += 1;
         if let Some(first) = exchange.timings.first_byte_us {
             #[allow(clippy::cast_precision_loss)]
             ttfb.push(first as f64 / 1_000.0);
@@ -155,6 +244,7 @@ pub(crate) fn stats(
         source: SourceKind::Proxy,
         route: route.clone(),
         range,
+        rate: series.rate(),
         series,
         requests: exchanges.len() as u64,
         bytes: total_bytes,
@@ -162,8 +252,8 @@ pub(crate) fn stats(
         statuses: ranked(statuses),
         paths: ranked(paths),
         countries: ranked(countries),
-        browsers: Vec::new(),
-        bots: Vec::new(),
+        browsers: ranked(browsers),
+        bots: ranked(bots),
         cache: Vec::new(),
         origin_ms: Some(Percentiles {
             p50: percentile(&ttfb, 50.0),
@@ -173,7 +263,8 @@ pub(crate) fn stats(
         .filter(|p| p.p50.is_some()),
         ttfb_ms: None,
         available_from,
-        unavailable: vec![StatsPart::Browsers, StatsPart::Bots, StatsPart::Cache],
+        // No cache in front of the inspector.
+        unavailable: vec![StatsPart::Cache],
         fetched_at: now_ms,
     }
 }
@@ -193,33 +284,20 @@ impl AnalyticsSource for LensSource {
                 return Ok(None);
             }
             let now = crate::analytics::now_ms();
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let since = (now as u64).saturating_sub(range.seconds() * 1_000);
-            let mut query = Query {
-                filter: Filter {
+            let all = self.collect(
+                Filter {
                     host: Some(route.hostname.clone()),
-                    since_ms: Some(since),
+                    since_ms: Some(since(now, range)),
                     ..Filter::default()
                 },
-                limit: Some(lens::MAX_PAGE),
-                before: None,
-            };
-            let mut all = Vec::new();
-            loop {
-                let page = self.inspector.list_raw(&query);
-                all.extend(page.items.into_iter().filter(|e| {
-                    e.replay_of.is_none()
-                        && e.request.host.eq_ignore_ascii_case(&route.hostname)
+                |e| {
+                    e.request.host.eq_ignore_ascii_case(&route.hostname)
                         && route
                             .path
                             .as_deref()
                             .is_none_or(|p| e.request.path().starts_with(p))
-                }));
-                match page.next {
-                    Some(next) => query.before = Some(next),
-                    None => break,
-                }
-            }
+                },
+            );
             let refs: Vec<&Exchange> = all.iter().map(AsRef::as_ref).collect();
             Ok(Some(stats(&refs, route, range, now)))
         })

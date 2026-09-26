@@ -79,6 +79,7 @@ pub(crate) fn stats_from_rollups(
         source: SourceKind::Connector,
         route: route.clone(),
         range,
+        rate: series.rate(),
         series,
         requests,
         bytes: 0,

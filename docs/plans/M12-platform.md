@@ -78,7 +78,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] No mTLS: client-certificate enforcement needs paid plans (Access: Enterprise), so free users couldn't use it.
 
 ## M12-05 · Analytics, uptime, alerts
-- [ ] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3).
+- [x] Per route and share: requests/s, p50/p95/p99 latency, 2xx/3xx/4xx/5xx, bandwidth, top paths, top countries, user agents/bots, from Lens (precise, local) and Cloudflare's GraphQL Analytics (edge view, any connector; needs Account Analytics Read, decision Q3). (D-134: a request rate from every source; browsers and bots by `User-Agent` in the inspector's numbers; Traffic Numbers per share or route in the Inspector, Quick Shares included; MCP `route_traffic`, inspector first then the edge; `teitunnel analytics` prints the rate and bots.)
 - [x] Uptime: every route checked through the edge on a schedule; history, incidents, response time chart; notification when down/recovered; optional status badge.
 - [x] Alerts: 5xx rate, latency, connector down, certificate/DNS problems, quota-like limits (429s on Quick Share), with quiet hours.
 - [x] Overview becomes a live dashboard: health, traffic, errors, recent requests, all at a glance. (Traffic, Errors (5xx and unreachable over 5 min) and Uptime tiles; Recent Requests from the inspector, live, each opening selected in the Inspector.)

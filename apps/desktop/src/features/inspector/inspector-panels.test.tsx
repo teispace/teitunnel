@@ -12,6 +12,7 @@ import { InspectorSettingsPane } from "./components/inspector-settings";
 import { ShareInspectSwitch } from "./components/share-inspect";
 import { ProtectShareButton, ShareProtectionNote } from "./components/share-protect";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
+import { rangesKept, TapStatsSheet } from "./components/tap-stats-sheet";
 
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", async (original) => ({
@@ -243,5 +244,26 @@ describe("Protecting a Quick Share", () => {
     fireEvent.click(button);
     const sheet = await screen.findByRole("dialog", { name: "Protect a.trycloudflare.com" });
     expect(within(sheet).getByText(/Enforced by the inspector on this computer/)).toBeTruthy();
+  });
+});
+
+describe("Traffic Numbers", () => {
+  it("shows a share's numbers from the inspector, bots by the name they give", async () => {
+    wrap(<TapStatsSheet tap="qs-1" name="https://a.trycloudflare.com" onClose={() => {}} />);
+    expect(await screen.findByText("Bots, as they name themselves")).toBeTruthy();
+    expect(screen.getByText("Webhooks")).toBeTruthy();
+    expect(screen.getByText("From the local inspector")).toBeTruthy();
+    expect(screen.getByText("Per second")).toBeTruthy();
+    // Cache isn't measured locally, and that isn't about the plan.
+    expect(screen.queryByText(/Not on this domain/)).toBeNull();
+    expect(called("inspect_stats")[0]?.args).toEqual({ tap: "qs-1", range: "hour" });
+    fireEvent.click(screen.getByRole("radio", { name: "Day" }));
+    await waitFor(() => expect(called("inspect_stats").at(-1)?.args["range"]).toBe("day"));
+  });
+
+  it("offers only the ranges the history keeps", () => {
+    expect(rangesKept(1)).toEqual(["hour"]);
+    expect(rangesKept(24)).toEqual(["hour", "day"]);
+    expect(rangesKept(24 * 30)).toEqual(["hour", "day", "week", "month"]);
   });
 });

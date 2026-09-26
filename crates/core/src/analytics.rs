@@ -13,6 +13,7 @@
 
 pub mod connector;
 pub mod edge;
+pub mod user_agent;
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
@@ -204,6 +205,40 @@ impl StatsSeries {
     }
 }
 
+/// Requests per second over a range.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct RequestRate {
+    /// Over the whole range (or the part with data).
+    pub average: f64,
+    /// The busiest bucket's average (a minute at best, so short bursts read lower).
+    pub peak: f64,
+}
+
+impl StatsSeries {
+    /// Requests per second, on average and in the busiest bucket.
+    pub fn rate(&self) -> RequestRate {
+        let seconds: f64 = self.span.iter().sum();
+        let requests: f64 = self.requests.iter().map(|n| f64::from(*n)).sum();
+        let peak = self
+            .requests
+            .iter()
+            .zip(&self.span)
+            .filter(|(_, span)| **span > 0.0)
+            .map(|(n, span)| f64::from(*n) / span)
+            .fold(0.0, f64::max);
+        RequestRate {
+            average: if seconds > 0.0 {
+                requests / seconds
+            } else {
+                0.0
+            },
+            peak,
+        }
+    }
+}
+
 /// A value of a breakdown and its requests.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -270,6 +305,8 @@ pub struct RouteStats {
     /// Requests in the range.
     #[cfg_attr(feature = "specta", specta(type = u32))]
     pub requests: u64,
+    /// Requests per second.
+    pub rate: RequestRate,
     /// Bytes sent to visitors.
     #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes: u64,
@@ -586,6 +623,10 @@ mod tests {
         assert_eq!(series.server_errors, [0, 1, 0, 0]);
         assert_eq!(recent_errors(&series, 240_000.0, 2), (3, 0));
         assert_eq!(recent_errors(&series, 240_000.0, 3), (8, 1));
+        let rate = series.rate();
+        assert!((rate.average - 8.0 / 240.0).abs() < 1e-9);
+        assert!((rate.peak - 5.0 / 60.0).abs() < 1e-9);
+        assert_eq!(StatsSeries::default().rate(), RequestRate::default());
 
         let classes = classes_of(&[
             Ranked {
@@ -636,6 +677,7 @@ mod tests {
                     range,
                     series: StatsSeries::default(),
                     requests: 0,
+                    rate: RequestRate::default(),
                     bytes: 0,
                     classes: StatusClasses::default(),
                     statuses: Vec::new(),

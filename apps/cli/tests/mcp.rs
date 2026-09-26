@@ -136,9 +136,9 @@ fn shares_a_port_and_lets_the_app_stop_it() {
     // Teitunnel's 26, the sharing extras' 4 and traffic_openapi (M12-06, M12-12), the
     // protection provider's 5 (M12-04), the reservation provider's 3 (M12-11), the
     // comments provider's 3 (M12-06), expose_mcp_server (M12-02), the offline page
-    // and inbox provider's 3, the inspection provider's 2, route_health, and the local
-    // domain provider's 3.
-    assert_eq!(names.len(), 52, "{names:?}");
+    // and inbox provider's 3, the inspection provider's 2, route_health, route_traffic,
+    // and the local domain provider's 3.
+    assert_eq!(names.len(), 53, "{names:?}");
     for tool in [
         "set_offline_page",
         "set_webhook_inbox",

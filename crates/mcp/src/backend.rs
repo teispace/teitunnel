@@ -465,6 +465,21 @@ pub trait Backend: Send + Sync + 'static {
         Box::pin(async { Err(unsupported_extras()) })
     }
 
+    /// One route's or share's traffic over `range`: from this process's inspector when
+    /// it's in front of it (exact), else from Cloudflare's edge analytics.
+    fn route_traffic<'a>(
+        &'a self,
+        route: &'a teitunnel_core::analytics::RouteRef,
+        range: teitunnel_core::analytics::AnalyticsRange,
+    ) -> BoxFuture<'a, BackendResult<teitunnel_core::analytics::RouteStats>> {
+        let _ = (route, range);
+        Box::pin(async {
+            Err(BackendError::Unsupported(
+                "Traffic numbers aren't available from this host.".into(),
+            ))
+        })
+    }
+
     /// Uptime of this machine's routes (one hostname's, or all) over `range`, from the
     /// checks through Cloudflare the app runs every minute.
     fn uptime<'a>(

@@ -30,7 +30,9 @@ Precise per-tunnel counts from this computer's own connector are in
   - **Uptime** with a status strip (each slice up, down or *Not checked*), the uptime over the
     period, **Response time** through Cloudflare and **Incidents** (*Ongoing, since 14:05*, or
     when and for how long, with the cause, such as *Service unreachable*);
-  - **Requests** over the period, **Sent** bytes and **Responses** by class;
+  - **Requests** over the period, **Per second** (*0.23 on average · 0.37 at peak*; the peak is
+    the busiest minute, hour or day, depending on the period), **Sent** bytes and **Responses**
+    by class;
   - **Origin time** (*P50 · P95 · P99*) and **Time to first byte**;
   - **Top paths**, **Countries**, **Browsers**, **Verified bots**, **People and other
     clients**, and **Cache** status.
@@ -38,6 +40,14 @@ Precise per-tunnel counts from this computer's own connector are in
   A label says where the numbers come from: *From Cloudflare's edge*, *From this Mac's
   connector*, or *From the local inspector* (when the route is inspected, the inspector
   answers first).
+- In the **Inspector**, **Traffic Numbers** (the chart button in the toolbar) shows the same
+  numbers for the selected share or route from its captured requests: exact, and the only
+  numbers there are for a Quick Share, which Cloudflare's analytics don't cover. It offers the
+  periods the inspector's history keeps (24 hours unless you changed it in Settings ▸
+  Inspector). Bots there are listed as **Bots, as they name themselves**: the inspector reads
+  each request's `User-Agent` (search engines, AI crawlers and assistants, link previews,
+  monitors, webhook senders, command-line tools), but unlike Cloudflare it can't check the
+  claim.
 - The Traffic, Errors and Uptime tiles on **Overview** open Analytics.
 
 ## Traffic from Cloudflare's edge
@@ -125,6 +135,7 @@ Teispace
 $ teitunnel analytics app.teispace.com --range week
 app.teispace.com
   Requests      131840
+  Per second    0.22/s average · 3.1/s peak
   Sent          4.2 GB
   Responses     2xx 127311 · 3xx 3140 · 4xx 1206 · 5xx 183
   Origin time   p50 31 ms · p95 84 ms · p99 212 ms

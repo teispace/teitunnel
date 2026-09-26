@@ -1,4 +1,5 @@
 import type {
+  AnalyticsRange,
   BodyView,
   ExchangeDetail,
   ExchangeKind,
@@ -15,6 +16,7 @@ import type {
   TapView,
   WebhookSender,
 } from "@/lib/ipc/bindings";
+import { mockRouteStats } from "./mock-analytics";
 
 /**
  * Dev-only inspector fixtures for the browser preview (see `mock-ipc.ts`) and tests: a
@@ -719,6 +721,24 @@ export function inspectorMock(cmd: string, payload: Record<string, unknown>): un
         secretLinkKey: null,
         bearerToken: null,
       };
+    case "inspect_stats": {
+      const tap = taps.find((t) => t.id === payload["tap"]);
+      if (!tap) return null;
+      const stats = mockRouteStats(tap.name, null, payload["range"] as AnalyticsRange);
+      return {
+        ...stats,
+        source: "proxy",
+        cache: [],
+        ttfbMs: null,
+        bots: [
+          { key: "", requests: Math.round(stats.requests * 0.82) },
+          { key: "Webhooks", requests: Math.round(stats.requests * 0.1) },
+          { key: "Page Preview", requests: Math.round(stats.requests * 0.05) },
+          { key: "AI Assistant", requests: Math.round(stats.requests * 0.03) },
+        ],
+        unavailable: ["cache"],
+      };
+    }
     case "inspect_metrics":
       return {
         requests: 42,

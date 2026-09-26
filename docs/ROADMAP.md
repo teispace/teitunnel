@@ -75,7 +75,7 @@ Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/compet
 - [x] M12-02 inspector: Lens core (D-100), integration (D-110) and screens (D-111); left: breakpoints, a measured perf budget
 - [x] M12-03 MCP server (D-097), approvals in the app (D-121)
 - [ ] M12-04 protection: edge rules (D-105) and service tokens (D-106) done; Lens gates in the UI done (Quick Share shield); Access webhook bypass done (D-131); GitHub/Google login presets left
-- [ ] M12-05 analytics: edge analytics, uptime and alerts (D-098), the Lens source (D-110) and the live Overview done; the per-route breakdown item is still open in the plan
+- [x] M12-05 analytics: edge analytics, uptime and alerts (D-098), the Lens source (D-110), the live Overview, and the per-route and per-share breakdown (D-134)
 - [x] M12-06 sharing: Snapshots (D-099), pause/resume (D-116), schedules (D-117), stable names (D-118), folder share (D-119), comments (D-122), offline page (D-123)
 - [x] M12-11 CI/CD and teams: PR previews (D-104), reservations (D-103)
 - [x] M12-12 more: project files (D-107), exposure check (D-108), backups (D-109), idle stop, OpenAPI from traffic (D-120), webhook inbox (D-123, D-124)

@@ -216,6 +216,7 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             inspect::inspect_configure,
             inspect::inspect_protect,
             inspect::inspect_metrics,
+            inspect::inspect_stats,
             inspect::inspect_webhook_secrets,
             inspect::inspect_webhook_secret_set,
             inspect::inspect_webhook_secret_remove,

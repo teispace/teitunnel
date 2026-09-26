@@ -74,6 +74,7 @@ one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio se
 | `doctor`, `fix_issue` | The Doctor's issues and their fixes ([Doctor checks](/docs/reference/doctor)). |
 | `logs_tail`, `remote_logs`, `connector_status` | This machine's connector logs (per route), another machine's live logs, connector health. |
 | `list_local_domains`, `add_local_domain`, `remove_local_domain` | [Local HTTPS domains](/docs/guides/local-domains) such as `https://shop.test` for a dev server, on this computer only. Served by the app while it runs, otherwise by the MCP server until its session ends; trusting the certificate authority is left to you (it asks for your password). |
+| `route_traffic` | Who uses a route or share and how: requests over time and per second, answers, the 5xx share, response times, top paths, countries, browsers and bots by kind, from the inspector when it's in front of it and otherwise from Cloudflare's analytics ([Analytics](/docs/guides/analytics)). |
 | `route_health` | Whether each route is up, its uptime over a day, week and month, response times, the outage going on and recent incidents, from the checks the app runs every minute ([Analytics](/docs/guides/analytics)). |
 | `export_config`, `import_scan` | `config.yml`, Docker Compose or Terraform; existing cloudflared setups. |
 | `accounts`, `recent_activity` | Connected accounts and what they can do (never their credentials); recent changes and who made them. |

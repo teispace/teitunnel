@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ChartColumn,
   FileOutput,
   GitCompareArrows,
   OctagonPause,
@@ -32,6 +33,7 @@ import { HeldRequest } from "./components/held-request";
 import { InspectRouteSheet } from "./components/inspect-route-sheet";
 import { ReplaySheet } from "./components/replay-sheet";
 import { TapSettingsSheet } from "./components/tap-settings-sheet";
+import { TapStatsSheet } from "./components/tap-stats-sheet";
 import { useLiveExchanges, useRows } from "./live";
 import { type Filters, formatMs, isFiltered, matches, noFilters } from "./model";
 import {
@@ -91,6 +93,7 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
   const [exporting, setExporting] = useState<readonly string[]>([]);
   const [comparing, setComparing] = useState<readonly [string, string] | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [restoring, setRestoring] = useState<InspectRouteTarget | null>(null);
   const clear = useClearExchanges();
   const tapView = taps.data?.find((tap) => tap.id === current) ?? null;
@@ -198,6 +201,12 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
         label={t("inspector.exportButton")}
         disabled={exportIds.length === 0}
         onClick={() => setExporting(exportIds)}
+      />
+      <IconButton
+        icon={ChartColumn}
+        label={t("inspector.stats.open")}
+        disabled={current === null}
+        onClick={() => setStatsOpen(true)}
       />
       <IconButton
         icon={SlidersHorizontal}
@@ -361,6 +370,11 @@ export function InspectorPage({ tap: wantedTap, host, exchange }: InspectorPageP
       <ExportSheet ids={exporting} onClose={() => setExporting([])} />
       <CompareSheet pair={comparing} onClose={() => setComparing(null)} />
       <TapSettingsSheet tap={tapView} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <TapStatsSheet
+        tap={statsOpen ? current : null}
+        name={current ? (names.get(current) ?? current) : ""}
+        onClose={() => setStatsOpen(false)}
+      />
       <InspectRouteSheet target={restoring} restore onClose={() => setRestoring(null)} />
     </>
   );
