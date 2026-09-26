@@ -11,11 +11,31 @@ export interface Pledge {
 
 interface Trace {
   d: string;
+  /** Its length in pixels, for pulses of a fixed length. */
+  length: number;
   /** Where it starts, when a dot marks it. */
   dot?: { x: number; y: number };
   /** Where it meets the core: a pin. */
   pin: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
 }
+
+/** Each node's colour, so the data from each can be told apart. */
+const COLORS = [
+  "var(--tt-accent)",
+  "oklch(0.78 0.13 210)",
+  "oklch(0.7 0.16 295)",
+  "oklch(0.72 0.17 350)",
+  "oklch(0.8 0.14 75)",
+  "oklch(0.76 0.15 155)",
+] as const;
+
+/** A pulse's layers, head first: length (of the trace), opacity and width. */
+const TRAIL = [
+  [14, 1, 2.25],
+  [40, 0.5, 2],
+  [72, 0.24, 1.75],
+  [110, 0.1, 1.5],
+] as const;
 
 /** A pulse of data on its way along a trace into the core. */
 interface Pulse {
@@ -50,6 +70,17 @@ function rounded(points: { x: number; y: number }[], radius = 12): string {
   return d;
 }
 
+/** A trace through `points`: its rounded path and its length. */
+function route(points: { x: number; y: number }[]): { d: string; length: number } {
+  let length = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (a && b) length += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return { d: rounded(points), length };
+}
+
 /**
  * Security and privacy as a core: the promise in the middle, styled like a chip, and each
  * of the six promises around it wired to it, with data flowing along every trace into the
@@ -76,15 +107,29 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
       return;
     let timer = 0;
     let id = 0;
+    // Pulses in flight, so the board is never empty for long.
+    const flying = new Map<number, number>();
     const send = () => {
-      const burst = Math.random() < 0.2 ? 2 + Math.floor(Math.random() * 2) : 1;
-      const fresh = Array.from({ length: burst }, () => ({
-        id: id++,
-        trace: Math.floor(Math.random() * traces.length),
-        duration: 1.6 + Math.random() * 2.2,
-      }));
-      setPulses((now) => [...now.slice(-24), ...fresh]);
-      timer = window.setTimeout(send, 250 + Math.random() * 850);
+      const now = performance.now();
+      for (const [key, until] of flying) if (until < now) flying.delete(key);
+      const burst =
+        flying.size < 3
+          ? 3 - flying.size
+          : Math.random() < 0.33
+            ? 2 + Math.floor(Math.random() * 2)
+            : 1;
+      const fresh = Array.from({ length: burst }, () => {
+        const duration = 1.2 + Math.random() * 1.4;
+        const pulse = {
+          id: id++,
+          trace: Math.floor(Math.random() * traces.length),
+          duration,
+        };
+        flying.set(pulse.id, now + duration * 1000);
+        return pulse;
+      });
+      setPulses((current) => [...current.slice(-32), ...fresh]);
+      timer = window.setTimeout(send, 120 + Math.random() * 330);
     };
     const observer = new IntersectionObserver(([entry]) => {
       window.clearTimeout(timer);
@@ -125,7 +170,7 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           const from = r.right - box.left;
           const turn = from + (coreLeft - from) * (0.3 + index * 0.18);
           next.push({
-            d: rounded([
+            ...route([
               { x: from, y },
               { x: turn, y },
               { x: turn, y: pinY },
@@ -137,7 +182,7 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           const from = r.left - box.left;
           const turn = from - (from - coreRight) * (0.3 + index * 0.18);
           next.push({
-            d: rounded([
+            ...route([
               { x: from, y },
               { x: turn, y },
               { x: turn, y: pinY },
@@ -153,7 +198,7 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
         const x = middle + dx;
         const start = { x: x + (k === 0 ? -60 : k === 2 ? 50 : 0), y: Math.max(8, coreTop - 90) };
         next.push({
-          d: rounded([start, { x, y: start.y }, { x, y: coreTop }]),
+          ...route([start, { x, y: start.y }, { x, y: coreTop }]),
           dot: start,
           pin: { x, y: coreTop, side: "top" },
         });
@@ -162,7 +207,7 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
         const x = middle + dx;
         const start = { x: x + (k === 0 ? -40 : 40), y: Math.min(box.height - 8, coreBottom + 80) };
         next.push({
-          d: rounded([start, { x, y: start.y }, { x, y: coreBottom }]),
+          ...route([start, { x, y: start.y }, { x, y: coreBottom }]),
           dot: start,
           pin: { x, y: coreBottom, side: "bottom" },
         });
@@ -235,16 +280,37 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           ))}
           {pulses.map((pulse) => {
             const trace = traces[pulse.trace];
-            return trace ? (
-              <path
+            if (!trace) return null;
+            // A bright head and longer, fainter layers behind it: a tapering trail.
+            return (
+              <g
                 key={pulse.id}
-                d={trace.d}
-                pathLength={1}
-                className="tt-trace-pulse"
-                style={{ "--duration": `${pulse.duration}s` } as CSSProperties}
-                onAnimationEnd={() => setPulses((now) => now.filter((p) => p.id !== pulse.id))}
-              />
-            ) : null;
+                style={{ "--c": COLORS[pulse.trace % COLORS.length] } as CSSProperties}
+              >
+                {TRAIL.map(([length, alpha, width], layer) => (
+                  <path
+                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed layers of one pulse
+                    key={layer}
+                    d={trace.d}
+                    className={layer === 0 ? "tt-trace-pulse tt-trace-head" : "tt-trace-pulse"}
+                    style={
+                      {
+                        "--duration": `${pulse.duration}s`,
+                        "--len": `${length}px`,
+                        "--total": `${trace.length}px`,
+                        "--alpha": alpha,
+                        strokeWidth: width,
+                      } as CSSProperties
+                    }
+                    onAnimationEnd={
+                      layer === 0
+                        ? () => setPulses((now) => now.filter((p) => p.id !== pulse.id))
+                        : undefined
+                    }
+                  />
+                ))}
+              </g>
+            );
           })}
         </svg>
       ) : null}

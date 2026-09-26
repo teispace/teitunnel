@@ -1269,28 +1269,28 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
 
 .tt-trace-pulse {
   fill: none;
-  stroke: var(--tt-accent);
-  stroke-width: 1.75;
+  stroke: var(--c, var(--tt-accent));
   stroke-linecap: round;
-  stroke-dasharray: 0.07 1;
-  stroke-dashoffset: 0.07;
+  stroke-dasharray: var(--len, 20px) 100000px;
+  stroke-dashoffset: var(--len, 20px);
   opacity: 0;
-  filter: drop-shadow(0 0 4px var(--tt-accent));
+}
+
+.tt-trace-head {
+  filter: drop-shadow(0 0 4px var(--c, var(--tt-accent)));
 }
 
 @keyframes tt-trace-run {
   0% {
-    stroke-dashoffset: 0.07;
+    stroke-dashoffset: var(--len, 20px);
     opacity: 0;
   }
-  8% {
-    opacity: 1;
-  }
-  92% {
-    opacity: 1;
+  8%,
+  88% {
+    opacity: var(--alpha, 1);
   }
   100% {
-    stroke-dashoffset: -1;
+    stroke-dashoffset: calc(var(--total, 400px) * -1);
     opacity: 0;
   }
 }
