@@ -31,6 +31,7 @@ import { CopyCommand } from "@/components/copy-command";
 import { DoctorDemo, QuickShareDemo } from "@/components/demos";
 import { DownloadButton } from "@/components/download-button";
 import { Feature } from "@/components/feature";
+import { HeroTunnel } from "@/components/hero-tunnel";
 import { Journey } from "@/components/journey";
 import { JsonLd } from "@/components/json-ld";
 import { ButtonLink, delay, Eyebrow, Section, Shot, Words } from "@/components/landing";
@@ -236,7 +237,8 @@ export default async function Home() {
       <JsonLd things={[organization, website, softwareApplication(release), faqPage(faq)]} />
 
       {/* Hero: it runs up under the transparent header. */}
-      <section className="relative -mt-14 pt-14">
+      <section className="relative isolate -mt-14 pt-14">
+        <HeroTunnel />
         <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 pt-16 text-center sm:px-6 md:pt-24">
           <a
             data-hero
