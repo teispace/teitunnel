@@ -56,9 +56,13 @@ apply to every request through a tunnel:
 
 | Limit | Free and Pro | What you see |
 |---|---|---|
-| Time to start answering | about 100 seconds | error 524 |
+| Time to answer | 125 seconds (only Enterprise zones can raise it) | error 524 |
 | Request body size | 100 MB | error 413 |
 | Free certificate | one level of subdomain (`app.teispace.com`, not `a.b.teispace.com`) | SSL handshake error |
+
+Checked 2026-09-26 (the timeout was 100 seconds before). Source:
+[connection limits](https://developers.cloudflare.com/fundamentals/reference/connection-limits/),
+[error 524](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524/).
 
 See [What is Cloudflare Tunnel?](/docs/concepts/cloudflare-tunnel#limits-worth-knowing) and
 [Troubleshooting](/docs/reference/troubleshooting).

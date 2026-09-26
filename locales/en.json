@@ -1514,7 +1514,7 @@
       },
       "keepAlive": {
         "title": "Keep event streams alive",
-        "help": "Sends a comment line after this many seconds of silence, so Cloudflare's 100-second limit doesn't cut long streams. 0 turns it off.",
+        "help": "Sends a comment line after this many seconds of silence, so Cloudflare's 125-second limit doesn't cut long streams. 0 turns it off.",
         "seconds": "seconds"
       },
       "capturing": "Record requests",

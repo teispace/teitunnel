@@ -1,5 +1,5 @@
-//! SSE keep-alive: Cloudflare ends a response that sends nothing for 100 s (error 524
-//! on Free and Pro plans). For `text/event-stream` responses, Lens writes an SSE
+//! SSE keep-alive: Cloudflare ends a response that sends nothing for 125 s (error 524;
+//! only Enterprise zones can raise it). For `text/event-stream` responses, Lens writes an SSE
 //! comment (`: keep-alive`) when nothing has flowed downstream for a while, and only
 //! at an event boundary: never inside an event the origin is still writing.
 

@@ -86,7 +86,7 @@ to run them the other way.
 These are Cloudflare's, not Teitunnel's. Where Teitunnel's route check can recognise one,
 it says which limit was hit.
 
-- **Response time:** Cloudflare waits about 100 seconds for your service to start
+- **Response time:** Cloudflare waits 125 seconds for your service to start
   answering. After that visitors get error 524. Long-running work should answer early and
   continue in the background, or stream.
 - **Upload size:** request bodies over 100 MB are refused on the Free and Pro plans (error

@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{ExchangeId, LensError, PathPattern, TapId};
 
 /// How long an exchange waits before it goes on by itself: well within Cloudflare's
-/// 100-second wait for an answer, leaving the service time to reply.
+/// 125-second wait for an answer, leaving the service time to reply.
 pub const BREAK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Exchanges paused at once, across taps; more go on without stopping, so a broad rule

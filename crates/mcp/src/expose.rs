@@ -357,7 +357,7 @@ impl ToolProvider for ExposeTools {
         vec![spec::<ExposeArgs, ExposeOut>(
             "expose_mcp_server",
             "Put a local MCP server online",
-            "Share an MCP server running on this machine at a hostname on the person's domain, so remote AI clients can use it: Teitunnel checks it answers MCP (Streamable HTTP `initialize`, or SSE), shares it through this machine's tunnel (not a Quick Share: those can't carry event streams), keeps streams alive past Cloudflare's 100-second idle limit, and requires a bearer token or, for claude.ai, ChatGPT and other remote clients, an OAuth sign-in the person approves in Teitunnel. Returns the URL and ready configurations for Claude Code, Cursor and VS Code. The token itself stays with the person (`teitunnel token <hostname>`) unless this server allows secrets.\n\
+            "Share an MCP server running on this machine at a hostname on the person's domain, so remote AI clients can use it: Teitunnel checks it answers MCP (Streamable HTTP `initialize`, or SSE), shares it through this machine's tunnel (not a Quick Share: those can't carry event streams), keeps streams alive past Cloudflare's 125-second read timeout, and requires a bearer token or, for claude.ai, ChatGPT and other remote clients, an OAuth sign-in the person approves in Teitunnel. Returns the URL and ready configurations for Claude Code, Cursor and VS Code. The token itself stays with the person (`teitunnel token <hostname>`) unless this server allows secrets.\n\
              \n\
              Example: {\"origin\": \"8000\", \"hostname\": \"mcp.teispace.com\"}",
             ToolClass::Change,

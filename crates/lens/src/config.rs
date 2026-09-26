@@ -371,7 +371,7 @@ pub struct TapConfig {
     pub paused: Option<PausedPage>,
     /// For `text/event-stream` responses: write `: keep-alive` after this much
     /// downstream silence (at an event boundary), so Cloudflare doesn't end the stream
-    /// after 100 s. `None` turns it off.
+    /// after 125 s. `None` turns it off.
     pub sse_keepalive: Option<Duration>,
     /// Simulated latency and bandwidth.
     pub network: NetworkConfig,
