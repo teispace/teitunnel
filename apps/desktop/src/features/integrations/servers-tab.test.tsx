@@ -49,6 +49,7 @@ describe("apps signed in to shared MCP servers", () => {
         redirectHost: "claude.ai",
         createdAt: Date.now() - 3_600_000,
         lastUsedAt: Date.now(),
+        expiresAt: Date.now() + 90 * 86_400_000,
       },
     ];
     renderIt();

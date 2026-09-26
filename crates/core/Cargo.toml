@@ -49,6 +49,7 @@ chacha20poly1305.workspace = true
 getrandom.workspace = true
 idna.workspace = true
 sha2.workspace = true
+subtle.workspace = true
 listeners.workspace = true
 ipnet.workspace = true
 jiff.workspace = true

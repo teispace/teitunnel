@@ -93,13 +93,25 @@ impl Approver for Terminal {
 }
 
 /// The authorization server for MCP servers this command shares: asks in the app, else
-/// in this terminal. `None` when it can't start (the share keeps its bearer token).
+/// in this terminal, under the OAuth policy in `mcp.json`, and drops connections the
+/// person ends in the app at once. `None` when it can't start (the share keeps its
+/// bearer token).
 pub(crate) async fn mcp_auth(app: &App) -> Option<McpAuth> {
     let terminal: Arc<dyn Approver> = Arc::new(Terminal {
         turn: Arc::default(),
     });
-    match McpAuth::open(app.store().clone(), AskApp::new(app.dir(), Some(terminal))).await {
-        Ok(auth) => Some(auth),
+    let policy = oauth_policy(app.dir());
+    match McpAuth::open(
+        app.store().clone(),
+        AskApp::new(app.dir(), Some(terminal)),
+        policy,
+    )
+    .await
+    {
+        Ok(auth) => {
+            auth.follow_app(app.dir());
+            Some(auth)
+        }
         Err(err) => {
             status(&format!(
                 "OAuth isn't available ({err}); clients need the bearer token."
@@ -107,6 +119,14 @@ pub(crate) async fn mcp_auth(app: &App) -> Option<McpAuth> {
             None
         }
     }
+}
+
+/// The OAuth policy for shared MCP servers, from `mcp.json` in the data folder (the
+/// defaults when it can't be read: the file is also the MCP server's, which says why).
+pub(crate) fn oauth_policy(dir: &std::path::Path) -> teitunnel_core::mcp_auth::Policy {
+    teitunnel_mcp::Settings::read(dir)
+        .map(|settings| settings.oauth.policy())
+        .unwrap_or_default()
 }
 
 /// `teitunnel share <origin> --mcp --on <hostname>`.

@@ -119,8 +119,9 @@ pub async fn mcp_connections(
         .map_err(|e| teitunnel_core::Error::from(e).into())
 }
 
-/// Disconnects a client from a shared MCP server: its tokens stop working within 30
-/// seconds (at once for servers this app shares).
+/// Disconnects a client from a shared MCP server: its tokens stop working at once in
+/// the processes sharing it (they hear it on the control connection; one that can't
+/// notices within seconds).
 #[tauri::command]
 #[specta::specta]
 pub async fn mcp_disconnect(
@@ -129,8 +130,12 @@ pub async fn mcp_disconnect(
 ) -> Result<(), AppError> {
     teitunnel_core::mcp_auth::disconnect(&state.store, &id)
         .await
-        .map(|_| ())
-        .map_err(|e| teitunnel_core::Error::from(e).into())
+        .map_err(teitunnel_core::Error::from)?;
+    state
+        .control
+        .host
+        .publish(teitunnel_core::mcp_auth::disconnected_event(&id));
+    Ok(())
 }
 
 /// Every client, and whether Teitunnel can connect them (it needs its command line tool).

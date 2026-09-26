@@ -799,6 +799,12 @@ pub enum Event {
         /// How long it took.
         duration_ms: Option<u64>,
     },
+    /// The person disconnected a client from an MCP server shared with OAuth: processes
+    /// sharing that server stop accepting its tokens at once.
+    McpConnectionEnded {
+        /// The connection's id (`McpConnection.id`).
+        id: String,
+    },
 }
 
 impl Event {
@@ -808,6 +814,7 @@ impl Event {
             Self::SharesChanged { .. } => event::SHARES_CHANGED,
             Self::RoutesChanged { .. } => event::ROUTES_CHANGED,
             Self::RequestArrived { .. } => event::REQUEST_ARRIVED,
+            Self::McpConnectionEnded { .. } => event::MCP_CONNECTION_ENDED,
         }
     }
 }
@@ -820,8 +827,15 @@ pub mod event {
     pub const ROUTES_CHANGED: &str = "routesChanged";
     /// [`super::Event::RequestArrived`].
     pub const REQUEST_ARRIVED: &str = "requestArrived";
+    /// [`super::Event::McpConnectionEnded`].
+    pub const MCP_CONNECTION_ENDED: &str = "mcpConnectionEnded";
     /// Every event type.
-    pub const ALL: &[&str] = &[SHARES_CHANGED, ROUTES_CHANGED, REQUEST_ARRIVED];
+    pub const ALL: &[&str] = &[
+        SHARES_CHANGED,
+        ROUTES_CHANGED,
+        REQUEST_ARRIVED,
+        MCP_CONNECTION_ENDED,
+    ];
 }
 
 #[cfg(test)]

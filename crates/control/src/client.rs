@@ -167,6 +167,11 @@ impl ControlClient {
         &self.hello
     }
 
+    /// Whether the connection is still open (events stop arriving once it closes).
+    pub fn is_connected(&self) -> bool {
+        !self.reader.is_finished()
+    }
+
     /// Calls a method.
     ///
     /// # Errors
