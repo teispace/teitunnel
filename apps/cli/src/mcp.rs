@@ -158,11 +158,19 @@ pub(crate) fn setup(command: McpCommand) -> Result<ExitCode, String> {
                 )?;
             } else {
                 for s in &all {
+                    let gone = s.program.as_ref().is_some_and(|p| !p.is_file());
                     let state = match (s.connected, s.detected, &s.problem) {
                         (_, _, Some(problem)) => format!("can't read its configuration: {problem}"),
-                        (true, _, None) => "connected".to_owned(),
+                        (true, _, None) if gone => format!(
+                            "connected to a teitunnel that isn't there any more: run `teitunnel mcp install {}`",
+                            s.client.id()
+                        ),
+                        (true, true, None) => "connected".to_owned(),
+                        (true, false, None) => {
+                            "connected, but the app isn't installed any more".to_owned()
+                        }
                         (false, true, None) => "installed, not connected".to_owned(),
-                        (false, false, None) => "not found".to_owned(),
+                        (false, false, None) => "not installed".to_owned(),
                     };
                     out!("{:<15}\t{state}", s.client.id())?;
                 }
