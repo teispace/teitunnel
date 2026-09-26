@@ -12,6 +12,10 @@ updates:
       - dependency-name: "tauri-specta"
       - dependency-name: "tauri*"
         update-types: ["version-update:semver-major"]
+      # The inspector uses the same major version as Tauri's asset compression, so the app
+      # ships one brotli decoder; move it when Tauri does.
+      - dependency-name: "brotli-decompressor"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
@@ -25,6 +29,9 @@ updates:
       # API); the desktop app's TypeScript is upgraded by hand.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # Must match the lowest VS Code the extension supports (`engines.vscode`), or vsce
+      # refuses to package it; raised by hand together with `engines`.
+      - dependency-name: "@types/vscode"
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
