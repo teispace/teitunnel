@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/teispace/teitunnel/compare/v0.3.0...v0.3.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **desktop:** log a Settings window that failed to build ([#44](https://github.com/teispace/teitunnel/issues/44)) ([b6e87bd](https://github.com/teispace/teitunnel/commit/b6e87bd90c9d40a804c9b2ce34af77559cb7b4b8))
+* **desktop:** Settings opens once on a double click, and again after a failed build ([#58](https://github.com/teispace/teitunnel/issues/58)) ([1a3eb4e](https://github.com/teispace/teitunnel/commit/1a3eb4e37582ed1a0364c1f21febdd6cde7752dc))
+
 ## [0.3.0](https://github.com/teispace/teitunnel/compare/v0.2.0...v0.3.0) (2026-09-26)
 
 
