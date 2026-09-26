@@ -3,12 +3,12 @@
 import { useEffect, useRef } from "react";
 
 /** How many arches are in the tunnel at once. */
-const ARCHES = 16;
+const ARCHES = 7;
 /** Depth at which an arch appears (far) and the nearest it gets before starting again. */
 const FAR = 1;
 const NEAR = 0.06;
 /** How fast the tunnel comes towards the reader, in depth per second. */
-const SPEED = 0.028;
+const SPEED = 0.007;
 
 interface Arch {
   z: number;
@@ -64,10 +64,10 @@ export function HeroTunnel() {
     const arches: Arch[] = Array.from({ length: ARCHES }, (_, i) => ({
       z: NEAR + ((FAR - NEAR) * (i + 0.5)) / ARCHES,
     }));
-    const riders: Rider[] = Array.from({ length: 5 }, (_, i) => ({
+    const riders: Rider[] = Array.from({ length: 2 }, (_, i) => ({
       arch: (i * 3) % ARCHES,
       u: Math.random(),
-      speed: 0.05 + Math.random() * 0.06,
+      speed: 0.018 + Math.random() * 0.012,
     }));
     const shots: Shot[] = [];
     // Where the pointer is (0–1 across the hero), eased.
@@ -87,8 +87,8 @@ export function HeroTunnel() {
     const place = (z: number) => {
       const scale = NEAR / z;
       const base = Math.min(width, 1200) * 0.42;
-      const vanishX = width * (0.5 + (pointer.x - 0.5) * 0.16);
-      const vanishY = height * (0.34 + (pointer.y - 0.4) * 0.12);
+      const vanishX = width * (0.5 + (pointer.x - 0.5) * 0.08);
+      const vanishY = height * (0.34 + (pointer.y - 0.4) * 0.06);
       // Far arches sit at the vanishing point; near ones around the middle of the view.
       const near = Math.min(1, scale * 1.4);
       return {
@@ -115,7 +115,7 @@ export function HeroTunnel() {
     };
 
     const alpha = (z: number) =>
-      Math.max(0, Math.min(1, (FAR - z) * 5)) * Math.max(0, Math.min(1, (z - NEAR) * 9));
+      Math.max(0, Math.min(1, (FAR - z) * 1.6)) * Math.max(0, Math.min(1, (z - NEAR) * 6));
 
     const draw = () => {
       context.clearRect(0, 0, width, height);
@@ -131,7 +131,7 @@ export function HeroTunnel() {
         );
         glow.addColorStop(0, colors.accent);
         glow.addColorStop(1, "transparent");
-        context.globalAlpha = 0.12;
+        context.globalAlpha = 0.14;
         context.fillStyle = glow;
         context.fillRect(0, 0, width, height);
         context.globalAlpha = 1;
@@ -141,7 +141,7 @@ export function HeroTunnel() {
       for (const arch of arches) {
         const { x, y, r } = place(arch.z);
         const leg = r * 1.1;
-        context.globalAlpha = alpha(arch.z) * 0.16;
+        context.globalAlpha = alpha(arch.z) * 0.08;
         context.beginPath();
         context.moveTo(x - r, y + leg);
         context.lineTo(x - r, y);
@@ -158,7 +158,7 @@ export function HeroTunnel() {
         if (a <= 0.05) continue;
         const point = along(arch.z, rider.u);
         const size = Math.max(1.2, 2.6 * (NEAR / arch.z) * 7);
-        context.globalAlpha = a * 0.9;
+        context.globalAlpha = a * 0.6;
         context.beginPath();
         context.arc(point.x, point.y, Math.min(size, 3.2), 0, Math.PI * 2);
         context.fill();
