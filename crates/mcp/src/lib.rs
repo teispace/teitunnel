@@ -18,6 +18,7 @@
 
 pub mod app_approver;
 pub mod backend;
+pub mod check;
 pub mod clients;
 pub mod comments;
 pub mod config;

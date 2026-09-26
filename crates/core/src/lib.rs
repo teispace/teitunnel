@@ -6,6 +6,7 @@
 //! See `docs/ARCHITECTURE.md` for the design of each module.
 
 pub mod accounts;
+pub mod agents_seen;
 pub mod alerts;
 pub mod analytics;
 pub mod backup;

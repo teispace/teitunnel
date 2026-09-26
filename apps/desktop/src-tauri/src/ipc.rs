@@ -69,6 +69,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             cli::browser_host_install,
             cli::browser_host_uninstall,
             ai_clients::ai_clients_status,
+            ai_clients::ai_clients_test,
+            ai_clients::ai_clients_reveal,
             ai_clients::ai_agents,
             ai_clients::mcp_connections,
             ai_clients::mcp_disconnect,

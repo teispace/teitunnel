@@ -1672,7 +1672,8 @@
     "snapshots": "Snapshots",
     "projects": "Projects",
     "localDomains": "Local Domains",
-    "comments": "Comments"
+    "comments": "Comments",
+    "integrations": "AI & Integrations"
   },
   "commands": {
     "group": {
@@ -2691,7 +2692,10 @@
     "aiClients": {
       "unknown": "Teitunnel doesn't know that AI tool.",
       "failed": "Couldn't change the AI tool's settings: {detail}",
-      "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel."
+      "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel.",
+      "notInstalled": "{name} isn't installed on this computer. Install it first, or add Teitunnel to its settings by hand.",
+      "checkFailed": "The connection didn't work. {detail}",
+      "noConfig": "{name} has no settings file yet."
     },
     "control": {
       "clientTitle": "Allow {client} to make this change?",
@@ -3948,6 +3952,96 @@
       "deliverNow": "Deliver Now",
       "deliveredNow_one": "{count} webhook delivered",
       "deliveredNow_other": "{count} webhooks delivered"
+    }
+  },
+  "ai": {
+    "title": "AI & Integrations",
+    "tabs": "Sections",
+    "tab": {
+      "apps": "AI Apps",
+      "agents": "Agents",
+      "servers": "Shared Servers",
+      "browser": "Browser",
+      "more": "More"
+    },
+    "apps": {
+      "intro": "AI apps work with Teitunnel through its MCP server: they start “teitunnel mcp” on this computer when they need it, so there's nothing to sign in to and no key to copy. Changes they ask for wait for your approval and are recorded in Activity.",
+      "installed": "On This Computer",
+      "installedFooter": "Only apps found on this computer are listed. Restart an app after connecting it, then use Test Connection to check it starts Teitunnel.",
+      "none": "None of the AI apps Teitunnel supports were found on this computer. You can still connect any MCP client with the command below.",
+      "others": "Other Supported Apps ({count})",
+      "othersDetail": "Not found on this computer. Install one, or add Teitunnel to its settings by hand:",
+      "copySettings": "{name} settings",
+      "command": "MCP server command",
+      "anyClient": "Any other MCP client: run this command as a stdio server.",
+      "noCli": "AI apps start Teitunnel's command line tool, which isn't part of this copy of Teitunnel.",
+      "state": {
+        "connected": "Connected",
+        "needsUpdate": "Connected to a Teitunnel that moved or changed: update it",
+        "leftover": "Teitunnel is still in its settings, but the app isn't installed any more",
+        "notConnected": "Not connected",
+        "unreadable": "Its settings file can't be read: {problem}",
+        "notInstalled": "Not installed"
+      },
+      "lastUsed": "last used {when}",
+      "neverUsed": "not used yet",
+      "connect": "Connect",
+      "update": "Update",
+      "disconnect": "Disconnect",
+      "remove": "Remove",
+      "test": "Test Connection",
+      "testing": "Testing…",
+      "works": "Works: {server}, {count} tools, answered in {ms} ms.",
+      "failed": "Doesn't work. {message}",
+      "details": "Details",
+      "configFile": "Settings file",
+      "reveal": "Show in Finder",
+      "reveal@windows": "Show in Explorer",
+      "reveal@linux": "Show in Folder",
+      "runs": "Starts",
+      "foundAt": "Found at"
+    },
+    "agents": {
+      "intro": "An agent is an AI app's live session with Teitunnel. Each one appears here while it's connected; its changes are asked in a dialog, with the plan, and never applied without your answer in ask mode.",
+      "connected": "Connected Now",
+      "none": "No AI agent is connected right now. Agents connect when an AI app starts Teitunnel's MCP server.",
+      "since": "since {when}",
+      "waiting": "Waiting for Your Answer",
+      "waitingDetail": "{agent} is waiting for you to answer in the dialog.",
+      "mode": {
+        "readOnly": "Read only",
+        "ask": "Asks first",
+        "full": "Full access"
+      }
+    },
+    "servers": {
+      "intro": "Share an MCP server that runs on this computer at an address on your domain, and remote AI apps such as claude.ai and ChatGPT can use it. They sign in with OAuth: each app asks once, you approve it in a dialog here, and it gets its own tokens.",
+      "how": "To share one, run “teitunnel share 8000 --mcp --on mcp.example.com”, or ask a connected agent to put your MCP server online.",
+      "storage": "Teitunnel keeps only fingerprints (SHA-256 hashes) of the tokens, in its database on this computer; the tokens themselves stay with the app that signed in. Disconnecting one ends its access.",
+      "connections": "Apps Signed In to {host}",
+      "none": "No app has signed in to a server shared from this computer yet.",
+      "detail": "Signs in through {host} · approved {approved} · last used {used}",
+      "disconnect": "Disconnect",
+      "confirmTitle": "Disconnect {client} from {host}?",
+      "confirmDetail": "It can't use the server any more until it signs in again and you approve it.",
+      "disconnected": "{client} was disconnected from {host}."
+    },
+    "browser": {
+      "intro": "The Teitunnel browser extension shares the local page you're on and lists your shares. It talks to this app through a small helper the browser starts: Set Up tells a browser where the helper is.",
+      "steps": "1. Set up each browser you use. 2. Install the extension in it. 3. Open the extension on a local page: this page then shows it connected.",
+      "extension": "Get the Extension",
+      "browsers": "Browsers on This Computer",
+      "none": "No supported browser was found on this computer (Chrome, Edge, Brave, Chromium, Vivaldi, Arc or Firefox).",
+      "notFound": "Not Found ({count})",
+      "setUp": "Set Up",
+      "remove": "Remove",
+      "setUpAll": "Set Up All",
+      "notSetUp": "Not set up",
+      "ready": "Set up",
+      "seen": "extension connected {when}",
+      "notSeen": "the extension hasn't connected yet",
+      "helper": "Helper settings",
+      "unavailable": "The browser extension works with the installed app, not this development build."
     }
   }
 }

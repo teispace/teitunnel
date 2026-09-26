@@ -7,13 +7,13 @@ searchDescription: "Share and open things in Teitunnel from VS Code, JetBrains I
 The Teitunnel app can be driven from outside its window: by editor and launcher
 extensions, by `teitunnel://` links, and by the `teitunnel` command, all through a local
 **control connection** to the running app. Nothing listens on the network, and nothing
-changes without your approval. You control all of it in **Settings ▸ Integrations**.
+changes without your approval. You control all of it in **AI & Integrations ▸ More**.
 
 Use it to share the dev server you're working on without leaving your editor, to keep an
 eye on shares from the status bar, or to wire Teitunnel into your own launcher and scripts.
 
 
-<Screenshot name="integrations" alt="Settings, Integrations: Allow connections for the teitunnel command, editor extensions and launchers, and programs that are always allowed" narrow />
+<Screenshot name="integrations" alt="AI & Integrations, More: Allow connections for the teitunnel command, editor extensions and launchers, programs that are always allowed, teitunnel links and the global shortcut" />
 
 ## Editors and launchers
 
@@ -74,7 +74,7 @@ Without the extension, `teitunnel://` links work from Raycast quicklinks and Alf
 The menu bar (tray) icon shares a running dev server in one click, copies recent addresses,
 and pauses or stops every share; see [The menu bar and tray](/docs/guides/menu-bar).
 
-**Settings ▸ Integrations ▸ Global shortcut** shares your dev server from any app. It's off
+**AI & Integrations ▸ More ▸ Global shortcut** shares your dev server from any app. It's off
 until you turn on **Use a global shortcut**. The default keys are ⌘⌥⇧S (Ctrl+Alt+Shift+S on
 Windows and Linux); choose **Change** and type another. **When pressed**:
 
@@ -124,7 +124,7 @@ and `top` (see [Command line](/docs/reference/cli#with-the-app-running)), and
 - **You approve changes:** sharing, stopping, pausing or resuming a share, or changing
   routes shows a dialog naming the program, with **Allow**, **Always Allow** and **Don't
   Allow**. Always Allow skips the question for that program from then on; it's listed under
-  **Always allowed** in Settings ▸ Integrations, where **Remove** undoes it. Replacing or
+  **Always allowed** in AI & Integrations ▸ More, where **Remove** undoes it. Replacing or
   deleting DNS records Teitunnel didn't create is asked about every time and never offers
   Always Allow.
 - **Recorded:** route changes show up in **Activity** with the program's name.

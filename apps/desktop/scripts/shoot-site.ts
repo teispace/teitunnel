@@ -75,12 +75,8 @@ const shots: Shot[] = [
     size: [620, 500],
     steps: ['click:role=tab[name="Accounts"]', "click:text=Permissions"],
   },
-  {
-    name: "integrations",
-    route: "/settings",
-    size: [620, 400],
-    steps: ['click:role=tab[name="Integrations"]'],
-  },
+  { name: "integrations", route: "/integrations?tab=more" },
+  { name: "browser-extension", route: "/integrations?tab=browser" },
   {
     name: "offline-inbox",
     route: "/routes",
@@ -97,12 +93,7 @@ const shots: Shot[] = [
     size: [620, 380],
     steps: ["scroll:text=Move to Another Computer"],
   },
-  {
-    name: "agents",
-    route: "/settings?agents",
-    size: [620, 620],
-    steps: ["scroll:text=AI Tools"],
-  },
+  { name: "agents", route: "/integrations" },
 ];
 
 // Measured NSVisualEffectView `sidebar` material on macOS 27, before our tint.

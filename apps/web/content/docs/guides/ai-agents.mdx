@@ -1,6 +1,6 @@
 ---
 title: AI agents (MCP)
-description: Let Claude Code, Cursor, VS Code, Codex, Windsurf, Zed, Claude Desktop or Gemini CLI share your dev server, manage Cloudflare Tunnel routes, debug webhooks and fix problems through Teitunnel's MCP server, with your approval for every change.
+description: Let Claude Code, Cursor, VS Code, Codex, Windsurf, Zed, Claude Desktop, Gemini CLI, Copilot CLI, opencode, Kiro, LM Studio or Junie share your dev server, manage Cloudflare Tunnel routes, debug webhooks and fix problems through Teitunnel's MCP server, with your approval for every change.
 searchDescription: "Let Claude Code, Cursor, VS Code, Codex and other AI agents share dev servers and manage Cloudflare Tunnel routes through Teitunnel's MCP server."
 ---
 
@@ -15,19 +15,40 @@ Use it when you already work with an agent in your editor or terminal and want i
 "give me a link to this", "why is staging down" or "debug this webhook" end to end.
 
 
-<Screenshot name="agents" alt="Settings, AI Tools: Claude Code connected, and Connect for Cursor, VS Code, Claude Desktop, Codex, Windsurf, Zed and Gemini CLI, with the command for other tools" narrow />
+<Screenshot name="agents" alt="AI & Integrations, AI Apps: Claude Code connected and last used 12 minutes ago, Cursor asking to be updated, Connect for VS Code, and the command for other MCP clients" />
 
 ## Connect your AI tool
 
-**In the app:** **Settings ▸ General ▸ AI Tools** lists the tools found on this computer.
-Choose **Connect** next to one, then restart the tool. **Disconnect** removes Teitunnel's
-entry again. For other tools, the section shows the **MCP server command** to run.
+**In the app:** open **AI & Integrations ▸ AI Apps**. It lists the AI apps installed on
+this computer, found by their app or program (a settings folder left behind after
+uninstalling doesn't count), and says where each one stands:
+
+| It says | Meaning | What to do |
+|---|---|---|
+| **Connected · last used 12 min ago** | Teitunnel is in its settings, and an agent from it used Teitunnel then. | Nothing. |
+| **Connected · not used yet** | Teitunnel is in its settings, but no session has started it while the app was open. | Restart the app, ask it something, or choose **Test Connection**. |
+| **Connected to a Teitunnel that moved or changed** | Its entry starts a `teitunnel` that isn't there any more (Teitunnel was moved or reinstalled) or with other options. | **Update**. |
+| **Not connected** | Installed, without Teitunnel. | **Connect**, then restart the app. |
+| **Teitunnel is still in its settings, but the app isn't installed any more** | Left over from an app you removed. | **Remove**. |
+| **Its settings file can't be read** | The file isn't valid JSON or TOML; Teitunnel won't touch it. | Fix the file, or add the entry by hand. |
+
+**Test Connection** starts the MCP server exactly as that app's settings say, does the MCP
+handshake and lists its tools, then stops it: *Works: teitunnel 0.4.1, 41 tools, answered in
+180 ms*, or why not (the program is missing, it stopped with an error, it didn't answer).
+**Details** shows the settings file (with **Show in Finder**), the command it starts and
+where the app was found. Apps that aren't installed are under **Other Supported Apps**, each
+with the entry to paste by hand, and any other MCP client can run the command shown.
+
+Nothing needs a sign-in or a key: the AI app starts `teitunnel mcp` on this computer, which
+talks to the Teitunnel app there. *Last used* comes from the app itself: it records each
+agent session while it's open (never the conversation).
 
 **From the terminal:**
 
 ```sh
-teitunnel mcp install claude-code     # or: claude-desktop, cursor, vscode, codex,
-                                      #     windsurf, zed, gemini-cli
+teitunnel mcp install claude-code     # or: claude-desktop, cursor, vscode, codex, windsurf,
+                                      #     zed, gemini-cli, copilot-cli, opencode, kiro,
+                                      #     lm-studio, junie
 ```
 
 That adds a `teitunnel` entry to the tool's MCP configuration and leaves everything else in
@@ -44,14 +65,19 @@ teitunnel mcp install cursor --mode read-only
 
 | Tool | File Teitunnel edits |
 |---|---|
-| Claude Code | `~/.claude.json` (user scope, `mcpServers`) |
-| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` · Windows: `%APPDATA%\Claude\claude_desktop_config.json` · Linux: `~/.config/Claude/claude_desktop_config.json` |
-| Cursor | `~/.cursor/mcp.json` |
+| Claude Code | `~/.claude.json` (user scope, `mcpServers`), or under `CLAUDE_CONFIG_DIR` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` · Windows: `%APPDATA%\Claude\claude_desktop_config.json` (from the Microsoft Store: the same file under `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming`) · Linux: `~/.config/Claude/claude_desktop_config.json` |
+| Cursor | `~/.cursor/mcp.json` (the app and `cursor-agent`) |
 | VS Code (Copilot) | the user `mcp.json` next to `settings.json` (`servers`): `~/Library/Application Support/Code/User/mcp.json`, `%APPDATA%\Code\User\mcp.json`, `~/.config/Code/User/mcp.json` |
 | Codex | `~/.codex/config.toml` (or under `CODEX_HOME`), `[mcp_servers.teitunnel]` |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` |
 | Zed | `~/.config/zed/settings.json` (`context_servers`) · Windows: `%APPDATA%\Zed\settings.json` |
 | Gemini CLI | `~/.gemini/settings.json` |
+| GitHub Copilot CLI | `~/.copilot/mcp-config.json` (or under `COPILOT_HOME`), a `local` server with every tool |
+| opencode | `~/.config/opencode/opencode.json` (or `opencode.jsonc`), `mcp` |
+| Kiro (IDE and `kiro-cli`) | `~/.kiro/settings/mcp.json` |
+| LM Studio | `~/.lmstudio/mcp.json` |
+| Junie | `~/.junie/mcp/mcp.json` |
 
 The entry runs this `teitunnel` executable (its real path) with `mcp` and, if you chose
 one, `--mode`. Any other MCP client works too: run `teitunnel mcp` as a stdio server.

@@ -18,14 +18,25 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
-	/**  Which browsers can use the extension. */
+	/**  Which browsers are installed, can use the extension, and last used it. */
 	browserHostStatus: () => __TAURI_INVOKE<BrowserHostView>("browser_host_status"),
-	/**  Lets the extension talk to the app, in every installed browser. */
-	browserHostInstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_install"),
-	/**  Stops letting the extension talk to the app. */
-	browserHostUninstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall"),
-	/**  The AI clients on this computer and whether each is connected. */
+	/**  Lets the extension talk to the app, in every installed browser or `browser` only. */
+	browserHostInstall: (browser: "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox" | null) => __TAURI_INVOKE<BrowserHostView>("browser_host_install", { browser }),
+	/**  Stops letting the extension talk to the app, in every browser or `browser` only. */
+	browserHostUninstall: (browser: "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox" | null) => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall", { browser }),
+	/**  The AI clients on this computer: installed, connected and last used. */
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
+	/**
+	 *  Starts the MCP server exactly as the client's configuration says (or as connecting
+	 *  it would) and checks it answers: the handshake and its tool list, then it's stopped.
+	 */
+	aiClientsTest: (clientId: string) => __TAURI_INVOKE<AiClientCheck>("ai_clients_test", { clientId }),
+	/**
+	 *  Shows the client's MCP configuration file in Finder, Explorer or the file manager (its
+	 *  folder when the file doesn't exist yet). The path is the client's own, never one the
+	 *  page chose.
+	 */
+	aiClientsReveal: (clientId: string) => __TAURI_INVOKE<null>("ai_clients_reveal", { clientId }),
 	/**  Agents connected now, and approvals waiting. */
 	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
 	/**  Clients connected with OAuth to MCP servers shared from this computer, newest first. */
@@ -35,7 +46,11 @@ export const commands = {
 	 *  seconds (at once for servers this app shares).
 	 */
 	mcpDisconnect: (id: string) => __TAURI_INVOKE<null>("mcp_disconnect", { id }),
-	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
+	/**
+	 *  Connects an AI client (or updates its entry): adds Teitunnel to its MCP configuration
+	 *  (merged, with a backup). Only installed clients: connecting one that isn't would
+	 *  create its folders and look like an install.
+	 */
 	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
 	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
 	aiClientsDisconnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_disconnect", { clientId }),
@@ -998,19 +1013,52 @@ export type AiAgentsView = {
 	approvals: PendingApproval[],
 };
 
-/**  An AI client, as Settings shows it. */
+/**  A working server's answer to "Test connection". */
+export type AiClientCheck = {
+	/**  The server's name and version, e.g. `teitunnel 0.4.1`. */
+	server: string,
+	/**  The protocol version it chose. */
+	protocol: string,
+	/**  How many tools it offers. */
+	tools: number,
+	/**  How long it took, in milliseconds. */
+	millis: number,
+};
+
+/**  Where an AI client stands (see `teitunnel_mcp::clients::State`). */
+export type AiClientState = 
+/**  Its configuration file can't be read (connecting would leave it alone). */
+"unreadable" | 
+/**  Connected, starting this Teitunnel. */
+"connected" | 
+/**  Connected to a Teitunnel that moved, or with other arguments: update it. */
+"needsUpdate" | 
+/**  Teitunnel is in its configuration, but the client isn't installed any more. */
+"leftover" | 
+/**  Installed, not connected. */
+"notConnected" | 
+/**  Not installed on this computer. */
+"notInstalled";
+
+/**  An AI client, as AI & Integrations shows it. */
 export type AiClientView = {
 	/**  Its id, e.g. `claude-code`. */
 	id: string,
 	/**  Its name, e.g. `Claude Code`. */
 	name: string,
+	/**  Where it stands. */
+	state: AiClientState,
 	/**  Its MCP configuration file. */
 	path: string,
-	/**  It seems installed. */
-	detected: boolean,
-	/**  Teitunnel is in its configuration. */
-	connected: boolean,
-	/**  Its configuration couldn't be read (connecting would leave it alone). */
+	/**  Where its app or program was found. */
+	installedAt: string | null,
+	/**  The command its configuration runs for Teitunnel, when connected. */
+	command: string | null,
+	/**  When an agent of this client last used Teitunnel (milliseconds since the epoch). */
+	lastUsedAt: number | null,
+	/**  The entry to add by hand, in its configuration's format. */
+	snippet: string | null,
+	/**  Why its configuration couldn't be read. */
 	problem: string | null,
 };
 
@@ -1018,7 +1066,7 @@ export type AiClientView = {
 export type AiClientsView = {
 	/**  The command clients would run, when there is one. */
 	command: string | null,
-	/**  The clients. */
+	/**  The clients: installed or configured ones first. */
 	clients: AiClientView[],
 };
 
@@ -1300,10 +1348,22 @@ export type BrowserHostStatus = {
 	browser: Browser,
 	/**  Its name. */
 	name: string,
-	/**  It's installed on this computer. */
+	/**  It's installed on this computer (its app was found). */
 	detected: boolean,
-	/**  Teitunnel's manifest is there and points at `exe`. */
+	/**  Where its app was found. */
+	app: string | null,
+	/**
+	 *  Teitunnel's manifest is there and points at `exe` (on Windows, with the
+	 *  registry key naming it): the browser can start the host.
+	 */
 	installed: boolean,
+	/**  Where the manifest is (or goes). */
+	manifest: string,
+	/**
+	 *  When this browser last started the host for the extension (milliseconds since
+	 *  the epoch): the extension is installed and working.
+	 */
+	extensionSeenAt: number | null,
 };
 
 /**

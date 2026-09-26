@@ -106,7 +106,7 @@ The webview is treated as the less-trusted side. It renders data and requests ac
   capped.
 - Sharing, stopping a share and applying a plan need the person's approval in a native
   dialog naming the program, unless they chose "Always Allow" for that program name
-  (revocable in Settings ▸ Integrations). Replacing or deleting DNS records Teitunnel didn't
+  (revocable in AI & Integrations ▸ More). Replacing or deleting DNS records Teitunnel didn't
   create is asked every time. Route changes are recorded in Activity with the program's
   name. The program's name is self-declared: the token and file permissions, not the name,
   keep other users out; a process running as the same user is trusted like the rest of this

@@ -16,17 +16,32 @@ anything goes public, as it does for any other program.
 
 <Steps>
 <Step>
-In Teitunnel, open **Settings ▸ Integrations ▸ Browser Extension** and choose **Set Up**. Each
-installed browser shows **Ready**. (From a terminal: `teitunnel browser install`, and
-`teitunnel browser status` to see which browsers are set up.)
+In Teitunnel, open **AI & Integrations ▸ Browser**. It lists the browsers installed on this
+computer, found by their app (a profile folder left behind after uninstalling doesn't count).
+Choose **Set Up** next to each one you use, or **Set Up All**. (From a terminal:
+`teitunnel browser install`, or `teitunnel browser install --browser firefox` for one.)
 </Step>
 <Step>
-Install the Teitunnel extension in your browser.
+Install the Teitunnel extension in that browser.
 </Step>
 <Step>
-Open a page from your dev server and click the Teitunnel button in the toolbar.
+Open a page from your dev server and click the Teitunnel button in the toolbar. The browser's
+row then says **Set up · extension connected just now**.
 </Step>
 </Steps>
+
+<Screenshot name="browser-extension" alt="AI & Integrations, Browser: Google Chrome set up with the extension connected 20 minutes ago, Firefox not set up yet, Get the Extension and Set Up All" />
+
+Each row tells you how far it got:
+
+| It says | Meaning |
+|---|---|
+| **Not set up** | The browser can't start Teitunnel's helper yet. Choose **Set Up**. |
+| **Set up · the extension hasn't connected yet** | The browser can start the helper, but the extension hasn't used it: install the extension, or open it on a local page. |
+| **Set up · extension connected 5 min ago** | Everything works. The time is when the browser last started the helper for the extension. |
+
+**Details** shows where the helper's settings file is and where the browser was found.
+`teitunnel browser status` prints the same, including when the extension last connected.
 
 ## What it can and can't do
 
@@ -35,7 +50,7 @@ Open a page from your dev server and click the Teitunnel button in the toolbar.
   website you happen to be on.
 - Sharing asks you in the app first (*Teitunnel browser extension wants to share
   localhost:5173*). Choose **Always Allow** to skip the question next time; it's listed under
-  **Settings ▸ Integrations ▸ Always allowed**, where you can take it back.
+  **AI & Integrations ▸ More ▸ Always allowed**, where you can take it back.
 - It lists shares and stops them, and **Open Teitunnel** brings the app forward.
 - It asks the browser for two permissions only: *native messaging* (to talk to the app) and
   the current tab's address when you click its button. It reads nothing else, and no page can
@@ -53,18 +68,24 @@ shares, sharing a local page, stopping a share and opening the app. Nothing list
 network.
 
 Manifests live in each browser's `NativeMessagingHosts` folder on macOS and Linux (on Windows,
-under `%LOCALAPPDATA%\Teitunnel` with a registry key per browser). **Remove** (or `teitunnel
+under `%LOCALAPPDATA%\Teitunnel` with a registry key per browser under `HKEY_CURRENT_USER`,
+which Teitunnel writes and reads back directly). When a browser starts the helper, it notes
+which browser and when in `browser-extension.json` in Teitunnel's data folder: that's the
+*extension connected* time. **Remove** (or `teitunnel
 browser uninstall`) deletes them again; files anyone else put there are left alone.
 
 ## Troubleshooting
 
 - **"Set up the extension in Teitunnel"**: the browser couldn't find the app's registration.
-  Choose **Set Up** in Settings (after installing a new browser, choose it again), then reopen
-  the extension's menu.
+  Choose **Set Up** for that browser in **AI & Integrations ▸ Browser** (after installing a
+  new browser, set it up too), then reopen the extension's menu.
+- **Set up, but the extension never connects**: the extension isn't installed in that
+  browser, or it's a different browser profile's copy. Open the extension on a local page;
+  the row updates when you come back to Teitunnel.
 - **"Teitunnel isn't running"**: open the app (turn on **Open at login** to keep it there);
   **Open Teitunnel** in the menu does it.
 - **"Teitunnel's connection for other programs is off"**: turn on the control connection in
-  **Settings ▸ Integrations**.
+  **AI & Integrations ▸ More**.
 - Browsers installed as Flatpak or Snap packages can't start programs outside their sandbox.
 
 ## Related

@@ -1,4 +1,4 @@
-import { Blocks, Cable, CircleUser, type LucideIcon, ScanSearch, Settings2 } from "lucide-react";
+import { Cable, CircleUser, type LucideIcon, ScanSearch, Settings2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/patterns/copy-field";
 import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
@@ -13,11 +13,7 @@ import { UpdateSection } from "@/features/updates";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t } from "@/lib/i18n";
 import { toIpcError } from "@/lib/ipc/client";
-import { AiAgents } from "./ai-agents";
-import { AiTools } from "./ai-tools";
 import { ApiDescription } from "./api-description";
-import { IntegrationsPane } from "./integrations";
-import { McpConnections } from "./mcp-connections";
 import { MoveComputer } from "./move-computer";
 import {
   useCliStatus,
@@ -35,14 +31,13 @@ const themes = () =>
     label: t(`settings.theme.${value}`),
   }));
 
-type Tab = "general" | "accounts" | "inspector" | "cloudflared" | "integrations";
+type Tab = "general" | "accounts" | "inspector" | "cloudflared";
 
 const tabs: readonly { id: Tab; label: MessageKey; icon: LucideIcon }[] = [
   { id: "general", label: "settings.tab.general", icon: Settings2 },
   { id: "accounts", label: "settings.tab.accounts", icon: CircleUser },
   { id: "inspector", label: "settings.tab.inspector", icon: ScanSearch },
   { id: "cloudflared", label: "settings.tab.cloudflared", icon: Cable },
-  { id: "integrations", label: "settings.tab.integrations", icon: Blocks },
 ];
 
 function OpenAtLogin() {
@@ -150,8 +145,6 @@ export function SettingsPage() {
           <AccountsPane />
         ) : tab === "inspector" ? (
           <InspectorSettingsPane />
-        ) : tab === "integrations" ? (
-          <IntegrationsPane />
         ) : (
           <CloudflaredPane />
         )}
@@ -187,9 +180,6 @@ function GeneralPane() {
       <UpdateSection />
       <OpenAtLogin />
       <CommandLine />
-      <AiTools />
-      <AiAgents />
-      <McpConnections />
       <GroupedSection
         title={t("settings.notifications.title")}
         footer={t("settings.notifications.footer")}

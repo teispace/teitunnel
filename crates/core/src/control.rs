@@ -317,6 +317,19 @@ impl CoreHost {
         lock(&self.agents).values().cloned().collect()
     }
 
+    /// Records an agent's visit in the background (a failure only loses "last used").
+    fn remember_agent(&self, name: &str, version: Option<&str>, now: u64) {
+        let store = self.parts.store.clone();
+        let (name, version) = (name.to_owned(), version.map(ToOwned::to_owned));
+        tokio::spawn(async move {
+            if let Err(err) =
+                crate::agents_seen::record(&store, &name, version.as_deref(), now).await
+            {
+                tracing::warn!(%err, "couldn't record when an agent was last seen");
+            }
+        });
+    }
+
     /// Agents' changes waiting for the person's answer, oldest first.
     pub fn pending_approvals(&self) -> Vec<PendingApproval> {
         lock(&self.approvals).values().cloned().collect()
@@ -700,20 +713,30 @@ impl Host for CoreHost {
     }
 
     fn agent_connected(&self, session: u64, agent: AgentInfo, _client: &ClientInfo) {
+        // Teitunnel's own connection check isn't an agent.
+        if agent.name == crate::agents_seen::CHECK_CLIENT {
+            return;
+        }
+        let now = crate::domain_shares::now_ms();
+        self.remember_agent(&agent.name, agent.version.as_deref(), now);
         lock(&self.agents).insert(
             session,
             ConnectedAgent {
                 name: agent.name,
                 version: agent.version,
                 mode: agent.mode,
-                connected_at: crate::domain_shares::now_ms(),
+                connected_at: now,
             },
         );
         self.ui.changed(Changed::Agents);
     }
 
     fn agent_disconnected(&self, session: u64) {
-        if lock(&self.agents).remove(&session).is_some() {
+        let gone = lock(&self.agents).remove(&session);
+        if let Some(agent) = gone {
+            // Last seen when it left, not when it came.
+            let now = crate::domain_shares::now_ms();
+            self.remember_agent(&agent.name, agent.version.as_deref(), now);
             self.ui.changed(Changed::Agents);
         }
     }

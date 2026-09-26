@@ -454,7 +454,7 @@ App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (
 
 ### 10.1 Control connection
 
-The app listens (unless Settings ▸ Integrations turns it off) on `<data>/control/sock`
+The app listens (unless AI & Integrations ▸ More turns it off) on `<data>/control/sock`
 (Unix socket, 0600, in a 0700 folder; peers must run as the same uid) or a named pipe with
 a random name recorded in `<data>/control/pipe` (DACL: the current user only; remote
 clients refused; first instance). `<data>/control/token` (0600, made once per install) is

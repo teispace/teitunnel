@@ -11,9 +11,14 @@
 //!
 //! Manifests: one file per browser in its `NativeMessagingHosts` folder on macOS and
 //! Linux; on Windows, two files under `%LOCALAPPDATA%\Teitunnel` and a registry key per
-//! browser pointing at them (written with `reg.exe`, arguments passed one by one). Only
-//! browsers that are installed get one, and only Teitunnel's own manifest is ever
-//! replaced or removed.
+//! browser pointing at them (under `HKEY_CURRENT_USER`, written and read back directly).
+//! Only browsers that are installed get one (their app is found, not just a profile
+//! folder, which stays behind after uninstalling), and only Teitunnel's own manifest is
+//! ever replaced or removed.
+//!
+//! Whether the extension itself works is known only when a browser starts the host:
+//! it records which browser did, and when, in `browser-extension.json` in the data
+//! folder ([`record_started`]), which the app shows.
 
 use std::{
     fs, io,
@@ -43,7 +48,7 @@ pub const FIREFOX_EXTENSION_ID: &str = "browser@teitunnel.teispace.com";
 const MAX_MESSAGE: u32 = 1024 * 1024;
 
 /// A browser that can start the host.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub enum Browser {
@@ -83,6 +88,73 @@ impl Browser {
     fn firefox(self) -> bool {
         self == Self::Firefox
     }
+
+    /// The browser with this id (`chrome`, `firefox`…).
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim().to_ascii_lowercase();
+        Self::ALL.into_iter().find(|b| {
+            serde_json::to_value(b)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_ascii_lowercase))
+                .as_deref()
+                == Some(value.as_str())
+        })
+    }
+
+    /// Where its app is, relative to the system's root (macOS app bundles are looked
+    /// for in `/Applications` and `~/Applications` too).
+    fn apps(self, platform: Platform) -> &'static [&'static str] {
+        match (platform, self) {
+            (Platform::MacOs, Self::Chrome) => &["Google Chrome.app"],
+            (Platform::MacOs, Self::Chromium) => &["Chromium.app"],
+            (Platform::MacOs, Self::Edge) => &["Microsoft Edge.app"],
+            (Platform::MacOs, Self::Brave) => &["Brave Browser.app"],
+            (Platform::MacOs, Self::Vivaldi) => &["Vivaldi.app"],
+            (Platform::MacOs, Self::Arc) => &["Arc.app"],
+            (Platform::MacOs, Self::Firefox) => &["Firefox.app"],
+            (Platform::Linux, Self::Chrome) => &[
+                "opt/google/chrome/chrome",
+                "usr/bin/google-chrome",
+                "usr/bin/google-chrome-stable",
+            ],
+            (Platform::Linux, Self::Chromium) => &[
+                "usr/bin/chromium",
+                "usr/bin/chromium-browser",
+                "usr/lib/chromium/chromium",
+                "snap/bin/chromium",
+            ],
+            (Platform::Linux, Self::Edge) => &[
+                "opt/microsoft/msedge/msedge",
+                "usr/bin/microsoft-edge",
+                "usr/bin/microsoft-edge-stable",
+            ],
+            (Platform::Linux, Self::Brave) => {
+                &["opt/brave.com/brave/brave", "usr/bin/brave-browser"]
+            }
+            (Platform::Linux, Self::Vivaldi) => &[
+                "opt/vivaldi/vivaldi",
+                "usr/bin/vivaldi",
+                "usr/bin/vivaldi-stable",
+            ],
+            (Platform::Linux, Self::Firefox) => &[
+                "usr/bin/firefox",
+                "usr/lib/firefox/firefox",
+                "usr/lib64/firefox/firefox",
+                "opt/firefox/firefox",
+                "snap/bin/firefox",
+            ],
+            // Relative to a Program Files folder or %LOCALAPPDATA%.
+            (Platform::Windows, Self::Chrome) => &["Google/Chrome/Application/chrome.exe"],
+            (Platform::Windows, Self::Chromium) => &["Chromium/Application/chrome.exe"],
+            (Platform::Windows, Self::Edge) => &["Microsoft/Edge/Application/msedge.exe"],
+            (Platform::Windows, Self::Brave) => {
+                &["BraveSoftware/Brave-Browser/Application/brave.exe"]
+            }
+            (Platform::Windows, Self::Vivaldi) => &["Vivaldi/Application/vivaldi.exe"],
+            (Platform::Windows, Self::Firefox) => &["Mozilla Firefox/firefox.exe"],
+            (Platform::Windows | Platform::Linux, Self::Arc) => &[],
+        }
+    }
 }
 
 /// Which system's folders to use.
@@ -110,12 +182,18 @@ impl Platform {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Place {
     browser: Browser,
-    /// The browser's own folder: it's installed when this exists.
-    profile: PathBuf,
+    /// Its app: it's installed when one of these exists.
+    apps: Vec<PathBuf>,
     /// Where the manifest goes.
     manifest: PathBuf,
-    /// Windows: the registry key naming the manifest.
+    /// Windows: the registry key (under `HKEY_CURRENT_USER`) naming the manifest.
     registry: Option<String>,
+}
+
+impl Place {
+    fn app(&self) -> Option<&PathBuf> {
+        self.apps.iter().find(|p| p.exists())
+    }
 }
 
 /// The folders of every supported browser on a system.
@@ -133,10 +211,19 @@ pub struct BrowserHostStatus {
     pub browser: Browser,
     /// Its name.
     pub name: String,
-    /// It's installed on this computer.
+    /// It's installed on this computer (its app was found).
     pub detected: bool,
-    /// Teitunnel's manifest is there and points at `exe`.
+    /// Where its app was found.
+    pub app: Option<String>,
+    /// Teitunnel's manifest is there and points at `exe` (on Windows, with the
+    /// registry key naming it): the browser can start the host.
     pub installed: bool,
+    /// Where the manifest is (or goes).
+    pub manifest: String,
+    /// When this browser last started the host for the extension (milliseconds since
+    /// the epoch): the extension is installed and working.
+    #[cfg_attr(feature = "specta", specta(type = Option<f64>))]
+    pub extension_seen_at: Option<u64>,
 }
 
 fn file_name() -> String {
@@ -144,12 +231,57 @@ fn file_name() -> String {
 }
 
 impl Layout {
-    /// The folders under `home` (and, on Windows, the local and roaming app data).
+    /// The folders under `home` (and, on Windows, the local and roaming app data), with
+    /// apps looked for on this system.
     pub fn new(platform: Platform, home: &Path, local_data: &Path, roaming_data: &Path) -> Self {
+        let program_files: Vec<PathBuf> = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
+            .into_iter()
+            .filter_map(std::env::var_os)
+            .map(PathBuf::from)
+            .collect();
+        Self::with_roots(
+            platform,
+            home,
+            local_data,
+            roaming_data,
+            Path::new("/"),
+            &program_files,
+        )
+    }
+
+    /// [`Layout::new`] with apps looked for under `root` (macOS and Linux) or in
+    /// `program_files` and `local_data` (Windows): tests use a folder of their own.
+    pub fn with_roots(
+        platform: Platform,
+        home: &Path,
+        local_data: &Path,
+        roaming_data: &Path,
+        root: &Path,
+        program_files: &[PathBuf],
+    ) -> Self {
+        let apps = |browser: Browser| -> Vec<PathBuf> {
+            let relative = browser.apps(platform);
+            match platform {
+                Platform::MacOs => [root.join("Applications"), home.join("Applications")]
+                    .iter()
+                    .flat_map(|dir| relative.iter().map(move |app| dir.join(app)))
+                    .collect(),
+                Platform::Linux => relative.iter().map(|p| root.join(p)).collect(),
+                Platform::Windows => program_files
+                    .iter()
+                    .chain(std::iter::once(&local_data.to_path_buf()))
+                    .flat_map(|dir| {
+                        relative
+                            .iter()
+                            .map(move |p| p.split('/').fold(dir.clone(), |d, c| d.join(c)))
+                    })
+                    .collect(),
+            }
+        };
         let place = |browser: Browser, profile: PathBuf, hosts: &str| Place {
             browser,
+            apps: apps(browser),
             manifest: profile.join(hosts).join(file_name()),
-            profile,
             registry: None,
         };
         let places = match platform {
@@ -230,37 +362,24 @@ impl Layout {
             }
             Platform::Windows => {
                 let ours = local_data.join("Teitunnel").join("NativeMessagingHosts");
-                let windows = |browser: Browser, profile: PathBuf, key: &str| Place {
+                let windows = |browser: Browser, key: &str| Place {
                     browser,
-                    profile,
+                    apps: apps(browser),
                     manifest: ours.join(if browser.firefox() {
                         "firefox.json"
                     } else {
                         "chromium.json"
                     }),
-                    registry: Some(format!(
-                        r"HKCU\Software\{key}\NativeMessagingHosts\{HOST_NAME}"
-                    )),
+                    registry: Some(format!(r"Software\{key}\NativeMessagingHosts\{HOST_NAME}")),
                 };
+                let _ = roaming_data;
                 vec![
-                    windows(
-                        Browser::Chrome,
-                        local_data.join(r"Google\Chrome"),
-                        r"Google\Chrome",
-                    ),
-                    windows(Browser::Chromium, local_data.join("Chromium"), "Chromium"),
-                    windows(
-                        Browser::Edge,
-                        local_data.join(r"Microsoft\Edge"),
-                        r"Microsoft\Edge",
-                    ),
-                    windows(
-                        Browser::Brave,
-                        local_data.join(r"BraveSoftware\Brave-Browser"),
-                        r"BraveSoftware\Brave-Browser",
-                    ),
-                    windows(Browser::Vivaldi, local_data.join("Vivaldi"), r"Vivaldi"),
-                    windows(Browser::Firefox, roaming_data.join("Mozilla"), "Mozilla"),
+                    windows(Browser::Chrome, r"Google\Chrome"),
+                    windows(Browser::Chromium, "Chromium"),
+                    windows(Browser::Edge, r"Microsoft\Edge"),
+                    windows(Browser::Brave, r"BraveSoftware\Brave-Browser"),
+                    windows(Browser::Vivaldi, "Vivaldi"),
+                    windows(Browser::Firefox, "Mozilla"),
                 ]
             }
         };
@@ -287,19 +406,42 @@ impl Layout {
             .map(|place| BrowserHostStatus {
                 browser: place.browser,
                 name: place.browser.name().to_owned(),
-                detected: place.profile.is_dir(),
-                installed: ours(&place.manifest).is_some_and(|m| points_at(&m, exe)),
+                detected: place.app().is_some(),
+                app: place.app().map(|p| p.display().to_string()),
+                installed: self.ready(place, exe),
+                manifest: place.manifest.display().to_string(),
+                extension_seen_at: None,
             })
             .collect()
     }
 
-    /// Writes the manifest for every installed browser, pointing at `exe` (on Windows,
-    /// with the registry keys). Returns the browsers' state after.
+    /// Whether `place`'s browser would start `exe`.
+    fn ready(&self, place: &Place, exe: &Path) -> bool {
+        let manifest = ours(&place.manifest).is_some_and(|m| points_at(&m, exe));
+        match &place.registry {
+            Some(key) if self.platform == Platform::Windows => {
+                manifest
+                    && registry::get(key)
+                        .is_some_and(|value| Path::new(&value) == place.manifest.as_path())
+            }
+            _ => manifest,
+        }
+    }
+
+    /// The places of `only` (every installed browser when `None`).
+    fn chosen(&self, only: Option<Browser>) -> impl Iterator<Item = &Place> {
+        self.places
+            .iter()
+            .filter(move |p| only.is_none_or(|b| b == p.browser))
+    }
+
+    /// Writes the manifest for every installed browser (or `only` that one), pointing at
+    /// `exe` (on Windows, with the registry keys). Returns the browsers' state after.
     ///
     /// # Errors
-    /// A manifest couldn't be written, or `reg.exe` failed.
-    pub async fn install(&self, exe: &Path) -> io::Result<Vec<BrowserHostStatus>> {
-        for place in self.places.iter().filter(|p| p.profile.is_dir()) {
+    /// A manifest or registry key couldn't be written.
+    pub fn install(&self, exe: &Path, only: Option<Browser>) -> io::Result<Vec<BrowserHostStatus>> {
+        for place in self.chosen(only).filter(|p| p.app().is_some()) {
             if let Some(parent) = place.manifest.parent() {
                 fs::create_dir_all(parent)?;
             }
@@ -309,45 +451,171 @@ impl Layout {
             }
             let body = serde_json::to_vec_pretty(&manifest(place.browser, exe))?;
             fs::write(&place.manifest, body)?;
-            if let Some(key) = &place.registry {
-                reg(&[
-                    "add",
-                    key,
-                    "/ve",
-                    "/t",
-                    "REG_SZ",
-                    "/d",
-                    &place.manifest.to_string_lossy(),
-                    "/f",
-                ])
-                .await?;
+            if let Some(key) = &place.registry
+                && self.platform == Platform::Windows
+            {
+                registry::set(key, &place.manifest.to_string_lossy())?;
             }
         }
         Ok(self.status(exe))
     }
 
-    /// Removes Teitunnel's manifests (and registry keys).
+    /// Removes Teitunnel's manifests (and registry keys), for every browser or `only` one.
+    /// On Windows the Chromium browsers share one manifest: it stays while another
+    /// browser's key still names it.
     ///
     /// # Errors
     /// A manifest couldn't be removed.
-    pub async fn uninstall(&self, exe: &Path) -> io::Result<Vec<BrowserHostStatus>> {
-        for place in &self.places {
-            if ours(&place.manifest).is_some() {
+    pub fn uninstall(
+        &self,
+        exe: &Path,
+        only: Option<Browser>,
+    ) -> io::Result<Vec<BrowserHostStatus>> {
+        for place in self.chosen(only) {
+            if let Some(key) = &place.registry
+                && self.platform == Platform::Windows
+            {
+                registry::remove(key);
+            }
+            let shared = self.places.iter().any(|other| {
+                other.browser != place.browser
+                    && other.manifest == place.manifest
+                    && other
+                        .registry
+                        .as_deref()
+                        .is_some_and(|key| registry::get(key).is_some())
+            });
+            if !shared && ours(&place.manifest).is_some() {
                 match fs::remove_file(&place.manifest) {
                     Ok(()) => {}
                     Err(err) if err.kind() == io::ErrorKind::NotFound => {}
                     Err(err) => return Err(err),
                 }
             }
-            if let Some(key) = &place.registry
-                && self.platform == Platform::Windows
-            {
-                // Already gone is fine.
-                let _ = reg(&["delete", key, "/f"]).await;
-            }
         }
         Ok(self.status(exe))
     }
+}
+
+/// `HKEY_CURRENT_USER` keys naming the manifests (Windows only; elsewhere nothing).
+mod registry {
+    /// The key's default value.
+    #[cfg(windows)]
+    pub(super) fn get(key: &str) -> Option<String> {
+        windows_registry::CURRENT_USER
+            .open(key)
+            .ok()?
+            .get_string("")
+            .ok()
+    }
+
+    #[cfg(not(windows))]
+    pub(super) fn get(_key: &str) -> Option<String> {
+        None
+    }
+
+    /// Creates the key with `value` as its default value.
+    #[cfg(windows)]
+    pub(super) fn set(key: &str, value: &str) -> std::io::Result<()> {
+        windows_registry::CURRENT_USER
+            .create(key)
+            .and_then(|k| k.set_string("", value))
+            .map_err(std::io::Error::other)
+    }
+
+    #[cfg(not(windows))]
+    pub(super) fn set(_key: &str, _value: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    /// Deletes the key (already gone is fine).
+    #[cfg(windows)]
+    pub(super) fn remove(key: &str) {
+        let _ = windows_registry::CURRENT_USER.remove_tree(key);
+    }
+
+    #[cfg(not(windows))]
+    pub(super) fn remove(_key: &str) {}
+}
+
+/// The file in the data folder recording which browsers started the host, and when.
+pub const SEEN_FILE: &str = "browser-extension.json";
+
+/// When each browser last started the host.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Seen {
+    /// By browser (milliseconds since the epoch).
+    pub browsers: std::collections::BTreeMap<Browser, u64>,
+    /// A Chromium browser Teitunnel couldn't tell.
+    pub other: Option<u64>,
+}
+
+/// Reads [`SEEN_FILE`] from `dir` (empty when there's none).
+pub fn seen(dir: &Path) -> Seen {
+    fs::read(dir.join(SEEN_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Adds when each browser last started the host to `statuses`.
+pub fn with_seen(mut statuses: Vec<BrowserHostStatus>, seen: &Seen) -> Vec<BrowserHostStatus> {
+    for status in &mut statuses {
+        status.extension_seen_at = seen.browsers.get(&status.browser).copied();
+    }
+    statuses
+}
+
+/// Records that a browser started the host at `now`: Firefox by its arguments, a
+/// Chromium browser by the app that started this process (or its parent, when a shell
+/// started it on Windows). Failures only lose the record.
+pub fn record_started(dir: &Path, args: &[String], layout: &Layout, now: u64) {
+    let browser = if args.iter().any(|a| a == FIREFOX_EXTENSION_ID) {
+        Some(Browser::Firefox)
+    } else {
+        starting_browser(layout)
+    };
+    let mut record = seen(dir);
+    match browser {
+        Some(browser) => {
+            record.browsers.insert(browser, now);
+        }
+        None => record.other = Some(now),
+    }
+    let path = dir.join(SEEN_FILE);
+    let temp = dir.join(format!("{SEEN_FILE}.{}", std::process::id()));
+    if let Ok(body) = serde_json::to_vec(&record)
+        && fs::write(&temp, body).is_ok()
+        && fs::rename(&temp, &path).is_err()
+    {
+        let _ = fs::remove_file(&temp);
+    }
+}
+
+/// The browser whose app started this process, looking up to three processes up.
+fn starting_browser(layout: &Layout) -> Option<Browser> {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+    );
+    let mut pid = system.process(Pid::from_u32(std::process::id()))?.parent();
+    for _ in 0..3 {
+        let process = system.process(pid?)?;
+        if let Some(exe) = process.exe()
+            && let Some(place) = layout
+                .places
+                .iter()
+                .find(|p| p.apps.iter().any(|app| exe.starts_with(app) || exe == app))
+        {
+            return Some(place.browser);
+        }
+        pid = process.parent();
+    }
+    None
 }
 
 /// The manifest a browser reads.
@@ -379,27 +647,6 @@ fn ours(path: &Path) -> Option<Value> {
 
 fn points_at(manifest: &Value, exe: &Path) -> bool {
     manifest.get("path").and_then(Value::as_str) == Some(&*exe.to_string_lossy())
-}
-
-async fn reg(args: &[&str]) -> io::Result<()> {
-    if !cfg!(windows) {
-        return Ok(());
-    }
-    let status = tokio::process::Command::new(r"C:\Windows\System32\reg.exe")
-        .args(args)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "reg.exe {} failed",
-            args.first().unwrap_or(&"")
-        )))
-    }
 }
 
 /// Whether the arguments this process got are a browser starting it as the host: Chrome

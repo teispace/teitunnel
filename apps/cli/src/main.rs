@@ -792,7 +792,7 @@ async fn main() -> ExitCode {
     // no arguments to parse, and standard output carries only its messages.
     let args: Vec<String> = std::env::args().collect();
     if teitunnel_core::browser_host::started_by_browser(&args) {
-        return browser::host().await;
+        return browser::host(&args).await;
     }
     let cli = Cli::parse();
     // On the heap: the future for every command together is large.
@@ -976,7 +976,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Project(command) => return project::run(command).await,
         Command::LocalDomain(command) => return local::run(command).await,
-        Command::Browser(command) => return browser::run(command).await,
+        Command::Browser(command) => return browser::run(command),
         Command::Mcp {
             command: Some(command),
             ..

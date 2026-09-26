@@ -485,16 +485,24 @@ teitunnel browser <COMMAND>
 Let the Teitunnel browser extension talk to the app, in every installed browser.
 
 ```sh
-teitunnel browser install
+teitunnel browser install [OPTIONS]
 ```
+
+| Option | Description |
+|---|---|
+| `--browser <BROWSER>` | Only this browser: chrome, chromium, edge, brave, vivaldi, arc or firefox. |
 
 ### browser uninstall
 
 Stop letting the extension talk to the app.
 
 ```sh
-teitunnel browser uninstall
+teitunnel browser uninstall [OPTIONS]
 ```
+
+| Option | Description |
+|---|---|
+| `--browser <BROWSER>` | Only this browser. |
 
 ### browser status
 

@@ -6899,6 +6899,7 @@ dependencies = [
  "tracing",
  "unic-langid",
  "uuid",
+ "windows-registry 0.6.1",
  "wiremock",
  "zeroize",
 ]
