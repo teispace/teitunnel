@@ -33,7 +33,7 @@ pub use analytics::{
 };
 pub use client::{API_BASE, Client};
 pub use d1::{D1Database, D1Meta, D1Result, D1Statement};
-pub use dns::{DnsRecord, NewDnsRecord};
+pub use dns::{DnsRecord, MAX_DNS_BATCH, NewDnsRecord};
 pub use envelope::{ApiMessage, Envelope, ResultInfo};
 pub use error::{Error, Result};
 pub use load_balancing::{LoadBalancer, Monitor, Origin, OriginHealth, Pool, PoolHealth};

@@ -208,6 +208,7 @@ Planner rules:
 - Every step is appended to the activity log (`pending → running → done | failed | compensated`) and emitted as a progress event.
 - **Rollback:** each step type defines a compensating action (`CreateDnsRecord ↔ DeleteDnsRecord(owned)`, `PutTunnelConfig ↔ PutTunnelConfig(previous)`, `CreateTunnel ↔ DeleteTunnel`). On failure, completed steps are compensated in reverse order. The result is reported as either "rolled back cleanly" or "partially applied" with the exact leftovers listed, and a Doctor issue is raised.
 - Transient failures (429 with `Retry-After`, 5xx, network errors) are retried inside the step with backoff. 4xx errors fail the step.
+- **Several new DNS records** (an import, or any plan with consecutive `CreateRecord` steps) go to Cloudflare's [batch endpoint](https://developers.cloudflare.com/dns/manage-dns-records/how-to/batch-record-changes/): one call per zone, up to 200 records, applied all or none. The plan keeps one step per record, each with its own progress and undo, so rollback works as for single steps.
 
 ### 4.5 Verifier
 
