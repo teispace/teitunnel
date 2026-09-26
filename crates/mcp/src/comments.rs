@@ -205,7 +205,8 @@ fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_CLOUD,
             DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
         spec::<ReplyArgs, ChangeOut>(
             "comments_reply",
             "Reply to a review comment",
@@ -381,7 +382,7 @@ mod tests {
     use super::*;
     use crate::{
         backend::SharedBackend,
-        config::{Mode, Settings},
+        config::Mode,
         tools::tests::{FakeBackend, actor},
     };
 
@@ -417,13 +418,7 @@ mod tests {
     async fn call(backend: &Arc<FakeBackend>, mode: Mode, name: &str, args: Value) -> Value {
         let shared: SharedBackend = backend.clone();
         let tools = CommentsTools::new(shared);
-        let ctx = ToolContext::detached(
-            Settings {
-                mode,
-                allow_secrets: false,
-            },
-            actor(),
-        );
+        let ctx = ToolContext::detached(crate::tools::tests::settings(mode), actor());
         let Value::Object(args) = args else {
             panic!("arguments must be an object")
         };

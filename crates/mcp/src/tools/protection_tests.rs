@@ -19,7 +19,7 @@ use super::{
 };
 use crate::{
     backend::SharedBackend,
-    config::{Mode, Settings},
+    config::Mode,
     plans::Plans,
     registry::{ToolClass, ToolContext, ToolProvider},
     traffic::NoTraffic,
@@ -44,13 +44,7 @@ fn harness() -> Harness {
 
 impl Harness {
     async fn call(&self, mode: Mode, name: &str, args: Value) -> Result<Value, String> {
-        let ctx = ToolContext::detached(
-            Settings {
-                mode,
-                allow_secrets: false,
-            },
-            actor(),
-        );
+        let ctx = ToolContext::detached(crate::tools::tests::settings(mode), actor());
         let Value::Object(args) = args else {
             return Err("arguments must be an object".into());
         };

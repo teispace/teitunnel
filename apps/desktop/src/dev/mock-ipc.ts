@@ -1306,10 +1306,21 @@ export function installMockIpc(): void {
               redirectHost: "claude.ai",
               createdAt: now - 26 * 3_600_000,
               lastUsedAt: now - 4 * 60_000,
+              expiresAt: now + 89 * 24 * 3_600_000,
             },
           ];
         case "mcp_disconnect":
           return null;
+        case "mcp_settings_get":
+          return {
+            mode: "ask",
+            allowSecrets: false,
+            approveInApp: true,
+            dynamicRegistration: true,
+            maxGrantDays: 90,
+          };
+        case "mcp_settings_save":
+          return payload["settings"];
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:

@@ -84,7 +84,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             "Apply a plan",
             "Apply a plan from plan_change (by `planId` and `fingerprint`), step by step with progress, then check the affected routes end to end. If anything fails, completed steps are undone. If Cloudflare changed since the plan was made, nothing is applied and a new plan is returned (`stale`) to review again.\n\
              \n\
-             In `ask` mode the person approves first: the client asks them when it can; otherwise the answer is `needsApproval` and you must show them the plan and call again with `confirmed: true` only after they agree. A plan that replaces or deletes DNS records Teitunnel didn't create (`requiresConfirmation`) always needs `confirmed: true` (or the person's approval). Every change is recorded in Teitunnel's Activity with this agent's name.\n\
+             In `ask` mode the person approves first, in Teitunnel or in your client's question; when nobody can ask them, the call says what to do (or answers `needsApproval`: show them the plan and call again with `confirmed: true` only after they agree). A plan that replaces or deletes DNS records Teitunnel didn't create (`requiresConfirmation`) always needs `confirmed: true` (or the person's approval). Every change is recorded in Teitunnel's Activity with this agent's name.\n\
              \n\
              Example: {\"planId\": \"plan_1a2b3c4d5e6f\", \"fingerprint\": \"9f86d081…\"}",
             ToolClass::Destructive,
@@ -107,7 +107,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_CLOUD,
             Duration::from_secs(90),
-        ),
+        )
+        .with_untrusted(),
         spec::<UndoArgs, UndoResult>(
             "undo_last",
             "Plan an undo",
@@ -745,6 +746,9 @@ pub(crate) fn plan_out(plan: &PendingPlan, ctx: &ToolContext) -> PlanOut {
         Mode::Ask if ctx.can_ask() => {
             "the person is asked to approve when you call apply_plan".to_owned()
         }
+        Mode::Ask if ctx.needs_person() => {
+            "show the person the plan; when you call apply_plan, Teitunnel asks them to approve it (its app must be running; your `confirmed` isn't an approval)".to_owned()
+        }
         Mode::Ask => "show the person the plan; call apply_plan with \"confirmed\": true only after they agree".to_owned(),
     };
     PlanOut {
@@ -1290,7 +1294,7 @@ pub(crate) async fn apply_stored(
         })
         .await;
     let by_person = match approval {
-        Approval::Granted { how } => how == "person",
+        Approval::Granted { how } => Approval::by_person(how),
         Approval::NeedsConfirmation => {
             return Ok(ApplyResult::only(
                 "needsApproval",

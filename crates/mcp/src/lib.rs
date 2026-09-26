@@ -29,6 +29,7 @@ pub mod inspection;
 mod inspector_traffic;
 pub mod limits;
 pub mod local_domains;
+pub(crate) mod mrtr;
 pub mod plans;
 mod prompts;
 #[cfg(test)]
@@ -44,17 +45,17 @@ pub mod traffic;
 pub use app_approver::AppApprover;
 pub use backend::{Backend, BackendError, ChangeEvent, SharedBackend};
 pub use comments::CommentsTools;
-pub use config::{Mode, Settings};
+pub use config::{Mode, OAuthSettings, Settings};
 pub use core_backend::{ConnectorSource, CoreBackend, CoreParts};
 pub use expose::ExposeTools;
 pub use inspection::InspectionTools;
 pub use inspector_traffic::InspectorTraffic;
 pub use local_domains::LocalDomainTools;
 pub use registry::{
-    Approval, ApprovalRequest, Approver, ToolClass, ToolContext, ToolError, ToolOutput,
+    AppAnswer, Approval, ApprovalRequest, Approver, ToolClass, ToolContext, ToolError, ToolOutput,
     ToolProvider, ToolResult, ToolSpec,
 };
-pub use server::{HttpIdentity, INSTRUCTIONS, McpServer, ServerBuilder};
+pub use server::{HttpIdentity, INSTRUCTIONS, McpServer, ServerBuilder, instructions};
 pub use traffic::{NoTraffic, TrafficSource};
 
 /// Serves `server` over stdio until the client disconnects (or `stop` is cancelled).

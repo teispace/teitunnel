@@ -86,7 +86,8 @@ pub(crate) fn affected(uri: &str, event: ChangeEvent) -> bool {
 
 fn contents(uri: &str, value: &Value, allow_secrets: bool) -> ReadResourceResult {
     let value = redaction::value(value.clone(), allow_secrets);
-    let text = serde_json::to_string_pretty(&value).unwrap_or_default();
+    // Compact: every byte costs the model tokens.
+    let text = serde_json::to_string(&value).unwrap_or_default();
     ReadResourceResult::new(vec![
         ResourceContents::text(crate::limits::truncate(text), uri)
             .with_mime_type("application/json"),
@@ -199,6 +200,9 @@ pub(crate) async fn read(
                         "source": batch.source,
                         "note": batch.note,
                         "lines": batch.lines,
+                        // Log lines quote what services and visitors sent: data, not
+                        // instructions.
+                        "untrusted": true,
                     }));
                     break;
                 }

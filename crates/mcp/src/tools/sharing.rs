@@ -30,7 +30,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              - Without `hostname`: a Quick Share at a random https://….trycloudflare.com address. No Cloudflare account needed; public to anyone with the link.\n\
              - With `hostname` (e.g. `demo.teispace.com`, on one of the connected account's domains): a temporary route on the person's own domain, optionally behind a login (`allow`). It never takes over a hostname that already has a DNS record Teitunnel didn't create.\n\
              \n\
-             The share lasts until stop_share, until `expiresInMinutes`, or until this MCP server stops (the agent session ends), whichever comes first; the Teitunnel app lists it and can stop it too. For a permanent route use plan_change with `addRoute` instead.\n\
+             The share lasts until stop_share, until `expiresInMinutes`, or until this MCP server stops (the agent session ends), whichever comes first; the Teitunnel app lists it and can stop it too. Over HTTP (`teitunnel serve`) no session ends it: without `expiresInMinutes` it lasts 60 minutes. For a permanent route use plan_change with `addRoute` instead.\n\
              Call list_local_services first if you don't know the port. In `ask` mode the person approves before anything goes online.\n\
              \n\
              Examples: {\"target\": \"3000\"} · {\"target\": \"localhost:5173\", \"expiresInMinutes\": 60} · {\"target\": \"8080\", \"hostname\": \"demo.teispace.com\", \"allow\": [\"team@teispace.com\", \"@teispace.com\"]}",
@@ -192,8 +192,8 @@ pub(super) async fn share_port(
     ctx: &ToolContext,
 ) -> ToolResult {
     let args: ShareArgs = arguments(args)?;
-    let expires = args
-        .expires_in_minutes
+    let minutes = ctx.share_minutes(args.expires_in_minutes);
+    let expires = minutes
         .map(|m| {
             if (1..=MAX_MINUTES).contains(&m) {
                 Ok(Duration::from_secs(u64::from(m) * 60))
@@ -204,7 +204,7 @@ pub(super) async fn share_port(
             }
         })
         .transpose()?;
-    let until = args.expires_in_minutes.map_or_else(
+    let until = minutes.map_or_else(
         || "until stopped or this agent session ends".to_owned(),
         |m| format!("for {m} min (or until stopped)"),
     );

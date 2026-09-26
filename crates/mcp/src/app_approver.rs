@@ -3,7 +3,9 @@
 //! (`crates/control`, `agent.approve`), and the app lists the agent in Settings ▸ AI
 //! Tools while it's connected (`agent.register`). Without the app, [`AppApprover`]
 //! answers "can't ask", so the server falls back to MCP elicitation (the agent's own
-//! prompt) or a confirmed second call.
+//! prompt), or tells the agent the person must open Teitunnel (`approveInApp`, the
+//! default), or accepts a confirmed second call (with `approveInApp` off). While the app
+//! shows another question, it answers "busy", which is not a no.
 //!
 //! The agent keeps its stdio configuration; nothing listens on a new port, and the
 //! control connection is already authenticated and limited to the current user.
@@ -22,7 +24,7 @@ use teitunnel_core::engine::Actor;
 use crate::{
     backend::BoxFuture,
     config::Mode,
-    registry::{ApprovalRequest, Approver},
+    registry::{AppAnswer, ApprovalRequest, Approver},
 };
 
 /// Asks in the app when it runs.
@@ -99,31 +101,37 @@ impl AppApprover {
         }
     }
 
-    /// Asks the person in the app. `None`: the app can't ask (not running, the control
-    /// connection is off, or it broke), so the caller asks some other way.
-    pub async fn ask(&self, actor: &Actor, request: &ApprovalRequest) -> Option<bool> {
-        let client = self.connection().await?;
+    /// Asks the person in the app. [`AppAnswer::Unavailable`]: the app can't ask (not
+    /// running, the control connection is off, or it broke), so the caller asks some
+    /// other way.
+    pub async fn ask(&self, actor: &Actor, request: &ApprovalRequest) -> AppAnswer {
+        let Some(client) = self.connection().await else {
+            return AppAnswer::Unavailable;
+        };
         let question = AgentApproval {
             agent: actor.client.clone(),
             title: request.title.clone(),
             details: request.details.clone(),
         };
-        match client.approve_for_agent(&question).await {
-            Ok(approved) => Some(approved),
-            // The person didn't answer in time: that's a no.
-            Err(ClientError::Rpc(error)) if error.code == code::TIMEOUT => Some(false),
-            Err(ClientError::Rpc(error))
-                if matches!(error.code, code::DISABLED | code::METHOD_NOT_FOUND) =>
-            {
-                None
-            }
-            // One question at a time is shown; this one waits for its own turn.
-            Err(ClientError::Rpc(error)) if error.code == code::RATE_LIMITED => Some(false),
-            Err(_) => {
-                self.forget_connection().await;
-                None
-            }
+        let answer = answer(client.approve_for_agent(&question).await);
+        if answer == AppAnswer::Unavailable {
+            self.forget_connection().await;
         }
+        answer
+    }
+}
+
+/// What the app's reply to `agent.approve` means.
+fn answer(reply: Result<bool, ClientError>) -> AppAnswer {
+    match reply {
+        Ok(true) => AppAnswer::Approved,
+        // The person said no, or didn't answer in time: that's a no.
+        Ok(false) => AppAnswer::Declined,
+        Err(ClientError::Rpc(error)) if error.code == code::TIMEOUT => AppAnswer::Declined,
+        // One question is shown at a time: another is waiting for the person. That's
+        // not their answer to this one.
+        Err(ClientError::Rpc(error)) if error.code == code::RATE_LIMITED => AppAnswer::Busy,
+        Err(_) => AppAnswer::Unavailable,
     }
 }
 
@@ -132,7 +140,7 @@ impl Approver for AppApprover {
         &'a self,
         actor: &'a Actor,
         request: &'a ApprovalRequest,
-    ) -> BoxFuture<'a, Option<bool>> {
+    ) -> BoxFuture<'a, AppAnswer> {
         Box::pin(self.ask(actor, request))
     }
 
@@ -175,10 +183,13 @@ mod tests {
             assert_eq!(agents[0].1.mode, "ask");
         }
         running.host.agent_answers.lock().unwrap().push_back(true);
-        assert_eq!(approver.ask(&actor(), &request()).await, Some(true));
         assert_eq!(
             approver.ask(&actor(), &request()).await,
-            Some(false),
+            AppAnswer::Approved
+        );
+        assert_eq!(
+            approver.ask(&actor(), &request()).await,
+            AppAnswer::Declined,
             "no answer is a no"
         );
         let questions = running.host.agent_questions.lock().unwrap();
@@ -191,7 +202,22 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let approver = AppApprover::new(dir.path(), Mode::Ask);
         approver.register(&actor()).await;
-        assert_eq!(approver.ask(&actor(), &request()).await, None);
+        assert_eq!(
+            approver.ask(&actor(), &request()).await,
+            AppAnswer::Unavailable
+        );
+    }
+
+    #[test]
+    fn another_open_question_isnt_a_no() {
+        use teitunnel_control::protocol::RpcError;
+        let rpc = |code| Err(ClientError::Rpc(RpcError::new(code, "…")));
+        assert_eq!(answer(rpc(code::RATE_LIMITED)), AppAnswer::Busy);
+        assert_eq!(answer(rpc(code::TIMEOUT)), AppAnswer::Declined);
+        assert_eq!(answer(rpc(code::DISABLED)), AppAnswer::Unavailable);
+        assert_eq!(answer(rpc(code::METHOD_NOT_FOUND)), AppAnswer::Unavailable);
+        assert_eq!(answer(Ok(false)), AppAnswer::Declined);
+        assert_eq!(answer(Ok(true)), AppAnswer::Approved);
     }
 
     #[tokio::test]
@@ -206,7 +232,7 @@ mod tests {
         let ctx = ToolContext::with_approver(
             Settings {
                 mode: Mode::Ask,
-                allow_secrets: false,
+                ..Settings::default()
             },
             actor(),
             approver,
@@ -224,7 +250,7 @@ mod tests {
         running.host.agent_answers.lock().unwrap().push_back(true);
         assert_eq!(
             ctx.approve(&request()).await,
-            Approval::Granted { how: "person" }
+            Approval::Granted { how: "app" }
         );
     }
 }

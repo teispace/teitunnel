@@ -22,6 +22,7 @@ mod fronts;
 mod inspect;
 mod integrations;
 mod local_domains;
+mod mcp_settings;
 mod projects;
 mod quick_share;
 mod reservations;
@@ -74,6 +75,8 @@ pub(crate) fn builder() -> Builder<tauri::Wry> {
             ai_clients::ai_agents,
             ai_clients::mcp_connections,
             ai_clients::mcp_disconnect,
+            mcp_settings::mcp_settings_get,
+            mcp_settings::mcp_settings_save,
             ai_clients::ai_clients_connect,
             ai_clients::ai_clients_disconnect,
             updates::updates_check,

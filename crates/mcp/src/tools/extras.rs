@@ -73,7 +73,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             "Share a folder",
             "Put a folder of static files (a built site like ./dist, docs, a design export) on the internet: Teitunnel's inspector serves it, with an optional file listing and single-page-app fallback. Nothing outside the folder is ever served, and secrets and tooling (dotfiles, .env files, keys, .git, node_modules) never are.\n\
              \n\
-             Without `hostname` it's a Quick Share at a random trycloudflare.com URL; with `hostname` it's a temporary route on the person's domain. It ends like any share this server started (stop_share, `expiresInMinutes`, or when this session ends).\n\
+             Without `hostname` it's a Quick Share at a random trycloudflare.com URL; with `hostname` it's a temporary route on the person's domain. It ends like any share this server started (stop_share, `expiresInMinutes`, or when this session ends; over HTTP, 60 minutes unless `expiresInMinutes` says).\n\
              \n\
              Examples: {\"path\": \"~/site/dist\", \"spa\": true} · {\"path\": \"./public\", \"hostname\": \"docs.teispace.com\", \"listing\": true}",
             ToolClass::Change,
@@ -374,8 +374,8 @@ pub(super) async fn share_folder(
     let args: FolderArgs = arguments(args)?;
     let folder = FolderShare::resolve(&args.path, args.listing, args.spa)
         .map_err(|e| ToolError::new(e.to_string()))?;
-    let expires = args
-        .expires_in_minutes
+    let expires = ctx
+        .share_minutes(args.expires_in_minutes)
         .map(|m| {
             if (1..=MAX_MINUTES).contains(&m) {
                 Ok(Duration::from_secs(u64::from(m) * 60))

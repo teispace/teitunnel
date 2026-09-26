@@ -7,7 +7,7 @@
 //! keychain for the hostname; agents never see it unless the server allows secrets:
 //! the person reads it with `teitunnel token <hostname>`.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use rmcp::model::JsonObject;
 use schemars::JsonSchema;
@@ -33,12 +33,16 @@ use crate::{
 /// What stands for the token in configurations an agent sees.
 pub const TOKEN_PLACEHOLDER: &str = "<TOKEN>";
 
+/// Makes the authorization server when it's first needed.
+pub type AuthFactory = Arc<dyn Fn() -> BoxFuture<'static, Option<McpAuth>> + Send + Sync>;
+
 /// The exposure tools, over the host's backend and inspector.
 #[derive(Clone)]
 pub struct ExposeTools {
     backend: SharedBackend,
     inspector: Inspector,
-    auth: Option<McpAuth>,
+    auth: Arc<tokio::sync::OnceCell<Option<McpAuth>>>,
+    make_auth: Option<AuthFactory>,
 }
 
 impl std::fmt::Debug for ExposeTools {
@@ -53,7 +57,8 @@ impl ExposeTools {
         Self {
             backend,
             inspector,
-            auth: None,
+            auth: Arc::default(),
+            make_auth: None,
         }
     }
 
@@ -61,8 +66,31 @@ impl ExposeTools {
     /// remote clients), each connection approved by the person through `auth`.
     #[must_use]
     pub fn with_oauth(mut self, auth: McpAuth) -> Self {
-        self.auth = Some(auth);
+        self.auth = Arc::new(tokio::sync::OnceCell::new_with(Some(Some(auth))));
         self
+    }
+
+    /// Like [`Self::with_oauth`], with the authorization server made by `make` the first
+    /// time a server is exposed (it keeps a database watch running, which most agent
+    /// sessions never need). `None` from `make`: OAuth isn't available.
+    #[must_use]
+    pub fn with_lazy_oauth(mut self, make: AuthFactory) -> Self {
+        self.make_auth = Some(make);
+        self
+    }
+
+    /// The authorization server, made now if it's lazy.
+    async fn auth(&self) -> Option<McpAuth> {
+        let make = self.make_auth.clone();
+        self.auth
+            .get_or_init(|| async move {
+                match make {
+                    Some(make) => make().await,
+                    None => None,
+                }
+            })
+            .await
+            .clone()
     }
 }
 
@@ -87,7 +115,8 @@ pub(crate) struct ExposeArgs {
     /// stop working).
     #[serde(default)]
     new_token: bool,
-    /// Stop sharing after this many minutes (default: when this MCP server ends).
+    /// Stop sharing after this many minutes (default: when this MCP server ends; over
+    /// HTTP, 60 minutes).
     #[serde(default)]
     expires_in_minutes: Option<u32>,
     /// Only when this server can't ask the person itself (the previous call answered
@@ -220,6 +249,8 @@ impl ExposeTools {
                 ))
             })?;
         let account = crate::tools::account(&self.backend, args.account.as_deref()).await?;
+        let minutes = ctx.share_minutes(args.expires_in_minutes);
+        let auth = self.auth().await;
         let url = format!("https://{hostname}{}", probe.path.trim_end_matches('/'));
         let url = if probe.path == "/" {
             format!("https://{hostname}/")
@@ -229,12 +260,12 @@ impl ExposeTools {
         let details = format!(
             "Share the MCP server at {origin}{} publicly at {url}, on your domain through this machine's tunnel. Clients must send a bearer token (kept in the keychain){}; streams are kept alive. It ends when this MCP server stops{}.",
             probe.path,
-            if self.auth.is_some() && !probe.requires_auth {
+            if auth.is_some() && !probe.requires_auth {
                 ", or sign in with OAuth, each connection approved by you in Teitunnel"
             } else {
                 ""
             },
-            args.expires_in_minutes
+            minutes
                 .map(|m| format!(" or after {m} minutes"))
                 .unwrap_or_default()
         );
@@ -277,8 +308,7 @@ impl ExposeTools {
             })
             .collect::<String>();
         // A server that asks for credentials itself keeps its own sign-in.
-        let oauth = self
-            .auth
+        let oauth = auth
             .as_ref()
             .filter(|_| !probe.requires_auth)
             .map(|auth| auth.provider(&hostname, &probe.path, &name));
@@ -303,9 +333,7 @@ impl ExposeTools {
                     hostname: hostname.clone(),
                     origin: tap.address.clone(),
                     access: None,
-                    expires_in: args
-                        .expires_in_minutes
-                        .map(|m| Duration::from_secs(u64::from(m) * 60)),
+                    expires_in: minutes.map(|m| Duration::from_secs(u64::from(m) * 60)),
                 },
                 Some(ctx.actor().clone()),
             )
@@ -503,6 +531,7 @@ mod tests {
         let auth = McpAuth::open(
             teitunnel_core::store::Store::open_in_memory().unwrap(),
             Arc::new(Nobody),
+            teitunnel_core::mcp_auth::Policy::default(),
         )
         .await
         .unwrap();
@@ -535,6 +564,42 @@ mod tests {
         assert_eq!(
             refused.headers()["www-authenticate"],
             "Bearer resource_metadata=\"https://mcp.xyz.com/.well-known/oauth-protected-resource\""
+        );
+        inspector.shutdown().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn oauth_is_made_only_when_a_server_is_first_exposed() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let made = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&made);
+        let factory: AuthFactory = Arc::new(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { None })
+        });
+        let port = mcp_server().await;
+        let inspector = Inspector::new(None, Some(Arc::new(MemoryStore::default())), "app");
+        let tools =
+            ExposeTools::new(FakeBackend::new(), inspector.clone()).with_lazy_oauth(factory);
+        assert_eq!(tools.tools().len(), 1);
+        assert_eq!(made.load(Ordering::SeqCst), 0, "listing doesn't make it");
+        let ctx = ToolContext::detached(settings(Mode::Full), actor());
+        for hostname in ["one.xyz.com", "two.xyz.com"] {
+            let out = tools
+                .call(
+                    "expose_mcp_server",
+                    args(&serde_json::json!({ "origin": port.to_string(), "hostname": hostname })),
+                    &ctx,
+                )
+                .await
+                .unwrap()
+                .structured;
+            assert_eq!(out["outcome"], "exposed");
+        }
+        assert_eq!(
+            made.load(Ordering::SeqCst),
+            1,
+            "made once, when first needed"
         );
         inspector.shutdown().await;
     }

@@ -6,7 +6,9 @@
 //! rebinding); the `Host` header must be a loopback name unless the server listens
 //! remotely; no CORS headers are ever sent; repeated bad keys from one address are
 //! refused for a while. Sessions follow the spec (an `Mcp-Session-Id` per client, for
-//! protocol versions that have them).
+//! protocol versions that have them). From 2026-07-28 requests are stateless: nothing
+//! ends when a client goes away, so shares an agent starts here last 60 minutes unless
+//! it asks for another lifetime ([`crate::registry::HTTP_SHARE_MINUTES`]).
 
 use std::{
     collections::HashMap,
@@ -322,6 +324,45 @@ mod tests {
             .unwrap();
         assert_eq!(actor.client, "http-agent");
         assert_eq!(actor.via, "mcp over HTTP (API key \"ci\")");
+    }
+
+    #[tokio::test]
+    async fn stateless_requests_get_shares_with_a_lifetime() {
+        let server = start(Mode::Full).await;
+        // Protocol 2026-07-28: no initialize, no session; who's asking is in `_meta`.
+        let meta = json!({
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": { "name": "stateless-agent", "version": "1.0" },
+            "io.modelcontextprotocol/clientCapabilities": {}
+        });
+        let response = server
+            .post(
+                Some("ttk_good"),
+                &json!({
+                    "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                    "params": {
+                        "_meta": meta,
+                        "name": "share_port",
+                        "arguments": { "target": "3000" }
+                    }
+                }),
+            )
+            .header("mcp-protocol-version", "2026-07-28")
+            .header("mcp-method", "tools/call")
+            .header("mcp-name", "share_port")
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        assert!(status.is_success(), "{status} {body}");
+        assert!(body.contains("for 60 min"), "{body}");
+        let share = server.backend.lock().shares[0].clone();
+        assert_eq!(
+            share.expires_at,
+            Some(1 + 60 * 60 * 1000),
+            "no session ends it, so it has a lifetime"
+        );
     }
 
     #[test]

@@ -2722,7 +2722,10 @@
       "noCli": "The teitunnel command that AI tools run isn't part of this copy of Teitunnel.",
       "notInstalled": "{name} isn't installed on this computer. Install it first, or add Teitunnel to its settings by hand.",
       "checkFailed": "The connection didn't work. {detail}",
-      "noConfig": "{name} has no settings file yet."
+      "noConfig": "{name} has no settings file yet.",
+      "settingsUnreadable": "Couldn't read the AI tools' settings: {detail}",
+      "settingsFailed": "Couldn't save the AI tools' settings: {detail}",
+      "grantDays": "Connections can last from 1 to {max} days."
     },
     "control": {
       "clientTitle": "Allow {client} to make this change?",

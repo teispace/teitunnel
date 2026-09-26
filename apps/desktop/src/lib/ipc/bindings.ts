@@ -42,10 +42,18 @@ export const commands = {
 	/**  Clients connected with OAuth to MCP servers shared from this computer, newest first. */
 	mcpConnections: () => __TAURI_INVOKE<McpConnection[]>("mcp_connections"),
 	/**
-	 *  Disconnects a client from a shared MCP server: its tokens stop working within 30
-	 *  seconds (at once for servers this app shares).
+	 *  Disconnects a client from a shared MCP server: its tokens stop working at once in
+	 *  the processes sharing it (they hear it on the control connection; one that can't
+	 *  notices within seconds).
 	 */
 	mcpDisconnect: (id: string) => __TAURI_INVOKE<null>("mcp_disconnect", { id }),
+	/**  The MCP server's settings (defaults when they were never changed). */
+	mcpSettingsGet: () => __TAURI_INVOKE<McpSettings>("mcp_settings_get"),
+	/**
+	 *  Saves the MCP server's settings; returns them as saved. AI tools pick them up when
+	 *  they next start Teitunnel's MCP server.
+	 */
+	mcpSettingsSave: (settings: McpSettings) => __TAURI_INVOKE<McpSettings>("mcp_settings_save", { settings }),
 	/**
 	 *  Connects an AI client (or updates its entry): adds Teitunnel to its MCP configuration
 	 *  (merged, with a backup). Only installed clients: connecting one that isn't would
@@ -3557,6 +3565,43 @@ export type McpConnection = {
 	createdAt: number | null,
 	/**  When it last got a token. */
 	lastUsedAt: number | null,
+	/**
+	 *  When it ends however it's used, so the person approves it again (milliseconds
+	 *  since the epoch).
+	 */
+	expiresAt: number | null,
+};
+
+/**  What an agent may do through the MCP server. */
+export type McpMode = 
+/**  Look only. */
+"read-only" | 
+/**  Every change waits for the person's approval. */
+"ask" | 
+/**  Changes apply without asking (still through reviewed plans). */
+"full";
+
+/**  The MCP server's settings, as Settings shows them. */
+export type McpSettings = {
+	/**  The mode for AI tools connected without their own (`--mode` wins). */
+	mode: McpMode,
+	/**  Agents see credentials in captured traffic and unredacted logs. */
+	allowSecrets: boolean,
+	/**
+	 *  In `ask` mode, a change needs the person's answer in Teitunnel or in the AI
+	 *  tool's own question; the agent saying the person agreed isn't enough.
+	 */
+	approveInApp: boolean,
+	/**
+	 *  MCP servers shared with OAuth accept clients that register themselves (older
+	 *  clients); clients with a published identity connect either way.
+	 */
+	dynamicRegistration: boolean,
+	/**
+	 *  How many days a connection to a shared MCP server lasts before the person
+	 *  approves it again (1 to 365).
+	 */
+	maxGrantDays: number,
 };
 
 /**  Emitted when a menu-bar item that the webview handles is chosen. */
