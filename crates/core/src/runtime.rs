@@ -8,6 +8,7 @@
 
 mod connector;
 mod logbuf;
+pub mod network;
 mod policy;
 mod ports;
 mod registry;

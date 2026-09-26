@@ -111,6 +111,8 @@ fn fast() -> RestartPolicy {
         connect_timeout: Duration::from_secs(1),
         health_interval: Duration::from_millis(200),
         stop_grace: Duration::from_millis(600),
+        nudge_check: Some(Duration::from_millis(500)),
+        crash_loop_retry: Duration::from_secs(600),
     }
 }
 
@@ -199,7 +201,7 @@ async fn crashed_connector_restarts_with_backoff() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn crash_loop_stops_retrying() {
+async fn a_crash_loop_waits_instead_of_retrying() {
     let h = Harness::new(4);
     let id = ConnectorId("qs-loop".into());
     h.supervisor
@@ -217,6 +219,105 @@ async fn crash_loop_stops_retrying() {
     );
     let logs = h.supervisor.logs(&id, 100).unwrap();
     assert!(logs.iter().any(|e| e.message.contains("simulated")));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_crash_loop_tries_again_when_the_network_changes() {
+    let h = Harness::new(10);
+    let id = ConnectorId("qs-offline".into());
+    h.supervisor
+        .start(h.spec(&id.0, "exit_immediately", fast()))
+        .unwrap();
+    let looping = |s: &ConnectorState| matches!(s, ConnectorState::CrashLoop { .. });
+    assert!(
+        h.supervisor
+            .wait_for(&id, Duration::from_secs(10), looping)
+            .await
+            .is_some()
+    );
+    // Still looping a while later: it waits instead of spinning.
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(looping(&h.supervisor.state(&id).unwrap()));
+    let before = h.supervisor.disrupted_at_ms();
+    h.supervisor
+        .disrupted(teitunnel_core::runtime::network::Disruption::Online);
+    assert!(h.supervisor.disrupted_at_ms() > before);
+    assert!(
+        h.supervisor
+            .wait_for(&id, Duration::from_secs(5), |s| !looping(s))
+            .await
+            .is_some(),
+        "started again"
+    );
+    h.supervisor.stop(&id).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_nudge_restarts_a_connector_left_without_connections() {
+    let h = Harness::new(11);
+    let (stuck, fine) = (
+        ConnectorId("qs-stuck".into()),
+        ConnectorId("qs-fine".into()),
+    );
+    h.supervisor
+        .start(h.spec(&stuck.0, "degraded", fast()))
+        .unwrap();
+    h.supervisor
+        .start(h.spec(&fine.0, "healthy", fast()))
+        .unwrap();
+    // A Quick Share would get a new address: never restarted while it runs.
+    let share = ConnectorId("qs-share".into());
+    h.supervisor
+        .start(h.spec(
+            &share.0,
+            "degraded",
+            RestartPolicy {
+                nudge_check: None,
+                ..fast()
+            },
+        ))
+        .unwrap();
+    assert!(
+        h.supervisor
+            .wait_for(&stuck, Duration::from_secs(5), |s| *s
+                == ConnectorState::Degraded)
+            .await
+            .is_some()
+    );
+    assert!(
+        h.supervisor
+            .wait_for(&fine, Duration::from_secs(5), is_healthy)
+            .await
+            .is_some()
+    );
+    assert!(
+        h.supervisor
+            .wait_for(&share, Duration::from_secs(5), |s| *s
+                == ConnectorState::Degraded)
+            .await
+            .is_some()
+    );
+    let (stuck_pid, fine_pid) = (h.pid(&stuck.0).unwrap(), h.pid(&fine.0).unwrap());
+    let share_pid = h.pid(&share.0).unwrap();
+    h.supervisor.nudge();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while h.pid(&stuck.0) == Some(stuck_pid) && Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert_ne!(h.pid(&stuck.0), Some(stuck_pid), "restarted");
+    assert!(!alive(stuck_pid));
+    assert_eq!(
+        h.pid(&fine.0),
+        Some(fine_pid),
+        "a healthy one is left alone"
+    );
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    assert_eq!(
+        h.pid(&share.0),
+        Some(share_pid),
+        "a Quick Share is left to reconnect"
+    );
+    h.supervisor.stop_all().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

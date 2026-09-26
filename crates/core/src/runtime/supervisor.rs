@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
-    time::Duration,
+    sync::{Arc, Mutex, Weak},
+    time::{Duration, SystemTime},
 };
 
 use cloudflared::{CommandSpec, LogEvent};
@@ -14,6 +14,7 @@ use tokio::{
 use super::{
     connector::{self, Context},
     logbuf::LogBuffer,
+    network::{self, Disruption, Observer},
     policy::RestartPolicy,
     registry::PidRegistry,
     state::{ConnectorId, ConnectorState, RuntimeEvent},
@@ -72,9 +73,31 @@ impl UserText for SupervisorError {
 
 english_display!(SupervisorError);
 
+type Connectors = Mutex<HashMap<ConnectorId, Handle_>>;
+
+fn nudge_all(connectors: &Connectors) {
+    for handle in connectors
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .values()
+    {
+        handle.nudge.send_modify(|n| *n = n.wrapping_add(1));
+    }
+}
+
+fn disrupted(connectors: &Connectors, at: &Mutex<Option<u64>>, what: Disruption) {
+    tracing::info!(?what, "reconnecting connectors");
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+    *at.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(now);
+    nudge_all(connectors);
+}
+
 struct Handle_ {
     state: watch::Receiver<ConnectorState>,
     stop: watch::Sender<bool>,
+    nudge: watch::Sender<u64>,
     logs: LogBuffer,
     task: JoinHandle<()>,
 }
@@ -82,10 +105,14 @@ struct Handle_ {
 /// Owns every Session-mode connector in this app instance.
 #[derive(Clone)]
 pub struct Supervisor {
-    connectors: Arc<Mutex<HashMap<ConnectorId, Handle_>>>,
+    connectors: Arc<Connectors>,
     events: broadcast::Sender<RuntimeEvent>,
     registry: PidRegistry,
     runtime: Handle,
+    /// When the last wake or network change happened (ms since the epoch).
+    disrupted_at: Arc<Mutex<Option<u64>>>,
+    /// The network watch runs (started with the first connector).
+    watching: Arc<std::sync::Once>,
 }
 
 impl std::fmt::Debug for Supervisor {
@@ -105,7 +132,52 @@ impl Supervisor {
             events,
             registry,
             runtime,
+            disrupted_at: Arc::default(),
+            watching: Arc::new(std::sync::Once::new()),
         }
+    }
+
+    /// Tells every connector the network may have changed under it: one waiting out a
+    /// backoff or a crash loop starts at once, and a running one without a connection
+    /// 15 seconds later is restarted. Harmless for healthy connectors.
+    pub fn nudge(&self) {
+        nudge_all(&self.connectors);
+    }
+
+    /// When this computer last woke or changed networks (ms since the epoch), so a
+    /// slow reconnect right after isn't reported as an outage (see
+    /// [`network::SETTLE`]).
+    pub fn disrupted_at_ms(&self) -> Option<u64> {
+        *self
+            .disrupted_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Records a disruption and nudges every connector.
+    pub fn disrupted(&self, what: Disruption) {
+        disrupted(&self.connectors, &self.disrupted_at, what);
+    }
+
+    /// Watches for sleep and network changes while this supervisor lives.
+    fn watch_network(&self) {
+        let connectors: Weak<Connectors> = Arc::downgrade(&self.connectors);
+        let disrupted_at = Arc::clone(&self.disrupted_at);
+        self.runtime.spawn(async move {
+            let mut observer = Observer::new(SystemTime::now());
+            let mut tick = tokio::time::interval(network::TICK);
+            tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                tick.tick().await;
+                // Ends with the last clone of the supervisor.
+                let Some(connectors) = connectors.upgrade() else {
+                    return;
+                };
+                if let Some(what) = observer.observe(SystemTime::now(), &network::addresses()) {
+                    disrupted(&connectors, &disrupted_at, what);
+                }
+            }
+        });
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<ConnectorId, Handle_>> {
@@ -131,8 +203,10 @@ impl Supervisor {
         {
             return Err(SupervisorError::AlreadyRunning(spec.id));
         }
+        self.watching.call_once(|| self.watch_network());
         let (state_tx, state_rx) = watch::channel(ConnectorState::Stopped);
         let (stop_tx, stop_rx) = watch::channel(false);
+        let (nudge_tx, nudge_rx) = watch::channel(0);
         let logs = LogBuffer::new(spec.log_capacity);
         let id = spec.id.clone();
         let task = self.runtime.spawn(connector::run(Context {
@@ -142,12 +216,14 @@ impl Supervisor {
             state: state_tx,
             logs: logs.clone(),
             stop: stop_rx,
+            nudge: nudge_rx,
         }));
         connectors.insert(
             id,
             Handle_ {
                 state: state_rx,
                 stop: stop_tx,
+                nudge: nudge_tx,
                 logs,
                 task,
             },

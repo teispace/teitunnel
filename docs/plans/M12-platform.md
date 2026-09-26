@@ -113,7 +113,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 ## M12-09 · Robustness (from competitors' and cloudflared's issues)
 - [ ] Large and multipart uploads, WebSocket and SSE through every path (E2E tests with fake-cloudflared streaming).
 - [ ] Framework guides and automatic `X-Forwarded-Host`/`X-Forwarded-Proto` for Laravel/Livewire, Rails, Django, Next.js, Nuxt (wrong-domain assets, CORS).
-- [ ] Sleep/wake and network change: reconnect fast, verify, notify only if it stays down.
+- [x] Sleep/wake and network change: reconnect fast, verify, notify only if it stays down. (D-135: wall-clock gap and address changes every 5 s; nudged connectors skip their backoff or crash loop, running ones without a connection after 15 s restart, Quick Shares excepted; notifications wait 90 s; a crash loop now retries every 10 min instead of giving up.)
 - [ ] WSL: detect services in WSL and rewrite localhost (FlareDeck parity).
 - [x] A leftover `~/.cloudflared/config.yml` never breaks Quick Shares (pass an empty config explicitly).
 

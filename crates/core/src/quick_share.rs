@@ -20,7 +20,8 @@ use crate::{
     engine::{Edge, Failure, Verification},
     inspect::{Inspector, TapScope, TapSpec},
     runtime::{
-        ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, RuntimeEvent, Supervisor,
+        ConnectorId, ConnectorSpec, ConnectorState, PortAllocator, RestartPolicy, RuntimeEvent,
+        Supervisor,
     },
     store::Store,
 };
@@ -523,7 +524,10 @@ impl QuickShares {
         {
             Ok(command) => self
                 .supervisor
-                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .start(ConnectorSpec {
+                    policy: RestartPolicy::quick_share(),
+                    ..ConnectorSpec::new(ConnectorId(id.clone()), command, port)
+                })
                 .map_err(QuickShareError::from),
             Err(err) => Err(err),
         };
@@ -603,7 +607,10 @@ impl QuickShares {
         let started = match self.command(&binary.path, &url, port, None).await {
             Ok(command) => self
                 .supervisor
-                .start(ConnectorSpec::new(ConnectorId(id.clone()), command, port))
+                .start(ConnectorSpec {
+                    policy: RestartPolicy::quick_share(),
+                    ..ConnectorSpec::new(ConnectorId(id.clone()), command, port)
+                })
                 .map_err(QuickShareError::from),
             Err(err) => Err(err),
         };
@@ -761,10 +768,10 @@ impl QuickShares {
                     return Err(err);
                 }
             };
-            if let Err(err) = self
-                .supervisor
-                .start(ConnectorSpec::new(connector, command, port))
-            {
+            if let Err(err) = self.supervisor.start(ConnectorSpec {
+                policy: RestartPolicy::quick_share(),
+                ..ConnectorSpec::new(connector, command, port)
+            }) {
                 self.stop_tap(tap.as_ref()).await;
                 return Err(QuickShareError::from(err));
             }

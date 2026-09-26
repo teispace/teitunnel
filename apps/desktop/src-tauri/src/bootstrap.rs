@@ -969,6 +969,9 @@ fn watch_connector_health<R: Runtime>(app: AppHandle<R>) {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
+            if let Some(at) = state.supervisor.disrupted_at_ms() {
+                watch.disrupted(at);
+            }
             let mut tunnels = Vec::new();
             for account in state.accounts.list().await.unwrap_or_default() {
                 tunnels.extend(
