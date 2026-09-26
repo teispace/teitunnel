@@ -5,7 +5,7 @@
 # light and dark with screenshots, checks that its tray icon registers over D-Bus, and
 # removes it.
 #
-#   linux.sh <package.deb|package.rpm> <out-dir>
+#   linux.sh <package.deb|package.rpm|package.AppImage> <out-dir>
 set -euo pipefail
 
 package=$(realpath "$1") out=$(realpath -m "$2")
@@ -35,19 +35,41 @@ case "$package" in
     files=$(rpm -ql teitunnel)
     remove=(dnf remove -y -q teitunnel)
     ;;
-  *) echo "Not a .deb or .rpm: $package" >&2; exit 2 ;;
+  *.AppImage)
+    # Runs as downloaded: no install, and only the libraries it bundles plus the system's.
+    # AppImages never bundle the graphics stack (EGL, GL): it has to match the machine's
+    # drivers, and every desktop has it. The runner is a server image without one, so it
+    # gets Mesa's, as a desktop would have.
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+      xvfb openbox imagemagick dbus-x11 python3-gi libegl1 libgl1 libgles2 >/dev/null
+    chmod +x "$package"
+    export APPIMAGE_EXTRACT_AND_RUN=1
+    root=$(mktemp -d)
+    (cd "$root" && "$package" --appimage-extract >/dev/null)
+    files=$(cd "$root/squashfs-root" && find . -type f -o -type l | sed 's|^\.||')
+    app=$package
+    remove=()
+    ;;
+  *) echo "Not a .deb, .rpm or .AppImage: $package" >&2; exit 2 ;;
 esac
 
 echo "$files" >"$out/files.txt"
-# The app is /usr/bin/Teitunnel; the command /usr/bin/teitunnel.
-app=$(grep -x '/usr/bin/Teitunnel' <<<"$files" || true)
-[ -n "$app" ] || { fail "No /usr/bin/Teitunnel in the package"; exit 1; }
-grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the package"
-desktop=$(grep -E '\.desktop$' <<<"$files" | head -1)
-[ -n "$desktop" ] || fail "No desktop entry"
-[ -n "$desktop" ] && cp "$desktop" "$out/"
-grep -qE '/icons/hicolor/.*/apps/' <<<"$files" || fail "No icon in the hicolor theme"
-teitunnel --version | grep '^teitunnel ' || fail "teitunnel --version failed"
+if [ ${#remove[@]} -gt 0 ]; then
+  # The app is /usr/bin/Teitunnel; the command /usr/bin/teitunnel.
+  app=$(grep -x '/usr/bin/Teitunnel' <<<"$files" || true)
+  [ -n "$app" ] || { fail "No /usr/bin/Teitunnel in the package"; exit 1; }
+  grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the package"
+  desktop=$(grep -E '\.desktop$' <<<"$files" | head -1)
+  [ -n "$desktop" ] || fail "No desktop entry"
+  [ -n "$desktop" ] && cp "$desktop" "$out/"
+  grep -qE '/icons/hicolor/.*/apps/' <<<"$files" || fail "No icon in the hicolor theme"
+  teitunnel --version | grep '^teitunnel ' || fail "teitunnel --version failed"
+else
+  grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the AppImage"
+  grep -qE '^/[^/]+\.desktop$' <<<"$files" || fail "No desktop entry in the AppImage"
+  grep -qE '/libayatana-appindicator3\.so' <<<"$files" || fail "The AppImage doesn't bundle the tray library"
+fi
 
 # A virtual display, a session bus, a window manager, and a tray watcher.
 export DISPLAY=:99
@@ -61,7 +83,9 @@ sleep 2
 run() { # name, extra environment
   local name=$1
   shift
-  env "$@" "$app" >"$out/$name.log" 2>&1 &
+  # In its own process group: an AppImage's launcher starts the app as a child, and a copy
+  # left running would take the next launch over as the single instance.
+  setsid env "$@" "$app" >"$out/$name.log" 2>&1 &
   local pid=$!
   sleep 15
   if ! kill -0 "$pid" 2>/dev/null; then
@@ -69,8 +93,10 @@ run() { # name, extra environment
     tail -20 "$out/$name.log"
   fi
   import -window root "$out/$name.png"
-  kill "$pid" 2>/dev/null || true
+  kill -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -g "$pid" >/dev/null || return 0; sleep 1; done
+  kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
 run light
@@ -78,8 +104,10 @@ grep -q . "$out/tray.txt" || fail "The tray icon didn't register with the Status
 cat "$out/tray.txt"
 run dark GTK_THEME=Adwaita:dark
 
-sudo "${remove[@]}" >/dev/null
-[ ! -e "$app" ] || fail "Still installed after removal: $app"
+if [ ${#remove[@]} -gt 0 ]; then
+  sudo "${remove[@]}" >/dev/null
+  [ ! -e "$app" ] || fail "Still installed after removal: $app"
+fi
 
 [ "$failures" = 0 ] || exit 1
 echo "Linux desktop check passed"

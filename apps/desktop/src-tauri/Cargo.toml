@@ -24,7 +24,10 @@ path = "src/bin/export_bindings.rs"
 required-features = ["bindings"]
 
 [features]
-default = []
+# The workspace already enables the tray; naming it here is how the Tauri CLI, which skips
+# inherited dependencies, knows to bundle the tray library in the AppImage and add it to the
+# .deb and .rpm dependencies.
+default = ["tauri/tray-icon"]
 # Embedded WebDriver server for E2E tests. Never enable for release builds.
 e2e = ["dep:tauri-plugin-wdio-webdriver", "dep:tauri-plugin-wdio"]
 # Builds the `export-bindings` tool.
