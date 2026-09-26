@@ -37,9 +37,13 @@ function statusColor(status: number): string {
   return "text-[var(--tt-live-text)]";
 }
 
+/** The event a request crossing the hero's sky sends when it reaches the inspector card. */
+export const REQUEST_ARRIVED = "tt:request";
+
 /**
- * Requests arriving in the inspector, one every second or so while the card is on screen.
- * Server HTML, no JavaScript and Reduce Motion show a still list.
+ * Requests arriving in the inspector: one row for each request that reaches this card
+ * across the hero's sky (the page's own comets, or one sent with a click). Server HTML,
+ * no JavaScript and Reduce Motion show a still list.
  */
 export function RequestStream({ host = "app.teispace.com" }: { host?: string }) {
   const ref = useRef<HTMLElement>(null);
@@ -47,37 +51,24 @@ export function RequestStream({ host = "app.teispace.com" }: { host?: string }) 
   const [count, setCount] = useState(1284);
 
   useEffect(() => {
-    const element = ref.current;
-    if (
-      !element ||
-      !("IntersectionObserver" in window) ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    let timer = 0;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        window.clearInterval(timer);
-        if (!entry?.isIntersecting) return;
-        timer = window.setInterval(() => {
-          setNext((n) => n + 1);
-          setCount((n) => n + 1);
-        }, 1100);
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      window.clearInterval(timer);
+    const arrived = () => {
+      setNext((n) => n + 1);
+      setCount((n) => n + 1);
     };
+    window.addEventListener(REQUEST_ARRIVED, arrived);
+    return () => window.removeEventListener(REQUEST_ARRIVED, arrived);
   }, []);
 
   // The newest first; each row keeps its key so only the new one animates in.
   const rows = Array.from({ length: ROWS }, (_, i) => next - 1 - i).filter((n) => n >= 0);
 
   return (
-    <figure ref={ref} className={`${card} p-0`} aria-label={`Requests to ${host} arriving`}>
+    <figure
+      ref={ref}
+      data-request-target
+      className={`${card} p-0`}
+      aria-label={`Requests to ${host} arriving`}
+    >
       <div className="flex items-center justify-between gap-3 border-b border-fd-border px-4 py-2.5">
         <span className="flex min-w-0 items-center gap-2 font-medium">
           <span className="tt-live-dot size-2 shrink-0 rounded-full bg-[var(--tt-live)]" />

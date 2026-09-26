@@ -346,6 +346,16 @@ html.tt-motion [data-reveal][data-shown] .tt-type {
   clip-path: inset(0);
 }
 
+/* The hero's app window is a picture to click through, not something to select or drag. */
+.tt-hero-shot {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tt-hero-shot img {
+  -webkit-user-drag: none;
+}
+
 /* The hero screenshot starts tipped back and flattens as it rises into view. */
 html.tt-motion .tt-hero-shot > * {
   transform-origin: 50% 0;
@@ -1377,4 +1387,10 @@ html.tt-motion .tt-finale-card:not([data-pointer]) .tt-finale-command {
   height: 100%;
   pointer-events: none;
   mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 78%);
+}
+
+/* Requests crossing the sky are drawn above the screenshot, reaching the inspector card. */
+.tt-hero-front {
+  z-index: 20;
+  mask-image: none;
 }

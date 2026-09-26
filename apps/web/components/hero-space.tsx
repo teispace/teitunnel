@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { REQUEST_ARRIVED } from "./live-demos";
 
 /** Stars per 100,000 square pixels, and how many depths they come in. */
 const DENSITY = 9;
 const LAYERS = 3;
 /** Seconds between the comets that cross on their own. */
-const EVERY = 2.6;
+const EVERY = 1.8;
 /** Points kept for a comet's trail. */
 const TRAIL = 26;
 
@@ -27,6 +28,15 @@ interface Comet {
   t: number;
   speed: number;
   trail: { x: number; y: number }[];
+  /** It has reached the card (and said so). */
+  landed: boolean;
+}
+
+/** The ring a request leaves where it lands. */
+interface Ripple {
+  x: number;
+  y: number;
+  t: number;
 }
 
 interface Colors {
@@ -55,18 +65,21 @@ function curve(c: Comet, t: number) {
 
 /**
  * The hero's background: a quiet field of stars in three depths that drifts and leans with
- * the pointer, a soft light that follows it, and now and then a request crossing the sky with
- * a fading trail; a click sends one from the pointer. Drawn only while on screen; one still
- * frame with Reduce Motion.
+ * the pointer, a soft light that follows it, and requests crossing the sky with fading trails
+ * to the inspector card over the app, each one arriving there as a new row; a click sends one
+ * from the pointer. Stars are drawn behind everything, requests above the screenshot. Drawn
+ * only while on screen; one still frame (and no requests) with Reduce Motion.
  */
 export function HeroSpace() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frontRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const host = canvas?.parentElement;
     const context = canvas?.getContext("2d");
-    if (!canvas || !host || !context) return;
+    const front = frontRef.current?.getContext("2d");
+    if (!canvas || !host || !context || !front) return;
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let width = 0;
@@ -74,6 +87,7 @@ export function HeroSpace() {
     let colors = readColors(canvas);
     let stars: Star[] = [];
     const comets: Comet[] = [];
+    const ripples: Ripple[] = [];
     const pointer = { x: 0.5, y: 0.4, tx: 0.5, ty: 0.4, inside: false };
     let drift = 0;
     let untilNext = 1.2;
@@ -97,29 +111,48 @@ export function HeroSpace() {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
       width = rect.width;
       height = rect.height;
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      for (const [layer, ctx] of [
+        [canvas, context],
+        [front.canvas, front],
+      ] as const) {
+        layer.width = Math.round(width * ratio);
+        layer.height = Math.round(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
       seed();
     };
 
-    /** A comet from `from` towards the app window below the headline. */
+    /** Where requests land: the left edge of the inspector card, by its header. */
+    const target = () => {
+      const card = host.querySelector<HTMLElement>("[data-request-target]");
+      const hostRect = host.getBoundingClientRect();
+      if (!card) return { x: width * 0.5, y: height * 0.66 };
+      const rect = card.getBoundingClientRect();
+      return { x: rect.left - hostRect.left + 6, y: rect.top - hostRect.top + 22 };
+    };
+
+    /** A request from `from` (an edge of the sky by default) to the inspector card. */
     const launch = (from?: { x: number; y: number }) => {
       const side = Math.random() < 0.5 ? -1 : 1;
       const start = from ?? {
         x: side < 0 ? -20 : width + 20,
-        y: height * (0.05 + Math.random() * 0.35),
+        y: height * (0.04 + Math.random() * 0.3),
       };
-      const to = {
-        x: width * (0.5 + (Math.random() - 0.5) * 0.3),
-        y: height * (0.62 + Math.random() * 0.08),
-      };
+      const to = target();
       const bend = {
-        x: (start.x + to.x) / 2 + (Math.random() - 0.5) * width * 0.25,
-        y: Math.min(start.y, to.y) - height * (0.05 + Math.random() * 0.15),
+        x: (start.x + to.x) / 2 + (Math.random() - 0.5) * width * 0.3,
+        y: Math.min(start.y, to.y) - height * (0.04 + Math.random() * 0.12),
       };
-      comets.push({ from: start, bend, to, t: 0, speed: 0.22 + Math.random() * 0.1, trail: [] });
-      if (comets.length > 8) comets.shift();
+      comets.push({
+        from: start,
+        bend,
+        to,
+        t: 0,
+        speed: 0.45 + Math.random() * 0.2,
+        trail: [],
+        landed: false,
+      });
+      if (comets.length > 24) comets.shift();
     };
 
     const draw = (time: number) => {
@@ -151,37 +184,47 @@ export function HeroSpace() {
         context.fill();
       }
 
-      // Requests crossing: a bright head and a trail that thins and fades.
-      context.lineCap = "round";
+      context.globalAlpha = 1;
+
+      // Requests crossing, above the screenshot: a bright head and a trail that thins.
+      front.clearRect(0, 0, width, height);
+      front.lineCap = "round";
+      front.strokeStyle = colors.accent;
+      front.fillStyle = colors.accent;
       for (const comet of comets) {
-        const fade = comet.t > 0.8 ? (1 - comet.t) / 0.2 : 1;
+        const fade = comet.landed ? 0 : 1;
         for (let i = 1; i < comet.trail.length; i++) {
           const a = comet.trail[i - 1];
           const b = comet.trail[i];
           if (!a || !b) continue;
           const k = i / comet.trail.length;
-          context.globalAlpha = k * 0.55 * fade;
-          context.strokeStyle = colors.accent;
-          context.lineWidth = 0.4 + k * 1.8;
-          context.beginPath();
-          context.moveTo(a.x, a.y);
-          context.lineTo(b.x, b.y);
-          context.stroke();
+          front.globalAlpha = k * 0.6;
+          front.lineWidth = 0.4 + k * 1.8;
+          front.beginPath();
+          front.moveTo(a.x, a.y);
+          front.lineTo(b.x, b.y);
+          front.stroke();
         }
         const head = comet.trail[comet.trail.length - 1];
-        if (head) {
-          context.globalAlpha = 0.9 * fade;
-          context.fillStyle = colors.accent;
-          context.beginPath();
-          context.arc(head.x, head.y, 2.2, 0, Math.PI * 2);
-          context.fill();
-          context.globalAlpha = 0.25 * fade;
-          context.beginPath();
-          context.arc(head.x, head.y, 6, 0, Math.PI * 2);
-          context.fill();
+        if (head && fade > 0) {
+          front.globalAlpha = 0.95;
+          front.beginPath();
+          front.arc(head.x, head.y, 2.4, 0, Math.PI * 2);
+          front.fill();
+          front.globalAlpha = 0.25;
+          front.beginPath();
+          front.arc(head.x, head.y, 6.5, 0, Math.PI * 2);
+          front.fill();
         }
       }
-      context.globalAlpha = 1;
+      for (const ripple of ripples) {
+        front.globalAlpha = (1 - ripple.t) * 0.8;
+        front.lineWidth = 1.5;
+        front.beginPath();
+        front.arc(ripple.x, ripple.y, 3 + ripple.t * 18, 0, Math.PI * 2);
+        front.stroke();
+      }
+      front.globalAlpha = 1;
     };
 
     let frame = 0;
@@ -198,14 +241,27 @@ export function HeroSpace() {
         launch();
         untilNext = EVERY * (0.7 + Math.random() * 0.6);
       }
+      const goal = target();
       for (let i = comets.length - 1; i >= 0; i--) {
         const comet = comets[i];
         if (!comet) continue;
+        // The card moves as the page scrolls: aim at where it is now.
+        comet.to = goal;
         comet.t = Math.min(1, comet.t + comet.speed * dt);
-        comet.trail.push(curve(comet, comet.t));
-        if (comet.trail.length > TRAIL) comet.trail.shift();
-        if (comet.t >= 1 && comet.trail.length > 0) comet.trail.shift();
-        if (comet.t >= 1 && comet.trail.length === 0) comets.splice(i, 1);
+        if (!comet.landed) comet.trail.push(curve(comet, comet.t));
+        if (comet.trail.length > TRAIL || comet.landed) comet.trail.shift();
+        if (comet.t >= 1 && !comet.landed) {
+          comet.landed = true;
+          ripples.push({ x: goal.x, y: goal.y, t: 0 });
+          window.dispatchEvent(new Event(REQUEST_ARRIVED));
+        }
+        if (comet.landed && comet.trail.length === 0) comets.splice(i, 1);
+      }
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const ripple = ripples[i];
+        if (!ripple) continue;
+        ripple.t += dt * 1.8;
+        if (ripple.t >= 1) ripples.splice(i, 1);
       }
       draw(now);
       frame = running ? requestAnimationFrame(tick) : 0;
@@ -232,6 +288,12 @@ export function HeroSpace() {
       pointer.inside = false;
       pointer.tx = 0.5;
       pointer.ty = 0.4;
+    };
+    // Quick clicks send requests: a double or triple click mustn't select the page too.
+    const onMouseDown = (event: MouseEvent) => {
+      if (event.detail < 2) return;
+      if ((event.target as Element | null)?.closest("a, button, input, [role=button]")) return;
+      event.preventDefault();
     };
     const onDown = (event: PointerEvent) => {
       // Clicks on links and buttons are theirs.
@@ -262,6 +324,7 @@ export function HeroSpace() {
     host.addEventListener("pointermove", onMove, { passive: true });
     host.addEventListener("pointerleave", onLeave);
     host.addEventListener("pointerdown", onDown);
+    host.addEventListener("mousedown", onMouseDown);
     return () => {
       stop();
       sizes.disconnect();
@@ -271,8 +334,14 @@ export function HeroSpace() {
       host.removeEventListener("pointermove", onMove);
       host.removeEventListener("pointerleave", onLeave);
       host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("mousedown", onMouseDown);
     };
   }, []);
 
-  return <canvas ref={canvasRef} aria-hidden className="tt-hero-canvas" />;
+  return (
+    <>
+      <canvas ref={canvasRef} aria-hidden className="tt-hero-canvas" />
+      <canvas ref={frontRef} aria-hidden className="tt-hero-canvas tt-hero-front" />
+    </>
+  );
 }
