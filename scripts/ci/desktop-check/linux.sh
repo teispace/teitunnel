@@ -68,7 +68,7 @@ if [ ${#remove[@]} -gt 0 ]; then
 else
   grep -qx '/usr/bin/teitunnel' <<<"$files" || fail "The teitunnel command isn't in the AppImage"
   grep -qE '^/[^/]+\.desktop$' <<<"$files" || fail "No desktop entry in the AppImage"
-  grep -qE 'appindicator3\.so' <<<"$files" || echo "::notice::The AppImage doesn't bundle the tray library; it uses the system's"
+  grep -qE '/libayatana-appindicator3\.so' <<<"$files" || fail "The AppImage doesn't bundle the tray library"
 fi
 
 # A virtual display, a session bus, a window manager, and a tray watcher.
@@ -83,7 +83,9 @@ sleep 2
 run() { # name, extra environment
   local name=$1
   shift
-  env "$@" "$app" >"$out/$name.log" 2>&1 &
+  # In its own process group: an AppImage's launcher starts the app as a child, and a copy
+  # left running would take the next launch over as the single instance.
+  setsid env "$@" "$app" >"$out/$name.log" 2>&1 &
   local pid=$!
   sleep 15
   if ! kill -0 "$pid" 2>/dev/null; then
@@ -91,8 +93,10 @@ run() { # name, extra environment
     tail -20 "$out/$name.log"
   fi
   import -window root "$out/$name.png"
-  kill "$pid" 2>/dev/null || true
+  kill -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -g "$pid" >/dev/null || return 0; sleep 1; done
+  kill -KILL -- "-$pid" 2>/dev/null || true
 }
 
 run light
