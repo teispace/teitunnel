@@ -61,6 +61,7 @@ fn me() -> AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
         bypass: Vec::new(),
+        ..AccessRule::default()
     }
 }
 
@@ -419,6 +420,11 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
             protected(add("r1", "app.xyz.com", "3000")),
         ),
         (
+            "first route for a GitHub team",
+            with_github("gh1"),
+            github_team(add("r1", "app.xyz.com", "3000")),
+        ),
+        (
             "rename protected",
             protected_routes.clone(),
             protected(Intent::UpdateRoute {
@@ -685,6 +691,110 @@ async fn protects_a_route_with_a_login_and_takes_it_down_with_the_route() {
         1,
         "a login method isn't removed once it worked"
     );
+}
+
+/// An account with Zero Trust and a GitHub login method `id`.
+fn with_github(id: &str) -> CloudState {
+    CloudState {
+        login_methods: vec![cf_api::IdentityProvider {
+            id: id.into(),
+            name: "GitHub".into(),
+            kind: "github".into(),
+        }],
+        ..zero_trust()
+    }
+}
+
+/// `intent`'s route, letting in the members of a GitHub team.
+fn github_team(mut intent: Intent) -> Intent {
+    if let Intent::AddRoute { route } | Intent::UpdateRoute { route, .. } = &mut intent {
+        route.access = Some(AccessRule {
+            github: vec!["teispace/devs".into()],
+            sign_in: super::access::SignIn::Github,
+            ..AccessRule::default()
+        });
+    }
+    intent
+}
+
+#[tokio::test]
+async fn a_github_team_logs_in_with_the_accounts_github_method() {
+    let conns = FakeConnectors::default();
+    let intent = github_team(add("r1", "app.xyz.com", "3000"));
+
+    // Without a GitHub login method, nothing is changed and the plan says what to add.
+    let (engine, cloud) = (engine(), FakeCloud::new(zero_trust()));
+    let err = engine.preview(&cloud, CTX, &intent).await.unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EngineError::Plan(super::planner::PlanError::NoLoginMethod(
+                super::access::SignIn::Github
+            ))
+        ),
+        "{err:?}"
+    );
+
+    let (engine, cloud) = (self::engine(), FakeCloud::new(with_github("gh1")));
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    let described: Vec<String> = plan
+        .steps
+        .iter()
+        .map(|s| s.describe("Mac").english())
+        .collect();
+    assert!(
+        described
+            .iter()
+            .any(|d| d == "Require a GitHub login for app.xyz.com (github:teispace/devs)"),
+        "{described:?}"
+    );
+    assert!(
+        !plan.steps.contains(&super::types::Step::AddLoginMethod),
+        "no one-time PIN for a GitHub login"
+    );
+    let outcome = run(&engine, &cloud, &conns, &intent).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let state = cloud.snapshot();
+    let app = state.access_apps.values().next().expect("an application");
+    assert_eq!(app.allowed_idps, ["gh1"]);
+    assert!(app.auto_redirect_to_identity);
+    assert_eq!(
+        app.policies[0].include,
+        [serde_json::json!({
+            "github-organization": { "identity_provider_id": "gh1", "name": "teispace", "team": "devs" }
+        })]
+    );
+    assert_eq!(state.login_methods.len(), 1, "nothing added");
+    engine.invalidate("acc");
+    assert!(
+        engine
+            .preview(&cloud, CTX, &intent)
+            .await
+            .unwrap()
+            .steps
+            .is_empty(),
+        "read back as the same login"
+    );
+
+    // The GitHub method replaced in the dashboard: the login follows the new one.
+    cloud.state.lock().unwrap().login_methods[0].id = "gh2".into();
+    engine.invalidate("acc");
+    let plan = engine.preview(&cloud, CTX, &intent).await.unwrap();
+    assert!(
+        matches!(
+            plan.steps.as_slice(),
+            [
+                super::types::Step::UpdateAccessApp { .. },
+                super::types::Step::Verify { .. }
+            ]
+        ),
+        "{:?}",
+        plan.steps
+    );
+    run(&engine, &cloud, &conns, &intent).await;
+    let app = cloud.snapshot().access_apps.into_values().next().unwrap();
+    assert_eq!(app.allowed_idps, ["gh2"]);
+    assert_eq!(super::access::github_methods(&app), ["gh2"]);
 }
 
 #[tokio::test]
@@ -1458,7 +1568,7 @@ async fn a_login_left_behind_by_an_outside_edit_is_found_and_removed() {
     // Someone else's application, for a hostname with no route: never touched.
     cloud.state.lock().unwrap().access_apps.insert(
         "theirs".into(),
-        super::access::app_definition("old.xyz.com", &me()),
+        super::access::app_definition("old.xyz.com", &me(), None),
     );
     let facts = gather(&engine, &cloud, &conns, CTX, Vec::new(), Some(true))
         .await

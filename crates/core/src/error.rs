@@ -127,6 +127,7 @@ impl Error {
                 | E::Input(_) => ErrorKind::InvalidInput,
                 E::Plan(
                     P::ZeroTrustNotSetUp
+                    | P::NoLoginMethod(_)
                     | P::NoWorkersSubdomain
                     | P::EdgeRateLimitNeedsPro(_)
                     | P::EdgeQuotaFull { .. }

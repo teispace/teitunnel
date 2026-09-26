@@ -48,7 +48,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
     domain::{Hostname, OriginOptions},
-    engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, StepState, Warning},
+    engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, SignIn, StepState, Warning},
     export::{ExportFormat, render},
 };
 
@@ -256,9 +256,14 @@ enum Command {
         /// With --on: the account, when several are connected.
         #[arg(long, short, requires = "on")]
         account: Option<String>,
-        /// With --on: require a login (an email address, or `@domain`); repeatable.
-        #[arg(long, value_name = "EMAIL|@DOMAIN", requires = "on")]
+        /// With --on: require a login (an email address, `@domain`, or `github:ORG[/TEAM]`
+        /// for the members of a GitHub organization or team); repeatable.
+        #[arg(long, value_name = "EMAIL|@DOMAIN|github:ORG[/TEAM]", requires = "on")]
         allow: Vec<String>,
+        /// With --allow: how people log in, `github` or `google` (the account's login method
+        /// of that kind, set up in Cloudflare Zero Trust), or `any` (the default).
+        #[arg(long, value_name = "METHOD", value_parser = parse_sign_in, requires = "allow")]
+        sign_in: Option<SignIn>,
         /// Send this Host header to the service, e.g. `localhost:5173` for a dev server
         /// that only answers its own address. By default Vite, webpack and Angular dev
         /// servers get their own address.
@@ -652,10 +657,15 @@ enum RouteCommand {
         /// Only requests whose path matches this regex, e.g. `^/api`.
         #[arg(long)]
         path: Option<String>,
-        /// Require a login: an email address, or `@domain` for anyone at that domain.
-        /// Repeat for more people. Needs Cloudflare Zero Trust (free).
-        #[arg(long, value_name = "EMAIL|@DOMAIN")]
+        /// Require a login: an email address, `@domain` for anyone at that domain, or
+        /// `github:ORG[/TEAM]` for the members of a GitHub organization or team. Repeat for
+        /// more people. Needs Cloudflare Zero Trust (free).
+        #[arg(long, value_name = "EMAIL|@DOMAIN|github:ORG[/TEAM]")]
         allow: Vec<String>,
+        /// With --allow: how people log in, `github` or `google` (the account's login method
+        /// of that kind, set up in Cloudflare Zero Trust), or `any` (the default).
+        #[arg(long, value_name = "METHOD", value_parser = parse_sign_in, requires = "allow")]
+        sign_in: Option<SignIn>,
         /// With --allow: a path that skips the login, e.g. `/webhooks`, so webhook
         /// senders get through; repeatable.
         #[arg(long, value_name = "PATH", requires = "allow")]
@@ -1033,6 +1043,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             on: Some(hostname),
             account,
             allow,
+            sign_in,
             host_header,
             no_host_header,
             json,
@@ -1075,7 +1086,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                 &origin,
                 share::DomainShareOptions {
                     account,
-                    allow: access_rule(&allow, &[]),
+                    allow: access_rule(&allow, &[], sign_in),
                     stop_after,
                     json,
                     strict,
@@ -1232,6 +1243,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
             origin,
             path,
             allow,
+            sign_in,
             skip_login,
             origin_options,
             strict,
@@ -1243,7 +1255,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
                     hostname,
                     path,
                     origin,
-                    access: access_rule(&allow, &skip_login),
+                    access: access_rule(&allow, &skip_login, sign_in),
                     options: origin_options.options(),
                 },
             };
@@ -1810,8 +1822,16 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
 
 /// `--allow` values as a login rule (see [`AccessRule::from_allow`]); `skip` are the
 /// `--skip-login` paths.
-fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
-    AccessRule::from_allow(allow, skip)
+fn access_rule(allow: &[String], skip: &[String], sign_in: Option<SignIn>) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip).map(|rule| AccessRule {
+        sign_in: sign_in.unwrap_or(rule.sign_in),
+        ..rule
+    })
+}
+
+/// `--sign-in`: `github`, `google` or `any`.
+pub(crate) fn parse_sign_in(input: &str) -> Result<SignIn, String> {
+    SignIn::parse(input).ok_or_else(|| format!("`{input}` isn't github, google or any"))
 }
 
 fn warning_text(warning: &Warning) -> String {
@@ -2305,14 +2325,49 @@ mod tests {
         );
         assert!(apply.yes && !apply.replace);
         assert_eq!(
-            access_rule(&allow, &skip_login),
+            access_rule(&allow, &skip_login, None),
             Some(AccessRule {
                 emails: vec!["me@xyz.com".into()],
                 email_domains: vec!["@team.io".into()],
                 bypass: vec!["/webhooks".into()],
+                ..AccessRule::default()
             })
         );
-        assert_eq!(access_rule(&[], &[]), None);
+        assert_eq!(access_rule(&[], &[], None), None);
+        let github = Cli::try_parse_from([
+            "teitunnel",
+            "route",
+            "add",
+            "app.example.com",
+            "3000",
+            "--allow",
+            "github:teispace/devs",
+            "--sign-in",
+            "github",
+        ])
+        .unwrap_or_else(|e| unreachable!("{e}"));
+        let Command::Route(RouteCommand::Add { allow, sign_in, .. }) = github.command else {
+            unreachable!()
+        };
+        let rule = access_rule(&allow, &[], sign_in).unwrap();
+        assert_eq!(
+            (rule.github.as_slice(), rule.sign_in),
+            (["teispace/devs".to_owned()].as_slice(), SignIn::Github)
+        );
+        assert!(parse_sign_in("okta").is_err());
+        assert!(
+            Cli::try_parse_from([
+                "teitunnel",
+                "route",
+                "add",
+                "app.example.com",
+                "3000",
+                "--sign-in",
+                "google"
+            ])
+            .is_err(),
+            "--sign-in needs --allow"
+        );
         // A path can only skip a login the route has.
         assert!(
             Cli::try_parse_from([

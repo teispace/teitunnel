@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     domain::{OriginOptions, PathRule, RouteOrigin},
-    engine::AccessRule,
+    engine::{AccessRule, SignIn},
     text::{Text, UserText, msg::project as m},
 };
 
@@ -274,7 +274,8 @@ impl Reader {
         self.warn(at, m::unknown_key(key));
     }
 
-    /// `login: [me@example.com, "@example.com"]` (or one entry as text).
+    /// `login: [me@example.com, "@example.com", "github:teispace/devs"]` (or one entry
+    /// as text).
     fn login(&mut self, node: &Node) -> Option<AccessRule> {
         let items: Vec<(String, Pos)> = match &node.value {
             Value::Str(s) => vec![(s.clone(), node.at)],
@@ -293,14 +294,8 @@ impl Reader {
                 return None;
             }
         };
-        let (emails, domains): (Vec<_>, Vec<_>) = items
-            .iter()
-            .partition(|(a, _)| a.trim().find('@').is_some_and(|at| at > 0));
-        let rule = AccessRule {
-            emails: emails.into_iter().map(|(s, _)| s.clone()).collect(),
-            email_domains: domains.into_iter().map(|(s, _)| s.clone()).collect(),
-            bypass: Vec::new(),
-        };
+        let entries: Vec<String> = items.into_iter().map(|(s, _)| s).collect();
+        let rule = AccessRule::from_allow(&entries, &[]).unwrap_or_default();
         match rule.normalized() {
             Ok(rule) => Some(rule),
             Err(err) => {
@@ -609,6 +604,7 @@ fn read_route(r: &mut Reader, node: &Node) -> Option<RouteDecl> {
     let (mut hostname, mut origin, mut path, mut tunnel, mut login, mut options) =
         (None, None, None, None, None, None);
     let mut skip_login: Option<(Vec<String>, Pos)> = None;
+    let mut sign_in: Option<(SignIn, Pos)> = None;
     let mut ok = true;
     for (key, at, value) in entries {
         match key {
@@ -643,11 +639,40 @@ fn read_route(r: &mut Reader, node: &Node) -> Option<RouteDecl> {
                 Some(paths) => skip_login = Some((paths, value.at)),
                 None => ok = false,
             },
+            "signIn" => match r.text(key, value).map(|v| (SignIn::parse(&v), v)) {
+                Some((Some(parsed), _)) => sign_in = Some((parsed, value.at)),
+                Some((None, raw)) => {
+                    r.error(value.at, m::bad_sign_in(raw));
+                    ok = false;
+                }
+                None => ok = false,
+            },
             "originRequest" => {
                 options = read_origin_request(r, value);
                 ok &= options.is_some();
             }
             other => r.unknown(other, at),
+        }
+    }
+    if let Some((sign_in, at)) = sign_in {
+        match login.as_mut() {
+            Some(rule) => {
+                let with = AccessRule {
+                    sign_in,
+                    ..rule.clone()
+                };
+                match with.normalized() {
+                    Ok(with) => *rule = with,
+                    Err(err) => {
+                        r.error(at, err.text());
+                        ok = false;
+                    }
+                }
+            }
+            None => {
+                r.error(at, m::sign_in_needs_login());
+                ok = false;
+            }
         }
     }
     if let Some((paths, at)) = skip_login {

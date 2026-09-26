@@ -676,8 +676,16 @@ async fn observe_access<C: CloudApi>(
     apps.sort_by(|a, b| (&a.domain, &a.id).cmp(&(&b.domain, &b.id)));
     apps.dedup_by(|a, b| a.id == b.id);
     Ok(Some(AccessState {
-        organization: setup.map(|(org, _)| org),
-        login_methods: setup.map(|(_, n)| n),
+        organization: setup.as_ref().map(|(org, _)| *org),
+        login_methods: setup.map(|(_, methods)| {
+            methods
+                .into_iter()
+                .map(|m| super::access::LoginMethod {
+                    id: m.id,
+                    kind: m.kind,
+                })
+                .collect()
+        }),
         apps,
     }))
 }

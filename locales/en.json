@@ -52,7 +52,10 @@
     "login": {
       "toggle": "Require a login",
       "label": "Who can sign in",
-      "help": "Email addresses, or @domain for everyone there. Visitors get a one-time code by email. Uses Cloudflare Zero Trust (free).",
+      "help": "Email addresses, @domain for everyone there, or github:organization (or github:organization/team) for its members on GitHub. Uses Cloudflare Zero Trust (free).",
+      "signIn": "Log in with",
+      "signInAny": "Any Method",
+      "signInHelp": "Any method: a one-time code by email, or any login method the account has. GitHub or Google: only that login method, which the account needs in Zero Trust ▸ Integrations ▸ Identity providers.",
       "skip": "Paths that skip the login",
       "skipHelp": "For webhooks and other machines that can't log in, e.g. /webhooks. Anyone can reach these paths."
     },
@@ -522,7 +525,8 @@
     }
   },
   "access": {
-    "anyoneAt": "anyone at @{domain}"
+    "anyoneAt": "anyone at @{domain}",
+    "githubMembers": "members of {group} on GitHub"
   },
   "activity": {
     "kind": {
@@ -1837,7 +1841,9 @@
         "email": "{value} isn't an email address.",
         "domain": "{value} isn't an email domain, like teispace.com.",
         "bypassPath": "“{value}” can't skip the login: use a plain path, such as /webhooks.",
-        "tooManyBypass": "At most {count} paths can skip the login."
+        "tooManyBypass": "At most {count} paths can skip the login.",
+        "github": "“{value}” isn't a GitHub organization or organization/team, such as github:teispace or github:teispace/Developers.",
+        "githubNeedsGithub": "GitHub organizations can only be checked when people log in with GitHub. Choose GitHub, or remove them."
       },
       "accessDomain": {
         "pathPattern": "A login can only protect a plain path like /admin, not the pattern {pattern}. Remove the path, or protect the whole hostname."
@@ -1861,7 +1867,8 @@
         "invalidTunnelName": "Enter a tunnel name of up to 64 characters.",
         "tunnelNameTaken": "The account already has a tunnel named “{name}”. Choose another name.",
         "balancerExists": "{hostname} already has a load balancer Teitunnel didn't create. Change it in the Cloudflare dashboard.",
-        "notBalanced": "Teitunnel doesn't load balance {hostname}."
+        "notBalanced": "Teitunnel doesn't load balance {hostname}.",
+        "noLoginMethod": "This account has no {method} login method yet. Add one in Cloudflare Zero Trust under Integrations ▸ Identity providers (the client secret stays there), then review again."
       },
       "engine": {
         "stale": "Something changed in Cloudflare since you reviewed this change. Review it again.",
@@ -2021,7 +2028,9 @@
         "deleteTunnel": "Delete tunnel “{tunnel}”",
         "addLoginMethod": "Add One-time PIN as a login method",
         "createAccessApp": "Require a login for {domain} ({people})",
+        "createAccessAppWith": "Require a {method} login for {domain} ({people})",
         "updateAccessApp": "Let only {people} into {domain}",
+        "updateAccessAppWith": "Let only {people} into {domain}, logging in with {method}",
         "deleteAccessApp": "Remove the login from {domain}",
         "createNetworkRoute": "Route private network {network} to tunnel “{tunnel}”",
         "deleteNetworkRoute": "Remove the route for private network {network}",
@@ -2046,6 +2055,7 @@
         "tunnelTarget": "proxied CNAME to tunnel “{tunnel}”",
         "loginCustom": "a login with custom rules",
         "loginRequired": "login required: {people}",
+        "loginRequiredWith": "{method} login required: {people}",
         "routedTo": "routed to tunnel “{tunnel}”",
         "endpoints_one": "load balanced across {count} tunnel",
         "endpoints_other": "load balanced across {count} tunnels",
@@ -2863,7 +2873,9 @@
       "noteSnapshotAddress": "It answers at another address; change it in Snapshots.",
       "secretRef@windows": "{key} must be a secret reference: env: NAME, or a Credential Manager entry by name (see Project files in the docs).",
       "secretRef@linux": "{key} must be a secret reference: env: NAME, or a keyring entry by name (see Project files in the docs).",
-      "skipLoginNeedsLogin": "skipLogin needs login: paths can only skip a login the route has."
+      "skipLoginNeedsLogin": "skipLogin needs login: paths can only skip a login the route has.",
+      "signInNeedsLogin": "signIn needs login: it says how the people in login log in.",
+      "badSignIn": "signIn is github, google or any, not “{value}”."
     },
     "exposure": {
       "envFile": {
@@ -3114,7 +3126,8 @@
   "errorHelp": {
     "addDomain": "Add a Domain to Cloudflare",
     "openAccessApps": "Open Access Applications",
-    "openLoadBalancing": "Open Load Balancing"
+    "openLoadBalancing": "Open Load Balancing",
+    "openIdentityProviders": "Open Identity Providers"
   },
   "devServer": {
     "rejected": "Your dev server rejects this address.",

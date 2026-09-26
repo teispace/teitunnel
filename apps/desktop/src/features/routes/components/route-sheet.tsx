@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Disclosure } from "@/components/ui/disclosure";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
@@ -30,6 +31,7 @@ import type {
   Outcome,
   PlanView,
   RouteView,
+  SignIn,
   TunnelView,
   ZoneRef,
 } from "@/lib/ipc/bindings";
@@ -115,6 +117,10 @@ function shortOrigin(origin: string) {
   return origin.replace(/^http:\/\/localhost:/, "");
 }
 
+/** How people log in, as the segments say it (GitHub and Google are names). */
+const signInLabel = (signIn: SignIn) =>
+  signIn === "github" ? "GitHub" : signIn === "google" ? "Google" : t("routeSheet.login.signInAny");
+
 interface Form {
   hostname: string;
   origin: string;
@@ -123,6 +129,8 @@ interface Form {
   allowed: string | null;
   /** Paths that skip the login, as typed. */
   skipLogin: string;
+  /** How people log in. */
+  signIn: SignIn;
   /** A private network, as typed. */
   network: string;
   /** A new tunnel's name, as typed. */
@@ -137,6 +145,7 @@ const emptyForm: Form = {
   path: "",
   allowed: null,
   skipLogin: "",
+  signIn: "any",
   network: "",
   tunnelName: "",
   options: {},
@@ -172,7 +181,11 @@ function changeFor(mode: SheetMode, form: Form) {
     access:
       form.allowed === null
         ? null
-        : { ...parseAllowed(form.allowed), bypass: parsePaths(form.skipLogin) },
+        : {
+            ...parseAllowed(form.allowed),
+            bypass: parsePaths(form.skipLogin),
+            signIn: form.signIn,
+          },
   };
   switch (mode.kind) {
     case "add":
@@ -304,6 +317,7 @@ export function RouteSheet({
   const [path, setPath] = useState("");
   const [allowed, setAllowed] = useState<string | null>(null);
   const [skipLogin, setSkipLogin] = useState("");
+  const [signIn, setSignIn] = useState<SignIn>("any");
   const [network, setNetwork] = useState("");
   const [tunnelName, setTunnelName] = useState("");
   const [options, setOptions] = useState<OriginOptions>({});
@@ -353,6 +367,7 @@ export function RouteSheet({
     setPath(route?.path ?? "");
     setAllowed(route?.access ? formatAllowed(route.access) : null);
     setSkipLogin(formatPaths(route?.access?.bypass));
+    setSignIn(route?.access?.signIn ?? "any");
     setOptions(route?.options ?? {});
     setNetwork("");
     setTunnelName("");
@@ -382,6 +397,7 @@ export function RouteSheet({
           path,
           allowed,
           skipLogin,
+          signIn,
           network,
           tunnelName,
           options,
@@ -484,6 +500,7 @@ export function RouteSheet({
             path,
             allowed,
             skipLogin,
+            signIn,
             network,
             tunnelName,
             options,
@@ -769,10 +786,28 @@ export function RouteSheet({
                       <TextArea
                         {...control}
                         rows={2}
-                        placeholder="me@example.com, @example.com"
+                        placeholder="me@example.com, @example.com, github:example"
                         autoComplete="off"
                         value={allowed}
                         onChange={(event) => setAllowed(event.target.value)}
+                      />
+                    )}
+                  </Field>
+                ) : null}
+                {allowed !== null ? (
+                  <Field
+                    label={t("routeSheet.login.signIn")}
+                    help={t("routeSheet.login.signInHelp")}
+                  >
+                    {() => (
+                      <SegmentedControl
+                        label={t("routeSheet.login.signIn")}
+                        segments={(["any", "github", "google"] as const).map((value) => ({
+                          value,
+                          label: signInLabel(value),
+                        }))}
+                        value={signIn}
+                        onValueChange={setSignIn}
                       />
                     )}
                   </Field>

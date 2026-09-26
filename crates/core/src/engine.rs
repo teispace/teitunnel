@@ -48,8 +48,8 @@ mod simulate;
 mod snapshot_tests;
 
 pub use access::{
-    AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, ObservedAccessApp,
-    access_domain, app_definition,
+    AccessDomainError, AccessNeed, AccessRule, AccessRuleError, AccessState, LoginMethod,
+    ObservedAccessApp, SignIn, access_domain, app_definition,
 };
 pub use activity::{
     ActivityKind, ActivityRecord, Actor, Delta, DeltaArea, RecordedStep, current_actor, deltas,

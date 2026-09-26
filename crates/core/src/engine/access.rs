@@ -14,7 +14,66 @@ use crate::domain::{Hostname, PathRule};
 
 use crate::text::{Text, UserText, english_display, msg};
 
-/// Who may reach a protected route: any of these emails, or anyone at these domains.
+/// How people log in to a protected route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub enum SignIn {
+    /// With any login method the account has (a one-time code by email when it has
+    /// none).
+    #[default]
+    Any,
+    /// Only with the account's GitHub login method.
+    Github,
+    /// Only with the account's Google or Google Workspace login method.
+    Google,
+}
+
+impl SignIn {
+    /// Cloudflare's identity provider types for it (none: every method).
+    pub fn kinds(self) -> &'static [&'static str] {
+        match self {
+            Self::Any => &[],
+            Self::Github => &["github"],
+            Self::Google => &["google", "google-apps"],
+        }
+    }
+
+    /// Its name, as the provider calls itself (not translated).
+    pub fn name(self) -> Option<&'static str> {
+        match self {
+            Self::Any => None,
+            Self::Github => Some("GitHub"),
+            Self::Google => Some("Google"),
+        }
+    }
+
+    /// From a name as typed: `github`, `google`, or `any`.
+    pub fn parse(input: &str) -> Option<Self> {
+        match input.trim().to_ascii_lowercase().as_str() {
+            "any" | "" => Some(Self::Any),
+            "github" => Some(Self::Github),
+            "google" => Some(Self::Google),
+            _ => None,
+        }
+    }
+}
+
+/// A login method (identity provider) of the account.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LoginMethod {
+    /// Its id.
+    pub id: String,
+    /// Cloudflare's type: `onetimepin`, `github`, `google`, …
+    pub kind: String,
+}
+
+/// The prefix of a GitHub entry in a list of who may log in: `github:teispace` (an
+/// organization) or `github:teispace/devs` (one of its teams).
+pub(crate) const GITHUB_PREFIX: &str = "github:";
+
+/// Who may reach a protected route: any of these emails, anyone at these domains, or
+/// the members of these GitHub organizations or teams, logging in how `sign_in` says.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +82,13 @@ pub struct AccessRule {
     pub emails: Vec<String>,
     /// Email domains, e.g. `xyz.com`.
     pub email_domains: Vec<String>,
+    /// GitHub organizations (`teispace`) or teams (`teispace/devs`) whose members may
+    /// log in, with the account's GitHub login method.
+    #[serde(default)]
+    pub github: Vec<String>,
+    /// How people log in. GitHub organizations imply [`SignIn::Github`].
+    #[serde(default)]
+    pub sign_in: SignIn,
     /// Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
     /// and other machines that can't log in). Each is its own application that lets
     /// everyone through.
@@ -46,6 +112,10 @@ pub enum AccessRuleError {
     BypassPath(String),
     /// More paths than [`MAX_BYPASS`].
     TooManyBypass,
+    /// Not a GitHub organization or `organization/team`.
+    Github(String),
+    /// GitHub organizations can only be checked with the GitHub login method.
+    GithubNeedsGithub,
 }
 
 impl UserText for AccessRuleError {
@@ -56,6 +126,8 @@ impl UserText for AccessRuleError {
             Self::Domain(value) => msg::error::access_rule::domain(value),
             Self::BypassPath(value) => msg::error::access_rule::bypass_path(value),
             Self::TooManyBypass => msg::error::access_rule::too_many_bypass(MAX_BYPASS as u64),
+            Self::Github(value) => msg::error::access_rule::github(value),
+            Self::GithubNeedsGithub => msg::error::access_rule::github_needs_github(),
         }
     }
 }
@@ -65,6 +137,48 @@ english_display!(AccessRuleError);
 fn valid_domain(domain: &str) -> bool {
     Hostname::parse(domain).is_ok() && domain.contains('.')
 }
+
+/// `organization` or `organization/team`, tidied, if it's one: an organization is up to
+/// 39 letters, digits and hyphens (GitHub's rule); a team is its name as GitHub shows it.
+fn github_entry(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    let raw = raw.strip_prefix(GITHUB_PREFIX).unwrap_or(raw).trim();
+    let (org, team) = match raw.split_once('/') {
+        Some((org, team)) => (org.trim(), Some(team.trim())),
+        None => (raw, None),
+    };
+    let org_ok = (1..=39).contains(&org.len())
+        && !org.starts_with('-')
+        && org.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+    let team_ok = team.is_none_or(|t| {
+        (1..=100).contains(&t.chars().count())
+            && !t
+                .chars()
+                .any(|c| c.is_control() || matches!(c, ',' | ';' | '/'))
+    });
+    (org_ok && team_ok).then(|| match team {
+        Some(team) => format!("{org}/{team}"),
+        None => org.to_owned(),
+    })
+}
+
+/// The name of the policy Teitunnel writes, which also says how people log in.
+fn policy_name(sign_in: SignIn) -> String {
+    match sign_in.name() {
+        Some(method) => format!("{PEOPLE_POLICY} · {method}"),
+        None => PEOPLE_POLICY.to_owned(),
+    }
+}
+
+/// How people log in, read back from the name of Teitunnel's policy.
+fn sign_in_of(policy_name: &str) -> Option<SignIn> {
+    [SignIn::Any, SignIn::Github, SignIn::Google]
+        .into_iter()
+        .find(|s| policy_name == self::policy_name(*s))
+}
+
+/// The name of the policy that lets people in.
+const PEOPLE_POLICY: &str = "Allowed people";
 
 impl AccessRule {
     /// Trims, lower-cases, de-duplicates and checks the entries.
@@ -84,9 +198,22 @@ impl AccessRule {
         };
         let emails = clean(&self.emails);
         let email_domains = clean(&self.email_domains);
-        if emails.is_empty() && email_domains.is_empty() {
+        let mut github = Vec::new();
+        for raw in self.github.iter().filter(|g| !g.trim().is_empty()) {
+            let entry = github_entry(raw).ok_or_else(|| AccessRuleError::Github(raw.clone()))?;
+            if !github.contains(&entry) {
+                github.push(entry);
+            }
+        }
+        github.sort();
+        if emails.is_empty() && email_domains.is_empty() && github.is_empty() {
             return Err(AccessRuleError::Empty);
         }
+        let sign_in = match (self.sign_in, github.is_empty()) {
+            (SignIn::Any, false) => SignIn::Github,
+            (SignIn::Google, false) => return Err(AccessRuleError::GithubNeedsGithub),
+            (sign_in, _) => sign_in,
+        };
         for email in &emails {
             let valid = email
                 .split_once('@')
@@ -112,25 +239,36 @@ impl AccessRule {
         Ok(Self {
             emails,
             email_domains,
+            github,
+            sign_in,
             bypass,
         })
     }
 
     /// A login from typed entries: `me@xyz.com` is a person, `@xyz.com` (or `xyz.com`)
-    /// everyone at a domain; `bypass` the paths that skip it. `None` without entries.
+    /// everyone at a domain, `github:org` or `github:org/team` the members of a GitHub
+    /// organization or team; `bypass` the paths that skip it. `None` without entries.
     /// Checked by [`Self::normalized`] (the engine does when planning).
     pub fn from_allow(allow: &[String], bypass: &[String]) -> Option<Self> {
         if allow.is_empty() {
             return None;
         }
-        let (emails, domains): (Vec<&String>, Vec<&String>) = allow
-            .iter()
-            .partition(|a| a.trim().find('@').is_some_and(|at| at > 0));
-        Some(Self {
-            emails: emails.into_iter().map(|e| e.trim().to_owned()).collect(),
-            email_domains: domains.into_iter().map(|d| d.trim().to_owned()).collect(),
+        let mut rule = Self {
             bypass: bypass.to_vec(),
-        })
+            ..Self::default()
+        };
+        for entry in allow.iter().map(|a| a.trim()) {
+            if entry.len() > GITHUB_PREFIX.len()
+                && entry[..GITHUB_PREFIX.len()].eq_ignore_ascii_case(GITHUB_PREFIX)
+            {
+                rule.github.push(entry[GITHUB_PREFIX.len()..].to_owned());
+            } else if entry.find('@').is_some_and(|at| at > 0) {
+                rule.emails.push(entry.to_owned());
+            } else {
+                rule.email_domains.push(entry.to_owned());
+            }
+        }
+        Some(rule)
     }
 
     /// Only who may log in (what one application's policy says; the paths that skip
@@ -142,15 +280,20 @@ impl AccessRule {
         }
     }
 
-    /// Who's allowed, in any language: `me@xyz.com, @team.com` (`@domain` is everyone
-    /// there).
+    /// Who's allowed, in any language: `me@xyz.com, @team.com, github:teispace/devs`
+    /// (`@domain` is everyone there), as `--allow` takes them.
     pub fn people(&self) -> String {
+        self.allow().join(", ")
+    }
+
+    /// The entries `--allow` takes for who's allowed (see [`Self::from_allow`]).
+    pub fn allow(&self) -> Vec<String> {
         self.emails
             .iter()
             .cloned()
             .chain(self.email_domains.iter().map(|d| format!("@{d}")))
-            .collect::<Vec<_>>()
-            .join(", ")
+            .chain(self.github.iter().map(|g| format!("{GITHUB_PREFIX}{g}")))
+            .collect()
     }
 
     /// The rule an application's policies express, if they're exactly the kind Teitunnel
@@ -173,10 +316,16 @@ impl AccessRule {
         if policy.decision != "allow" {
             return None;
         }
-        let mut rule = Self::default();
+        let mut rule = Self {
+            sign_in: sign_in_of(&policy.name)?,
+            ..Self::default()
+        };
         for include in &policy.include {
             if let Some(email) = cf_api::rule_email(include) {
                 rule.emails.push(email.to_owned());
+            } else if let Some((org, team, _)) = cf_api::rule_github(include) {
+                rule.github
+                    .push(team.map_or_else(|| org.to_owned(), |t| format!("{org}/{t}")));
             } else {
                 rule.email_domains
                     .push(cf_api::rule_email_domain(include)?.to_owned());
@@ -249,8 +398,42 @@ pub fn access_domain(
     }
 }
 
-/// The application Teitunnel creates for `domain`, letting in whoever `rule` allows.
-pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
+/// The account's login method for `sign_in`: `Ok(None)` for any method, and the
+/// method's type as the error when the account has none of that kind.
+///
+/// # Errors
+/// The account has no GitHub (or Google) login method.
+pub(crate) fn login_method(
+    sign_in: SignIn,
+    methods: &[LoginMethod],
+) -> Result<Option<&LoginMethod>, SignIn> {
+    if sign_in == SignIn::Any {
+        return Ok(None);
+    }
+    methods
+        .iter()
+        .find(|m| sign_in.kinds().contains(&m.kind.as_str()))
+        .map(Some)
+        .ok_or(sign_in)
+}
+
+/// The GitHub login methods an application's rules name.
+pub(crate) fn github_methods(app: &NewAccessApp) -> Vec<String> {
+    app.policies
+        .iter()
+        .flat_map(|p| p.include.iter().filter_map(cf_api::rule_github))
+        .map(|(_, _, id)| id.to_owned())
+        .collect()
+}
+
+/// The application Teitunnel creates for `domain`, letting in whoever `rule` allows,
+/// with `method` its only login method when the rule names one (see [`login_method`]).
+pub fn app_definition(
+    domain: &str,
+    rule: &AccessRule,
+    method: Option<&LoginMethod>,
+) -> NewAccessApp {
+    let github_id = method.map_or("", |m| m.id.as_str());
     let include = rule
         .emails
         .iter()
@@ -260,6 +443,12 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
                 .iter()
                 .map(|d| cf_api::email_domain_rule(d)),
         )
+        .chain(rule.github.iter().map(|entry| {
+            let (org, team) = entry
+                .split_once('/')
+                .map_or((entry.as_str(), None), |(o, t)| (o, Some(t)));
+            cf_api::github_rule(github_id, org, team)
+        }))
         .collect();
     NewAccessApp {
         name: format!("{}{domain}", cf_api::TEITUNNEL_PREFIX),
@@ -267,9 +456,11 @@ pub fn app_definition(domain: &str, rule: &AccessRule) -> NewAccessApp {
         kind: "self_hosted".into(),
         session_duration: "24h".into(),
         app_launcher_visible: false,
+        allowed_idps: method.map(|m| m.id.clone()).into_iter().collect(),
+        auto_redirect_to_identity: method.is_some(),
         policies: vec![AccessPolicy {
             id: None,
-            name: "Allowed people".into(),
+            name: policy_name(rule.sign_in),
             decision: "allow".into(),
             include,
             precedence: Some(1),
@@ -288,6 +479,8 @@ pub(crate) fn bypass_definition(domain: &str) -> NewAccessApp {
         kind: "self_hosted".into(),
         session_duration: "24h".into(),
         app_launcher_visible: false,
+        allowed_idps: Vec::new(),
+        auto_redirect_to_identity: false,
         policies: vec![AccessPolicy {
             id: None,
             name: BYPASS_POLICY.into(),
@@ -361,6 +554,8 @@ pub(crate) fn machine_only_definition(domain: &str) -> NewAccessApp {
         kind: "self_hosted".into(),
         session_duration: "24h".into(),
         app_launcher_visible: false,
+        allowed_idps: Vec::new(),
+        auto_redirect_to_identity: false,
         policies: Vec::new(),
     }
 }
@@ -443,6 +638,8 @@ pub(crate) fn definition_of(app: &AccessApp) -> NewAccessApp {
         },
         session_duration: app.session_duration.clone().unwrap_or_else(|| "24h".into()),
         app_launcher_visible: false,
+        allowed_idps: app.allowed_idps.clone(),
+        auto_redirect_to_identity: app.auto_redirect_to_identity,
         policies: app
             .policies
             .iter()
@@ -608,8 +805,8 @@ pub struct AccessState {
     /// Whether Zero Trust is set up (an organization exists). Only read when the change
     /// adds or changes a login.
     pub organization: Option<bool>,
-    /// Number of login methods (identity providers), when read.
-    pub login_methods: Option<usize>,
+    /// The login methods (identity providers), when read.
+    pub login_methods: Option<Vec<LoginMethod>>,
     /// Applications for the domains involved.
     pub apps: Vec<ObservedAccessApp>,
 }
@@ -634,6 +831,7 @@ mod tests {
             emails: emails.iter().map(|s| (*s).to_owned()).collect(),
             email_domains: domains.iter().map(|s| (*s).to_owned()).collect(),
             bypass: Vec::new(),
+            ..AccessRule::default()
         }
     }
 
@@ -706,7 +904,7 @@ mod tests {
                 owned: true,
                 rule: None,
                 definition: if domain.ends_with("admin") {
-                    app_definition(domain, &rule(&["me@xyz.com"], &[]))
+                    app_definition(domain, &rule(&["me@xyz.com"], &[]), None)
                 } else {
                     bypass_definition(domain)
                 },
@@ -717,7 +915,8 @@ mod tests {
         assert!(is_bypass(&bypass_definition("app.xyz.com/webhooks")));
         assert!(!is_bypass(&app_definition(
             "app.xyz.com",
-            &rule(&["me@xyz.com"], &[])
+            &rule(&["me@xyz.com"], &[]),
+            None
         )));
     }
 
@@ -738,7 +937,7 @@ mod tests {
     #[test]
     fn round_trips_through_an_application() {
         let wanted = rule(&["me@xyz.com"], &["team.io"]);
-        let definition = app_definition("app.xyz.com", &wanted);
+        let definition = app_definition("app.xyz.com", &wanted, None);
         assert_eq!(definition.name, "Teitunnel · app.xyz.com");
         let app: AccessApp = serde_json::from_value(json!({
             "id": "a1", "name": definition.name, "domain": "app.xyz.com", "type": "self_hosted",
@@ -763,7 +962,7 @@ mod tests {
 
     #[test]
     fn service_tokens_join_and_leave_the_machines_policy() {
-        let people = app_definition("app.xyz.com", &rule(&["me@xyz.com"], &[]));
+        let people = app_definition("app.xyz.com", &rule(&["me@xyz.com"], &[]), None);
         let one = with_service_token(&people, "tok1");
         assert_eq!(one.policies.len(), 2);
         assert_eq!(one.policies[0].decision, "non_identity", "machines first");
@@ -782,7 +981,7 @@ mod tests {
             people.policies
         );
         // Changing who may log in keeps the machines.
-        let others = app_definition("app.xyz.com", &rule(&[], &["team.io"]));
+        let others = app_definition("app.xyz.com", &rule(&[], &["team.io"]), None);
         assert_eq!(
             service_tokens_of(&keep_machines(&others, &two)),
             ["tok1", "tok2"]
@@ -790,5 +989,141 @@ mod tests {
         let machines = with_service_token(&machine_only_definition("api.xyz.com"), "tok9");
         assert_eq!(AccessRule::from_new(&machines), None);
         assert!(without_service_token(&machines, "tok9").policies.is_empty());
+    }
+
+    fn methods() -> Vec<LoginMethod> {
+        [
+            ("otp", "onetimepin"),
+            ("gh", "github"),
+            ("gw", "google-apps"),
+        ]
+        .map(|(id, kind)| LoginMethod {
+            id: id.into(),
+            kind: kind.into(),
+        })
+        .to_vec()
+    }
+
+    #[test]
+    fn github_organizations_and_teams_are_checked_and_imply_github() {
+        let typed = AccessRule::from_allow(
+            &[
+                "me@xyz.com".into(),
+                "@team.io".into(),
+                "GitHub:teispace".into(),
+                "github: teispace / Softup Dev ".into(),
+            ],
+            &[],
+        )
+        .unwrap();
+        let rule = typed.normalized().unwrap();
+        assert_eq!(rule.github, ["teispace", "teispace/Softup Dev"]);
+        assert_eq!(
+            rule.sign_in,
+            SignIn::Github,
+            "GitHub members log in with GitHub"
+        );
+        assert_eq!(
+            rule.people(),
+            "me@xyz.com, @team.io, github:teispace, github:teispace/Softup Dev"
+        );
+        assert_eq!(
+            AccessRule::from_allow(&rule.allow(), &[])
+                .unwrap()
+                .normalized()
+                .unwrap(),
+            rule,
+            "the entries round-trip"
+        );
+
+        let only = |entries: &[&str]| AccessRule {
+            github: entries.iter().map(|s| (*s).to_owned()).collect(),
+            ..AccessRule::default()
+        };
+        for bad in [
+            "-teispace",
+            "tei space",
+            "a".repeat(40).as_str(),
+            "org/",
+            "org/a,b",
+        ] {
+            assert_eq!(
+                only(&[bad]).normalized(),
+                Err(AccessRuleError::Github(bad.into())),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            AccessRule {
+                sign_in: SignIn::Google,
+                ..only(&["teispace"])
+            }
+            .normalized(),
+            Err(AccessRuleError::GithubNeedsGithub)
+        );
+        assert!(
+            only(&["teispace"]).normalized().is_ok(),
+            "enough on its own"
+        );
+    }
+
+    #[test]
+    fn a_login_limited_to_one_method_reads_back_from_its_definition() {
+        let methods = methods();
+        let github = AccessRule {
+            github: vec!["teispace/devs".into()],
+            ..rule(&["me@xyz.com"], &[])
+        }
+        .normalized()
+        .unwrap();
+        let method = login_method(github.sign_in, &methods).unwrap();
+        let definition = app_definition("app.xyz.com", &github, method);
+        assert_eq!(definition.allowed_idps, ["gh"]);
+        assert!(definition.auto_redirect_to_identity);
+        assert_eq!(definition.policies[0].name, "Allowed people · GitHub");
+        assert!(definition.policies[0].include.contains(&json!({
+            "github-organization": { "identity_provider_id": "gh", "name": "teispace", "team": "devs" }
+        })));
+        assert_eq!(AccessRule::from_new(&definition), Some(github.clone()));
+        assert_eq!(github_methods(&definition), ["gh"]);
+
+        // Google: people at a domain, logging in with Google (or Google Workspace).
+        let google = AccessRule {
+            sign_in: SignIn::Google,
+            ..rule(&[], &["team.io"])
+        };
+        let method = login_method(SignIn::Google, &methods).unwrap();
+        assert_eq!(method.map(|m| m.id.as_str()), Some("gw"));
+        let definition = app_definition("app.xyz.com", &google, method);
+        assert_eq!(
+            (
+                definition.allowed_idps.as_slice(),
+                definition.policies[0].name.as_str()
+            ),
+            (["gw".to_owned()].as_slice(), "Allowed people · Google")
+        );
+        assert_eq!(AccessRule::from_new(&definition), Some(google));
+
+        // Any method: nothing limited, and the policy keeps its old name.
+        let any = rule(&["me@xyz.com"], &[]);
+        let definition = app_definition("app.xyz.com", &any, None);
+        assert!(definition.allowed_idps.is_empty() && !definition.auto_redirect_to_identity);
+        assert_eq!(definition.policies[0].name, "Allowed people");
+
+        // Without the method, or with a policy renamed in the dashboard.
+        assert_eq!(
+            login_method(SignIn::Github, &methods[..1]),
+            Err(SignIn::Github)
+        );
+        assert_eq!(login_method(SignIn::Any, &[]), Ok(None));
+        let mut renamed = app_definition("app.xyz.com", &any, None);
+        renamed.policies[0].name = "Team".into();
+        assert_eq!(
+            AccessRule::from_new(&renamed),
+            None,
+            "not Teitunnel's shape"
+        );
+        assert_eq!(SignIn::parse(" GitHub "), Some(SignIn::Github));
+        assert_eq!(SignIn::parse("okta"), None);
     }
 }

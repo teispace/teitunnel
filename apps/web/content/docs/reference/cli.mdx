@@ -890,7 +890,8 @@ teitunnel route add [OPTIONS] <HOSTNAME> <ORIGIN>
 | Option | Description |
 |---|---|
 | `--path <PATH>` | Only requests whose path matches this regex, e.g. `^/api`. |
-| `--allow <EMAIL\|@DOMAIN>` | Require a login: an email address, or `@domain` for anyone at that domain. Repeat for more people. Needs Cloudflare Zero Trust (free). |
+| `--allow <EMAIL\|@DOMAIN\|github:ORG[/TEAM]>` | Require a login: an email address, `@domain` for anyone at that domain, or `github:ORG[/TEAM]` for the members of a GitHub organization or team. Repeat for more people. Needs Cloudflare Zero Trust (free). |
+| `--sign-in <METHOD>` | With --allow: how people log in, `github` or `google` (the account's login method of that kind, set up in Cloudflare Zero Trust), or `any` (the default). |
 | `--skip-login <PATH>` | With --allow: a path that skips the login, e.g. `/webhooks`, so webhook senders get through; repeatable. |
 
 **Origin settings**
@@ -1238,7 +1239,8 @@ teitunnel share [OPTIONS] <ORIGIN>
 | `--schedule <DAYS HH:MM-HH:MM>` | With --on: on only during these hours, paused otherwise, e.g. `"mon-fri 09:00-18:00"`. |
 | `--tz <ZONE>` | With --schedule: its time zone, e.g. `Europe/Berlin` (default: this computer's). |
 | `-a, --account <ACCOUNT>` | With --on: the account, when several are connected. |
-| `--allow <EMAIL\|@DOMAIN>` | With --on: require a login (an email address, or `@domain`); repeatable. |
+| `--allow <EMAIL\|@DOMAIN\|github:ORG[/TEAM]>` | With --on: require a login (an email address, `@domain`, or `github:ORG[/TEAM]` for the members of a GitHub organization or team); repeatable. |
+| `--sign-in <METHOD>` | With --allow: how people log in, `github` or `google` (the account's login method of that kind, set up in Cloudflare Zero Trust), or `any` (the default). |
 | `--host-header <HOST>` | Send this Host header to the service, e.g. `localhost:5173` for a dev server that only answers its own address. By default Vite, webpack and Angular dev servers get their own address. |
 | `--no-host-header` | Pass the visitor's Host header through unchanged, even to a dev server. |
 | `--app` | Share through the running app (it keeps the share after this command ends); fails if the app isn't running. This is the default when the app runs. |
@@ -1750,7 +1752,8 @@ teitunnel snapshot publish [OPTIONS] [PATH]
 | `--spa` | Serve index.html for paths that don't exist (single-page apps). |
 | `--password` | Ask visitors for a password (read from the terminal, or from TEITUNNEL_SNAPSHOT_PASSWORD). Only a salted hash reaches Cloudflare. |
 | `--no-password` | Remove the password. |
-| `--allow <EMAIL\|@DOMAIN>` | Require a Cloudflare Access login: an email address, or `@domain`; repeatable (hostnames on your domains only). |
+| `--allow <EMAIL\|@DOMAIN\|github:ORG[/TEAM]>` | Require a Cloudflare Access login: an email address, `@domain`, or `github:ORG[/TEAM]`; repeatable (hostnames on your domains only). |
+| `--sign-in <METHOD>` | With --allow: how people log in, `github` or `google` (the account's login method of that kind), or `any` (the default). |
 | `--expires <DURATION>` | Delete it by itself after this long, e.g. `7d` or `12h`. |
 | `--comments` | Let reviewers pin comments to the pages (kept in a D1 database on your account; every request then runs the Snapshot's Worker). |
 | `--no-comments` | Turn comments off. |
@@ -1799,7 +1802,8 @@ teitunnel snapshot update [OPTIONS] <SNAPSHOT> [PATH]
 | `--spa` | Serve index.html for paths that don't exist (single-page apps). |
 | `--password` | Ask visitors for a password (read from the terminal, or from TEITUNNEL_SNAPSHOT_PASSWORD). Only a salted hash reaches Cloudflare. |
 | `--no-password` | Remove the password. |
-| `--allow <EMAIL\|@DOMAIN>` | Require a Cloudflare Access login: an email address, or `@domain`; repeatable (hostnames on your domains only). |
+| `--allow <EMAIL\|@DOMAIN\|github:ORG[/TEAM]>` | Require a Cloudflare Access login: an email address, `@domain`, or `github:ORG[/TEAM]`; repeatable (hostnames on your domains only). |
+| `--sign-in <METHOD>` | With --allow: how people log in, `github` or `google` (the account's login method of that kind), or `any` (the default). |
 | `--expires <DURATION>` | Delete it by itself after this long, e.g. `7d` or `12h`. |
 | `--comments` | Let reviewers pin comments to the pages (kept in a D1 database on your account; every request then runs the Snapshot's Worker). |
 | `--no-comments` | Turn comments off. |

@@ -53,7 +53,7 @@
       "pattern": "^(\\*\\.)?([a-zA-Z0-9{}-]+\\.)+[a-zA-Z0-9-]+$"
     },
     "login": {
-      "description": "Require a Cloudflare Access login: email addresses, or @domain for everyone at a domain.",
+      "description": "Require a Cloudflare Access login: email addresses, @domain for everyone at a domain, or github:org / github:org/team for the members of a GitHub organization or team.",
       "oneOf": [
         { "type": "string" },
         { "type": "array", "items": { "type": "string" }, "minItems": 1 }
@@ -123,6 +123,10 @@
           "type": "string"
         },
         "login": { "$ref": "#/$defs/login" },
+        "signIn": {
+          "description": "How people log in: with the account's GitHub or Google login method only, or any (the default). Needs login.",
+          "enum": ["any", "github", "google"]
+        },
         "skipLogin": {
           "description": "Paths under the route that skip its login, e.g. /webhooks, so webhook senders and other machines get through (needs login; at most 10).",
           "type": "array",

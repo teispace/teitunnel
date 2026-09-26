@@ -125,6 +125,7 @@ fn the_published_schema_knows_every_key() {
             "origin",
             "originRequest",
             "path",
+            "signIn",
             "skipLogin",
             "tunnel"
         ]
@@ -316,6 +317,22 @@ fn checks_values_with_the_cores_validators() {
             "needs login",
         ),
         (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    signIn: github\n",
+            "signIn needs login",
+        ),
+        (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [\"@example.com\"]\n    signIn: okta\n",
+            "unknown signIn",
+        ),
+        (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [\"github:teispace\"]\n    signIn: google\n",
+            "GitHub teams with Google",
+        ),
+        (
+            "routes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [\"github:-bad\"]\n",
+            "GitHub organization",
+        ),
+        (
             "routes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [me@example.com]\n    skipLogin: [\"/a b\"]\n",
             "plain path",
         ),
@@ -357,6 +374,29 @@ fn checks_values_with_the_cores_validators() {
             "{what}: {found:?}"
         );
     }
+}
+
+#[test]
+fn reads_github_teams_and_how_people_log_in() {
+    let parsed = parse(
+        "version: 1\nroutes:\n  - hostname: a.example.com\n    origin: 3000\n    login: [\"github:teispace/Softup Dev\", \"me@example.com\"]\n  - hostname: b.example.com\n    origin: 4000\n    login: \"@example.com\"\n    signIn: google\n",
+    );
+    let file = parsed
+        .file
+        .as_ref()
+        .unwrap_or_else(|| panic!("{:?}", parsed.diagnostics));
+    let github = file.routes[0].login.as_ref().unwrap();
+    assert_eq!(github.github, ["teispace/Softup Dev"]);
+    assert_eq!(github.emails, ["me@example.com"]);
+    assert_eq!(github.sign_in, crate::engine::SignIn::Github);
+    let google = file.routes[1].login.as_ref().unwrap();
+    assert_eq!(
+        (google.email_domains.as_slice(), google.sign_in),
+        (
+            ["example.com".to_owned()].as_slice(),
+            crate::engine::SignIn::Google
+        )
+    );
 }
 
 #[test]

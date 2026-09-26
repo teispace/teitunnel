@@ -3,15 +3,28 @@ import { describeAllowed, formatAllowed, formatPaths, parseAllowed, parsePaths }
 
 describe("who can sign in", () => {
   it("reads emails and domains however they're separated", () => {
-    expect(parseAllowed(" me@xyz.com, @team.io\nyou@yx.com;corp.com ")).toEqual({
-      emails: ["me@xyz.com", "you@yx.com"],
+    expect(parseAllowed(" me@xyz.com, @team.io\nyou@yx.com;corp.com other@yx.com ")).toEqual({
+      emails: ["me@xyz.com", "you@yx.com", "other@yx.com"],
       emailDomains: ["team.io", "corp.com"],
+      github: [],
     });
-    expect(parseAllowed("  ")).toEqual({ emails: [], emailDomains: [] });
+    expect(parseAllowed("  ")).toEqual({ emails: [], emailDomains: [], github: [] });
+  });
+
+  it("keeps a GitHub team's name whole, spaces included", () => {
+    expect(parseAllowed("GitHub:teispace, github: softup-llc/Softup Dev\nme@xyz.com")).toEqual({
+      emails: ["me@xyz.com"],
+      emailDomains: [],
+      github: ["teispace", "softup-llc/Softup Dev"],
+    });
   });
 
   it("round-trips through the text field", () => {
-    const rule = { emails: ["me@xyz.com"], emailDomains: ["team.io"] };
+    const rule = {
+      emails: ["me@xyz.com"],
+      emailDomains: ["team.io"],
+      github: ["teispace/Softup Dev"],
+    };
     expect(parseAllowed(formatAllowed(rule))).toEqual(rule);
     expect(formatAllowed(null)).toBe("");
   });
@@ -20,6 +33,9 @@ describe("who can sign in", () => {
     expect(describeAllowed({ emails: ["me@xyz.com"], emailDomains: [] })).toBe("me@xyz.com");
     expect(describeAllowed({ emails: ["a@x.com", "b@x.com"], emailDomains: ["team.io"] })).toBe(
       "a@x.com, b@x.com, and anyone at @team.io",
+    );
+    expect(describeAllowed({ emails: [], emailDomains: [], github: ["teispace/devs"] })).toBe(
+      "members of teispace/devs on GitHub",
     );
   });
 });

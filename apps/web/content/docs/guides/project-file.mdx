@@ -146,7 +146,8 @@ deleted. Every change is recorded in Activity and can be undone there.
 | `origin` | Required. A port (`3000`), `host:port`, or a URL (`http`, `https`, `tcp`, `ssh`, `rdp`, `smb`). |
 | `path` | Only requests whose path matches this regex, e.g. `^/api`. |
 | `tunnel` | One of this machine's tunnels, by name. Default: the default tunnel. An existing route stays on its tunnel; `tunnel` only picks where a new route goes. |
-| `login` | Require a Cloudflare Access login: an email address, `@domain`, or a list of them. |
+| `login` | Require a Cloudflare Access login: an email address, `@domain`, `github:org` or `github:org/team`, or a list of them. |
+| `signIn` | How people log in: `github` or `google` (the account's login method of that kind), or `any` (the default; needs `login`). |
 | `skipLogin` | Paths that skip the login, e.g. `[/webhooks]`, for webhook senders (needs `login`; at most 10). |
 | `originRequest` | cloudflared's origin settings: `httpHostHeader`, `originServerName`, `matchSNItoHost`, `noTLSVerify`, `caPool`, `http2Origin`, `disableChunkedEncoding`, `connectTimeout`, `tlsTimeout`, `tcpKeepAlive`, `keepAliveTimeout`, `keepAliveConnections`, `noHappyEyeballs`, `proxyType`. |
 

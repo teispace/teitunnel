@@ -48,6 +48,10 @@ pub enum Severity {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "a report holds a handful of fixes, and matching on the change inside is clearer than boxing it"
+)]
 pub enum Fix {
     /// A change in Cloudflare, previewed as a plan before it's applied.
     Change {

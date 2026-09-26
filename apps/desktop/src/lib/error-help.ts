@@ -43,6 +43,8 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.accessRule.domain": input,
   "core.error.accessRule.bypassPath": input,
   "core.error.accessRule.tooManyBypass": input,
+  "core.error.accessRule.github": input,
+  "core.error.accessRule.githubNeedsGithub": input,
   "core.error.accessDomain.pathPattern": input,
   "core.error.plan.noZone": {
     kind: "link",
@@ -54,11 +56,16 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.plan.noTunnel": retry,
   "core.error.plan.noSuchRecord": retry,
   "core.error.plan.zeroTrustNotSetUp": fix,
+  "core.error.plan.noLoginMethod": {
+    kind: "link",
+    label: "errorHelp.openIdentityProviders",
+    url: "https://dash.cloudflare.com/?to=/:account/one/integrations/identity-providers",
+  },
   "core.error.plan.noSuchLogin": retry,
   "core.error.plan.accessAppExists": {
     kind: "link",
     label: "errorHelp.openAccessApps",
-    url: "https://one.dash.cloudflare.com/?to=/:account/access/apps",
+    url: "https://dash.cloudflare.com/?to=/:account/one/access-controls/apps",
   },
   "core.error.plan.networkRouted": input,
   "core.error.plan.noSuchNetwork": retry,

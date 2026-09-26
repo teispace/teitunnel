@@ -988,9 +988,9 @@ impl Step {
     /// A one-line description for the plan preview.
     pub fn describe(&self, tunnel_name: &str) -> Text {
         use crate::text::msg::plan::step as m;
-        let people = |app: &NewAccessApp| {
-            super::access::AccessRule::from_new(app).map_or_else(String::new, |r| r.people())
-        };
+        let rule = |app: &NewAccessApp| super::access::AccessRule::from_new(app);
+        let people = |app: &NewAccessApp| rule(app).map_or_else(String::new, |r| r.people());
+        let method = |app: &NewAccessApp| rule(app).and_then(|r| r.sign_in.name());
         match self {
             Self::CreateTunnel { name } => m::create_tunnel(name),
             Self::PutConfig { ingress, .. } => m::put_config(
@@ -1010,8 +1010,14 @@ impl Step {
             Self::CreateAccessApp { app } if super::access::is_bypass(app) => {
                 m::create_access_bypass(&app.domain)
             }
-            Self::CreateAccessApp { app } => m::create_access_app(&app.domain, people(app)),
-            Self::UpdateAccessApp { app, .. } => m::update_access_app(people(app), &app.domain),
+            Self::CreateAccessApp { app } => match method(app) {
+                Some(method) => m::create_access_app_with(method, &app.domain, people(app)),
+                None => m::create_access_app(&app.domain, people(app)),
+            },
+            Self::UpdateAccessApp { app, .. } => match method(app) {
+                Some(method) => m::update_access_app_with(people(app), &app.domain, method),
+                None => m::update_access_app(people(app), &app.domain),
+            },
             Self::DeleteAccessApp { previous, .. } if super::access::is_bypass(previous) => {
                 m::delete_access_bypass(&previous.domain)
             }

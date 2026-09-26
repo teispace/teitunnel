@@ -99,10 +99,14 @@ pub(crate) struct ShareArgs {
     /// With `hostname`: the account (name or id), when several are connected.
     #[serde(default)]
     account: Option<String>,
-    /// With `hostname`: require a login. Email addresses (`team@teispace.com`) or whole
-    /// domains (`@teispace.com`).
+    /// With `hostname`: require a login. Email addresses (`team@teispace.com`), whole
+    /// domains (`@teispace.com`), or GitHub organizations and teams (`github:teispace/devs`).
     #[serde(default)]
     allow: Vec<String>,
+    /// With `allow`: how people log in, `github` or `google` (the account's login method of
+    /// that kind), or `any` (the default).
+    #[serde(default)]
+    sign_in: Option<String>,
     /// Stop by itself after this many minutes (1 to 10080).
     #[serde(default)]
     #[schemars(range(min = 1, max = 10080))]
@@ -247,7 +251,8 @@ pub(super) async fn share_port(
         }
         Some(hostname) => {
             let account = account_for_hostname(backend, args.account.as_deref(), hostname).await?;
-            let access = super::access_rule(&args.allow, &[]);
+            let access =
+                super::access_rule(&args.allow, &[], super::sign_in(args.sign_in.as_deref())?);
             let who = access.as_ref().map_or_else(
                 || "public (no login)".to_owned(),
                 |rule| format!("login required: {}", rule.people()),

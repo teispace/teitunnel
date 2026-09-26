@@ -30,6 +30,12 @@ pub struct AccessApp {
     /// Policies, in order of precedence.
     #[serde(default)]
     pub policies: Vec<AccessPolicy>,
+    /// The login methods (identity provider ids) offered; empty: every one the account has.
+    #[serde(default)]
+    pub allowed_idps: Vec<String>,
+    /// Skip Cloudflare's choice of login method when only one is allowed.
+    #[serde(default)]
+    pub auto_redirect_to_identity: bool,
 }
 
 /// A policy of an application.
@@ -72,6 +78,8 @@ struct AppBody<'a> {
     session_duration: &'a str,
     app_launcher_visible: bool,
     policies: Vec<Value>,
+    allowed_idps: &'a [String],
+    auto_redirect_to_identity: bool,
 }
 
 impl<'a> AppBody<'a> {
@@ -88,6 +96,8 @@ impl<'a> AppBody<'a> {
                 .zip(1u32..)
                 .map(|(id, precedence)| json!({ "id": id, "precedence": precedence }))
                 .collect(),
+            allowed_idps: &app.allowed_idps,
+            auto_redirect_to_identity: app.auto_redirect_to_identity,
         }
     }
 }
@@ -122,6 +132,29 @@ pub fn rule_email_domain(rule: &Value) -> Option<&str> {
     rule.pointer("/email_domain/domain")?.as_str()
 }
 
+/// A rule matching the members of a GitHub organization, or of one of its teams, who
+/// log in with the GitHub login method `identity_provider_id`.
+pub fn github_rule(identity_provider_id: &str, organization: &str, team: Option<&str>) -> Value {
+    let mut rule = json!({
+        "identity_provider_id": identity_provider_id,
+        "name": organization,
+    });
+    if let (Some(team), Some(object)) = (team, rule.as_object_mut()) {
+        object.insert("team".into(), Value::String(team.to_owned()));
+    }
+    json!({ "github-organization": rule })
+}
+
+/// The organization, team and login method a GitHub rule matches, if it's one.
+pub fn rule_github(rule: &Value) -> Option<(&str, Option<&str>, &str)> {
+    let github = rule.get("github-organization")?;
+    Some((
+        github.get("name")?.as_str()?,
+        github.get("team").and_then(Value::as_str),
+        github.get("identity_provider_id")?.as_str()?,
+    ))
+}
+
 /// An application to create or replace.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NewAccessApp {
@@ -138,6 +171,10 @@ pub struct NewAccessApp {
     pub app_launcher_visible: bool,
     /// Inline policies.
     pub policies: Vec<AccessPolicy>,
+    /// The login methods (identity provider ids) offered; empty: every one the account has.
+    pub allowed_idps: Vec<String>,
+    /// Skip Cloudflare's choice of login method when only one is allowed.
+    pub auto_redirect_to_identity: bool,
 }
 
 /// The account's Zero Trust organization.
@@ -492,6 +529,8 @@ mod tests {
             kind: "self_hosted".into(),
             session_duration: "24h".into(),
             app_launcher_visible: false,
+            allowed_idps: Vec::new(),
+            auto_redirect_to_identity: false,
             policies: vec![AccessPolicy {
                 id: None,
                 name: "Allowed".into(),

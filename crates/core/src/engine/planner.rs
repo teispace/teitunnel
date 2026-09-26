@@ -99,6 +99,8 @@ pub enum PlanError {
     NotReserved(String),
     /// A Free zone's rate limits can't match a hostname (only its whole domain).
     EdgeRateLimitNeedsPro(String),
+    /// The account has no login method of the kind the login asks for.
+    NoLoginMethod(crate::engine::access::SignIn),
     /// The zone's plan doesn't allow a period that long.
     EdgeRateLimitPeriod {
         /// The zone.
@@ -187,6 +189,9 @@ impl UserText for PlanError {
             Self::HostnameInUse(hostname) => msg::reservations::error::hostname_in_use(hostname),
             Self::NotReserved(hostname) => msg::reservations::error::not_reserved(hostname),
             Self::EdgeRateLimitNeedsPro(zone) => msg::protection::error::rate_limit_needs_pro(zone),
+            Self::NoLoginMethod(sign_in) => {
+                msg::error::plan::no_login_method(sign_in.name().unwrap_or_default())
+            }
             Self::EdgeRateLimitPeriod { zone, longest } => {
                 msg::protection::error::rate_limit_period(zone, u64::from(*longest))
             }
@@ -583,6 +588,9 @@ impl<'a> Builder<'a> {
         // The application says who may log in; paths that skip it are applications of
         // their own.
         let people = rule.people_only();
+        let methods = access.and_then(|a| a.login_methods.as_deref());
+        let method = super::access::login_method(rule.sign_in, methods.unwrap_or_default())
+            .map_err(PlanError::NoLoginMethod)?;
         match access.and_then(|a| a.app(domain)) {
             Some(app) if !app.owned => {
                 if app.rule.as_ref() != Some(&people) {
@@ -591,9 +599,17 @@ impl<'a> Builder<'a> {
             }
             Some(app) => {
                 // Service tokens keep passing when who may log in changes.
-                let wanted =
-                    super::access::keep_machines(&app_definition(domain, rule), &app.definition);
-                if app.rule.as_ref() != Some(&people) || app.definition.name != wanted.name {
+                let wanted = super::access::keep_machines(
+                    &app_definition(domain, rule, method),
+                    &app.definition,
+                );
+                // The same people, but a GitHub or Google login method that was replaced.
+                let stale = app.definition.allowed_idps != wanted.allowed_idps
+                    || super::access::github_methods(&app.definition)
+                        .iter()
+                        .any(|id| Some(id.as_str()) != method.map(|m| m.id.as_str()));
+                if app.rule.as_ref() != Some(&people) || app.definition.name != wanted.name || stale
+                {
                     self.steps.push(Step::UpdateAccessApp {
                         id: app.id.clone(),
                         app: wanted,
@@ -605,12 +621,13 @@ impl<'a> Builder<'a> {
                 if access.and_then(|a| a.organization) == Some(false) {
                     return Err(PlanError::ZeroTrustNotSetUp);
                 }
-                let no_login = access.and_then(|a| a.login_methods) == Some(0);
-                if no_login && !self.steps.contains(&Step::AddLoginMethod) {
+                // A login for any method needs one: a one-time code by email.
+                let no_login = methods.is_some_and(<[_]>::is_empty);
+                if method.is_none() && no_login && !self.steps.contains(&Step::AddLoginMethod) {
                     self.steps.push(Step::AddLoginMethod);
                 }
                 self.steps.push(Step::CreateAccessApp {
-                    app: app_definition(domain, rule),
+                    app: app_definition(domain, rule, method),
                 });
             }
         }

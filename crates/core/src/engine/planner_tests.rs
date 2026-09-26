@@ -706,6 +706,7 @@ fn people(emails: &[&str], domains: &[&str]) -> AccessRule {
         emails: emails.iter().map(|s| (*s).to_owned()).collect(),
         email_domains: domains.iter().map(|s| (*s).to_owned()).collect(),
         bypass: Vec::new(),
+        ..AccessRule::default()
     }
 }
 
@@ -717,7 +718,7 @@ fn protected(r: RouteSpec, rule: &AccessRule) -> RouteSpec {
 }
 
 fn access_app(id: &str, domain: &str, rule: &AccessRule, owned: bool) -> ObservedAccessApp {
-    let definition = app_definition(domain, rule);
+    let definition = app_definition(domain, rule, None);
     ObservedAccessApp {
         id: id.into(),
         domain: domain.into(),
@@ -730,7 +731,14 @@ fn access_app(id: &str, domain: &str, rule: &AccessRule, owned: bool) -> Observe
 fn with_access(mut s: Snapshot, login_methods: usize, apps: Vec<ObservedAccessApp>) -> Snapshot {
     s.access = Some(AccessState {
         organization: Some(true),
-        login_methods: Some(login_methods),
+        login_methods: Some(
+            (0..login_methods)
+                .map(|i| super::access::LoginMethod {
+                    id: format!("otp{i}"),
+                    kind: "onetimepin".into(),
+                })
+                .collect(),
+        ),
         apps,
     });
     s

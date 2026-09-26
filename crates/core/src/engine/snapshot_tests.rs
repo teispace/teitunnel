@@ -53,6 +53,7 @@ pub(super) fn me() -> AccessRule {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
         bypass: Vec::new(),
+        ..AccessRule::default()
     }
 }
 
@@ -182,7 +183,7 @@ fn plans_files_then_worker_then_login_then_address() {
     let mut snapshot = observed(fresh("teitunnel-demo"), Vec::new());
     snapshot.access = Some(super::access::AccessState {
         organization: Some(true),
-        login_methods: Some(0),
+        login_methods: Some(Vec::new()),
         apps: Vec::new(),
     });
     let p = plan(&intent, &snapshot).unwrap();
