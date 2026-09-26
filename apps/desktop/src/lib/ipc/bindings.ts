@@ -3224,6 +3224,25 @@ export type LimitAction =
 /**  A managed challenge until the period ends. */
 "challenge";
 
+/**  What's wrong with a page's links. */
+export type LinkKind = 
+/**  It loads something from this computer, which visitors can't reach. */
+"local" | 
+/**  It loads something from its public address over plain HTTP (mixed content). */
+"insecure";
+
+/**  A page linking where visitors can't follow, with what to change. */
+export type LinkProblem = {
+	/**  Which mistake. */
+	kind: LinkKind,
+	/**  A link from the page, e.g. `http://localhost:5173/@vite/client`. */
+	example: string,
+	/**  What it means, in a sentence. */
+	message: Text,
+	/**  What to change, for the framework when it's known. */
+	fix: Text,
+};
+
 /**  What changed since the last batch. */
 export type LiveBatch = {
 	/**  New or changed exchanges (their latest state), oldest change first. */
@@ -5809,6 +5828,11 @@ export type Verification = {
 	 *  them).
 	 */
 	eventStream: boolean,
+	/**
+	 *  The page works but links where visitors can't follow (this computer, or plain
+	 *  HTTP), with what to change.
+	 */
+	links: LinkProblem | null,
 	/**
 	 *  The failure usually passes by itself (a new record or connector still settling):
 	 *  check again rather than asking for a fix.

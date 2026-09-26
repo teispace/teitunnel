@@ -1141,6 +1141,24 @@ pub(crate) struct VerifyResult {
     message: Option<String>,
     /// Behind a login: the check reached Cloudflare's login page, not the service.
     protected: bool,
+    /// The page loads but links where visitors can't follow (this computer, or plain
+    /// HTTP), with what to change in the app.
+    broken_links: Option<BrokenLinks>,
+}
+
+/// A page's links visitors can't follow.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BrokenLinks {
+    /// `local` (this computer's address) or `insecure` (plain http:// to the public
+    /// address, blocked as mixed content).
+    kind: String,
+    /// A link from the page.
+    example: String,
+    /// What it means.
+    message: String,
+    /// What to change, for the framework when it's known.
+    fix: String,
 }
 
 impl From<teitunnel_core::engine::Verification> for VerifyResult {
@@ -1158,6 +1176,16 @@ impl From<teitunnel_core::engine::Verification> for VerifyResult {
             hostname: v.hostname,
             status: v.status,
             protected: v.protected,
+            broken_links: v.links.map(|links| BrokenLinks {
+                kind: match links.kind {
+                    teitunnel_core::dev_server::links::LinkKind::Local => "local",
+                    teitunnel_core::dev_server::links::LinkKind::Insecure => "insecure",
+                }
+                .to_owned(),
+                example: links.example,
+                message: links.message.english(),
+                fix: links.fix.english(),
+            }),
         }
     }
 }

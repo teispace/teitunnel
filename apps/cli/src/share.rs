@@ -162,6 +162,10 @@ pub(crate) fn explain(result: &Verification, via: Via, print: &mut dyn FnMut(&st
     if result.event_stream && via == Via::QuickShare {
         print(&m::event_stream().to_string());
     }
+    if let Some(links) = &result.links {
+        print(&links.message.to_string());
+        print(&links.fix.to_string());
+    }
 }
 
 /// How a share goes through the inspector.
@@ -866,6 +870,7 @@ mod tests {
             protected: false,
             event_stream: false,
             transient: false,
+            links: None,
         };
         let vite = explained(&rejected(DevServer::Vite), Via::QuickShare);
         assert_eq!(
@@ -904,6 +909,7 @@ mod tests {
             protected: false,
             event_stream: true,
             transient: false,
+            links: None,
         };
         assert_eq!(explained(&result, Via::QuickShare).len(), 1);
         assert!(
@@ -911,6 +917,16 @@ mod tests {
             "domains carry streams"
         );
         result.event_stream = false;
+        result.links = Some(teitunnel_core::dev_server::links::problem(
+            teitunnel_core::dev_server::links::LinkKind::Insecure,
+            "http://quiet-river.trycloudflare.com/app.css".into(),
+            "quiet-river.trycloudflare.com",
+            Some(teitunnel_core::discovery::ServiceKind::Rails),
+        ));
+        let lines = explained(&result, Via::QuickShare);
+        assert!(lines[0].contains("mixed content"), "{lines:?}");
+        assert!(lines[1].contains("config.assume_ssl"), "{lines:?}");
+        result.links = None;
         result.failure = Some(Failure::TooManyRequests);
         assert!(explained(&result, Via::QuickShare)[0].contains("200 requests"));
         result.failure = Some(Failure::EdgeUnreachable {

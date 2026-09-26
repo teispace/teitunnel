@@ -261,6 +261,7 @@ beforeEach(() => {
             message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
             protected: false,
             eventStream: false,
+            links: null,
           };
         }
         const guarded = routes.some((r) => r.hostname === payload["hostname"] && r.access);

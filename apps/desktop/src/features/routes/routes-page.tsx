@@ -144,13 +144,16 @@ function TestResult({
       <CheckNotes check={result} showMessage={false} onCheck={onTest} checking={testing} />
     </>
   ) : (
-    <p role="status" className="text-callout text-healthy">
-      {result.protected
-        ? t("routes.test.protected")
-        : result.status
-          ? t("routes.test.worksStatus", { status: String(result.status) })
-          : t("routes.test.works")}
-    </p>
+    <>
+      <p role="status" className="text-callout text-healthy">
+        {result.protected
+          ? t("routes.test.protected")
+          : result.status
+            ? t("routes.test.worksStatus", { status: String(result.status) })
+            : t("routes.test.works")}
+      </p>
+      {result.links ? <CheckNotes check={result} onCheck={onTest} checking={testing} /> : null}
+    </>
   );
 }
 

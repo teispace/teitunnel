@@ -165,6 +165,9 @@ pub struct Verification {
     /// The origin answered with a Server-Sent Events stream (Quick Shares don't carry
     /// them).
     pub event_stream: bool,
+    /// The page works but links where visitors can't follow (this computer, or plain
+    /// HTTP), with what to change.
+    pub links: Option<dev_server::links::LinkProblem>,
     /// The failure usually passes by itself (a new record or connector still settling):
     /// check again rather than asking for a fix.
     pub transient: bool,
@@ -180,6 +183,7 @@ impl Verification {
             failure,
             protected: false,
             event_stream: false,
+            links: None,
         }
     }
 
@@ -371,15 +375,22 @@ pub(crate) async fn probe(
     // Error pages are small; read a bounded prefix, and of a success only a tiny body
     // (webpack-dev-server 3 refuses with 200). A stream never ends, so never read one.
     let small = response.content_length().is_some_and(|n| n <= 256);
-    let body = if !event_stream && (status >= 400 || small) {
+    // A page that loads is read too (bounded), for links visitors can't follow.
+    let page = response.status().is_success()
+        && header("content-type").is_some_and(|v| v.to_ascii_lowercase().starts_with("text/html"));
+    let error_like = status >= 400 || small;
+    let read = if !event_stream && (error_like || page) {
         dev_server::read_limited(response).await
     } else {
         String::new()
     };
+    // Only small or error answers are looked at as refusals; a page only for its links.
+    let body = if error_like { read.as_str() } else { "" };
+    let page = if page { read.as_str() } else { "" };
     if status == 429 && is_quick_share(&name) {
         return result(Some(status), Some(Failure::TooManyRequests));
     }
-    match classify(status, &body) {
+    match classify(status, body) {
         Some(Failure::OriginUnreachable { .. }) => {
             let listening = match origin {
                 Some(origin) => listening(origin).await,
@@ -393,14 +404,18 @@ pub(crate) async fn probe(
         }
         Some(failure) => result(None, Some(failure)),
         None => {
-            let answer = Answer {
-                status,
-                body: &body,
-                next,
-            };
+            let answer = Answer { status, body, next };
             let rejection = host_rejection(&client, &url, &name, origin, answer).await;
+            let links =
+                match dev_server::links::find(page, &name) {
+                    Some((kind, example)) if rejection.is_none() => Some(
+                        dev_server::links::problem(kind, example, &name, local_kind(origin).await),
+                    ),
+                    _ => None,
+                };
             Verification {
                 event_stream,
+                links,
                 ..result(
                     Some(status),
                     rejection.map(|rejection| Failure::HostRejected { rejection }),
@@ -690,5 +705,44 @@ mod tests {
         .await;
         let stream = probe(Edge::Test(*server.address()), &own, None).await;
         assert!(stream.ok() && stream.event_stream, "{stream:?}");
+    }
+
+    #[tokio::test]
+    async fn a_page_linking_to_this_computer_works_but_says_so() {
+        use wiremock::ResponseTemplate;
+        let host = Hostname::parse("shop.teitunnel-test.invalid").unwrap();
+        let html = |body: &str| {
+            ResponseTemplate::new(200).set_body_raw(
+                format!("<!doctype html><html><head>{body}</head></html>"),
+                "text/html; charset=utf-8",
+            )
+        };
+        let server = serve_with(html(
+            r#"<script type="module" src="http://[::1]:5173/@vite/client"></script>"#,
+        ))
+        .await;
+        let result = probe(Edge::Test(*server.address()), &host, None).await;
+        assert!(result.ok(), "the page loads: {result:?}");
+        let links = result.links.expect("the link is found");
+        assert_eq!(links.kind, dev_server::links::LinkKind::Local);
+        assert_eq!(links.example, "http://[::1]:5173/@vite/client");
+
+        let server = serve_with(html(
+            r#"<link rel="stylesheet" href="http://shop.teitunnel-test.invalid/app.css">"#,
+        ))
+        .await;
+        let result = probe(Edge::Test(*server.address()), &host, None).await;
+        assert_eq!(
+            result.links.map(|l| l.kind),
+            Some(dev_server::links::LinkKind::Insecure)
+        );
+
+        let server = serve_with(html(r#"<script src="/assets/app.js"></script>"#)).await;
+        assert_eq!(
+            probe(Edge::Test(*server.address()), &host, None)
+                .await
+                .links,
+            None
+        );
     }
 }

@@ -321,6 +321,7 @@ impl Backend for FakeBackend {
             protected: false,
             event_stream: false,
             transient: false,
+            links: None,
         }))
     }
 

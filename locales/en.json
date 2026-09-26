@@ -2544,7 +2544,21 @@
       "routeHostHeader": "Or have the route send Host: {host} (--host-header {host}), which {server} accepts.",
       "hostHeaderUnsafe": "Sending Host: {host} would also work, but {server} compares it with the browser's address for forms, redirects and sign-in, so allowing the address is better.",
       "nextOrigin": "Next.js checks where requests come from, not the Host header, so only the config change helps.",
-      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead."
+      "eventStream": "This service streams Server-Sent Events, which Quick Shares don't carry. Share it on your own domain with --on <hostname> instead.",
+      "links": {
+        "local": "The page loads {example} from this computer, which visitors can't reach.",
+        "localLaravel": "Laravel is loading assets from its Vite dev server. While you share, stop npm run dev and run npm run build so Laravel serves the built files, and set APP_URL={url} in .env.",
+        "localRails": "Rails builds these links from a setting that points at this computer: leave config.asset_host unset, or precompile the assets (bin/rails assets:precompile) while you share.",
+        "localDjango": "Django builds these links from a setting that points at this computer: make STATIC_URL and MEDIA_URL paths such as /static/ instead of full URLs.",
+        "localOther": "The app builds these links from a base URL set to this computer. Set it to {url} (often APP_URL, BASE_URL, PUBLIC_URL or SITE_URL), or use relative links.",
+        "insecure": "The page loads {example} over plain HTTP, so browsers block it on the HTTPS address (mixed content).",
+        "insecureLaravel": "Trust the proxy so Laravel builds https:// links: in bootstrap/app.php add $middleware->trustProxies(at: '*'); (Laravel 11 and later), or set $proxies = '*' in the TrustProxies middleware.",
+        "insecureRails": "Tell Rails that requests arrive over HTTPS: set config.assume_ssl = true (Rails 7.1 and later) in config/environments/development.rb.",
+        "insecureDjango": "Trust the proxy's scheme: add SECURE_PROXY_SSL_HEADER = (\"HTTP_X_FORWARDED_PROTO\", \"https\") to settings.py.",
+        "insecurePython": "Trust the proxy headers: wrap the app in Werkzeug's ProxyFix for Flask, or run uvicorn with --proxy-headers --forwarded-allow-ips='*' for FastAPI.",
+        "insecureNode": "Trust the proxy's X-Forwarded-Proto header: app.set(\"trust proxy\", true) in Express, or build links from the forwarded protocol.",
+        "insecureOther": "Tell the app it's behind an HTTPS proxy: trust the X-Forwarded-Proto: https header cloudflared sends, or use relative links."
+      }
     },
     "uptime": {
       "cause": {

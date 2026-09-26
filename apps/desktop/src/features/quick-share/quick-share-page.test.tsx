@@ -150,6 +150,7 @@ beforeEach(() => {
             message: null,
             protected: false,
             eventStream: false,
+            links: null,
             transient: false,
           },
         };
@@ -251,6 +252,7 @@ describe("QuickSharePage", () => {
           message: { key: "core.verify.hostRejected", args: { server: "Vite" } },
           protected: false,
           eventStream: false,
+          links: null,
           transient: false,
         },
       },
@@ -293,6 +295,7 @@ describe("QuickSharePage", () => {
           message: null,
           protected: false,
           eventStream: true,
+          links: null,
           transient: false,
         },
       },

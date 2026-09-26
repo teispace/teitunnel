@@ -12,6 +12,8 @@
 //! `Origin` with it (server actions, CSRF protection) or build redirects and OAuth
 //! callbacks from it, so for them the config line is the fix.
 
+pub mod links;
+
 use std::time::Duration;
 
 use serde::Serialize;

@@ -10,6 +10,7 @@ const connecting: Verification = {
   message: { key: "core.verify.tunnelMismatch", args: {} },
   protected: false,
   eventStream: false,
+  links: null,
   transient: true,
 };
 

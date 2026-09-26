@@ -67,7 +67,7 @@ export function ShareCheck({
   };
 
   // Nothing to say: take no room in the card.
-  if (!check || (!check.failure && !check.eventStream && !fixing)) return null;
+  if (!check || (!check.failure && !check.eventStream && !check.links && !fixing)) return null;
   if (settling) {
     return (
       <p role="status" className="text-callout text-secondary">

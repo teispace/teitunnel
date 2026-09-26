@@ -209,13 +209,31 @@ cloudflared refuses it by default. For a route, turn on **Origin settings ▸ Ac
 self-signed certificates**, or pass `--no-tls-verify`. Visitors still get Cloudflare's valid
 certificate.
 
-## Mixed content and redirects
+## Mixed content and links to localhost
 
-Visitors reach your app over HTTPS, but your app receives plain HTTP from cloudflared. If it
-builds `http://` links or redirects HTTP to HTTPS forever, tell it to trust the proxy headers
-(`X-Forwarded-Proto: https`): `app.set("trust proxy", true)` in Express,
-`SECURE_PROXY_SSL_HEADER` in Django, `config.assume_ssl = true` in Rails 7.1+. See
-[too many redirects](/docs/reference/troubleshooting#too-many-redirects).
+Visitors reach your app over HTTPS, but your app receives plain HTTP from cloudflared, with
+`X-Forwarded-Proto: https` saying how the visitor came. Through the inspector (the default for
+Quick Shares) it also gets `X-Forwarded-Host` with the public address. An app that doesn't trust
+these headers builds `http://` links, which browsers block as mixed content, or redirects HTTP to
+HTTPS forever. An app whose base URL is `localhost` links to this computer, which visitors can't
+reach.
+
+The check after sharing reads the page and says so: *The page loads
+http://[::1]:5173/@vite/client from this computer, which visitors can't reach.* or *The page
+loads http://shop.teispace.com/build/app.css over plain HTTP, so browsers block it on the HTTPS
+address (mixed content).*, with the fix for your framework. `teitunnel share` prints the same,
+and `verify_route` gives it to AI agents.
+
+| Framework | Links to localhost | Plain `http://` links |
+|---|---|---|
+| **Laravel** (and Livewire) | Stop `npm run dev` and run `npm run build` while you share, and set `APP_URL` to the public address in `.env` | In `bootstrap/app.php`, `$middleware->trustProxies(at: '*');` (Laravel 11+), or `$proxies = '*'` in the `TrustProxies` middleware |
+| **Rails** | Leave `config.asset_host` unset, or `bin/rails assets:precompile` | `config.assume_ssl = true` (Rails 7.1+) |
+| **Django** | `STATIC_URL` and `MEDIA_URL` as paths (`/static/`) | `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")`; `USE_X_FORWARDED_HOST = True` when the Host header is rewritten |
+| **Flask / FastAPI** | Build URLs with `url_for` / `request.url_for` | Werkzeug's `ProxyFix`, or `uvicorn --proxy-headers --forwarded-allow-ips='*'` |
+| **Express and Node** | Use relative links | `app.set("trust proxy", true)` |
+| **Next.js, Nuxt** | Leave `assetPrefix` / `app.cdnURL` unset in development | Usually nothing: they use relative links |
+
+See [too many redirects](/docs/reference/troubleshooting#too-many-redirects).
 
 ## Where to go next
 
