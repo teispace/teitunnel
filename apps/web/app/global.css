@@ -1192,9 +1192,17 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
   gap: 1rem;
 }
 
+.tt-core-stage {
+  position: relative;
+  z-index: 1;
+  perspective: 1100px;
+}
+
 .tt-core {
   position: relative;
   z-index: 1;
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--tt-ease);
   padding: 2rem 1.75rem;
   border-radius: 1.5rem;
   border: 1px solid var(--color-fd-border);
@@ -1203,6 +1211,21 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
     0 0 0 6px color-mix(in oklab, var(--color-fd-card) 55%, transparent),
     var(--tt-window-shadow);
   text-align: center;
+}
+
+/* Pointing at the core, it turns towards the pointer in 3D, its content floating forward. */
+.tt-core-content {
+  transition: transform 0.6s var(--tt-ease);
+}
+
+html.tt-motion .tt-core:hover {
+  transform: rotateY(calc((var(--px, 0.5) - 0.5) * 16deg))
+    rotateX(calc((0.5 - var(--py, 0.5)) * 12deg));
+  transition-duration: 0.15s;
+}
+
+html.tt-motion .tt-core:hover .tt-core-content {
+  transform: translateZ(28px);
 }
 
 /* Pointing at the core: a streak of light runs around its border, with a soft glow. */
@@ -1275,7 +1298,7 @@ html.tt-motion .tt-core:is(:hover, :focus-within)::after {
 }
 
 @media (max-width: 1023px) {
-  .tt-core {
+  .tt-core-stage {
     order: -1;
   }
 }
@@ -1292,7 +1315,7 @@ html.tt-motion .tt-core:is(:hover, :focus-within)::after {
     grid-template-columns: 1fr 1fr;
   }
 
-  .tt-core {
+  .tt-core-stage {
     grid-column: 1 / -1;
     grid-row: 1;
   }

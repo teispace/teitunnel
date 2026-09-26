@@ -326,8 +326,10 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
         </svg>
       ) : null}
       <ul className="tt-pledges tt-pledges-left">{left.map((p, i) => card(p, "left", i))}</ul>
-      <div ref={coreRef} className="tt-core" data-reveal="scale">
-        {children}
+      <div className="tt-core-stage" data-reveal="scale">
+        <div ref={coreRef} className="tt-core" data-spotlight>
+          <div className="tt-core-content">{children}</div>
+        </div>
       </div>
       <ul className="tt-pledges tt-pledges-right">{right.map((p, i) => card(p, "right", i))}</ul>
     </div>

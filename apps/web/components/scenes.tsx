@@ -191,6 +191,9 @@ export function Scenes() {
         "--my",
         `${(((event.clientY - rect.top) / rect.height) * 100).toFixed(1)}%`,
       );
+      // Also as fractions (0–1), for tilting towards the pointer.
+      target.style.setProperty("--px", ((event.clientX - rect.left) / rect.width).toFixed(3));
+      target.style.setProperty("--py", ((event.clientY - rect.top) / rect.height).toFixed(3));
     };
 
     // Reduce Motion turned on while reading: everything to rest.
