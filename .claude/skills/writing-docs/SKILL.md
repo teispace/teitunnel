@@ -33,6 +33,7 @@ A page:
 ---
 title: Stripe webhooks on localhost
 description: One sentence that says what the reader gets, used for search and social cards.
+searchDescription: "70–160 characters for search results, when description is longer."
 ---
 
 Intro: what this page helps with, in two or three sentences.

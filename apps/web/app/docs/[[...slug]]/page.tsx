@@ -26,7 +26,7 @@ function describe(slugs: string[], title: string, description: string | undefine
   const path = `/docs/${slugs.map((s) => `${s}/`).join("")}`;
   return {
     path,
-    description: description ?? site.description,
+    description: description || site.description,
     image: ogImage(["docs", ...slugs]),
     // The index is "Introduction"; search results should say what it introduces.
     title: slugs.length === 0 ? "Teitunnel documentation" : title,
@@ -38,7 +38,11 @@ export default async function Page({ params }: Props) {
   const page = source.getPage(slug);
   if (!page) notFound();
   const MDX = page.data.body;
-  const about = describe(page.slugs, page.data.title, page.data.description);
+  const about = describe(
+    page.slugs,
+    page.data.title,
+    page.data.searchDescription ?? page.data.description,
+  );
   const dates = docDates(page.path);
   const trail = [{ name: "Docs", path: "/docs/" }];
   if (page.slugs.length > 0) trail.push({ name: page.data.title, path: about.path });
@@ -81,6 +85,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const page = source.getPage(slug);
   if (!page) notFound();
-  const about = describe(page.slugs, page.data.title, page.data.description);
+  const about = describe(
+    page.slugs,
+    page.data.title,
+    page.data.searchDescription ?? page.data.description,
+  );
   return pageMetadata({ ...about, type: "article", ...docDates(page.path) });
 }

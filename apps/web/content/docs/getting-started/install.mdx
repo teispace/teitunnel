@@ -1,6 +1,7 @@
 ---
 title: Install Teitunnel
 description: Download and install Teitunnel on macOS, Windows or Linux, with Homebrew, apt or dnf, or install the teitunnel command on a server or in Docker. Verify, update and uninstall.
+searchDescription: "Install Teitunnel on macOS, Windows or Linux, with Homebrew, apt, dnf or Docker, plus the teitunnel command. How to verify, update and uninstall."
 ---
 
 Teitunnel runs on **macOS 14 or later**, **Windows 10 and 11** and **Linux** (GNOME, KDE and
@@ -226,6 +227,22 @@ that folder, it shows the one command to run instead. **Not Now** is remembered 
 Either way, **Settings ▸ General ▸ Command line** installs or uninstalls it at any time,
 and says where it is. It updates with the app. Teitunnel never replaces or removes a
 `teitunnel` it didn't put there. See the [command line reference](/docs/reference/cli).
+
+### Tab completion
+
+`teitunnel completions <shell>` prints a completion script for `bash`, `zsh`, `fish`,
+`powershell` or `elvish`. It completes commands and flags, and also your own hostnames,
+tunnels, domains, shares and accounts, read from this computer without going online. Load
+it in every new shell:
+
+```sh
+source <(teitunnel completions zsh)                  # zsh, in ~/.zshrc
+eval "$(teitunnel completions bash)"                 # bash, in ~/.bashrc
+teitunnel completions fish > ~/.config/fish/completions/teitunnel.fish
+teitunnel completions powershell | Out-String | Invoke-Expression  # in $PROFILE
+```
+
+`--static` prints a script with commands and flags only, which never runs `teitunnel`.
 
 ## Verify a download
 
