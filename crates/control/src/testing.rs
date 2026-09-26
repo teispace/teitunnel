@@ -15,7 +15,7 @@ use crate::{
         AccountInfo, AgentApproval, AgentInfo, AppInfo, ApplyOutcome, ApplyParams, ApplyResult,
         ClientInfo, DoctorIssue, Event, LocalDomainInfo, LocalDomainsInfo, OAuthApproval,
         PauseShare, PlanInfo, PreviewParams, RoutesList, RoutesParams, RpcError, ShareInfo,
-        ShareKind, StartShare, Status, StopShare, View, code,
+        ShareKind, StartShare, Status, StopShare, TunnelInfo, View, code,
     },
 };
 
@@ -49,6 +49,8 @@ pub struct FakeHost {
     pub agent_answers: Mutex<VecDeque<bool>>,
     /// OAuth connection questions, in order (answered like agents' approvals).
     pub oauth_questions: Mutex<Vec<OAuthApproval>>,
+    /// The machine's tunnels `status` reports (none by default).
+    pub tunnels: Mutex<Vec<TunnelInfo>>,
     events: broadcast::Sender<Event>,
 }
 
@@ -68,6 +70,7 @@ impl FakeHost {
             agent_questions: Mutex::default(),
             agent_answers: Mutex::default(),
             oauth_questions: Mutex::default(),
+            tunnels: Mutex::default(),
             events,
         })
     }
@@ -121,7 +124,7 @@ impl Host for FakeHost {
                     id: "a1".into(),
                     name: "Personal".into(),
                 }],
-                tunnels: Vec::new(),
+                tunnels: lock(&self.tunnels).clone(),
                 shares: vec![share("qs-1")],
             })
         })

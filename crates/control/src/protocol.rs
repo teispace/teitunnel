@@ -317,6 +317,10 @@ pub struct TunnelInfo {
     /// `running`, `connecting`, `restarting`, `stopped`, … (see the app's connector
     /// states).
     pub state: String,
+    /// Where its running connector serves metrics and `/ready` (absent when it isn't
+    /// running, and from older apps).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metrics_port: Option<u16>,
 }
 
 /// The kinds of share.

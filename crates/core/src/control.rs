@@ -533,6 +533,7 @@ impl Host for CoreHost {
                     tunnels.push(TunnelInfo {
                         account_id: account.id.clone(),
                         state: state_name(self.parts.machine.state(&tunnel.tunnel_id).as_ref()),
+                        metrics_port: self.parts.machine.metrics_port(&tunnel.tunnel_id),
                         id: tunnel.tunnel_id,
                         name: tunnel.name,
                         is_default: tunnel.is_default,
@@ -826,6 +827,7 @@ impl Host for CoreHost {
                     name: t.name.clone(),
                     is_default: t.is_default,
                     state: state_name(t.connector.as_ref()),
+                    metrics_port: self.parts.machine.metrics_port(&t.id),
                 })
                 .collect();
             Ok(RoutesList {

@@ -174,6 +174,7 @@ pub(crate) fn setup(command: McpCommand) -> Result<ExitCode, String> {
 
 /// The app's connectors, probed (this process doesn't run them).
 struct Probe {
+    dir: std::path::PathBuf,
     engine: Arc<Engine>,
     accounts: teitunnel_core::accounts::Accounts,
 }
@@ -183,7 +184,6 @@ impl ConnectorSource for Probe {
 
     fn connectors<'a>(&'a self, account: Option<&'a str>) -> BoxFuture<'a, ProbedConnectors> {
         Box::pin(async move {
-            let mut connectors = ProbedConnectors::default();
             let accounts: Vec<String> = match account {
                 Some(account) => vec![account.to_owned()],
                 None => self
@@ -195,20 +195,7 @@ impl ConnectorSource for Probe {
                     .map(|a| a.id)
                     .collect(),
             };
-            for account in accounts {
-                for tunnel in self
-                    .engine
-                    .local()
-                    .tunnels(&account)
-                    .await
-                    .unwrap_or_default()
-                {
-                    connectors
-                        .probe(&tunnel.tunnel_id, tunnel.metrics_port)
-                        .await;
-                }
-            }
-            connectors
+            ProbedConnectors::of(&self.dir, self.engine.local(), &accounts).await
         })
     }
 
@@ -276,6 +263,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
     let settings = settings(app.dir(), mode, allow_secrets)?;
     let (machine, supervisor) = app.machine(true).await;
     let source = Probe {
+        dir: app.dir().to_owned(),
         engine: Arc::clone(&app.engine),
         accounts: app.accounts.clone(),
     };
