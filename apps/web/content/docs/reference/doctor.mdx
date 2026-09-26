@@ -89,14 +89,16 @@ bug reports.
 
 ## Private networks
 
-These appear once you [share a private network](/docs/guides/private-networks), and only
-you can change them, in the Cloudflare Zero Trust dashboard.
+These appear once you [share a private network](/docs/guides/private-networks) (a range or
+a hostname). Only you can fix them: in the Cloudflare Zero Trust dashboard, or for a
+hostname, in this machine's DNS.
 
 | Check | Level | What it means, and what to do |
 |---|---|---|
 | `network.excluded` | Warning | **WARP clients don't send a range to this machine.** The default device profile's Split Tunnels exclude it (the detail names the entry). Remove the entry, or narrow it so it no longer covers the range. |
 | `network.not_included` | Warning | **WARP clients don't send a range to this machine.** Split Tunnels are in include mode and don't list the range. Add it. |
-| `network.proxy_off` | Warning | **WARP clients can't reach private networks.** Gateway's proxy is off. Turn it on for TCP (and UDP, for services that use it) in the network settings. |
+| `network.proxy_off` | Warning | **WARP clients can't reach private networks.** Gateway's proxy is off. Turn it on for TCP (and UDP, for services that use it) in the network settings. The evidence lists the ranges and hostnames shared. |
+| `network.hostname_unresolved` | Warning | **A private hostname doesn't resolve on this machine.** The connector looks up [private hostnames](/docs/guides/private-networks#share-a-private-hostname) with this machine's DNS, so WARP clients can't reach the name until it resolves here. Add it to the hosts file or to your local DNS server. |
 
 ## Network and system
 

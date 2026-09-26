@@ -41,6 +41,9 @@ impl UserText for PlanError {
 ```
 
 - Errors implement `UserText`; their `Display` (English, for logs) comes from it.
+- A new `core.error.*` message also needs an entry in `apps/desktop/src/lib/error-help.ts`
+  saying how the app helps (`fix`, `link`, `input` or `retry`); `error-help.test.ts` fails
+  until it has one.
 - Technical values (hostnames, paths, codes) are arguments; `msg::raw` wraps text shown as
   it is.
 - The UI translates a `Text` with `translate()`. The core renders it itself only for native
