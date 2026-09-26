@@ -31,13 +31,14 @@ import { DoctorDemo, QuickShareDemo } from "@/components/demos";
 import { DownloadButton } from "@/components/download-button";
 import { Feature } from "@/components/feature";
 import { HeroSpace } from "@/components/hero-space";
+import { HowItWorks } from "@/components/how-it-works";
 import { Journey } from "@/components/journey";
 import { JsonLd } from "@/components/json-ld";
 import { ButtonLink, delay, Eyebrow, Section, Shot, Words } from "@/components/landing";
 import { ApprovalDemo, ExposureDemo, ReplayDemo, RequestStream } from "@/components/live-demos";
 import { NativeShowcase } from "@/components/native-showcase";
 import { PlanDemo } from "@/components/plan-demo";
-import { Manifesto, StepLine, ToolMarquee } from "@/components/scroll-sections";
+import { Manifesto, ToolMarquee } from "@/components/scroll-sections";
 import { SecurityCore } from "@/components/security-core";
 import { ShareLoop } from "@/components/share-loop";
 import { Terminal } from "@/components/terminal";
@@ -756,22 +757,7 @@ export default async function Home() {
 
       {/* How it works */}
       <Section id="how-it-works" eyebrow="How it works" title="Three steps, a few minutes.">
-        <StepLine
-          steps={[
-            {
-              title: "Install",
-              body: "Download the app for macOS, Windows or Linux. It fetches and verifies cloudflared for you.",
-            },
-            {
-              title: "Share or connect",
-              body: "Share a port right away with no account, or sign in to Cloudflare and grant only the permissions you need.",
-            },
-            {
-              title: "Review and apply",
-              body: "Add a route, read exactly what will change, and apply. Teitunnel checks the URL works when it's done.",
-            },
-          ]}
-        />
+        <HowItWorks />
       </Section>
 
       {/* Use cases */}

@@ -103,29 +103,3 @@ export function ToolMarquee({ tools }: { tools: ToolChip[] }) {
     </div>
   );
 }
-
-/** Three steps joined by a line that draws itself as they're scrolled into view. */
-export function StepLine({ steps }: { steps: { title: string; body: string }[] }) {
-  return (
-    <div data-scene="enter" data-end="0.55" className="tt-steps relative">
-      <span className="tt-steps-line" aria-hidden />
-      <ol className="grid gap-4 md:grid-cols-3">
-        {steps.map((step, index) => (
-          <li
-            key={step.title}
-            className="tt-step-card relative flex gap-4 rounded-2xl border border-fd-border bg-fd-background p-6"
-            style={vars({ "--i": index })}
-          >
-            <span className="tt-step-num flex size-8 shrink-0 items-center justify-center rounded-full border border-fd-border bg-fd-background font-mono text-sm">
-              {index + 1}
-            </span>
-            <div>
-              <h3 className="font-medium">{step.title}</h3>
-              <p className="mt-1 text-sm text-fd-muted-foreground">{step.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
