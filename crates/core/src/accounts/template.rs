@@ -1,4 +1,4 @@
-//! The pre-filled "Create API token" link (research/cloudflare.md).
+//! The pre-filled "Create API token" link.
 
 /// Permissions Teitunnel asks for: `(short key, type)`.
 ///
@@ -6,18 +6,17 @@
 /// unknown keys are dropped silently, so the UI also tells people to add
 /// "Cloudflare Tunnel: Edit" if it's missing, and capability probing catches it.
 /// `access` (Access: Apps and Policies) and `access_acct` (Access: Organizations,
-/// Identity Providers, and Groups) let routes require a login from the start (D-065).
+/// Identity Providers, and Groups) let routes require a login from the start.
 /// `analytics` (Zone ▸ Analytics ▸ Read) is what the zone-scoped GraphQL traffic
 /// datasets need; `account_analytics` (Account Analytics ▸ Read) covers the
-/// account-scoped ones (research/cloudflare-analytics.md).
+/// account-scoped ones.
 /// `workers_scripts` (account) and `workers_routes` (zone) publish Snapshots and give
-/// them a hostname (docs/research/cloudflare-snapshots.md).
+/// them a hostname.
 /// `zone_waf` (custom and rate limiting rules), `zone_transform_rules` (header rules;
 /// `transform_rules` is the account-level group) and `access_service_token` protect
-/// hostnames at the edge (M12-04). `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments
+/// hostnames at the edge. `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments
 /// and webhook inboxes. None of these is in Cloudflare's documented key table; all were
-/// checked against the dashboard's pre-filled form on 2026-09-25
-/// (docs/research/cloudflare-edge-rules.md).
+/// checked against the dashboard's pre-filled form on 2026-09-25.
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -76,7 +75,7 @@ mod tests {
         assert!(url.ends_with("&accountId=*&zoneId=all&name=Teitunnel"));
         let access = "%7B%22key%22%3A%22access%22%2C%22type%22%3A%22edit%22%7D";
         let access_acct = "%7B%22key%22%3A%22access_acct%22%2C%22type%22%3A%22edit%22%7D";
-        // Logins need both Access groups, asked for up front (D-065).
+        // Logins need both Access groups, asked for up front.
         assert!(url.contains(access) && url.contains(access_acct));
         // Analytics reads traffic per hostname (zone) and per account.
         assert!(url.contains("%7B%22key%22%3A%22analytics%22%2C%22type%22%3A%22read%22%7D"));

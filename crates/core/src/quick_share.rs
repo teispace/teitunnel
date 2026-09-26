@@ -34,7 +34,7 @@ const URL_TIMEOUT: Duration = Duration::from_secs(30);
 /// learning about a new connection).
 const CHECK_PATIENCE: Duration = Duration::from_secs(10);
 const CHECK_RETRY: Duration = Duration::from_secs(2);
-/// New trycloudflare.com names take ~3–4 s to reach public DNS (measured, D-037), and
+/// New trycloudflare.com names take ~3–4 s to reach public DNS (measured), and
 /// an early lookup is cached as NXDOMAIN for up to 30 minutes. So a share is only
 /// shown as live (and openable) this long after its hostname first appears.
 const DNS_PROPAGATION: Duration = Duration::from_secs(6);
@@ -924,8 +924,8 @@ impl QuickShares {
         })
     }
 
-    /// Polls until the share has a URL and a live connection (D-034), then allows for DNS
-    /// propagation before declaring it live (D-037). It never queries DNS itself: an
+    /// Polls until the share has a URL and a live connection, then allows for DNS
+    /// propagation before declaring it live. It never queries DNS itself: an
     /// early query would get the NXDOMAIN cached. Once live, the share is checked
     /// through Cloudflare's edge.
     async fn await_url(self, id: String, port: u16, generation: u64) {

@@ -1,4 +1,4 @@
-//! App updates through Tauri's updater plugin (M6-02, D-075). The policy (when to
+//! App updates through Tauri's updater plugin. The policy (when to
 //! check, what installs on quit) is `teitunnel_core::updates`; this adapts the plugin
 //! to it and tells the webview when the status changes.
 //!

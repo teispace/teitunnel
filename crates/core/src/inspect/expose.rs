@@ -1,6 +1,6 @@
 //! Presets for putting AI services online safely, enforced by the inspector:
 //!
-//! - **An MCP server** (M12-03): found with a Streamable HTTP `initialize` probe (or an
+//! - **An MCP server**: found with a Streamable HTTP `initialize` probe (or an
 //!   SSE `endpoint` event), shared on the person's own domain (Quick Tunnels don't carry
 //!   event streams), with stream keep-alive and a bearer token checked by Lens (what MCP
 //!   clients send), and client configurations ready to paste.

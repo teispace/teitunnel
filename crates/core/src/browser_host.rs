@@ -1,4 +1,4 @@
-//! The browser extension's link to the app (M12-07, D-133): Chrome, Edge, Brave and
+//! The browser extension's link to the app: Chrome, Edge, Brave and
 //! other Chromium browsers, and Firefox, start the bundled `teitunnel` command as a
 //! *native messaging host* when the extension asks, and exchange length-prefixed JSON
 //! with it over standard input and output. The host relays a few calls to the running

@@ -1,5 +1,6 @@
 //! A small parser for the Prometheus text format served at `/metrics`, and typed
-//! accessors for the metrics Teitunnel charts (see `docs/research/cloudflare.md`).
+//! accessors for the metrics Teitunnel charts
+//! (<https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/monitor-tunnels/metrics/>).
 
 use serde::Serialize;
 

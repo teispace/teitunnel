@@ -119,7 +119,7 @@ pub enum Change {
         record_id: String,
     },
     /// Reserve a hostname for this owner, so teammates sharing the account see it's
-    /// taken (M12-11). Reserving it again changes the end date.
+    /// taken. Reserving it again changes the end date.
     ReserveHostname {
         /// The hostname.
         hostname: String,

@@ -33,9 +33,9 @@ Every UI PR is reviewed against the **checklist at the bottom**.
 | Property | Value |
 |---|---|
 | Default size / min size | 1120 × 720 / 880 × 560 |
-| Title bar | `titleBarStyle: Overlay`, `hiddenTitle: true`, `trafficLightPosition {x:19, y:28}` (buttons at the same pixels as System Settings, D-025) |
+| Title bar | `titleBarStyle: Overlay`, `hiddenTitle: true`, `trafficLightPosition {x:19, y:28}` (buttons at the same pixels as System Settings) |
 | Title bar height (drag region) | 52 px unified toolbar area; the content toolbar lives in it |
-| Sidebar | 220 px (resizable 180–300), vibrancy `sidebar` material plus a dark-mode tint (D-024), collapsible (⌘⌥S) |
+| Sidebar | 220 px (resizable 180–300), vibrancy `sidebar` material plus a dark-mode tint, collapsible (⌘⌥S) |
 | Content | opaque `--surface-content` |
 | Inspector | 320 px (resizable 240–480), toggle ⌘⌥I. List pane min 200, detail min 180, so three panes fit the minimum window |
 | Split | Sidebar │ List │ Inspector (three-pane), like Mail/Finder |
@@ -92,12 +92,12 @@ Tabular numbers (`font-variant-numeric: tabular-nums`) for all metrics, ports an
 
 ## 4. Color
 
-Semantic tokens with light and dark values. The values below approximate AppKit semantic colours, and are tuned in M0 against native controls side by side.
+Semantic tokens with light and dark values. The values below approximate AppKit semantic colours, and are tuned against native controls side by side.
 
 | Token | Light | Dark |
 |---|---|---|
 | `--surface-window` | `#ECECEC` | `#1E1E1E` |
-| `--surface-sidebar` | transparent (vibrancy) | `rgb(0 0 0 / 0.42)` over vibrancy (D-024) |
+| `--surface-sidebar` | transparent (vibrancy) | `rgb(0 0 0 / 0.42)` over vibrancy |
 | `--surface-content` | `#FFFFFF` | `#212222` (measured, System Settings) |
 | `--surface-raised` (popover, sheet) | `#FFFFFF` | `#2C2C2C` |
 | `--surface-control` | `#FFFFFF` | `rgb(255 255 255 / 0.10)` |
@@ -118,9 +118,9 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 | `--status-error` | systemRed `#FF3B30` | `#FF453A` |
 | `--status-idle` | systemGray `#8E8E93` | `#98989D` |
 
-- **Accent:** WKWebView's CSS `AccentColor` is a static blue (verified M0). The shell reads `NSColor.controlAccentColor` and the UI sets `--accent` on start and on every window focus (D-023). Tokens use `light-dark()`.
+- **Accent:** WKWebView's CSS `AccentColor` is a static blue. The shell reads `NSColor.controlAccentColor` and the UI sets `--accent` on start and on every window focus. Tokens use `light-dark()`.
 - **Brand orange** (Cloudflare-adjacent) appears only in the app icon and the About window.
-- Increase contrast doubles separator/border alpha, raises `--text-secondary` to 0.7 and `--text-tertiary` to 0.55, darkens `--accent-fill` (accent 78% + black), and switches status colours to Apple's accessible variants, nudged for grey surfaces. In this mode every screen meets WCAG 2.2 AA contrast (`pnpm --filter @teitunnel/desktop a11y`, D-052).
+- Increase contrast doubles separator/border alpha, raises `--text-secondary` to 0.7 and `--text-tertiary` to 0.55, darkens `--accent-fill` (accent 78% + black), and switches status colours to Apple's accessible variants, nudged for grey surfaces. In this mode every screen meets WCAG 2.2 AA contrast (`pnpm --filter @teitunnel/desktop a11y`).
 - `motion` animations honour Reduce Motion through `<MotionConfig reducedMotion="user">` at the app root (its default ignores the setting).
 - Buttons and menu items use Title Case ("Try Again", "Stop Sharing"); headings, row labels, descriptions and tooltips use sentence case.
 
@@ -130,7 +130,7 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 
 - 4 px base grid. Common steps: 4, 8, 12, 16, 20, 24, 32.
 - Control heights: small 22, regular 28 (default), large 32 (onboarding only).
-- List row: 28 px single-line, 44 px two-line. Sidebar row: 32 px, 18 px icons, 10 px inset (D-025).
+- List row: 28 px single-line, 44 px two-line. Sidebar row: 32 px, 18 px icons, 10 px inset.
 - Radius: controls 6, list rows/selection 8, cards/sections 10, sheets/popovers 12, window (system).
 - Borders: 1 px hairlines (`0.5px` on 2× displays via `@media (min-resolution: 2dppx)`).
 - Shadows only on raised surfaces (popover, sheet, menu). Never on cards.
@@ -142,7 +142,7 @@ Semantic tokens with light and dark values. The values below approximate AppKit 
 - Lucide at **16 px, stroke 1.5** in toolbars and sidebar; 14 px inline.
 - Sidebar icons are **accent-tinted** in the active window (as in macOS 27), white on the selected row, and `--text-secondary` when the window is inactive. Toolbar and inline icons use `--text-secondary`.
 - Status is a `StatusDot`: an 8 px circle, plus a shape for colour-blind users (filled = healthy, ring = idle, triangle glyph = warning, cross = error).
-- App icon (M6): a native macOS icon grid, rounded square, subtle depth. No generic "tunnel" clip-art.
+- App icon: a native macOS icon grid, rounded square, subtle depth. No generic "tunnel" clip-art.
 
 ---
 
@@ -201,8 +201,9 @@ Every primitive and pattern is shown in the **in-app dev gallery** (`/dev/galler
 
 ## 10. Content & voice
 
-- Sentence case everywhere ("Add route", not "Add Route").
-- Buttons are verbs ("Add route", "Apply 4 changes", "Delete record"). Destructive buttons say exactly what they destroy.
+- Capitalization follows Apple's rule: **title case** for buttons, menu items, window, sheet and dialog titles, and tabs ("Add Route", "New Route", "Check Again"); **sentence case** for everything else: headings inside a view, labels, descriptions, empty states and messages ("No routes yet", "Origin settings").
+- A command that asks for more before it acts ends with an ellipsis ("Delete…", "Add Signing Secret…").
+- Buttons are verbs ("Add Route", "Apply 4 Changes", "Delete Record"). Destructive buttons say exactly what they destroy.
 - Explain outcomes, not internals: "app.xyz.com now points to localhost:3000", not "Ingress updated".
 - Errors: what happened, then why, then what to do. For example: "Couldn't create app.xyz.com. A record with this name already exists (A 203.0.113.4). Replace it or choose another name."
 - Numbers: "3 routes", "1 issue". Relative times ("2 min ago") with the absolute time in the tooltip.

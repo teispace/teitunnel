@@ -1,4 +1,4 @@
-//! Comments on shares and Snapshots (M12-06, maintainer decision Q6).
+//! Comments on shares and Snapshots.
 //!
 //! Reviewers pin comments to a spot on a page with a small overlay script
 //! ([`OVERLAY_JS`]), reply and resolve. Where they're kept depends on what's shared:

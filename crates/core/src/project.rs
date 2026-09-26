@@ -1,6 +1,6 @@
 //! Project files: `teitunnel.yml` in a repository declares the project's routes, shares,
 //! Snapshots and local domains, so a team shares one setup and `teitunnel up` (or
-//! opening the folder in the app) brings it up (M12-12).
+//! opening the folder in the app) brings it up.
 //!
 //! The file never holds a secret (it's checked into git): passwords are references to an
 //! environment variable or a keychain entry, and anything that looks like a credential

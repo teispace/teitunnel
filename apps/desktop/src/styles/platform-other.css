@@ -1,5 +1,5 @@
 /*
- * Windows and Linux chrome (D-063). There's no vibrancy there, so surfaces are solid,
+ * Windows and Linux chrome. There's no vibrancy there, so surfaces are solid,
  * the title bar is the system's own (`tauri.windows.conf.json`, `tauri.linux.conf.json`)
  * and the accent is the platform's default. The inactive-window greying is a macOS
  * convention; other platforms keep selections coloured.

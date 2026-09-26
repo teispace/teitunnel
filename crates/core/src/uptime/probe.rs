@@ -1,5 +1,5 @@
 //! One uptime check: a GET through Cloudflare's edge (never through DNS, like the
-//! verifier, D-037), timed, and classified the same way as the verifier's probe.
+//! verifier), timed, and classified the same way as the verifier's probe.
 
 use std::{
     net::SocketAddr,

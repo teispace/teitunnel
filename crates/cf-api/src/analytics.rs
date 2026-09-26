@@ -1,7 +1,7 @@
 //! Cloudflare's GraphQL Analytics API (`POST /graphql`): the edge's view of a hostname's
 //! traffic, from the zone-scoped `httpRequestsAdaptiveGroups` dataset.
 //!
-//! Facts this relies on are in `docs/research/cloudflare-analytics.md`: the dataset and
+//! Facts this relies on ([GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/)): the dataset and
 //! field names, the per-plan limits exposed by the `settings` node (`maxDuration`,
 //! `notOlderThan`, `maxPageSize`), the 300 queries per 5 minutes budget, up to 10 zones
 //! per query, and that errors arrive as `{"data": …, "errors": [{"message", "path"}]}`,

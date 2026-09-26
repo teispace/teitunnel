@@ -1,4 +1,4 @@
-//! Names shared by a team (M12-11): owners in DNS comments, leases, conflicts and
+//! Names shared by a team: owners in DNS comments, leases, conflicts and
 //! take-overs, end to end through the engine against the fake Cloudflare, plus the
 //! planner's cases on hand-made snapshots.
 

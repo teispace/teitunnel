@@ -1,7 +1,6 @@
 //! What runs in front of routes: Workers (scripts, versions, deployments), Worker
 //! routes, D1 databases, zone rulesets (edge rules) and Access service tokens, with the
-//! shapes and refusals `cf-api` expects (docs/research/cloudflare-workers-features.md,
-//! docs/research/cloudflare-edge-rules.md).
+//! shapes and refusals `cf-api` expects.
 
 use std::collections::BTreeMap;
 

@@ -1,7 +1,7 @@
 # Teitunnel browser extension
 
 Share the local page you're on at a public URL, and see or stop your shares, from Chrome,
-Edge, Brave, Arc, Vivaldi, Chromium or Firefox, through the Teitunnel app (D-133).
+Edge, Brave, Arc, Vivaldi, Chromium or Firefox, through the Teitunnel app.
 
 - `pnpm --filter @teitunnel/browser-extension build`: `dist/chrome` and `dist/firefox`.
 - `pnpm --filter @teitunnel/browser-extension test` / `typecheck`.
@@ -14,4 +14,4 @@ manifest's `key`, which the app's host manifest allows.
 
 The extension talks only to the `teitunnel` command the app registers as its native messaging
 host (`com.teispace.teitunnel`); see `crates/core/src/browser_host.rs`. Publishing:
-`docs/RELEASING.md`, step 9.
+`docs/RELEASING.md`, "Browser extension stores".

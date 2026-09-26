@@ -1,4 +1,4 @@
-//! Webhook inbox delivery (M12-12): webhooks the inbox Worker kept while this computer
+//! Webhook inbox delivery: webhooks the inbox Worker kept while this computer
 //! was off (`engine::front`, `inbox-worker.js`) are read from the account's D1 database
 //! and delivered in order to the route's local service once it's back.
 //!

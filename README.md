@@ -1,84 +1,114 @@
+<div align="center">
+
+<img src="apps/web/public/icon.png" alt="" width="96" height="96">
+
 # Teitunnel
 
-**A native desktop app for Cloudflare Tunnel.** Put any local app on your own domain in under a minute, and keep it clean, healthy and under control.
+**Share, publish and protect your local work, with Cloudflare Tunnel.**
 
-> **Status: developer preview.** Quick Share, routes on your own domains, the Doctor and always-on connectors work on macOS; signed releases come with v1.0. See the [roadmap](docs/ROADMAP.md) and [current status](docs/STATUS.md).
+A free, open-source desktop app and command line for Cloudflare Tunnel on macOS, Windows and Linux.
 
-<p align="center">
-  <img src="docs/screenshots/M5/routes-dark.png" alt="Teitunnel's Routes view in dark mode: routes grouped by domain, with status" width="720">
-</p>
+[![CI](https://github.com/teispace/teitunnel/actions/workflows/ci.yml/badge.svg)](https://github.com/teispace/teitunnel/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/teispace/teitunnel?label=release)](https://github.com/teispace/teitunnel/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/teispace/teitunnel)](LICENSE)
 
-## What it does
+[Website](https://teitunnel.teispace.com) ·
+[Documentation](https://teitunnel.teispace.com/docs/) ·
+[Download](https://teitunnel.teispace.com/download/) ·
+[Discussions](https://github.com/teispace/teitunnel/discussions) ·
+[Changelog](CHANGELOG.md)
 
-- **Quick Share:** expose `localhost:3000` at a public `trycloudflare.com` URL in one click, with a QR code and no account needed.
-- **Routes across all your domains:** `app.xyz.com → localhost:3000`, `api.yx.com → localhost:5000`, served from one tunnel on your machine. Teitunnel creates the tunnel, configuration and DNS records for you.
-- **See before you change:** every change is shown as a plan before it touches your Cloudflare account, and can be undone.
-- **No mess:** DNS records Teitunnel creates are tracked and removed when you remove a route. Orphaned records from old tunnels are found and flagged.
-- **Doctor:** detects closed origin ports, DNS conflicts, pending nameservers, blocked QUIC, crash loops, config drift and more, with one-click fixes.
-- **Knows your machine:** detects running dev servers and Docker containers and suggests them as origins. Imports existing `cloudflared` setups.
-- **Always-on:** keep tunnels running after quitting the app or rebooting, managed by macOS launchd.
-- **Live insight:** request rates, errors, latency, edge locations and structured logs.
-- **Native:** built to feel like it shipped with macOS. Keyboard-first, menu bar extra, light and dark.
+</div>
 
-<p align="center">
-  <img src="docs/screenshots/M5/route-review-dark.png" alt="Reviewing a plan before adding a route" width="360">
-  <img src="docs/screenshots/M5/doctor-light.png" alt="The Doctor listing problems with fixes" width="360">
-</p>
-- **Private and secure:** credentials live in your OS keychain. No telemetry and no Teitunnel servers.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/screens/overview-dark.webp">
+  <img src="apps/web/public/screens/overview-light.webp" alt="Teitunnel's Overview: traffic, errors and uptime for each route, with the latest requests">
+</picture>
+
+## Why Teitunnel
+
+Cloudflare Tunnel puts a service on the internet without opening a port, but using it means
+juggling tunnels, connectors, ingress rules, DNS records and access policies across a CLI,
+YAML files and a dashboard. Teitunnel turns that into one step: say which local service
+should answer at which address, review the plan, and it's live. It runs on your own
+Cloudflare account, with no Teitunnel servers in between and no telemetry.
+
+## Features
+
+- **Share in one click.** A random `trycloudflare.com` address with no account, or a
+  stable name on your own domain, with a QR code, protection and an expiry.
+- **Routes on your domains.** Any number of hostnames on one tunnel per computer. Every
+  change is shown as a plan first, applied with rollback, and can be undone.
+- **Nothing left behind.** Teitunnel only deletes what it created, finds DNS records that
+  point at deleted tunnels, and cleans up everything attached to a hostname with it.
+- **The Doctor.** Finds closed ports, DNS conflicts, blocked QUIC, crash loops and dev
+  servers that refuse your hostname, and fixes them in place.
+- **Inspector.** Every request and WebSocket message with timings, replay and edit, mocks,
+  breakpoints and signature checks for webhooks, all on your computer.
+- **Publish.** Static Snapshots, an offline page and a webhook inbox on your own Cloudflare
+  account, so things keep working while your computer is off.
+- **Protect.** Logins with Cloudflare Access, service tokens, and bot, AI-crawler and rate
+  limit rules for one hostname.
+- **Local HTTPS domains.** `https://shop.test` or `app.localhost` with a certificate your
+  browsers trust.
+- **For AI agents.** An MCP server for Claude Code, Cursor, VS Code and more, where every
+  change waits for your approval and secrets never reach the agent.
+- **Everywhere you work.** A menu bar app, the `teitunnel` command for servers and CI, a
+  Docker image, `teitunnel.yml` project files, and extensions for VS Code, JetBrains IDEs,
+  Raycast and browsers.
 
 ## Install
 
-Get the app for macOS, Windows or Linux from the [download page](https://teitunnel.teispace.com/download/), or:
-
-```sh
-brew install --cask teispace/tap/teitunnel         # macOS app (signed and notarized)
-brew install teispace/tap/teitunnel-cli            # the CLI only, macOS or Linux
-docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel
-```
-
-Every file is also on [GitHub Releases](https://github.com/teispace/teitunnel/releases), with checksums and build provenance ([verify a download](https://teitunnel.teispace.com/docs/reference/verify/)).
-
-Teitunnel uses [cloudflared](https://github.com/cloudflare/cloudflared). If you don't have it, Teitunnel installs Cloudflare's official release for you (verified against the published checksum and Cloudflare's code signature).
-
-## Platforms
-
-macOS first (v1.0), then Windows and Linux.
-
-## Built with
-
-Tauri 2 · Rust · React · TypeScript · Tailwind CSS. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-## Development
-
-Requirements: macOS 14+ (Linux and Windows build too), Rust (pinned in `rust-toolchain.toml`, installed automatically by rustup), Node 26+ and pnpm 12.
-
-```sh
-git clone https://github.com/teispace/teitunnel && cd teitunnel
-pnpm install      # JS deps + git hooks
-pnpm dev          # run the app with hot reload
-```
-
-| Command | What it does |
+| Platform | |
 |---|---|
-| `pnpm dev` | Run the desktop app in development mode |
-| `pnpm build` | Build the packaged app (`target/release/bundle/`) |
-| `pnpm check` | Biome, TypeScript and Clippy |
-| `pnpm test` | Vitest and `cargo nextest` |
-| `pnpm fmt` | Format everything |
-| `pnpm bindings` | Regenerate the typed IPC bindings after changing Rust commands |
+| **macOS** 14 or later | [Download](https://teitunnel.teispace.com/download/) the signed, notarized app, or `brew install --cask teispace/tap/teitunnel` |
+| **Windows** 10 and 11 | [Download](https://teitunnel.teispace.com/download/) the installer (x64 or Arm64) |
+| **Linux** | `.deb`, `.rpm` and AppImage from the [download page](https://teitunnel.teispace.com/download/), or the [apt and dnf repositories](https://teitunnel.teispace.com/docs/getting-started/install/) |
+| **Servers and CI** | `brew install teispace/tap/teitunnel-cli`, the [release archives](https://github.com/teispace/teitunnel/releases/latest), or `docker run teispace/teitunnel` |
 
-Install `cargo-nextest` once with `cargo install cargo-nextest --locked`. The in-app component gallery is under **Developer → Gallery** in development builds.
+Every release is on [GitHub Releases](https://github.com/teispace/teitunnel/releases) with
+checksums and build provenance ([how to verify a download](https://teitunnel.teispace.com/docs/reference/verify/)).
+Teitunnel installs Cloudflare's official `cloudflared` for you when it isn't there, after
+checking its checksum and signature.
+
+## Quick start
+
+```sh
+teitunnel share 3000                          # a public URL for localhost:3000, no account needed
+teitunnel setup                               # connect a Cloudflare account (token kept in the keychain)
+teitunnel share 3000 --on demo.example.com    # a share on your own domain
+teitunnel route add app.example.com 3000      # a route that stays
+```
+
+Or open the app and choose **Quick Share**. The [getting started guide](https://teitunnel.teispace.com/docs/getting-started/quick-share/)
+walks through both.
+
+## Documentation
+
+- [User documentation](https://teitunnel.teispace.com/docs/): guides, tutorials, the CLI
+  reference and troubleshooting.
+- [Contributor documentation](docs/): architecture, design system, conventions and the
+  security model.
+
+## Community
+
+- **Questions and ideas:** [GitHub Discussions](https://github.com/teispace/teitunnel/discussions).
+- **Bugs and feature requests:** [issues](https://github.com/teispace/teitunnel/issues/new/choose).
+- **Security reports:** privately, as described in [SECURITY.md](SECURITY.md).
+- **What's planned:** [milestones](https://github.com/teispace/teitunnel/milestones).
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Contributing
 
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/README.md](docs/README.md).
-
-## Security
-
-Please report vulnerabilities privately. See [SECURITY.md](SECURITY.md).
+Contributions of every size are welcome, from typo fixes to new features. Read the
+[contributing guide](CONTRIBUTING.md) to set up the project, and look for
+[good first issues](https://github.com/teispace/teitunnel/labels/good%20first%20issue)
+to start with.
 
 ## License
 
-[MIT](LICENSE) © teispace
+Teitunnel is released under the [MIT License](LICENSE).
 
-Teitunnel is an independent open-source project and is not affiliated with or endorsed by Cloudflare, Inc. "Cloudflare" is a trademark of Cloudflare, Inc.
+Teitunnel is an independent open-source project and is not affiliated with or endorsed by
+Cloudflare, Inc. "Cloudflare" is a trademark of Cloudflare, Inc.

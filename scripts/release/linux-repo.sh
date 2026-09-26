@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Teitunnel's apt and dnf repositories (D-086) from release packages:
+# Builds Teitunnel's apt and dnf repositories from release packages:
 #
 #   scripts/release/linux-repo.sh <packages-dir> <out-dir> <base-url>
 #

@@ -58,7 +58,7 @@ use crate::context::App;
 #[command(
     name = "teitunnel",
     // Help and errors say `teitunnel` whatever the file is called (inside the macOS and
-    // Windows packages it's teitunnel-cli, D-091).
+    // Windows packages it's teitunnel-cli).
     bin_name = "teitunnel",
     version,
     about = "Manage Teitunnel routes from the terminal.",

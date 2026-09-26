@@ -5,7 +5,7 @@
 //! optional: without it, ⌘C/⌘V/⌘A don't work in text fields on macOS.
 
 use tauri::{AppHandle, Manager, Runtime, menu::MenuEvent};
-// Building the menu bar is macOS-only (D-063); handling its items isn't (the tray uses
+// Building the menu bar is macOS-only; handling its items isn't (the tray uses
 // the same event path).
 #[cfg(target_os = "macos")]
 use tauri::menu::{
@@ -170,7 +170,7 @@ fn as_refs<R: Runtime>(items: &[MenuItem<R>]) -> Vec<&dyn IsMenuItem<R>> {
         .collect()
 }
 
-/// Builds the application menu bar (macOS only, D-063).
+/// Builds the application menu bar (macOS only).
 #[cfg(target_os = "macos")]
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let info = app.package_info();

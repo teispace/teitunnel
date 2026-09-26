@@ -1,4 +1,4 @@
-//! Scheduled shares (M12-06): a route or a share on your domain is on during set hours
+//! Scheduled shares: a route or a share on your domain is on during set hours
 //! on set days and paused (Lens's "paused" page, [`crate::pause`]) the rest of the time.
 //!
 //! Times are wall-clock times in a time zone (this computer's unless one is named), so a

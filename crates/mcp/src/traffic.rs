@@ -1,6 +1,6 @@
 //! Captured HTTP traffic, as the traffic tools need it.
 //!
-//! The inspector (`crates/lens`, M12-02) captures each request/response exchange of a
+//! The inspector (`crates/lens`) captures each request/response exchange of a
 //! share or route. This module is the seam between it and the MCP server:
 //! [`TrafficSource`] is what the `traffic_*` and `wait_for_request` tools call, and
 //! [`NoTraffic`] stands in until the inspector is wired up (every call says the

@@ -1,5 +1,5 @@
 //! `teitunnel up` and `always-on`: running this machine's tunnels without the app,
-//! for servers and containers (M10-04, D-069).
+//! for servers and containers.
 
 use std::{process::ExitCode, time::Duration};
 

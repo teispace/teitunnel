@@ -1,4 +1,4 @@
-//! Load balancing a route across tunnels (M10-07, D-071): Cloudflare Load Balancing (a
+//! Load balancing a route across tunnels: Cloudflare Load Balancing (a
 //! paid add-on) with one pool whose endpoints are the tunnels that route the hostname
 //! (`<tunnel id>.cfargotunnel.com`, the hostname as Host header), a health monitor, and
 //! a load balancer named after the hostname, which takes precedence over its DNS record.

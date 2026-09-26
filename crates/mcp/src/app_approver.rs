@@ -1,4 +1,4 @@
-//! Approvals in the Teitunnel app (M12-03): while the app runs, `teitunnel mcp` asks the
+//! Approvals in the Teitunnel app: while the app runs, `teitunnel mcp` asks the
 //! person there, in a native dialog showing the plan, over the control connection
 //! (`crates/control`, `agent.approve`), and the app lists the agent in Settings ▸ AI
 //! Tools while it's connected (`agent.register`). Without the app, [`AppApprover`]

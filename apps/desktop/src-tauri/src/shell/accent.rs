@@ -1,7 +1,7 @@
 //! The system accent colour.
 //!
 //! WKWebView resolves the CSS `AccentColor` keyword to a fixed blue rather than the user's
-//! accent (verified on macOS 27, D-023), so the shell reads it from AppKit instead.
+//! accent (verified on macOS 27), so the shell reads it from AppKit instead.
 
 /// The accent colour as `#rrggbb`, or `None` where the platform has no accent to follow.
 #[cfg(target_os = "macos")]

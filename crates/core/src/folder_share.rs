@@ -1,4 +1,4 @@
-//! Sharing a folder (M12-06): Lens serves it as static files (`crates/lens`'s folder
+//! Sharing a folder: Lens serves it as static files (`crates/lens`'s folder
 //! upstream) behind a Quick Share or a share on your domain. Paths can't leave the
 //! folder (no `..`, links resolved and checked), and what Snapshots never publish is
 //! never served either: dotfiles, `.env*`, keys, `.git`, `node_modules`

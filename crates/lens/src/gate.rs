@@ -1,4 +1,4 @@
-//! Protection enforced by Lens before a request is forwarded (M12-04): IP rules,
+//! Protection enforced by Lens before a request is forwarded: IP rules,
 //! user-agent blocking, and sign-in by password page, secret link or HTTP basic auth,
 //! with a bypass list for paths such as webhooks.
 //!

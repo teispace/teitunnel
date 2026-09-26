@@ -1,8 +1,8 @@
 # Releasing Teitunnel
 
-How releases work (D-074) and the one-time setup they need. The workflow is
-`.github/workflows/release.yml`; the website's download pages follow the latest release
-(D-076).
+How a release is made and published. This is for maintainers; contributors only need to
+use [Conventional Commits](https://www.conventionalcommits.org/), which decide the next
+version and the changelog. The workflow is `.github/workflows/release.yml`.
 
 ## Day to day
 
@@ -28,12 +28,11 @@ How releases work (D-074) and the one-time setup they need. The workflow is
 keeps it as a workflow artifact, without releasing. Pull requests that change the release
 setup get an unsigned dry run automatically.
 
-The first release, **0.1.0**, was published on 2026-09-24. From then on release-please picks
-the next version from the commits since the last release: a `fix:` makes 0.1.1, a `feat:` makes
-0.2.0, and a breaking change also makes 0.2.0 while the version is below 1.0
+release-please picks the next version from the commits since the last release: before 1.0,
+a `fix:` bumps the patch version, and a `feat:` or a breaking change bumps the minor version
 (`bump-minor-pre-major`). The workspace crates' versions in `Cargo.lock` are the packages
-without a `source` (`$.package[?(!@.source)].version`). To force a version, set `release-as` for the package in
-`release-please-config.json` and remove it again after that release.
+without a `source` (`$.package[?(!@.source)].version`). To force a version, set `release-as`
+for the package in `release-please-config.json` and remove it again after that release.
 
 Commits that only touch `apps/web/` or `docs/` never cause a release (`exclude-paths`): the
 website deploys on its own when it changes, and an app release with no app changes would only
@@ -46,132 +45,38 @@ send users an update that does nothing.
 | [Download page](https://teitunnel.teispace.com/download/) and GitHub Releases | Rebuilt by the release workflow. |
 | Docker `teispace/teitunnel` on Docker Hub and `ghcr.io/teispace/teitunnel` (`linux/amd64`, `linux/arm64`) | `image.yml`, started after publishing (Docker Hub gets a copy of the ghcr index, same digest, with `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` from the `release` environment; the overview is `docker/README.md`, pasted into Docker Hub by hand when it changes): built from the release's own `teitunnel` once its checksums and provenance check out, tagged `x.y.z`, `x.y` and `latest`, with an SBOM and its own provenance. Run it by hand (tag `vx.y.z`) to republish. |
 | Homebrew [`teispace/homebrew-tap`](https://github.com/teispace/homebrew-tap): cask `teitunnel`, formula `teitunnel` | The tap's `teitunnel.yml` checks every three hours, takes the checksums from the release's `SHA256SUMS.txt` after verifying its provenance, installs and tests on macOS and Linux, then pushes. No secret needed. GitHub pauses scheduled workflows in a repository with no commits for 60 days: if that happens, re-enable it under the tap's Actions tab (a release commit keeps it alive). The tap is shared by Teispace apps: each app has its own `scripts/<app>.mjs` and `.github/workflows/<app>.yml`. |
-| apt and dnf repositories at `teitunnel.teispace.com/linux/` | Rebuilt with the website (`docs.yml`, which the release workflow runs after publishing): the two latest releases' `.deb` and `.rpm`, checked against checksums and provenance, repository metadata and RPMs signed with the key in `LINUX_REPO_GPG_KEY` (`scripts/release/linux-repo.sh`, D-086). The public key is `apps/web/public/linux/teitunnel.asc`. |
-| winget `Teispace.Teitunnel` | The first version is submitted by hand (step 7). After it's accepted, the release workflow's `winget` job submits each new version with Komac, using `WINGET_TOKEN`. |
+| apt and dnf repositories at `teitunnel.teispace.com/linux/` | Rebuilt with the website (`docs.yml`, which the release workflow runs after publishing): the two latest releases' `.deb` and `.rpm`, checked against checksums and provenance, repository metadata and RPMs signed with the key in `LINUX_REPO_GPG_KEY` (`scripts/release/linux-repo.sh`). The public key is `apps/web/public/linux/teitunnel.asc`. |
+| winget `Teispace.Teitunnel` | The first version is submitted by hand (see [winget](#winget)). After it's accepted, the release workflow's `winget` job submits each new version with Komac, using `WINGET_TOKEN`. |
 
-## Setup status
+## Secrets and variables
 
-| Step | State |
-|---|---|
-| `release` environment (deploys from `main` and `v*` tags only) | Done 2026-09-23 |
-| Updater key secrets (`TAURI_SIGNING_PRIVATE_KEY`, `…_PASSWORD`) | Done 2026-09-23; key, password and public key backed up by the maintainer. |
-| GitHub Pages (Actions, domain `teitunnel.teispace.com`), `DEPLOY_DOCS=true`, Enforce HTTPS | Done 2026-09-23 (the certificate came after removing and re-adding the custom domain; GitHub renews it). |
-| Cloudflare DNS `teitunnel` CNAME → `teispace.github.io` (DNS only) | Done 2026-09-23 |
-| Org-verified Pages domain `teispace.com` (TXT `_github-pages-challenge-teispace`) | Done 2026-09-23 (blocks other accounts' Pages from claiming it) |
-| Apple Developer ID certificate + notarization key | Created 2026-09-23: Developer ID Application (G2), valid to 2031-09-17; API key F3NQ9BSCDM (Developer role). Backed up by the maintainer (password manager); no copies on disk. Secrets stored. |
-| Channels: ghcr.io image, Homebrew tap | Done 2026-09-24 (the image package's visibility must be **Public** in the organization's Packages settings once, after the first push) |
-| winget | First submission: step 7; then `WINGET_TOKEN` |
-| Linux repository key | Step 8 |
-| SignPath Foundation for Windows | Declined 2026-09-24: not enough reputation yet. Reapply once Teitunnel is better known (step 6). Windows builds are unsigned. |
+Release secrets live in the `release` environment, which deploys only from `main` and `v*`
+tags, never in the repository's own secrets.
 
-## One-time setup (maintainer)
+| Name | Kind | Used for |
+|---|---|---|
+| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` | secret | Signing the macOS app with a Developer ID Application certificate |
+| `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_P8` | secret | Notarizing with an App Store Connect API key |
+| `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | Signing updates; the public key is built into the app |
+| `LINUX_REPO_GPG_KEY` | secret | Signing the apt and dnf repositories |
+| `DOCKERHUB_TOKEN` | secret | Copying the image to Docker Hub |
+| `WINGET_TOKEN` | secret | Submitting new versions to winget (optional) |
+| `DOCKERHUB_USERNAME` | variable | The Docker Hub account |
+| `DEPLOY_DOCS` | variable | `true` deploys the website from `main` |
 
-### 1. The `release` environment
+Without a secret, the step that needs it is skipped with a warning, or the build stays
+unsigned in a dry run.
 
-Settings ▸ Environments ▸ **New environment** `release`:
-- **Deployment branches and tags:** selected branches and tags: `main` and `v*`. This keeps
-  the secrets away from other branches.
-- Optionally **Required reviewers**: you, to approve every release run.
+Windows builds aren't code-signed yet, so SmartScreen warns on first launch.
 
-All secrets below go into this environment, not the repository.
+## winget
 
-### 2. Updater key (done on the maintainer's Mac)
-
-The keypair was created 2026-09-23 and is kept in the maintainer's password manager (the public key is in
-`apps/desktop/src-tauri/tauri.conf.json`).
-
-```sh
-gh secret set TAURI_SIGNING_PRIVATE_KEY --env release < ~/.tauri/teitunnel/updater.key
-gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --env release < ~/.tauri/teitunnel/updater.key.password
-```
-
-Then **back up both files** in your password manager. If the key is lost, installed copies
-can never update again (a new key needs a manual reinstall).
-
-### 3. Apple: Developer ID certificate
-
-Only the **Account Holder** of the Teispace team can create it.
-
-1. Keychain Access ▸ Certificate Assistant ▸ *Request a Certificate From a Certificate
-   Authority…*, saved to disk.
-2. developer.apple.com ▸ Certificates ▸ **+** ▸ **Developer ID Application** (G2 Sub-CA),
-   upload the request, download the certificate and open it (it joins your keychain).
-3. In Keychain Access, find *Developer ID Application: Teispace (TEAMID)*, expand it, select
-   the certificate **and** its private key, *Export 2 items…* as `.p12` with a strong password.
-4. Store it:
-
-```sh
-base64 -i DeveloperID.p12 | tr -d '\n' | gh secret set APPLE_CERTIFICATE --env release
-gh secret set APPLE_CERTIFICATE_PASSWORD --env release        # the .p12 password
-gh secret set APPLE_SIGNING_IDENTITY --env release --body "Developer ID Application: Teispace (TEAMID)"
-```
-
-Delete the `.p12` afterwards (keep it only in your password manager).
-
-### 4. Apple: notarization key
-
-App Store Connect ▸ Users and Access ▸ Integrations ▸ **App Store Connect API** ▸ Team Keys ▸
-**+**, access **Developer**. Download the `.p8` (once only) and note the Key ID and Issuer ID.
-
-```sh
-gh secret set APPLE_API_KEY --env release --body "<Key ID>"
-gh secret set APPLE_API_ISSUER --env release --body "<Issuer ID>"
-gh secret set APPLE_API_KEY_P8 --env release < AuthKey_<KeyID>.p8
-```
-
-**Slow notarization.** A release submits three things to Apple: the app (by Tauri), the DMG
-and the CLI. A new team's first submissions go through a deeper check that can take hours;
-later ones take minutes. The macOS job waits up to 3 hours per file and fails with Apple's log
-if one is rejected (`timeout-minutes: 300` on the job). To see Apple's side, with the key
-from the password manager:
-
-```sh
-xcrun notarytool history --key AuthKey_<KeyID>.p8 --key-id <Key ID> --issuer <Issuer ID>
-xcrun notarytool log <submission id> --key AuthKey_<KeyID>.p8 --key-id <Key ID> --issuer <Issuer ID>
-```
-
-### 5. Website
-
-- Settings ▸ Pages ▸ Source: **GitHub Actions**; custom domain `teitunnel.teispace.com`,
-  **Enforce HTTPS** once the certificate is issued.
-- Settings ▸ Variables ▸ `DEPLOY_DOCS` = `true`.
-- Cloudflare DNS for `teispace.com`: `CNAME teitunnel → teispace.github.io`, **DNS only**
-  (grey cloud) so GitHub can issue the certificate.
-
-### 6. Windows signing (reapply later)
-
-The first application was declined on 2026-09-24 for lack of popularity, and the site's
-code signing policy page and signing notes were removed (D-085). To reapply, restore
-`apps/web/app/(home)/code-signing/` and its links from git history (commit `c513c0c`),
-then follow the checklist below.
-
-The application (https://signpath.org/apply) needs a person: it creates a SignPath account in
-the applicant's name, has a CAPTCHA and asks to accept SignPath Foundation's code of conduct.
-What SignPath checks (https://signpath.org/terms), and where Teitunnel meets it:
-
-- OSI license, no proprietary code, released, documented: MIT, v0.1.0, the website and docs.
-- "Code signing policy" on the home and download pages, with SignPath's attribution line,
-  team roles with links, and the privacy statement: `/code-signing/` (footer and download page).
-- Uninstall instructions: docs, Install ▸ Uninstall.
-- MFA for every team member on GitHub and SignPath; turn on **Require two-factor
-  authentication** in the organization's Authentication security settings.
-- Reviews for outside changes: the `main` ruleset (D-082).
-- Signed artifacts built on CI from the repository, each release approved by hand.
-
-SignPath grants certificates only to projects with some verifiable reputation (downloads,
-stars, coverage); a very new project may be asked to come back later. When accepted: connect
-the repository in SignPath, add the signing step where `release.yml` marks it (before the
-updater signatures, so updates carry the signed installer), set product name and version
-restrictions in the artifact configuration, and change the Windows line on the code signing
-policy page from pending to signed.
-
-### 7. winget
 
 The first version of `Teispace.Teitunnel` is a pull request to
 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) with the three manifests
 (version, installer, `en-US` locale; the installer is per-user NSIS, `ProductCode`
 `Teitunnel`). Microsoft's bots validate it and a moderator merges it, usually within a few
-days. Unsigned installers are accepted; SmartScreen still warns until SignPath signing.
+days. Unsigned installers are accepted; SmartScreen still warns until the installers are signed.
 
 After it's merged, for automatic updates: create a **classic** personal access token with
 only the `public_repo` scope (Komac forks winget-pkgs into that account and opens the pull
@@ -183,7 +88,9 @@ gh secret set WINGET_TOKEN --env release
 
 Without the secret the release workflow skips winget with a warning.
 
-### 8. Linux repository key
+
+## Linux repository key
+
 
 Once, from the repository root (needs `gpg` and `gh`):
 
@@ -198,7 +105,9 @@ in the `release` environment, writes the public key to `apps/web/public/linux/te
 password manager and delete it. If the key is lost, publish a new public key and every user
 has to fetch it again; if it leaks, do the same at once.
 
-### 9. Browser extension stores
+
+## Browser extension stores
+
 
 `integrations/browser` builds with `pnpm --filter @teitunnel/browser-extension build` into
 `dist/chrome` and `dist/firefox`; zip each folder's contents.

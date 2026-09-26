@@ -3,9 +3,9 @@
 These apply to humans and agents alike. CI enforces what it can. Review enforces the rest.
 
 ## General
-- **Small, focused changes.** One task ID (e.g. `M1-04`) per PR where practical.
+- **Small, focused changes.** One issue per pull request where practical.
 - **DRY with judgement:** extract on the third repetition, or immediately if the logic is security- or correctness-critical.
-- **No dead code, commented-out code, or speculative abstractions.** Build for the current milestone, and leave room for the next via clean boundaries, not stubs.
+- **No dead code, commented-out code, or speculative abstractions.** Build what's needed now, and leave room for what's next through clean boundaries, not stubs.
 - **Every behaviour change ships with tests** (see Testing) and **doc updates** (see Docs).
 
 ## Rust
@@ -28,19 +28,19 @@ These apply to humans and agents alike. CI enforces what it can. Review enforces
 - Filenames: `kebab-case.tsx`. Components: `PascalCase`. Hooks: `useThing`. One component per file (tiny private helpers are allowed).
 - ~200–250 lines per file as a guideline. Split when a component gets a second responsibility.
 - **Data:** only through `lib/ipc` + TanStack Query hooks in `features/<f>/queries.ts`. Never call `invoke` directly from components.
-- **State:** server state in Query; UI state in Zustand/URL; form state in react-hook-form. Don't mirror server data into Zustand.
+- **State:** server state in Query; UI state in Zustand/URL; form state in the component, validated by pure functions in the feature's `model.ts`. Don't mirror server data into Zustand.
 - **Styling:** Tailwind utilities mapped to semantic tokens (`bg-surface-content`, `text-secondary`). No raw hex, arbitrary colours, or `style={{}}` for static values. `cn()` for conditional classes; `cva` for variants.
 - **Accessibility:** Radix primitives for interactive widgets. `aria-label` on icon-only controls.
-- **Text:** every user-visible string (labels, `aria-label`s, placeholders, toasts) comes from `t("area.key")` with the English text in `locales/en.json` (D-061). Placeholders are `{name}`; counts use `_one`/`_other` keys and `{count}`. Module-level label maps hold `MessageKey`s and call `t()` at render, since the language loads before the first render, not at import. Write whole sentences as one message; never concatenate translated fragments.
-- **Platform wording (D-063):** a message that names a macOS thing (this Mac, Finder, keychain, System Settings, the menu bar, ⌘, Homebrew) needs `key@windows` and `key@linux` wordings; the catalog test enforces it.
-- **Text from Rust (D-062):** never build a sentence for the user in Rust. Add it to `locales/en.json` under `core`, create it with the generated `text::msg::…` function, and return the `Text`; the UI translates it with `translate()`. Errors implement `UserText` and derive `Display` from it (English, for logs). Technical values go in as arguments (`msg::raw` for text shown as it is).
+- **Text:** every user-visible string (labels, `aria-label`s, placeholders, toasts) comes from `t("area.key")` with the English text in `locales/en.json`. Placeholders are `{name}`; counts use `_one`/`_other` keys and `{count}`. Module-level label maps hold `MessageKey`s and call `t()` at render, since the language loads before the first render, not at import. Write whole sentences as one message; never concatenate translated fragments.
+- **Platform wording:** a message that names a macOS thing (this Mac, Finder, keychain, System Settings, the menu bar, ⌘, Homebrew) needs `key@windows` and `key@linux` wordings; the catalog test enforces it.
+- **Text from Rust:** never build a sentence for the user in Rust. Add it to `locales/en.json` under `core`, create it with the generated `text::msg::…` function, and return the `Text`; the UI translates it with `translate()`. Errors implement `UserText` and derive `Display` from it (English, for logs). Technical values go in as arguments (`msg::raw` for text shown as it is).
 - **No `useEffect` for data fetching or derived state.** Effects only sync with external systems (events, DOM).
 
 ## Naming
 - IPC commands: `<area>_<verb>` (`routes_plan_add`). Events: `PascalCase` types (`EntityChanged`).
 - A command that touches the disk, other processes, the keychain or a system service is `async` (blocking work through `ipc::off_main`), and so is one that builds a window: synchronous commands run on the main thread, where they freeze every window on macOS and deadlock WebView2 on Windows. Synchronous commands only read memory.
 - Query keys: `['routes', accountId]`, built by `lib/ipc/query-keys.ts` only.
-- Branches: `<type>/<task-id>-<slug>` (e.g. `feat/m1-04-log-parser`).
+- Branches: `<type>/<short-slug>` (e.g. `fix/settings-double-click`, `feat/route-cache-bypass`).
 
 ## Testing
 | Change | Required tests |
@@ -59,12 +59,12 @@ These apply to humans and agents alike. CI enforces what it can. Review enforces
 ## Commits & PRs
 - **Conventional Commits:** `feat(routes): add wildcard hostnames`, `fix(runtime): …`, `docs: …`, `chore: …`, `test: …`, `refactor: …`, `perf: …`.
 - **No AI/assistant attribution** in commits, PR titles/bodies, or branch names.
-- The PR description links the task ID(s), explains *why*, lists test evidence, and includes screenshots (light + dark) for UI.
+- The PR description links the issue, explains *why*, lists test evidence, and includes screenshots (light + dark) for UI.
 - CI must be green. Squash merge to `main`.
 
-## Docs (keep the project resumable)
-After completing any task:
-1. Tick the task in the milestone plan (`docs/plans/Mx-*.md`) and in `docs/ROADMAP.md` if it's an epic-level item.
-2. Update `docs/STATUS.md`: current task, last completed, next up, blockers, and notes for the next session.
-3. Record any new decision in `docs/DECISIONS.md`. Update `ARCHITECTURE.md`/`DESIGN.md` if reality changed.
-4. Record newly verified external facts in `docs/research/*` with source and date.
+## Docs
+A change that users or contributors would notice updates its docs in the same pull request:
+- **User docs** (`apps/web/content/docs`): new or changed behaviour, commands, settings and error messages. `pnpm --filter @teitunnel/web test` checks every internal link.
+- **Contributor docs** (`docs/`): `ARCHITECTURE.md` when a module boundary, data flow or invariant changes; `DESIGN.md` when a token, component or pattern changes; `SECURITY_MODEL.md` when anything about secrets, processes, DNS ownership or network exposure changes.
+- **Code comments** say why, not what. Cite external behaviour you rely on with a link to its documentation, not a paraphrase.
+- Design discussions and decisions happen in GitHub issues and Discussions, so the reasoning is linked from the pull request that implements it.

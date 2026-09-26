@@ -1,4 +1,4 @@
-// The Worker every Teitunnel Snapshot runs (docs/research/cloudflare-snapshots.md).
+// The Worker every Teitunnel Snapshot runs.
 //
 // It serves the Snapshot's files through the ASSETS binding. Two optional bindings add
 // behaviour, and with neither set Cloudflare serves the files without running this

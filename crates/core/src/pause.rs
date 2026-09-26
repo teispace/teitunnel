@@ -1,4 +1,4 @@
-//! Pausing a route or a share on your domain (M12-06): the hostname stays (the route
+//! Pausing a route or a share on your domain: the hostname stays (the route
 //! and its DNS record are kept) and visitors get a friendly "paused" page from this
 //! computer's inspector (Lens) instead of the service; resuming serves the service again
 //! at the same address.
@@ -8,7 +8,7 @@
 //! pause is a row in `paused_routes` naming that process ([`request`]); the process
 //! applies its rows to its taps ([`Enforcer`]), so any process (the CLI, an agent, the
 //! app) can ask. A route that isn't inspected is pointed at a tap first, through a
-//! reviewed-style plan like "Inspect this route" (D-110), and pointed back on resume.
+//! reviewed-style plan like "Inspect this route", and pointed back on resume.
 //! If the process serving it stops, the pause ends with it (a share on your domain ends
 //! then anyway; an inspected route is pointed back by the existing sweeps).
 

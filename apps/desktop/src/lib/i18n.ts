@@ -1,6 +1,6 @@
 /**
  * Translations. English (`locales/en.json` at the repository root, shared with
- * the Rust core, D-062) is the source: every key exists there, and
+ * the Rust core) is the source: every key exists there, and
  * `MessageKey` is derived from it, so a typo is a type error. Other languages are JSON
  * files with the same keys, contributed by the community; a missing key falls back to
  * English. The language follows the system's (macOS: per-app language in System

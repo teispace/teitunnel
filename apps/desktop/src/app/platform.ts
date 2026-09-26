@@ -61,7 +61,7 @@ export function isTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
 
-/** Sets `--accent` to the system accent colour reported by the shell (D-023). */
+/** Sets `--accent` to the system accent colour reported by the shell. */
 export async function applySystemAccent(root: HTMLElement): Promise<void> {
   if (!isTauri()) return;
   try {

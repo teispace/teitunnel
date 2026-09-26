@@ -1,5 +1,5 @@
 //! D1 databases: where Snapshot comments and webhook inboxes are kept on the user's
-//! account (docs/research/cloudflare-workers-features.md). Shapes checked 2026-09-25.
+//! account (<https://developers.cloudflare.com/api/resources/d1/>).
 //!
 //! The Workers read and write through their `d1` binding; the app reads and answers
 //! through the query endpoint with the account's own token (D1 Read/Write), so no

@@ -765,7 +765,7 @@ impl Engine {
     /// Runs an existing tunnel of the account on this Mac too: it becomes one of this
     /// Mac's tunnels (not the default), and its routes stay as they are in Cloudflare.
     /// Nothing changes in Cloudflare. If another machine runs it, both serve it: requests
-    /// are split between them (D-058), so only adopt a tunnel whose services this Mac has.
+    /// are split between them, so only adopt a tunnel whose services this Mac has.
     ///
     /// # Errors
     /// [`EngineError::Adopt`] if the tunnel doesn't exist, is already this Mac's, or is

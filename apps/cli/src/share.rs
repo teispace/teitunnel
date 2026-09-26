@@ -1,5 +1,5 @@
 //! `teitunnel share <origin|folder>`: a Quick Share that lives exactly as long as the
-//! command. The one place the CLI runs a connector (D-056 keeps routes' connectors in
+//! command. The one place the CLI runs a connector (routes' connectors stay in
 //! the app): a share started from a terminal belongs to that terminal, so Ctrl-C, closing
 //! the terminal or `--for` ends it, and a CLI that dies without stopping it has its
 //! connector reaped by the next one.

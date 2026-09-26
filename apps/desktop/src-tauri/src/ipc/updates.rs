@@ -1,4 +1,4 @@
-//! App update commands (M6-02). The work is in `shell::updates`.
+//! App update commands. The work is in `shell::updates`.
 
 use tauri::{AppHandle, State};
 use teitunnel_core::updates::UpdateStatus;

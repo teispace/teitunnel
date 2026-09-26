@@ -1,4 +1,4 @@
-//! Sharing extras (M12-06): pause and resume a share on your domain or a route, run it
+//! Sharing extras: pause and resume a share on your domain or a route, run it
 //! on a schedule, and share a folder.
 
 use std::time::Duration;

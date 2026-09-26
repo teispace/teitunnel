@@ -1,4 +1,4 @@
-//! The browser extension (M12-07, D-133): `teitunnel browser install|uninstall|status`
+//! The browser extension: `teitunnel browser install|uninstall|status`
 //! registers this command as the extension's native messaging host in every installed
 //! browser, and a browser starting it runs [`host`], which relays the extension's calls
 //! to the running app.

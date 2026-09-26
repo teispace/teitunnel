@@ -1,7 +1,7 @@
-//! Stable and branch names for shares on your domain (M12-06): `{project}`, `{branch}`
+//! Stable and branch names for shares on your domain: `{project}`, `{branch}`
 //! and `{user}` in a hostname (`{branch}.dev.example.com`) are filled in from the folder
 //! a share is started from, with the same placeholders and rules as project files
-//! (D-107): values become DNS labels, `{branch}` is read from `.git/HEAD` without starting
+//!: values become DNS labels, `{branch}` is read from `.git/HEAD` without starting
 //! git. The last name used in a folder is remembered (settings key `shareNames`), and
 //! the app suggests names from the detected project.
 

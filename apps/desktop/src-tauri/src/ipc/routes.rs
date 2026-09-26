@@ -486,7 +486,7 @@ pub async fn routes_logs(
 }
 
 /// This Mac's connector traffic for a tunnel: samples after `since` (ms; the last hour
-/// without it) and the latest numbers. Polling this keeps sampling at 1 s (D-046).
+/// without it) and the latest numbers. Polling this keeps sampling at 1 s.
 #[tauri::command]
 #[specta::specta]
 pub fn tunnels_traffic(

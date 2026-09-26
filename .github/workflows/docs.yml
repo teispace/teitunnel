@@ -3,7 +3,7 @@ name: Docs
 # Builds the website (apps/web: landing page and docs, Next.js + Fumadocs, static) on
 # every change to it. Deploying to GitHub Pages is
 # opt-in: enable Pages (Settings > Pages > Source: GitHub Actions) and set the
-# repository variable DEPLOY_DOCS to "true" (D-053).
+# repository variable DEPLOY_DOCS to "true".
 on:
   pull_request:
     paths: ["apps/web/**", ".github/workflows/docs.yml", "scripts/release/linux-repo.sh", "pnpm-lock.yaml"]
@@ -41,7 +41,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_RELEASE: ${{ github.event_name == 'workflow_dispatch' }}
-      # apt and dnf repositories at /linux/ (D-086) with the two latest releases, each
+      # apt and dnf repositories at /linux/ with the two latest releases, each
       # package checked against its release's checksums and build provenance first.
       - name: Linux package repositories
         if: github.ref == 'refs/heads/main' && vars.DEPLOY_DOCS == 'true'

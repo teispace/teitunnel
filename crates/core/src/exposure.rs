@@ -2,7 +2,7 @@
 //! Cloudflare) for the common leaks: a `.env` file, the git repository, a directory
 //! listing, backups and database dumps, framework debug pages and tools, admin panels
 //! and database tools open without a login, a database on the shared port, Jupyter
-//! without a token, source maps with the original sources (M12-12).
+//! without a token, source maps with the original sources.
 //!
 //! It's bounded and quick: about twenty GET requests at once to the service itself,
 //! 1.5 s each and 2 s in all, at most 64 KiB read per answer, redirects never followed.

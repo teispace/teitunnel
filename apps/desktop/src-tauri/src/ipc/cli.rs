@@ -1,4 +1,4 @@
-//! Putting the bundled `teitunnel` on the PATH (D-077). The work is in
+//! Putting the bundled `teitunnel` on the PATH. The work is in
 //! `teitunnel_core::cli_install`.
 
 use teitunnel_core::{
@@ -68,7 +68,7 @@ pub fn refresh_installed() {
     }
 }
 
-/// The browser extension's link to the app (D-133): which browsers can start the
+/// The browser extension's link to the app: which browsers can start the
 /// bundled `teitunnel` as its native messaging host.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

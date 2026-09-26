@@ -1,4 +1,4 @@
-//! Moving to a new computer: Teitunnel's setup in one encrypted file (M12-12).
+//! Moving to a new computer: Teitunnel's setup in one encrypted file.
 //!
 //! What's in it: settings (alert rules and the project list included), this machine's
 //! tunnels (ids and names; they run on the new computer instead), the indexes of the DNS

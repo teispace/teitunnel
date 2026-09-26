@@ -1,5 +1,5 @@
 //! Snapshots in the engine: a static copy of a site hosted on the account's own
-//! Cloudflare, as a Worker with static assets (docs/research/cloudflare-snapshots.md).
+//! Cloudflare, as a Worker with static assets (<https://developers.cloudflare.com/workers/static-assets/>).
 //!
 //! The types here are what snapshot intents and steps carry, what the observer reads
 //! about a snapshot's Worker, and the pieces the executor needs: uploading only the
@@ -225,7 +225,7 @@ pub struct SiteSettings {
     pub comments: Option<SiteComments>,
 }
 
-/// Comments on a Snapshot (M12-06).
+/// Comments on a Snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SiteComments {

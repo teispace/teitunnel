@@ -1,6 +1,6 @@
 //! Quick Shares started by `teitunnel share` in a terminal, as the app sees them: the
 //! CLI records its live share next to its process registry (`run-cli/<pid>-<start>/`),
-//! and the app lists the ones whose CLI is still running and can stop them (M10-03).
+//! and the app lists the ones whose CLI is still running and can stop them.
 
 use std::{
     path::Path,

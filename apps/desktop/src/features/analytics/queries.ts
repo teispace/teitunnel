@@ -5,7 +5,7 @@ import { queryKeys, refresh } from "@/lib/ipc/query-keys";
 
 /**
  * How often a visible view refreshes each range. The backend caches Cloudflare's answers
- * for as long (D-046-style polling: TanStack pauses it while the window is hidden).
+ * for as long (polling like the rest: TanStack pauses it while the window is hidden).
  */
 export const REFRESH_MS: Record<AnalyticsRange, number> = {
   hour: 60_000,

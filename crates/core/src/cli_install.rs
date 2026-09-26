@@ -1,4 +1,4 @@
-//! Putting the `teitunnel` command that ships inside the app on the PATH (D-077, D-091).
+//! Putting the `teitunnel` command that ships inside the app on the PATH.
 //!
 //! The packages carry the CLI next to the app's own binary. How it reaches the PATH:
 //! - macOS: a symlink in Homebrew's `bin` or `/usr/local/bin`, whichever the user can
@@ -6,7 +6,7 @@
 //!   Without a writable one, the app shows the `sudo ln -s …` to run.
 //! - Windows: a copy in `%LOCALAPPDATA%\Microsoft\WindowsApps`, which is on every user's
 //!   PATH. The installer makes it and the uninstaller removes it
-//!   (`windows/installer-hooks.nsh`, D-090); the app refreshes it at launch after an
+//!   (`windows/installer-hooks.nsh`); the app refreshes it at launch after an
 //!   update and can put it back.
 //! - Linux: `.deb`/`.rpm` install it to `/usr/bin` already. The AppImage's copy goes to
 //!   `~/.local/bin`, refreshed at launch.
@@ -20,7 +20,7 @@ use std::{
 
 use serde::Serialize;
 
-/// The command's file name on the PATH: people type `teitunnel` (D-091).
+/// The command's file name on the PATH: people type `teitunnel`.
 pub const CLI_NAME: &str = if cfg!(windows) {
     "teitunnel.exe"
 } else {

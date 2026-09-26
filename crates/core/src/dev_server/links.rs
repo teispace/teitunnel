@@ -1,4 +1,4 @@
-//! Pages that load fine but point visitors somewhere they can't follow (M12-09).
+//! Pages that load fine but point visitors somewhere they can't follow.
 //!
 //! Two mistakes are common behind a tunnel. The page links to this computer
 //! (`http://localhost:5173/@vite/client`, `http://127.0.0.1:8000/css/app.css`): a

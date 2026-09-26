@@ -1,6 +1,6 @@
 //! Edge protection and service tokens for the app, the CLI and agents: what a hostname
 //! has now (with its zone's quotas), and changes planned and applied through the engine
-//! like every other Cloudflare change (D-057 ownership, plan → apply, undo).
+//! like every other Cloudflare change (ownership, plan → apply, undo).
 //!
 //! A new or rotated service token's secret exists outside Cloudflare only in the
 //! [`IssuedSecrets`] vault, in memory, for a few minutes: the app copies it to the

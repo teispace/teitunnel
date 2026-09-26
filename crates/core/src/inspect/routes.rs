@@ -1,8 +1,8 @@
-//! Inspecting a route (M12-02, decision 2): a temporary change through plan → apply that
+//! Inspecting a route (decision 2): a temporary change through plan → apply that
 //! points the route's service at a tap of this process's Lens, and remembers the
 //! original in `inspected_routes`. It's reverted when inspection is turned off, when
 //! the process that runs the tap stops (on quit; and swept at the next start after a
-//! crash, like shares on your domain, D-068), and the Doctor's `inspect.orphan` check
+//! crash, like shares on your domain), and the Doctor's `inspect.orphan` check
 //! restores a route left pointing at an inspector nobody runs.
 
 use std::collections::HashMap;

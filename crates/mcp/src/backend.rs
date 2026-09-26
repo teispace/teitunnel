@@ -332,7 +332,7 @@ pub trait Backend: Send + Sync + 'static {
     /// Returns how many were stopped.
     fn stop_own_shares(&self) -> BoxFuture<'_, usize>;
 
-    /// The account's reserved hostnames and who holds them (M12-11). Backends without
+    /// The account's reserved hostnames and who holds them. Backends without
     /// Cloudflare access say so.
     fn reservations<'a>(
         &'a self,
@@ -426,7 +426,7 @@ pub trait Backend: Send + Sync + 'static {
 
     /// Pauses (`paused`) or resumes a share on your domain or a route: the address stays
     /// and visitors get a "paused" page, served by whichever Teitunnel process serves it
-    /// (M12-06).
+    ///.
     fn set_paused<'a>(
         &'a self,
         _account: &'a str,

@@ -130,7 +130,7 @@ const Row = memo(function Row({ row, id, start, odd, selected, picked, onMouseDo
 
 /**
  * The live request list: newest first, only the rows in view rendered (virtualised like
- * the log viewer, D-051), so 10,000 requests scroll at 60 fps. While scrolled down, new
+ * the log viewer), so 10,000 requests scroll at 60 fps. While scrolled down, new
  * requests arriving at the top don't move what you're reading; a pill jumps back up.
  */
 export function ExchangeList({

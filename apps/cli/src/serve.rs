@@ -1,5 +1,5 @@
 //! `teitunnel serve`: this machine's tunnels plus a web dashboard and JSON API, for
-//! servers without the app (M10-06, D-070). It runs the connectors like `up`, and every
+//! servers without the app. It runs the connectors like `up`, and every
 //! change goes through the same plan → apply engine (preview, then apply the reviewed
 //! plan by its fingerprint).
 //!

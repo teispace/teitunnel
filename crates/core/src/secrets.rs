@@ -14,10 +14,10 @@ use crate::Secret;
 use crate::text::{Text, UserText, english_display, msg};
 
 #[cfg(target_os = "macos")]
-#[allow(unsafe_code)] // The keychain's access-list API (D-127).
+#[allow(unsafe_code)] // The keychain's access-list API.
 mod macos;
 
-/// Keychain service name (D-018).
+/// Keychain service name.
 pub const SERVICE: &str = "com.teispace.teitunnel";
 
 /// Errors from the secret store.

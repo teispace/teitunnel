@@ -75,7 +75,7 @@ pub struct Settings {
     /// Check for app updates by itself (at launch and daily).
     pub check_for_updates: bool,
     /// The one-time "Install teitunnel?" offer was answered (Install or Not now), on
-    /// installs where the CLI isn't put on the PATH by the installer (D-090).
+    /// installs where the CLI isn't put on the PATH by the installer.
     pub cli_offer_dismissed: bool,
     /// Check a service for common leaks (`.env`, `.git`, debug pages…) before sharing it
     /// or adding a route to it.

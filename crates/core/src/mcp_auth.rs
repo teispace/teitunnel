@@ -1,4 +1,4 @@
-//! OAuth 2.1 for shared MCP servers (M12-03, D-132): Teitunnel is the authorization
+//! OAuth 2.1 for shared MCP servers: Teitunnel is the authorization
 //! server in front of an MCP server shared on the person's domain, so claude.ai,
 //! ChatGPT and other remote clients can connect without a static key, each connection
 //! approved by the person in the app.

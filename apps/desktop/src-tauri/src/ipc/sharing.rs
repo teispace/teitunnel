@@ -1,4 +1,4 @@
-//! Sharing extras (M12-06): pausing, schedules, names from the project and folders on
+//! Sharing extras: pausing, schedules, names from the project and folders on
 //! your domain. The logic is `teitunnel_core::{pause, schedule, share_names,
 //! folder_share}`.
 

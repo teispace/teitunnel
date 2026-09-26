@@ -1,6 +1,6 @@
 //! Lens acceptors for local domains: who may connect, and the TLS handshake.
 //!
-//! macOS lets a normal user bind 443 only on the wildcard address (D-101), and `.local`
+//! macOS lets a normal user bind 443 only on the wildcard address, and `.local`
 //! names resolve to this computer's network address, so the listeners may be reachable
 //! from the network. Every connection is checked here, before any byte is read:
 //! loopback and this computer's own addresses are always allowed; other machines on a

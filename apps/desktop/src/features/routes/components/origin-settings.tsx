@@ -37,7 +37,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * A route's origin settings (`originRequest`, D-078), in three groups. Empty fields and
+ * A route's origin settings (`originRequest`), in three groups. Empty fields and
  * unticked boxes mean cloudflared's defaults.
  */
 export function OriginSettings({

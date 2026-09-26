@@ -1,6 +1,6 @@
-; Teitunnel's NSIS installer hooks (Tauri `bundle.windows.nsis.installerHooks`, D-090).
+; Teitunnel's NSIS installer hooks (Tauri `bundle.windows.nsis.installerHooks`).
 ;
-; The installer puts the `teitunnel` command on the PATH (D-091): a copy of the bundled
+; The installer puts the `teitunnel` command on the PATH: a copy of the bundled
 ; teitunnel-cli.exe, named teitunnel.exe, in
 ; %LOCALAPPDATA%\Microsoft\WindowsApps, which is on every user's PATH and needs no
 ; administrator. It's the same copy Settings > General > Command line makes, with the same

@@ -1,4 +1,4 @@
-//! Reservations for teams sharing one account (M12-11), as a [`ToolProvider`]:
+//! Reservations for teams sharing one account, as a [`ToolProvider`]:
 //! `list_reservations`, `reserve_hostname` and `release_hostname`. Changes go through
 //! the same plan → apply engine as routes, with the person's approval asked in the same
 //! way; a name someone else holds is taken only when the person confirms.

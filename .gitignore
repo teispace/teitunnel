@@ -44,3 +44,10 @@ __pycache__/
 
 # Linux repository key backup (scripts/release/linux-repo-key.sh); never commit it.
 teitunnel-linux-repo.key.asc
+
+# Maintainer-only notes, kept on the maintainer's machine
+docs/internal/
+# Personal Claude Code instructions (https://code.claude.com/docs/en/memory)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
