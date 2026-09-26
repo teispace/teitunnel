@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/teispace/teitunnel/compare/v0.3.1...v0.4.0) (2026-09-26)
+
+
+### Features
+
+* **access:** GitHub and Google sign-in for route logins ([#70](https://github.com/teispace/teitunnel/issues/70)) ([61b8da1](https://github.com/teispace/teitunnel/commit/61b8da1cbf55c47cf8b3d8c82577e9677acedaa5)), closes [#51](https://github.com/teispace/teitunnel/issues/51)
+* **protection:** bypass Cloudflare's cache for a hostname ([#69](https://github.com/teispace/teitunnel/issues/69)) ([d91ddcf](https://github.com/teispace/teitunnel/commit/d91ddcf6125c73fb0b8dd4221289b13a02108bac))
+
+
+### Bug Fixes
+
+* **desktop:** bundle the tray library in the AppImage ([f9682c9](https://github.com/teispace/teitunnel/commit/f9682c9009038dff5f43464bc39a12327b12d5ed))
+
+
+### Performance
+
+* **engine:** create the DNS records of several routes in one call per zone ([#67](https://github.com/teispace/teitunnel/issues/67)) ([5ebdaff](https://github.com/teispace/teitunnel/commit/5ebdaff9f887cb3cda02ed924e32d720bf258e2c)), closes [#49](https://github.com/teispace/teitunnel/issues/49)
+
 ## [0.3.1](https://github.com/teispace/teitunnel/compare/v0.3.0...v0.3.1) (2026-09-26)
 
 
