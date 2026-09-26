@@ -1,11 +1,13 @@
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { delay } from "./landing";
+import { Fragment, type ReactNode } from "react";
+import { Points } from "./points";
 
 /**
- * One job in the feature tour: the promise and what it means above, the app doing it below
- * at a size where its text can be read.
+ * One job in the feature tour, as a card in a stack: on wide screens each card stays near
+ * the top while the next one slides over it, and the covered card sinks back. The promise
+ * and its points on one side, the app doing it (with a live demo floating over it) on the
+ * other.
  */
 export function Feature({
   id,
@@ -25,35 +27,25 @@ export function Feature({
   media: ReactNode;
 }) {
   return (
-    <article id={id} className="scroll-mt-24">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-16">
-        <div data-reveal className="min-w-0">
+    <article id={id} data-scene="stack" className="tt-card scroll-mt-24">
+      <div className="tt-card-inner grid grid-cols-1 gap-10 p-6 sm:p-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 lg:p-12">
+        <div className="flex min-w-0 flex-col">
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--tt-accent-text)]">
             {eyebrow}
           </p>
-          <h3 className="text-2xl font-semibold tracking-tight text-balance md:text-4xl">
+          <h3 className="text-2xl font-semibold tracking-tight text-balance md:text-[2.1rem] md:leading-tight">
             {title}
           </h3>
           <p className="mt-4 text-fd-muted-foreground md:text-lg">{lead}</p>
-        </div>
-        <div className="min-w-0 lg:pt-8">
-          <ul className="flex flex-col gap-3">
-            {bullets.map((bullet, index) => (
-              <li
+          <div className="mt-7">
+            <Points
+              items={bullets.map((bullet, index) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: a fixed list
-                key={index}
-                data-reveal
-                style={delay(60 + index * 60)}
-                className="flex gap-3 text-[15px]"
-              >
-                <Check className="mt-1 size-4 shrink-0 text-[var(--tt-accent-text)]" aria-hidden />
-                <span className="text-fd-muted-foreground [&_strong]:font-medium [&_strong]:text-fd-foreground">
-                  {bullet}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div data-reveal style={delay(300)} className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
+                <Fragment key={index}>{bullet}</Fragment>
+              ))}
+            />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 lg:mt-auto lg:pt-6">
             {links.map(([label, href]) => (
               <Link
                 key={href}
@@ -69,9 +61,9 @@ export function Feature({
             ))}
           </div>
         </div>
-      </div>
-      <div data-reveal style={delay(120)} className="mt-10 min-w-0 md:mt-14">
-        {media}
+        <div data-scene="view" className="tt-card-media min-w-0 self-center">
+          {media}
+        </div>
       </div>
     </article>
   );

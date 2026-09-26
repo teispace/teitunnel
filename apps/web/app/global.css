@@ -137,25 +137,6 @@ html.tt-motion .tt-caret {
   animation: tt-caret 1s steps(1) infinite;
 }
 
-/* The hero screenshot leans back and settles as the page scrolls (where supported). */
-@supports (animation-timeline: view()) {
-  @keyframes tt-settle {
-    from {
-      transform: perspective(1600px) rotateX(14deg) scale(0.94);
-    }
-    to {
-      transform: none;
-    }
-  }
-
-  html.tt-motion .tt-settle {
-    transform-origin: 50% 0;
-    animation: tt-settle linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 45%;
-  }
-}
-
 /* Steps of the plan demo: waiting, working, done. */
 .tt-step .tt-step-icon {
   transition:
@@ -282,12 +263,1107 @@ html.tt-motion .tt-panel {
     transition: none;
   }
 
-  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-settle, .tt-panel, .tt-row-in) {
+  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-panel, .tt-row-in) {
     animation: none;
   }
 
   html.tt-motion .tt-wire::after {
     animation: none;
     opacity: 0;
+  }
+}
+
+/* ---- Scroll scenes ------------------------------------------------------------------
+ * <Scenes> gives every `[data-scene]` its progress `--p` (0–1) as the page scrolls; the rules
+ * below turn it into movement, transforms and opacity only. At rest (no JavaScript, Reduce
+ * Motion) `--p` is 1 and pinned sections are ordinary sections.
+ */
+
+[data-scene] {
+  --p: 1;
+}
+
+[data-scene="stack"] {
+  --p: 0;
+}
+
+@property --mx {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --my {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+/* Reveal variants: sharpen from a blur, or grow in. */
+html.tt-motion [data-reveal="blur"] {
+  filter: blur(12px);
+  transform: translateY(10px) scale(0.985);
+  transition:
+    opacity 0.9s var(--tt-ease),
+    transform 0.9s var(--tt-ease),
+    filter 0.9s var(--tt-ease);
+  transition-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+html.tt-motion [data-reveal="blur"][data-shown] {
+  filter: none;
+}
+
+html.tt-motion [data-reveal="scale"] {
+  transform: scale(0.94);
+}
+
+/* Section titles: each word rises in; eyebrows type themselves. */
+.tt-rise-word {
+  display: inline-block;
+}
+
+html.tt-motion [data-reveal] .tt-rise-word {
+  opacity: 0;
+  transform: translateY(0.55em);
+  transition:
+    opacity 0.7s var(--tt-ease),
+    transform 0.8s var(--tt-ease);
+  transition-delay: calc(80ms + var(--i, 0) * 45ms);
+}
+
+html.tt-motion [data-reveal][data-shown] .tt-rise-word {
+  opacity: 1;
+  transform: none;
+}
+
+html.tt-motion [data-reveal] .tt-type {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path calc(var(--len, 12) * 38ms) steps(var(--len, 12), end);
+}
+
+html.tt-motion [data-reveal][data-shown] .tt-type {
+  clip-path: inset(0);
+}
+
+/* The hero screenshot starts tipped back and flattens as it rises into view. */
+html.tt-motion .tt-hero-shot > * {
+  transform-origin: 50% 0;
+  transform: perspective(1800px) rotateX(calc((1 - var(--p)) * 20deg))
+    scale(calc(0.9 + var(--p) * 0.1));
+  will-change: transform;
+}
+
+/* A field of stars in three depths: each drifts on its own, the near ones faster and brighter,
+ * some twinkle, and the whole field shifts with the scroll. */
+.tt-stars {
+  position: absolute;
+  inset: -30% -10%;
+  mask-image: radial-gradient(ellipse at center, #000 35%, transparent 78%);
+  transform: translate3d(0, calc(var(--p) * -120px), 0);
+  pointer-events: none;
+}
+
+.tt-stars::before,
+.tt-stars::after,
+.tt-stars > span {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+/* Far: small and dim. */
+.tt-stars::before {
+  background-image:
+    radial-gradient(1.5px 1.5px at 20px 30px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 110px 140px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 190px 70px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 60px 200px, var(--color-fd-muted-foreground), transparent);
+  background-size: 240px 240px;
+  opacity: 0.45;
+}
+
+/* Middle: brighter, some in the accent. */
+.tt-stars::after {
+  background-image:
+    radial-gradient(2.5px 2.5px at 40px 60px, var(--color-fd-foreground), transparent),
+    radial-gradient(2.5px 2.5px at 260px 180px, var(--tt-accent), transparent),
+    radial-gradient(2px 2px at 150px 300px, var(--color-fd-foreground), transparent),
+    radial-gradient(2.5px 2.5px at 330px 90px, var(--color-fd-muted-foreground), transparent);
+  background-size: 380px 380px;
+  opacity: 0.4;
+}
+
+/* Near: large, soft, twinkling. */
+.tt-stars > span {
+  background-image:
+    radial-gradient(4px 4px at 90px 120px, var(--tt-accent), transparent),
+    radial-gradient(3.5px 3.5px at 420px 330px, var(--color-fd-foreground), transparent),
+    radial-gradient(4px 4px at 560px 80px, var(--color-fd-foreground), transparent);
+  background-size: 640px 520px;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 6px var(--tt-accent));
+}
+
+@keyframes tt-drift-far {
+  to {
+    background-position: -240px 240px;
+  }
+}
+
+@keyframes tt-drift-mid {
+  to {
+    background-position: -380px 380px;
+  }
+}
+
+@keyframes tt-drift-near {
+  to {
+    background-position: -640px 520px;
+  }
+}
+
+@keyframes tt-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+html.tt-motion .tt-stars::before {
+  animation: tt-drift-far 120s linear infinite;
+}
+
+html.tt-motion .tt-stars::after {
+  animation: tt-drift-mid 70s linear infinite;
+}
+
+html.tt-motion .tt-stars > span {
+  animation:
+    tt-drift-near 45s linear infinite,
+    tt-twinkle 4.5s ease-in-out infinite;
+}
+
+/* Manifesto: pinned while its words light up. */
+.tt-manifesto-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: clip;
+  padding: 7rem 0;
+}
+
+.tt-word {
+  opacity: calc(0.14 + 0.86 * clamp(0, var(--p) * 1.3 * var(--n) - var(--i), 1));
+  transition: opacity 0.2s linear;
+}
+
+.tt-word-accent {
+  color: var(--tt-accent-text);
+}
+
+html.tt-motion .tt-manifesto {
+  height: 240vh;
+}
+
+html.tt-motion .tt-manifesto-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 0;
+}
+
+/* Journey: a request's way from a visitor to localhost and back. */
+.tt-journey-stage {
+  position: relative;
+  padding: 6rem 0;
+}
+
+html.tt-motion .tt-journey {
+  height: 440vh;
+}
+
+html.tt-motion .tt-journey-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 3.5rem 0 1rem;
+  display: flex;
+  overflow: clip;
+}
+
+.tt-journey-step {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  transition:
+    background-color 0.4s var(--tt-ease),
+    opacity 0.4s var(--tt-ease);
+}
+
+.tt-journey-num {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  transition:
+    background-color 0.4s var(--tt-ease),
+    color 0.4s var(--tt-ease),
+    border-color 0.4s var(--tt-ease);
+}
+
+.tt-journey-body {
+  margin-top: 0.25rem;
+}
+
+html.tt-motion .tt-journey-step {
+  opacity: 0.45;
+}
+
+html.tt-motion .tt-journey-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  margin-top: 0;
+  transition:
+    grid-template-rows 0.5s var(--tt-ease),
+    margin-top 0.5s var(--tt-ease);
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"],
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"],
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"],
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"],
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] {
+  opacity: 1;
+  background: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] .tt-journey-body {
+  grid-template-rows: 1fr;
+  margin-top: 0.25rem;
+}
+
+html.tt-motion .tt-journey-body > * {
+  min-height: 0;
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] .tt-journey-num {
+  background: var(--tt-accent-fill);
+  border-color: var(--tt-accent-fill);
+  color: white;
+}
+
+/* Phones: only the step being told, so the pinned view fits. */
+@media (max-width: 1023px) {
+  html.tt-motion .tt-journey-step {
+    display: none;
+  }
+
+  html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"],
+  html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"],
+  html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"],
+  html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"],
+  html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] {
+    display: flex;
+  }
+
+  html.tt-motion .tt-journey-steps {
+    margin-top: 1.25rem;
+    min-height: 7.5rem;
+  }
+}
+
+/* The map: a line with the stops on it (vertical on phones, across from tablets up). */
+.tt-journey-map {
+  --pad: 2.25rem;
+  position: relative;
+  height: 25rem;
+  margin: 0;
+}
+
+.tt-journey-line {
+  position: absolute;
+  left: 1.75rem;
+  top: var(--pad);
+  bottom: var(--pad);
+  width: 2px;
+  background: var(--color-fd-border);
+  border-radius: 2px;
+}
+
+.tt-journey-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--t, 1) * 100%);
+  background: var(--tt-accent);
+  border-radius: 2px;
+}
+
+.tt-journey[data-back] .tt-journey-fill {
+  top: calc(var(--t, 1) * 100%);
+  height: auto;
+  bottom: 0;
+}
+
+.tt-journey-packet {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--t, 1) * 100%);
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: -0.45rem;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--tt-accent) 25%, transparent),
+    0 0 24px 6px color-mix(in oklab, var(--tt-accent) 55%, transparent);
+  opacity: 0;
+}
+
+html.tt-motion .tt-journey-packet {
+  opacity: 1;
+}
+
+.tt-journey[data-back] .tt-journey-packet {
+  background: var(--color-fd-background);
+  border: 2px solid var(--tt-accent);
+}
+
+.tt-journey-tunnel {
+  position: absolute;
+  left: -0.45rem;
+  right: -0.45rem;
+  top: 32%;
+  height: 38%;
+  border: 1px dashed color-mix(in oklab, var(--tt-accent) 55%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+}
+
+.tt-journey-tunnel-label {
+  position: absolute;
+  left: 1.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.7rem;
+  color: var(--tt-accent-text);
+}
+
+.tt-journey-stops {
+  position: absolute;
+  inset: var(--pad) 0 var(--pad) 0;
+}
+
+.tt-journey-stop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--at) * 100%);
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  align-items: center;
+  column-gap: 1rem;
+  transform: translateY(-50%);
+}
+
+.tt-journey-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: var(--tt-window-shadow);
+  transition:
+    transform 0.45s var(--tt-ease),
+    border-color 0.45s var(--tt-ease),
+    box-shadow 0.45s var(--tt-ease),
+    color 0.45s var(--tt-ease);
+}
+
+.tt-journey-shield {
+  position: absolute;
+  right: -0.35rem;
+  top: -0.35rem;
+  color: var(--tt-live);
+  background: var(--color-fd-background);
+  border-radius: 9999px;
+}
+
+.tt-journey-label {
+  min-width: 0;
+}
+
+.tt-journey-note {
+  grid-column: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--tt-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--tt-accent) 10%, var(--color-fd-background));
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-tunnel {
+  border-style: solid;
+  background: color-mix(in oklab, var(--tt-accent) 16%, transparent);
+}
+
+html.tt-motion .tt-journey-note {
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transition:
+    opacity 0.35s var(--tt-ease),
+    transform 0.35s var(--tt-ease);
+}
+
+html.tt-motion .tt-journey[data-at="0"] .tt-journey-stop[data-index="0"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="1"] .tt-journey-stop[data-index="1"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="2"] .tt-journey-stop[data-index="2"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="3"] .tt-journey-stop[data-index="3"] .tt-journey-note {
+  opacity: 1;
+  transform: none;
+}
+
+html.tt-motion .tt-journey[data-at="0"] .tt-journey-stop[data-index="0"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="1"] .tt-journey-stop[data-index="1"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="2"] .tt-journey-stop[data-index="2"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="3"] .tt-journey-stop[data-index="3"] .tt-journey-node {
+  transform: scale(1.08);
+  border-color: var(--tt-accent);
+  color: var(--tt-accent-text);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--tt-accent) 14%, transparent),
+    var(--tt-window-shadow);
+}
+
+.tt-journey-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1.75rem;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tt-journey-map {
+    height: 24rem;
+  }
+
+  .tt-journey-node {
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 1.25rem;
+  }
+
+  .tt-journey-node svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .tt-journey-line {
+    left: 3.5rem;
+    right: 3.5rem;
+    top: 50%;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+
+  .tt-journey-fill {
+    top: 0;
+    bottom: 0;
+    height: auto;
+    width: calc(var(--t, 1) * 100%);
+    background: var(--tt-accent);
+  }
+
+  .tt-journey[data-back] .tt-journey-fill {
+    top: 0;
+    left: calc(var(--t, 1) * 100%);
+    right: 0;
+    width: auto;
+  }
+
+  .tt-journey-packet {
+    top: 50%;
+    left: calc(var(--t, 1) * 100%);
+  }
+
+  .tt-journey-tunnel {
+    left: 32%;
+    right: 30%;
+    top: -0.45rem;
+    bottom: -0.45rem;
+    height: auto;
+  }
+
+  .tt-journey-tunnel-label {
+    left: 50%;
+    top: calc(100% + 0.5rem);
+    transform: translateX(-50%);
+  }
+
+  .tt-journey-stops {
+    inset: 0 3.5rem;
+  }
+
+  .tt-journey-stop {
+    left: calc(var(--at) * 100%);
+    right: auto;
+    top: 50%;
+    width: 9rem;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    row-gap: 0.6rem;
+    transform: translate(-50%, -2.125rem);
+  }
+
+  .tt-journey-note {
+    grid-column: 1;
+    justify-self: center;
+    margin-top: 0;
+    position: absolute;
+    top: -2.6rem;
+  }
+
+  .tt-journey-caption {
+    display: block;
+    text-align: center;
+  }
+}
+
+/* Features: cards that stack, each sinking back as the next slides over it. */
+.tt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.tt-card {
+  position: relative;
+  border-radius: 1.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: 0 30px 80px -40px rgb(0 0 0 / 0.35);
+}
+
+.tt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-fd-background);
+  opacity: calc(var(--p) * 0.6);
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) and (min-height: 760px) {
+  html.tt-motion .tt-stack {
+    gap: 14vh;
+  }
+
+  html.tt-motion .tt-card {
+    position: sticky;
+    top: 5.5rem;
+    transform-origin: 50% 0;
+    transform: scale(calc(1 - var(--p) * 0.07)) translateY(calc(var(--p) * -1.25rem));
+  }
+}
+
+/* The live demo floats a little faster than the screenshot under it. */
+html.tt-motion .tt-float {
+  transform: translateY(calc((0.5 - var(--p)) * 5rem));
+}
+
+/* A feature's points: one highlighted at a time, with a line that fills as it's read. */
+.tt-point {
+  position: relative;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--color-fd-border);
+  transition: opacity 0.45s var(--tt-ease);
+}
+
+.tt-point-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 1px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+html.tt-motion .tt-points[data-running] .tt-point {
+  opacity: 0.5;
+}
+
+html.tt-motion .tt-points[data-running] .tt-point[data-active] {
+  opacity: 1;
+}
+
+html.tt-motion .tt-point[data-active] .tt-point-bar {
+  animation: tt-fill var(--dwell, 4s) linear forwards;
+}
+
+html.tt-motion .tt-point[data-held] .tt-point-bar {
+  animation: none;
+  transform: scaleX(1);
+}
+
+@keyframes tt-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Tools drifting past in two rows. */
+.tt-marquee-row {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.tt-marquee-track {
+  display: flex;
+  gap: 0.75rem;
+  width: max-content;
+  padding: 0.25rem 0;
+}
+
+html.tt-motion .tt-marquee-track {
+  animation: tt-marquee 55s linear infinite;
+}
+
+html.tt-motion .tt-marquee-row[data-direction="right"] .tt-marquee-track {
+  animation-direction: reverse;
+}
+
+.tt-marquee-row:hover .tt-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes tt-marquee {
+  to {
+    transform: translateX(calc(-100% / 3));
+  }
+}
+
+html:not(.tt-motion) .tt-marquee-track {
+  flex-wrap: wrap;
+  width: auto;
+}
+
+html:not(.tt-motion) .tt-marquee-row {
+  mask-image: none;
+}
+
+html:not(.tt-motion) [data-copy] {
+  display: none;
+}
+
+/* The native app: one window, as each system draws it. */
+.tt-seg {
+  display: inline-flex;
+  margin: 0;
+  min-inline-size: 0;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+}
+
+.tt-seg-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  color: var(--color-fd-muted-foreground);
+  overflow: hidden;
+  transition:
+    background-color 0.3s var(--tt-ease),
+    color 0.3s var(--tt-ease);
+}
+
+.tt-seg-item:hover {
+  color: var(--color-fd-foreground);
+}
+
+.tt-seg-item[data-active] {
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+}
+
+.tt-seg-bar {
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0.3rem;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.6;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
+  animation: tt-fill var(--dwell, 4.5s) linear forwards;
+}
+
+.tt-kbd-text kbd {
+  display: inline-block;
+  min-width: 1.35em;
+  padding: 0 0.35em;
+  border: 1px solid var(--color-fd-border);
+  border-bottom-width: 2px;
+  border-radius: 0.35em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78em;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-fd-foreground);
+  background: var(--color-fd-card);
+}
+
+.tt-os-stage {
+  display: grid;
+  margin: 0;
+}
+
+.tt-os-window {
+  grid-area: 1 / 1;
+  align-self: center;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  container-type: inline-size;
+  opacity: 0;
+  transform: translateY(0.75rem) scale(0.975);
+  transition:
+    opacity 0.6s var(--tt-ease),
+    transform 0.7s var(--tt-ease);
+  pointer-events: none;
+}
+
+.tt-os-window[data-shown] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* The frames, to scale with the 1280-pixel-wide screenshot. */
+.tt-os-bar {
+  --bar: #f3f3f3;
+  --ink: #1b1b1b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 2.5cqw;
+  padding-left: 1cqw;
+  font-size: 0.95cqw;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  background: var(--bar);
+  color: var(--ink);
+}
+
+:root.dark .tt-os-bar,
+.tt-os-window[data-scheme="dark"] .tt-os-bar {
+  --bar: #202020;
+  --ink: #f3f3f3;
+}
+
+.tt-os-window[data-scheme="light"] .tt-os-bar {
+  --bar: #f3f3f3;
+  --ink: #1b1b1b;
+}
+
+.tt-os-icon {
+  width: 1.2cqw;
+  height: 1.2cqw;
+  border-radius: 0.25cqw;
+  background: var(--tt-accent-fill);
+}
+
+.tt-os-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6cqw;
+  height: 100%;
+}
+
+.tt-os-caption svg {
+  width: 0.8cqw;
+  height: 0.8cqw;
+}
+
+.tt-os-close:hover {
+  background: #c42b1c;
+  color: white;
+}
+
+.tt-os-linux {
+  --bar: #ebebeb;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  height: 3.6cqw;
+  padding: 0 0.9cqw;
+  font-family: Cantarell, "Adwaita Sans", Inter, system-ui, sans-serif;
+  font-size: 1.1cqw;
+}
+
+:root.dark .tt-os-linux,
+.tt-os-window[data-scheme="dark"] .tt-os-linux {
+  --bar: #303030;
+}
+
+.tt-os-window[data-scheme="light"] .tt-os-linux {
+  --bar: #ebebeb;
+}
+
+.tt-os-gnome-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9cqw;
+  height: 1.9cqw;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--ink) 10%, transparent);
+}
+
+.tt-os-gnome-close svg {
+  width: 0.7cqw;
+  height: 0.7cqw;
+}
+
+/* Security: promises flying past a headline that stays (wide screens with motion). */
+.tt-field-stage {
+  padding: 6rem 0;
+}
+
+.tt-field-cards {
+  display: grid;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 3rem auto 0;
+  padding: 0 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .tt-field-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .tt-field-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.tt-field-card {
+  border-radius: 1.25rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  padding: 1.5rem;
+  box-shadow: var(--tt-window-shadow);
+}
+
+@media (min-width: 1024px) and (min-height: 700px) {
+  html.tt-motion .tt-field {
+    height: 320vh;
+  }
+
+  html.tt-motion .tt-field-stage {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    overflow: clip;
+  }
+
+  html.tt-motion .tt-field-center {
+    max-width: 34rem;
+  }
+
+  html.tt-motion .tt-field-cards {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    max-width: none;
+    padding: 0;
+    display: block;
+    pointer-events: none;
+  }
+
+  html.tt-motion .tt-field-card {
+    position: absolute;
+    left: var(--x);
+    top: 0;
+    width: 25%;
+    pointer-events: auto;
+    transform: translate3d(0, calc(100vh - (var(--p) - var(--start)) * var(--speed) * 260vh), 0)
+      rotate(calc((var(--p) - var(--start) - 0.2) * var(--speed) * -6deg));
+    will-change: transform;
+  }
+}
+
+/* How it works: the line between the steps draws itself. */
+.tt-steps-line {
+  display: none;
+}
+
+.tt-step-num {
+  position: relative;
+  isolation: isolate;
+}
+
+.tt-step-num::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: var(--tt-accent-fill);
+  opacity: clamp(0, var(--p) * 3.2 - var(--i), 1);
+  z-index: -1;
+}
+
+html.tt-motion .tt-steps .tt-step-num {
+  color: color-mix(
+    in oklab,
+    white calc(clamp(0, var(--p) * 3.2 - var(--i), 1) * 100%),
+    var(--color-fd-foreground)
+  );
+}
+
+@media (min-width: 768px) {
+  .tt-steps .tt-step-card {
+    flex-direction: column;
+    background: transparent;
+  }
+
+  .tt-steps-line {
+    display: block;
+    position: absolute;
+    left: 2.5rem;
+    right: 2.5rem;
+    top: 2.5rem;
+    height: 2px;
+    background: var(--tt-accent);
+    transform-origin: 0 50%;
+    transform: scaleX(var(--p));
+  }
+}
+
+/* Use cases: a glow that follows the pointer. */
+.tt-glow-card {
+  background:
+    radial-gradient(
+      22rem circle at var(--mx) var(--my),
+      color-mix(in oklab, var(--tt-accent) 12%, transparent),
+      transparent 65%
+    ),
+    var(--color-fd-background);
+}
+
+/* The finale: the install command, huge, lit where the pointer is. */
+.tt-finale-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2.5rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  padding: 5rem 1.5rem 4rem;
+  text-align: center;
+}
+
+html.tt-motion .tt-finale-card {
+  transform-origin: 50% 100%;
+  transform: scale(calc(0.92 + var(--p) * 0.08));
+  border-radius: calc(3.5rem - var(--p) * 1rem);
+}
+
+.tt-finale-command {
+  margin: 0 auto;
+  max-width: 64rem;
+  font-size: clamp(1.35rem, 5vw, 4.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  color: transparent;
+  background: radial-gradient(
+      26rem circle at var(--mx) var(--my),
+      var(--color-fd-foreground),
+      color-mix(in oklab, var(--color-fd-foreground) 25%, transparent) 75%
+    )
+    text;
+  -webkit-background-clip: text;
+}
+
+@keyframes tt-sweep {
+  0%,
+  100% {
+    --mx: 15%;
+    --my: 40%;
+  }
+  50% {
+    --mx: 85%;
+    --my: 60%;
+  }
+}
+
+html.tt-motion .tt-finale-card:not([data-pointer]) .tt-finale-command {
+  animation: tt-sweep 9s ease-in-out infinite;
+}
+
+/* Reduce Motion turned on after the page loaded: every scene at rest. */
+@media (prefers-reduced-motion: reduce) {
+  html.tt-motion :is(.tt-marquee-track, .tt-finale-command, .tt-point-bar, .tt-stars > span),
+  html.tt-motion .tt-stars::before,
+  html.tt-motion .tt-stars::after {
+    animation: none;
   }
 }

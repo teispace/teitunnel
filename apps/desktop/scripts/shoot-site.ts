@@ -22,6 +22,9 @@ interface Shot {
 
 const shots: Shot[] = [
   { name: "overview", route: "/" },
+  // The same window on the other systems, for the landing page's native app section.
+  { name: "overview-windows", route: "/?platform=windows" },
+  { name: "overview-linux", route: "/?platform=linux" },
   { name: "routes", route: "/routes" },
   { name: "quick-share", route: "/quick-share" },
   {

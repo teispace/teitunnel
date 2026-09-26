@@ -12,6 +12,8 @@ const config = {
   basePath,
   images: { unoptimized: true },
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  // The repository has its own AGENTS.md; Next's dev server shouldn't write another here.
+  agentRules: false,
 };
 
 export default createMDX()(config);

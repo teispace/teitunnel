@@ -27,22 +27,24 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AppTour, type TourStop } from "@/components/app-tour";
 import { CopyCommand } from "@/components/copy-command";
 import { DoctorDemo, QuickShareDemo } from "@/components/demos";
 import { DownloadButton } from "@/components/download-button";
 import { Feature } from "@/components/feature";
-import { TunnelFlow } from "@/components/flow";
+import { Journey } from "@/components/journey";
 import { JsonLd } from "@/components/json-ld";
-import { ButtonLink, delay, Section, Shot, screens } from "@/components/landing";
-import {
-  ApprovalDemo,
-  CommentDemo,
-  ExposureDemo,
-  ReplayDemo,
-  RequestStream,
-} from "@/components/live-demos";
+import { ButtonLink, delay, Eyebrow, Section, Shot, Words } from "@/components/landing";
+import { ApprovalDemo, ExposureDemo, ReplayDemo, RequestStream } from "@/components/live-demos";
+import { NativeShowcase } from "@/components/native-showcase";
 import { PlanDemo } from "@/components/plan-demo";
+import {
+  BigCommand,
+  Manifesto,
+  type Pledge,
+  PromiseField,
+  StepLine,
+  ToolMarquee,
+} from "@/components/scroll-sections";
 import { Terminal } from "@/components/terminal";
 import { latestRelease } from "@/lib/release";
 import {
@@ -78,9 +80,9 @@ const jobs = [
 
 // Cards that float over a screenshot: below it on phones, over its corner on wide screens.
 const overlay = {
-  left: "relative z-10 -mt-10 flex justify-center px-3 sm:px-8 lg:absolute lg:-bottom-10 lg:-left-10 lg:mt-0 lg:px-0",
+  left: "tt-float relative z-10 -mt-10 flex justify-center px-3 sm:px-8 lg:absolute lg:-bottom-10 lg:-left-8 lg:mt-0 lg:px-0",
   right:
-    "relative z-10 -mt-10 flex justify-center px-3 sm:px-8 lg:absolute lg:-right-8 lg:-bottom-10 lg:mt-0 lg:px-0",
+    "tt-float relative z-10 -mt-10 flex justify-center px-3 sm:px-8 lg:absolute lg:-right-6 lg:-bottom-10 lg:mt-0 lg:px-0",
 };
 
 const snapshotSteps = [
@@ -95,52 +97,6 @@ const snapshotSteps = [
   },
 ];
 
-const tour: TourStop[] = [
-  {
-    name: "routes",
-    label: "Routes",
-    caption: "Routes grouped by domain, each with its machines, requests, protection and logs.",
-    alt: "Routes grouped by domain, with app.teispace.com selected: its address, details, machines and edge protection",
-  },
-  {
-    name: "activity",
-    label: "Activity",
-    caption: "Every change, what it did in Cloudflare step by step, and a way to undo it.",
-    alt: "Activity listing changes, with a rename selected showing its DNS and route changes and steps",
-  },
-  {
-    name: "tunnels",
-    label: "Tunnels",
-    caption: "Every tunnel in the account, its connectors, private networks and traffic.",
-    alt: "The Tunnels view: a tunnel's details, connector, private network and a traffic chart",
-  },
-  {
-    name: "domains",
-    label: "Domains",
-    caption: "Your Cloudflare domains, what the credential may do on each, and reserved names.",
-    alt: "The Domains view with teispace.com selected: status, plan, permissions and hostname reservations",
-  },
-  {
-    name: "analytics",
-    label: "Analytics",
-    caption:
-      "Requests, server errors, response times and uptime for every route, from Cloudflare's edge.",
-    alt: "Analytics: every route with a sparkline, request count, server errors, 95th percentile and uptime",
-  },
-  {
-    name: "local-domains",
-    label: "Local Domains",
-    caption: "Real HTTPS addresses for services on this computer, trusted by your browsers.",
-    alt: "Local Domains: api.teispace.localhost with its address, details and request recording",
-  },
-  {
-    name: "projects",
-    label: "Projects",
-    caption: "A teitunnel.yml in your repository, checked and applied like any other change.",
-    alt: "Projects: a project file's routes, share, Snapshot and local domain, applied or missing",
-  },
-];
-
 const tools = [
   { icon: Code2, name: "VS Code", note: "Cursor, Windsurf" },
   { icon: Blocks, name: "JetBrains IDEs", note: "IntelliJ, WebStorm…" },
@@ -149,10 +105,10 @@ const tools = [
   { icon: GitMerge, name: "GitLab CI", note: "merge request previews" },
   { icon: Container, name: "Docker", note: "image and Compose" },
   { icon: Beer, name: "Homebrew", note: "app and CLI" },
-  { icon: Bot, name: "MCP", note: "8 AI tools, one click" },
+  { icon: Bot, name: "MCP", note: "13 AI apps, tested in one click" },
 ];
 
-const security = [
+const security: Pledge[] = [
   {
     icon: KeyRound,
     title: "Credentials in your keychain",
@@ -330,16 +286,18 @@ export default async function Home() {
             />
           </div>
           <div data-hero style={delay(380)} className="mt-14 w-full max-w-5xl md:mt-20">
-            <Shot
-              name="overview"
-              alt="Teitunnel's Overview: a problem banner, a traffic chart, routes on teispace.com and teispace.dev, and live Quick Shares"
-              priority
-              className="text-left"
-            >
-              <div className={overlay.right}>
-                <RequestStream />
-              </div>
-            </Shot>
+            <div data-scene="enter" data-end="0.12" className="tt-hero-shot">
+              <Shot
+                name="overview"
+                alt="Teitunnel's Overview: a problem banner, a traffic chart, routes on teispace.com and teispace.dev, and live Quick Shares"
+                priority
+                className="text-left"
+              >
+                <div className={overlay.right}>
+                  <RequestStream />
+                </div>
+              </Shot>
+            </div>
           </div>
         </div>
       </section>
@@ -350,8 +308,8 @@ export default async function Home() {
           {proof.map(({ icon: Icon, title, body }, index) => (
             <li
               key={title}
-              data-reveal
-              style={delay(index * 70)}
+              data-reveal="blur"
+              style={delay(index * 90)}
               className="flex flex-col gap-2 bg-fd-background p-5 md:p-6"
             >
               <Icon className="size-5 text-[var(--tt-accent-text)]" aria-hidden />
@@ -362,7 +320,14 @@ export default async function Home() {
         </ul>
       </section>
 
-      {/* Feature tour, by job */}
+      <Manifesto
+        label="Why it's safe to put local work online"
+        text="Your computer reaches out to Cloudflare, so the internet can reach in. *No open ports.* *No exposed IP.* And nothing changes on your account that you didn't read first."
+      />
+
+      <Journey />
+
+      {/* Feature tour, by job: cards that stack as they're scrolled */}
       <Section
         id="features"
         eyebrow="Everything in one app"
@@ -381,7 +346,7 @@ export default async function Home() {
           ))}
         </nav>
 
-        <div className="flex flex-col gap-28 md:gap-36">
+        <div className="tt-stack">
           <Feature
             id="share"
             eyebrow="Share"
@@ -502,7 +467,7 @@ export default async function Home() {
           />
 
           <Feature
-            eyebrow="Publish"
+            eyebrow="Keep online"
             title="Online while your computer sleeps."
             lead="Some things should stay up when you close the lid. Teitunnel puts them on your Cloudflare account, as Workers you own."
             bullets={[
@@ -511,8 +476,8 @@ export default async function Home() {
                 with versions, rollback, a password or a login.
               </>,
               <>
-                <strong>Comments:</strong> reviewers pin notes to any spot on a Snapshot or share;
-                you answer them in the app.
+                <strong>Comments:</strong> reviewers click the spot they mean on a Snapshot or
+                share, with nothing to install; you answer in the app, the terminal or an agent.
               </>,
               <>
                 <strong>Offline page and webhook inbox:</strong> your own "back soon" page instead
@@ -543,36 +508,6 @@ export default async function Home() {
                   </div>
                 </Shot>
               </div>
-            }
-          />
-
-          <Feature
-            eyebrow="Publish"
-            title="Feedback exactly where it applies."
-            lead="Send a link and reviewers click the spot they mean. Threads, replies and resolved notes come back to Teitunnel's Comments view."
-            bullets={[
-              <>
-                <strong>On Snapshots and shares,</strong> with a small comment button on the page
-                and nothing for reviewers to install.
-              </>,
-              <>
-                <strong>Signed in when it matters:</strong> behind a login, comments carry the
-                reviewer's Cloudflare Access email.
-              </>,
-              <>
-                <strong>Answer from anywhere:</strong> the app, the terminal or an AI agent.
-              </>,
-            ]}
-            links={[["Comments", "/docs/guides/comments/"]]}
-            media={
-              <Shot
-                name="comments"
-                alt="Comments: open threads on the Launch Snapshot, with a reviewer's note, the owner's reply and a signed-in follow-up"
-              >
-                <div className={overlay.left}>
-                  <CommentDemo />
-                </div>
-              </Shot>
             }
           />
 
@@ -705,7 +640,7 @@ export default async function Home() {
             {[
               {
                 icon: Bot,
-                text: "Connect Claude Code, Claude Desktop, Cursor, VS Code, Codex, Windsurf, Zed or Gemini CLI in one click, from Settings or the terminal.",
+                text: "Claude Code, Cursor, VS Code, Codex, Copilot CLI and eight more are found on your computer, connected in one click and tested with a real MCP handshake.",
               },
               {
                 icon: ListChecks,
@@ -713,7 +648,7 @@ export default async function Home() {
               },
               {
                 icon: ShieldCheck,
-                text: "Every change waits for your approval in the app, unless you allow a tool, and shows up in Activity with its name.",
+                text: "Every change waits for your answer in the app or the AI app, never for the agent's word, and shows up in Activity with its name.",
               },
               {
                 icon: KeyRound,
@@ -732,12 +667,10 @@ export default async function Home() {
               AI agents (MCP) <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           </div>
-          <div data-reveal style={delay(120)} className="mx-auto w-full max-w-xl">
+          <div data-reveal="scale" style={delay(120)} className="mx-auto w-full max-w-2xl">
             <Shot
               name="agents"
-              alt="Settings, AI Tools: Claude Code connected; Cursor, VS Code and others ready to connect; the MCP command for other tools"
-              size={screens.settings}
-              lights="settings"
+              alt="AI & Integrations, AI Apps: Claude Code connected and last used 12 minutes ago, Cursor asking to be updated, VS Code ready to connect"
             >
               <div className={overlay.left}>
                 <ApprovalDemo />
@@ -754,111 +687,71 @@ export default async function Home() {
         title="Share from your editor. Preview from CI."
         lead="Extensions and launchers talk to the running app over a local connection. Nothing listens on the network, and nothing changes without your approval."
       >
-        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {tools.map(({ icon: Icon, name, note }, index) => (
-              <li
-                key={name}
-                data-reveal
-                style={delay((index % 2) * 60 + Math.floor(index / 2) * 50)}
-                className="flex items-center gap-3 rounded-xl border border-fd-border p-3.5"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-fd-card">
-                  <Icon className="size-4.5 text-fd-foreground" aria-hidden />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">{name}</span>
-                  <span className="block truncate text-xs text-fd-muted-foreground">{note}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div data-reveal style={delay(120)} className="mx-auto w-full max-w-xl">
+        <ToolMarquee tools={tools} />
+        <div className="mt-14 grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <p data-reveal className="text-fd-muted-foreground md:text-lg">
+            A global shortcut shares your dev server from anywhere, the browser extension shares the
+            page you're on, and <code>teitunnel://</code> links open a route or a share. Every
+            program is approved once, in the app.{" "}
+            <Link
+              href="/docs/guides/integrations/"
+              className="font-medium text-fd-foreground underline-offset-4 hover:underline"
+            >
+              Links and integrations
+            </Link>
+          </p>
+          <div data-reveal="scale" style={delay(120)}>
             <Shot
               name="integrations"
-              alt="Settings, Integrations: allow connections from the command line and extensions, with VS Code and Raycast always allowed"
-              size={screens.settingsShort}
-              lights="settings"
+              alt="AI & Integrations, More: connections from the command line and extensions, programs always allowed, links and the global shortcut"
             />
-            <p className="mt-5 text-sm text-fd-muted-foreground">
-              A global shortcut shares your dev server from anywhere, and <code>teitunnel://</code>{" "}
-              links open a route or a share.{" "}
-              <Link
-                href="/docs/guides/integrations/"
-                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-              >
-                Links and integrations
-              </Link>
-            </p>
           </div>
         </div>
       </Section>
 
-      {/* App tour */}
+      {/* The native app: one window, as each system draws it */}
       <Section
         id="tour"
         eyebrow="A native app"
         title="Made to feel at home on your computer."
-        lead="System fonts, your accent color, light and dark, keyboard shortcuts and a menu bar or tray. The same app on macOS, Windows and Linux."
+        lead="Not a website in a box: the same app on macOS, Windows and Linux, drawn the way each one draws its own."
       >
-        <div data-reveal>
-          <AppTour stops={tour} />
-        </div>
+        <NativeShowcase />
       </Section>
 
-      {/* Security and privacy */}
-      <Section
-        id="security"
-        eyebrow="Security and privacy"
-        title="Your account, your keys, your computer."
-      >
-        <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-12">
-          <ul className="grid gap-px overflow-hidden rounded-2xl border border-fd-border bg-fd-border sm:grid-cols-2 lg:col-span-7">
-            {security.map(({ icon: Icon, title, body }, index) => (
-              <li
-                key={title}
-                data-reveal
-                style={delay((index % 2) * 70)}
-                className="flex flex-col gap-2 bg-fd-background p-6"
-              >
-                <Icon className="size-5 text-[var(--tt-accent-text)]" aria-hidden />
-                <p className="font-medium">{title}</p>
-                <p className="text-sm text-fd-muted-foreground">{body}</p>
-              </li>
-            ))}
-          </ul>
-          <div data-reveal style={delay(120)} className="lg:col-span-5">
-            <Shot
-              name="accounts"
-              alt="Settings, Accounts: the Teispace account connected with an API token, and the permissions it grants on each domain"
-              size={screens.accounts}
-              lights="settings"
-            />
-            <p className="mt-5 text-sm text-fd-muted-foreground">
-              Teitunnel asks only for the permissions a feature needs, shows what each one is for,
-              and checks again when you come back.{" "}
-              <Link
-                href="/docs/reference/security/"
-                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-              >
-                Security model
-              </Link>{" "}
-              ·{" "}
-              <Link
-                href="/privacy/"
-                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-              >
-                Privacy
-              </Link>
-            </p>
-          </div>
+      {/* Security and privacy: promises flying past a headline that stays */}
+      <PromiseField promises={security}>
+        <div data-reveal>
+          <Eyebrow text="Security and privacy" />
+          <h2
+            id="security-title"
+            className="text-3xl font-semibold tracking-tight text-balance md:text-5xl"
+          >
+            <Words>Your account, your keys, your computer.</Words>
+          </h2>
+          <p className="mt-5 text-fd-muted-foreground md:text-lg">
+            Teitunnel asks only for the permissions a feature needs, shows what each one is for, and
+            checks again when you come back.
+          </p>
+          <p className="mt-4 text-sm">
+            <Link
+              href="/docs/reference/security/"
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              Security model
+            </Link>{" "}
+            ·{" "}
+            <Link href="/privacy/" className="font-medium underline-offset-4 hover:underline">
+              Privacy
+            </Link>
+          </p>
         </div>
-      </Section>
+      </PromiseField>
 
       {/* How it works */}
       <Section id="how-it-works" eyebrow="How it works" title="Three steps, a few minutes.">
-        <ol className="mb-10 grid gap-4 md:grid-cols-3">
-          {[
+        <StepLine
+          steps={[
             {
               title: "Install",
               body: "Download the app for macOS, Windows or Linux. It fetches and verifies cloudflared for you.",
@@ -871,26 +764,8 @@ export default async function Home() {
               title: "Review and apply",
               body: "Add a route, read exactly what will change, and apply. Teitunnel checks the URL works when it's done.",
             },
-          ].map((step, index) => (
-            <li
-              key={step.title}
-              data-reveal
-              style={delay(index * 100)}
-              className="flex gap-4 rounded-2xl border border-fd-border p-6"
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-fd-border font-mono text-sm">
-                {index + 1}
-              </span>
-              <div>
-                <h3 className="font-medium">{step.title}</h3>
-                <p className="mt-1 text-sm text-fd-muted-foreground">{step.body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-        <div data-reveal>
-          <TunnelFlow />
-        </div>
+          ]}
+        />
       </Section>
 
       {/* Use cases */}
@@ -905,9 +780,10 @@ export default async function Home() {
             <Link
               key={title}
               href={href}
-              data-reveal
-              style={delay((index % 3) * 70)}
-              className="group flex flex-col gap-3 rounded-2xl border border-fd-border p-6 transition-[background-color,border-color] duration-300 hover:border-[var(--tt-accent)]/40 hover:bg-fd-card"
+              data-reveal="blur"
+              data-spotlight
+              style={delay((index % 3) * 90)}
+              className="tt-glow-card group flex flex-col gap-3 rounded-2xl border border-fd-border p-6 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-[var(--tt-accent)]/40"
             >
               <span className="flex size-10 items-center justify-center rounded-xl border border-fd-border bg-fd-card">
                 <Icon className="size-5 text-[var(--tt-accent-text)]" aria-hidden />
@@ -960,13 +836,10 @@ export default async function Home() {
         </p>
       </Section>
 
-      {/* Closing */}
+      {/* Closing: the install command, lit where the pointer is */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
-        <div
-          data-reveal
-          className="rounded-3xl border border-fd-border bg-fd-card px-6 py-16 text-center md:py-24"
-        >
-          <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+        <BigCommand command="brew install --cask teispace/tap/teitunnel">
+          <h2 className="mt-12 text-3xl font-semibold tracking-tight text-balance md:text-5xl">
             Put it online. Keep it yours.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-fd-muted-foreground">
@@ -982,7 +855,7 @@ export default async function Home() {
               Read the docs <ArrowRight className="size-4" aria-hidden />
             </ButtonLink>
           </div>
-        </div>
+        </BigCommand>
       </section>
     </main>
   );
