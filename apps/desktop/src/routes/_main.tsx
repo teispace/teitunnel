@@ -14,7 +14,7 @@ import { commands } from "@/lib/ipc/bindings";
 
 /** The developer section, in dev builds; `?clean` hides it (screenshots for the website). */
 const SHOW_DEV =
-  import.meta.env.DEV &&
+  __DEV_PAGES__ &&
   !(typeof window !== "undefined" && new URLSearchParams(window.location.search).has("clean"));
 
 export const Route = createFileRoute("/_main")({

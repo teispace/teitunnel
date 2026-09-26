@@ -72,7 +72,7 @@ Task-level detail is in [`plans/`](plans). Live progress is in [STATUS.md](STATU
 ## M12 · Inspector, agents, analytics
 Plan: [plans/M12-platform.md](plans/M12-platform.md). Research: [research/competitors-2026.md](research/competitors-2026.md). Maintainer answered the open questions 2026-09-24.
 - [x] M12-01 dev servers fixed in place (D-096)
-- [x] M12-02 inspector: Lens core (D-100), integration (D-110) and screens (D-111); left: breakpoints, a measured perf budget
+- [x] M12-02 inspector: Lens core (D-100), integration (D-110), screens (D-111), breakpoints (D-130), frame viewer and a measured 60 fps budget (D-137)
 - [x] M12-03 MCP server (D-097), approvals in the app (D-121)
 - [ ] M12-04 protection: edge rules (D-105) and service tokens (D-106) done; Lens gates in the UI done (Quick Share shield); Access webhook bypass done (D-131); GitHub/Google login presets left
 - [x] M12-05 analytics: edge analytics, uptime and alerts (D-098), the Lens source (D-110), the live Overview, and the per-route and per-share breakdown (D-134)

@@ -3,7 +3,9 @@ import { ArrowUp, Repeat, Webhook } from "lucide-react";
 import {
   type KeyboardEvent,
   type MouseEvent,
+  memo,
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -32,6 +34,99 @@ interface ExchangeListProps {
   /** Shown after the last row (Load earlier). */
   footer?: ReactNode;
 }
+
+interface RowProps {
+  row: ExchangeRow;
+  id: string;
+  /** Offset from the top, in pixels. */
+  start: number;
+  odd: boolean;
+  selected: boolean;
+  picked: boolean;
+  onMouseDown: (event: MouseEvent, id: string) => void;
+}
+
+/** A row's classes, merged once for each look rather than on every render. */
+const rowClass = (odd: boolean, selected: boolean) =>
+  cn(
+    columns,
+    "absolute inset-x-0 top-0 h-6 font-mono text-mono",
+    odd && "bg-surface-inset/60",
+    selected && "bg-surface-selected-inactive",
+    selected &&
+      "group-focus/list:bg-surface-selected group-focus/list:text-on-accent group-focus/list:[--text-secondary:color-mix(in_srgb,var(--text-on-accent)_75%,transparent)] group-focus/list:[--color-healthy:var(--text-on-accent)] group-focus/list:[--color-warning:var(--text-on-accent)] group-focus/list:[--color-error:var(--text-on-accent)]",
+  );
+const ROW_CLASSES = [
+  [rowClass(false, false), rowClass(false, true)],
+  [rowClass(true, false), rowClass(true, true)],
+] as const;
+
+/** What a row says: depends on the request alone, so it survives rows moving. */
+const Cells = memo(function Cells({ row }: { row: ExchangeRow }) {
+  return (
+    <>
+      <span className="truncate font-medium">{row.method}</span>
+      <span className="flex min-w-0 items-center gap-1">
+        {row.replayOf ? (
+          <Repeat
+            aria-label={t("inspector.list.replay")}
+            className="size-3 shrink-0 text-secondary"
+            strokeWidth={2}
+          />
+        ) : null}
+        {row.webhook ? (
+          <Webhook
+            aria-label={t("inspector.list.webhook")}
+            className="size-3 shrink-0 text-secondary"
+            strokeWidth={2}
+          />
+        ) : null}
+        <span className="truncate">{row.path}</span>
+      </span>
+      <span className={cn("truncate tabular", statusClass(row))}>{statusText(row)}</span>
+      <span className="truncate text-right text-secondary tabular">
+        {row.durationMs === null ? "" : formatMs(row.durationMs)}
+      </span>
+      <span className="truncate text-right text-secondary tabular">{rowSize(row)}</span>
+      <span className="truncate text-right text-secondary tabular">
+        {formatClock(row.startedAt)}
+      </span>
+    </>
+  );
+});
+
+interface RowProps {
+  row: ExchangeRow;
+  id: string;
+  /** Offset from the top, in pixels. */
+  start: number;
+  odd: boolean;
+  selected: boolean;
+  picked: boolean;
+  onMouseDown: (event: MouseEvent, id: string) => void;
+}
+
+/**
+ * One request. Memoised: scrolling renders only the rows coming into view, and new
+ * requests above only move the others (their cells stay as they are).
+ */
+const Row = memo(function Row({ row, id, start, odd, selected, picked, onMouseDown }: RowProps) {
+  const chosen = selected || picked;
+  return (
+    <div
+      id={id}
+      role="option"
+      aria-selected={chosen}
+      tabIndex={-1}
+      onMouseDown={(event) => onMouseDown(event, row.id)}
+      title={`${row.method} ${row.host}${row.path}`}
+      className={ROW_CLASSES[odd ? 1 : 0][chosen ? 1 : 0]}
+      style={{ transform: `translateY(${start}px)` }}
+    >
+      <Cells row={row} />
+    </div>
+  );
+});
 
 /**
  * The live request list: newest first, only the rows in view rendered (virtualised like
@@ -104,12 +199,15 @@ export function ExchangeList({
   };
 
   const optionId = (id: string) => `${baseId}-${id}`;
-  const onMouseDown = (event: MouseEvent, id: string) => {
+  // Stable for the memoised rows, calling the latest `onSelect`.
+  const select = useRef(onSelect);
+  select.current = onSelect;
+  const onMouseDown = useCallback((event: MouseEvent, id: string) => {
     if (event.button !== 0) return;
     event.preventDefault();
     scroller.current?.focus();
-    onSelect(id, { toggle: event.metaKey || event.ctrlKey });
-  };
+    select.current(id, { toggle: event.metaKey || event.ctrlKey });
+  }, []);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -145,56 +243,17 @@ export function ExchangeList({
             {list.getVirtualItems().map((item) => {
               const row = rows[item.index];
               if (!row) return null;
-              const selected = row.id === selectedId;
-              const picked = marked.has(row.id);
               return (
-                <div
+                <Row
                   key={item.key}
+                  row={row}
                   id={optionId(row.id)}
-                  role="option"
-                  aria-selected={selected || picked}
-                  tabIndex={-1}
-                  onMouseDown={(event) => onMouseDown(event, row.id)}
-                  title={`${row.method} ${row.host}${row.path}`}
-                  className={cn(
-                    columns,
-                    "absolute inset-x-0 top-0 h-6 font-mono text-mono",
-                    item.index % 2 === 1 && "bg-surface-inset/60",
-                    (selected || picked) && "bg-surface-selected-inactive",
-                    (selected || picked) &&
-                      "group-focus/list:bg-surface-selected group-focus/list:text-on-accent group-focus/list:[--text-secondary:color-mix(in_srgb,var(--text-on-accent)_75%,transparent)] group-focus/list:[--color-healthy:var(--text-on-accent)] group-focus/list:[--color-warning:var(--text-on-accent)] group-focus/list:[--color-error:var(--text-on-accent)]",
-                  )}
-                  style={{ transform: `translateY(${item.start}px)` }}
-                >
-                  <span className="truncate font-medium">{row.method}</span>
-                  <span className="flex min-w-0 items-center gap-1">
-                    {row.replayOf ? (
-                      <Repeat
-                        aria-label={t("inspector.list.replay")}
-                        className="size-3 shrink-0 text-secondary"
-                        strokeWidth={2}
-                      />
-                    ) : null}
-                    {row.webhook ? (
-                      <Webhook
-                        aria-label={t("inspector.list.webhook")}
-                        className="size-3 shrink-0 text-secondary"
-                        strokeWidth={2}
-                      />
-                    ) : null}
-                    <span className="truncate">{row.path}</span>
-                  </span>
-                  <span className={cn("truncate tabular", statusClass(row))}>
-                    {statusText(row)}
-                  </span>
-                  <span className="truncate text-right text-secondary tabular">
-                    {row.durationMs === null ? "" : formatMs(row.durationMs)}
-                  </span>
-                  <span className="truncate text-right text-secondary tabular">{rowSize(row)}</span>
-                  <span className="truncate text-right text-secondary tabular">
-                    {formatClock(row.startedAt)}
-                  </span>
-                </div>
+                  start={item.start}
+                  odd={item.index % 2 === 1}
+                  selected={row.id === selectedId}
+                  picked={marked.has(row.id)}
+                  onMouseDown={onMouseDown}
+                />
               );
             })}
           </div>

@@ -1,4 +1,5 @@
 import { formatBytes } from "@/features/snapshots/format";
+import { numberFormat } from "@/lib/format";
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n";
 import type {
   BreakEdit,
@@ -60,7 +61,7 @@ export const isFiltered = (filters: Filters) =>
 /** "84 ms", "1.24 s", "12.5 s". */
 export function formatMs(ms: number): string {
   const format = (value: number, unit: "millisecond" | "second", digits: number) =>
-    new Intl.NumberFormat(currentLanguage(), {
+    numberFormat({
       style: "unit",
       unit,
       unitDisplay: "short",

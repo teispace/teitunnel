@@ -36,7 +36,7 @@ import type {
 /**
  * Dev-only IPC fixtures, used when the UI runs in a plain browser (WebKit screenshots,
  * design review). Never bundled in release builds: `main.tsx` imports this module only
- * when `import.meta.env.DEV` is true and the Tauri runtime is absent.
+ * when `__DEV_PAGES__` is true and the Tauri runtime is absent.
  */
 const now = Date.now();
 

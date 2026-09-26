@@ -39,3 +39,13 @@ on the same machine rather than across machines.
 `pnpm --filter @teitunnel/desktop perf 30`: log at ~2,000 lines/s plus a 3,600-point
 chart at 20 Hz: 60 fps, p50 17.0 ms, p99 19.0 ms, max 20.0 ms, no frame over 50 ms; DOM
 constant at 186 nodes (D-051).
+
+## Inspector list under load (2026-09-26, WebKit, production build)
+`pnpm --filter @teitunnel/desktop perf 15 inspector` (`src/dev/stress-inspector.tsx`, built
+with `vite build --mode perf`): 10,000 requests, 200 more a second arriving on top, a 2xx
+filter applied, the list scrolled 36 px every frame: 60 fps, p50 17.0 ms, p95 20.0 ms,
+p99 25.0 ms, max 31.0 ms, no frame over 50 ms; DOM constant at 878 nodes (D-137).
+
+The same bench on the development server runs at 22 fps before the fix and 35 fps after:
+React's development checks (element validation, prop diffs for its performance tracks)
+cost more than the list itself, so lists this busy are measured on production builds.

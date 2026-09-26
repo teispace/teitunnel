@@ -52,7 +52,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [x] Webhooks: recognise Stripe, GitHub, Slack, Shopify, Clerk, Twilio, Linear, Discord and standard-webhooks signatures; verify with a secret kept in the keychain; show "signature valid / invalid / expired timestamp"; replay keeps or recomputes the signature (user's choice). (backend and CLI.)
 - [x] Mock/stub: answer a path with a saved response when the origin is down (keeps webhook senders happy while you restart).
 - [x] Breakpoints: hold matching requests or answers, edit, answer from here, drop, continue (D-130; 60 s limit, 50 at once, bodies up to 1 MB of known-size text).
-- [ ] Performance budget: 60 fps list with 10,000 exchanges (virtualised, like the log viewer, D-051).
+- [x] Performance budget: 60 fps list with 10,000 exchanges (virtualised, like the log viewer, D-051). (D-137: measured on a production build with 200 new requests/s while scrolling every frame: 60 fps, no long frames; rows memoised with their cells apart, number formatters cached.)
 - [x] Network simulation per tap: latency and jitter presets (3G, 4G, satellite), bandwidth limits; fault injection per path (a share of 500/504/429 answers, dropped connections, slow first byte). HTTP-level: connection resets and timeouts stand in for packet loss.
 - [x] Stream keep-alive: during idle periods Lens writes SSE comment lines into `text/event-stream` responses so Cloudflare's 100-second idle timeout (524 on Free/Pro) never cuts a long AI tool call.
 - [x] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded). (The last 500 frames, 4 KiB each; filter by direction or text, open a frame to read it whole with JSON indented, and copy it.)
