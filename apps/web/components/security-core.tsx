@@ -15,8 +15,13 @@ interface Trace {
   dot?: { x: number; y: number };
   /** Where it meets the core: a pin. */
   pin: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
+}
+
+/** A pulse of data on its way along a trace into the core. */
+interface Pulse {
+  id: number;
+  trace: number;
   duration: number;
-  delay: number;
 }
 
 /** An orthogonal path through `points`, with rounded corners. */
@@ -56,6 +61,41 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
   const coreRef = useRef<HTMLDivElement>(null);
   const [traces, setTraces] = useState<Trace[]>([]);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [pulses, setPulses] = useState<Pulse[]>([]);
+
+  // Data arrives from any node at any moment: a pulse on a random trace every so often,
+  // sometimes a few at once, while the section is on screen and motion is welcome.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (
+      !grid ||
+      traces.length === 0 ||
+      !document.documentElement.classList.contains("tt-motion") ||
+      !("IntersectionObserver" in window)
+    )
+      return;
+    let timer = 0;
+    let id = 0;
+    const send = () => {
+      const burst = Math.random() < 0.2 ? 2 + Math.floor(Math.random() * 2) : 1;
+      const fresh = Array.from({ length: burst }, () => ({
+        id: id++,
+        trace: Math.floor(Math.random() * traces.length),
+        duration: 1.6 + Math.random() * 2.2,
+      }));
+      setPulses((now) => [...now.slice(-24), ...fresh]);
+      timer = window.setTimeout(send, 250 + Math.random() * 850);
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      window.clearTimeout(timer);
+      if (entry?.isIntersecting) send();
+    });
+    observer.observe(grid);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [traces]);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -92,8 +132,6 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
               { x: coreLeft, y: pinY },
             ]),
             pin: { x: coreLeft, y: pinY, side },
-            duration: 2.6 + index * 0.7,
-            delay: index * 0.9,
           });
         } else {
           const from = r.left - box.left;
@@ -106,8 +144,6 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
               { x: coreRight, y: pinY },
             ]),
             pin: { x: coreRight, y: pinY, side },
-            duration: 3 + index * 0.6,
-            delay: 0.4 + index * 0.8,
           });
         }
       }
@@ -120,8 +156,6 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           d: rounded([start, { x, y: start.y }, { x, y: coreTop }]),
           dot: start,
           pin: { x, y: coreTop, side: "top" },
-          duration: 2.2 + k * 0.5,
-          delay: 0.3 + k * 1.1,
         });
       }
       for (const [k, dx] of [-50, 60].entries()) {
@@ -131,8 +165,6 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
           d: rounded([start, { x, y: start.y }, { x, y: coreBottom }]),
           dot: start,
           pin: { x, y: coreBottom, side: "bottom" },
-          duration: 2.4 + k * 0.6,
-          delay: 1 + k * 0.7,
         });
       }
       setTraces(next);
@@ -176,17 +208,6 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
             // biome-ignore lint/suspicious/noArrayIndexKey: traces are measured anew as a set
             <g key={index}>
               <path d={trace.d} className="tt-trace" />
-              <path
-                d={trace.d}
-                pathLength={1}
-                className="tt-trace-pulse"
-                style={
-                  {
-                    "--duration": `${trace.duration}s`,
-                    "--delay": `${trace.delay}s`,
-                  } as CSSProperties
-                }
-              />
               {trace.dot ? (
                 <circle cx={trace.dot.x} cy={trace.dot.y} r={3} className="tt-trace-dot" />
               ) : null}
@@ -212,6 +233,19 @@ export function SecurityCore({ pledges, children }: { pledges: Pledge[]; childre
               />
             </g>
           ))}
+          {pulses.map((pulse) => {
+            const trace = traces[pulse.trace];
+            return trace ? (
+              <path
+                key={pulse.id}
+                d={trace.d}
+                pathLength={1}
+                className="tt-trace-pulse"
+                style={{ "--duration": `${pulse.duration}s` } as CSSProperties}
+                onAnimationEnd={() => setPulses((now) => now.filter((p) => p.id !== pulse.id))}
+              />
+            ) : null;
+          })}
         </svg>
       ) : null}
       <ul className="tt-pledges tt-pledges-left">{left.map((p, i) => card(p, "left", i))}</ul>

@@ -1296,7 +1296,7 @@ html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
 }
 
 html.tt-motion .tt-trace-pulse {
-  animation: tt-trace-run var(--duration, 3s) linear var(--delay, 0s) infinite;
+  animation: tt-trace-run var(--duration, 3s) cubic-bezier(0.45, 0, 0.35, 1) both;
 }
 
 .tt-trace-dot {
