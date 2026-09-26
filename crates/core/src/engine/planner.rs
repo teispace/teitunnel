@@ -197,6 +197,7 @@ impl UserText for PlanError {
                     QuotaKind::Custom => msg::protection::error::quota_custom(limit, zone),
                     QuotaKind::RateLimit => msg::protection::error::quota_rate_limit(limit, zone),
                     QuotaKind::Transform => msg::protection::error::quota_transform(limit, zone),
+                    QuotaKind::Cache => msg::protection::error::quota_cache(limit, zone),
                 }
             }
             Self::EdgeRateLimitConflict {

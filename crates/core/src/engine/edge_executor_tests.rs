@@ -74,6 +74,7 @@ pub(super) fn everything(rate_limit: bool) -> EdgeProtection {
             op: EdgeHeaderOp::Set,
             value: Some("noindex".into()),
         }],
+        bypass_cache: true,
     }
 }
 
@@ -132,9 +133,24 @@ async fn protects_a_hostname_and_takes_it_all_back_leaving_theirs() {
     let rules = custom_rules(&cloud);
     assert_eq!(rules[0], "Their own rule");
     assert_eq!(rules.len(), 3, "{rules:?}");
+    let cache = &cloud.snapshot().rulesets[&("z-xyz".into(), cf_api::PHASE_CACHE.into())].1;
+    assert_eq!(cache.len(), 1);
+    assert_eq!(
+        (
+            cache[0].action.as_str(),
+            cache[0].expression.as_str(),
+            cache[0].action_parameters.clone()
+        ),
+        (
+            "set_cache_settings",
+            r#"(http.host eq "app.xyz.com")"#,
+            Some(serde_json::json!({ "cache": false }))
+        ),
+        "a cache bypass for the hostname only"
+    );
     assert_eq!(
         engine.local().owned_edge_rules("acc").await.unwrap().len(),
-        5
+        6
     );
     let log = engine.local().activity("acc", 1).await.unwrap();
     assert_eq!(log[0].summary, "Protect app.xyz.com at Cloudflare's edge");
@@ -207,6 +223,62 @@ async fn a_missing_permission_is_reported_as_such() {
         ),
         "{err:?}"
     );
+}
+
+#[tokio::test]
+async fn edge_rules_work_without_cache_rules_until_the_cache_is_bypassed() {
+    let mut state = zone("pro");
+    state.cache_rules_forbidden = true;
+    let (engine, cloud) = (engine(), FakeCloud::new(state));
+
+    // Existing tokens don't have Cache Rules: everything else works as before.
+    let view = crate::protection::view(&engine, &cloud, CTX, "app.xyz.com")
+        .await
+        .unwrap();
+    assert!(!view.cache_rules);
+    assert!(
+        view.quotas
+            .iter()
+            .all(|q| q.quota != super::edge::QuotaKind::Cache),
+        "no quota that can't be read: {:?}",
+        view.quotas
+    );
+    let bots = EdgeProtection {
+        bots: BotMode::Block,
+        ..EdgeProtection::default()
+    };
+    let (outcome, _) = apply(&engine, &cloud, &protect("app.xyz.com", bots.clone())).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+
+    // Bypassing the cache asks for the permission before anything changes.
+    let mutations = cloud.mutations();
+    let bypass = EdgeProtection {
+        bypass_cache: true,
+        ..bots
+    };
+    let err = engine
+        .preview(&cloud, CTX, &protect("app.xyz.com", bypass.clone()))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EngineError::Observe(ObserveError::CacheRulesPermission)
+        ),
+        "{err:?}"
+    );
+    assert_eq!(cloud.mutations(), mutations);
+
+    // With the permission added, the bypass goes on and shows in the view.
+    cloud.state.lock().unwrap().cache_rules_forbidden = false;
+    engine.invalidate("acc");
+    let (outcome, _) = apply(&engine, &cloud, &protect("app.xyz.com", bypass)).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let view = crate::protection::view(&engine, &cloud, CTX, "app.xyz.com")
+        .await
+        .unwrap();
+    assert!(view.cache_rules && view.protection.bypass_cache);
+    assert_eq!(view.protection.bots, BotMode::Block);
 }
 
 #[tokio::test]

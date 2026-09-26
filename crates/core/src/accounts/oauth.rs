@@ -51,10 +51,11 @@ const SCOPES: &[&str] = &[
     "access-acct.write",
     "zone-access.write",
     // Optional: edge protection (custom and rate limiting rules, header rules, service
-    // tokens).
+    // tokens, a cache bypass).
     "zone-waf.write",
     "zone-transform-rules.write",
     "access-service-token.write",
+    "cache-settings.write",
     // Optional: Snapshots and offline pages (Workers and their routes), comments and
     // webhook inboxes (D1).
     "workers-scripts.write",

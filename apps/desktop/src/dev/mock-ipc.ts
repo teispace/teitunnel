@@ -256,6 +256,7 @@ const capabilities: Capabilities = {
   analytics: "yes",
   workersEdit: "yes",
   edgeRules: "yes",
+  cacheRules: "yes",
   serviceTokens: "yes",
   d1: "yes",
   zones: domains.map((d) => ({

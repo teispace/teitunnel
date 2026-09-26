@@ -66,6 +66,12 @@ export function ProtectionSection({
                 value: describeRateLimit(protection.rateLimit),
               },
               { label: t("protection.headers.label"), value: describeHeaders(protection) },
+              {
+                label: t("protection.cache.short"),
+                value: protection.bypassCache
+                  ? t("protection.cache.bypassed")
+                  : t("protection.cache.usual"),
+              },
             ]}
           />
           {query.data ? <QuotaList quotas={query.data.quotas} zone={query.data.zone} /> : null}

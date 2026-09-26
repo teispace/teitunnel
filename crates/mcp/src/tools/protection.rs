@@ -197,7 +197,7 @@ pub(crate) struct HeaderOut {
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct QuotaOut {
-    /// `custom`, `rateLimit` or `transform`.
+    /// `custom`, `rateLimit`, `transform` or `cache`.
     kind: String,
     /// Rules the zone has (Teitunnel's and others').
     used: u32,
@@ -231,6 +231,10 @@ pub(crate) struct ProtectionOut {
     request_headers: Vec<HeaderOut>,
     /// Response header rules.
     response_headers: Vec<HeaderOut>,
+    /// Cloudflare never caches its responses.
+    bypass_cache: bool,
+    /// Whether the credential can manage Cache Rules (needed to bypass the cache).
+    cache_rules_available: bool,
     /// The domain's rule quotas.
     quotas: Vec<QuotaOut>,
 }
@@ -271,6 +275,8 @@ impl From<ProtectionView> for ProtectionOut {
             shares_rate_limit_with: view.shares_rate_limit_with,
             request_headers: headers_out(p.request_headers),
             response_headers: headers_out(p.response_headers),
+            bypass_cache: p.bypass_cache,
+            cache_rules_available: view.cache_rules,
             quotas: view
                 .quotas
                 .into_iter()
@@ -380,6 +386,10 @@ pub(crate) struct ProtectArgs {
     /// The full list of response header rules (replaces the current list when given).
     #[serde(default)]
     response_headers: Option<Vec<HeaderArgs>>,
+    /// Stop Cloudflare caching the hostname's responses (for a dev server whose assets
+    /// change), or cache them again with `false`. Needs the Cache Rules permission.
+    #[serde(default)]
+    bypass_cache: Option<bool>,
 }
 
 fn header_rules(list: Vec<HeaderArgs>) -> Result<Vec<HeaderRule>, ToolError> {
@@ -440,6 +450,9 @@ impl ProtectArgs {
         }
         if let Some(list) = self.response_headers {
             next.response_headers = header_rules(list)?;
+        }
+        if let Some(bypass) = self.bypass_cache {
+            next.bypass_cache = bypass;
         }
         Ok(next)
     }

@@ -1,6 +1,6 @@
 ---
 title: Edge protection
-description: "Challenge or block bots and AI crawlers, rate limit visitors, change headers, and give machines service tokens: rules Cloudflare enforces for one hostname, planned and undoable like every change."
+description: "Challenge or block bots and AI crawlers, rate limit visitors, change headers, bypass Cloudflare's cache, and give machines service tokens: rules Cloudflare enforces for one hostname, planned and undoable like every change."
 ---
 
 A login ([Require a login](/docs/guides/require-login)) decides **who** may open a
@@ -15,6 +15,8 @@ before it reaches your computer:
 - **Header rules:** set or remove request headers before they reach your service, and set,
   add or remove response headers before they reach visitors (for example
   `X-Robots-Tag: noindex` on a preview).
+- **Bypass the cache:** Cloudflare never caches the hostname's responses, so a dev
+  server's changed files show at once instead of a cached copy.
 - **Service tokens:** let machines (CI, scripts, other servers) through a login with two
   headers.
 
@@ -44,9 +46,10 @@ In **Protect app.teispace.com**, choose:
 - **Header rules:** **Add Header** under **Request headers (before they reach your
   service)** or **Response headers (before they reach visitors)**, each with **Set**,
   **Add** (response only) or **Remove**.
+- **Bypass Cloudflare's cache.**
 
-**Rules on teispace.com** shows how many custom rules, rate limiting rules and Transform
-Rules the domain uses of its plan's quota.
+**Rules on teispace.com** shows how many custom rules, rate limiting rules, Transform
+Rules and Cache Rules the domain uses of its plan's quota.
 </Step>
 <Step>
 Choose **Review**, read the plan, and choose **Apply Rules** (**Remove Rules** when you
@@ -64,6 +67,7 @@ teitunnel protect app.teispace.com --rate-limit 30/1m  # Pro plans and up
 teitunnel protect app.teispace.com --rate-limit 100/10s:challenge
 teitunnel protect preview.teispace.com --set-response-header X-Robots-Tag:noindex
 teitunnel protect api.teispace.com --remove-request-header Cookie
+teitunnel protect dev.teispace.com --bypass-cache      # never cache a dev server
 teitunnel protect app.teispace.com --off               # remove every rule Teitunnel added
 ```
 
@@ -78,6 +82,7 @@ teitunnel protect app.teispace.com --off               # remove every rule Teitu
 | `--add-response-header NAME:VALUE` | Add a header to responses, keeping existing values. |
 | `--remove-response-header NAME` | Remove a header from responses. |
 | `--clear-headers` | Start from no header rules, then apply the header options given. |
+| `--bypass-cache` / `--no-bypass-cache` | Stop Cloudflare caching responses, or let it cache them again. |
 | `--off` | Remove every rule Teitunnel added for the hostname. |
 | `-a, --account`, `-y, --yes`, `--json` | Account, apply without asking, JSON output. |
 
@@ -100,6 +105,7 @@ whole rule list:
 | Rate limit | Rate limiting rule | `http_ratelimit` |
 | Request headers | Transform Rule | `http_request_late_transform` |
 | Response headers | Transform Rule | `http_response_headers_transform` |
+| Bypass the cache | Cache Rule (`"cache": false`) | `http_request_cache_settings` |
 
 Every rule matches `http.host eq "<hostname>"` and is marked `teitunnel:` in its
 description; Teitunnel also remembers the rules' ids. Rules you or others made in the
@@ -108,6 +114,10 @@ dashboard are counted toward the quotas but never changed, moved or removed.
 "Automated clients" means a request that isn't from a verified bot and has the user agent
 of an automated client (empty, `curl`, `wget`, `python-requests`, headless browsers and
 similar). Bot scores are an Enterprise feature, so Teitunnel doesn't use them.
+
+The cache bypass is added as the last Cache Rule of the domain. Cache Rules stack, and when
+several set the same thing the last matching one wins, so the bypass holds over the
+domain's other Cache Rules ([rule order](https://developers.cloudflare.com/cache/how-to/cache-rules/order/)).
 
 ## Your plan's limits
 
@@ -120,8 +130,10 @@ others') before and after each change:
 | Rate limiting rules | 1 | 2 | 5 |
 | Rate limit periods | 10 s | up to 1 min | up to 10 min |
 | Transform Rules (headers, URL rewrites) | 10 | 25 | 50 |
+| Cache Rules | 10 | 25 | 50 |
 
-Each protected hostname uses at most two custom rules and one Transform Rule per direction.
+Each protected hostname uses at most two custom rules, one Transform Rule per direction and
+one Cache Rule.
 A header list holds up to 20 rules.
 
 <Callout type="warn" title="Rate limits need Pro or higher">
@@ -182,7 +194,9 @@ created.
 ## Permissions
 
 Edge rules need **Zone · Zone WAF · Edit** and **Zone · Transform Rules · Edit** on the
-domain; service tokens need **Account · Access: Service Tokens · Edit**. Tokens created from
+domain, and bypassing the cache also needs **Zone · Cache Rules · Edit**; service tokens need
+**Account · Access: Service Tokens · Edit**. A token without Cache Rules keeps every other
+edge rule working: only the cache bypass asks for it. Tokens created from
 Teitunnel's link and OAuth sign-in ask for them; a credential without them gets the usual
 in-place fix that names what to add.
 

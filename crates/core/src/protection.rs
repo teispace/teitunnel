@@ -146,6 +146,9 @@ pub struct ProtectionView {
     pub longest_period: u32,
     /// Other hostnames sharing its rate limit.
     pub shares_rate_limit_with: Vec<String>,
+    /// Whether the credential can read and write Cache Rules (an optional permission
+    /// the cache bypass needs).
+    pub cache_rules: bool,
 }
 
 /// One of Teitunnel's service tokens for a hostname (never its secret).
@@ -199,21 +202,19 @@ pub async fn view<C: CloudApi>(
         hostname: host.to_string(),
         zone: state.zone.clone(),
         plan: state.plan,
-        quotas: [
-            QuotaKind::Custom,
-            QuotaKind::RateLimit,
-            QuotaKind::Transform,
-        ]
-        .into_iter()
-        .map(|quota| QuotaView {
-            quota,
-            used: state.used(quota),
-            limit: quota.limit(state.plan),
-        })
-        .collect(),
+        quotas: QuotaKind::ALL
+            .into_iter()
+            .filter(|quota| *quota != QuotaKind::Cache || state.cache_readable)
+            .map(|quota| QuotaView {
+                quota,
+                used: state.used(quota),
+                limit: quota.limit(state.plan),
+            })
+            .collect(),
         rate_limit_available: limits.host_rate_limit,
         longest_period: limits.longest_period,
         shares_rate_limit_with,
+        cache_rules: state.cache_readable,
         protection,
     })
 }

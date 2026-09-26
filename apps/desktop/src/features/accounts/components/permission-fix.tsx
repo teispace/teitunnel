@@ -29,6 +29,8 @@ export type PermissionNeed =
   | { kind: "workersRoutes"; zone: string }
   /** Edge protection: custom and rate limiting rules, and header rules. */
   | { kind: "edgeRules" }
+  /** Edge protection: a cache bypass (Cache Rules). */
+  | { kind: "cacheRules" }
   /** Access service tokens for machines. */
   | { kind: "serviceTokens" }
   /** D1 databases: Snapshot comments and webhook inboxes. */
@@ -62,6 +64,8 @@ function isMissing(caps: Capabilities, need: PermissionNeed): boolean {
       return caps.zones.some((z) => z.zoneName === need.zone && z.workersRoutes === "no");
     case "edgeRules":
       return caps.edgeRules === "no";
+    case "cacheRules":
+      return caps.cacheRules === "no";
     case "serviceTokens":
       return caps.serviceTokens === "no";
     case "d1":
@@ -129,6 +133,8 @@ function permissions(need: PermissionNeed): { name: string; why: string }[] {
         { name: t("permissionFix.zoneWaf"), why: t("permissionFix.zoneWafWhy") },
         { name: t("permissionFix.transformRules"), why: t("permissionFix.transformRulesWhy") },
       ];
+    case "cacheRules":
+      return [{ name: t("permissionFix.cacheRules"), why: t("permissionFix.cacheRulesWhy") }];
     case "serviceTokens":
       return [{ name: t("permissionFix.serviceTokens"), why: t("permissionFix.serviceTokensWhy") }];
     case "d1":

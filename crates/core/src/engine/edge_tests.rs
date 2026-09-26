@@ -28,6 +28,7 @@ fn edge(plan: ZonePlan, rules: &[(&str, ObservedRule)]) -> EdgeState {
         plan,
         rulesets: PHASES
             .iter()
+            .chain([&cf_api::PHASE_CACHE])
             .map(|phase| {
                 let rules: Vec<ObservedRule> = rules
                     .iter()
@@ -41,6 +42,7 @@ fn edge(plan: ZonePlan, rules: &[(&str, ObservedRule)]) -> EdgeState {
                 }
             })
             .collect(),
+        cache_readable: true,
     }
 }
 
@@ -143,6 +145,7 @@ fn everything() -> EdgeProtection {
             op: EdgeHeaderOp::Set,
             value: Some("noindex".into()),
         }],
+        bypass_cache: true,
     }
 }
 
@@ -364,6 +367,59 @@ fn a_full_custom_rule_quota_is_an_error_and_usage_is_shown() {
             limit: 5,
         }]
     );
+}
+
+#[test]
+fn a_cache_bypass_counts_towards_the_cache_rules_quota() {
+    let bypass = EdgeProtection {
+        bypass_cache: true,
+        ..EdgeProtection::default()
+    };
+    let ten: Vec<(&str, ObservedRule)> = (0..10)
+        .map(|i| {
+            (
+                cf_api::PHASE_CACHE,
+                foreign(&format!("c{i}"), "set_cache_settings"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        plan(
+            &protect("app.xyz.com", bypass.clone()),
+            &snapshot(edge(ZonePlan::Free, &ten))
+        ),
+        Err(PlanError::EdgeQuotaFull {
+            quota: QuotaKind::Cache,
+            zone: "xyz.com".into(),
+            limit: 10,
+        })
+    );
+    let before = snapshot(edge(ZonePlan::Pro, &ten));
+    let p = assert_idempotent(&protect("app.xyz.com", bypass), &before);
+    assert_eq!(
+        p.warnings,
+        [Warning::EdgeQuota {
+            quota: QuotaKind::Cache,
+            zone: "xyz.com".into(),
+            used: 11,
+            limit: 25,
+        }]
+    );
+}
+
+#[test]
+fn an_unreadable_cache_phase_is_left_alone() {
+    // Without the permission the phase isn't observed, so turning protection off
+    // plans nothing there (and never guesses at rules it can't see).
+    let mut state = edge(ZonePlan::Free, &[]);
+    state.cache_readable = false;
+    state.rulesets.retain(|r| r.phase != cf_api::PHASE_CACHE);
+    let p = plan(
+        &protect("app.xyz.com", EdgeProtection::default()),
+        &snapshot(state),
+    )
+    .unwrap();
+    assert!(p.steps.is_empty(), "{:?}", p.steps);
 }
 
 fn tokens_snapshot(app: Option<ObservedAccessApp>, tokens: Vec<ObservedServiceToken>) -> Snapshot {

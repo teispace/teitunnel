@@ -30,6 +30,7 @@ import { QuotaList } from "./quota-list";
 type Stage = "form" | "review" | "applying";
 
 const EDGE_PERMISSION = "core.error.observe.edgePermission";
+const CACHE_PERMISSION = "core.protection.error.cacheRulesPermission";
 
 interface ProtectionSheetProps {
   accountId: string;
@@ -88,12 +89,17 @@ export function ProtectionSheet({
     });
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  /** The change the form asks for. */
+  const desired = (): ProtectionChange => {
     const rateLimit = form.rateLimit
       ? { ...form.rateLimit, requests: Number.parseInt(requests, 10) || 0 }
       : null;
-    review({ type: "protect", hostname, protection: { ...form, rateLimit } });
+    return { type: "protect", hostname, protection: { ...form, rateLimit } };
+  };
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    review(desired());
   };
 
   const runApply = () => {
@@ -135,6 +141,7 @@ export function ProtectionSheet({
   const generalError = failure && failure.field !== "protection" ? failure : null;
   const permission =
     failure?.key === EDGE_PERMISSION || failure?.key === "core.error.cloudflare.permission";
+  const cachePermission = failure?.key === CACHE_PERMISSION;
   const failed = outcome && outcome.type !== "applied" ? outcome : null;
 
   const footer = (() => {
@@ -309,16 +316,34 @@ export function ProtectionSheet({
               value={form.responseHeaders}
               onChange={(responseHeaders) => setForm({ ...form, responseHeaders })}
             />
+            <label htmlFor="protection-cache" className="flex items-start gap-2 text-body">
+              <Switch
+                id="protection-cache"
+                checked={form.bypassCache}
+                onCheckedChange={(bypassCache) => setForm({ ...form, bypassCache })}
+              />
+              <span className="flex flex-col">
+                {t("protection.cache.label")}
+                <span className="text-callout text-secondary">{t("protection.cache.help")}</span>
+              </span>
+            </label>
+            {current && !current.cacheRules && form.bypassCache ? (
+              <PermissionFix
+                accountId={accountId}
+                needs={[{ kind: "cacheRules" }]}
+                onReady={() => review(desired())}
+              />
+            ) : null}
             {current ? <QuotaList quotas={current.quotas} zone={current.zone} /> : null}
             {fieldError ? (
               <p role="alert" className="text-callout text-error">
                 {fieldError}
               </p>
             ) : null}
-            {permission ? (
+            {permission || cachePermission ? (
               <PermissionFix
                 accountId={accountId}
-                needs={[{ kind: "edgeRules" }]}
+                needs={[{ kind: cachePermission ? "cacheRules" : "edgeRules" }]}
                 refused
                 onReady={() => change && review(change)}
               />

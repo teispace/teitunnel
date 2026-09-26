@@ -28,6 +28,8 @@ pub enum Permission {
     EdgeRules,
     /// Access service tokens (optional).
     ServiceTokens,
+    /// Cache Rules, for a cache bypass (optional).
+    CacheRules,
 }
 
 /// The result of probing one permission.
@@ -90,6 +92,8 @@ pub struct Capabilities {
     pub workers_edit: Grant,
     /// Edge rules (optional feature), probed on the first domain.
     pub edge_rules: Grant,
+    /// Cache Rules (optional feature: a cache bypass), probed on the first domain.
+    pub cache_rules: Grant,
     /// Access service tokens (optional feature).
     pub service_tokens: Grant,
     /// D1 databases: Snapshot comments and webhook inboxes (optional feature).
@@ -150,19 +154,24 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
     // Edge rules: reading a phase's entry point (404 when there's none) needs the
     // same permission as writing it; custom rules (Zone WAF) and header rules
     // (Transform Rules) are separate permissions, and both are needed.
-    let edge_rules = match zones_list.first() {
+    // Cache Rules are a permission of their own, probed the same way.
+    let (edge_rules, cache_rules) = match zones_list.first() {
         Some(zone) => {
             let entrypoint =
                 |phase: &str| format!("/zones/{}/rulesets/phases/{phase}/entrypoint", zone.id);
-            let (custom, headers) = (
+            let (custom, headers, cache) = (
                 entrypoint(cf_api::PHASE_CUSTOM),
                 entrypoint(cf_api::PHASE_REQUEST_HEADERS),
+                entrypoint(cf_api::PHASE_CACHE),
             );
-            let (waf, transform) =
-                tokio::join!(client.probe_read(&custom), client.probe_read(&headers));
-            both(waf, transform)
+            let (waf, transform, cache) = tokio::join!(
+                client.probe_read(&custom),
+                client.probe_read(&headers),
+                client.probe_read(&cache)
+            );
+            (both(waf, transform), cache.into())
         }
-        None => Grant::Unknown,
+        None => (Grant::Unknown, Grant::Unknown),
     };
     let mut zones = Vec::new();
     for zone in zones_list {
@@ -185,6 +194,7 @@ pub async fn probe(client: &Client, account_id: &str, only_zone: Option<&str>) -
         analytics,
         workers_edit: workers_edit.into(),
         edge_rules,
+        cache_rules,
         service_tokens: tokens.into(),
         d1: d1.into(),
         zones,
@@ -340,6 +350,15 @@ pub const PERMISSION_USES: &[PermissionUse] = &[
         probed: true,
     },
     PermissionUse {
+        name: Some("Zone · Cache Rules · Edit"),
+        fix_key: Some("cacheRules"),
+        token_key: Some("cache_settings"),
+        scopes: &["cache-settings.write"],
+        required: false,
+        features: "Edge protection: bypassing Cloudflare's cache for a hostname (a dev server's changing assets)",
+        probed: true,
+    },
+    PermissionUse {
         name: Some("Account · Access: Service Tokens · Edit"),
         fix_key: Some("serviceTokens"),
         token_key: Some("access_service_token"),
@@ -477,6 +496,14 @@ mod tests {
             .respond_with(error(403, 10000))
             .mount(&server)
             .await;
+        // Cache Rules are their own permission: allowed here (no entry point yet).
+        Mock::given(method("GET"))
+            .and(path(
+                "/zones/z1/rulesets/phases/http_request_cache_settings/entrypoint",
+            ))
+            .respond_with(error(404, 10003))
+            .mount(&server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/accounts/a1/access/service_tokens"))
             .respond_with(list(serde_json::json!([])))
@@ -542,6 +569,7 @@ mod tests {
         assert_eq!(caps.analytics, Grant::No);
         assert_eq!(caps.workers_edit, Grant::Yes);
         assert_eq!(caps.edge_rules, Grant::No, "Transform Rules is missing");
+        assert_eq!(caps.cache_rules, Grant::Yes, "probed on its own");
         assert_eq!(caps.service_tokens, Grant::Yes);
         assert_eq!(
             caps.zones

@@ -54,6 +54,7 @@ const quotaWarnings: Record<QuotaKind, MessageKey> = {
   custom: "plan.warning.edgeQuota.custom",
   rateLimit: "plan.warning.edgeQuota.rateLimit",
   transform: "plan.warning.edgeQuota.transform",
+  cache: "plan.warning.edgeQuota.cache",
 };
 
 function StateIcon({ state }: { state: StepState | undefined }) {

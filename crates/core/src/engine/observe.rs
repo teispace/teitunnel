@@ -38,6 +38,8 @@ pub enum ObserveError {
     UnknownTunnel,
     /// Edge rules need Zone WAF and Transform Rules permissions the credential lacks.
     EdgePermission,
+    /// A cache bypass needs the Cache Rules permission the credential lacks.
+    CacheRulesPermission,
     /// Service tokens need the Access: Service Tokens permission the credential lacks.
     ServiceTokenPermission,
     /// Workers in front of a route or comments need Workers Routes and D1 permissions
@@ -53,6 +55,7 @@ impl UserText for ObserveError {
             Self::AccessPermission => msg::error::observe::access_permission(),
             Self::UnknownTunnel => msg::error::observe::unknown_tunnel(),
             Self::EdgePermission => msg::error::observe::edge_permission(),
+            Self::CacheRulesPermission => msg::protection::error::cache_rules_permission(),
             Self::ServiceTokenPermission => msg::error::observe::service_token_permission(),
             Self::WorkersPermission => msg::error::observe::workers_permission(),
         }
@@ -144,10 +147,14 @@ impl ObserveNeed {
                 })
                 .unwrap_or_default(),
             edge: match intent {
-                Intent::ProtectHostname { hostname, .. } => super::edge::EdgeNeed {
+                Intent::ProtectHostname {
+                    hostname,
+                    protection,
+                } => super::edge::EdgeNeed {
                     hostname: Some(hostname.to_string()),
                     required: true,
                     routed: false,
+                    cache: protection.bypass_cache,
                 },
                 // Removing a hostname's last route takes its edge rules with it.
                 Intent::RemoveRoute { hostname, .. } | Intent::CleanUpHostname { hostname } => {
@@ -482,6 +489,9 @@ async fn observe_edge<C: CloudApi>(
     let mut states = Vec::new();
     for zone in targets {
         match super::edge::observe(api, &zone, &owned).await {
+            Ok(state) if need.cache && !state.cache_readable => {
+                return Err(ObserveError::CacheRulesPermission);
+            }
             Ok(state) => states.push(state),
             // Removing routes doesn't fail because their edge rules can't be read.
             Err(super::edge::EdgeReadError::Permission) if !need.required => {

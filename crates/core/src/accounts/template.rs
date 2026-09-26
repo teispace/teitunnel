@@ -15,8 +15,10 @@
 /// `zone_waf` (custom and rate limiting rules), `zone_transform_rules` (header rules;
 /// `transform_rules` is the account-level group) and `access_service_token` protect
 /// hostnames at the edge. `d1` (Account ▸ D1 ▸ Edit) keeps Snapshot comments
-/// and webhook inboxes. None of these is in Cloudflare's documented key table; all were
-/// checked against the dashboard's pre-filled form on 2026-09-25.
+/// and webhook inboxes. `cache_settings` (Zone ▸ Cache Rules ▸ Edit) bypasses the cache
+/// for a hostname. None of these is in Cloudflare's documented key table; all were
+/// checked against the dashboard's pre-filled form (2026-09-25; `cache_settings`
+/// 2026-09-26).
 pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("argotunnel", "edit"),
     ("dns", "edit"),
@@ -32,6 +34,7 @@ pub(super) const PERMISSIONS: &[(&str, &str)] = &[
     ("zone_transform_rules", "edit"),
     ("access_service_token", "edit"),
     ("d1", "edit"),
+    ("cache_settings", "edit"),
 ];
 
 /// The dashboard's list of the user's API tokens, where an existing token's permissions

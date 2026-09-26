@@ -101,6 +101,9 @@ A new API needs a permission:
 - a probe in `accounts/capabilities.rs` so the UI can disable the feature with the reason,
   and ask for the permission in place, instead of failing mid-plan;
 - keep the permission optional unless every account needs it, so existing tokens keep working;
+  observing must not fail for them either: read the new thing on its own and record whether
+  it was readable (`edge::observe` reads the Cache Rules phase this way, `cache_readable`),
+  and refuse only the change that needs it (`ObserveError::CacheRulesPermission`);
 - regenerate the permissions page:
   `UPDATE_DOCS=1 cargo test -p teitunnel-core --test permissions_doc`.
 

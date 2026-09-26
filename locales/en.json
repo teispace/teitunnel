@@ -405,7 +405,8 @@
       "edgeQuota": {
         "custom": "{zone} will use {used} of the {limit} custom rules its plan allows.",
         "rateLimit": "{zone} will use {used} of the {limit} rate limiting rules its plan allows.",
-        "transform": "{zone} will use {used} of the {limit} Transform Rules its plan allows."
+        "transform": "{zone} will use {used} of the {limit} Transform Rules its plan allows.",
+        "cache": "{zone} will use {used} of the {limit} Cache Rules its plan allows."
       },
       "machineOnly": "{domain} has no login yet. The new one lets in only service tokens: people opening it in a browser are refused.",
       "workerRequests": "Every request to {pattern} runs a Worker and counts against your account's 100,000 free Worker requests a day. Past that, the site keeps working without it."
@@ -1872,7 +1873,7 @@
         "unknownTunnel": "This Mac doesn't have that tunnel any more.",
         "unknownTunnel@windows": "This PC doesn't have that tunnel any more.",
         "unknownTunnel@linux": "This computer doesn't have that tunnel any more.",
-        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token.",
+        "edgePermission": "Edge rules need the Zone WAF and Transform Rules permissions. Add them to the account's API token, or sign in to Cloudflare again and allow them.",
         "serviceTokenPermission": "Service tokens need the Access: Service Tokens permission. Add it to the account's API token.",
         "workersPermission": "This needs the Workers Routes and D1 permissions. Add Zone › Workers Routes · Edit and Account › D1 · Edit to the account's API token; the token itself stays the same."
       },
@@ -2742,7 +2743,8 @@
           "requestHeaders_one": "Change {count} request header on {hostname}",
           "requestHeaders_other": "Change {count} request headers on {hostname}",
           "responseHeaders_one": "Change {count} response header on {hostname}",
-          "responseHeaders_other": "Change {count} response headers on {hostname}"
+          "responseHeaders_other": "Change {count} response headers on {hostname}",
+          "bypassCache": "Stop Cloudflare caching responses from {hostname}"
         },
         "change": {
           "block": "Change the bot rule on {hostname} to block automated clients",
@@ -2754,14 +2756,16 @@
           "requestHeaders_one": "Change the request header rule on {hostname} ({count} header)",
           "requestHeaders_other": "Change the request header rule on {hostname} ({count} headers)",
           "responseHeaders_one": "Change the response header rule on {hostname} ({count} header)",
-          "responseHeaders_other": "Change the response header rule on {hostname} ({count} headers)"
+          "responseHeaders_other": "Change the response header rule on {hostname} ({count} headers)",
+          "bypassCache": "Put back the cache bypass on {hostname}"
         },
         "remove": {
           "block": "Remove the blocking rule from {hostname}",
           "challenge": "Remove the challenge rule from {hostname}",
           "rateLimit": "Remove the rate limit for {hostnames}",
           "requestHeaders": "Remove the request header rule from {hostname}",
-          "responseHeaders": "Remove the response header rule from {hostname}"
+          "responseHeaders": "Remove the response header rule from {hostname}",
+          "bypassCache": "Let Cloudflare cache responses from {hostname} again"
         },
         "createToken": "Create service token “{name}” (valid for a year)",
         "allowToken": "Let the service token through the login on {domain}",
@@ -2785,6 +2789,9 @@
         "quotaRateLimit_other": "{zone} already uses all {count} rate limiting rules its plan allows.",
         "quotaTransform_one": "{zone} already uses the {count} Transform Rule its plan allows.",
         "quotaTransform_other": "{zone} already uses all {count} Transform Rules its plan allows. Remove header rules from another hostname first.",
+        "quotaCache_one": "{zone} already uses the {count} Cache Rule its plan allows. Remove one in the dashboard or turn off another hostname's cache bypass first.",
+        "quotaCache_other": "{zone} already uses all {count} Cache Rules its plan allows. Remove one in the dashboard or turn off another hostname's cache bypass first.",
+        "cacheRulesPermission": "Bypassing the cache needs the Cache Rules permission. Add it to the account's API token, or sign in to Cloudflare again and allow it.",
         "rateLimitConflict": "{zone}'s plan has room for no other rate limit, and Teitunnel's limit there (for {hostnames}) is {requests} requests per {period} seconds. Use the same limit, or remove it from those hostnames first.",
         "tokenLabel": "Name the token in 1 to 40 characters, for example “CI”.",
         "tokenLimit_one": "The account already has {count} service token, the most Cloudflare allows. Revoke one first.",
@@ -3089,6 +3096,8 @@
     "zoneWafWhy": "To add rules that challenge or block bots and rate limit visitors on one hostname.",
     "transformRules": "Zone · Transform Rules · Edit",
     "transformRulesWhy": "To set or remove request and response headers on one hostname.",
+    "cacheRules": "Zone · Cache Rules · Edit",
+    "cacheRulesWhy": "To stop Cloudflare caching one hostname's responses.",
     "serviceTokens": "Account · Access: Service Tokens · Edit",
     "serviceTokensWhy": "To create and revoke tokens that let machines through a login.",
     "d1": "Account · D1 · Edit",
@@ -3514,13 +3523,21 @@
         "remove": "Remove"
       }
     },
+    "cache": {
+      "label": "Bypass Cloudflare's cache",
+      "help": "Responses are never cached, so changes to a dev server show at once.",
+      "short": "Cache",
+      "bypassed": "Bypassed",
+      "usual": "As usual"
+    },
     "quota": {
       "title": "Rules on {zone}",
       "custom": "Custom rules",
       "rateLimit": "Rate limiting",
       "transform": "Transform Rules",
       "count": "{used}/{limit}",
-      "used": "{label}: {used} of {limit} used"
+      "used": "{label}: {used} of {limit} used",
+      "cache": "Cache Rules"
     }
   },
   "serviceTokens": {

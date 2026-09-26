@@ -751,6 +751,7 @@ impl Backend for FakeBackend {
             rate_limit_available: true,
             longest_period: 60,
             shares_rate_limit_with: Vec::new(),
+            cache_rules: true,
         }))
     }
 
