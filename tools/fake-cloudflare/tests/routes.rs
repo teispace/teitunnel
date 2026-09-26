@@ -183,6 +183,7 @@ async fn a_protected_route_asks_for_a_login_until_its_removed() {
             emails: vec!["me@xyz.com".into()],
             email_domains: Vec::new(),
             bypass: vec!["/webhooks".into()],
+            ..AccessRule::default()
         });
     }
     let outcome = apply(&engine, &api, &conns, change).await;

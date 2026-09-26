@@ -124,12 +124,12 @@ pub trait CloudApi: Send + Sync {
         zone: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
-    /// Whether Zero Trust is set up (an Access organization exists), and how many login
-    /// methods the account has.
+    /// Whether Zero Trust is set up (an Access organization exists), and the account's
+    /// login methods.
     fn access_setup(
         &self,
         account: &str,
-    ) -> impl Future<Output = cf_api::Result<(bool, usize)>> + Send;
+    ) -> impl Future<Output = cf_api::Result<(bool, Vec<cf_api::IdentityProvider>)>> + Send;
     /// Access applications for exactly this domain.
     fn access_apps_for(
         &self,
@@ -604,11 +604,14 @@ impl CloudApi for Client {
         self.delete_dns_record(zone, id).await
     }
 
-    async fn access_setup(&self, account: &str) -> cf_api::Result<(bool, usize)> {
+    async fn access_setup(
+        &self,
+        account: &str,
+    ) -> cf_api::Result<(bool, Vec<cf_api::IdentityProvider>)> {
         if Client::access_organization(self, account).await?.is_none() {
-            return Ok((false, 0));
+            return Ok((false, Vec::new()));
         }
-        Ok((true, Client::identity_providers(self, account).await?.len()))
+        Ok((true, Client::identity_providers(self, account).await?))
     }
 
     async fn access_apps_for(&self, account: &str, domain: &str) -> cf_api::Result<Vec<AccessApp>> {

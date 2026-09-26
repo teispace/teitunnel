@@ -296,8 +296,28 @@ pub(crate) async fn tunnel_id(
 /// `allow` values as a login rule: `me@xyz.com` is a person, `@xyz.com` (or
 /// `xyz.com`) everyone at a domain; `skip` the paths that skip it (`/webhooks`). The
 /// engine validates them.
-pub(crate) fn access_rule(allow: &[String], skip: &[String]) -> Option<AccessRule> {
-    AccessRule::from_allow(allow, skip)
+pub(crate) fn access_rule(
+    allow: &[String],
+    skip: &[String],
+    sign_in: Option<teitunnel_core::engine::SignIn>,
+) -> Option<AccessRule> {
+    AccessRule::from_allow(allow, skip).map(|rule| AccessRule {
+        sign_in: sign_in.unwrap_or(rule.sign_in),
+        ..rule
+    })
+}
+
+/// `signIn` as an agent gives it: `github`, `google` or `any`.
+pub(crate) fn sign_in(
+    input: Option<&str>,
+) -> Result<Option<teitunnel_core::engine::SignIn>, ToolError> {
+    input
+        .map(|raw| {
+            teitunnel_core::engine::SignIn::parse(raw).ok_or_else(|| {
+                ToolError::new(format!("`signIn` is github, google or any, not `{raw}`."))
+            })
+        })
+        .transpose()
 }
 
 /// A plan warning in English.

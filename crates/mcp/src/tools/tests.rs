@@ -1429,6 +1429,7 @@ async fn edits_keep_what_they_dont_mention() {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
         bypass: vec!["/webhooks".into()],
+        ..teitunnel_core::engine::AccessRule::default()
     });
     h.call(
         Mode::Full,
@@ -2096,14 +2097,28 @@ async fn pages_long_lists() {
 #[test]
 fn builds_login_rules_from_allow_lists() {
     let rule = super::access_rule(
-        &["me@xyz.com".into(), "@team.io".into(), "corp.com".into()],
+        &[
+            "me@xyz.com".into(),
+            "@team.io".into(),
+            "corp.com".into(),
+            "github:teispace/devs".into(),
+        ],
         &["/webhooks".into()],
+        super::sign_in(Some("GitHub")).unwrap(),
     )
     .unwrap();
     assert_eq!(rule.emails, ["me@xyz.com"]);
     assert_eq!(rule.email_domains, ["@team.io", "corp.com"]);
+    assert_eq!(rule.github, ["teispace/devs"]);
+    assert_eq!(rule.sign_in, teitunnel_core::engine::SignIn::Github);
     assert_eq!(rule.bypass, ["/webhooks"]);
-    assert!(super::access_rule(&[], &["/webhooks".into()]).is_none());
+    assert!(super::access_rule(&[], &["/webhooks".into()], None).is_none());
+    assert!(
+        super::sign_in(Some("okta"))
+            .unwrap_err()
+            .to_string()
+            .contains("okta")
+    );
 }
 
 #[tokio::test]

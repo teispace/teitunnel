@@ -1,6 +1,6 @@
 ---
 title: Require a login
-description: "Protect a Cloudflare Tunnel route with a login using Cloudflare Access: a one-time code by email for the people or email domains you list, set up in one step."
+description: "Protect a Cloudflare Tunnel route with a login using Cloudflare Access: a one-time code by email, or GitHub or Google sign-in, for the people, email domains or GitHub teams you list, set up in one step."
 ---
 
 A route is public by default: anyone with the address reaches your app. **Require a login**
@@ -37,7 +37,12 @@ Open **Advanced** and turn on **Require a login**.
 Under **Who can sign in**, list:
 
 - an email address, like `team@teispace.com`, to let that person in;
-- `@teispace.com` to let in everyone with an address at that domain.
+- `@teispace.com` to let in everyone with an address at that domain;
+- `github:teispace` to let in the members of a GitHub organization, or
+  `github:teispace/Developers` for one of its teams (its name as GitHub shows it).
+
+Under **Log in with**, keep **Any Method**, or choose **GitHub** or **Google** so people can
+only log in that way (see [GitHub and Google](#github-and-google)).
 </Step>
 <Step>
 Choose **Review**, read the plan, and choose **Save** (**Add Route** for a new route).
@@ -50,6 +55,29 @@ provider) are offered too. A sign-in lasts 24 hours.
 
 The same login works on a [share on your domain](/docs/guides/sharing) and on a
 [Snapshot](/docs/guides/snapshots) (**People I choose**).
+
+## GitHub and Google
+
+A login can use a GitHub or Google login method of the account instead of an emailed code:
+
+- **GitHub teams:** `github:teispace` lets in the members of the organization, and
+  `github:teispace/Developers` the members of one team. Visitors go straight to GitHub's
+  sign-in, and Cloudflare checks the membership when they come back.
+- **Google:** choose **Log in with ▸ Google** and list `@teispace.com` to let in everyone
+  who signs in with a Google (or Google Workspace) account at that domain.
+
+The login method itself is set up once, in the Cloudflare dashboard, because that's where
+its client secret goes: **Zero Trust ▸ Integrations ▸ Identity providers ▸ Add**, then
+**GitHub** or **Google**, following Cloudflare's steps
+([GitHub](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/github/),
+[Google](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/google/)).
+Use **Test** there to check it. If the account doesn't have one yet, the plan stops with
+"This account has no GitHub login method yet" and **Open Identity Providers**.
+
+Teitunnel limits the route's login to that method (the Access application's allowed login
+methods) and names its policy `Allowed people · GitHub` or `Allowed people · Google`. If the
+login method is later replaced in the dashboard, the next change to the route follows the
+new one.
 
 ## Let webhooks through
 
@@ -71,9 +99,17 @@ teitunnel share 5173 --on review.teispace.com --allow @teispace.com
 
 # A Snapshot behind a login
 teitunnel snapshot publish ./dist --on preview.teispace.com --allow @teispace.com
+
+# Only a GitHub team, logging in with GitHub
+teitunnel route add staging.teispace.com 3000 --allow github:teispace/Developers
+
+# Everyone at the domain, logging in with Google
+teitunnel route add docs.teispace.com 4000 --allow @teispace.com --sign-in google
 ```
 
-`--allow` is repeatable and takes an email address or `@domain`. `--skip-login /webhooks`
+`--allow` is repeatable and takes an email address, `@domain`, or `github:org` /
+`github:org/team`. `--sign-in github|google|any` says how people log in (a GitHub entry
+implies `github`). `--skip-login /webhooks`
 (repeatable) lets webhooks reach that path without a login. `route add` creates new
 routes only ("… is already routed. Edit that route instead."): change who can sign in to
 an existing route in the app, or in its [project file](/docs/guides/project-file).

@@ -206,7 +206,8 @@ A `route`:
 - `origin`: a port (`"3000"`), `host:port`, or a URL (`"http://localhost:3000"`).
 - `path`: a path regex such as `"^/api"`, or `null`.
 - `access`: `{ "emails": ["team@teispace.com"], "emailDomains": ["teispace.com"] }` to
-  require a login, or `null`. On `updateRoute`, `null` removes the login Teitunnel added.
+  require a login, or `null`. Add `"github": ["teispace/Developers"]` for GitHub teams and
+  `"signIn": "github"` or `"google"` to allow only that login method. On `updateRoute`, `null` removes the login Teitunnel added.
 - `options`: origin settings (the same as the CLI's origin flags, camelCase), or leave it
   out for cloudflared's defaults (on `updateRoute`, leaving it out keeps the current ones).
 

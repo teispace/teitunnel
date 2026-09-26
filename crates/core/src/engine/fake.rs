@@ -35,8 +35,8 @@ pub(crate) struct CloudState {
     pub(crate) records: BTreeMap<String, Vec<DnsRecord>>,
     /// Zero Trust is set up.
     pub(crate) access_org: bool,
-    /// Login method ids.
-    pub(crate) login_methods: Vec<String>,
+    /// Login methods.
+    pub(crate) login_methods: Vec<cf_api::IdentityProvider>,
     /// Access applications by id.
     pub(crate) access_apps: BTreeMap<String, NewAccessApp>,
     /// The token can't read Access (reads fail with 403).
@@ -729,12 +729,15 @@ impl CloudApi for FakeCloud {
         })
     }
 
-    async fn access_setup(&self, _account: &str) -> cf_api::Result<(bool, usize)> {
+    async fn access_setup(
+        &self,
+        _account: &str,
+    ) -> cf_api::Result<(bool, Vec<cf_api::IdentityProvider>)> {
         let state = self.state.lock().unwrap();
         if state.access_forbidden {
             return Err(forbidden());
         }
-        Ok((state.access_org, state.login_methods.len()))
+        Ok((state.access_org, state.login_methods.clone()))
     }
 
     async fn access_apps_for(
@@ -888,7 +891,15 @@ impl CloudApi for FakeCloud {
     async fn create_one_time_pin(&self, _account: &str) -> cf_api::Result<String> {
         self.mutate()?;
         let id = self.next_id("idp");
-        self.state.lock().unwrap().login_methods.push(id.clone());
+        self.state
+            .lock()
+            .unwrap()
+            .login_methods
+            .push(cf_api::IdentityProvider {
+                id: id.clone(),
+                name: "One-time PIN".into(),
+                kind: "onetimepin".into(),
+            });
         Ok(id)
     }
 
@@ -896,7 +907,7 @@ impl CloudApi for FakeCloud {
         self.mutate()?;
         let mut state = self.state.lock().unwrap();
         let before = state.login_methods.len();
-        state.login_methods.retain(|m| m != id);
+        state.login_methods.retain(|m| m.id != id);
         if state.login_methods.len() == before {
             Err(not_found())
         } else {
@@ -1673,6 +1684,8 @@ fn fake_app(id: &str, app: &NewAccessApp) -> AccessApp {
                 ..p.clone()
             })
             .collect(),
+        allowed_idps: app.allowed_idps.clone(),
+        auto_redirect_to_identity: app.auto_redirect_to_identity,
     }
 }
 

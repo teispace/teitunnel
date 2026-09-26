@@ -94,6 +94,13 @@ export const commands = {
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
 	/**
+	 *  GitHub organizations (`teispace`) or teams (`teispace/devs`) whose members may
+	 *  log in, with the account's GitHub login method.
+	 */
+	github?: string[],
+	/**  How people log in. GitHub organizations imply [`SignIn::Github`]. */
+	signIn?: SignIn,
+	/**
 	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
 	 *  and other machines that can't log in). Each is its own application that lets
 	 *  everyone through.
@@ -150,6 +157,13 @@ export const commands = {
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  GitHub organizations (`teispace`) or teams (`teispace/devs`) whose members may
+	 *  log in, with the account's GitHub login method.
+	 */
+	github?: string[],
+	/**  How people log in. GitHub organizations imply [`SignIn::Github`]. */
+	signIn?: SignIn,
 	/**
 	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
 	 *  and other machines that can't log in). Each is its own application that lets
@@ -788,12 +802,22 @@ export const events = {
 };
 
 /* Types */
-/**  Who may reach a protected route: any of these emails, or anyone at these domains. */
+/**
+ *  Who may reach a protected route: any of these emails, anyone at these domains, or
+ *  the members of these GitHub organizations or teams, logging in how `sign_in` says.
+ */
 export type AccessRule = {
 	/**  Email addresses, e.g. `me@xyz.com`. */
 	emails: string[],
 	/**  Email domains, e.g. `xyz.com`. */
 	emailDomains: string[],
+	/**
+	 *  GitHub organizations (`teispace`) or teams (`teispace/devs`) whose members may
+	 *  log in, with the account's GitHub login method.
+	 */
+	github?: string[],
+	/**  How people log in. GitHub organizations imply [`SignIn::Github`]. */
+	signIn?: SignIn,
 	/**
 	 *  Paths under the route that skip the login, e.g. `/webhooks` (webhook senders
 	 *  and other machines that can't log in). Each is its own application that lets
@@ -4912,6 +4936,18 @@ export type ShortcutAction =
 "shareDevServer" | 
 /**  Always open the Quick Share sheet. */
 "openQuickShare";
+
+/**  How people log in to a protected route. */
+export type SignIn = 
+/**
+ *  With any login method the account has (a one-time code by email when it has
+ *  none).
+ */
+"any" | 
+/**  Only with the account's GitHub login method. */
+"github" | 
+/**  Only with the account's Google or Google Workspace login method. */
+"google";
 
 /**  Why a file was left out. */
 export type SkipReason = 

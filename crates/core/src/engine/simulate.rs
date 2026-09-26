@@ -20,7 +20,7 @@ fn resolve(tunnel: &TunnelRef) -> String {
 fn empty_access() -> AccessState {
     AccessState {
         organization: Some(true),
-        login_methods: Some(0),
+        login_methods: Some(Vec::new()),
         apps: Vec::new(),
     }
 }
@@ -141,7 +141,12 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
             Step::DeleteTunnel { .. } => next.tunnel = None,
             Step::AddLoginMethod => {
                 let access = next.access.get_or_insert_with(empty_access);
-                access.login_methods = Some(access.login_methods.unwrap_or(0) + 1);
+                access.login_methods.get_or_insert_with(Vec::new).push(
+                    super::access::LoginMethod {
+                        id: "sim-login".into(),
+                        kind: "onetimepin".into(),
+                    },
+                );
             }
             Step::CreateAccessApp { app } => {
                 record_ids += 1;

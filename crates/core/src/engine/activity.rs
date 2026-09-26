@@ -305,7 +305,10 @@ fn login_summary(app: &cf_api::NewAccessApp) -> Text {
         return delta::login_bypassed();
     }
     super::access::AccessRule::from_new(app).map_or_else(delta::login_custom, |rule| {
-        delta::login_required(rule.people())
+        match rule.sign_in.name() {
+            Some(method) => delta::login_required_with(method, rule.people()),
+            None => delta::login_required(rule.people()),
+        }
     })
 }
 

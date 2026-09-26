@@ -48,10 +48,14 @@ pub(crate) struct SettingsArgs {
     /// Remove the password.
     #[arg(long)]
     no_password: bool,
-    /// Require a Cloudflare Access login: an email address, or `@domain`; repeatable
-    /// (hostnames on your domains only).
-    #[arg(long, value_name = "EMAIL|@DOMAIN")]
+    /// Require a Cloudflare Access login: an email address, `@domain`, or
+    /// `github:ORG[/TEAM]`; repeatable (hostnames on your domains only).
+    #[arg(long, value_name = "EMAIL|@DOMAIN|github:ORG[/TEAM]")]
     allow: Vec<String>,
+    /// With --allow: how people log in, `github` or `google` (the account's login method
+    /// of that kind), or `any` (the default).
+    #[arg(long, value_name = "METHOD", value_parser = crate::parse_sign_in, requires = "allow")]
+    sign_in: Option<teitunnel_core::engine::SignIn>,
     /// Delete it by itself after this long, e.g. `7d` or `12h`.
     #[arg(long, value_name = "DURATION", value_parser = parse_days)]
     expires: Option<u32>,
@@ -195,9 +199,9 @@ fn parse_days(input: &str) -> Result<u32, String> {
     Ok(days)
 }
 
-/// `--allow` values as an Access rule (as for routes).
-fn access(allow: &[String]) -> Option<teitunnel_core::engine::AccessRule> {
-    crate::access_rule(allow, &[])
+/// `--allow` and `--sign-in` as an Access rule (as for routes).
+fn access(settings: &SettingsArgs) -> Option<teitunnel_core::engine::AccessRule> {
+    crate::access_rule(&settings.allow, &[], settings.sign_in)
 }
 
 fn read_password() -> Result<String, String> {
@@ -525,7 +529,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             let options = SnapshotOptions {
                 spa: settings.spa || prepared.single_page,
                 password: password_input(&settings)?,
-                access: access(&settings.allow),
+                access: access(&settings),
                 expires_in_days: settings.expires,
                 comments: settings.comments(),
             };
@@ -622,7 +626,7 @@ pub(crate) async fn run(app: &App, command: SnapshotCommand) -> Result<ExitCode,
             let access = if settings.allow.is_empty() {
                 current.access.clone()
             } else {
-                access(&settings.allow)
+                access(&settings)
             };
             let request = SnapshotChange::Update {
                 snapshot: current.id.clone(),

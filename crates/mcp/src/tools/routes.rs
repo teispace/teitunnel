@@ -63,10 +63,10 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              Always show the person the plan's steps and warnings before applying. An empty plan means nothing needs to change.\n\
              \n\
              Change types (field `type`):\n\
-             - addRoute {hostname, origin, path?, allow?, options?}: route a hostname on the account's domains to a local service (port, host:port or URL, also ssh://, rdp://, tcp://). `allow` requires a login (emails or @domains).\n\
+             - addRoute {hostname, origin, path?, allow?, options?}: route a hostname on the account's domains to a local service (port, host:port or URL, also ssh://, rdp://, tcp://). `allow` requires a login (emails, @domains, or github:ORG[/TEAM] for the members of a GitHub organization or team); `signIn` (github, google or any) limits how people log in, to the account's login method of that kind.\n\
              - updateRoute {hostname, path?, origin?, newHostname?, newPath?, allow?, options?}: change a route; omitted fields stay as they are.\n\
              - removeRoute {hostname, path?}: remove a route and the DNS record Teitunnel created for it.\n\
-             - requireLogin {hostname, path?, allow}: put a route behind a login (Cloudflare Access, free with Zero Trust). removeLogin {hostname, path?}: make it public again.\n\
+             - requireLogin {hostname, path?, allow, signIn?}: put a route behind a login (Cloudflare Access, free with Zero Trust). removeLogin {hostname, path?}: make it public again.\n\
              - balanceRoute / unbalanceRoute {hostname}: load balance a hostname across every machine routing it (Cloudflare Load Balancing, paid).\n\
              - addNetwork / removeNetwork {network}: let WARP clients reach a private range (e.g. 192.168.1.0/24) through this machine.\n\
              - createTunnel {name}: another tunnel for this machine. deleteTunnel {tunnel}: delete one of this machine's tunnels with its routes.\n\
@@ -174,8 +174,12 @@ pub(crate) struct RouteOut {
     status_text: String,
     /// The tunnel carrying it (this machine's).
     tunnel: Option<String>,
-    /// Who may open it, when it's behind a login (emails and @domains).
+    /// Who may open it, when it's behind a login (emails, @domains and
+    /// github:ORG[/TEAM] entries).
     login: Option<Vec<String>>,
+    /// How people log in when it's limited to one kind of login method: `github` or
+    /// `google`.
+    sign_in: Option<String>,
     /// A share on your domain (removed when the share stops).
     temporary: bool,
     /// Load balanced across machines.
@@ -267,13 +271,15 @@ pub(super) async fn list_routes(backend: &SharedBackend, args: JsonObject) -> To
                 .unwrap_or_default(),
             status_text: health.text().english(),
             tunnel: name_of(route.tunnel_id.as_deref()),
-            login: route.access.as_ref().map(|rule| {
-                rule.emails
-                    .iter()
-                    .cloned()
-                    .chain(rule.email_domains.iter().map(|d| format!("@{d}")))
-                    .collect()
-            }),
+            login: route
+                .access
+                .as_ref()
+                .map(teitunnel_core::engine::AccessRule::allow),
+            sign_in: route
+                .access
+                .as_ref()
+                .and_then(|rule| rule.sign_in.name())
+                .map(str::to_ascii_lowercase),
             temporary: route.temporary,
             balanced: route.balanced,
             client_command: route.client.as_ref().map(|c| c.command.clone()),
@@ -529,9 +535,14 @@ pub(crate) enum ChangeInput {
         /// Only requests whose path matches this regex, e.g. `^/api`.
         #[serde(default)]
         path: Option<String>,
-        /// Require a login: emails (`team@teispace.com`) or domains (`@teispace.com`).
+        /// Require a login: emails (`team@teispace.com`), domains (`@teispace.com`), or
+        /// GitHub organizations and teams (`github:teispace`, `github:teispace/devs`).
         #[serde(default)]
         allow: Vec<String>,
+        /// How people log in: `github` or `google` (the account's login method of that
+        /// kind), or `any` (the default).
+        #[serde(default)]
+        sign_in: Option<String>,
         /// Paths that skip the login, e.g. `/webhooks` (webhook senders can't log in).
         #[serde(default)]
         skip_login: Vec<String>,
@@ -558,6 +569,9 @@ pub(crate) enum ChangeInput {
         /// Replace who may log in (use removeLogin to make it public).
         #[serde(default)]
         allow: Option<Vec<String>>,
+        /// With `allow`: how people log in, `github`, `google` or `any`.
+        #[serde(default)]
+        sign_in: Option<String>,
         /// Replace the paths that skip the login (`[]`: none).
         #[serde(default)]
         skip_login: Option<Vec<String>>,
@@ -580,8 +594,11 @@ pub(crate) enum ChangeInput {
         /// Path rule, if the route has one.
         #[serde(default)]
         path: Option<String>,
-        /// Who may log in: emails or @domains.
+        /// Who may log in: emails, @domains, or github:ORG[/TEAM].
         allow: Vec<String>,
+        /// How people log in: `github`, `google` or `any` (the default).
+        #[serde(default)]
+        sign_in: Option<String>,
         /// Paths that skip the login, e.g. `/webhooks`.
         #[serde(default)]
         skip_login: Vec<String>,
@@ -797,16 +814,18 @@ async fn to_change(
     account: &str,
     input: ChangeInput,
 ) -> Result<(Change, Option<String>, String), ToolError> {
-    let people = |allow: &[String]| super::access_rule(allow, &[]).map(|r| r.people());
+    let people = |allow: &[String]| super::access_rule(allow, &[], None).map(|r| r.people());
     Ok(match input {
         ChangeInput::AddRoute {
             hostname,
             origin,
             path,
             allow,
+            sign_in,
             skip_login,
             options,
         } => {
+            let sign_in = super::sign_in(sign_in.as_deref())?;
             let summary = format!(
                 "Add {hostname}{} → {origin}{}",
                 path.as_deref().map(|p| format!(" {p}")).unwrap_or_default(),
@@ -824,7 +843,7 @@ async fn to_change(
                         hostname,
                         path,
                         origin,
-                        access: super::access_rule(&allow, &skip_login),
+                        access: super::access_rule(&allow, &skip_login, sign_in),
                         options,
                     },
                 },
@@ -839,9 +858,11 @@ async fn to_change(
             new_hostname,
             new_path,
             allow,
+            sign_in,
             skip_login,
             options,
         } => {
+            let sign_in = super::sign_in(sign_in.as_deref())?;
             let current = current_route(backend, account, &hostname, path.as_deref()).await?;
             // Paths that skip the login stay unless replaced, whoever may log in.
             let skip = skip_login.unwrap_or_else(|| {
@@ -857,7 +878,7 @@ async fn to_change(
                         "`allow` can't be empty; use removeLogin to make the route public.",
                     ));
                 }
-                Some(allow) => super::access_rule(allow, &skip),
+                Some(allow) => super::access_rule(allow, &skip, sign_in),
                 None => current.access.clone().map(|mut rule| {
                     rule.bypass = skip.clone();
                     rule
@@ -908,8 +929,10 @@ async fn to_change(
             hostname,
             path,
             allow,
+            sign_in,
             skip_login,
         } => {
+            let sign_in = super::sign_in(sign_in.as_deref())?;
             if allow.is_empty() {
                 return Err(ToolError::new(
                     "`allow` needs at least one email or @domain.",
@@ -928,7 +951,7 @@ async fn to_change(
                         hostname: current.hostname.clone(),
                         path: current.path.clone(),
                         origin: current.origin.clone(),
-                        access: super::access_rule(&allow, &skip_login),
+                        access: super::access_rule(&allow, &skip_login, sign_in),
                         options: None,
                     },
                 },

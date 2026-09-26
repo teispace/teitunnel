@@ -426,7 +426,10 @@ fn tokens_snapshot(app: Option<ObservedAccessApp>, tokens: Vec<ObservedServiceTo
     Snapshot {
         access: Some(AccessState {
             organization: Some(true),
-            login_methods: Some(1),
+            login_methods: Some(vec![super::access::LoginMethod {
+                id: "otp".into(),
+                kind: "onetimepin".into(),
+            }]),
             apps: app.into_iter().collect(),
         }),
         service_tokens: Some(tokens),
@@ -440,12 +443,13 @@ fn login_app(domain: &str) -> ObservedAccessApp {
         emails: vec!["me@xyz.com".into()],
         email_domains: Vec::new(),
         bypass: Vec::new(),
+        ..AccessRule::default()
     };
     ObservedAccessApp {
         id: "app1".into(),
         domain: domain.into(),
         owned: true,
-        definition: app_definition(domain, &rule),
+        definition: app_definition(domain, &rule, None),
         rule: Some(rule),
     }
 }
