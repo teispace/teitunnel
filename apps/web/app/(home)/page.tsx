@@ -8,7 +8,6 @@ import {
   Code2,
   Command,
   Container,
-  Download,
   EyeOff,
   GitMerge,
   GitPullRequest,
@@ -39,13 +38,13 @@ import { ApprovalDemo, ExposureDemo, ReplayDemo, RequestStream } from "@/compone
 import { NativeShowcase } from "@/components/native-showcase";
 import { PlanDemo } from "@/components/plan-demo";
 import {
-  BigCommand,
   Manifesto,
   type Pledge,
   PromiseField,
   StepLine,
   ToolMarquee,
 } from "@/components/scroll-sections";
+import { ShareLoop } from "@/components/share-loop";
 import { Terminal } from "@/components/terminal";
 import { latestRelease } from "@/lib/release";
 import {
@@ -838,26 +837,29 @@ export default async function Home() {
         </p>
       </Section>
 
-      {/* Closing: the install command, lit where the pointer is */}
+      {/* Closing: one card, with a Quick Share happening in it */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
-        <BigCommand command="brew install --cask teispace/tap/teitunnel">
-          <h2 className="mt-12 text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-            Put it online. Keep it yours.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-fd-muted-foreground">
-            Free, open source, and on your own Cloudflare account. For macOS, Windows, Linux and
-            your servers.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <DownloadButton downloads={downloads} showAlternative={false} />
-            <ButtonLink href="/download/">
-              <Download className="size-4" aria-hidden /> All downloads
-            </ButtonLink>
-            <ButtonLink href="/docs/">
-              Read the docs <ArrowRight className="size-4" aria-hidden />
-            </ButtonLink>
+        <div data-reveal="scale" data-spotlight className="tt-closing">
+          <div className="flex flex-col items-start">
+            <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
+              Put it online. Keep it yours.
+            </h2>
+            <p className="mt-3 max-w-md text-fd-muted-foreground">
+              A public URL in one click, your own domains when you're ready, all on your own
+              Cloudflare account.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <DownloadButton downloads={downloads} showAlternative={false} />
+              <ButtonLink href="/docs/">
+                Read the docs <ArrowRight className="size-4" aria-hidden />
+              </ButtonLink>
+            </div>
+            <p className="mt-5 text-xs text-fd-muted-foreground">
+              Free and open source · macOS, Windows and Linux · No account with us
+            </p>
           </div>
-        </BigCommand>
+          <ShareLoop />
+        </div>
       </section>
     </main>
   );

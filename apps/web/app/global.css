@@ -1318,60 +1318,132 @@ html.tt-motion .tt-steps .tt-step-num {
     var(--color-fd-background);
 }
 
-/* The finale: the install command, huge, lit where the pointer is. */
-.tt-finale-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 2.5rem;
+/* The closing card: the call to act beside a Quick Share happening. */
+.tt-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: center;
+  padding: 2.5rem 1.75rem;
+  border-radius: 1.75rem;
   border: 1px solid var(--color-fd-border);
-  background: var(--color-fd-card);
-  padding: 5rem 1.5rem 4rem;
-  text-align: center;
-}
-
-html.tt-motion .tt-finale-card {
-  transform-origin: 50% 100%;
-  transform: scale(calc(0.92 + var(--p) * 0.08));
-  border-radius: calc(3.5rem - var(--p) * 1rem);
-}
-
-.tt-finale-command {
-  margin: 0 auto;
-  max-width: 64rem;
-  font-size: clamp(1.35rem, 5vw, 4.4rem);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  color: transparent;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       26rem circle at var(--mx) var(--my),
-      var(--color-fd-foreground),
-      color-mix(in oklab, var(--color-fd-foreground) 25%, transparent) 75%
-    )
-    text;
-  -webkit-background-clip: text;
+      color-mix(in oklab, var(--tt-accent) 9%, transparent),
+      transparent 70%
+    ),
+    var(--color-fd-card);
 }
 
-@keyframes tt-sweep {
-  0%,
+@media (min-width: 1024px) {
+  .tt-closing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3.5rem;
+    padding: 3.5rem;
+  }
+}
+
+.tt-share-loop {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  max-width: 30rem;
+  width: 100%;
+  justify-self: center;
+}
+
+.tt-share-end {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+}
+
+.tt-share-live {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--tt-live);
+  transition: background-color 0.3s var(--tt-ease);
+}
+
+.tt-share-line {
+  position: relative;
+  margin-left: 1.45rem;
+  width: 2px;
+  height: 2.75rem;
+  background: var(--color-fd-border);
+}
+
+.tt-share-dot {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: -0.275rem;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow: 0 0 12px 3px color-mix(in oklab, var(--tt-accent) 50%, transparent);
+  opacity: 0;
+}
+
+@keyframes tt-share-travel {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
   100% {
-    --mx: 15%;
-    --my: 40%;
-  }
-  50% {
-    --mx: 85%;
-    --my: 60%;
+    top: 100%;
+    opacity: 0;
   }
 }
 
-html.tt-motion .tt-finale-card:not([data-pointer]) .tt-finale-command {
-  animation: tt-sweep 9s ease-in-out infinite;
+@keyframes tt-share-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-dot {
+  animation: tt-share-travel 1.2s var(--tt-ease) forwards;
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-address {
+  opacity: 0.25;
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-live {
+  background: var(--color-fd-muted-foreground);
+}
+
+html.tt-motion .tt-share-loop[data-phase="live"] .tt-share-address {
+  animation: tt-share-in 0.5s var(--tt-ease) both;
 }
 
 /* Reduce Motion turned on after the page loaded: every scene at rest. */
 @media (prefers-reduced-motion: reduce) {
-  html.tt-motion :is(.tt-marquee-track, .tt-finale-command, .tt-point-bar, .tt-stars > span),
+  html.tt-motion
+    :is(.tt-marquee-track, .tt-point-bar, .tt-stars > span, .tt-share-dot, .tt-share-address),
   html.tt-motion .tt-stars::before,
   html.tt-motion .tt-stars::after {
     animation: none;

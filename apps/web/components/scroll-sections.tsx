@@ -1,5 +1,4 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
-import { CopyCommand } from "./copy-command";
 
 /** `--i` and friends as inline style. */
 const vars = (values: Record<string, number | string>) => values as CSSProperties;
@@ -177,27 +176,6 @@ export function StepLine({ steps }: { steps: { title: string; body: string }[] }
           </li>
         ))}
       </ol>
-    </div>
-  );
-}
-
-/**
- * The install command, huge, lit where the pointer is (and slowly swept by light without a
- * pointer), with the copyable command under it.
- */
-export function BigCommand({ command, children }: { command: string; children?: ReactNode }) {
-  return (
-    <div data-scene="enter" data-end="0.2" className="tt-finale">
-      <div className="tt-finale-card" data-spotlight>
-        <p aria-hidden className="tt-finale-command font-mono">
-          <span className="text-fd-muted-foreground/60">$ </span>
-          {command}
-        </p>
-        <div className="relative mt-8 flex justify-center">
-          <CopyCommand command={command} label="Copy the Homebrew command" />
-        </div>
-        {children}
-      </div>
     </div>
   );
 }
