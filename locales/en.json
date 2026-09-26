@@ -1298,7 +1298,15 @@
       "compressed": "(compressed)",
       "none": "No messages yet.",
       "dropped_one": "{count} older frame isn't kept.",
-      "dropped_other": "{count} older frames aren't kept."
+      "dropped_other": "{count} older frames aren't kept.",
+      "direction": "Direction",
+      "all": "All",
+      "sent": "Visitor",
+      "received": "Service",
+      "search": "Search Messages",
+      "noMatch": "No messages match.",
+      "copy": "Message",
+      "truncated": "Only the start is kept; the whole message was {size}."
     },
     "webhook": {
       "title": "Webhook",

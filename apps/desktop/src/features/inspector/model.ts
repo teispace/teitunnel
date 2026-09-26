@@ -2,11 +2,13 @@ import { formatBytes } from "@/features/snapshots/format";
 import { currentLanguage, type MessageKey, t } from "@/lib/i18n";
 import type {
   BreakEdit,
+  Direction,
   ExchangeRow,
   HeaderView,
   Paused,
   ReplayInput,
   Resume,
+  StreamStats,
   TapProtectionView,
   TrafficFormat,
   WebhookSender,
@@ -490,3 +492,67 @@ export function diffHeaders(a: readonly HeaderView[], b: readonly HeaderView[]):
 
 /** Body text for comparing: pretty JSON where it parses. */
 export const comparable = (text: string | null) => (text ? (prettyJson(text) ?? text) : "");
+
+/** One WebSocket frame or event-stream message, as the Messages list shows it. */
+export interface MessageRow {
+  direction: Direction;
+  atUs: number;
+  /** The frame's opcode, or the message's kind. */
+  kind: string;
+  size: number;
+  /** What it says (null: compressed, unreadable); close frames: code and reason. */
+  text: string | null;
+  truncated: boolean;
+}
+
+/** The frames when there are any (WebSocket), else the message previews (events). */
+export function messageRows(stream: StreamStats): MessageRow[] {
+  if (stream.frames.length > 0) {
+    return stream.frames.map((frame) => ({
+      direction: frame.direction,
+      atUs: frame.atUs,
+      kind: frame.opcode,
+      size: frame.size,
+      text:
+        frame.closeCode !== null
+          ? `${frame.closeCode} ${frame.closeReason ?? ""}`.trim()
+          : frame.preview,
+      truncated: frame.truncated,
+    }));
+  }
+  return stream.previews.map((message) => ({
+    direction: message.direction,
+    atUs: message.atUs,
+    kind: message.kind,
+    size: message.size,
+    text: message.compressed && !message.inflated ? null : message.preview,
+    truncated: message.truncated,
+  }));
+}
+
+export type DirectionFilter = "all" | Direction;
+
+/** Rows going `direction` whose text contains `query` (case-insensitive). */
+export function filterMessages(
+  rows: readonly MessageRow[],
+  direction: DirectionFilter,
+  query: string,
+): MessageRow[] {
+  const needle = query.trim().toLowerCase();
+  return rows.filter(
+    (row) =>
+      (direction === "all" || row.direction === direction) &&
+      (needle === "" || (row.text ?? "").toLowerCase().includes(needle)),
+  );
+}
+
+/** `text` indented when it's a JSON object or array, else as it is. */
+export function prettyMessage(text: string): string {
+  const trimmed = text.trim();
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return text;
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return text;
+  }
+}

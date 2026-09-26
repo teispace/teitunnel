@@ -55,7 +55,7 @@ visitor → edge → cloudflared → **Lens (127.0.0.1:random, in the Teitunnel 
 - [ ] Performance budget: 60 fps list with 10,000 exchanges (virtualised, like the log viewer, D-051).
 - [x] Network simulation per tap: latency and jitter presets (3G, 4G, satellite), bandwidth limits; fault injection per path (a share of 500/504/429 answers, dropped connections, slow first byte). HTTP-level: connection resets and timeouts stand in for packet loss.
 - [x] Stream keep-alive: during idle periods Lens writes SSE comment lines into `text/event-stream` responses so Cloudflare's 100-second idle timeout (524 on Free/Pro) never cuts a long AI tool call.
-- [ ] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded).
+- [x] WebSocket frame viewer: frames in both directions with direction, time, size, text/binary preview (bounded). (The last 500 frames, 4 KiB each; filter by direction or text, open a frame to read it whole with JSON indented, and copy it.)
 
 ## M12-03 · Agents (MCP) and AI
 - [x] `teitunnel mcp`: MCP server over stdio (Claude Code, Cursor, VS Code, Codex, Windsurf, Zed), and Streamable HTTP from `teitunnel serve` with API keys for remote agents.
