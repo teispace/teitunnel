@@ -1,19 +1,7 @@
 import {
   ArrowRight,
-  Beer,
-  Blocks,
-  Bot,
-  Boxes,
-  Cable,
-  Code2,
-  Command,
-  Container,
   EyeOff,
-  GitMerge,
-  GitPullRequest,
   Globe,
-  HardDrive,
-  House,
   KeyRound,
   ListChecks,
   LockKeyhole,
@@ -22,10 +10,11 @@ import {
   ShieldCheck,
   SquareTerminal,
   Undo2,
-  Webhook,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AgentSession } from "@/components/agent-session";
+import { Chapters } from "@/components/chapters";
 import { CopyCommand } from "@/components/copy-command";
 import { DoctorDemo, QuickShareDemo } from "@/components/demos";
 import { DownloadButton } from "@/components/download-button";
@@ -35,13 +24,16 @@ import { HowItWorks } from "@/components/how-it-works";
 import { Journey } from "@/components/journey";
 import { JsonLd } from "@/components/json-ld";
 import { ButtonLink, delay, Eyebrow, Section, Shot, Words } from "@/components/landing";
-import { ApprovalDemo, ExposureDemo, ReplayDemo, RequestStream } from "@/components/live-demos";
+import { ExposureDemo, ReplayDemo, RequestStream } from "@/components/live-demos";
 import { NativeShowcase } from "@/components/native-showcase";
+import { Picker } from "@/components/picker";
 import { PlanDemo } from "@/components/plan-demo";
-import { Manifesto, ToolMarquee } from "@/components/scroll-sections";
+import { Manifesto } from "@/components/scroll-sections";
 import { SecurityCore } from "@/components/security-core";
 import { ShareLoop } from "@/components/share-loop";
 import { Terminal } from "@/components/terminal";
+import { toolDemos } from "@/components/tool-demos";
+import { useCases } from "@/components/use-cases";
 import { latestRelease } from "@/lib/release";
 import {
   faqPage,
@@ -66,13 +58,32 @@ const proof = [
   { icon: ListChecks, title: "Reviewed first", body: "Nothing changes until you apply it." },
 ];
 
-const jobs = [
-  ["Share", "#share"],
-  ["Inspect", "#inspect"],
-  ["Publish", "#publish"],
-  ["Protect", "#protect"],
-  ["Automate", "#automate"],
-] as const;
+const chapters: [label: string, id: string][] = [
+  ["Share", "share"],
+  ["Inspect", "inspect"],
+  ["Publish", "publish"],
+  ["Keep online", "keep-online"],
+  ["Protect", "protect"],
+  ["Fix", "fix"],
+  ["Automate", "automate"],
+];
+
+// Every AI app Teitunnel finds and connects (crates/mcp/src/clients.rs).
+const aiApps = [
+  "Claude Code",
+  "Claude Desktop",
+  "Cursor",
+  "VS Code",
+  "Codex",
+  "Windsurf",
+  "Zed",
+  "Gemini CLI",
+  "GitHub Copilot CLI",
+  "opencode",
+  "Kiro",
+  "LM Studio",
+  "Junie",
+];
 
 // Cards that float over a screenshot: below it on phones, over its corner on wide screens.
 const overlay = {
@@ -91,17 +102,6 @@ const snapshotSteps = [
     text: "Serve preview.yourhost.com with the Snapshot",
     detail: "Cloudflare adds its DNS record and certificate",
   },
-];
-
-const tools = [
-  { icon: Code2, name: "VS Code", note: "Cursor, Windsurf" },
-  { icon: Blocks, name: "JetBrains IDEs", note: "IntelliJ, WebStorm…" },
-  { icon: Command, name: "Raycast", note: "share from anywhere" },
-  { icon: GitPullRequest, name: "GitHub Action", note: "pull request previews" },
-  { icon: GitMerge, name: "GitLab CI", note: "merge request previews" },
-  { icon: Container, name: "Docker", note: "image and Compose" },
-  { icon: Beer, name: "Homebrew", note: "app and CLI" },
-  { icon: Bot, name: "MCP", note: "13 AI apps, tested in one click" },
 ];
 
 const security: { icon: typeof KeyRound; title: string; body: string }[] = [
@@ -134,45 +134,6 @@ const security: { icon: typeof KeyRound; title: string; body: string }[] = [
     icon: SquareTerminal,
     title: "No shells, verified binaries",
     body: "cloudflared is downloaded from Cloudflare and verified, and every process starts without a shell. macOS builds are signed and notarized.",
-  },
-];
-
-const useCases = [
-  {
-    icon: Globe,
-    title: "Expose localhost",
-    body: "Show a dev server to a client or test on your phone: a public HTTPS link in seconds, no port forwarding.",
-    href: "/docs/tutorials/expose-localhost/",
-  },
-  {
-    icon: Webhook,
-    title: "Receive webhooks",
-    body: "Point Stripe, GitHub or Slack at your laptop with a stable address, and replay deliveries while you debug.",
-    href: "/docs/tutorials/webhooks/",
-  },
-  {
-    icon: House,
-    title: "Home Assistant",
-    body: "Reach your smart home from anywhere without opening your router, behind a login if you like.",
-    href: "/docs/tutorials/home-assistant/",
-  },
-  {
-    icon: HardDrive,
-    title: "Self-host from home",
-    body: "Publish a website, NAS or media app from a home server, even behind CGNAT, with your IP kept private.",
-    href: "/docs/tutorials/self-host/",
-  },
-  {
-    icon: Cable,
-    title: "SSH from anywhere",
-    body: "Reach a machine's SSH, RDP or database through Cloudflare, with no inbound port open.",
-    href: "/docs/tutorials/ssh/",
-  },
-  {
-    icon: Boxes,
-    title: "Docker Compose stacks",
-    body: "Add one service to a Compose file and route hostnames to the containers next to it.",
-    href: "/docs/tutorials/docker-compose/",
   },
 ];
 
@@ -329,19 +290,9 @@ export default async function Home() {
         id="features"
         eyebrow="Everything in one app"
         title="From a quick demo to a site that stays up."
-        lead="Five jobs developers do with local work, each a click away and each on your own Cloudflare account."
+        lead="Seven jobs developers do with local work, each a click away and each on your own Cloudflare account."
       >
-        <nav aria-label="Features" className="-mt-4 mb-16 flex flex-wrap gap-2 md:mb-24">
-          {jobs.map(([label, href]) => (
-            <a
-              key={href}
-              href={href}
-              className="inline-flex h-9 items-center rounded-full border border-fd-border px-4 text-sm transition-colors hover:bg-fd-accent"
-            >
-              {label}
-            </a>
-          ))}
-        </nav>
+        <Chapters chapters={chapters} />
 
         <div className="tt-stack">
           <Feature
@@ -464,6 +415,7 @@ export default async function Home() {
           />
 
           <Feature
+            id="keep-online"
             eyebrow="Keep online"
             title="Online while your computer sleeps."
             lead="Some things should stay up when you close the lid. Teitunnel puts them on your Cloudflare account, as Workers you own."
@@ -549,6 +501,7 @@ export default async function Home() {
           />
 
           <Feature
+            id="fix"
             eyebrow="Fix"
             title="Problems explained, with the fix one click away."
             lead="The Doctor checks routes, DNS, connectors, logins and WARP settings, says what's wrong in plain words, and fixes what's safe to fix."
@@ -632,47 +585,56 @@ export default async function Home() {
           </>
         }
       >
-        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-          <div className="space-y-5">
-            {[
-              {
-                icon: Bot,
-                text: "Claude Code, Cursor, VS Code, Codex, Copilot CLI and eight more are found on your computer, connected in one click and tested with a real MCP handshake.",
-              },
-              {
-                icon: ListChecks,
-                text: "Agents share dev servers, add routes, read logs, wait for a webhook and replay it, through the same plans as the app.",
-              },
-              {
-                icon: ShieldCheck,
-                text: "Every change waits for your answer in the app or the AI app, never for the agent's word, and shows up in Activity with its name.",
-              },
-              {
-                icon: KeyRound,
-                text: "API, OAuth and tunnel tokens never reach the agent, and captured credentials stay masked.",
-              },
-            ].map(({ icon: Icon, text }, index) => (
-              <div key={text} data-reveal style={delay(index * 80)} className="flex gap-3">
-                <Icon className="mt-0.5 size-5 shrink-0 text-[var(--tt-accent-text)]" aria-hidden />
-                <p className="text-fd-muted-foreground">{text}</p>
-              </div>
-            ))}
-            <Link
-              href="/docs/guides/ai-agents/"
-              className="inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
-            >
-              AI agents (MCP) <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div>
+            <div className="space-y-5">
+              {[
+                {
+                  icon: ListChecks,
+                  text: "Agents share dev servers, add routes, read logs, wait for a webhook and replay it, through the same plans as the app.",
+                },
+                {
+                  icon: ShieldCheck,
+                  text: "Every change waits for your answer in the app or the AI app, never for the agent's word, and shows up in Activity with its name.",
+                },
+                {
+                  icon: KeyRound,
+                  text: "API, OAuth and tunnel tokens never reach the agent, and captured credentials stay masked.",
+                },
+              ].map(({ icon: Icon, text }, index) => (
+                <div key={text} data-reveal style={delay(index * 80)} className="flex gap-3">
+                  <Icon
+                    className="mt-0.5 size-5 shrink-0 text-[var(--tt-accent-text)]"
+                    aria-hidden
+                  />
+                  <p className="text-fd-muted-foreground">{text}</p>
+                </div>
+              ))}
+            </div>
+            <div data-reveal style={delay(240)} className="mt-9">
+              <p className="text-sm font-medium">
+                Found on your computer, connected in one click, tested with a real handshake:
+              </p>
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {aiApps.map((app) => (
+                  <li
+                    key={app}
+                    className="rounded-full border border-fd-border px-2.5 py-1 text-xs text-fd-muted-foreground"
+                  >
+                    {app}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/docs/guides/ai-agents/"
+                className="mt-6 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+              >
+                AI agents (MCP) <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            </div>
           </div>
-          <div data-reveal="scale" style={delay(120)} className="mx-auto w-full max-w-2xl">
-            <Shot
-              name="agents"
-              alt="AI & Integrations, AI Apps: Claude Code connected and last used 12 minutes ago, Cursor asking to be updated, VS Code ready to connect"
-            >
-              <div className={overlay.left}>
-                <ApprovalDemo />
-              </div>
-            </Shot>
+          <div data-reveal="scale" style={delay(120)} className="min-w-0">
+            <AgentSession />
           </div>
         </div>
       </Section>
@@ -684,26 +646,19 @@ export default async function Home() {
         title="Share from your editor. Preview from CI."
         lead="Extensions and launchers talk to the running app over a local connection. Nothing listens on the network, and nothing changes without your approval."
       >
-        <ToolMarquee tools={tools} />
-        <div className="mt-14 grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <p data-reveal className="text-fd-muted-foreground md:text-lg">
-            A global shortcut shares your dev server from anywhere, the browser extension shares the
-            page you're on, and <code>teitunnel://</code> links open a route or a share. Every
-            program is approved once, in the app.{" "}
-            <Link
-              href="/docs/guides/integrations/"
-              className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-            >
-              Links and integrations
-            </Link>
-          </p>
-          <div data-reveal="scale" style={delay(120)}>
-            <Shot
-              name="integrations"
-              alt="AI & Integrations, More: connections from the command line and extensions, programs always allowed, links and the global shortcut"
-            />
-          </div>
+        <div data-reveal>
+          <Picker label="Tools" items={toolDemos} />
         </div>
+        <p data-reveal className="mt-10 max-w-3xl text-fd-muted-foreground">
+          A global shortcut shares your dev server from anywhere, and <code>teitunnel://</code>{" "}
+          links open a route or a share. Every program is approved once, in the app.{" "}
+          <Link
+            href="/docs/guides/integrations/"
+            className="font-medium text-fd-foreground underline-offset-4 hover:underline"
+          >
+            Links and integrations
+          </Link>
+        </p>
       </Section>
 
       {/* The native app: one window, as each system draws it */}
@@ -765,68 +720,61 @@ export default async function Home() {
         id="use-cases"
         eyebrow="Use cases"
         title="What people put on the internet with it."
-        lead="Step-by-step guides, from a five-minute demo to a home lab."
+        lead="Pick one to see the way its requests travel. Each has a step-by-step guide, from a five-minute demo to a home lab."
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {useCases.map(({ icon: Icon, title, body, href }, index) => (
-            <Link
-              key={title}
-              href={href}
-              data-reveal="blur"
-              data-spotlight
-              style={delay((index % 3) * 90)}
-              className="tt-glow-card group flex flex-col gap-3 rounded-2xl border border-fd-border p-6 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-[var(--tt-accent)]/40"
-            >
-              <span className="flex size-10 items-center justify-center rounded-xl border border-fd-border bg-fd-card">
-                <Icon className="size-5 text-[var(--tt-accent-text)]" aria-hidden />
-              </span>
-              <h3 className="font-medium">{title}</h3>
-              <p className="text-sm text-fd-muted-foreground">{body}</p>
-              <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium">
-                Read the guide
-                <ArrowRight
-                  className="size-4 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              </span>
-            </Link>
-          ))}
+        <div data-reveal>
+          <Picker label="Use cases" items={useCases} />
         </div>
       </Section>
 
-      {/* FAQ */}
-      <Section id="faq" eyebrow="Questions" title="Good to know.">
-        <div data-reveal className="divide-y divide-fd-border rounded-2xl border border-fd-border">
-          {faq.map(({ q, a }) => (
-            <details
-              key={q}
-              className="group p-5 md:p-6 [&_summary::-webkit-details-marker]:hidden"
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
-                {q}
-                <span
-                  aria-hidden
-                  className="text-xl leading-none text-fd-muted-foreground transition-transform duration-300 group-open:rotate-45"
-                >
-                  +
-                </span>
-              </summary>
-              <p className="mt-3 text-fd-muted-foreground">{a}</p>
-            </details>
-          ))}
+      {/* FAQ: the questions beside a heading that stays */}
+      <section id="faq" className="mx-auto w-full max-w-6xl px-6 py-20 md:py-28">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-16">
+          <div data-reveal className="lg:sticky lg:top-24 lg:self-start">
+            <Eyebrow text="Questions" />
+            <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+              <Words>Good to know.</Words>
+            </h2>
+            <p className="mt-5 text-fd-muted-foreground">
+              More in the{" "}
+              <Link href="/docs/reference/faq/" className="underline underline-offset-4">
+                FAQ
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/docs/reference/troubleshooting/"
+                className="underline underline-offset-4"
+              >
+                troubleshooting
+              </Link>
+              , or{" "}
+              <a
+                href={site.issues}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-4"
+              >
+                ask on GitHub
+              </a>
+              .
+            </p>
+          </div>
+          <div data-reveal style={delay(100)} className="tt-faq">
+            {faq.map(({ q, a }, index) => (
+              <details key={q} name="faq" open={index === 0} className="tt-faq-item">
+                <summary className="tt-faq-question">
+                  <span className="font-mono text-xs text-fd-muted-foreground tabular-nums">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="flex-1">{q}</span>
+                  <span aria-hidden className="tt-faq-sign" />
+                </summary>
+                <p className="tt-faq-answer">{a}</p>
+              </details>
+            ))}
+          </div>
         </div>
-        <p className="mt-6 text-sm text-fd-muted-foreground">
-          More in the{" "}
-          <Link href="/docs/reference/faq/" className="underline underline-offset-4">
-            FAQ
-          </Link>{" "}
-          and{" "}
-          <Link href="/docs/reference/troubleshooting/" className="underline underline-offset-4">
-            troubleshooting
-          </Link>
-          .
-        </p>
-      </Section>
+      </section>
 
       {/* Closing: one card, with a Quick Share happening in it */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">

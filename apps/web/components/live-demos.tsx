@@ -1,9 +1,8 @@
 "use client";
 
-import { Check, LoaderCircle, RotateCcw, ShieldCheck } from "lucide-react";
+import { LoaderCircle, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { card, usePlayOnView } from "./demos";
-import { Logo } from "./logo";
 
 interface Request {
   method: string;
@@ -202,70 +201,6 @@ export function ReplayDemo() {
           valid
         </span>
       </p>
-    </figure>
-  );
-}
-
-type Answer = "asking" | "allowing" | "applied";
-
-/** An AI agent's change waiting for approval in the app, then applied. */
-export function ApprovalDemo() {
-  const ref = useRef<HTMLElement>(null);
-  const [state, setState] = useState<Answer>("applied");
-
-  usePlayOnView(ref, () => {
-    setState("asking");
-    const timers = [
-      window.setTimeout(() => setState("allowing"), 2200),
-      window.setTimeout(() => setState("applied"), 3200),
-    ];
-    return () => {
-      for (const t of timers) window.clearTimeout(t);
-    };
-  });
-
-  return (
-    <figure ref={ref} className={card} aria-label="An AI agent asking to change a route">
-      <div className="flex gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-fd-foreground text-fd-background">
-          <Logo className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          {/* core.control.apply_other in locales/en.json */}
-          <p className="font-medium">
-            Claude Code wants to change your routes in Cloudflare (2 steps):
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-fd-muted-foreground">
-            <li>Update tunnel “MacBook-Pro” to serve 6 routes</li>
-            <li>Add DNS record api.yourhost.com → tunnel “MacBook-Pro”</li>
-          </ul>
-          <div
-            className="mt-3 flex min-h-7 items-center justify-end gap-2 text-xs"
-            aria-live="polite"
-          >
-            {state === "applied" ? (
-              <span className="mr-auto inline-flex items-center gap-1.5 text-fd-muted-foreground">
-                <Check className="size-4 text-[var(--tt-live-text)]" aria-hidden /> Applied · in
-                Activity as Claude Code
-              </span>
-            ) : (
-              <>
-                <span className="inline-flex h-7 items-center rounded-full border border-fd-border px-3">
-                  Deny
-                </span>
-                <span
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--tt-accent-fill)] px-3 font-medium text-white transition-transform duration-200 ${state === "allowing" ? "scale-95" : ""}`}
-                >
-                  {state === "allowing" ? (
-                    <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
-                  ) : null}
-                  Allow
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
     </figure>
   );
 }

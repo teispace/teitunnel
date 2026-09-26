@@ -27,7 +27,7 @@ export function Feature({
   media: ReactNode;
 }) {
   return (
-    <article id={id} data-scene="stack" className="tt-card scroll-mt-24">
+    <article id={id} data-scene="stack" className="tt-card scroll-mt-[3.25rem]">
       <div className="tt-card-inner grid grid-cols-1 gap-10 p-6 sm:p-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12 lg:p-12">
         <div className="flex min-w-0 flex-col">
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--tt-accent-text)]">

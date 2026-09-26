@@ -70,4 +70,21 @@ describe("docs links", () => {
     }
     assert.deepEqual(broken, []);
   });
+
+  it("from the site's pages and components point at pages that exist", () => {
+    const site = new URL("../", import.meta.url).pathname;
+    const sources = ["app", "components"].flatMap((dir) =>
+      readdirSync(join(site, dir), { recursive: true, encoding: "utf8" })
+        .filter((name) => name.endsWith(".tsx"))
+        .map((name) => join(site, dir, name)),
+    );
+    const broken: string[] = [];
+    for (const file of sources) {
+      const source = readFileSync(file, "utf8");
+      for (const [, link] of source.matchAll(/"(\/docs\/[^"#]*)(?:#[^"]*)?"/g)) {
+        if (!pages.has(link.replace(/\/$/, ""))) broken.push(`${relative(site, file)}: ${link}`);
+      }
+    }
+    assert.deepEqual(broken, []);
+  });
 });

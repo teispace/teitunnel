@@ -961,50 +961,6 @@ html.tt-motion .tt-point[data-held] .tt-point-bar {
   }
 }
 
-/* Tools drifting past in two rows. */
-.tt-marquee-row {
-  overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-}
-
-.tt-marquee-track {
-  display: flex;
-  gap: 0.75rem;
-  width: max-content;
-  padding: 0.25rem 0;
-}
-
-html.tt-motion .tt-marquee-track {
-  animation: tt-marquee 55s linear infinite;
-}
-
-html.tt-motion .tt-marquee-row[data-direction="right"] .tt-marquee-track {
-  animation-direction: reverse;
-}
-
-.tt-marquee-row:hover .tt-marquee-track {
-  animation-play-state: paused;
-}
-
-@keyframes tt-marquee {
-  to {
-    transform: translateX(calc(-100% / 3));
-  }
-}
-
-html:not(.tt-motion) .tt-marquee-track {
-  flex-wrap: wrap;
-  width: auto;
-}
-
-html:not(.tt-motion) .tt-marquee-row {
-  mask-image: none;
-}
-
-html:not(.tt-motion) [data-copy] {
-  display: none;
-}
-
 /* The native app: one window, as each system draws it. */
 .tt-seg {
   display: inline-flex;
@@ -1647,17 +1603,6 @@ html.tt-motion .tt-trace-pulse {
   background: var(--tt-live);
 }
 
-/* Use cases: a glow that follows the pointer. */
-.tt-glow-card {
-  background:
-    radial-gradient(
-      22rem circle at var(--mx) var(--my),
-      color-mix(in oklab, var(--tt-accent) 12%, transparent),
-      transparent 65%
-    ),
-    var(--color-fd-background);
-}
-
 /* The closing card: the call to act beside a Quick Share happening. */
 .tt-closing {
   display: grid;
@@ -1782,8 +1727,7 @@ html.tt-motion .tt-share-loop[data-phase="live"] .tt-share-address {
 
 /* Reduce Motion turned on after the page loaded: every scene at rest. */
 @media (prefers-reduced-motion: reduce) {
-  html.tt-motion
-    :is(.tt-marquee-track, .tt-point-bar, .tt-stars > span, .tt-share-dot, .tt-share-address),
+  html.tt-motion :is(.tt-point-bar, .tt-stars > span, .tt-share-dot, .tt-share-address),
   html.tt-motion .tt-stars::before,
   html.tt-motion .tt-stars::after {
     animation: none;
@@ -1805,4 +1749,636 @@ html.tt-motion .tt-share-loop[data-phase="live"] .tt-share-address {
 .tt-hero-front {
   z-index: 20;
   mask-image: none;
+}
+
+/* Features: the chapter rail under the header, and screens that settle flat as they arrive. */
+.tt-chapters {
+  position: sticky;
+  top: 4rem;
+  z-index: 30;
+  margin: -1rem auto 3.5rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.3rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: color-mix(in oklab, var(--color-fd-background) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  overflow: hidden;
+}
+
+.tt-chapters-list {
+  display: flex;
+  gap: 0.15rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tt-chapter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  color: var(--color-fd-muted-foreground);
+  transition:
+    background-color 0.35s var(--tt-ease),
+    color 0.35s var(--tt-ease);
+}
+
+.tt-chapter:hover {
+  color: var(--color-fd-foreground);
+}
+
+.tt-chapter[aria-current] {
+  background: var(--color-fd-accent);
+  color: var(--color-fd-foreground);
+}
+
+.tt-chapters-bar {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--progress, 0));
+}
+
+@media (min-width: 768px) {
+  .tt-chapters {
+    margin-bottom: 5rem;
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 760px) {
+  html.tt-motion .tt-card {
+    top: 7.75rem;
+  }
+}
+
+html.tt-motion .tt-card-media {
+  perspective: 1600px;
+}
+
+html.tt-motion .tt-card-media > * {
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(max(0, 0.42 - var(--p, 1)) * 32deg));
+}
+
+/* AI agents: a session in a terminal, and the app's question over it. */
+.tt-agent {
+  position: relative;
+  padding-bottom: 5.5rem;
+}
+
+.tt-agent-window {
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  overflow: hidden;
+}
+
+@keyframes tt-appear {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+html.tt-motion .tt-agent-line {
+  animation: tt-appear 0.45s var(--tt-ease) both;
+}
+
+.tt-agent-ask {
+  position: absolute;
+  right: -0.5rem;
+  bottom: 0;
+  width: min(24rem, calc(100% - 1rem));
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-size: 0.875rem;
+  box-shadow: var(--tt-window-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: perspective(900px) translateY(1rem) rotateX(-8deg) scale(0.97);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 0.4s var(--tt-ease),
+    transform 0.55s var(--tt-ease),
+    visibility 0s 0.55s;
+}
+
+.tt-agent-ask[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+html.tt-motion .tt-agent-ask[data-open] .tt-agent-allow {
+  animation: tt-pulse 2s ease-out infinite;
+}
+
+/* Phones: the question sits under the session, overlapping it a little, not over it. */
+@media (max-width: 639px) {
+  .tt-agent {
+    padding-bottom: 0;
+  }
+
+  .tt-agent-ask {
+    position: relative;
+    right: auto;
+    width: auto;
+    margin: -1.25rem 0.5rem 0;
+  }
+}
+
+/* A list beside a stage (tools, use cases): the current item marked, its turn filling. */
+.tt-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .tt-picker {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+}
+
+.tt-pick-list {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .tt-pick-list {
+    flex-direction: column;
+    overflow: visible;
+  }
+}
+
+.tt-pick-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.6rem 0.9rem 0.6rem 0.6rem;
+  border-radius: 0.9rem;
+  border: 1px solid transparent;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    background-color 0.3s var(--tt-ease),
+    border-color 0.3s var(--tt-ease);
+}
+
+.tt-pick-tab:hover {
+  background: color-mix(in oklab, var(--color-fd-accent) 60%, transparent);
+}
+
+.tt-pick-tab[aria-selected="true"] {
+  background: var(--color-fd-card);
+  border-color: var(--color-fd-border);
+}
+
+@media (max-width: 1023px) {
+  .tt-pick-note {
+    display: none;
+  }
+
+  .tt-pick-tab {
+    padding: 0.4rem 0.8rem 0.4rem 0.4rem;
+  }
+}
+
+.tt-pick-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  color: var(--color-fd-muted-foreground);
+  transition: color 0.3s var(--tt-ease);
+}
+
+.tt-pick-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.tt-pick-tab[aria-selected="true"] .tt-pick-icon {
+  color: var(--tt-accent-text);
+}
+
+.tt-pick-bar {
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+html.tt-motion .tt-picker[data-running] .tt-pick-tab[aria-selected="true"] .tt-pick-bar {
+  animation: tt-fill var(--dwell, 5s) linear forwards;
+}
+
+.tt-pick-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  perspective: 1400px;
+}
+
+.tt-pick-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+html.tt-motion .tt-pick-panel {
+  animation: tt-pick-in 0.6s var(--tt-ease) both;
+  transform-origin: 50% 0;
+}
+
+@keyframes tt-pick-in {
+  from {
+    opacity: 0;
+    transform: rotateX(7deg) translateY(10px);
+  }
+}
+
+/* Parts of a panel that appear once it has done its job (all at once without motion). */
+html.tt-motion .tt-pick-panel:not([data-done]) .tt-pick-result {
+  display: none;
+}
+
+.tt-pick-before {
+  display: none;
+}
+
+html.tt-motion .tt-pick-panel:not([data-done]) .tt-pick-before {
+  display: block;
+}
+
+html.tt-motion .tt-pick-panel[data-done] .tt-pick-result {
+  animation: tt-appear 0.45s var(--tt-ease) both;
+  animation-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+/* The tools' mocks: a small window each. */
+.tt-mock {
+  position: relative;
+  min-height: 19rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: var(--tt-window-shadow);
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+
+.tt-mock-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--color-fd-border);
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.tt-mock-bar > :last-child {
+  padding-right: 3.25rem;
+}
+
+.tt-mock-palette {
+  position: absolute;
+  top: 3rem;
+  left: 50%;
+  width: min(24rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  overflow: hidden;
+  font-size: 0.75rem;
+}
+
+.tt-mock-toast {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(22rem, calc(100% - 1.5rem));
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  font-size: 0.75rem;
+}
+
+.tt-mock-toast > :nth-child(2) {
+  flex: 1;
+}
+
+.tt-mock-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  height: 1.6rem;
+  padding: 0 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-fd-border);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.tt-mock-raycast {
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-mock-raycast > :last-child {
+  margin-top: auto;
+}
+
+.tt-mock-hud {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.tt-mock-popup {
+  position: absolute;
+  top: 2.9rem;
+  right: 1rem;
+  width: min(17rem, calc(100% - 2rem));
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+}
+
+/* Use cases: the way requests travel, from whoever sends them to the service. */
+.tt-case {
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--color-fd-border);
+  background:
+    radial-gradient(
+      circle at 1px 1px,
+      color-mix(in oklab, var(--color-fd-foreground) 9%, transparent) 1px,
+      transparent 0
+    )
+    0 0 / 18px 18px,
+    var(--color-fd-card);
+}
+
+.tt-case-map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+@media (min-width: 640px) {
+  .tt-case {
+    padding: 2rem;
+  }
+}
+
+.tt-case-node,
+.tt-case-edge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 19rem;
+  padding: 0.75rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+}
+
+.tt-case-edge {
+  display: block;
+  max-width: 23rem;
+  padding: 1rem;
+  text-align: center;
+  border-color: color-mix(in oklab, var(--tt-accent) 45%, var(--color-fd-border));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--tt-accent) 8%, transparent);
+}
+
+.tt-case-node-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  background: var(--color-fd-accent);
+}
+
+.tt-case-to .tt-case-node-icon {
+  color: var(--tt-accent-text);
+}
+
+/* The wires: down on phones, across on wider screens; requests travel them. */
+.tt-case-wire {
+  position: relative;
+  width: 1.5px;
+  height: 2.75rem;
+  background: var(--color-fd-border);
+}
+
+.tt-case-tunnel {
+  height: 4rem;
+  background: repeating-linear-gradient(180deg, var(--tt-accent) 0 5px, transparent 5px 9px);
+  opacity: 0.9;
+}
+
+.tt-case-tunnel-label {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--color-fd-muted-foreground);
+}
+
+.tt-case-packet {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow: 0 0 10px var(--tt-accent);
+  opacity: 0;
+}
+
+@keyframes tt-case-down {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes tt-case-across {
+  0% {
+    left: 0;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+html.tt-motion .tt-case-packet {
+  animation: tt-case-down 2.2s var(--d, 0s) linear infinite;
+}
+
+.tt-case-fact {
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+/* FAQ: one answer open at a time, opening smoothly where the browser can. */
+.tt-faq {
+  border-top: 1px solid var(--color-fd-border);
+}
+
+.tt-faq-item {
+  border-bottom: 1px solid var(--color-fd-border);
+  interpolate-size: allow-keywords;
+}
+
+.tt-faq-item::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 0.45s var(--tt-ease),
+    content-visibility 0.45s allow-discrete;
+}
+
+.tt-faq-item[open]::details-content {
+  block-size: auto;
+}
+
+.tt-faq-question {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.35rem 0;
+  font-weight: 500;
+  font-size: 1.0625rem;
+  list-style: none;
+  cursor: pointer;
+  transition: color 0.3s var(--tt-ease);
+}
+
+.tt-faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.tt-faq-item:not([open]) .tt-faq-question:hover {
+  color: var(--tt-accent-text);
+}
+
+.tt-faq-sign {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.75rem;
+  height: 0.75rem;
+  align-self: center;
+}
+
+.tt-faq-sign::before,
+.tt-faq-sign::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform 0.4s var(--tt-ease);
+}
+
+.tt-faq-sign::after {
+  transform: rotate(90deg);
+}
+
+.tt-faq-item[open] .tt-faq-sign::after {
+  transform: rotate(0deg);
+}
+
+.tt-faq-answer {
+  padding: 0 1.75rem 1.5rem 2.2rem;
+  color: var(--color-fd-muted-foreground);
+  max-width: 44rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.tt-motion :is(.tt-case-packet, .tt-pick-panel, .tt-agent-line),
+  html.tt-motion .tt-picker[data-running] .tt-pick-tab .tt-pick-bar {
+    animation: none;
+  }
 }
