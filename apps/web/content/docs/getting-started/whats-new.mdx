@@ -1,12 +1,24 @@
 ---
-title: What's new in 0.3.0
-description: What Teitunnel 0.3.0 adds — tunnels that recover by themselves after sleep and network changes, inspector breakpoints and a live Overview, traffic numbers for every share, broken-link checks, and MCP sign-in for claude.ai and ChatGPT — and what 0.2.0 brought before it.
+title: What's new in 0.4.0
+description: What Teitunnel 0.4.0 adds — GitHub and Google sign-in for route logins, a cache bypass for dev servers, and faster imports — and what 0.3.0 and 0.2.0 brought before it.
 ---
 
-0.3.0 makes tunnels look after themselves after sleep and network changes, adds
-breakpoints and a live Overview to the inspector, gives every share and route its own
-traffic numbers, and lets claude.ai and ChatGPT sign in to MCP servers you share. This page
-groups what changed, with a link to each guide; [0.2.0](#020) follows below.
+0.4.0 lets a route's login use GitHub or Google, including GitHub teams, can stop
+Cloudflare caching a dev server's hostname, and imports routes faster. This page groups
+what changed, with a link to each guide; [0.3.0](#030) and [0.2.0](#020) follow below.
+
+## 0.4.0
+
+- **GitHub and Google sign-in.** Let in the members of a GitHub organization or team
+  (`github:teispace/Developers`), and limit the login to the account's GitHub or Google
+  login method with **Log in with**. [Require a login](/docs/guides/require-login#github-and-google)
+- **Bypass the cache.** Stop Cloudflare caching one hostname, so a dev server's changes
+  show at once. [Edge protection](/docs/guides/protection) ·
+  [Dev servers](/docs/tutorials/dev-servers#changes-that-dont-show-up)
+- **Faster imports.** Several routes' DNS records are created in one call per domain,
+  applied all or nothing.
+- **Fixes:** the Linux AppImage includes the tray library; permission messages say how to
+  add a permission when you signed in with Cloudflare.
 
 ## 0.3.0
 
