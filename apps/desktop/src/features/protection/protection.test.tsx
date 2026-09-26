@@ -15,6 +15,7 @@ const core = (key: string, args: Record<string, string | number> = {}) => ({
 let view: ProtectionView;
 let tokens: ServiceTokenView[];
 let edgeRefused: boolean;
+let cacheRules: boolean;
 let calls: { cmd: string; args: Record<string, unknown> }[];
 
 const plan: PlanView = {
@@ -52,9 +53,11 @@ beforeEach(() => {
     rateLimitAvailable: false,
     longestPeriod: 10,
     sharesRateLimitWith: [],
+    cacheRules: true,
   };
   tokens = [];
   edgeRefused = false;
+  cacheRules = true;
   calls = [];
   mockWindows("main");
   mockIPC((cmd, args) => {
@@ -72,6 +75,7 @@ beforeEach(() => {
           analytics: "yes",
           workersEdit: "yes",
           edgeRules: edgeRefused ? "no" : "yes",
+          cacheRules: cacheRules ? "yes" : "no",
           serviceTokens: "yes",
           d1: "yes",
           zones: [],
@@ -85,7 +89,7 @@ beforeEach(() => {
             field: null,
           };
         }
-        return view;
+        return { ...view, cacheRules };
       case "protection_tokens":
         return tokens;
       case "protection_preview":
@@ -131,6 +135,7 @@ describe("ProtectionSection", () => {
     renderSection(<ProtectionSection accountId="a1" hostname="app.xyz.com" />);
     expect(await screen.findByText("Blocked")).toBeTruthy();
     expect(screen.getByText("Request: 0 · Response: 1")).toBeTruthy();
+    expect(screen.getByText("As usual")).toBeTruthy();
     expect(screen.getByText("Rules on xyz.com")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Protection…" }));
@@ -153,11 +158,36 @@ describe("ProtectionSection", () => {
         rateLimit: null,
         requestHeaders: [],
         responseHeaders: [{ name: "X-Robots-Tag", op: "set", value: "noindex" }],
+        bypassCache: false,
       },
     });
     fireEvent.click(within(sheet).getByRole("button", { name: "Apply Rules" }));
     await waitFor(() =>
       expect(calls.find((c) => c.cmd === "protection_apply")?.args["fingerprint"]).toBe("fp-1"),
+    );
+  });
+
+  it("bypasses the cache, asking for Cache Rules only when the token lacks them", async () => {
+    cacheRules = false;
+    renderSection(<ProtectionSection accountId="a1" hostname="app.xyz.com" />);
+    expect(await screen.findByText("As usual")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit Protection…" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).queryByText("Zone · Cache Rules · Edit")).toBeNull();
+    fireEvent.click(within(sheet).getByRole("switch", { name: /Bypass Cloudflare's cache/ }));
+    expect(await within(sheet).findByText("Zone · Cache Rules · Edit")).toBeTruthy();
+
+    // With the permission, the change asks for the bypass.
+    cacheRules = true;
+    fireEvent.click(within(sheet).getByRole("button", { name: "Review" }));
+    await waitFor(() =>
+      expect(
+        (
+          calls.find((c) => c.cmd === "protection_preview")?.args["change"] as {
+            protection: { bypassCache: boolean };
+          }
+        )?.protection.bypassCache,
+      ).toBe(true),
     );
   });
 

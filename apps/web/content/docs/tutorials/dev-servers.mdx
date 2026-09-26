@@ -202,6 +202,14 @@ Events), which Quick Shares don't carry. Share it on your own domain instead, wh
 work." Share it with `--on`, as in step 2. For a local MCP server, `teitunnel share 3000
 --on mcp.teispace.com --mcp` adds a bearer token and keeps streams alive.
 
+## Changes that don't show up
+
+On your own domain, Cloudflare may cache files such as scripts, styles and images, so a
+change you just made can show the old copy. Turn on **Bypass Cloudflare's cache** in the
+hostname's **Edit Protection…** sheet, or run `teitunnel protect dev.teispace.com
+--bypass-cache`. Cloudflare then never caches that hostname, and nothing changes for the
+rest of the domain ([Edge protection](/docs/guides/protection)).
+
 ## HTTPS dev servers
 
 If your dev server itself uses HTTPS with a self-signed certificate (`https://localhost:8443`),

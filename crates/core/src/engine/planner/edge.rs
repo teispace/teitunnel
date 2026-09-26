@@ -136,12 +136,12 @@ pub(super) fn protect(
     let host = vec![hostname.to_string()];
 
     let desired = edge::hostname_rules(hostname, protection);
-    for kind in [
-        RuleKind::Block,
-        RuleKind::Challenge,
-        RuleKind::RequestHeaders,
-        RuleKind::ResponseHeaders,
-    ] {
+    // Without the Cache Rules permission the cache phase is unknown and left alone (a
+    // change that bypasses the cache is refused before planning).
+    let kinds = RuleKind::PER_HOSTNAME
+        .into_iter()
+        .filter(|kind| *kind != RuleKind::BypassCache || state.cache_readable);
+    for kind in kinds {
         let existing = state.owned_rule(kind.phase(), &edge::marker(hostname, kind));
         let wanted = desired.iter().find(|(k, _)| *k == kind).map(|(_, r)| r);
         match (existing, wanted) {
@@ -157,11 +157,7 @@ pub(super) fn protect(
     }
     rate_limit(state, hostname, protection.rate_limit, &mut changes)?;
 
-    for quota in [
-        QuotaKind::Custom,
-        QuotaKind::RateLimit,
-        QuotaKind::Transform,
-    ] {
+    for quota in QuotaKind::ALL {
         if !changes.touches(quota) {
             continue;
         }

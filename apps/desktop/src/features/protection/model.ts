@@ -16,6 +16,7 @@ export interface Protection {
   rateLimit: RateLimitSpec | null;
   requestHeaders: HeaderRule[];
   responseHeaders: HeaderRule[];
+  bypassCache: boolean;
 }
 
 export const noProtection: Protection = {
@@ -24,6 +25,7 @@ export const noProtection: Protection = {
   rateLimit: null,
   requestHeaders: [],
   responseHeaders: [],
+  bypassCache: false,
 };
 
 export function complete(protection: EdgeProtection | undefined): Protection {
@@ -33,6 +35,7 @@ export function complete(protection: EdgeProtection | undefined): Protection {
     rateLimit: protection?.rateLimit ?? null,
     requestHeaders: protection?.requestHeaders ?? [],
     responseHeaders: protection?.responseHeaders ?? [],
+    bypassCache: protection?.bypassCache ?? false,
   };
 }
 
@@ -42,7 +45,8 @@ export function isOff(protection: Protection): boolean {
     !protection.aiCrawlers &&
     protection.rateLimit === null &&
     protection.requestHeaders.length === 0 &&
-    protection.responseHeaders.length === 0
+    protection.responseHeaders.length === 0 &&
+    !protection.bypassCache
   );
 }
 
@@ -67,6 +71,7 @@ export const quotaLabels: Record<QuotaKind, MessageKey> = {
   custom: "protection.quota.custom",
   rateLimit: "protection.quota.rateLimit",
   transform: "protection.quota.transform",
+  cache: "protection.quota.cache",
 };
 
 /** "30 requests per 1 min per visitor, then blocked". */

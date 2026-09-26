@@ -6,6 +6,7 @@ expression: view(&p)
   - Challenge automated clients on app.xyz.com
   - Change 1 request header on app.xyz.com
   - Change 1 response header on app.xyz.com
+  - Stop Cloudflare caching responses from app.xyz.com
 - - type: edgeQuota
     quota: custom
     zone: xyz.com
@@ -15,4 +16,9 @@ expression: view(&p)
     quota: transform
     zone: xyz.com
     used: 2
+    limit: 10
+  - type: edgeQuota
+    quota: cache
+    zone: xyz.com
+    used: 1
     limit: 10

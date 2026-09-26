@@ -6,6 +6,7 @@ expression: view(&p)
   - Remove the blocking rule from app.xyz.com
   - Remove the request header rule from app.xyz.com
   - Remove the response header rule from app.xyz.com
+  - Let Cloudflare cache responses from app.xyz.com again
 - - type: edgeQuota
     quota: custom
     zone: xyz.com
@@ -13,6 +14,11 @@ expression: view(&p)
     limit: 20
   - type: edgeQuota
     quota: transform
+    zone: xyz.com
+    used: 0
+    limit: 25
+  - type: edgeQuota
+    quota: cache
     zone: xyz.com
     used: 0
     limit: 25

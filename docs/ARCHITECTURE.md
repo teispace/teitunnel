@@ -277,13 +277,17 @@ Rules Cloudflare enforces for **one hostname** (the
 [Ruleset Engine](https://developers.cloudflare.com/ruleset-engine/)): a custom rule that blocks
 automated clients and/or AI crawlers, one that challenges them
 (`http_request_firewall_custom`), request and response header rules
-(`http_request_late_transform`, `http_response_headers_transform`), each
-`(http.host eq "<hostname>") and (…)` and described `teitunnel:<route-id>:<kind>`; and rate
+(`http_request_late_transform`, `http_response_headers_transform`) and a cache bypass
+(`http_request_cache_settings`, `set_cache_settings` with `"cache": false`, added last so it
+wins over the zone's other Cache Rules), each `(http.host eq "<hostname>") and (…)` and
+described `teitunnel:<route-id>:<kind>`; and rate
 limits (`http_ratelimit`), which plans allow few of, **shared** by every hostname with the
 same limit in a zone: one rule per limit, `(http.host in {"a" "b"})`, described
 `teitunnel:ratelimit:<requests>-<period>-<action>`. `engine/edge.rs` builds the rules and
 reads settings back from them; `engine/planner/edge.rs` diffs them against the observed
-entry points (`EdgeState`: the zone's plan from `plan.legacy_id`, and five phases) and
+entry points (`EdgeState`: the zone's plan from `plan.legacy_id`, five phases, and the
+Cache Rules phase when the credential may read it: that permission is optional, so without
+it the rest works and only a cache bypass is refused with `ObserveError::CacheRulesPermission`) and
 plans `CreateEdgeRule` → `UpdateEdgeRule` → `DeleteEdgeRule` (from the end of each phase,
 so undo re-inserts every rule at its old position), checks each quota and adds
 `Warning::EdgeQuota`. Free zones get no rate limit (it can't match a hostname there); a

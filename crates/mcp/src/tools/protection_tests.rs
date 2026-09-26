@@ -110,6 +110,10 @@ async fn protect_hostname_changes_only_what_it_names_and_applies_through_apply_p
         .unwrap();
     assert_eq!(got["blockAiCrawlers"], true);
     assert_eq!(got["plan"], "pro");
+    assert_eq!(
+        (&got["bypassCache"], &got["cacheRulesAvailable"]),
+        (&json!(false), &json!(true))
+    );
 
     let plan = h
         .call(
@@ -118,7 +122,8 @@ async fn protect_hostname_changes_only_what_it_names_and_applies_through_apply_p
             json!({
                 "hostname": "app.xyz.com",
                 "bots": "challenge",
-                "responseHeaders": [{ "name": "X-Robots-Tag", "op": "set", "value": "noindex" }]
+                "responseHeaders": [{ "name": "X-Robots-Tag", "op": "set", "value": "noindex" }],
+                "bypassCache": true
             }),
         )
         .await
@@ -146,6 +151,7 @@ async fn protect_hostname_changes_only_what_it_names_and_applies_through_apply_p
         assert_eq!(by.client, "test-agent");
         assert_eq!(protection.bots, BotMode::Challenge);
         assert!(protection.ai_crawlers, "kept, since it wasn't named");
+        assert!(protection.bypass_cache);
         assert_eq!(
             protection.response_headers,
             [HeaderRule {

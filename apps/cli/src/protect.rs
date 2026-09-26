@@ -75,8 +75,15 @@ pub(crate) struct ProtectArgs {
     /// Start from no header rules (then apply the header options given).
     #[arg(long)]
     clear_headers: bool,
+    /// Stop Cloudflare caching responses, so a dev server's changes show at once (needs
+    /// the Cache Rules permission).
+    #[arg(long, conflicts_with = "no_bypass_cache")]
+    bypass_cache: bool,
+    /// Let Cloudflare cache responses again.
+    #[arg(long)]
+    no_bypass_cache: bool,
     /// Remove every rule Teitunnel added for the hostname.
-    #[arg(long, conflicts_with_all = ["bots", "block_ai", "rate_limit", "clear_headers"])]
+    #[arg(long, conflicts_with_all = ["bots", "block_ai", "rate_limit", "clear_headers", "bypass_cache"])]
     off: bool,
     #[command(flatten)]
     change: ChangeArgs,
@@ -239,6 +246,8 @@ impl ProtectArgs {
             || !self.set_response_header.is_empty()
             || !self.add_response_header.is_empty()
             || !self.remove_response_header.is_empty()
+            || self.bypass_cache
+            || self.no_bypass_cache
     }
 
     /// `current` with the options applied.
@@ -265,6 +274,12 @@ impl ProtectArgs {
         }
         if self.no_rate_limit {
             next.rate_limit = None;
+        }
+        if self.bypass_cache {
+            next.bypass_cache = true;
+        }
+        if self.no_bypass_cache {
+            next.bypass_cache = false;
         }
         if self.clear_headers {
             next.request_headers.clear();
@@ -329,6 +344,14 @@ fn describe(view: &ProtectionView) -> Vec<String> {
             ),
         )
     ));
+    lines.push(format!(
+        "  cache:         {}",
+        match (p.bypass_cache, view.cache_rules) {
+            (true, _) => "bypassed (Cloudflare never caches responses)",
+            (false, true) => "as usual",
+            (false, false) => "as usual (bypassing it needs the Cache Rules permission)",
+        }
+    ));
     for (label, list) in [
         ("request", &p.request_headers),
         ("response", &p.response_headers),
@@ -365,6 +388,7 @@ pub(crate) fn quota_name(quota: QuotaKind) -> &'static str {
         QuotaKind::Custom => "custom rules",
         QuotaKind::RateLimit => "rate limiting rules",
         QuotaKind::Transform => "Transform Rules",
+        QuotaKind::Cache => "Cache Rules",
     }
 }
 
@@ -697,6 +721,25 @@ mod tests {
         assert_eq!(next.request_headers[0].value.as_deref(), Some("preview"));
         assert_eq!(next.response_headers.len(), 1, "replaced by name");
         assert_eq!(next.response_headers[0].op, EdgeHeaderOp::Remove);
+        assert!(!next.bypass_cache, "kept");
+
+        let bypassed = args(&["app.xyz.com", "--bypass-cache"]).apply_to(&current);
+        assert!(bypassed.bypass_cache);
+        assert_eq!(bypassed.bots, BotMode::Challenge, "kept");
+        assert!(
+            !args(&["app.xyz.com", "--no-bypass-cache"])
+                .apply_to(&bypassed)
+                .bypass_cache
+        );
+        assert!(
+            Test::try_parse_from([
+                "protect",
+                "app.xyz.com",
+                "--bypass-cache",
+                "--no-bypass-cache"
+            ])
+            .is_err()
+        );
 
         assert_eq!(
             args(&["app.xyz.com", "--off"]).apply_to(&current),

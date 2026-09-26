@@ -219,11 +219,13 @@ object removes Teitunnel's rules:
   "aiCrawlers": true,
   "rateLimit": { "requests": 100, "period": 60, "action": "block" },
   "requestHeaders": [{ "name": "Cookie", "op": "remove" }],
-  "responseHeaders": [{ "name": "X-Robots-Tag", "op": "set", "value": "noindex" }]
+  "responseHeaders": [{ "name": "X-Robots-Tag", "op": "set", "value": "noindex" }],
+  "bypassCache": false
 }
 ```
 
-`bots` is `off`, `challenge` or `block`; `period` is one of 10, 60, 120, 300, 600 or 3600
+`bots` is `off`, `challenge` or `block`; `bypassCache: true` stops Cloudflare caching the
+hostname's responses (it needs the Cache Rules permission); `period` is one of 10, 60, 120, 300, 600 or 3600
 seconds; `action` is `block` or `challenge`; `op` is `set`, `add` (response headers only) or
 `remove`.
 

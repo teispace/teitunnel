@@ -1326,6 +1326,8 @@ export type Capabilities = {
 	workersEdit: Grant,
 	/**  Edge rules (optional feature), probed on the first domain. */
 	edgeRules: Grant,
+	/**  Cache Rules (optional feature: a cache bypass), probed on the first domain. */
+	cacheRules: Grant,
 	/**  Access service tokens (optional feature). */
 	serviceTokens: Grant,
 	/**  D1 databases: Snapshot comments and webhook inboxes (optional feature). */
@@ -1979,6 +1981,8 @@ export type EdgeProtection = {
 	requestHeaders?: HeaderRule[],
 	/**  Headers changed on responses before they reach visitors. */
 	responseHeaders?: HeaderRule[],
+	/**  Never cache responses (a dev server's assets change all the time). */
+	bypassCache?: boolean,
 };
 
 /**
@@ -4161,6 +4165,11 @@ export type ProtectionView = {
 	longestPeriod: number,
 	/**  Other hostnames sharing its rate limit. */
 	sharesRateLimitWith: string[],
+	/**
+	 *  Whether the credential can read and write Cache Rules (an optional permission
+	 *  the cache bypass needs).
+	 */
+	cacheRules: boolean,
 };
 
 /**  A running Quick Share, as the UI sees it. */
@@ -4214,7 +4223,9 @@ export type QuotaKind =
 /**  Rate limiting rules. */
 "rateLimit" | 
 /**  Transform Rules. */
-"transform";
+"transform" | 
+/**  Cache Rules. */
+"cache";
 
 /**  How much of a quota a zone uses. */
 export type QuotaView = {

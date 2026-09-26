@@ -166,6 +166,7 @@ impl Error {
                 E::Observe(
                     O::AccessPermission
                     | O::EdgePermission
+                    | O::CacheRulesPermission
                     | O::ServiceTokenPermission
                     | O::WorkersPermission,
                 ) => ErrorKind::PermissionDenied,

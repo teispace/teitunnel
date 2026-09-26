@@ -1921,6 +1921,8 @@ teitunnel protect [OPTIONS] <HOSTNAME>
 | `--add-response-header <NAME:VALUE>` | Add a header to responses (keeps existing values): `Name:value`. Repeatable. |
 | `--remove-response-header <NAME>` | Remove a header from responses. Repeatable. |
 | `--clear-headers` | Start from no header rules (then apply the header options given). |
+| `--bypass-cache` | Stop Cloudflare caching responses, so a dev server's changes show at once (needs the Cache Rules permission). |
+| `--no-bypass-cache` | Let Cloudflare cache responses again. |
 | `--off` | Remove every rule Teitunnel added for the hostname. |
 | `-a, --account <ACCOUNT>` | Account name or id. |
 | `-y, --yes` | Apply without asking. |

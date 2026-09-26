@@ -1,6 +1,7 @@
-//! Edge protection for one hostname: bot and AI-crawler rules, a rate limit and header
-//! rules, written as Cloudflare Ruleset Engine rules scoped to that hostname, never to a
-//! whole domain (<https://developers.cloudflare.com/ruleset-engine/>). Pure, except [`observe`].
+//! Edge protection for one hostname: bot and AI-crawler rules, a rate limit, header
+//! rules and a cache bypass, written as Cloudflare Ruleset Engine rules scoped to that
+//! hostname, never to a whole domain (<https://developers.cloudflare.com/ruleset-engine/>).
+//! Pure, except [`observe`].
 //!
 //! Teitunnel owns only the rules it creates: they carry a `teitunnel:` description
 //! marker and are listed in the local ownership index (migration 15). Per-hostname
@@ -139,6 +140,9 @@ pub struct EdgeProtection {
     /// Headers changed on responses before they reach visitors.
     #[serde(default)]
     pub response_headers: Vec<HeaderRule>,
+    /// Never cache responses (a dev server's assets change all the time).
+    #[serde(default)]
+    pub bypass_cache: bool,
 }
 
 /// Why protection settings were rejected. Shown next to the field.
@@ -294,6 +298,7 @@ impl EdgeProtection {
             rate_limit: self.rate_limit,
             request_headers: normalize_headers(&self.request_headers, true)?,
             response_headers: normalize_headers(&self.response_headers, false)?,
+            bypass_cache: self.bypass_cache,
         })
     }
 }
@@ -313,7 +318,7 @@ pub enum ZonePlan {
     Enterprise,
 }
 
-/// What a plan allows (checked 2026-09-24).
+/// What a plan allows (checked 2026-09-24; Cache Rules 2026-09-26).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlanLimits {
     /// Custom rules.
@@ -326,6 +331,8 @@ pub struct PlanLimits {
     pub host_rate_limit: bool,
     /// The longest rate limit period, in seconds.
     pub longest_period: u32,
+    /// Cache Rules.
+    pub cache: u32,
 }
 
 impl ZonePlan {
@@ -348,6 +355,7 @@ impl ZonePlan {
                 transform: 10,
                 host_rate_limit: false,
                 longest_period: 10,
+                cache: 10,
             },
             Self::Pro => PlanLimits {
                 custom: 20,
@@ -355,6 +363,7 @@ impl ZonePlan {
                 transform: 25,
                 host_rate_limit: true,
                 longest_period: 60,
+                cache: 25,
             },
             Self::Business => PlanLimits {
                 custom: 100,
@@ -362,6 +371,7 @@ impl ZonePlan {
                 transform: 50,
                 host_rate_limit: true,
                 longest_period: 600,
+                cache: 50,
             },
             Self::Enterprise => PlanLimits {
                 custom: 1000,
@@ -369,6 +379,7 @@ impl ZonePlan {
                 transform: 300,
                 host_rate_limit: true,
                 longest_period: 3600,
+                cache: 300,
             },
         }
     }
@@ -389,9 +400,21 @@ pub enum RuleKind {
     RequestHeaders,
     /// Response header changes.
     ResponseHeaders,
+    /// Responses never cached.
+    BypassCache,
 }
 
 impl RuleKind {
+    /// Every kind with one rule per hostname (rate limits are shared: see
+    /// [`rate_limit_rule`]).
+    pub const PER_HOSTNAME: [Self; 5] = [
+        Self::Block,
+        Self::Challenge,
+        Self::RequestHeaders,
+        Self::ResponseHeaders,
+        Self::BypassCache,
+    ];
+
     fn slug(self) -> &'static str {
         match self {
             Self::Block => "block",
@@ -399,6 +422,7 @@ impl RuleKind {
             Self::RateLimit => "ratelimit",
             Self::RequestHeaders => "request-headers",
             Self::ResponseHeaders => "response-headers",
+            Self::BypassCache => "bypass-cache",
         }
     }
 
@@ -409,6 +433,7 @@ impl RuleKind {
             Self::RateLimit => cf_api::PHASE_RATE_LIMIT,
             Self::RequestHeaders => cf_api::PHASE_REQUEST_HEADERS,
             Self::ResponseHeaders => cf_api::PHASE_RESPONSE_HEADERS,
+            Self::BypassCache => cf_api::PHASE_CACHE,
         }
     }
 
@@ -418,6 +443,7 @@ impl RuleKind {
             Self::Block | Self::Challenge => QuotaKind::Custom,
             Self::RateLimit => QuotaKind::RateLimit,
             Self::RequestHeaders | Self::ResponseHeaders => QuotaKind::Transform,
+            Self::BypassCache => QuotaKind::Cache,
         }
     }
 }
@@ -433,9 +459,14 @@ pub enum QuotaKind {
     RateLimit,
     /// Transform Rules.
     Transform,
+    /// Cache Rules.
+    Cache,
 }
 
 impl QuotaKind {
+    /// Every quota.
+    pub const ALL: [Self; 4] = [Self::Custom, Self::RateLimit, Self::Transform, Self::Cache];
+
     /// The phases whose rules count towards it.
     pub fn phases(self) -> &'static [&'static str] {
         match self {
@@ -446,6 +477,7 @@ impl QuotaKind {
                 cf_api::PHASE_RESPONSE_HEADERS,
                 cf_api::PHASE_URL_REWRITE,
             ],
+            Self::Cache => &[cf_api::PHASE_CACHE],
         }
     }
 
@@ -456,6 +488,7 @@ impl QuotaKind {
             Self::Custom => limits.custom,
             Self::RateLimit => limits.rate_limit,
             Self::Transform => limits.transform,
+            Self::Cache => limits.cache,
         }
     }
 }
@@ -554,7 +587,9 @@ fn headers_of(parameters: Option<&Value>) -> Vec<HeaderRule> {
 }
 
 /// The per-hostname rules `protection` needs (the rate limit is shared: see
-/// [`rate_limit_rule`]).
+/// [`rate_limit_rule`]). The cache bypass is added last in its phase, and Cache Rules
+/// stack with the last matching rule winning, so it holds over the zone's own rules
+/// (<https://developers.cloudflare.com/cache/how-to/cache-rules/order/>).
 pub fn hostname_rules(
     hostname: &Hostname,
     protection: &EdgeProtection,
@@ -609,6 +644,17 @@ pub fn hostname_rules(
                 rule(kind, "rewrite", None, Some(headers_parameters(list))),
             ));
         }
+    }
+    if protection.bypass_cache {
+        rules.push((
+            RuleKind::BypassCache,
+            rule(
+                RuleKind::BypassCache,
+                "set_cache_settings",
+                None,
+                Some(json!({ "cache": false })),
+            ),
+        ));
     }
     rules
 }
@@ -676,6 +722,9 @@ pub fn describe_rule(verb: Verb, kind: RuleKind, hostnames: &[String], rule: &Ne
         (Verb::Remove, RuleKind::RateLimit) => m::remove::rate_limit(host),
         (Verb::Remove, RuleKind::RequestHeaders) => m::remove::request_headers(host),
         (Verb::Remove, RuleKind::ResponseHeaders) => m::remove::response_headers(host),
+        (Verb::Remove, RuleKind::BypassCache) => m::remove::bypass_cache(host),
+        (Verb::Add, RuleKind::BypassCache) => m::add::bypass_cache(host),
+        (Verb::Change, RuleKind::BypassCache) => m::change::bypass_cache(host),
         (Verb::Add, RuleKind::Block) if bots && ai => m::add::block_both(host),
         (Verb::Add, RuleKind::Block) if ai => m::add::block_ai(host),
         (Verb::Add, RuleKind::Block) => m::add::block(host),
@@ -732,6 +781,9 @@ pub struct EdgeState {
     pub plan: ZonePlan,
     /// Every phase Teitunnel writes to or counts.
     pub rulesets: Vec<ObservedRuleset>,
+    /// Whether the credential can read Cache Rules (an optional permission: without it
+    /// the cache phase isn't in `rulesets`, and every other rule works as before).
+    pub cache_readable: bool,
 }
 
 impl EdgeState {
@@ -804,6 +856,10 @@ impl EdgeState {
                 *list = headers_of(rule.rule.action_parameters.as_ref());
             }
         }
+        let bypass = RuleKind::BypassCache;
+        out.bypass_cache = self
+            .owned_rule(bypass.phase(), &marker(hostname, bypass))
+            .is_some();
         out
     }
 }
@@ -819,6 +875,8 @@ pub struct EdgeNeed {
     /// Also the zones of every routed hostname where Teitunnel owns rules (removing a
     /// tunnel cleans up after all its routes).
     pub routed: bool,
+    /// Cache Rules too: the change bypasses the cache, so they must be readable.
+    pub cache: bool,
 }
 
 /// Why edge rules couldn't be read.
@@ -840,7 +898,8 @@ pub(crate) const PHASES: [&str; 5] = [
 ];
 
 /// Reads the plan and the rules of `zone`; `owned` holds the rule ids in the local
-/// ownership index.
+/// ownership index. Cache Rules are read too when the credential may; without that
+/// permission everything else is read as before.
 pub(crate) async fn observe<C: CloudApi>(
     api: &C,
     zone: &super::types::ZoneRef,
@@ -859,30 +918,42 @@ pub(crate) async fn observe<C: CloudApi>(
             .iter()
             .map(|phase| async move { api.phase_entrypoint(&zone.id, phase).await }),
     );
-    let (plan, rulesets) = tokio::try_join!(plan, reads).map_err(classify)?;
+    let cache = async {
+        match api.phase_entrypoint(&zone.id, cf_api::PHASE_CACHE).await {
+            Ok(found) => Ok(Some(found)),
+            Err(err) if err.is_auth() => Ok(None),
+            Err(err) => Err(err),
+        }
+    };
+    let (plan, rulesets, cache) = tokio::try_join!(plan, reads, cache).map_err(classify)?;
+    let observed = |phase: &str, found: Option<cf_api::Ruleset>| ObservedRuleset {
+        phase: phase.to_owned(),
+        id: found.as_ref().map(|r| r.id.clone()),
+        rules: found
+            .map(|r| r.rules)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|rule| ObservedRule {
+                owned: owned.contains(&rule.id) || rule.description.starts_with(RULE_MARKER),
+                rule: rule.to_new(),
+                id: rule.id,
+            })
+            .collect(),
+    };
+    let cache_readable = cache.is_some();
     let rulesets = PHASES
         .iter()
+        .copied()
         .zip(rulesets)
-        .map(|(phase, found)| ObservedRuleset {
-            phase: (*phase).to_owned(),
-            id: found.as_ref().map(|r| r.id.clone()),
-            rules: found
-                .map(|r| r.rules)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|rule| ObservedRule {
-                    owned: owned.contains(&rule.id) || rule.description.starts_with(RULE_MARKER),
-                    rule: rule.to_new(),
-                    id: rule.id,
-                })
-                .collect(),
-        })
+        .chain(cache.map(|found| (cf_api::PHASE_CACHE, found)))
+        .map(|(phase, found)| observed(phase, found))
         .collect();
     Ok(EdgeState {
         zone_id: zone.id.clone(),
         zone: zone.name.clone(),
         plan: ZonePlan::from_legacy_id(plan.as_deref()),
         rulesets,
+        cache_readable,
     })
 }
 

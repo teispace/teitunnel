@@ -364,6 +364,7 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
                 QuotaKind::Custom => "custom rules",
                 QuotaKind::RateLimit => "rate limiting rules",
                 QuotaKind::Transform => "Transform Rules",
+                QuotaKind::Cache => "Cache Rules",
             };
             format!("{zone} will use {used} of the {limit} {what} its plan allows.")
         }

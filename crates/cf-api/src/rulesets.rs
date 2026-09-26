@@ -20,6 +20,8 @@ pub const PHASE_REQUEST_HEADERS: &str = "http_request_late_transform";
 pub const PHASE_RESPONSE_HEADERS: &str = "http_response_headers_transform";
 /// URL rewrites (Transform Rules): read only, they count towards the same quota.
 pub const PHASE_URL_REWRITE: &str = "http_request_transform";
+/// Cache Rules (<https://developers.cloudflare.com/cache/how-to/cache-rules/create-api/>).
+pub const PHASE_CACHE: &str = "http_request_cache_settings";
 
 /// A rate limiting rule's counter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

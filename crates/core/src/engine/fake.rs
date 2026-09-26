@@ -75,6 +75,8 @@ pub(crate) struct CloudState {
     pub(crate) rulesets: BTreeMap<(String, String), (String, Vec<cf_api::Rule>)>,
     /// The token can't read or write rulesets (403).
     pub(crate) rulesets_forbidden: bool,
+    /// The token can't read or write Cache Rules (403), an optional permission.
+    pub(crate) cache_rules_forbidden: bool,
     /// Access service tokens by id.
     pub(crate) service_tokens: BTreeMap<String, cf_api::ServiceToken>,
     /// The token can't manage service tokens (403).
@@ -490,6 +492,13 @@ fn new_record(
         comment: record.comment.clone(),
         ttl: record.ttl,
     })
+}
+
+impl CloudState {
+    /// Whether the token may not use `phase`'s rules.
+    fn phase_forbidden(&self, phase: &str) -> bool {
+        self.rulesets_forbidden || (self.cache_rules_forbidden && phase == cf_api::PHASE_CACHE)
+    }
 }
 
 fn tunnel_view(id: &str, t: &FakeTunnel) -> Tunnel {
@@ -1308,7 +1317,7 @@ impl CloudApi for FakeCloud {
         phase: &str,
     ) -> cf_api::Result<Option<cf_api::Ruleset>> {
         let state = self.state.lock().unwrap();
-        if state.rulesets_forbidden {
+        if state.phase_forbidden(phase) {
             return Err(forbidden());
         }
         Ok(state
@@ -1343,7 +1352,7 @@ impl CloudApi for FakeCloud {
                 break id;
             }
         };
-        if state.rulesets_forbidden {
+        if state.phase_forbidden(phase) {
             return Err(forbidden());
         }
         // Like Cloudflare: a Free zone's rate limits can't match a hostname.
