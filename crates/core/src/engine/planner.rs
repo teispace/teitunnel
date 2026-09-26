@@ -5,8 +5,8 @@
 //!   404 window) → DNS → verify
 //! - remove: config → DNS (only records Teitunnel owns) → login → tunnel
 //! - rename: config (swap the rule) → new DNS → delete the old owned record
-//! - private network: create tunnel → route the range; removing the tunnel removes the
-//!   ranges routed to it first
+//! - private network or hostname: create tunnel → route the range or hostname; removing
+//!   the tunnel removes the ranges and hostnames routed to it first
 //!
 //! A login (Access) goes up before the route goes live and comes down after it's gone,
 //! so a protected route is never reachable without one.
@@ -16,7 +16,7 @@ use cf_api::IngressRule;
 use super::{
     access::{AccessDomainError, AccessRule, access_domain, app_definition},
     ingress::sort_ingress,
-    networks::{NetworkState, ObservedNetworkRoute},
+    networks::{NetworkState, ObservedHostnameRoute, ObservedNetworkRoute},
     types::{
         Intent, ObservedRecord, Plan, RouteSpec, Snapshot, Step, TunnelRef, Warning, tunnel_target,
     },
@@ -61,6 +61,15 @@ pub enum PlanError {
     },
     /// This Mac's tunnel doesn't route the range.
     NoSuchNetwork(String),
+    /// The private hostname is already routed to another tunnel.
+    PrivateHostnameRouted {
+        /// The hostname.
+        hostname: String,
+        /// The other tunnel.
+        tunnel: String,
+    },
+    /// This Mac's tunnel doesn't route the private hostname.
+    NoSuchPrivateHostname(String),
     /// The hostname is routed on another of this Mac's tunnels.
     RoutedElsewhere {
         /// Hostname.
@@ -171,6 +180,12 @@ impl UserText for PlanError {
                 network, tunnel, ..
             } => msg::error::plan::network_routed(network, tunnel),
             Self::NoSuchNetwork(network) => msg::error::plan::no_such_network(network),
+            Self::PrivateHostnameRouted { hostname, tunnel } => {
+                msg::error::plan::private_hostname_routed(hostname, tunnel)
+            }
+            Self::NoSuchPrivateHostname(hostname) => {
+                msg::error::plan::no_such_private_hostname(hostname)
+            }
             Self::RoutedElsewhere { hostname, tunnel } => {
                 msg::error::plan::routed_elsewhere(hostname, tunnel)
             }
@@ -1150,6 +1165,59 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 b.steps.push(Step::DeleteNetworkRoute { route });
             }
         }
+        Intent::AddPrivateHostname { hostname } => {
+            let existing: Vec<&ObservedHostnameRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(|n| n.hostname_routes(hostname))
+                .collect();
+            if let Some(route) = existing.first() {
+                if snapshot
+                    .tunnel
+                    .as_ref()
+                    .is_some_and(|t| t.id == route.tunnel_id)
+                {
+                    // Already shared (idempotent re-apply).
+                    return Ok(b.finish());
+                }
+                return Err(PlanError::PrivateHostnameRouted {
+                    hostname: hostname.to_string(),
+                    tunnel: route
+                        .tunnel_name
+                        .clone()
+                        .unwrap_or_else(|| route.tunnel_id.clone()),
+                });
+            }
+            // A name on one of the account's domains has a public address; WARP clients
+            // would get this Mac instead.
+            if snapshot.zones.iter().any(|z| hostname.is_in_zone(&z.name)) {
+                b.requires_confirmation = true;
+                b.warnings.push(Warning::PublicHostname {
+                    hostname: hostname.to_string(),
+                });
+            }
+            let tunnel = b.ensure_tunnel();
+            b.steps.push(Step::CreateHostnameRoute {
+                hostname: hostname.clone(),
+                tunnel,
+            });
+        }
+        Intent::RemovePrivateHostname { hostname } => {
+            let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
+            let routes: Vec<ObservedHostnameRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(|n| n.hostname_routes(hostname))
+                .filter(|r| r.tunnel_id == tunnel.id)
+                .cloned()
+                .collect();
+            if routes.is_empty() {
+                return Err(PlanError::NoSuchPrivateHostname(hostname.to_string()));
+            }
+            for route in routes {
+                b.steps.push(Step::DeleteHostnameRoute { route });
+            }
+        }
         Intent::RestoreConfig { ingress } => {
             let tunnel = snapshot.tunnel.as_ref().ok_or(PlanError::NoTunnel)?;
             let desired = ingress
@@ -1224,6 +1292,15 @@ pub fn plan(intent: &Intent, snapshot: &Snapshot) -> Result<Plan, PlanError> {
                 .collect();
             for route in networks {
                 b.steps.push(Step::DeleteNetworkRoute { route });
+            }
+            let hostnames: Vec<ObservedHostnameRoute> = snapshot
+                .networks
+                .iter()
+                .flat_map(|n| n.hostnames_of_tunnel(&tunnel.id))
+                .cloned()
+                .collect();
+            for route in hostnames {
+                b.steps.push(Step::DeleteHostnameRoute { route });
             }
             b.steps.push(Step::StopConnector {
                 tunnel_id: tunnel.id.clone(),

@@ -87,7 +87,7 @@ by someone else (a share never takes one; other commands need `--take-over`).
 |---|---|
 | `-a, --account <ACCOUNT>` | Which account, when several are connected (its name or id). |
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
-| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or routing a public range ([Private networks](/docs/guides/private-networks)). |
+| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, routing a public range, or routing a hostname on your domains to WARP clients ([Private networks](/docs/guides/private-networks)). |
 | `--take-over` | Take a hostname someone else holds (their reservation, or another machine's route) ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). Without it, the command exits with status 3. |
 | `--tunnel <TUNNEL>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
 | `--json` | Machine-readable output, for scripts. |
@@ -112,8 +112,8 @@ by someone else (a share never takes one; other commands need `--take-over`).
 | [`status`](#status) | Whether the Teitunnel app is running, and what it serves. |
 | [`top`](#top) | A live dashboard of shares, routes and traffic (q quits, ? for keys). |
 | [`route`](#route) | Add, or remove, a route. |
-| [`networks`](#networks) | List the private networks this machine shares with WARP clients. |
-| [`network`](#network) | Share, or stop sharing, a private network with WARP clients. |
+| [`networks`](#networks) | List the private networks (ranges and hostnames) this machine shares with WARP clients. |
+| [`network`](#network) | Share, or stop sharing, a private range or hostname with WARP clients. |
 | [`tunnels`](#tunnels) | List this machine's tunnels (routes go on the default one unless `--tunnel` says). |
 | [`tunnel`](#tunnel) | Create, or delete, one of this machine's tunnels. |
 | [`share`](#share) | Share a local service, or a folder of files, at a temporary public URL until you press Ctrl-C. |
@@ -1037,7 +1037,7 @@ teitunnel route remove app.teispace.com
 
 ## networks
 
-List the private networks this machine shares with WARP clients.
+List the private networks (ranges and hostnames) this machine shares with WARP clients.
 
 ```sh
 teitunnel networks [OPTIONS]
@@ -1051,12 +1051,12 @@ teitunnel networks [OPTIONS]
 Examples:
 
 ```sh
-teitunnel networks  # the ranges this machine shares
+teitunnel networks  # the ranges and hostnames this machine shares
 ```
 
 ## network
 
-Share, or stop sharing, a private network with WARP clients.
+Share, or stop sharing, a private range or hostname with WARP clients.
 
 ```sh
 teitunnel network <COMMAND>
@@ -1064,14 +1064,14 @@ teitunnel network <COMMAND>
 
 | Command | What it does |
 |---|---|
-| [`network add`](#network-add) | Let WARP clients reach a range through this machine, e.g. `192.168.1.0/24`. |
-| [`network remove`](#network-remove) | Stop routing a range through this machine. |
+| [`network add`](#network-add) | Let WARP clients reach a range or a hostname through this machine, e.g. `192.168.1.0/24` or `wiki.internal`. |
+| [`network remove`](#network-remove) | Stop routing a range or a hostname through this machine. |
 
 See [Private networks](/docs/guides/private-networks/).
 
 ### network add
 
-Let WARP clients reach a range through this machine, e.g. `192.168.1.0/24`.
+Let WARP clients reach a range or a hostname through this machine, e.g. `192.168.1.0/24` or `wiki.internal`.
 
 ```sh
 teitunnel network add [OPTIONS] <NETWORK>
@@ -1079,7 +1079,7 @@ teitunnel network add [OPTIONS] <NETWORK>
 
 | Argument | Description |
 |---|---|
-| `<NETWORK>` | An IP address or CIDR range. |
+| `<NETWORK>` | An IP address, a CIDR range, or a private hostname (resolved by this machine's DNS). |
 
 | Option | Description |
 |---|---|
@@ -1093,11 +1093,12 @@ Examples:
 
 ```sh
 teitunnel network add 192.168.1.0/24  # let WARP users reach a range
+teitunnel network add wiki.internal   # … or a hostname this machine resolves
 ```
 
 ### network remove
 
-Stop routing a range through this machine.
+Stop routing a range or a hostname through this machine.
 
 ```sh
 teitunnel network remove [OPTIONS] <NETWORK>
@@ -1105,7 +1106,7 @@ teitunnel network remove [OPTIONS] <NETWORK>
 
 | Argument | Description |
 |---|---|
-| `<NETWORK>` | The range. |
+| `<NETWORK>` | The range or hostname. |
 
 | Option | Description |
 |---|---|
@@ -1119,6 +1120,7 @@ Examples:
 
 ```sh
 teitunnel network remove 192.168.1.0/24
+teitunnel network remove wiki.internal
 ```
 
 ## tunnels

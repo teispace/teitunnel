@@ -20,11 +20,11 @@
     "reviewAgain": "Review Again",
     "testAgain": "Test Again",
     "description": {
-      "network": "Let devices running Cloudflare WARP reach addresses on this Mac's network.",
+      "network": "Let devices running Cloudflare WARP reach addresses and hostnames on this Mac's network.",
       "route": "Send a hostname on your domain to a service on this Mac.",
       "review": "Review what will change in Cloudflare. Nothing changes until you apply.",
-      "network@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network.",
-      "network@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network.",
+      "network@windows": "Let devices running Cloudflare WARP reach addresses and hostnames on this PC's network.",
+      "network@linux": "Let devices running Cloudflare WARP reach addresses and hostnames on this computer's network.",
       "route@windows": "Send a hostname on your domain to a service on this PC.",
       "route@linux": "Send a hostname on your domain to a service on this computer.",
       "createTunnel": "Another tunnel for this Mac, for example to keep staging routes apart from production. Each tunnel runs its own connector.",
@@ -33,9 +33,9 @@
     },
     "network": {
       "label": "Network",
-      "help": "An address or a range on this Mac's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac.",
-      "help@windows": "An address or a range on this PC's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this PC.",
-      "help@linux": "An address or a range on this computer's network, like 192.168.1.0/24. Anyone signed in to WARP with your Zero Trust organization can reach it through this computer."
+      "help": "An address or a range on this Mac's network, like 192.168.1.0/24, or a hostname this Mac can look up, like wiki.internal. Anyone signed in to WARP with your Zero Trust organization can reach it through this Mac.",
+      "help@windows": "An address or a range on this PC's network, like 192.168.1.0/24, or a hostname this PC can look up, like wiki.internal. Anyone signed in to WARP with your Zero Trust organization can reach it through this PC.",
+      "help@linux": "An address or a range on this computer's network, like 192.168.1.0/24, or a hostname this computer can look up, like wiki.internal. Anyone signed in to WARP with your Zero Trust organization can reach it through this computer."
     },
     "service": {
       "label": "Service",
@@ -63,6 +63,9 @@
     "reading": "Reading your Cloudflare account…",
     "confirm": {
       "publicNetwork": "Send these public addresses through this Mac",
+      "publicHostname": "Send this hostname through this Mac for WARP clients",
+      "publicHostname@windows": "Send this hostname through this PC for WARP clients",
+      "publicHostname@linux": "Send this hostname through this computer for WARP clients",
       "records": "Replace the existing records",
       "takeOver": "Take this hostname from whoever holds it",
       "publicNetwork@windows": "Send these public addresses through this PC",
@@ -396,6 +399,9 @@
       "remoteOrigin": "{origin} isn't on this Mac. It must be reachable from here.",
       "publicNetwork": "{network} isn't a private range. WARP clients would reach those addresses through this Mac instead of the internet.",
       "overlapsNetwork": "{network} overlaps {other}, which goes through tunnel “{tunnel}”. For addresses in both, the narrower range wins.",
+      "publicHostname": "{hostname} is on one of your domains. WARP clients would reach it through this Mac instead of its public address.",
+      "publicHostname@windows": "{hostname} is on one of your domains. WARP clients would reach it through this PC instead of its public address.",
+      "publicHostname@linux": "{hostname} is on one of your domains. WARP clients would reach it through this computer instead of its public address.",
       "remoteOrigin@windows": "{origin} isn't on this PC. It must be reachable from here.",
       "remoteOrigin@linux": "{origin} isn't on this computer. It must be reachable from here.",
       "publicNetwork@windows": "{network} isn't a private range. WARP clients would reach those addresses through this PC instead of the internet.",
@@ -420,14 +426,15 @@
   "networks": {
     "title": "Private Networks",
     "noPermission": "This account's API token can't read private networks.",
-    "empty": "Let devices running Cloudflare WARP reach addresses on this Mac's network, like a NAS or a printer.",
+    "empty": "Let devices running Cloudflare WARP reach addresses on this Mac's network, like a NAS or a printer, or hostnames like wiki.internal.",
     "list": "Private networks",
     "public": "Public",
+    "onDomain": "On your domain",
     "foreign": "Added outside Teitunnel",
     "stop": "Stop sharing {network}",
     "add": "Share Network…",
-    "empty@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network, like a NAS or a printer.",
-    "empty@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network, like a NAS or a printer."
+    "empty@windows": "Let devices running Cloudflare WARP reach addresses on this PC's network, like a NAS or a printer, or hostnames like wiki.internal.",
+    "empty@linux": "Let devices running Cloudflare WARP reach addresses on this computer's network, like a NAS or a printer, or hostnames like wiki.internal."
   },
   "export": {
     "title": "Export",
@@ -1825,7 +1832,9 @@
         "unsupported": "cloudflared doesn't support look-around or back-references in paths."
       },
       "network": {
-        "invalid": "Enter an IP address or a range like 192.168.1.0/24.",
+        "invalid": "Enter an IP address, a range like 192.168.1.0/24, or a hostname like wiki.internal.",
+        "hostnameWildcard": "A private hostname can't have a wildcard. Add each name, like wiki.internal.",
+        "hostnameLocalhost": "{hostname} always means the WARP device itself, so it can't go through a tunnel. Use another name, like wiki.internal.",
         "tooBroad": "{network} is too broad. Use a range of at most /8 (IPv4) or /16 (IPv6).",
         "unroutable": "{network} can't be reached through a tunnel. Use this Mac's network address instead.",
         "unroutable@windows": "{network} can't be reached through a tunnel. Use this PC's network address instead.",
@@ -1860,6 +1869,10 @@
         "accessAppExists": "{domain} is already protected by an Access application Teitunnel didn't create. Change who can sign in there, in the Cloudflare dashboard.",
         "networkRouted": "{network} is already shared through tunnel “{tunnel}”. Remove that route first.",
         "noSuchNetwork": "This Mac doesn't share {network}.",
+        "privateHostnameRouted": "{hostname} is already shared through tunnel “{tunnel}”. Remove that route first.",
+        "noSuchPrivateHostname": "This Mac doesn't share {hostname}.",
+        "noSuchPrivateHostname@windows": "This PC doesn't share {hostname}.",
+        "noSuchPrivateHostname@linux": "This computer doesn't share {hostname}.",
         "noTunnel@windows": "This PC doesn't have a tunnel yet.",
         "noTunnel@linux": "This computer doesn't have a tunnel yet.",
         "noSuchNetwork@windows": "This PC doesn't share {network}.",
@@ -2008,6 +2021,8 @@
         "cleanUpHostname": "Remove what Teitunnel left on {hostname}",
         "addNetwork": "Share private network {network}",
         "removeNetwork": "Stop sharing private network {network}",
+        "addPrivateHostname": "Share private hostname {hostname}",
+        "removePrivateHostname": "Stop sharing private hostname {hostname}",
         "importRoutes_one": "Import {count} route from cloudflared",
         "importRoutes_other": "Import {count} routes from cloudflared",
         "removeTunnel@windows": "Remove every route and delete this PC's tunnel",
@@ -2035,6 +2050,8 @@
         "deleteAccessApp": "Remove the login from {domain}",
         "createNetworkRoute": "Route private network {network} to tunnel “{tunnel}”",
         "deleteNetworkRoute": "Remove the route for private network {network}",
+        "createHostnameRoute": "Route private hostname {hostname} to tunnel “{tunnel}”",
+        "deleteHostnameRoute": "Remove the route for private hostname {hostname}",
         "verify": "Check https://{hostname} works",
         "stopConnector@windows": "Stop this PC's connector",
         "stopConnector@linux": "Stop this computer's connector",
@@ -2079,6 +2096,8 @@
         "recreateAccessApp": "The login for {domain} was removed",
         "deleteNetworkRoute": "Private network {network} was routed to the tunnel and still is",
         "recreateNetworkRoute": "The route for private network {network} was removed",
+        "deleteHostnameRoute": "Private hostname {hostname} was routed to the tunnel and still is",
+        "recreateHostnameRoute": "The route for private hostname {hostname} was removed",
         "startConnector@windows": "This PC's connector is stopped",
         "startConnector@linux": "This computer's connector is stopped",
         "deleteLbMonitor": "A health check was created and is still there",
@@ -2262,6 +2281,14 @@
         "title@linux": "WARP clients don't send {network} to this computer",
         "detail@windows": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this PC. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network}).",
         "detail@linux": "The default device profile's Split Tunnels exclude these addresses, so WARP clients send traffic for {network} to their own network instead of this computer. In the Cloudflare Zero Trust dashboard, remove the entry from Split Tunnels (or narrow it so it no longer covers {network})."
+      },
+      "hostnameUnresolved": {
+        "title": "{hostname} doesn't resolve on this Mac",
+        "detail": "cloudflared looks up private hostnames with this Mac's DNS, so WARP clients can't reach {hostname} until it resolves here. Add it to this Mac's hosts file or to your local DNS server.",
+        "title@windows": "{hostname} doesn't resolve on this PC",
+        "title@linux": "{hostname} doesn't resolve on this computer",
+        "detail@windows": "cloudflared looks up private hostnames with this PC's DNS, so WARP clients can't reach {hostname} until it resolves here. Add it to this PC's hosts file or to your local DNS server.",
+        "detail@linux": "cloudflared looks up private hostnames with this computer's DNS, so WARP clients can't reach {hostname} until it resolves here. Add it to this computer's hosts file or to your local DNS server."
       },
       "networkNotIncluded": {
         "title": "WARP clients don't send {network} to this Mac",

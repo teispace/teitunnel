@@ -534,7 +534,10 @@ const routesOverview: RoutesOverview = {
     { id: "00000000000000000000000000000a02", name: "teispace.dev" },
     { id: "00000000000000000000000000000a03", name: "teispace.app" },
   ],
-  networks: [{ network: "192.168.1.0/24", private: true, owned: true }],
+  networks: [
+    { network: "192.168.1.0/24", kind: "range", private: true, owned: true },
+    { network: "wiki.internal", kind: "hostname", private: true, owned: true },
+  ],
 };
 
 const protectedPlan: PlanView = {

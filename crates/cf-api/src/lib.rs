@@ -42,7 +42,8 @@ pub use management::{
     Connector, ConnectorConnection, LogStream, MANAGEMENT_BASE, RemoteLog, StreamError,
 };
 pub use networks::{
-    DefaultDeviceProfile, DeviceSettings, NetworkRoute, SplitTunnelEntry, VirtualNetwork,
+    DefaultDeviceProfile, DeviceSettings, HostnameRoute, NetworkRoute, SplitTunnelEntry,
+    VirtualNetwork,
 };
 pub use probe::{Access, NIL_ID, NIL_UUID};
 pub use resources::{Account, AccountRef, Plan, TokenStatus, Zone, ZoneStatus};

@@ -148,15 +148,21 @@ const EXAMPLES: &[(&str, &[&str])] = &[
     ("route remove", &["teitunnel route remove app.teispace.com"]),
     (
         "networks",
-        &["teitunnel networks  # the ranges this machine shares"],
+        &["teitunnel networks  # the ranges and hostnames this machine shares"],
     ),
     (
         "network add",
-        &["teitunnel network add 192.168.1.0/24  # let WARP users reach a range"],
+        &[
+            "teitunnel network add 192.168.1.0/24  # let WARP users reach a range",
+            "teitunnel network add wiki.internal  # … or a hostname this machine resolves",
+        ],
     ),
     (
         "network remove",
-        &["teitunnel network remove 192.168.1.0/24"],
+        &[
+            "teitunnel network remove 192.168.1.0/24",
+            "teitunnel network remove wiki.internal",
+        ],
     ),
     ("tunnels", &["teitunnel tunnels  # this machine's tunnels"]),
     (

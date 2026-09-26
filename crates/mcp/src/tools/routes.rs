@@ -68,7 +68,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              - removeRoute {hostname, path?}: remove a route and the DNS record Teitunnel created for it.\n\
              - requireLogin {hostname, path?, allow, signIn?}: put a route behind a login (Cloudflare Access, free with Zero Trust). removeLogin {hostname, path?}: make it public again.\n\
              - balanceRoute / unbalanceRoute {hostname}: load balance a hostname across every machine routing it (Cloudflare Load Balancing, paid).\n\
-             - addNetwork / removeNetwork {network}: let WARP clients reach a private range (e.g. 192.168.1.0/24) through this machine.\n\
+             - addNetwork / removeNetwork {network}: let WARP clients reach a private range (e.g. 192.168.1.0/24) or a private hostname (e.g. wiki.internal, resolved by this machine's DNS) through this machine. Only WARP clients of the account's Zero Trust organization reach it; nothing becomes public.\n\
              - createTunnel {name}: another tunnel for this machine. deleteTunnel {tunnel}: delete one of this machine's tunnels with its routes.\n\
              - importRoutes {routes: [{hostname, origin, path?}]}: add several routes at once (e.g. from import_scan).\n\
              - restoreConfig {}: undo an outside edit of this machine's routes (made in the dashboard).\n\
@@ -621,14 +621,15 @@ pub(crate) enum ChangeInput {
         /// Hostname.
         hostname: String,
     },
-    /// Let WARP clients reach a private range through this machine.
+    /// Let WARP clients reach a private range or hostname through this machine.
     AddNetwork {
-        /// An IP address or CIDR range, e.g. `192.168.1.0/24`.
+        /// An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+        /// such as `wiki.internal`.
         network: String,
     },
-    /// Stop routing a range through this machine.
+    /// Stop routing a range or hostname through this machine.
     RemoveNetwork {
-        /// The range.
+        /// The range or hostname.
         network: String,
     },
     /// Create another tunnel for this machine.

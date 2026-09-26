@@ -11,9 +11,10 @@ use super::{
     fake::{CloudState, FakeCloud, FakeConnectors},
     local::Local,
     types::{Intent, RouteSpec, ZoneRef},
+    views::{Change, NetworkKind},
 };
 use crate::{
-    domain::{Hostname, PrivateNetwork, RouteOrigin},
+    domain::{Hostname, PrivateHostname, PrivateNetwork, RouteOrigin},
     store::Store,
 };
 
@@ -91,6 +92,12 @@ fn remove(hostname: &str) -> Intent {
 fn share(network: &str) -> Intent {
     Intent::AddNetwork {
         network: PrivateNetwork::parse(network).unwrap(),
+    }
+}
+
+fn share_hostname(hostname: &str) -> Intent {
+    Intent::AddPrivateHostname {
+        hostname: PrivateHostname::parse(hostname).unwrap(),
     }
 }
 
@@ -364,6 +371,7 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
     run(&engine, &cloud, &conns, &add("r2", "yx.com", "5000")).await;
     let two_routes = cloud.snapshot();
     run(&engine, &cloud, &conns, &share("192.168.1.0/24")).await;
+    run(&engine, &cloud, &conns, &share_hostname("wiki.internal")).await;
     let routes_and_network = cloud.snapshot();
 
     let (engine, cloud) = (self::engine(), FakeCloud::new(zero_trust()));
@@ -459,7 +467,12 @@ async fn scenarios() -> Vec<(&'static str, CloudState, Intent)> {
             share("10.0.0.0/24"),
         ),
         (
-            "remove tunnel with a private network",
+            "first private hostname",
+            zones(),
+            share_hostname("wiki.internal"),
+        ),
+        (
+            "remove tunnel with a private network and hostname",
             routes_and_network,
             Intent::RemoveTunnel,
         ),
@@ -1873,6 +1886,90 @@ async fn shares_a_private_network_and_stops_sharing_it() {
         ActivityKind::RemoveNetwork
     );
     assert_eq!(log[1].summary, "Share private network 192.168.1.0/24");
+}
+
+#[tokio::test]
+async fn a_private_hostname_goes_through_the_tunnel_until_its_removed() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    let outcome = run(&engine, &cloud, &conns, &share_hostname("Wiki.Internal")).await;
+    let Outcome::Applied {
+        tunnel_id: Some(tunnel),
+        verify,
+        connector_error: None,
+    } = outcome
+    else {
+        panic!("{outcome:?}")
+    };
+    assert!(verify.is_empty(), "WARP-only: nothing public to check");
+    assert!(
+        conns.calls().iter().any(|c| c.starts_with("start")),
+        "the connector carries the traffic"
+    );
+    let state = cloud.snapshot();
+    let route = state.hostname_routes.values().next().unwrap();
+    assert_eq!(
+        (
+            route.hostname.as_str(),
+            route.tunnel_id.as_str(),
+            route.comment.as_deref()
+        ),
+        ("wiki.internal", tunnel.as_str(), Some("Added by Teitunnel"))
+    );
+    assert!(
+        state.records.values().flatten().next().is_none(),
+        "no public DNS record"
+    );
+
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    let networks = overview.networks.unwrap();
+    assert_eq!(networks.len(), 1);
+    assert_eq!(networks[0].network, "wiki.internal");
+    assert_eq!(networks[0].kind, NetworkKind::Hostname);
+    assert!(networks[0].private && networks[0].owned);
+
+    // The same change, as the app and the CLI send it.
+    let change = Change::RemoveNetwork {
+        network: "wiki.internal".into(),
+    };
+    let stop = engine.intent_for(&cloud, CTX, &change).await.unwrap();
+    assert!(
+        matches!(stop, Intent::RemovePrivateHostname { .. }),
+        "{stop:?}"
+    );
+    run(&engine, &cloud, &conns, &stop).await;
+    assert!(cloud.snapshot().hostname_routes.is_empty());
+    assert_eq!(cloud.snapshot().tunnels.len(), 1, "the tunnel stays");
+
+    let log = engine.local().activity("acc", 10).await.unwrap();
+    assert_eq!(
+        log[0].summary,
+        "Stop sharing private hostname wiki.internal"
+    );
+    let record = log[0].record.as_ref().unwrap();
+    assert_eq!(record.kind, ActivityKind::RemoveNetwork);
+    assert_eq!(record.changes[0].hostname, "wiki.internal");
+    assert_eq!(log[1].summary, "Share private hostname wiki.internal");
+}
+
+#[tokio::test]
+async fn unreadable_hostname_routes_dont_hide_networks_but_block_a_hostname_change() {
+    let (engine, cloud, conns) = (engine(), FakeCloud::new(zones()), FakeConnectors::default());
+    run(&engine, &cloud, &conns, &share("10.0.0.0/24")).await;
+    cloud.state.lock().unwrap().hostname_routes_broken = true;
+    engine.invalidate("acc");
+    let overview = engine.overview(&cloud, &conns, CTX).await.unwrap();
+    assert_eq!(overview.networks.unwrap().len(), 1);
+    let err = engine
+        .preview(&cloud, CTX, &share_hostname("wiki.internal"))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, EngineError::Observe(_)), "{err:?}");
+    assert_eq!(
+        cloud.snapshot().hostname_routes.len(),
+        0,
+        "nothing was changed"
+    );
 }
 
 #[tokio::test]

@@ -900,9 +900,9 @@ export type ActivityKind =
 "removeLogin" | 
 /**  What Teitunnel left on a hostname without routes was removed. */
 "cleanUpHostname" | 
-/**  A private network was shared. */
+/**  A private network (a range or a hostname) was shared. */
 "addNetwork" | 
-/**  A private network stopped being shared. */
+/**  A private network (a range or a hostname) stopped being shared. */
 "removeNetwork" | 
 /**  Another tunnel was created for this Mac. */
 "createTunnel" | 
@@ -1498,13 +1498,16 @@ hostname: string }) & { domain?: never; name?: never; network?: never; path?: ne
 ({ type: "importRoutes"; 
 /**  The routes. */
 routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
-/**  Let WARP clients reach a private range through this Mac's tunnel. */
+/**  Let WARP clients reach a private range or hostname through this Mac's tunnel. */
 ({ type: "addNetwork"; 
-/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+/**
+ *  An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+ *  such as `wiki.internal`.
+ */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
-/**  Stop sharing a private range. */
+/**  Stop sharing a private range or hostname. */
 ({ type: "removeNetwork"; 
-/**  The range. */
+/**  The range or hostname. */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
@@ -1588,13 +1591,16 @@ hostname: string }) & { domain?: never; name?: never; network?: never; path?: ne
 ({ type: "importRoutes"; 
 /**  The routes. */
 routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
-/**  Let WARP clients reach a private range through this Mac's tunnel. */
+/**  Let WARP clients reach a private range or hostname through this Mac's tunnel. */
 ({ type: "addNetwork"; 
-/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+/**
+ *  An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+ *  such as `wiki.internal`.
+ */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
-/**  Stop sharing a private range. */
+/**  Stop sharing a private range or hostname. */
 ({ type: "removeNetwork"; 
-/**  The range. */
+/**  The range or hostname. */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
@@ -1881,7 +1887,7 @@ export type DeltaArea =
 "route" | 
 /**  A DNS record. */
 "dns" | 
-/**  A private network route. */
+/**  A private network route (a range or a hostname). */
 "network" | 
 /**  A route's login (Cloudflare Access). */
 "access" | 
@@ -3702,6 +3708,13 @@ export type NetworkConfig = {
 	downBytesPerSec?: number | null,
 };
 
+/**  What a private network is. */
+export type NetworkKind = 
+/**  An address or a CIDR range. */
+"range" | 
+/**  A private hostname, resolved by this Mac's DNS. */
+"hostname";
+
 /**  Network presets. */
 export type NetworkPreset = 
 /**  No simulation. */
@@ -3713,13 +3726,15 @@ export type NetworkPreset =
 /**  Satellite latency. */
 "satellite";
 
-/**  A private network shared through this Mac's tunnel. */
+/**  A private network (a range or a hostname) shared through this Mac's tunnel. */
 export type NetworkView = {
-	/**  The range, e.g. `192.168.1.0/24`. */
+	/**  The range, e.g. `192.168.1.0/24`, or the hostname, e.g. `wiki.internal`. */
 	network: string,
+	/**  A range or a hostname. */
+	kind: NetworkKind,
 	/**
-	 *  In private address space (a public range takes those addresses over for WARP
-	 *  clients).
+	 *  In private address space, or a hostname outside the account's domains (a public
+	 *  range or name is taken over for WARP clients).
 	 */
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
@@ -4749,8 +4764,8 @@ export type RoutesOverview_Deserialize = {
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
 	/**
-	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
-	 *  credential can't read them.
+	 *  Private networks shared through this Mac's tunnel: ranges sorted, then
+	 *  hostnames sorted; `None` when the credential can't read them.
 	 */
 	networks: NetworkView[] | null,
 };
@@ -4766,8 +4781,8 @@ export type RoutesOverview_Serialize = {
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
 	/**
-	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
-	 *  credential can't read them.
+	 *  Private networks shared through this Mac's tunnel: ranges sorted, then
+	 *  hostnames sorted; `None` when the credential can't read them.
 	 */
 	networks: NetworkView[] | null,
 };
@@ -5283,7 +5298,7 @@ export type StepKind =
 "loginMethod" | 
 /**  Create, change or remove a route's login. */
 "accessApp" | 
-/**  Route or stop routing a private network. */
+/**  Route or stop routing a private network (a range or a hostname). */
 "networkRoute" | 
 /**  Load balance a route, or stop. */
 "loadBalancer" | 
@@ -6005,6 +6020,13 @@ origin: string } |
 { type: "publicNetwork"; 
 /**  The range. */
 network: string } | 
+/**
+ *  The private hostname is on one of the account's domains: WARP clients would reach
+ *  it through this Mac instead of its public address.
+ */
+{ type: "publicHostname"; 
+/**  The hostname. */
+hostname: string } | 
 /**
  *  Part of the range is already routed to another tunnel; the more specific route
  *  wins for the addresses both cover.

@@ -108,6 +108,8 @@ function warningText(warning: Warning): string {
       return t("plan.warning.remoteOrigin", warning);
     case "publicNetwork":
       return t("plan.warning.publicNetwork", warning);
+    case "publicHostname":
+      return t("plan.warning.publicHostname", warning);
     case "overlapsNetwork":
       return t("plan.warning.overlapsNetwork", warning);
     case "singleEndpoint":

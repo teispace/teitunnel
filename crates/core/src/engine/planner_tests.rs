@@ -5,14 +5,14 @@ use serde_json::Map;
 
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp, app_definition},
-    networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute},
+    networks::{NETWORK_COMMENT, NetworkState, ObservedHostnameRoute, ObservedNetworkRoute},
     planner::{PlanError, plan, tunnel_record},
     simulate::apply,
     types::{
         Intent, ObservedRecord, ObservedTunnel, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef,
     },
 };
-use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
+use crate::domain::{Hostname, PathRule, PrivateHostname, PrivateNetwork, RouteOrigin};
 
 const TUNNEL: &str = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
 
@@ -425,6 +425,20 @@ mod property {
             Just(Intent::RemoveTunnel),
             nets().prop_map(|n| Intent::AddNetwork { network: net(n) }),
             nets().prop_map(|n| Intent::RemoveNetwork { network: net(n) }),
+            private_names().prop_map(|h| Intent::AddPrivateHostname {
+                hostname: private_host(h)
+            }),
+            private_names().prop_map(|h| Intent::RemovePrivateHostname {
+                hostname: private_host(h)
+            }),
+        ]
+    }
+
+    fn private_names() -> impl Strategy<Value = &'static str> + Clone {
+        prop_oneof![
+            Just("wiki.internal"),
+            Just("nas.home.arpa"),
+            Just("intranet.xyz.com")
         ]
     }
 
@@ -768,6 +782,8 @@ fn kinds(plan: &Plan) -> Vec<&'static str> {
             Step::DeleteLbPool { .. } => "pool-",
             Step::DeleteLbMonitor { .. } => "monitor-",
             Step::DeleteNetworkRoute { .. } => "net-",
+            Step::CreateHostnameRoute { .. } => "host+",
+            Step::DeleteHostnameRoute { .. } => "host-",
             Step::Verify { .. } => "verify",
             Step::UploadSnapshotFiles { .. } => "upload",
             Step::CreateSnapshotWorker { .. } => "worker+",
@@ -1110,8 +1126,155 @@ fn with_networks(mut s: Snapshot, routes: Vec<ObservedNetworkRoute>) -> Snapshot
     s.networks = Some(NetworkState {
         default_vnet: Some("v-default".into()),
         routes,
+        hostnames: Some(Vec::new()),
     });
     s
+}
+
+fn private_host(h: &str) -> PrivateHostname {
+    PrivateHostname::parse(h).unwrap()
+}
+
+fn host_route(id: &str, hostname: &str, tunnel: &str) -> ObservedHostnameRoute {
+    ObservedHostnameRoute {
+        id: id.into(),
+        hostname: hostname.into(),
+        tunnel_id: tunnel.into(),
+        tunnel_name: Some(
+            if tunnel == TUNNEL {
+                "Krishna's MacBook Pro"
+            } else {
+                "NAS"
+            }
+            .into(),
+        ),
+        comment: NETWORK_COMMENT.into(),
+    }
+}
+
+fn with_hostnames(s: Snapshot, routes: Vec<ObservedHostnameRoute>) -> Snapshot {
+    let mut s = with_networks(s, Vec::new());
+    if let Some(n) = s.networks.as_mut() {
+        n.hostnames = Some(routes);
+    }
+    s
+}
+
+#[test]
+fn sharing_a_private_hostname_creates_the_tunnel_if_needed() {
+    let add = |h: &str| Intent::AddPrivateHostname {
+        hostname: private_host(h),
+    };
+    assert_eq!(
+        kinds(&plan(&add("wiki.internal"), &with_hostnames(fresh(), Vec::new())).unwrap()),
+        ["tunnel", "host+"]
+    );
+    let p = plan(
+        &add("wiki.internal"),
+        &with_hostnames(with_app(), Vec::new()),
+    )
+    .unwrap();
+    assert_eq!(kinds(&p), ["host+"]);
+    assert!(p.warnings.is_empty() && !p.requires_confirmation);
+    assert_eq!(
+        p.steps[0].describe(&p.tunnel_name).english(),
+        "Route private hostname wiki.internal to tunnel “Krishna's MacBook Pro”"
+    );
+    let command = p.steps[0].command("acc", &p.tunnel_name).unwrap();
+    assert!(
+        command.contains("/accounts/acc/zerotrust/routes/hostname")
+            && command.contains(r#""hostname":"wiki.internal""#),
+        "{command}"
+    );
+    assert_eq!(
+        Intent::AddPrivateHostname {
+            hostname: private_host("wiki.internal")
+        }
+        .summary()
+        .english(),
+        "Share private hostname wiki.internal"
+    );
+}
+
+#[test]
+fn a_private_hostname_routed_elsewhere_is_refused_and_a_public_one_confirmed() {
+    let add = |h: &str| Intent::AddPrivateHostname {
+        hostname: private_host(h),
+    };
+    let snapshot = with_hostnames(
+        with_app(),
+        vec![
+            host_route("h1", "nas.internal", "other"),
+            host_route("h2", "Wiki.Internal", TUNNEL),
+        ],
+    );
+    assert_eq!(
+        plan(&add("nas.internal"), &snapshot),
+        Err(PlanError::PrivateHostnameRouted {
+            hostname: "nas.internal".into(),
+            tunnel: "NAS".into(),
+        })
+    );
+    assert!(
+        plan(&add("wiki.internal"), &snapshot).unwrap().is_empty(),
+        "already shared: nothing to do"
+    );
+    // A name on one of the account's domains has a public address WARP clients lose.
+    let p = plan(&add("intranet.xyz.com"), &snapshot).unwrap();
+    assert_eq!(kinds(&p), ["host+"]);
+    assert!(p.requires_confirmation);
+    assert_eq!(
+        p.warnings,
+        [Warning::PublicHostname {
+            hostname: "intranet.xyz.com".into()
+        }]
+    );
+}
+
+#[test]
+fn only_this_macs_hostname_routes_are_removed() {
+    let mut snapshot = with_hostnames(
+        with_app(),
+        vec![
+            host_route("h1", "nas.internal", "other"),
+            host_route("h2", "wiki.internal", TUNNEL),
+        ],
+    );
+    if let Some(n) = snapshot.networks.as_mut() {
+        n.routes = vec![net_route("n1", "10.1.0.0/24", TUNNEL, "v-default")];
+    }
+    let remove = |h: &str| Intent::RemovePrivateHostname {
+        hostname: private_host(h),
+    };
+    assert_eq!(
+        kinds(&plan(&remove("wiki.internal"), &snapshot).unwrap()),
+        ["host-"]
+    );
+    assert_eq!(
+        plan(&remove("nas.internal"), &snapshot),
+        Err(PlanError::NoSuchPrivateHostname("nas.internal".into())),
+        "another tunnel's route is never removed"
+    );
+    assert_eq!(
+        plan(
+            &remove("wiki.internal"),
+            &with_hostnames(fresh(), Vec::new())
+        ),
+        Err(PlanError::NoTunnel)
+    );
+    // Removing the tunnel removes its ranges and hostnames before the connector stops.
+    assert_eq!(
+        kinds(&plan(&Intent::RemoveTunnel, &snapshot).unwrap()),
+        ["config", "dns-", "net-", "host-", "stop", "tunnel-"]
+    );
+    // Hostname routes that couldn't be read aren't guessed at.
+    if let Some(n) = snapshot.networks.as_mut() {
+        n.hostnames = None;
+    }
+    assert_eq!(
+        kinds(&plan(&Intent::RemoveTunnel, &snapshot).unwrap()),
+        ["config", "dns-", "net-", "stop", "tunnel-"]
+    );
 }
 
 #[test]

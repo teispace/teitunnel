@@ -45,6 +45,8 @@ struct State {
     login_methods: Vec<Value>,
     /// Private network routes.
     network_routes: Vec<Value>,
+    /// Private hostname routes.
+    hostname_routes: Vec<Value>,
     /// Workers, Worker routes, D1, rulesets and service tokens.
     workers: workers::Workers,
 }
@@ -452,6 +454,36 @@ fn handle(state: &Mutex<State>, req: &Request) -> (u16, Value) {
             let before = s.network_routes.len();
             s.network_routes.retain(|r| r["id"] != *id);
             if s.network_routes.len() < before {
+                ok(json!({ "id": id }))
+            } else {
+                err(404, 1015, "Route not found")
+            }
+        }
+        ("GET", ["accounts", _, "zerotrust", "routes", "hostname"]) => {
+            ok(Value::Array(s.hostname_routes.clone()))
+        }
+        ("POST", ["accounts", _, "zerotrust", "routes", "hostname"]) => {
+            let hostname = req.body["hostname"].clone();
+            if s.hostname_routes.iter().any(|r| r["hostname"] == hostname) {
+                return err(409, 1014, "route already exists");
+            }
+            let tunnel = req.body["tunnel_id"].clone();
+            let tunnel_name = tunnel
+                .as_str()
+                .and_then(|id| s.tunnels.get(id))
+                .map(|(name, ..)| name.clone());
+            let route = json!({
+                "id": s.id("host"), "hostname": hostname, "tunnel_id": tunnel,
+                "tunnel_name": tunnel_name, "comment": req.body["comment"].clone(),
+                "tun_type": "cfd_tunnel", "deleted_at": null,
+            });
+            s.hostname_routes.push(route.clone());
+            ok(route)
+        }
+        ("DELETE", ["accounts", _, "zerotrust", "routes", "hostname", id]) => {
+            let before = s.hostname_routes.len();
+            s.hostname_routes.retain(|r| r["id"] != *id);
+            if s.hostname_routes.len() < before {
                 ok(json!({ "id": id }))
             } else {
                 err(404, 1015, "Route not found")

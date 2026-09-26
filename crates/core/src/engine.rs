@@ -64,7 +64,7 @@ pub use ingress::{CATCH_ALL, sort_ingress};
 pub use local::{ActivityEntry, Local, LocalTunnel};
 pub use local_edge::{EdgeRuleRow, ServiceTokenRow};
 pub use local_sites::{KEPT_VERSIONS, SiteRow, SiteVersionRow};
-pub use networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute};
+pub use networks::{NETWORK_COMMENT, NetworkState, ObservedHostnameRoute, ObservedNetworkRoute};
 pub use observe::{ObserveError, ObserveNeed, Want, Who, observe};
 pub use ownership::{Hold, HoldKind, Ownership};
 pub use planner::{PlanError, plan};
@@ -81,6 +81,6 @@ pub(crate) use verify::is_access_login;
 pub(crate) use verify::probe;
 pub use verify::{Edge, Failure, Stage, Verification, classify};
 pub use views::{
-    Change, DnsState, InputError, NetworkView, PlanView, RouteHealth, RouteInput, RouteView,
-    RoutesOverview, StepKind, StepView, TunnelView, parse_lease_end, route_id,
+    Change, DnsState, InputError, NetworkKind, NetworkView, PlanView, RouteHealth, RouteInput,
+    RouteView, RoutesOverview, StepKind, StepView, TunnelView, parse_lease_end, route_id,
 };

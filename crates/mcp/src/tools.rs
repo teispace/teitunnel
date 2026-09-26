@@ -352,6 +352,9 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
         Warning::PublicNetwork { network } => format!(
             "{network} isn't a private range. WARP clients would reach those addresses through this machine instead of the internet."
         ),
+        Warning::PublicHostname { hostname } => format!(
+            "{hostname} is on one of your domains. WARP clients would reach it through this machine instead of its public address."
+        ),
         Warning::OverlapsNetwork {
             network,
             other,

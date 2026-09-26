@@ -180,6 +180,25 @@ pub trait CloudApi: Send + Sync {
         account: &str,
         id: &str,
     ) -> impl Future<Output = cf_api::Result<()>> + Send;
+    /// Every private hostname route in the account.
+    fn hostname_routes(
+        &self,
+        account: &str,
+    ) -> impl Future<Output = cf_api::Result<Vec<cf_api::HostnameRoute>>> + Send;
+    /// Routes a private hostname to a tunnel.
+    fn create_hostname_route(
+        &self,
+        account: &str,
+        hostname: &str,
+        tunnel: &str,
+        comment: &str,
+    ) -> impl Future<Output = cf_api::Result<cf_api::HostnameRoute>> + Send;
+    /// Deletes a hostname route.
+    fn delete_hostname_route(
+        &self,
+        account: &str,
+        id: &str,
+    ) -> impl Future<Output = cf_api::Result<()>> + Send;
     /// Account-wide WARP client settings (Gateway proxy).
     fn device_settings(
         &self,
@@ -664,6 +683,24 @@ impl CloudApi for Client {
 
     async fn delete_network_route(&self, account: &str, id: &str) -> cf_api::Result<()> {
         Client::delete_network_route(self, account, id).await
+    }
+
+    async fn hostname_routes(&self, account: &str) -> cf_api::Result<Vec<cf_api::HostnameRoute>> {
+        Client::hostname_routes(self, account).await
+    }
+
+    async fn create_hostname_route(
+        &self,
+        account: &str,
+        hostname: &str,
+        tunnel: &str,
+        comment: &str,
+    ) -> cf_api::Result<cf_api::HostnameRoute> {
+        Client::create_hostname_route(self, account, hostname, tunnel, comment).await
+    }
+
+    async fn delete_hostname_route(&self, account: &str, id: &str) -> cf_api::Result<()> {
+        Client::delete_hostname_route(self, account, id).await
     }
 
     async fn device_settings(&self, account: &str) -> cf_api::Result<cf_api::DeviceSettings> {

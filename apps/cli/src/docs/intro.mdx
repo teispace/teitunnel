@@ -80,7 +80,7 @@ by someone else (a share never takes one; other commands need `--take-over`).
 |---|---|
 | `-a, --account <ACCOUNT>` | Which account, when several are connected (its name or id). |
 | `-y, --yes` | Apply without asking (needed when there's no terminal to ask on, e.g. in scripts). |
-| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, or routing a public range ([Private networks](/docs/guides/private-networks)). |
+| `--replace` | Also allow what needs a confirmation: replacing or deleting DNS records Teitunnel didn't create, routing a public range, or routing a hostname on your domains to WARP clients ([Private networks](/docs/guides/private-networks)). |
 | `--take-over` | Take a hostname someone else holds (their reservation, or another machine's route) ([Teams](/docs/guides/ci-previews#teams-sharing-one-account)). Without it, the command exits with status 3. |
 | `--tunnel <TUNNEL>` | Which of this machine's tunnels a change or export is about ([Several tunnels](/docs/guides/several-tunnels)). Default: the tunnel carrying the route, or the default tunnel. |
 | `--json` | Machine-readable output, for scripts. |

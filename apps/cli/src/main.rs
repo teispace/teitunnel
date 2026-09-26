@@ -48,7 +48,10 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
     domain::{Hostname, OriginOptions},
-    engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, SignIn, StepState, Warning},
+    engine::{
+        AccessRule, Approval, Change, NetworkKind, NetworkView, Outcome, Plan, RouteInput, SignIn,
+        StepState, Warning,
+    },
     export::{ExportFormat, render},
 };
 
@@ -195,7 +198,8 @@ enum Command {
     /// Add, or remove, a route.
     #[command(subcommand)]
     Route(RouteCommand),
-    /// List the private networks this machine shares with WARP clients.
+    /// List the private networks (ranges and hostnames) this machine shares with WARP
+    /// clients.
     Networks {
         /// Account name or id.
         #[arg(long, short)]
@@ -204,7 +208,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Share, or stop sharing, a private network with WARP clients.
+    /// Share, or stop sharing, a private range or hostname with WARP clients.
     #[command(subcommand)]
     Network(NetworkCommand),
     /// List this machine's tunnels (routes go on the default one unless `--tunnel` says).
@@ -708,16 +712,18 @@ enum RouteCommand {
 
 #[derive(Debug, Subcommand)]
 enum NetworkCommand {
-    /// Let WARP clients reach a range through this machine, e.g. `192.168.1.0/24`.
+    /// Let WARP clients reach a range or a hostname through this machine, e.g.
+    /// `192.168.1.0/24` or `wiki.internal`.
     Add {
-        /// An IP address or CIDR range.
+        /// An IP address, a CIDR range, or a private hostname (resolved by this machine's
+        /// DNS).
         network: String,
         #[command(flatten)]
         apply: ApplyArgs,
     },
-    /// Stop routing a range through this machine.
+    /// Stop routing a range or a hostname through this machine.
     Remove {
-        /// The range.
+        /// The range or hostname.
         network: String,
         #[command(flatten)]
         apply: ApplyArgs,
@@ -1809,15 +1815,21 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
         )?;
     } else {
         for network in &networks {
-            let note = if network.private {
-                ""
-            } else {
-                "\tpublic range"
-            };
-            out!("{}{note}", network.network)?;
+            out!("{}", network_line(network))?;
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// One line of `teitunnel networks`: the range or hostname, then what's notable.
+fn network_line(network: &NetworkView) -> String {
+    let note = match (network.kind, network.private) {
+        (NetworkKind::Range, true) => "",
+        (NetworkKind::Range, false) => "\tpublic range",
+        (NetworkKind::Hostname, true) => "\thostname",
+        (NetworkKind::Hostname, false) => "\thostname on your domain",
+    };
+    format!("{}{note}", network.network)
 }
 
 /// `--allow` values as a login rule (see [`AccessRule::from_allow`]); `skip` are the
@@ -1869,6 +1881,9 @@ fn warning_text(warning: &Warning) -> String {
         }
         Warning::PublicNetwork { network } => format!(
             "{network} isn't a private range. WARP clients would reach those addresses through this machine instead of the internet."
+        ),
+        Warning::PublicHostname { hostname } => format!(
+            "{hostname} is on one of your domains. WARP clients would reach it through this machine instead of its public address."
         ),
         Warning::OverlapsNetwork {
             network,
@@ -1934,6 +1949,7 @@ fn confirmations(plan: &Plan) -> (bool, bool) {
             Warning::ReplacesForeignRecord { .. }
                 | Warning::DeletesForeignRecord { .. }
                 | Warning::PublicNetwork { .. }
+                | Warning::PublicHostname { .. }
         )
     });
     (held, other || (plan.requires_confirmation && !held))
@@ -2389,6 +2405,32 @@ mod tests {
             OriginArgs::default().options(),
             None,
             "defaults send nothing"
+        );
+    }
+
+    #[test]
+    fn lists_ranges_and_hostnames() {
+        let view = |network: &str, kind, private| NetworkView {
+            network: network.into(),
+            kind,
+            private,
+            owned: true,
+        };
+        assert_eq!(
+            network_line(&view("192.168.1.0/24", NetworkKind::Range, true)),
+            "192.168.1.0/24"
+        );
+        assert_eq!(
+            network_line(&view("8.8.8.0/24", NetworkKind::Range, false)),
+            "8.8.8.0/24\tpublic range"
+        );
+        assert_eq!(
+            network_line(&view("wiki.internal", NetworkKind::Hostname, true)),
+            "wiki.internal\thostname"
+        );
+        assert_eq!(
+            network_line(&view("intranet.teispace.com", NetworkKind::Hostname, false)),
+            "intranet.teispace.com\thostname on your domain"
         );
     }
 
