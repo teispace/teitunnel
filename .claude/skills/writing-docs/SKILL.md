@@ -45,7 +45,9 @@ Intro: what this page helps with, in two or three sentences.
   (per platform or per provider), `<Accordions>`/`<Accordion>`, `<Cards>`/`<Card>` for
   "Related".
 - Show both ways: the app (**bold UI names**, `▸` between menu levels) and the terminal
-  (`teitunnel …`). Examples use `teispace.com` hostnames.
+  (`teitunnel …`). Example hostnames are on `yourhost.com` (`app.yourhost.com`), and a
+  Quick Share's is `quiet-river-lamp-orbit.trycloudflare.com`; screenshots and their `alt`
+  text keep the mock data's `teispace.com` names.
 - Link other pages with absolute paths (`/docs/guides/inspector`, with `#heading` anchors).
   The website test fails on any link or anchor that doesn't exist.
 - Facts about Cloudflare or other products come from their own documentation: link it, and
