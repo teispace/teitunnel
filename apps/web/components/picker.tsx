@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { onSceneProgress } from "./scenes";
 
 export interface PickerItem {
   id: string;
@@ -20,18 +21,26 @@ const DWELL = 5200;
  * A list beside a stage: pick an item and the stage shows it at work, or let the items take
  * turns while the list is on screen, with a line filling under the current one. Once
  * someone picks, the turns stop. Without motion the stage shows each result at once.
+ *
+ * `pinned`: on wide screens the list and stage hold still while the page scrolls, and the
+ * scroll steps through the items instead of a timer; picking one scrolls to it.
  */
 export function Picker({
   items,
   label,
   dwell = DWELL,
+  pinned = false,
 }: {
   items: PickerItem[];
   label: string;
   /** Milliseconds each item is shown before the next. */
   dwell?: number;
+  /** Stepped through by scrolling on wide screens. */
+  pinned?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
+  const [scrolled, setScrolled] = useState(false);
   const prefix = useId();
   const [active, setActive] = useState(0);
   const [done, setDone] = useState(true);
@@ -55,6 +64,33 @@ export function Picker({
     return () => observer.disconnect();
   }, []);
 
+  // Pinned: the scroll through the section picks the item, on wide screens with motion.
+  useEffect(() => {
+    const element = pinRef.current;
+    if (!pinned || !element) return;
+    const wide = matchMedia("(min-width: 1024px)");
+    let off = () => {};
+    const update = () => {
+      off();
+      off = () => {};
+      const on = wide.matches && document.documentElement.classList.contains("tt-motion");
+      setScrolled(on);
+      if (!on) return;
+      off = onSceneProgress(element, (progress) => {
+        const at = progress * items.length;
+        const index = Math.min(items.length - 1, Math.floor(at));
+        setActive(index);
+        element.style.setProperty("--fill", Math.min(1, at - index).toFixed(3));
+      });
+    };
+    update();
+    wide.addEventListener("change", update);
+    return () => {
+      off();
+      wide.removeEventListener("change", update);
+    };
+  }, [pinned, items.length]);
+
   // Each item starts, then shows what it did.
   // biome-ignore lint/correctness/useExhaustiveDependencies: replays whenever the item changes
   useEffect(() => {
@@ -66,12 +102,20 @@ export function Picker({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: each item gets its full turn
   useEffect(() => {
-    if (!cycling || picked) return;
+    if (!cycling || picked || scrolled) return;
     const timer = window.setTimeout(() => setActive((now) => (now + 1) % items.length), dwell);
     return () => window.clearTimeout(timer);
-  }, [active, cycling, picked, items.length, dwell]);
+  }, [active, cycling, picked, scrolled, items.length, dwell]);
 
   const pick = (index: number) => {
+    const pin = pinRef.current;
+    if (scrolled && pin) {
+      // The middle of the item's stretch of the scroll.
+      const room = pin.offsetHeight - window.innerHeight;
+      const top = pin.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: top + ((index + 0.5) / items.length) * room, behavior: "smooth" });
+      return;
+    }
     setPicked(true);
     setActive(index);
   };
@@ -87,11 +131,12 @@ export function Picker({
   };
 
   const item = items[active];
-  return (
+  const picker = (
     <div
       ref={ref}
       className="tt-picker"
-      data-running={cycling && !picked ? "" : undefined}
+      data-running={cycling && !picked && !scrolled ? "" : undefined}
+      data-scrolled={scrolled ? "" : undefined}
       style={{ "--dwell": `${dwell}ms` } as CSSProperties}
     >
       <div role="tablist" aria-label={label} className="tt-pick-list" onKeyDown={onKeyDown}>
@@ -132,6 +177,27 @@ export function Picker({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+  if (!pinned) return picker;
+  return (
+    <div
+      ref={pinRef}
+      data-scene="pin"
+      data-pinned={scrolled ? "" : undefined}
+      className="tt-pin"
+      style={{ "--n": items.length } as CSSProperties}
+    >
+      <div className="tt-pin-stage">
+        {/* While pinned the section's title has scrolled away: say where the reader is. */}
+        <p className="tt-pin-caption" aria-hidden>
+          <span>{label}</span>
+          <span className="tabular-nums">
+            {String(active + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
+          </span>
+        </p>
+        {picker}
+      </div>
     </div>
   );
 }

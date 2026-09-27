@@ -2013,6 +2013,11 @@ html.tt-motion .tt-agent-ask[data-open] .tt-agent-allow {
   transform: scaleX(0);
 }
 
+/* Pinned, the scroll fills it instead of a timer. */
+.tt-picker[data-scrolled] .tt-pick-tab[aria-selected="true"] .tt-pick-bar {
+  transform: scaleX(var(--fill, 0));
+}
+
 html.tt-motion .tt-picker[data-running] .tt-pick-tab[aria-selected="true"] .tt-pick-bar {
   animation: tt-fill var(--dwell, 5s) linear forwards;
 }
@@ -2039,6 +2044,32 @@ html.tt-motion .tt-pick-panel {
     opacity: 0;
     transform: rotateX(7deg) translateY(10px);
   }
+}
+
+/* A pinned picker: the section is as tall as a stretch of scroll per item, and the list and
+   stage hold still while the scroll picks the item, its line filling as it goes. */
+.tt-pin[data-pinned] {
+  height: calc(var(--n) * 55vh + 100vh);
+}
+
+.tt-pin[data-pinned] .tt-pin-stage {
+  position: sticky;
+  top: max(5rem, calc(50dvh - 16.5rem));
+}
+
+.tt-pin-caption {
+  display: none;
+}
+
+.tt-pin[data-pinned] .tt-pin-caption {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tt-accent-text);
 }
 
 /* Parts of a panel that appear once it has done its job (all at once without motion). */

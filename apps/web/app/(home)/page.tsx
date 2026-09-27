@@ -647,7 +647,7 @@ export default async function Home() {
         lead="Extensions and launchers talk to the running app over a local connection. Nothing listens on the network, and nothing changes without your approval."
       >
         <div data-reveal>
-          <Picker label="Tools" items={toolDemos} />
+          <Picker label="Works with your tools" items={toolDemos} pinned />
         </div>
         <p data-reveal className="mt-10 max-w-3xl text-fd-muted-foreground">
           A global shortcut shares your dev server from anywhere, and <code>teitunnel://</code>{" "}
