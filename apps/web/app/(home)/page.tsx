@@ -639,27 +639,38 @@ export default async function Home() {
         </div>
       </Section>
 
-      {/* Tools */}
-      <Section
-        id="integrations"
-        eyebrow="Works with your tools"
-        title="Share from your editor. Preview from CI."
-        lead="Extensions and launchers talk to the running app over a local connection. Nothing listens on the network, and nothing changes without your approval."
-      >
-        <div data-reveal>
-          <Picker label="Works with your tools" items={toolDemos} pinned />
-        </div>
-        <p data-reveal className="mt-10 max-w-3xl text-fd-muted-foreground">
-          A global shortcut shares your dev server from anywhere, and <code>teitunnel://</code>{" "}
-          links open a route or a share. Every program is approved once, in the app.{" "}
-          <Link
-            href="/docs/guides/integrations/"
-            className="font-medium text-fd-foreground underline-offset-4 hover:underline"
-          >
-            Links and integrations
-          </Link>
-        </p>
-      </Section>
+      {/* Tools: the whole section holds still while the scroll steps through them */}
+      <section id="integrations" className="mx-auto w-full max-w-6xl px-6 py-20 md:py-28">
+        <Picker
+          label="Tools"
+          items={toolDemos}
+          pinned
+          header={
+            <div data-reveal className="tt-pin-head mb-12 max-w-3xl">
+              <Eyebrow text="Works with your tools" />
+              <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+                <Words>Share from your editor. Preview from CI.</Words>
+              </h2>
+              <p className="mt-5 text-lg text-fd-muted-foreground">
+                Extensions and launchers talk to the running app over a local connection. Nothing
+                listens on the network, and nothing changes without your approval.
+              </p>
+            </div>
+          }
+          footer={
+            <p data-reveal className="tt-pin-foot mt-10 max-w-3xl text-fd-muted-foreground">
+              A global shortcut shares your dev server from anywhere, and <code>teitunnel://</code>{" "}
+              links open a route or a share. Every program is approved once, in the app.{" "}
+              <Link
+                href="/docs/guides/integrations/"
+                className="font-medium text-fd-foreground underline-offset-4 hover:underline"
+              >
+                Links and integrations
+              </Link>
+            </p>
+          }
+        />
+      </section>
 
       {/* The native app: one window, as each system draws it */}
       <Section

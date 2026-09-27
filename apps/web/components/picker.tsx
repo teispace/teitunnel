@@ -22,14 +22,17 @@ const DWELL = 5200;
  * turns while the list is on screen, with a line filling under the current one. Once
  * someone picks, the turns stop. Without motion the stage shows each result at once.
  *
- * `pinned`: on wide screens the list and stage hold still while the page scrolls, and the
- * scroll steps through the items instead of a timer; picking one scrolls to it.
+ * `pinned`: on wide screens with room for it, the whole section (its `header`, the list and
+ * stage, and its `footer`) holds still while the page scrolls, and the scroll steps through
+ * the items instead of a timer; picking one scrolls to it.
  */
 export function Picker({
   items,
   label,
   dwell = DWELL,
   pinned = false,
+  header,
+  footer,
 }: {
   items: PickerItem[];
   label: string;
@@ -37,6 +40,9 @@ export function Picker({
   dwell?: number;
   /** Stepped through by scrolling on wide screens. */
   pinned?: boolean;
+  /** Above and below the list, held still with it when pinned. */
+  header?: ReactNode;
+  footer?: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
@@ -68,7 +74,8 @@ export function Picker({
   useEffect(() => {
     const element = pinRef.current;
     if (!pinned || !element) return;
-    const wide = matchMedia("(min-width: 1024px)");
+    // Wide and tall enough for the whole section to fit on screen.
+    const wide = matchMedia("(min-width: 1024px) and (min-height: 680px)");
     let off = () => {};
     const update = () => {
       off();
@@ -179,7 +186,15 @@ export function Picker({
       ) : null}
     </div>
   );
-  if (!pinned) return picker;
+  if (!pinned) {
+    return (
+      <>
+        {header}
+        {picker}
+        {footer}
+      </>
+    );
+  }
   return (
     <div
       ref={pinRef}
@@ -189,14 +204,9 @@ export function Picker({
       style={{ "--n": items.length } as CSSProperties}
     >
       <div className="tt-pin-stage">
-        {/* While pinned the section's title has scrolled away: say where the reader is. */}
-        <p className="tt-pin-caption" aria-hidden>
-          <span>{label}</span>
-          <span className="tabular-nums">
-            {String(active + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
-          </span>
-        </p>
+        {header}
         {picker}
+        {footer}
       </div>
     </div>
   );

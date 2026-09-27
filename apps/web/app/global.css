@@ -2046,30 +2046,47 @@ html.tt-motion .tt-pick-panel {
   }
 }
 
-/* A pinned picker: the section is as tall as a stretch of scroll per item, and the list and
-   stage hold still while the scroll picks the item, its line filling as it goes. */
+/* A pinned picker: the section is as tall as a stretch of scroll per item, and the whole
+   section (heading, list and stage, footer) holds still on one screen, centred under the
+   header and a little more compact, while the scroll picks the item. */
 .tt-pin[data-pinned] {
   height: calc(var(--n) * 55vh + 100vh);
 }
 
 .tt-pin[data-pinned] .tt-pin-stage {
   position: sticky;
-  top: max(5rem, calc(50dvh - 16.5rem));
-}
-
-.tt-pin-caption {
-  display: none;
-}
-
-.tt-pin[data-pinned] .tt-pin-caption {
+  top: 3.5rem;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--tt-accent-text);
+  flex-direction: column;
+  justify-content: center;
+  height: calc(100dvh - 3.5rem);
+  padding: 1rem 0;
+}
+
+.tt-pin[data-pinned] .tt-pin-head {
+  max-width: none;
+  margin-bottom: 1.75rem;
+}
+
+.tt-pin[data-pinned] .tt-pin-head h2 {
+  font-size: clamp(1.9rem, 5.2dvh, 2.6rem);
+  line-height: 1.1;
+}
+
+.tt-pin[data-pinned] .tt-pin-head p:last-child {
+  max-width: 50rem;
+  margin-top: 0.75rem;
+  font-size: 1rem;
+}
+
+.tt-pin[data-pinned] .tt-pin-foot {
+  max-width: none;
+  margin-top: 1.5rem;
+  font-size: 0.9375rem;
+}
+
+.tt-pin[data-pinned] .tt-pick-tab {
+  padding-block: 0.45rem;
 }
 
 /* Parts of a panel that appear once it has done its job (all at once without motion). */
@@ -2100,6 +2117,11 @@ html.tt-motion .tt-pick-panel[data-done] .tt-pick-result {
   box-shadow: var(--tt-window-shadow);
   overflow: hidden;
   font-size: 0.8125rem;
+}
+
+/* Pinned, a little shorter, so the whole section fits. */
+.tt-pin[data-pinned] .tt-mock {
+  min-height: 16.5rem;
 }
 
 .tt-mock-bar {
