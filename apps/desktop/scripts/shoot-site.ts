@@ -97,6 +97,30 @@ const shots: Shot[] = [
     steps: ["scroll:text=Move to Another Computer"],
   },
   { name: "agents", route: "/integrations" },
+  {
+    name: "share-on-domain",
+    route: "/quick-share?compose=true",
+    steps: [
+      'fill:input[placeholder^="Port or address"]=>5173',
+      "key:Escape",
+      "click:text=Random address",
+      'click:role=option[name="On teispace.com"]',
+      'fill:role=textbox[name="Subdomain"]=>demo',
+      "click:text=Advanced",
+    ],
+  },
+  {
+    name: "route-login",
+    route: "/routes?add=true",
+    steps: [
+      'fill:role=dialog >> input[placeholder^="Port"]=>3000',
+      'fill:role=textbox[name="Subdomain"]=>admin',
+      "click:role=dialog >> text=Advanced",
+      'click:role=checkbox[name="Require a login"]',
+      'fill:role=textbox[name="Who can sign in"]=>ana@teispace.com, @teispace.com',
+      "scroll:text=Who can sign in",
+    ],
+  },
 ];
 
 // Measured NSVisualEffectView `sidebar` material on macOS 27, before our tint.
