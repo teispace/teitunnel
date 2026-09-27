@@ -41,7 +41,7 @@ Open **Edit Protection…**, from any of:
 - the shield button (**Protect at Cloudflare**) on a share on your domain.
 </Step>
 <Step>
-In **Protect app.teispace.com**, choose:
+In **Protect app.yourhost.com**, choose:
 
 - **Automated clients:** **Allow**, **Challenge** or **Block**.
 - **Block AI crawlers.**
@@ -52,12 +52,12 @@ In **Protect app.teispace.com**, choose:
   **Add** (response only) or **Remove**.
 - **Bypass Cloudflare's cache.**
 
-**Rules on teispace.com** shows how many custom rules, rate limiting rules, Transform
+**Rules on yourhost.com** shows how many custom rules, rate limiting rules, Transform
 Rules and Cache Rules the domain uses of its plan's quota.
 </Step>
 <Step>
 Choose **Review**, read the plan, and choose **Apply Rules** (**Remove Rules** when you
-turn everything off). The notification "Edge protection updated for app.teispace.com" has
+turn everything off). The notification "Edge protection updated for app.yourhost.com" has
 **Undo**, which puts the previous settings back.
 </Step>
 </Steps>
@@ -65,14 +65,14 @@ turn everything off). The notification "Edge protection updated for app.teispace
 ## From the terminal
 
 ```sh
-teitunnel protect app.teispace.com                     # what it has now, and the quotas
-teitunnel protect app.teispace.com --bots challenge --block-ai
-teitunnel protect app.teispace.com --rate-limit 30/1m  # Pro plans and up
-teitunnel protect app.teispace.com --rate-limit 100/10s:challenge
-teitunnel protect preview.teispace.com --set-response-header X-Robots-Tag:noindex
-teitunnel protect api.teispace.com --remove-request-header Cookie
-teitunnel protect dev.teispace.com --bypass-cache      # never cache a dev server
-teitunnel protect app.teispace.com --off               # remove every rule Teitunnel added
+teitunnel protect app.yourhost.com                     # what it has now, and the quotas
+teitunnel protect app.yourhost.com --bots challenge --block-ai
+teitunnel protect app.yourhost.com --rate-limit 30/1m  # Pro plans and up
+teitunnel protect app.yourhost.com --rate-limit 100/10s:challenge
+teitunnel protect preview.yourhost.com --set-response-header X-Robots-Tag:noindex
+teitunnel protect api.yourhost.com --remove-request-header Cookie
+teitunnel protect dev.yourhost.com --bypass-cache      # never cache a dev server
+teitunnel protect app.yourhost.com --off               # remove every rule Teitunnel added
 ```
 
 | Flag | Meaning |
@@ -95,10 +95,10 @@ name) the current header rules. The hostname is a route, or a share on your doma
 
 ## What happens on Cloudflare
 
-The plan ("Protect app.teispace.com at Cloudflare's edge") lists one step per rule, for
-example "Challenge automated clients on app.teispace.com", "Block visitors who send
-app.teispace.com more than 30 requests in 60 seconds" or "Change 1 response header on
-preview.teispace.com". After the change it shows the domain's quotas as they'll be.
+The plan ("Protect app.yourhost.com at Cloudflare's edge") lists one step per rule, for
+example "Challenge automated clients on app.yourhost.com", "Block visitors who send
+app.yourhost.com more than 30 requests in 60 seconds" or "Change 1 response header on
+preview.yourhost.com". After the change it shows the domain's quotas as they'll be.
 
 Teitunnel adds, changes and removes only its own rules, one at a time, and never replaces a
 whole rule list:
@@ -155,7 +155,7 @@ A login stops people who aren't allowed, and also CI jobs, scripts and other ser
 **service token** lets a machine through with two headers:
 
 ```sh
-curl https://api.teispace.com/health \
+curl https://api.yourhost.com/health \
   -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
 ```
@@ -173,7 +173,7 @@ memory for 10 minutes, and stores only the token's id and client id. If you miss
 **Rotate** the token for a new secret.
 
 If the hostname has no login yet, it gets one that **only service tokens pass** ("Require a
-login on app.teispace.com that only service tokens pass"): people opening it in a browser
+login on app.yourhost.com that only service tokens pass"): people opening it in a browser
 are refused, and the plan warns you. Tokens are valid for a year; the list shows when each
 expires. **Rotate** ("Give "CI" a new secret?") replaces the secret, and the old one stops
 working at once. **Revoke** takes the token out of the login and deletes it; machines
@@ -183,10 +183,10 @@ tokens.
 ### From the terminal
 
 ```sh
-teitunnel service-token create api.teispace.com --name CI   # prints both headers once
-teitunnel service-token ls api.teispace.com
-teitunnel service-token rotate api.teispace.com CI           # a new secret, printed once
-teitunnel service-token revoke api.teispace.com CI
+teitunnel service-token create api.yourhost.com --name CI   # prints both headers once
+teitunnel service-token ls api.yourhost.com
+teitunnel service-token rotate api.yourhost.com CI           # a new secret, printed once
+teitunnel service-token revoke api.yourhost.com CI
 ```
 
 A token is named by its name or id. `create` defaults to the name `CLI`.

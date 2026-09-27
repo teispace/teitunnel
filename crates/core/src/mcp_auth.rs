@@ -6,16 +6,22 @@
 //! Follows the MCP authorization spec (2026-07-28): Protected Resource Metadata
 //! (RFC 9728) and Authorization Server Metadata (RFC 8414, also as OpenID discovery);
 //! clients identified by Client ID Metadata Documents (preferred) or Dynamic Client
-//! Registration (RFC 7591, kept for older clients); authorization code with PKCE S256
-//! only; tokens bound to the server (RFC 8707 `resource`); `iss` in authorization
-//! responses (RFC 9207); short-lived access tokens and rotating refresh tokens with
-//! replay detection; revocation (RFC 7009).
+//! Registration (RFC 7591, deprecated but kept for older clients; [`Policy`] turns it
+//! off); authorization code with PKCE S256 only; tokens bound to the server's host and
+//! path (RFC 8707 `resource`, stored with the connection); `iss` in authorization
+//! responses (RFC 9207); short-lived access tokens and rotating refresh tokens (a
+//! compare-and-swap, with replay detection); connections that end after
+//! [`Policy::max_grant`] however they're used; revocation (RFC 7009).
 //!
 //! Every authorization waits for the person to approve it in the app, which shows the
 //! client, where it sends the code, and a short code that the browser page shows too:
 //! a client's identity says nothing about who's using it (claude.ai's client id is the
 //! same for all its users). Only hashes of tokens, codes and client secrets are stored.
 //! [`McpAuth::provider`] gives Lens what it needs for one shared server.
+//!
+//! Connections the person ends in the app stop working at once in every process that
+//! follows the app ([`McpAuth::follow_app`]: the app announces it on the control
+//! connection); a process that can't hear the app notices within [`SYNC_EVERY`].
 
 mod ask_app;
 mod clients;
@@ -58,13 +64,42 @@ const CODE_TTL: Duration = Duration::from_secs(60);
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(180);
 /// How long an answered request is kept for the browser to collect.
 const PENDING_TTL: Duration = Duration::from_secs(300);
-/// Requests waiting for an answer per hostname, at most.
-const MAX_WAITING: usize = 5;
+/// Requests waiting for an answer per client address, at most.
+const MAX_WAITING_PER_IP: usize = 2;
+/// Requests waiting for an answer per hostname, at most. Higher than per address, so one
+/// visitor can't block everyone; bounded, since the address comes from
+/// `CF-Connecting-IP`, which a process on this computer could forge on the loopback
+/// listener.
+const MAX_WAITING: usize = 10;
 /// Authorizations and registrations per client address and minute, at most.
 const PER_MINUTE: usize = 20;
-/// How often the in-memory token index is checked against the database (connections
-/// ended in another process stop working within this).
-const SYNC_EVERY: Duration = Duration::from_secs(30);
+/// Authorizations and registrations per hostname and minute, at most (whatever address
+/// they claim).
+const PER_MINUTE_PER_HOST: usize = 60;
+/// How often the in-memory token index is checked against the database: connections
+/// ended in another process stop working within this even without the app's word.
+pub const SYNC_EVERY: Duration = Duration::from_secs(5);
+/// How long to wait before trying the app's control connection again.
+const FOLLOW_RETRY: Duration = Duration::from_secs(5);
+
+/// How clients may connect: set by the person (`mcp.json`'s `oauth`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Policy {
+    /// Clients may register themselves (Dynamic Client Registration). Clients with a
+    /// Client ID Metadata Document connect either way.
+    pub dynamic_registration: bool,
+    /// How long a connection lasts after the person approved it, however it's used.
+    pub max_grant: Duration,
+}
+
+impl Default for Policy {
+    fn default() -> Self {
+        Self {
+            dynamic_registration: true,
+            max_grant: Duration::from_secs(90 * 24 * 3600),
+        }
+    }
+}
 
 /// What the person is asked when a client wants to connect.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,6 +146,10 @@ pub struct McpConnection {
     /// When it last got a token.
     #[cfg_attr(feature = "specta", specta(type = f64))]
     pub last_used_at: u64,
+    /// When it ends however it's used, so the person approves it again (milliseconds
+    /// since the epoch).
+    #[cfg_attr(feature = "specta", specta(type = f64))]
+    pub expires_at: u64,
 }
 
 impl From<Grant> for McpConnection {
@@ -122,6 +161,7 @@ impl From<Grant> for McpConnection {
             redirect_host: grant.redirect_host,
             created_at: grant.created_at,
             last_used_at: grant.last_used_at,
+            expires_at: grant.expires_at,
         }
     }
 }
@@ -141,12 +181,20 @@ pub async fn connections(
         .collect())
 }
 
-/// Ends a connection: its tokens stop working (within 30 seconds in another process).
+/// Ends a connection: its tokens stop working. Processes sharing its server hear it at
+/// once when the app announces it ([`disconnected_event`] on the control connection),
+/// and within [`SYNC_EVERY`] otherwise.
 ///
 /// # Errors
 /// Database errors.
 pub async fn disconnect(store: &Store, id: &str) -> Result<bool, StoreError> {
     store::delete_grant(store, id).await
+}
+
+/// What the app announces on the control connection after [`disconnect`], so processes
+/// following it ([`McpAuth::follow_app`]) drop the connection's tokens at once.
+pub fn disconnected_event(id: &str) -> teitunnel_control::protocol::Event {
+    teitunnel_control::protocol::Event::McpConnectionEnded { id: id.to_owned() }
 }
 
 fn now_ms() -> u64 {
@@ -172,6 +220,8 @@ struct Pending {
     answer: Answer,
     shown: String,
     client_name: String,
+    /// Who asked (for the per-address limit).
+    ip: IpAddr,
     created: Instant,
 }
 
@@ -182,6 +232,8 @@ struct Code {
     client_name: String,
     redirect_uri: String,
     challenge: String,
+    /// The audience asked for at authorization (canonical), if any.
+    resource: Option<String>,
     expires: Instant,
 }
 
@@ -189,6 +241,8 @@ struct Code {
 struct Access {
     host: String,
     grant: String,
+    /// The connection's audience (canonical), if the client named one.
+    resource: Option<String>,
     expires_at: u64,
 }
 
@@ -203,12 +257,15 @@ struct State {
     access: HashMap<String, Access>,
     /// Recent authorizations and registrations per client address.
     hits: HashMap<IpAddr, Vec<Instant>>,
+    /// Recent authorizations and registrations per hostname.
+    host_hits: HashMap<String, Vec<Instant>>,
 }
 
 struct Inner {
     store: Store,
     approver: Arc<dyn Approver>,
     documents: Documents,
+    policy: Policy,
     state: Mutex<State>,
 }
 
@@ -225,18 +282,23 @@ impl std::fmt::Debug for McpAuth {
 }
 
 impl McpAuth {
-    /// Starts the server over `store`, asking `approver` about each connection. Must
-    /// run inside Tokio (a task keeps it in sync with the database).
+    /// Starts the server over `store`, asking `approver` about each connection, under
+    /// `policy`. Must run inside Tokio (a task keeps it in sync with the database).
     ///
     /// # Errors
     /// Database errors.
-    pub async fn open(store: Store, approver: Arc<dyn Approver>) -> Result<Self, StoreError> {
-        Self::with_fetch(store, approver, Arc::new(clients::Web)).await
+    pub async fn open(
+        store: Store,
+        approver: Arc<dyn Approver>,
+        policy: Policy,
+    ) -> Result<Self, StoreError> {
+        Self::with_fetch(store, approver, policy, Arc::new(clients::Web)).await
     }
 
     pub(crate) async fn with_fetch(
         store: Store,
         approver: Arc<dyn Approver>,
+        policy: Policy,
         fetch: Arc<dyn Fetch>,
     ) -> Result<Self, StoreError> {
         let auth = Self {
@@ -244,6 +306,7 @@ impl McpAuth {
                 store,
                 approver,
                 documents: Documents::new(fetch),
+                policy,
                 state: Mutex::new(State::default()),
             }),
         };
@@ -269,6 +332,7 @@ impl McpAuth {
         Arc::new(Resource {
             inner: Arc::clone(&self.inner),
             resource: format!("{}{path}", protocol::issuer(&host)),
+            path: path.to_owned(),
             challenge: HeaderValue::from_str(&format!(
                 "Bearer resource_metadata=\"{}{}\"",
                 protocol::issuer(&host),
@@ -286,8 +350,58 @@ impl McpAuth {
     /// Database errors.
     pub async fn disconnect(&self, id: &str) -> Result<bool, StoreError> {
         let ended = store::delete_grant(&self.inner.store, id).await?;
-        self.inner.lock().access.retain(|_, a| a.grant != id);
+        self.inner.forget(id);
         Ok(ended)
+    }
+
+    /// Follows the app of the data folder `data_dir`: when the person disconnects a
+    /// client there, its tokens stop working here at once (not only at the next
+    /// database check). Reconnects while the app isn't running; ends with this server.
+    pub fn follow_app(&self, data_dir: &std::path::Path) {
+        let endpoint = teitunnel_control::Endpoint::new(data_dir);
+        let weak = Arc::downgrade(&self.inner);
+        tokio::spawn(follow(endpoint, weak));
+    }
+}
+
+/// Listens for `mcpConnectionEnded` from the app, reconnecting as needed.
+async fn follow(endpoint: teitunnel_control::Endpoint, weak: Weak<Inner>) {
+    use teitunnel_control::protocol::{ClientInfo, Event, event};
+    loop {
+        if weak.strong_count() == 0 {
+            return;
+        }
+        let info = ClientInfo {
+            name: "teitunnel-mcp-auth".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
+        };
+        if let Ok(client) = teitunnel_control::ControlClient::connect(&endpoint, info).await
+            && let Ok(mut events) = client.subscribe(Some(&[event::MCP_CONNECTION_ENDED])).await
+        {
+            // Connections ended while nobody listened.
+            if let Some(inner) = weak.upgrade()
+                && let Err(err) = inner.sync().await
+            {
+                tracing::warn!("couldn't check MCP connections: {err}");
+            }
+            while client.is_connected() {
+                let event = match tokio::time::timeout(FOLLOW_RETRY, events.recv()).await {
+                    Err(_) => continue,
+                    Ok(Ok(event)) => event,
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => {
+                        let Some(inner) = weak.upgrade() else { return };
+                        let _ = inner.sync().await;
+                        continue;
+                    }
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Closed)) => break,
+                };
+                let Some(inner) = weak.upgrade() else { return };
+                if let Event::McpConnectionEnded { id } = event {
+                    inner.forget(&id);
+                }
+            }
+        }
+        tokio::time::sleep(FOLLOW_RETRY).await;
     }
 }
 
@@ -307,12 +421,16 @@ impl Inner {
             .into_iter()
             .filter_map(|g| {
                 let hash = g.access_hash?;
-                let expires_at = g.access_expires_at.filter(|at| *at > now)?;
+                let expires_at = g
+                    .access_expires_at
+                    .map(|at| at.min(g.expires_at))
+                    .filter(|at| *at > now)?;
                 Some((
                     hash,
                     Access {
                         host: g.host,
                         grant: g.id,
+                        resource: g.resource,
                         expires_at,
                     },
                 ))
@@ -326,23 +444,42 @@ impl Inner {
         state
             .used_codes
             .retain(|_, (at, _)| instant.duration_since(*at) < PENDING_TTL * 2);
-        state.hits.retain(|_, hits| {
+        let recent = |hits: &mut Vec<Instant>| {
             hits.retain(|at| instant.duration_since(*at) < Duration::from_secs(60));
             !hits.is_empty()
-        });
+        };
+        state.hits.retain(|_, hits| recent(hits));
+        state.host_hits.retain(|_, hits| recent(hits));
         Ok(())
     }
 
-    /// Counts a request from `ip`; `false` when it made too many this minute.
-    fn allow(&self, ip: IpAddr) -> bool {
+    /// Drops a connection's tokens from memory (it ended elsewhere).
+    fn forget(&self, grant: &str) {
+        self.lock().access.retain(|_, a| a.grant != grant);
+    }
+
+    /// Counts a request from `ip` to `host`; `false` when that address, or that
+    /// hostname whatever the address, made too many this minute.
+    fn allow(&self, host: &str, ip: IpAddr) -> bool {
         let now = Instant::now();
+        let fresh = |at: &Instant| now.duration_since(*at) < Duration::from_secs(60);
         let mut state = self.lock();
-        let hits = state.hits.entry(ip).or_default();
-        hits.retain(|at| now.duration_since(*at) < Duration::from_secs(60));
-        if hits.len() >= PER_MINUTE {
+        let for_host = state.host_hits.entry(host.to_owned()).or_default();
+        for_host.retain(fresh);
+        if for_host.len() >= PER_MINUTE_PER_HOST {
             return false;
         }
-        hits.push(now);
+        let for_ip = state.hits.entry(ip).or_default();
+        for_ip.retain(fresh);
+        if for_ip.len() >= PER_MINUTE {
+            return false;
+        }
+        for_ip.push(now);
+        state
+            .host_hits
+            .entry(host.to_owned())
+            .or_default()
+            .push(now);
         true
     }
 
@@ -389,7 +526,7 @@ impl Inner {
                 (decode(id)? == client.id).then(|| decode(secret))?
             });
         let secret = from_basic.or_else(|| form.get("client_secret").cloned());
-        if secret.is_some_and(|s| protocol::hash(&s) == *expected) {
+        if secret.is_some_and(|s| protocol::secret_matches(&s, expected)) {
             Ok(())
         } else {
             Err(OAuthError::new(
@@ -399,27 +536,41 @@ impl Inner {
         }
     }
 
-    fn issue(&self, grant: &str, host: &str) -> Result<(String, String, u64, u64), OAuthError> {
+    /// New tokens for connection `grant`, which ends at `grant_ends` (nothing it issues
+    /// outlives that).
+    fn issue(
+        &self,
+        grant: &str,
+        host: &str,
+        resource: Option<&str>,
+        grant_ends: u64,
+    ) -> Result<(String, String, u64, u64), OAuthError> {
         let random = |prefix| {
             protocol::random(prefix).map_err(|e| OAuthError::new("server_error", e.to_string()))
         };
         let access = random("ttat_")?;
         let refresh = random("ttrt_")?;
         let now = now_ms();
-        let access_expires = now + ms(ACCESS_TTL);
+        let access_expires = (now + ms(ACCESS_TTL)).min(grant_ends);
         self.lock().access.insert(
             protocol::hash(&access),
             Access {
                 host: host.to_owned(),
                 grant: grant.to_owned(),
+                resource: resource.map(str::to_owned),
                 expires_at: access_expires,
             },
         );
-        Ok((access, refresh, access_expires, now + ms(REFRESH_TTL)))
+        Ok((
+            access,
+            refresh,
+            access_expires,
+            (now + ms(REFRESH_TTL)).min(grant_ends),
+        ))
     }
 
     async fn end(&self, grant: &str) {
-        self.lock().access.retain(|_, a| a.grant != grant);
+        self.forget(grant);
         if let Err(err) = store::delete_grant(&self.store, grant).await {
             tracing::warn!("couldn't end an MCP connection: {err}");
         }
@@ -432,6 +583,8 @@ struct Resource {
     host: String,
     /// The canonical server URI, e.g. `https://mcp.example.com/mcp`.
     resource: String,
+    /// Its endpoint path, e.g. `/mcp` (empty for `/`).
+    path: String,
     name: String,
     challenge: HeaderValue,
 }
@@ -522,6 +675,7 @@ impl OAuthProvider for Resource {
             inner: Arc::clone(&self.inner),
             host: self.host.clone(),
             resource: self.resource.clone(),
+            path: self.path.clone(),
             name: self.name.clone(),
             challenge: self.challenge.clone(),
         };
@@ -531,11 +685,15 @@ impl OAuthProvider for Resource {
     fn valid(&self, token: &str) -> bool {
         let hash = protocol::hash(token);
         let now = now_ms();
-        self.inner
-            .lock()
-            .access
-            .get(&hash)
-            .is_some_and(|a| a.host == self.host && a.expires_at > now)
+        self.inner.lock().access.get(&hash).is_some_and(|a| {
+            a.host == self.host
+                && a.expires_at > now
+                // Granted for this server's path (or the whole host); connections from
+                // before audiences were stored, or made without one, keep working.
+                && a.resource.as_deref().is_none_or(|granted| {
+                    protocol::audience(&self.host, &self.path, granted).is_some()
+                })
+        })
     }
 
     fn challenge(&self) -> HeaderValue {
@@ -561,9 +719,10 @@ impl Resource {
                     &protocol::resource_metadata(&self.host, &self.resource, &self.name),
                 )
             }
-            protocol::SERVER_METADATA | protocol::OPENID_METADATA if get => {
-                json_response(StatusCode::OK, &protocol::server_metadata(&self.host))
-            }
+            protocol::SERVER_METADATA | protocol::OPENID_METADATA if get => json_response(
+                StatusCode::OK,
+                &protocol::server_metadata(&self.host, self.inner.policy.dynamic_registration),
+            ),
             protocol::AUTHORIZE if get => self.authorize(&request).await,
             protocol::WAIT if get => self.wait(&request),
             protocol::TOKEN if post => self.token(&request).await,
@@ -583,7 +742,7 @@ impl Resource {
 
     async fn authorize(&self, request: &ReservedRequest) -> Response<LensBody> {
         let query = protocol::form(request.uri.query().unwrap_or_default());
-        if !self.inner.allow(request.client_ip) {
+        if !self.inner.allow(&self.host, request.client_ip) {
             return pages::message(
                 StatusCode::TOO_MANY_REQUESTS,
                 "Too many attempts",
@@ -638,22 +797,26 @@ impl Resource {
         {
             return fail("invalid_request", "PKCE with S256 is required.");
         }
-        if let Some(resource) = query.get("resource")
-            && !protocol::resource_matches(&self.host, resource)
-        {
-            return fail("invalid_target", "This server can only authorize itself.");
-        }
+        let resource = match query.get("resource") {
+            None => None,
+            Some(asked) => match protocol::audience(&self.host, &self.path, asked) {
+                Some(audience) => Some(audience),
+                None => return fail("invalid_target", "This server can only authorize itself."),
+            },
+        };
         let (Ok(id), Ok(shown)) = (protocol::random("ttreq_"), protocol::short_code()) else {
             return fail("server_error", "No randomness.");
         };
         {
             let mut state_lock = self.inner.lock();
-            let waiting = state_lock
+            let waiting: Vec<IpAddr> = state_lock
                 .pending
                 .values()
                 .filter(|p| p.host == self.host && matches!(p.answer, Answer::Waiting))
-                .count();
-            if waiting >= MAX_WAITING {
+                .map(|p| p.ip)
+                .collect();
+            let from_this_address = waiting.iter().filter(|ip| **ip == request.client_ip);
+            if waiting.len() >= MAX_WAITING || from_this_address.count() >= MAX_WAITING_PER_IP {
                 drop(state_lock);
                 return pages::message(
                     StatusCode::TOO_MANY_REQUESTS,
@@ -670,6 +833,7 @@ impl Resource {
                     answer: Answer::Waiting,
                     shown: shown.clone(),
                     client_name: client.name.clone(),
+                    ip: request.client_ip,
                     created: Instant::now(),
                 },
             );
@@ -701,6 +865,7 @@ impl Resource {
                                 client_name: client.name.clone(),
                                 redirect_uri: redirect_uri.clone(),
                                 challenge,
+                                resource,
                                 expires: Instant::now() + CODE_TTL,
                             },
                         );
@@ -773,16 +938,21 @@ impl Resource {
         }
     }
 
-    fn check_resource(&self, form: &HashMap<String, String>) -> Result<(), OAuthError> {
-        match form.get("resource") {
-            Some(resource) if !protocol::resource_matches(&self.host, resource) => {
-                Err(OAuthError::new(
-                    "invalid_target",
-                    "This server can only issue tokens for itself.",
-                ))
-            }
-            _ => Ok(()),
-        }
+    /// The audience a token request names (canonical), `None` when it names none.
+    fn requested_audience(
+        &self,
+        form: &HashMap<String, String>,
+    ) -> Result<Option<String>, OAuthError> {
+        form.get("resource")
+            .map(|asked| {
+                protocol::audience(&self.host, &self.path, asked).ok_or_else(|| {
+                    OAuthError::new(
+                        "invalid_target",
+                        "This server can only issue tokens for itself.",
+                    )
+                })
+            })
+            .transpose()
     }
 
     async fn exchange_code(
@@ -825,14 +995,26 @@ impl Resource {
                 "The code verifier is wrong.",
             ));
         }
-        self.check_resource(form)?;
+        // RFC 8707: the token is for the audience asked for at authorization; a token
+        // request may name it again, but not another one.
+        let resource = match (self.requested_audience(form)?, code.resource) {
+            (Some(asked), Some(authorized)) if asked != authorized => {
+                return Err(OAuthError::new(
+                    "invalid_target",
+                    "The resource differs from the one authorized.",
+                ));
+            }
+            (asked, authorized) => authorized.or(asked),
+        };
         let client = self.inner.client(&self.host, &client_id).await?;
         Inner::authenticate(&client, form, headers)?;
         let grant_id = protocol::random("ttgr_")
             .map_err(|e| OAuthError::new("server_error", e.to_string()))?;
-        let (access, refresh, access_expires, refresh_expires) =
-            self.inner.issue(&grant_id, &self.host)?;
         let now = now_ms();
+        let ends = now + ms(self.inner.policy.max_grant);
+        let (access, refresh, access_expires, refresh_expires) =
+            self.inner
+                .issue(&grant_id, &self.host, resource.as_deref(), ends)?;
         let grant = Grant {
             id: grant_id.clone(),
             host: self.host.clone(),
@@ -845,6 +1027,8 @@ impl Resource {
             access_expires_at: Some(access_expires),
             refresh_hash: protocol::hash(&refresh),
             refresh_expires_at: refresh_expires,
+            resource,
+            expires_at: ends,
         };
         if let Err(err) = store::insert_grant(&self.inner.store, &grant).await {
             self.inner.lock().access.retain(|_, a| a.grant != grant_id);
@@ -871,7 +1055,7 @@ impl Resource {
             .await
             .map_err(|e| OAuthError::new("server_error", e.to_string()))?;
         let grant = match found {
-            Refresh::Current(grant) => grant,
+            Refresh::Current(grant) => *grant,
             Refresh::Reused(grant) => {
                 // An old refresh token again: it leaked. End the connection.
                 self.inner.end(&grant).await;
@@ -887,6 +1071,13 @@ impl Resource {
                 ));
             }
         };
+        if grant.expires_at <= now_ms() {
+            self.inner.end(&grant.id).await;
+            return Err(OAuthError::new(
+                "invalid_grant",
+                "This connection reached the end of its lifetime. Connect again.",
+            ));
+        }
         let client_id = form.get("client_id").cloned().unwrap_or_default();
         if grant.client_id != client_id || grant.refresh_expires_at <= now_ms() {
             return Err(OAuthError::new(
@@ -894,42 +1085,62 @@ impl Resource {
                 "The refresh token is invalid or expired.",
             ));
         }
-        self.check_resource(form)?;
+        if let (Some(asked), Some(granted)) = (self.requested_audience(form)?, &grant.resource)
+            && asked != *granted
+        {
+            return Err(OAuthError::new(
+                "invalid_target",
+                "The resource differs from the one authorized.",
+            ));
+        }
         let client = self.inner.client(&self.host, &client_id).await?;
         Inner::authenticate(&client, form, headers)?;
-        let (access, refresh, access_expires, refresh_expires) =
-            self.inner.issue(&grant.id, &self.host)?;
+        let (access, refresh, access_expires, refresh_expires) = self.inner.issue(
+            &grant.id,
+            &self.host,
+            grant.resource.as_deref(),
+            grant.expires_at,
+        )?;
         let rotated = store::rotate(
             &self.inner.store,
             &grant.id,
+            &presented,
             (&protocol::hash(&access), access_expires),
             (&protocol::hash(&refresh), refresh_expires),
             now_ms(),
         )
         .await
         .map_err(|e| OAuthError::new("server_error", e.to_string()))?;
-        let fresh = protocol::hash(&access);
-        {
-            let mut state = self.inner.lock();
-            // Only the newest access token of a connection stays valid.
-            state
-                .access
-                .retain(|hash, a| a.grant != grant.id || *hash == fresh);
-            if !rotated {
-                state.access.remove(&fresh);
-            }
-        }
         if !rotated {
+            // Someone exchanged this refresh token first (or the connection ended): two
+            // holders of one refresh token means it leaked. End the connection.
+            self.inner.end(&grant.id).await;
             return Err(OAuthError::new(
                 "invalid_grant",
-                "The connection was ended.",
+                "This refresh token was already used; the connection was ended. Connect again.",
             ));
         }
+        let fresh = protocol::hash(&access);
+        // Only the newest access token of a connection stays valid.
+        self.inner
+            .lock()
+            .access
+            .retain(|hash, a| a.grant != grant.id || *hash == fresh);
         Ok(tokens(&access, &refresh))
     }
 
     async fn register(&self, request: &ReservedRequest) -> Response<LensBody> {
-        if !self.inner.allow(request.client_ip) {
+        if !self.inner.policy.dynamic_registration {
+            // Not advertised in the metadata either.
+            return json_response(
+                StatusCode::NOT_FOUND,
+                &json!(OAuthError::new(
+                    "invalid_request",
+                    "Registration is turned off on this server: identify the client with a Client ID Metadata Document.",
+                )),
+            );
+        }
+        if !self.inner.allow(&self.host, request.client_ip) {
             return oauth_error(&OAuthError::new(
                 "slow_down",
                 "Too many registrations; wait a minute.",

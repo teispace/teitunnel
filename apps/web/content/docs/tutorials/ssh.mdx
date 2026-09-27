@@ -7,7 +7,7 @@ searchDescription: "Reach SSH, Remote Desktop, file shares or a database from an
 A route doesn't have to be a website. It can carry SSH, Remote Desktop, SMB file shares or
 any TCP service such as Postgres, so you can reach a machine at home or in the office
 without opening port 22 to the internet. In this tutorial you make a machine reachable over
-SSH at `ssh.teispace.com`, behind a login only you can pass, and connect to it from a
+SSH at `ssh.yourhost.com`, behind a login only you can pass, and connect to it from a
 laptop.
 
 **You need:** Teitunnel on the machine you want to reach (the app, or the
@@ -20,10 +20,10 @@ you connect from.
 On the machine you want to reach, add a route with a non-HTTP origin and a login:
 
 ```sh
-teitunnel route add ssh.teispace.com ssh://localhost:22 --allow team@teispace.com
+teitunnel route add ssh.yourhost.com ssh://localhost:22 --allow team@yourhost.com
 ```
 
-In the app: **Routes ▸ New route**, **Public hostname** `ssh` on `teispace.com`,
+In the app: **Routes ▸ New route**, **Public hostname** `ssh` on `yourhost.com`,
 **Service** `ssh://localhost:22`, then under **Advanced** turn on **Require a login** and add
 your address under **Who can sign in**. **Review**, then **Add Route**.
 
@@ -34,9 +34,9 @@ are before a single packet reaches the machine.
 Other services work the same way:
 
 ```sh
-teitunnel route add desktop.teispace.com rdp://localhost:3389 --allow team@teispace.com
-teitunnel route add files.teispace.com smb://localhost:445 --allow team@teispace.com
-teitunnel route add db.teispace.com tcp://localhost:5432 --allow team@teispace.com
+teitunnel route add desktop.yourhost.com rdp://localhost:3389 --allow team@yourhost.com
+teitunnel route add files.yourhost.com smb://localhost:445 --allow team@yourhost.com
+teitunnel route add db.yourhost.com tcp://localhost:5432 --allow team@yourhost.com
 ```
 
 ## 2. Keep it running
@@ -62,13 +62,13 @@ manager). The route's **Connect** section in Teitunnel shows the exact commands 
     Once:
 
     ```sh
-    ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.teispace.com
+    ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ssh.yourhost.com
     ```
 
-    To make plain `ssh ssh.teispace.com` work, add this to `~/.ssh/config`:
+    To make plain `ssh ssh.yourhost.com` work, add this to `~/.ssh/config`:
 
     ```text
-    Host ssh.teispace.com
+    Host ssh.yourhost.com
       ProxyCommand cloudflared access ssh --hostname %h
     ```
 
@@ -79,7 +79,7 @@ manager). The route's **Connect** section in Teitunnel shows the exact commands 
     Start a local listener and keep it open, then point your Remote Desktop client at it:
 
     ```sh
-    cloudflared access rdp --hostname desktop.teispace.com --url rdp://localhost:3389
+    cloudflared access rdp --hostname desktop.yourhost.com --url rdp://localhost:3389
     ```
 
     Connect to `localhost:3389` in Microsoft Remote Desktop (Windows App on macOS).
@@ -88,14 +88,14 @@ manager). The route's **Connect** section in Teitunnel shows the exact commands 
     Port 445 is taken on most computers, so the listener uses 8445:
 
     ```sh
-    cloudflared access smb --hostname files.teispace.com --url localhost:8445
+    cloudflared access smb --hostname files.yourhost.com --url localhost:8445
     ```
 
     Then open `smb://localhost:8445` in your file browser.
   </Tab>
   <Tab value="Database or TCP">
     ```sh
-    cloudflared access tcp --hostname db.teispace.com --url localhost:5432
+    cloudflared access tcp --hostname db.yourhost.com --url localhost:5432
     ```
 
     Then connect your client to `localhost:5432` as if the database were local
@@ -109,7 +109,7 @@ A CI job or a backup script can't sign in with an email code. Give it a
 [service token](/docs/guides/protection#service-tokens-for-machines) instead:
 
 ```sh
-teitunnel service-token create ssh.teispace.com --name backup   # prints both headers once
+teitunnel service-token create ssh.yourhost.com --name backup   # prints both headers once
 ```
 
 cloudflared sends them with `--service-token-id` and `--service-token-secret` (see
@@ -130,7 +130,7 @@ Teitunnel (**Test**) and that the machine's connector runs.
 </Accordion>
 <Accordion title="The browser sign-in doesn't open">
 Run the command in a terminal on a desktop session, or sign in once with `cloudflared access
-login https://ssh.teispace.com`.
+login https://ssh.yourhost.com`.
 </Accordion>
 <Accordion title="Connection refused after signing in">
 Nothing listens on the route's port on the machine (`ssh://localhost:22`). Check that the

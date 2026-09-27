@@ -73,7 +73,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
         spec::<RemoteLogsArgs, RemoteLogsResult>(
             "remote_logs",
             "Read another machine's logs",
@@ -85,7 +86,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Wait,
             Hints::READ_CLOUD,
             Duration::from_secs(MAX_LISTEN + 15),
-        ),
+        )
+        .with_untrusted(),
         spec::<StatusArgs, StatusResult>(
             "connector_status",
             "Connector health",

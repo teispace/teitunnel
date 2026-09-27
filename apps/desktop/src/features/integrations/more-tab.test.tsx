@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import type { Integrations, IntegrationsPatch } from "@/lib/ipc/bindings";
-import { IntegrationsPane } from "./integrations";
+import { MoreTab } from "./more-tab";
 
 let stored: Integrations;
 const calls: string[] = [];
@@ -60,12 +60,12 @@ beforeEach(() => {
 function renderPane() {
   return render(
     <QueryClientProvider client={createQueryClient()}>
-      <IntegrationsPane />
+      <MoreTab />
     </QueryClientProvider>,
   );
 }
 
-describe("IntegrationsPane", () => {
+describe("MoreTab", () => {
   it("turns the control connection and links off", async () => {
     renderPane();
     const control = await screen.findByRole("switch", { name: "Allow connections" });

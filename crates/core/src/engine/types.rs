@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 use super::sites::{SiteContent, SiteFile, SiteSettings, SiteSpec};
-use crate::domain::{Hostname, PathRule, PrivateNetwork, RouteOrigin};
+use crate::domain::{Hostname, PathRule, PrivateHostname, PrivateNetwork, RouteOrigin};
 use crate::text::Text;
 
 /// The DNS comment that marks a record as created by Teitunnel for a route.
@@ -272,6 +272,16 @@ pub enum Intent {
         /// The range.
         network: PrivateNetwork,
     },
+    /// Let WARP clients reach a private hostname through this Mac's tunnel.
+    AddPrivateHostname {
+        /// The hostname.
+        hostname: PrivateHostname,
+    },
+    /// Stop routing a private hostname to this Mac's tunnel.
+    RemovePrivateHostname {
+        /// The hostname.
+        hostname: PrivateHostname,
+    },
     /// Remove a login Teitunnel added whose route is gone (Doctor cleanup).
     RemoveLogin {
         /// The Access domain (hostname and optional path).
@@ -414,6 +424,8 @@ impl Intent {
             | Self::RemoveLogin { .. }
             | Self::AddNetwork { .. }
             | Self::RemoveNetwork { .. }
+            | Self::AddPrivateHostname { .. }
+            | Self::RemovePrivateHostname { .. }
             | Self::CreateTunnel { .. } => Some(Vec::new()),
             Self::ImportRoutes { routes } => Some(routes.iter().map(|r| &r.hostname).collect()),
             Self::PublishSnapshot { site, .. }
@@ -470,6 +482,8 @@ impl Intent {
             Self::CleanUpHostname { hostname } => m::clean_up_hostname(hostname.as_str()),
             Self::AddNetwork { network } => m::add_network(network),
             Self::RemoveNetwork { network } => m::remove_network(network),
+            Self::AddPrivateHostname { hostname } => m::add_private_hostname(hostname),
+            Self::RemovePrivateHostname { hostname } => m::remove_private_hostname(hostname),
             Self::ImportRoutes { routes } => m::import_routes(routes.len() as u64),
             Self::CreateTunnel { name } => m::create_tunnel(name),
             Self::BalanceRoute { hostname } => m::balance_route(hostname),
@@ -676,6 +690,18 @@ pub enum Step {
     DeleteNetworkRoute {
         /// The route (for rollback and review).
         route: super::networks::ObservedNetworkRoute,
+    },
+    /// Route a private hostname to the tunnel.
+    CreateHostnameRoute {
+        /// The hostname.
+        hostname: PrivateHostname,
+        /// Target tunnel.
+        tunnel: TunnelRef,
+    },
+    /// Remove a private hostname's route.
+    DeleteHostnameRoute {
+        /// The route (for rollback and review).
+        route: super::networks::ObservedHostnameRoute,
     },
     /// Create the health monitor for a balanced hostname.
     CreateLbMonitor {
@@ -1026,6 +1052,10 @@ impl Step {
                 m::create_network_route(network, tunnel_name)
             }
             Self::DeleteNetworkRoute { route } => m::delete_network_route(&route.network),
+            Self::CreateHostnameRoute { hostname, .. } => {
+                m::create_hostname_route(hostname, tunnel_name)
+            }
+            Self::DeleteHostnameRoute { route } => m::delete_hostname_route(&route.hostname),
             Self::CreateLbMonitor { hostname } => m::create_lb_monitor(hostname),
             Self::CreateLbPool {
                 hostname,
@@ -1213,6 +1243,24 @@ impl Step {
                 "cloudflared tunnel route ip delete {}",
                 route.network
             )),
+            Self::CreateHostnameRoute { hostname, tunnel } => {
+                let tunnel_id = match tunnel {
+                    TunnelRef::Existing(id) => id.as_str(),
+                    TunnelRef::Created => "$TUNNEL_ID",
+                };
+                let body = serde_json::json!({
+                    "hostname": hostname.as_str(),
+                    "tunnel_id": tunnel_id,
+                    "comment": super::networks::NETWORK_COMMENT,
+                });
+                Some(format!(
+                    "curl -X POST {auth} -H 'Content-Type: application/json' {API}/accounts/{account_id}/zerotrust/routes/hostname --data '{body}'"
+                ))
+            }
+            Self::DeleteHostnameRoute { route } => Some(format!(
+                "curl -X DELETE {auth} {API}/accounts/{account_id}/zerotrust/routes/hostname/{}",
+                route.id
+            )),
             Self::Verify { hostname } => Some(format!("curl -I https://{hostname}")),
             Self::RollBackSnapshot {
                 script, version_id, ..
@@ -1378,6 +1426,12 @@ pub enum Warning {
     PublicNetwork {
         /// The range.
         network: String,
+    },
+    /// The private hostname is on one of the account's domains: WARP clients would reach
+    /// it through this Mac instead of its public address.
+    PublicHostname {
+        /// The hostname.
+        hostname: String,
     },
     /// Part of the range is already routed to another tunnel; the more specific route
     /// wins for the addresses both cover.

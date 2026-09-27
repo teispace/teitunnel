@@ -9,7 +9,7 @@ use super::{
     access::{AccessNeed, AccessRule, AccessState, ObservedAccessApp, definition_of, domain_host},
     cloud::CloudApi,
     local::Local,
-    networks::{NetworkState, ObservedNetworkRoute},
+    networks::{NetworkState, ObservedHostnameRoute, ObservedNetworkRoute},
     ownership::{Hold, Me, held_by_other},
     types::{ObservedRecord, ObservedTunnel, RouteElsewhere, Snapshot},
 };
@@ -83,6 +83,10 @@ pub struct ObserveNeed {
     pub access: AccessNeed,
     /// Private network routes.
     pub networks: Want,
+    /// Private hostname routes (read with the network routes, so only when `networks`
+    /// isn't `No`). `IfAllowed` tolerates any failure: they're newer than IP routes and
+    /// a view that shows them shouldn't break when they can't be read.
+    pub hostname_routes: Want,
     /// The names of the account's tunnels, even when the target tunnel exists (to name
     /// a new one).
     pub tunnel_names: bool,
@@ -109,8 +113,18 @@ impl ObserveNeed {
         Self {
             access: AccessNeed::of(intent),
             networks: match intent {
-                Intent::AddNetwork { .. } | Intent::RemoveNetwork { .. } => Want::Yes,
+                Intent::AddNetwork { .. }
+                | Intent::RemoveNetwork { .. }
+                | Intent::AddPrivateHostname { .. }
+                | Intent::RemovePrivateHostname { .. } => Want::Yes,
                 // Removing the tunnel removes its routes, when they can be read.
+                Intent::RemoveTunnel => Want::IfAllowed,
+                _ => Want::No,
+            },
+            hostname_routes: match intent {
+                Intent::AddPrivateHostname { .. } | Intent::RemovePrivateHostname { .. } => {
+                    Want::Yes
+                }
                 Intent::RemoveTunnel => Want::IfAllowed,
                 _ => Want::No,
             },
@@ -313,7 +327,7 @@ pub async fn observe<C: CloudApi>(
         .collect();
     let (access, networks, balance, site) = tokio::try_join!(
         observe_access(api, local, account, &need.access, &names),
-        observe_networks(api, account, need.networks),
+        observe_networks(api, account, need.networks, need.hostname_routes),
         async {
             super::balance::observe(api, account, &zones, &need.balance)
                 .await
@@ -571,20 +585,35 @@ async fn routes_elsewhere(
     Ok(found)
 }
 
-/// Reads the account's private network routes and its default virtual network.
+/// Reads the account's private network routes, its default virtual network and, when
+/// `hostnames` asks, its private hostname routes.
 async fn observe_networks<C: CloudApi>(
     api: &C,
     account: &str,
     want: Want,
+    hostnames: Want,
 ) -> Result<Option<NetworkState>, ObserveError> {
     if want == Want::No {
         return Ok(None);
     }
     let read = tokio::try_join!(
         api.network_routes(account),
-        api.default_virtual_network(account)
+        api.default_virtual_network(account),
+        async {
+            if hostnames == Want::No {
+                return Ok(None);
+            }
+            match api.hostname_routes(account).await {
+                Ok(routes) => Ok(Some(routes)),
+                Err(err) if hostnames == Want::IfAllowed => {
+                    tracing::warn!("couldn't read private hostname routes: {err}");
+                    Ok(None)
+                }
+                Err(err) => Err(err),
+            }
+        }
     );
-    let (routes, default_vnet) = match read {
+    let (routes, default_vnet, hostname_routes) = match read {
         Ok(read) => read,
         Err(err) if want == Want::IfAllowed && err.is_auth() => {
             tracing::warn!("couldn't read private network routes: {err}");
@@ -604,9 +633,24 @@ async fn observe_networks<C: CloudApi>(
         })
         .collect();
     routes.sort_by(|a, b| (&a.network, &a.id).cmp(&(&b.network, &b.id)));
+    let hostnames = hostname_routes.map(|list| {
+        let mut list: Vec<ObservedHostnameRoute> = list
+            .into_iter()
+            .map(|r| ObservedHostnameRoute {
+                id: r.id,
+                hostname: r.hostname,
+                tunnel_id: r.tunnel_id,
+                tunnel_name: r.tunnel_name,
+                comment: r.comment.unwrap_or_default(),
+            })
+            .collect();
+        list.sort_by(|a, b| (&a.hostname, &a.id).cmp(&(&b.hostname, &b.id)));
+        list
+    });
     Ok(Some(NetworkState {
         default_vnet,
         routes,
+        hostnames,
     }))
 }
 

@@ -35,7 +35,7 @@ list then says which tunnel serves each route (`→ localhost:4000 · staging`),
 only live when its own tunnel's connector is.
 
 A hostname is routed once per machine: Teitunnel refuses a route that another of your
-tunnels already serves ("beta.teispace.com is already routed on tunnel “staging”. Remove it
+tunnels already serves ("beta.yourhost.com is already routed on tunnel “staging”. Remove it
 there first, or edit it there."), so the DNS record can only point one way.
 
 ## Run and remove
@@ -76,8 +76,8 @@ their routes instead. Teitunnel doesn't change the routes of tunnels it didn't c
 ```sh
 teitunnel tunnels                                # this machine's tunnels (--json)
 teitunnel tunnel create staging
-teitunnel route add beta.teispace.com 4000 --tunnel staging
-teitunnel route remove beta.teispace.com         # finds the tunnel by itself
+teitunnel route add beta.yourhost.com 4000 --tunnel staging
+teitunnel route remove beta.yourhost.com         # finds the tunnel by itself
 teitunnel always-on on --tunnel staging          # keep only staging running as a service
 teitunnel export config-yaml --tunnel staging
 teitunnel tunnel adopt home-lab                  # run an existing tunnel here too

@@ -48,7 +48,10 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use teitunnel_core::{
     domain::{Hostname, OriginOptions},
-    engine::{AccessRule, Approval, Change, Outcome, Plan, RouteInput, SignIn, StepState, Warning},
+    engine::{
+        AccessRule, Approval, Change, NetworkKind, NetworkView, Outcome, Plan, RouteInput, SignIn,
+        StepState, Warning,
+    },
     export::{ExportFormat, render},
 };
 
@@ -195,7 +198,8 @@ enum Command {
     /// Add, or remove, a route.
     #[command(subcommand)]
     Route(RouteCommand),
-    /// List the private networks this machine shares with WARP clients.
+    /// List the private networks (ranges and hostnames) this machine shares with WARP
+    /// clients.
     Networks {
         /// Account name or id.
         #[arg(long, short)]
@@ -204,7 +208,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Share, or stop sharing, a private network with WARP clients.
+    /// Share, or stop sharing, a private range or hostname with WARP clients.
     #[command(subcommand)]
     Network(NetworkCommand),
     /// List this machine's tunnels (routes go on the default one unless `--tunnel` says).
@@ -233,7 +237,7 @@ enum Command {
         /// Share at this hostname on one of your domains instead of a random
         /// trycloudflare.com address (removed again when the command ends). `{project}`,
         /// `{branch}` and `{user}` are filled in from this folder, e.g.
-        /// `--on {branch}.dev.teispace.com`; `--on` alone uses the name last used here.
+        /// `--on {branch}.dev.yourhost.com`; `--on` alone uses the name last used here.
         #[arg(long, value_name = "HOSTNAME", num_args = 0..=1, default_missing_value = "")]
         on: Option<String>,
         /// With a folder: list the files of folders that have no index.html (the
@@ -356,7 +360,7 @@ enum Command {
     /// DNS record with your name, until a date or until released). Reserving it again
     /// changes the end date; a route you add there keeps the reservation.
     Reserve {
-        /// The hostname, e.g. `review.dev.teispace.com`.
+        /// The hostname, e.g. `review.dev.yourhost.com`.
         hostname: String,
         /// When it ends: `2026-12-31` (end of that day, UTC) or `2026-12-31T18:00Z`.
         #[arg(long, value_name = "DATE")]
@@ -648,7 +652,7 @@ impl OriginArgs {
 
 #[derive(Debug, Subcommand)]
 enum RouteCommand {
-    /// Route a hostname to a service on this machine, e.g. `app.teispace.com 3000`.
+    /// Route a hostname to a service on this machine, e.g. `app.yourhost.com 3000`.
     Add {
         /// Public hostname on one of the account's domains.
         hostname: String,
@@ -708,16 +712,18 @@ enum RouteCommand {
 
 #[derive(Debug, Subcommand)]
 enum NetworkCommand {
-    /// Let WARP clients reach a range through this machine, e.g. `192.168.1.0/24`.
+    /// Let WARP clients reach a range or a hostname through this machine, e.g.
+    /// `192.168.1.0/24` or `wiki.internal`.
     Add {
-        /// An IP address or CIDR range.
+        /// An IP address, a CIDR range, or a private hostname (resolved by this machine's
+        /// DNS).
         network: String,
         #[command(flatten)]
         apply: ApplyArgs,
     },
-    /// Stop routing a range through this machine.
+    /// Stop routing a range or a hostname through this machine.
     Remove {
-        /// The range.
+        /// The range or hostname.
         network: String,
         #[command(flatten)]
         apply: ApplyArgs,
@@ -792,7 +798,7 @@ async fn main() -> ExitCode {
     // no arguments to parse, and standard output carries only its messages.
     let args: Vec<String> = std::env::args().collect();
     if teitunnel_core::browser_host::started_by_browser(&args) {
-        return browser::host().await;
+        return browser::host(&args).await;
     }
     let cli = Cli::parse();
     // On the heap: the future for every command together is large.
@@ -976,7 +982,7 @@ async fn run(command: Command) -> Result<ExitCode, String> {
         Command::Cloudflared { action } => return cloudflared_command(action).await,
         Command::Project(command) => return project::run(command).await,
         Command::LocalDomain(command) => return local::run(command).await,
-        Command::Browser(command) => return browser::run(command).await,
+        Command::Browser(command) => return browser::run(command),
         Command::Mcp {
             command: Some(command),
             ..
@@ -1337,7 +1343,7 @@ async fn on_hostname(
             .await
             .map_err(|e| e.to_string())?
             .ok_or_else(|| {
-                "No name was used for a share from this folder yet; give one: --on demo.teispace.com (or --on {branch}.dev.teispace.com).".to_owned()
+                "No name was used for a share from this folder yet; give one: --on demo.yourhost.com (or --on {branch}.dev.yourhost.com).".to_owned()
             })?
     } else {
         typed.trim().to_owned()
@@ -1391,7 +1397,7 @@ async fn shares(app: &App, stop: Option<&str>, json: bool) -> Result<ExitCode, S
     }
     if list.is_empty() && terminals.is_empty() {
         out!(
-            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.teispace.com` for your own domain)."
+            "No shares running. Start one with `teitunnel share 3000` (add `--on demo.yourhost.com` for your own domain)."
         )?;
     }
     let now = domain_shares::now_ms();
@@ -1809,15 +1815,21 @@ async fn networks(app: &App, account: Option<&str>, json: bool) -> Result<ExitCo
         )?;
     } else {
         for network in &networks {
-            let note = if network.private {
-                ""
-            } else {
-                "\tpublic range"
-            };
-            out!("{}{note}", network.network)?;
+            out!("{}", network_line(network))?;
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// One line of `teitunnel networks`: the range or hostname, then what's notable.
+fn network_line(network: &NetworkView) -> String {
+    let note = match (network.kind, network.private) {
+        (NetworkKind::Range, true) => "",
+        (NetworkKind::Range, false) => "\tpublic range",
+        (NetworkKind::Hostname, true) => "\thostname",
+        (NetworkKind::Hostname, false) => "\thostname on your domain",
+    };
+    format!("{}{note}", network.network)
 }
 
 /// `--allow` values as a login rule (see [`AccessRule::from_allow`]); `skip` are the
@@ -1869,6 +1881,9 @@ fn warning_text(warning: &Warning) -> String {
         }
         Warning::PublicNetwork { network } => format!(
             "{network} isn't a private range. WARP clients would reach those addresses through this machine instead of the internet."
+        ),
+        Warning::PublicHostname { hostname } => format!(
+            "{hostname} is on one of your domains. WARP clients would reach it through this machine instead of its public address."
         ),
         Warning::OverlapsNetwork {
             network,
@@ -1934,6 +1949,7 @@ fn confirmations(plan: &Plan) -> (bool, bool) {
             Warning::ReplacesForeignRecord { .. }
                 | Warning::DeletesForeignRecord { .. }
                 | Warning::PublicNetwork { .. }
+                | Warning::PublicHostname { .. }
         )
     });
     (held, other || (plan.requires_confirmation && !held))
@@ -2389,6 +2405,32 @@ mod tests {
             OriginArgs::default().options(),
             None,
             "defaults send nothing"
+        );
+    }
+
+    #[test]
+    fn lists_ranges_and_hostnames() {
+        let view = |network: &str, kind, private| NetworkView {
+            network: network.into(),
+            kind,
+            private,
+            owned: true,
+        };
+        assert_eq!(
+            network_line(&view("192.168.1.0/24", NetworkKind::Range, true)),
+            "192.168.1.0/24"
+        );
+        assert_eq!(
+            network_line(&view("8.8.8.0/24", NetworkKind::Range, false)),
+            "8.8.8.0/24\tpublic range"
+        );
+        assert_eq!(
+            network_line(&view("wiki.internal", NetworkKind::Hostname, true)),
+            "wiki.internal\thostname"
+        );
+        assert_eq!(
+            network_line(&view("intranet.yourhost.com", NetworkKind::Hostname, false)),
+            "intranet.yourhost.com\thostname on your domain"
         );
     }
 

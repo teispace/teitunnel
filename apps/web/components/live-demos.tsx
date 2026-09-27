@@ -1,9 +1,8 @@
 "use client";
 
-import { Check, LoaderCircle, RotateCcw, ShieldCheck } from "lucide-react";
+import { LoaderCircle, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { card, usePlayOnView } from "./demos";
-import { Logo } from "./logo";
 
 interface Request {
   method: string;
@@ -30,6 +29,15 @@ const traffic: Request[] = [
 
 const ROWS = 6;
 
+/** The demo's rate limit: this many requests in this many milliseconds, then 429. */
+const LIMIT = 5;
+const LIMIT_WINDOW = 2000;
+/** How long the edge keeps refusing once the limit is reached. */
+const COOLDOWN = 5000;
+
+/** What the edge answers past the limit. */
+const tooMany = (request: Request): Request => ({ ...request, status: 429, ms: 2 });
+
 function statusColor(status: number): string {
   if (status >= 500) return "text-red-600 dark:text-red-400";
   if (status >= 400) return "text-amber-600 dark:text-amber-400";
@@ -37,59 +45,93 @@ function statusColor(status: number): string {
   return "text-[var(--tt-live-text)]";
 }
 
+/** The event a request crossing the hero's sky sends when it reaches the inspector card. */
+export const REQUEST_ARRIVED = "tt:request";
+
 /**
- * Requests arriving in the inspector, one every second or so while the card is on screen.
- * Server HTML, no JavaScript and Reduce Motion show a still list.
+ * Requests arriving in the inspector: one row for each request that reaches this card
+ * across the hero's sky (the page's own comets, or one sent with a click). Server HTML,
+ * no JavaScript and Reduce Motion show a still list.
  */
-export function RequestStream({ host = "app.teispace.com" }: { host?: string }) {
+export function RequestStream({ host = "app.yourhost.com" }: { host?: string }) {
   const ref = useRef<HTMLElement>(null);
   const [next, setNext] = useState(ROWS);
   const [count, setCount] = useState(1284);
+  // Rows refused by the rate limit, recent arrivals, and until when requests are blocked.
+  const limited = useRef(new Set<number>());
+  const recent = useRef<number[]>([]);
+  const total = useRef(ROWS);
+  const blocked = useRef(0);
+  const [blockedUntil, setBlockedUntil] = useState(0);
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
-    const element = ref.current;
-    if (
-      !element ||
-      !("IntersectionObserver" in window) ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches
-    )
-      return;
-    let timer = 0;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        window.clearInterval(timer);
-        if (!entry?.isIntersecting) return;
-        timer = window.setInterval(() => {
-          setNext((n) => n + 1);
-          setCount((n) => n + 1);
-        }, 1100);
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      window.clearInterval(timer);
+    const arrived = () => {
+      const at = performance.now();
+      recent.current = recent.current.filter((time) => at - time < LIMIT_WINDOW);
+      const row = total.current;
+      total.current += 1;
+      // Past the limit, Cloudflare's edge answers instead of your service, and keeps
+      // refusing until the cooldown is over, however slowly requests come meanwhile.
+      if (at < blocked.current) {
+        limited.current.add(row);
+      } else if (recent.current.length >= LIMIT) {
+        limited.current.add(row);
+        blocked.current = at + COOLDOWN;
+        setBlockedUntil(blocked.current);
+      }
+      recent.current.push(at);
+      setNext(total.current);
+      setCount((n) => n + 1);
+      setNow(at);
     };
+    window.addEventListener(REQUEST_ARRIVED, arrived);
+    return () => window.removeEventListener(REQUEST_ARRIVED, arrived);
   }, []);
+
+  // While blocked, count the cooldown down.
+  useEffect(() => {
+    if (blockedUntil === 0) return;
+    const timer = window.setInterval(() => {
+      const at = performance.now();
+      setNow(at);
+      if (at >= blockedUntil) window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [blockedUntil]);
+  const left = Math.ceil((blockedUntil - now) / 1000);
 
   // The newest first; each row keeps its key so only the new one animates in.
   const rows = Array.from({ length: ROWS }, (_, i) => next - 1 - i).filter((n) => n >= 0);
 
   return (
-    <figure ref={ref} className={`${card} p-0`} aria-label={`Requests to ${host} arriving`}>
+    <figure
+      ref={ref}
+      data-request-target
+      className={`${card} p-0`}
+      aria-label={`Requests to ${host} arriving`}
+    >
       <div className="flex items-center justify-between gap-3 border-b border-fd-border px-4 py-2.5">
         <span className="flex min-w-0 items-center gap-2 font-medium">
-          <span className="tt-live-dot size-2 shrink-0 rounded-full bg-[var(--tt-live)]" />
+          <span
+            className={`tt-live-dot size-2 shrink-0 rounded-full ${left > 0 ? "bg-amber-500" : "bg-[var(--tt-live)]"}`}
+          />
           <span className="truncate">{host}</span>
         </span>
-        <span className="shrink-0 font-mono text-xs text-fd-muted-foreground tabular-nums">
-          {count.toLocaleString("en-US")} requests
-        </span>
+        {left > 0 ? (
+          <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-xs text-amber-600 tabular-nums dark:text-amber-400">
+            Rate limited · {left}s
+          </span>
+        ) : (
+          <span className="shrink-0 font-mono text-xs text-fd-muted-foreground tabular-nums">
+            {count.toLocaleString("en-US")} requests
+          </span>
+        )}
       </div>
       <ol className="flex flex-col overflow-hidden px-2 py-1.5 font-mono text-xs" aria-hidden>
         {rows.map((n, index) => {
-          const request = traffic[n % traffic.length] as Request;
+          const sent = traffic[n % traffic.length] as Request;
+          const request = limited.current.has(n) ? tooMany(sent) : sent;
           return (
             <li
               key={n}
@@ -163,70 +205,6 @@ export function ReplayDemo() {
   );
 }
 
-type Answer = "asking" | "allowing" | "applied";
-
-/** An AI agent's change waiting for approval in the app, then applied. */
-export function ApprovalDemo() {
-  const ref = useRef<HTMLElement>(null);
-  const [state, setState] = useState<Answer>("applied");
-
-  usePlayOnView(ref, () => {
-    setState("asking");
-    const timers = [
-      window.setTimeout(() => setState("allowing"), 2200),
-      window.setTimeout(() => setState("applied"), 3200),
-    ];
-    return () => {
-      for (const t of timers) window.clearTimeout(t);
-    };
-  });
-
-  return (
-    <figure ref={ref} className={card} aria-label="An AI agent asking to change a route">
-      <div className="flex gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-fd-foreground text-fd-background">
-          <Logo className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          {/* core.control.apply_other in locales/en.json */}
-          <p className="font-medium">
-            Claude Code wants to change your routes in Cloudflare (2 steps):
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-fd-muted-foreground">
-            <li>Update tunnel “MacBook-Pro” to serve 6 routes</li>
-            <li>Add DNS record api.teispace.com → tunnel “MacBook-Pro”</li>
-          </ul>
-          <div
-            className="mt-3 flex min-h-7 items-center justify-end gap-2 text-xs"
-            aria-live="polite"
-          >
-            {state === "applied" ? (
-              <span className="mr-auto inline-flex items-center gap-1.5 text-fd-muted-foreground">
-                <Check className="size-4 text-[var(--tt-live-text)]" aria-hidden /> Applied · in
-                Activity as Claude Code
-              </span>
-            ) : (
-              <>
-                <span className="inline-flex h-7 items-center rounded-full border border-fd-border px-3">
-                  Deny
-                </span>
-                <span
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--tt-accent-fill)] px-3 font-medium text-white transition-transform duration-200 ${state === "allowing" ? "scale-95" : ""}`}
-                >
-                  {state === "allowing" ? (
-                    <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
-                  ) : null}
-                  Allow
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </figure>
-  );
-}
-
 /** A reviewer's comment pinned on a Snapshot, answered a moment later. */
 export function CommentDemo() {
   const ref = useRef<HTMLElement>(null);
@@ -247,7 +225,7 @@ export function CommentDemo() {
           </span>
           <span className="font-mono text-xs text-fd-muted-foreground">/pricing</span>
         </span>
-        <span className="text-xs text-fd-muted-foreground">preview.teispace.com</span>
+        <span className="text-xs text-fd-muted-foreground">preview.yourhost.com</span>
       </div>
       <div className="mt-3 space-y-2.5 text-[13px]">
         <p>

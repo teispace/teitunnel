@@ -38,7 +38,7 @@ Routes aren't inspected until you ask, because it means pointing the route at th
 inspector in Cloudflare:
 
 1. Select the route in **Routes** and, under **Requests**, choose **Inspect this route**.
-2. The sheet *Inspect app.teispace.com* shows the plan: the route points at the inspector on
+2. The sheet *Inspect app.yourhost.com* shows the plan: the route points at the inspector on
    this computer, and its own service is remembered. Choose **Start Inspecting**.
 3. **Show Requests** opens its traffic in the Inspector. The route's section says *Its
    requests go through the inspector on this computer until you stop, or Teitunnel quits.*
@@ -51,7 +51,7 @@ The route goes back to its own service through another reviewed change:
 - at the next launch, if Teitunnel didn't quit cleanly.
 
 If a route is ever left pointing at an inspector that isn't running, visitors get an error; the
-route and the [Doctor](/docs/reference/doctor) say so (*app.teispace.com points at an inspector
+route and the [Doctor](/docs/reference/doctor) say so (*app.yourhost.com points at an inspector
 that isn't running*) with **Restore the Route**. Only routes this computer serves can be
 inspected; for other machines, use their [live logs](/docs/guides/observability).
 
@@ -227,8 +227,8 @@ In **Settings ▸ Inspector ▸ History**: turn **Keep recent requests** off, ch
 teitunnel share 3000                        # inspected by default; a line per request
 teitunnel share 3000 --no-inspect           # straight to the service
 teitunnel share 3000 --idle 30m --watch '/webhooks/*'
-teitunnel inspect app.teispace.com          # inspect a route until Ctrl-C (shows the plan first)
-teitunnel inspect app.teispace.com --off    # restore a route left inspected
+teitunnel inspect app.yourhost.com          # inspect a route until Ctrl-C (shows the plan first)
+teitunnel inspect app.yourhost.com --off    # restore a route left inspected
 teitunnel traffic ls --status 5xx           # captured requests, newest first
 teitunnel traffic get 7f3a9c1b --format curl
 teitunnel traffic watch --path /webhooks    # follow new requests until Ctrl-C
@@ -239,9 +239,9 @@ teitunnel traffic clear
 
 ```text
 $ teitunnel traffic ls --last 3
-14:02:13  POST    500      41 ms    312 B  api.teispace.com/v1/orders  7f3a9c1b
-14:02:11  GET     200      18 ms   2.1 KB  api.teispace.com/v1/orders?page=2  0c41d9e2
-14:01:58  POST    200     204 ms     95 B  api.teispace.com/webhooks/stripe  a9e07b35
+14:02:13  POST    500      41 ms    312 B  api.yourhost.com/v1/orders  7f3a9c1b
+14:02:11  GET     200      18 ms   2.1 KB  api.yourhost.com/v1/orders?page=2  0c41d9e2
+14:01:58  POST    200     204 ms     95 B  api.yourhost.com/webhooks/stripe  a9e07b35
 ```
 
 - **`traffic ls`** and **`traffic watch`** filter with `--host`, `--method`, `--status` (`404`
@@ -273,23 +273,31 @@ masked unless you started the server with `--allow-secrets`. See
 
 ## Put an MCP server or a local AI server online
 
-- `teitunnel share 8000 --mcp --on mcp.teispace.com` checks that port 8000 answers MCP, shares
+- `teitunnel share 8000 --mcp --on mcp.yourhost.com` checks that port 8000 answers MCP, shares
   it on your domain (Quick Tunnels can't carry the event streams MCP uses), keeps streams alive,
   and requires a bearer token. It prints ready configurations for Claude Code, Cursor and VS
   Code. The token is kept in your keychain for that hostname, so clients keep working the next
-  time you share it; `teitunnel token mcp.teispace.com` shows it and `--new` replaces it.
+  time you share it; `teitunnel token mcp.yourhost.com` shows it and `--new` replaces it.
   `--mcp-path` sets the endpoint when it isn't `/mcp`, `/sse` or `/`.
 - **claude.ai, ChatGPT and other remote clients** sign in with OAuth instead of a fixed token:
   add the MCP URL as a custom connector and sign in. The browser shows a short code and waits;
   Teitunnel asks you, in a dialog showing the same code, whether that app may connect (when the
   app isn't running, `share --mcp` asks in the terminal). Only allow a connection you just made
   yourself: an app's name (even "Claude") says nothing about who is using it. Approved
-  connections are listed in **Settings ▸ General ▸ AI Tools**, where **Disconnect** stops one
-  at once. Tokens are for that server only, last an hour and renew themselves; Teitunnel keeps
-  only their hashes. A server that asks for credentials itself keeps its own sign-in.
+  connections are listed in **AI & Integrations ▸ Shared Servers**, where **Disconnect** stops one
+  at once (a sharing process that can't hear the app notices within 5 seconds). A connection
+  lasts 90 days, then you approve it again. Tokens are for that server's address only, last an
+  hour and renew themselves; Teitunnel keeps only their hashes. A server that asks for
+  credentials itself keeps its own sign-in.
+- Apps that identify themselves with a published metadata document (claude.ai does) connect
+  as they are; older apps register themselves first. To accept only the first kind, or to
+  change how long connections last, use **AI & Integrations ▸ Shared Servers** (or set
+  `oauth` in `mcp.json` in Teitunnel's data folder:
+  `{ "oauth": { "dynamicRegistration": false, "maxGrantDays": 30 } }`, 1 to 365 days). It
+  applies to the next share you start.
 - `teitunnel share 11434 --ai` (Ollama; also LM Studio on 1234 and vLLM on 8000) shares a local
   AI server behind a bearer token and prints the OpenAI-compatible base URL and key to use. Add
-  `--on ai.teispace.com` for streaming answers.
+  `--on ai.yourhost.com` for streaming answers.
 
 ## Troubleshooting
 

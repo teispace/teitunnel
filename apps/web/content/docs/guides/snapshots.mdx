@@ -58,7 +58,7 @@ counted.
 - **Name:** also names its Worker in your Cloudflare dashboard (`teitunnel-<name>`). Up
   to 40 characters: letters, digits, spaces, dots, `-` and `_`.
 - **Address:**
-  - **My Domain:** a **Hostname** on one of your domains, like `preview.teispace.com`.
+  - **My Domain:** a **Hostname** on one of your domains, like `preview.yourhost.com`.
     Cloudflare creates its DNS record and certificate.
   - **workers.dev:** your account's free `…workers.dev` address.
 - **Who can open it** (see [below](#who-can-open-it)).
@@ -161,7 +161,7 @@ Publishing a new Snapshot is:
 2. **Create the Worker** `teitunnel-<name>` with these files.
 3. **Login**, if you chose one: the Access application is created before the Snapshot has
    an address, so it's never reachable without it.
-4. **Address:** "Serve preview.teispace.com with the Snapshot (Cloudflare adds its DNS
+4. **Address:** "Serve preview.yourhost.com with the Snapshot (Cloudflare adds its DNS
    record and certificate)", or "Answer at …workers.dev".
 
 A new version uploads a Worker version and then makes it live once every file is uploaded;
@@ -186,7 +186,7 @@ it expired. `teitunnel up` and `teitunnel serve` don't delete expired Snapshots.
 
 ```sh
 # A folder, on your domain
-teitunnel snapshot publish ./dist --on preview.teispace.com
+teitunnel snapshot publish ./dist --on preview.yourhost.com
 
 # Build the project in this folder first, delete after a week
 teitunnel snapshot publish . --build --name "Launch page" --expires 7d
@@ -195,7 +195,7 @@ teitunnel snapshot publish . --build --name "Launch page" --expires 7d
 teitunnel snapshot publish --crawl http://localhost:5173 --password
 
 # Only people at your company can open it
-teitunnel snapshot publish ./out --on docs-preview.teispace.com --allow @teispace.com
+teitunnel snapshot publish ./out --on docs-preview.yourhost.com --allow @yourhost.com
 
 teitunnel snapshot ls
 teitunnel snapshot update "Launch page"              # same source again; only changes upload
@@ -203,7 +203,7 @@ teitunnel snapshot update "Launch page" --settings-only --no-password
 teitunnel snapshot versions "Launch page"
 teitunnel snapshot rollback "Launch page"            # the version before the live one
 teitunnel snapshot rollback "Launch page" 3          # a specific version
-teitunnel snapshot rm preview.teispace.com -y
+teitunnel snapshot rm preview.yourhost.com -y
 ```
 
 | Flag | Meaning |
@@ -261,7 +261,7 @@ hostname on one of your domains instead.
 </Accordion>
 <Accordion title="… is used by a route. Choose another hostname, or remove the route first.">
 A Snapshot and a route can't share a hostname. Pick another hostname (for example
-`preview.teispace.com` next to `app.teispace.com`), or remove the route.
+`preview.yourhost.com` next to `app.yourhost.com`), or remove the route.
 </Accordion>
 <Accordion title="… is already served by the Worker …">
 Another Worker on your account answers at that hostname. Choose another hostname;

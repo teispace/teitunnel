@@ -6,7 +6,7 @@ searchDescription: "Reach Home Assistant from anywhere with Cloudflare Tunnel, n
 
 Cloudflare Tunnel is a popular way to reach Home Assistant away from home: no port
 forwarding, no dynamic DNS, your home IP stays private, and it works behind CGNAT. In this
-tutorial you publish Home Assistant at `https://home.teispace.com` from a machine on your
+tutorial you publish Home Assistant at `https://home.yourhost.com` from a machine on your
 home network, set up the companion app, and optionally put a login in front. It takes about
 fifteen minutes.
 
@@ -51,7 +51,7 @@ not running): the tunnel can only reach what this machine can.
 <Tabs items={["Desktop app", "Server (CLI)"]}>
   <Tab value="Desktop app">
     1. In **Routes**, choose **New route**.
-    2. **Public hostname:** `home` on `teispace.com`. **Service:** `http://192.168.1.50:8123`.
+    2. **Public hostname:** `home` on `yourhost.com`. **Service:** `http://192.168.1.50:8123`.
     3. Choose **Review**, read the plan (a DNS record and the tunnel's configuration), then
        **Add Route**.
     4. In **Tunnels**, turn on **Keep running when Teitunnel quits**, so the route stays up
@@ -62,7 +62,7 @@ not running): the tunnel can only reach what this machine can.
 
     ```sh
     export CLOUDFLARE_API_TOKEN=…
-    teitunnel route add home.teispace.com http://192.168.1.50:8123 --yes
+    teitunnel route add home.yourhost.com http://192.168.1.50:8123 --yes
     sudo -E teitunnel always-on on     # a system service, started at boot
     teitunnel routes                   # check it's live
     ```
@@ -73,12 +73,12 @@ not running): the tunnel can only reach what this machine can.
 </Tabs>
 
 After applying, Teitunnel tests the route through Cloudflare like a visitor. Open
-`https://home.teispace.com` and sign in as usual.
+`https://home.yourhost.com` and sign in as usual.
 
 ## 4. Use it in the companion app
 
 In the Home Assistant app on your phone: **Settings ▸ Companion app ▸ Server** and set the
-**External URL** to `https://home.teispace.com`. Keep the internal URL for when you're home.
+**External URL** to `https://home.yourhost.com`. Keep the internal URL for when you're home.
 
 ## 5. Add a login in front (optional)
 
@@ -88,13 +88,13 @@ login** and list your email address under **Who can sign in**. Visitors then pro
 email to Cloudflare first, and nothing reaches Home Assistant until they have.
 
 ```sh
-teitunnel route add home-admin.teispace.com http://192.168.1.50:8123 --allow team@teispace.com
+teitunnel route add home-admin.yourhost.com http://192.168.1.50:8123 --allow team@yourhost.com
 ```
 
 <Callout type="warn">
 The Home Assistant companion apps can't complete a Cloudflare Access sign-in by themselves.
 If you use them away from home, leave the login off the hostname they use, and use a
-separate hostname with the login (like `home-admin.teispace.com` above) for browsers.
+separate hostname with the login (like `home-admin.yourhost.com` above) for browsers.
 </Callout>
 
 To slow down scripts probing your login page, [edge protection](/docs/guides/protection)

@@ -7,7 +7,7 @@ searchDescription: "Receive Slack Events API requests on localhost, pass the url
 Point a Slack app's Events API (or interactivity) at a handler on your computer, watch
 each request in the [inspector](/docs/guides/inspector), and replay it while you fix the
 handler. The examples use a handler at `http://localhost:3000/slack/events` and the
-hostname `hooks.teispace.com`.
+hostname `hooks.yourhost.com`.
 
 <Callout title="Or Socket Mode">
   Slack's Socket Mode delivers events over a WebSocket your app opens, with no public URL.
@@ -18,13 +18,13 @@ hostname `hooks.teispace.com`.
 ## 1. Share the handler
 
 ```sh
-teitunnel share 3000 --on hooks.teispace.com --watch "/slack/*"
+teitunnel share 3000 --on hooks.yourhost.com --watch "/slack/*"
 ```
 
 ## 2. Set the Request URL
 
 In your app's settings, **Event Subscriptions ▸ Request URL**:
-`https://hooks.teispace.com/slack/events`. Slack sends a `url_verification` request first;
+`https://hooks.yourhost.com/slack/events`. Slack sends a `url_verification` request first;
 your handler must answer with the `challenge` value it contains. Bolt does this for you.
 
 Copy the **Signing Secret** from **Basic Information**. To have the inspector check

@@ -406,6 +406,7 @@ async fn a_shared_mcp_server_asks_for_oauth_and_says_where() {
     let auth = crate::mcp_auth::McpAuth::open(
         crate::store::Store::open_in_memory().unwrap(),
         Arc::new(Nobody),
+        crate::mcp_auth::Policy::default(),
     )
     .await
     .unwrap();

@@ -778,6 +778,8 @@ impl AccessNeed {
             | Intent::RestoreConfig { .. }
             | Intent::AddNetwork { .. }
             | Intent::RemoveNetwork { .. }
+            | Intent::AddPrivateHostname { .. }
+            | Intent::RemovePrivateHostname { .. }
             | Intent::CreateTunnel { .. }
             | Intent::BalanceRoute { .. }
             | Intent::UnbalanceRoute { .. }

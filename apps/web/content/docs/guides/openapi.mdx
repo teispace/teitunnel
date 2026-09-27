@@ -33,20 +33,20 @@ through a share, then save again.*
 teitunnel traffic openapi                                   # JSON on standard output
 teitunnel traffic openapi --yaml                            # YAML on standard output
 teitunnel traffic openapi --out api.yaml                    # a file (YAML for .yaml/.yml, else JSON)
-teitunnel traffic openapi --host api.teispace.com --title "Shop API" --out shop.json
+teitunnel traffic openapi --host api.yourhost.com --title "Shop API" --out shop.json
 ```
 
 ```text
-$ teitunnel traffic openapi --host api.teispace.com --out api.yaml
+$ teitunnel traffic openapi --host api.yourhost.com --out api.yaml
 Wrote 12 path(s), 19 operation(s) from 340 request(s) to api.yaml. Review it before publishing: only what was observed is described.
 ```
 
 | Flag | What it does |
 |---|---|
-| `--host HOST` | Only requests to this host, such as `api.teispace.com`. Without it, every host in the history is described, each listed under `servers`. |
+| `--host HOST` | Only requests to this host, such as `api.yourhost.com`. Without it, every host in the history is described, each listed under `servers`. |
 | `--out FILE` | Write to a file instead of standard output. |
 | `--yaml` | YAML on standard output (JSON is the default). |
-| `--title TEXT` | The document's title. Default: *api.teispace.com API* for one host, *Observed API* for several. |
+| `--title TEXT` | The document's title. Default: *api.yourhost.com API* for one host, *Observed API* for several. |
 
 It reads the history that the app and every `teitunnel` command with an inspector write, so it
 describes their captures too.

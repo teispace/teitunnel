@@ -38,9 +38,9 @@ pub enum ActivityKind {
     RemoveLogin,
     /// What Teitunnel left on a hostname without routes was removed.
     CleanUpHostname,
-    /// A private network was shared.
+    /// A private network (a range or a hostname) was shared.
     AddNetwork,
-    /// A private network stopped being shared.
+    /// A private network (a range or a hostname) stopped being shared.
     RemoveNetwork,
     /// Another tunnel was created for this Mac.
     CreateTunnel,
@@ -89,8 +89,10 @@ impl From<&Intent> for ActivityKind {
             Intent::RestoreConfig { .. } => Self::RestoreConfig,
             Intent::RemoveLogin { .. } => Self::RemoveLogin,
             Intent::CleanUpHostname { .. } => Self::CleanUpHostname,
-            Intent::AddNetwork { .. } => Self::AddNetwork,
-            Intent::RemoveNetwork { .. } => Self::RemoveNetwork,
+            Intent::AddNetwork { .. } | Intent::AddPrivateHostname { .. } => Self::AddNetwork,
+            Intent::RemoveNetwork { .. } | Intent::RemovePrivateHostname { .. } => {
+                Self::RemoveNetwork
+            }
             Intent::CreateTunnel { .. } => Self::CreateTunnel,
             Intent::BalanceRoute { .. } => Self::BalanceRoute,
             Intent::UnbalanceRoute { .. } => Self::UnbalanceRoute,
@@ -119,7 +121,7 @@ pub enum DeltaArea {
     Route,
     /// A DNS record.
     Dns,
-    /// A private network route.
+    /// A private network route (a range or a hostname).
     Network,
     /// A route's login (Cloudflare Access).
     Access,
@@ -494,6 +496,22 @@ pub fn deltas(plan: &Plan) -> Vec<Delta> {
             Step::DeleteNetworkRoute { route } => out.push(Delta {
                 area: DeltaArea::Network,
                 hostname: route.network.clone(),
+                path: None,
+                before: Some(delta::routed_to(
+                    route.tunnel_name.as_deref().unwrap_or(&plan.tunnel_name),
+                )),
+                after: None,
+            }),
+            Step::CreateHostnameRoute { hostname, .. } => out.push(Delta {
+                area: DeltaArea::Network,
+                hostname: hostname.to_string(),
+                path: None,
+                before: None,
+                after: Some(delta::routed_to(&plan.tunnel_name)),
+            }),
+            Step::DeleteHostnameRoute { route } => out.push(Delta {
+                area: DeltaArea::Network,
+                hostname: route.hostname.clone(),
                 path: None,
                 before: Some(delta::routed_to(
                     route.tunnel_name.as_deref().unwrap_or(&plan.tunnel_name),

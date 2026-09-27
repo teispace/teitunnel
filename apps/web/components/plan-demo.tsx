@@ -2,6 +2,7 @@
 
 import { Check, Circle, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePlayOnView } from "./demos";
 
 export interface PlanStep {
   text: string;
@@ -13,22 +14,22 @@ const routeSteps: PlanStep[] = [
   { text: "Create tunnel “MacBook-Pro”", detail: "the first route in this account" },
   {
     text: "Update tunnel “MacBook-Pro” to serve 1 route",
-    detail: "app.teispace.com → http://localhost:3000",
+    detail: "app.yourhost.com → http://localhost:3000",
   },
   {
-    text: "Add DNS record app.teispace.com → tunnel “MacBook-Pro”",
+    text: "Add DNS record app.yourhost.com → tunnel “MacBook-Pro”",
     detail: "proxied CNAME to <id>.cfargotunnel.com",
   },
-  { text: "Check https://app.teispace.com works", detail: "through Cloudflare's edge" },
+  { text: "Check https://app.yourhost.com works", detail: "through Cloudflare's edge" },
 ];
 
 type State = "waiting" | "working" | "done";
 
 /** A plan being applied, step by step, when it scrolls into view (all done with Reduce Motion). */
 export function PlanDemo({
-  title = "Add app.teispace.com",
+  title = "Add app.yourhost.com",
   steps = routeSteps,
-  done = "https://app.teispace.com works",
+  done = "https://app.yourhost.com works",
   doneLabel = "Live",
 }: {
   title?: string;
@@ -50,24 +51,22 @@ export function PlanDemo({
     }
   }, [steps.length]);
 
+  const clear = useCallback(() => {
+    for (const timer of timers.current) window.clearTimeout(timer);
+    timers.current = [];
+  }, []);
+
+  // Waiting until it's in view, and again after the reader scrolls back above it.
   useEffect(() => {
-    const element = ref.current;
-    if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    setProgress(0);
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        play();
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(element);
+    if (document.documentElement.classList.contains("tt-motion")) setProgress(0);
+  }, []);
+  usePlayOnView(ref, () => {
+    play();
     return () => {
-      observer.disconnect();
-      for (const timer of timers.current) window.clearTimeout(timer);
+      clear();
+      setProgress(0);
     };
-  }, [play]);
+  });
 
   const state = (index: number): State =>
     index < progress ? "done" : index === progress ? "working" : "waiting";

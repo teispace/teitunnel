@@ -48,20 +48,25 @@ function networkPlan(change: Change): PlanView {
     };
   }
   const network = change.type === "addNetwork" ? change.network : "";
+  const hostname = /[a-z]/.test(network);
   return {
     steps: [
       {
         kind: "networkRoute",
         description: rawText(
           change.type === "addNetwork"
-            ? `Route private network ${network} to tunnel “Mac”`
+            ? `Route private ${hostname ? "hostname" : "network"} ${network} to tunnel “Mac”`
             : "Remove the route for private network 192.168.1.0/24",
         ),
         command: null,
       },
     ],
-    warnings: network.startsWith("8.") ? [{ type: "publicNetwork", network }] : [],
-    requiresConfirmation: network.startsWith("8."),
+    warnings: network.startsWith("8.")
+      ? [{ type: "publicNetwork", network }]
+      : network.endsWith(".teispace.com")
+        ? [{ type: "publicHostname", hostname: network }]
+        : [],
+    requiresConfirmation: network.startsWith("8.") || network.endsWith(".teispace.com"),
     fingerprint: "fp",
   };
 }
@@ -126,7 +131,9 @@ beforeEach(() => {
       case "routes_apply": {
         const change = payload["change"] as Change;
         if (change.type === "addNetwork")
-          networks = [{ network: "192.168.1.0/24", private: true, owned: true }];
+          networks = /[a-z]/.test(change.network)
+            ? [{ network: change.network, kind: "hostname", private: true, owned: true }]
+            : [{ network: "192.168.1.0/24", kind: "range", private: true, owned: true }];
         if (change.type === "removeNetwork") networks = [];
         return { type: "applied", tunnelId: "t-mac", verify: [], connectorError: null };
       }
@@ -284,6 +291,48 @@ describe("TunnelsPage", () => {
     expect(share.hasAttribute("disabled")).toBe(true);
     fireEvent.click(
       within(sheet).getByRole("checkbox", { name: "Send these public addresses through this Mac" }),
+    );
+    expect(share.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("shares a private hostname in the same field", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Share Network…" }));
+    const sheet = await screen.findByRole("dialog", { name: "Share a Private Network" });
+    expect(within(sheet).getByText(/or a hostname this Mac can look up/)).toBeTruthy();
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Network" }), {
+      target: { value: "wiki.internal" },
+    });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Review" }));
+    expect(
+      await within(sheet).findByText("Route private hostname wiki.internal to tunnel “Mac”"),
+    ).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Share" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.cmd === "routes_apply")?.args["change"]).toEqual({
+        type: "addNetwork",
+        network: "wiki.internal",
+      }),
+    );
+    expect(await screen.findByText("wiki.internal")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop sharing wiki.internal" })).toBeTruthy();
+  });
+
+  it("asks before sending a hostname on your domain through this Mac", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Share Network…" }));
+    const sheet = await screen.findByRole("dialog", { name: "Share a Private Network" });
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Network" }), {
+      target: { value: "intranet.teispace.com" },
+    });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Review" }));
+    expect(await within(sheet).findByText(/is on one of your domains/)).toBeTruthy();
+    const share = within(sheet).getByRole("button", { name: "Share" });
+    expect(share.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(
+      within(sheet).getByRole("checkbox", {
+        name: "Send this hostname through this Mac for WARP clients",
+      }),
     );
     expect(share.hasAttribute("disabled")).toBe(false);
   });

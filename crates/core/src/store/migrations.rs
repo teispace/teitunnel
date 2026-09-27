@@ -433,6 +433,14 @@ const MIGRATIONS: &[M<'static>] = &[
         CREATE INDEX mcp_oauth_grants_host ON mcp_oauth_grants (host);
         CREATE INDEX mcp_oauth_grants_previous ON mcp_oauth_grants (previous_refresh_hash);",
     ),
+    // MCP OAuth: the server a connection was granted for (RFC 8707 `resource`, when the
+    // client named one) and when it ends regardless of use (the person approves it
+    // again). Connections made before get 90 days from their approval.
+    M::up(
+        "ALTER TABLE mcp_oauth_grants ADD COLUMN resource TEXT;
+        ALTER TABLE mcp_oauth_grants ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0;
+        UPDATE mcp_oauth_grants SET expires_at = created_at + 7776000000;",
+    ),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {

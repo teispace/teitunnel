@@ -1095,10 +1095,14 @@ impl TrafficSource for FakeTraffic {
     }
 }
 
+/// Settings for tests of the tools themselves: with `approveInApp` off, so a tool's own
+/// `needsApproval` and `confirmed: true` round trip is what's tested (the server's
+/// handling of `approveInApp` is tested in `protocol_tests.rs` and `registry.rs`).
 pub(crate) fn settings(mode: Mode) -> Settings {
     Settings {
         mode,
-        allow_secrets: false,
+        approve_in_app: false,
+        ..Settings::default()
     }
 }
 

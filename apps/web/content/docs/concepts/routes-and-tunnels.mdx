@@ -4,7 +4,7 @@ description: "How Teitunnel maps hostnames on your domain to services on your co
 searchDescription: "How Teitunnel maps hostnames on your domain to local services: the machine tunnel and connector, routes, path rules, their order and status."
 ---
 
-A **route** sends a hostname on your domain (say `app.teispace.com`) to a service on this
+A **route** sends a hostname on your domain (say `app.yourhost.com`) to a service on this
 computer (say `localhost:3000`). A **tunnel** carries routes from Cloudflare to the
 computer. Teitunnel is built around routes: you say which hostname goes where, and it works
 out the tunnel, the DNS record and the connector that make it happen.
@@ -44,9 +44,9 @@ tunnel, so it doesn't change its routes.* If this computer should serve it too, 
 
 A route is two things in Cloudflare, always changed together:
 
-1. An **ingress rule** on the tunnel: *requests for `app.teispace.com` (optionally only
+1. An **ingress rule** on the tunnel: *requests for `app.yourhost.com` (optionally only
    under a path) go to `http://localhost:3000`*, with any origin settings you chose.
-2. A **proxied CNAME** from `app.teispace.com` to `<tunnel-id>.cfargotunnel.com`, so the
+2. A **proxied CNAME** from `app.yourhost.com` to `<tunnel-id>.cfargotunnel.com`, so the
    hostname resolves to Cloudflare, which sends the request down the tunnel. The record
    carries a comment that marks it as [Teitunnel's](/docs/concepts/dns-ownership).
 
@@ -73,7 +73,7 @@ A service on another machine of your network works too; the plan warns that it
 ### Hostnames, paths and order
 
 - A hostname can be any name in one of the account's domains, or a wildcard on the first
-  label (`*.teispace.com`).
+  label (`*.yourhost.com`).
 - A **path** (under **Advanced**, or `--path` in the terminal) is a regular expression:
   `^/api` sends only API requests to this service, and another route on the same hostname
   can take the rest. Several routes on one hostname share one DNS record.
@@ -104,28 +104,28 @@ running?*). The [Doctor](/docs/reference/doctor) offers a fix for each problem.
 ## From a terminal
 
 ```sh
-teitunnel route add app.teispace.com 3000                  # shows the plan, asks, applies, checks
-teitunnel route add app.teispace.com 8080 --path '^/api'   # only /api on this hostname
-teitunnel route add admin.teispace.com 9000 --allow team@teispace.com
-teitunnel route remove app.teispace.com
+teitunnel route add app.yourhost.com 3000                  # shows the plan, asks, applies, checks
+teitunnel route add app.yourhost.com 8080 --path '^/api'   # only /api on this hostname
+teitunnel route add admin.yourhost.com 9000 --allow team@yourhost.com
+teitunnel route remove app.yourhost.com
 teitunnel routes                                           # this computer's routes and status
 teitunnel tunnels                                          # this computer's tunnels
 ```
 
 ```text
-$ teitunnel route add app.teispace.com 3000
+$ teitunnel route add app.yourhost.com 3000
  1. Update tunnel “laptop” to serve 2 routes
- 2. Add DNS record app.teispace.com → tunnel “laptop”
- 3. Check https://app.teispace.com works
+ 2. Add DNS record app.yourhost.com → tunnel “laptop”
+ 3. Check https://app.yourhost.com works
 Apply? [y/N] y
     done: Update tunnel “laptop” to serve 2 routes
-    done: Add DNS record app.teispace.com → tunnel “laptop”
-Checking https://app.teispace.com…
-https://app.teispace.com works.
+    done: Add DNS record app.yourhost.com → tunnel “laptop”
+Checking https://app.yourhost.com…
+https://app.yourhost.com works.
 
 $ teitunnel routes
-app.teispace.com	http://localhost:3000	Live
-api.teispace.com ^/v1	http://localhost:8080	Live
+app.yourhost.com	http://localhost:3000	Live
+api.yourhost.com ^/v1	http://localhost:8080	Live
 ```
 
 `teitunnel routes --check` exits with status 1 unless every route is live, which makes it a
@@ -152,7 +152,7 @@ Nothing is overwritten silently in either direction. The Doctor reports the same
 
 ## Troubleshooting
 
-- **"app.teispace.com isn't in any of this account's domains. Add the domain to Cloudflare first."**
+- **"app.yourhost.com isn't in any of this account's domains. Add the domain to Cloudflare first."**
   The hostname must be in a domain (zone) of the account you're adding it to. Pick the
   right account in the toolbar, or with `--account`.
 - **"… is already routed. Edit that route instead."** A route with the same hostname and
@@ -161,8 +161,8 @@ Nothing is overwritten silently in either direction. The Doctor reports the same
   Each hostname and path lives on one of this computer's tunnels.
 - **The plan says a record *will be replaced*.** The hostname already has a DNS record
   Teitunnel didn't create. See [DNS ownership](/docs/concepts/dns-ownership).
-- **Live, but the browser shows a certificate error on `a.b.teispace.com`.** Cloudflare's
-  free certificate covers one level of subdomain. Use `ab.teispace.com`, or add an Advanced
+- **Live, but the browser shows a certificate error on `a.b.yourhost.com`.** Cloudflare's
+  free certificate covers one level of subdomain. Use `ab.yourhost.com`, or add an Advanced
   Certificate.
 
 ## Related

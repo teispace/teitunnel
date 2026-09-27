@@ -60,7 +60,7 @@ share starts or stops.
 ## The global shortcut
 
 A keyboard shortcut that works from any app while Teitunnel runs. It's off until you turn it
-on in **Settings ▸ Integrations ▸ Global shortcut**:
+on in **AI & Integrations ▸ More ▸ Global shortcut**:
 
 1. Turn on **Use a global shortcut**. The default is ⌘⌥⇧S on macOS (Ctrl+Alt+Shift+S on
    Windows and Linux).
@@ -84,12 +84,12 @@ Launchers (Raycast, Alfred), scripts and web pages can open Teitunnel with a lin
 |---|---|
 | `teitunnel://share?port=3000` | Shares `localhost:3000` as a Quick Share. **Always asks first**, one request at a time, and is never remembered: any web page can open a link. |
 | `teitunnel://open` | Brings the window forward on Overview. |
-| `teitunnel://open?route=app.teispace.com` | Opens that route. |
+| `teitunnel://open?route=app.yourhost.com` | Opens that route. |
 | `teitunnel://open?share=<id>` | Opens that share in Quick Share. |
 | `teitunnel://inspect?share=<id>` | Opens that share's requests in the [inspector](/docs/guides/inspector). |
 
 Links are parsed strictly: an unknown action, an unknown or repeated parameter, or a value that
-isn't a port, hostname or share id is refused. Turn them off in **Settings ▸ Integrations ▸
+isn't a port, hostname or share id is refused. Turn them off in **AI & Integrations ▸ More ▸
 Links ▸ Open teitunnel:// links**. The installers register the scheme; nothing else is needed.
 
 From a terminal:

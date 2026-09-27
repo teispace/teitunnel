@@ -51,8 +51,8 @@ teitunnel cloudflared status
 
 ```sh
 export CLOUDFLARE_API_TOKEN=…
-teitunnel route add app.teispace.com 3000 --yes      # creates this server's tunnel
-teitunnel route add api.teispace.com 8080 --yes
+teitunnel route add app.yourhost.com 3000 --yes      # creates this server's tunnel
+teitunnel route add api.yourhost.com 8080 --yes
 teitunnel routes                                     # status
 ```
 
@@ -92,7 +92,7 @@ in `/data`, and runs `up` by default:
 ```sh
 docker volume create teitunnel
 docker run --rm -e CLOUDFLARE_API_TOKEN -v teitunnel:/data \
-  teispace/teitunnel route add app.teispace.com http://web:80 --yes
+  teispace/teitunnel route add app.yourhost.com http://web:80 --yes
 docker run -d --name teitunnel --restart unless-stopped \
   -e CLOUDFLARE_API_TOKEN -v teitunnel:/data --network my-app teispace/teitunnel
 ```
@@ -128,7 +128,7 @@ volumes:
 
 ```sh
 docker compose up -d
-docker compose run --rm teitunnel route add app.teispace.com http://web:80 --yes
+docker compose run --rm teitunnel route add app.yourhost.com http://web:80 --yes
 docker compose restart teitunnel
 ```
 
@@ -165,7 +165,7 @@ spec:
 Route to Services by their cluster name:
 
 ```sh
-kubectl exec deploy/teitunnel -- teitunnel route add app.teispace.com http://web.default.svc:80 --yes
+kubectl exec deploy/teitunnel -- teitunnel route add app.yourhost.com http://web.default.svc:80 --yes
 ```
 
 ## Web dashboard and API
@@ -183,7 +183,7 @@ It listens on this machine only. To reach it from elsewhere, publish it through 
 itself with a login:
 
 ```sh
-teitunnel route add admin.teispace.com http://127.0.0.1:8765 --allow team@teispace.com
+teitunnel route add admin.yourhost.com http://127.0.0.1:8765 --allow team@yourhost.com
 ```
 
 or pass `--listen 0.0.0.0:8765 --allow-remote` behind a TLS proxy, with `--secure-cookies`.
@@ -212,7 +212,7 @@ is up, and delivering [webhook inboxes](/docs/guides/webhook-inbox). On a server
 ## Temporary shares from a server
 
 `teitunnel share 8080` prints a random `trycloudflare.com` address for as long as the
-command runs; `--on demo.teispace.com` uses your own domain instead, and `--for 2h` ends it
+command runs; `--on demo.yourhost.com` uses your own domain instead, and `--for 2h` ends it
 by itself.
 
 ## Troubleshooting

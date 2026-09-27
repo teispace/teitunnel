@@ -79,7 +79,7 @@ fn approval_note(mode: Mode) -> &'static str {
             "This Teitunnel server is read-only: explain what you'd do and give the person the plan, but don't try to change anything."
         }
         Mode::Ask => {
-            "Every change needs the person's approval: if a tool answers needsApproval, show them what it says and call it again with confirmed: true only after they agree."
+            "Every change needs the person's approval: Teitunnel (or your client) asks them when you call the tool. If a call says nobody can be asked, tell the person what it says (usually: open Teitunnel) and call again. If a tool answers needsApproval, show them what it says and call it again with confirmed: true only after they agree."
         }
         Mode::Full => {
             "Changes apply without asking, so explain each one to the person before making it."

@@ -103,15 +103,47 @@ pub(crate) fn spec<I: JsonSchema + 'static, O: JsonSchema + 'static>(
         .destructive(hints.destructive)
         .idempotent(hints.idempotent)
         .open_world(hints.open_world);
-    let tool = Tool::new(name, description, input)
+    let mut output = (*schema_for_output::<O>()).clone();
+    compact_schema(&mut output);
+    let mut input = (*input).clone();
+    compact_schema(&mut input);
+    let tool = Tool::new(name, description, Arc::new(input))
         .with_title(title)
-        .with_raw_output_schema(schema_for_output::<O>())
+        .with_raw_output_schema(Arc::new(output))
         .annotate(annotations);
     ToolSpec {
         tool,
         class,
         timeout,
+        untrusted: false,
     }
+}
+
+/// Drops what a schema says that costs the model tokens without telling it anything:
+/// the `$schema` dialect (2020-12 is MCP's default), `"default": null` on optional
+/// fields, and integer `format`s (`uint64`…; `minimum` still says they're not negative).
+pub(crate) fn compact_schema(schema: &mut JsonObject) {
+    fn walk(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if map.get("default").is_some_and(serde_json::Value::is_null) {
+                    map.remove("default");
+                }
+                if map
+                    .get("format")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|f| f.starts_with("uint") || f.starts_with("int"))
+                {
+                    map.remove("format");
+                }
+                map.values_mut().for_each(walk);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(walk),
+            _ => {}
+        }
+    }
+    schema.remove("$schema");
+    schema.values_mut().for_each(walk);
 }
 
 /// No arguments.
@@ -174,6 +206,7 @@ impl ToolProvider for CoreTools {
                 "resume_share" => extras::pause(backend, arguments, ctx, false).await,
                 "schedule_share" => extras::schedule_share(backend, arguments, ctx).await,
                 "share_folder" => extras::share_folder(backend, arguments, ctx).await,
+                // The server only routes names this provider listed.
                 other => Err(ToolError::new(format!("Unknown tool {other}."))),
             }
         })
@@ -351,6 +384,9 @@ pub(crate) fn warning_text(warning: &Warning) -> String {
         }
         Warning::PublicNetwork { network } => format!(
             "{network} isn't a private range. WARP clients would reach those addresses through this machine instead of the internet."
+        ),
+        Warning::PublicHostname { hostname } => format!(
+            "{hostname} is on one of your domains. WARP clients would reach it through this machine instead of its public address."
         ),
         Warning::OverlapsNetwork {
             network,

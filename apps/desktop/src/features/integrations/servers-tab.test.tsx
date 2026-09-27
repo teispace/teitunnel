@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import type { McpConnection } from "@/lib/ipc/bindings";
-import { McpConnections } from "./mcp-connections";
+import { ServersTab } from "./servers-tab";
 
 let connections: McpConnection[];
 let disconnected: string[];
@@ -27,14 +27,17 @@ beforeEach(() => {
 const renderIt = () =>
   render(
     <QueryClientProvider client={createQueryClient()}>
-      <McpConnections />
+      <ServersTab />
     </QueryClientProvider>,
   );
 
-describe("clients connected to shared MCP servers", () => {
-  it("shows nothing until one connects", async () => {
-    const { container } = renderIt();
-    await waitFor(() => expect(container.textContent).toBe(""));
+describe("apps signed in to shared MCP servers", () => {
+  it("explains shared servers and where tokens are kept before any app signs in", async () => {
+    renderIt();
+    expect(
+      await screen.findByText("No app has signed in to a server shared from this computer yet."),
+    ).toBeTruthy();
+    expect(screen.getByText(/only fingerprints \(SHA-256 hashes\)/)).toBeTruthy();
   });
 
   it("lists them and disconnects one after asking", async () => {
@@ -46,11 +49,13 @@ describe("clients connected to shared MCP servers", () => {
         redirectHost: "claude.ai",
         createdAt: Date.now() - 3_600_000,
         lastUsedAt: Date.now(),
+        expiresAt: Date.now() + 90 * 86_400_000,
       },
     ];
     renderIt();
     expect(await screen.findByText("Claude")).toBeTruthy();
-    expect(screen.getByText(/mcp\.teispace\.com · approved/)).toBeTruthy();
+    expect(screen.getByText("Apps Signed In to mcp.teispace.com")).toBeTruthy();
+    expect(screen.getByText(/Signs in through claude\.ai · approved/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Disconnect Claude from mcp.teispace.com?")).toBeTruthy();

@@ -18,6 +18,7 @@ import { Route as MainCommentsRouteImport } from "./routes/_main/comments"
 import { Route as MainDoctorRouteImport } from "./routes/_main/doctor"
 import { Route as MainDomainsRouteImport } from "./routes/_main/domains"
 import { Route as MainInspectorRouteImport } from "./routes/_main/inspector"
+import { Route as MainIntegrationsRouteImport } from "./routes/_main/integrations"
 import { Route as MainLocalDomainsRouteImport } from "./routes/_main/local-domains"
 import { Route as MainProjectsRouteImport } from "./routes/_main/projects"
 import { Route as MainQuickShareRouteImport } from "./routes/_main/quick-share"
@@ -70,6 +71,11 @@ const MainDomainsRoute = MainDomainsRouteImport.update({
 const MainInspectorRoute = MainInspectorRouteImport.update({
   id: "/inspector",
   path: "/inspector",
+  getParentRoute: () => MainRoute,
+} as any)
+const MainIntegrationsRoute = MainIntegrationsRouteImport.update({
+  id: "/integrations",
+  path: "/integrations",
   getParentRoute: () => MainRoute,
 } as any)
 const MainLocalDomainsRoute = MainLocalDomainsRouteImport.update({
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/inspector": typeof MainInspectorRoute
+  "/integrations": typeof MainIntegrationsRoute
   "/local-domains": typeof MainLocalDomainsRoute
   "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   "/doctor": typeof MainDoctorRoute
   "/domains": typeof MainDomainsRoute
   "/inspector": typeof MainInspectorRoute
+  "/integrations": typeof MainIntegrationsRoute
   "/local-domains": typeof MainLocalDomainsRoute
   "/projects": typeof MainProjectsRoute
   "/quick-share": typeof MainQuickShareRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   "/_main/doctor": typeof MainDoctorRoute
   "/_main/domains": typeof MainDomainsRoute
   "/_main/inspector": typeof MainInspectorRoute
+  "/_main/integrations": typeof MainIntegrationsRoute
   "/_main/local-domains": typeof MainLocalDomainsRoute
   "/_main/projects": typeof MainProjectsRoute
   "/_main/quick-share": typeof MainQuickShareRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | "/doctor"
     | "/domains"
     | "/inspector"
+    | "/integrations"
     | "/local-domains"
     | "/projects"
     | "/quick-share"
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | "/doctor"
     | "/domains"
     | "/inspector"
+    | "/integrations"
     | "/local-domains"
     | "/projects"
     | "/quick-share"
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | "/_main/doctor"
     | "/_main/domains"
     | "/_main/inspector"
+    | "/_main/integrations"
     | "/_main/local-domains"
     | "/_main/projects"
     | "/_main/quick-share"
@@ -308,6 +320,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MainInspectorRouteImport
       parentRoute: typeof MainRoute
     }
+    "/_main/integrations": {
+      id: "/_main/integrations"
+      path: "/integrations"
+      fullPath: "/integrations"
+      preLoaderRoute: typeof MainIntegrationsRouteImport
+      parentRoute: typeof MainRoute
+    }
     "/_main/local-domains": {
       id: "/_main/local-domains"
       path: "/local-domains"
@@ -381,6 +400,7 @@ interface MainRouteChildren {
   MainDoctorRoute: typeof MainDoctorRoute
   MainDomainsRoute: typeof MainDomainsRoute
   MainInspectorRoute: typeof MainInspectorRoute
+  MainIntegrationsRoute: typeof MainIntegrationsRoute
   MainLocalDomainsRoute: typeof MainLocalDomainsRoute
   MainProjectsRoute: typeof MainProjectsRoute
   MainQuickShareRoute: typeof MainQuickShareRoute
@@ -400,6 +420,7 @@ const MainRouteChildren: MainRouteChildren = {
   MainDoctorRoute: MainDoctorRoute,
   MainDomainsRoute: MainDomainsRoute,
   MainInspectorRoute: MainInspectorRoute,
+  MainIntegrationsRoute: MainIntegrationsRoute,
   MainLocalDomainsRoute: MainLocalDomainsRoute,
   MainProjectsRoute: MainProjectsRoute,
   MainQuickShareRoute: MainQuickShareRoute,

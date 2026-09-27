@@ -1,81 +1,172 @@
 ---
 title: Share a local service
 description: Get a free public HTTPS URL for anything running on your computer with Cloudflare Tunnel, in one click and without a Cloudflare account.
+searchDescription: "Share localhost at a free public HTTPS URL with Cloudflare Tunnel, in one click or with teitunnel share, no Cloudflare account needed."
 ---
 
 A **Quick Share** gives a service on your computer, such as a dev server on `localhost:3000`,
-a public HTTPS address on `trycloudflare.com`. It needs no Cloudflare account, no port
-forwarding and no configuration.
+a public HTTPS address like `https://quiet-river-lamp-orbit.trycloudflare.com`. Anyone with
+the link can open it until you stop sharing. It needs no Cloudflare account, no domain, no
+port forwarding and no configuration.
+
+**Use it** to show work in progress to a colleague or client, open your site on a phone,
+or point a webhook at your laptop for a few minutes. **Use something else** when the address
+has to stay the same or stay up: a [share on your own domain](#on-your-own-domain) keeps its
+name, a [route](/docs/getting-started/first-route) runs for as long as you like, and a
+[Snapshot](/docs/guides/snapshots) stays online when your computer is off. See
+[choose how to share](/docs/concepts/ways-to-share) for all of them side by side.
+
+## Share in the app
 
 <Steps>
   <Step>
     ### Open Quick Share
 
-    Choose **Quick Share** in the sidebar (⌘3 on macOS, Ctrl+3 on Windows and Linux), or
-    **Share a Local Port…** from the menu bar or tray icon.
+    Choose **Quick Share** in the sidebar (⌘3 on macOS, Ctrl+3 on Windows and Linux) or
+    **New Quick Share** (⌘⇧N, Ctrl+Shift+N). From the menu bar or tray icon,
+    **Share a Local Port…** opens the same thing.
   </Step>
   <Step>
     ### Pick what to share
 
-    Teitunnel lists what's running on your machine: dev servers (Vite, Next.js, Astro, Django,
-    Rails, Laravel and more) and Docker containers first. Pick one, or type a port or address
-    such as `3000` or `http://localhost:8080`.
+    Click **Port or address**: Teitunnel lists what's **Running on this Mac** (*this PC* on
+    Windows): dev servers such as Vite, Next.js, Astro, Django, Rails and Laravel, and Docker
+    containers, with their project names. Pick one, or type a port or an address such as
+    `3000`, `localhost:5173` or `https://localhost:8443`.
   </Step>
   <Step>
-    ### Choose when it stops, then Share
+    ### Choose when it stops
 
-    **Keep running**, or stop by itself after 15 minutes, an hour or 8 hours. Choose
-    **Share**.
+    **Keep running** (until you stop it or quit Teitunnel), **Stop after 15 min**,
+    **Stop after 1 hour** or **Stop after 8 hours**.
+  </Step>
+  <Step>
+    ### Share
+
+    Choose **Share**. Teitunnel first runs the [exposure check](/docs/guides/exposure-check),
+    which looks for a `.env` file, a `.git` folder or debug pages the service would hand
+    out. If it finds one, choose **Share Anyway** or **Cancel**. The card then shows
+    *Getting a URL…*, and **Live** with the address a few seconds later.
   </Step>
 </Steps>
 
 <Screenshot name="quick-share" alt="Quick Share: a live share with its trycloudflare.com URL, request count and log" />
 
-The URL appears as soon as Cloudflare assigns it, usually within a few seconds. Copy it, open
-it, or **Show QR code** to open it on a phone. The card shows requests, errors and the
-connector's log as they happen.
+Each share's card has:
 
-**Stop Sharing** ends it, as does quitting Teitunnel. Anyone with the link can reach the
-service while it runs, so share only what you mean to.
+- the address, with the copy button and **Open in browser**,
+- **Show QR code**, to open it on a phone,
+- request and error counts, *Stops in …* when it has a time limit, and the connector's
+  **Log**,
+- **Pause** (when **Inspect requests** is on, the default), which keeps the address but shows
+  visitors a paused page until you **Resume**,
+- **Publish a Snapshot**, which turns the shared site into a static copy that stays online,
+- **Stop Sharing**.
 
-## On your own domain
-
-With a Cloudflare account connected (see [your first route](/docs/getting-started/first-route)),
-the **Address** menu also offers your domains: choose **On example.com**, type a subdomain
-such as `demo`, and **Share**. You get `https://demo.example.com` instead of a random
-address, and it stays the same every time you share.
-
-It's a real route on this machine's tunnel, made and removed through the same reviewed
-plan as any route, but temporary: it goes away with its DNS record when you stop it, when its
-time is up, or when you quit Teitunnel (and if Teitunnel crashes, it's removed the next time
-it starts). It never takes over a hostname that already has a record Teitunnel didn't
-create. It shows in **Routes** with a *Temporary* badge.
+Quitting Teitunnel stops every Quick Share, and Cloudflare forgets the address. Sharing again
+gives a new one.
 
 ## From the terminal
 
 ```sh
-teitunnel share 3000                          # a random trycloudflare.com URL
-teitunnel share 3000 --for 30m                # stops by itself after 30 minutes
-teitunnel share 3000 --on demo.example.com    # on your own domain
-URL=$(teitunnel share 3000 --no-qr | head -1) # the URL alone, for scripts
+teitunnel share 3000                  # a random trycloudflare.com URL
+teitunnel share 3000 --for 30m        # stops by itself after 30 minutes
+teitunnel share ./dist                # a folder of files, no server needed
+teitunnel share 3000 --json           # {"url": …, "hostname": …} for scripts
 ```
 
-It runs for as long as the command does; Ctrl-C stops it. `share` needs no account, only
-cloudflared (the app's copy, or one on your system).
+```text
+$ teitunnel share 3000 --here
+https://quiet-river-lamp-orbit.trycloudflare.com
 
-## Good to know
+█▀▀▀▀▀█ ▄▀▄ ▀▄█ █▀▀▀▀▀█
+…
+http://localhost:3000 is public at https://quiet-river-lamp-orbit.trycloudflare.com for anyone with the link. Press Ctrl-C to stop.
+```
+
+Where the share runs depends on whether the app is open:
+
+- **The app is running:** the command hands the share to the app (the app may ask you to
+  allow it the first time) and returns. The share keeps running in the app:
+  *It runs in the Teitunnel app: stop it there or with `teitunnel shares --stop <url>`.*
+- **The app isn't running,** or you pass `--here`: the share runs in the terminal until you
+  press Ctrl-C or its `--for` time is up.
+
+`share` needs no Cloudflare account, only cloudflared (the app's copy, or one on your
+system). Every option is in [Sharing](/docs/guides/sharing#share-from-a-terminal) and the
+[command reference](/docs/reference/cli#share).
+
+## On your own domain
+
+With a Cloudflare account connected (see [your first route](/docs/getting-started/first-route)),
+the **Address** menu next to the service also offers your domains. Choose
+**On yourhost.com**, type a **Subdomain** such as `demo` (Teitunnel suggests names from the
+project), and **Share**. You get `https://demo.yourhost.com`, the same address every time you
+share under that name.
+
+<Screenshot name="share-on-domain" alt="Quick Share with the Address menu set to a domain, the subdomain demo typed in, suggested names from the project and the Host header option under Advanced" />
+
+It's a temporary [route](/docs/concepts/routes-and-tunnels) on this computer's tunnel,
+planned and applied like any other change, and removed with its DNS record when you stop it,
+when its time is up, or when you quit Teitunnel (if Teitunnel crashes, it's removed the next
+time it starts). It never takes over a hostname that has a DNS record Teitunnel didn't create.
+While it runs, it shows in **Routes** with a *Temporary* badge.
+
+```sh
+teitunnel share 3000 --on demo.yourhost.com
+teitunnel share 3000 --on demo.yourhost.com --allow ana@yourhost.com   # behind a login
+```
+
+A share on your domain always runs in the terminal that started it, until Ctrl-C.
+
+|  | Random address | On your domain |
+|---|---|---|
+| Needs | Nothing | A Cloudflare account and a domain on it (free plan is fine) |
+| Address | New every time | The one you choose, every time |
+| Cloudflare's limits | Quick Tunnel limits (below) | Your plan's, like any route |
+| Logins, schedules | No | Yes: [require a login](/docs/guides/require-login), [schedules](/docs/guides/sharing#on-a-schedule) |
+
+## Limits
 
 <Callout type="info">
-Random `trycloudflare.com` addresses are Cloudflare's free **Quick Tunnels**. They're meant
-for testing and demos: Cloudflare doesn't guarantee their uptime, the URL changes every time,
-and Cloudflare limits them (for example, to a few hundred requests in flight at once, and
-without server-sent events). For anything lasting, share on
-[your own domain](/docs/getting-started/first-route).
+Random `trycloudflare.com` addresses are Cloudflare's free **Quick Tunnels**, meant for
+testing and demos. Cloudflare doesn't guarantee their uptime, they carry at most 200
+requests in flight at once, and they don't carry server-sent events. For anything lasting,
+or for event streams, share on your own domain. See [limits](/docs/reference/limits#quick-shares)
+and [Cloudflare's Quick Tunnels documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/).
 </Callout>
 
-- **Dev server says "host not allowed"?** Vite, Next.js, Django and Rails refuse requests for
-  hostnames they don't know. See [share a dev server](/docs/tutorials/dev-servers).
-- **Nothing loads?** Check the service answers at `http://localhost:<port>` on your own
-  machine first; see [troubleshooting](/docs/reference/troubleshooting).
-- **Webhooks:** a Quick Share on your own domain keeps the same URL between sessions, so you
-  set it in Stripe or GitHub once. See [test webhooks](/docs/tutorials/webhooks).
+Anyone who has the link can open the service while it's shared. To limit who, share on your
+domain with a login, or put a password page or a secret link in front of it from the
+shield on the share's card ([protect a Quick Share](/docs/guides/sharing#protect-a-quick-share)).
+
+## If it doesn't work
+
+- **"Cloudflare didn't provide a URL in time. Check your internet connection and try
+  again."** Quick Tunnels are sometimes busy. Try again, or share on your own domain.
+- **The page says "Blocked request" or "Invalid Host header".** Vite, webpack, Angular,
+  Django and Rails refuse hostnames they don't know. Teitunnel sends dev servers their own
+  address by default; if yours still refuses, see
+  [share a dev server](/docs/tutorials/dev-servers).
+- **502 Bad Gateway, or nothing loads.** Check the service answers at
+  `http://localhost:<port>` on your own machine, and that the port is right. See
+  [troubleshooting](/docs/reference/troubleshooting#502-bad-gateway).
+- **"This Quick Share hit its limit of 200 requests at once. Share on your own domain for
+  more."** Quick Tunnels have that cap; a share on your domain doesn't.
+
+## Next
+
+<Cards>
+  <Card title="Put a service on your domain" href="/docs/getting-started/first-route">
+    A permanent route at `app.yourhost.com`.
+  </Card>
+  <Card title="Sharing, in depth" href="/docs/guides/sharing">
+    Folders, names from your branch, pause, schedules, idle stop.
+  </Card>
+  <Card title="Inspector" href="/docs/guides/inspector">
+    See, replay and edit every request to a share.
+  </Card>
+  <Card title="Test webhooks on localhost" href="/docs/tutorials/webhooks">
+    Stripe, GitHub, Shopify and Slack at an address that doesn't change.
+  </Card>
+</Cards>

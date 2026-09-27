@@ -5,6 +5,14 @@
 //! Shapes per Cloudflare's API reference (`…/teamnet/routes`, `…/teamnet/virtual_networks`,
 //! `…/devices/settings`, `…/devices/policy`), checked 2026-09-23. Since cloudflared
 //! 2023.9.0 a route is all a tunnel needs; there's no `warp-routing` switch any more.
+//!
+//! Private hostname routes (`…/zerotrust/routes/hostname`) send WARP clients' traffic for
+//! a hostname, rather than an address range, through a tunnel; the connector resolves the
+//! name with its own machine's DNS. Shapes per
+//! <https://developers.cloudflare.com/api/resources/zero_trust/subresources/networks/subresources/hostname_routes/>
+//! and <https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-private-hostname/>,
+//! checked 2026-09-26: `Cloudflare Tunnel Write` (or `Cloudflare One Networks Write`)
+//! is enough to manage them, and they need cloudflared 2025.7.0 or later.
 
 use serde::Deserialize;
 use serde_json::json;
@@ -30,6 +38,24 @@ pub struct NetworkRoute {
     /// A remark, e.g. Teitunnel's ownership mark.
     #[serde(default)]
     pub comment: String,
+}
+
+/// A route from a private hostname to a tunnel.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct HostnameRoute {
+    /// Route id.
+    pub id: String,
+    /// The hostname, e.g. `wiki.internal`.
+    pub hostname: String,
+    /// The tunnel it goes to.
+    #[serde(default)]
+    pub tunnel_id: String,
+    /// That tunnel's name.
+    #[serde(default)]
+    pub tunnel_name: Option<String>,
+    /// A remark, e.g. Teitunnel's ownership mark.
+    #[serde(default)]
+    pub comment: Option<String>,
 }
 
 /// A virtual network (a namespace for overlapping private ranges).
@@ -86,6 +112,10 @@ fn routes_path(account: &str) -> String {
     format!("/accounts/{}/teamnet/routes", encode(account))
 }
 
+fn hostname_routes_path(account: &str) -> String {
+    format!("/accounts/{}/zerotrust/routes/hostname", encode(account))
+}
+
 impl Client {
     /// Every private network route in the account that isn't deleted.
     ///
@@ -122,6 +152,45 @@ impl Client {
     /// API or network errors.
     pub async fn delete_network_route(&self, account: &str, id: &str) -> Result<()> {
         self.delete(&format!("{}/{}", routes_path(account), encode(id)))
+            .await
+    }
+
+    /// Every private hostname route in the account that isn't deleted.
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn hostname_routes(&self, account: &str) -> Result<Vec<HostnameRoute>> {
+        self.get_all(&format!(
+            "{}?is_deleted=false",
+            hostname_routes_path(account)
+        ))
+        .await
+    }
+
+    /// Routes `hostname` to `tunnel`. Not retried on server errors (no duplicates).
+    ///
+    /// # Errors
+    /// API errors, e.g. when the hostname is already routed.
+    pub async fn create_hostname_route(
+        &self,
+        account: &str,
+        hostname: &str,
+        tunnel: &str,
+        comment: &str,
+    ) -> Result<HostnameRoute> {
+        self.post(
+            &hostname_routes_path(account),
+            &json!({ "hostname": hostname, "tunnel_id": tunnel, "comment": comment }),
+        )
+        .await
+    }
+
+    /// Deletes a hostname route (a missing one counts as deleted).
+    ///
+    /// # Errors
+    /// API or network errors.
+    pub async fn delete_hostname_route(&self, account: &str, id: &str) -> Result<()> {
+        self.delete(&format!("{}/{}", hostname_routes_path(account), encode(id)))
             .await
     }
 
@@ -217,6 +286,71 @@ mod tests {
             .mount(&server)
             .await;
         client.delete_network_route("a1", "r2").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn manages_hostname_routes() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("GET"))
+            .and(path("/accounts/a1/zerotrust/routes/hostname"))
+            .and(query_param("is_deleted", "false"))
+            .respond_with(ok(&json!([{
+                "id": "h1", "hostname": "wiki.internal", "tunnel_id": "t1", "tunnel_name": "Mac",
+                "comment": "Added by Teitunnel", "created_at": "2026-09-26T00:00:00Z",
+                "deleted_at": null, "tun_type": "cfd_tunnel"
+            }])))
+            .mount(&server)
+            .await;
+        let routes = client.hostname_routes("a1").await.unwrap();
+        assert_eq!(routes[0].hostname, "wiki.internal");
+        assert_eq!(routes[0].tunnel_name.as_deref(), Some("Mac"));
+        assert_eq!(routes[0].comment.as_deref(), Some("Added by Teitunnel"));
+
+        Mock::given(method("POST"))
+            .and(path("/accounts/a1/zerotrust/routes/hostname"))
+            .respond_with(|req: &Request| {
+                let body: Value = serde_json::from_slice(&req.body).unwrap();
+                assert_eq!(
+                    body,
+                    json!({"hostname": "nas.home.arpa", "tunnel_id": "t1", "comment": "teitunnel"})
+                );
+                ok(&json!({"id": "h2", "hostname": "nas.home.arpa", "tunnel_id": "t1", "comment": null}))
+            })
+            .mount(&server)
+            .await;
+        let route = client
+            .create_hostname_route("a1", "nas.home.arpa", "t1", "teitunnel")
+            .await
+            .unwrap();
+        assert_eq!(route.id, "h2");
+        assert_eq!(route.comment, None);
+
+        Mock::given(method("DELETE"))
+            .and(path("/accounts/a1/zerotrust/routes/hostname/h2"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        client.delete_hostname_route("a1", "h2").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_refused_hostname_route_says_why() {
+        let server = MockServer::start().await;
+        let client = Client::with_base(&server.uri(), ApiToken::new("t")).unwrap();
+        Mock::given(method("POST"))
+            .and(path("/accounts/a1/zerotrust/routes/hostname"))
+            .respond_with(ResponseTemplate::new(409).set_body_json(json!({
+                "success": false, "result": null, "messages": [],
+                "errors": [{"code": 1014, "message": "route already exists"}]
+            })))
+            .mount(&server)
+            .await;
+        let err = client
+            .create_hostname_route("a1", "wiki.internal", "t1", "teitunnel")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("route already exists"), "{err}");
     }
 
     #[tokio::test]

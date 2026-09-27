@@ -38,9 +38,9 @@ export CLOUDFLARE_API_TOKEN=…          # for this shell; never written to disk
 One route per app, each on its own hostname:
 
 ```sh
-teitunnel route add blog.teispace.com 8080
-teitunnel route add photos.teispace.com http://192.168.1.10:2342
-teitunnel route add status.teispace.com 3001
+teitunnel route add blog.yourhost.com 8080
+teitunnel route add photos.yourhost.com http://192.168.1.10:2342
+teitunnel route add status.yourhost.com 3001
 ```
 
 Each command shows the plan (a DNS record and the tunnel's configuration) and asks before
@@ -69,7 +69,7 @@ for a one-time code sent to an email address you allowed, before the request rea
 server.
 
 ```sh
-teitunnel route add admin.teispace.com 9000 --allow team@teispace.com
+teitunnel route add admin.yourhost.com 9000 --allow team@yourhost.com
 ```
 
 For the public ones, [edge protection](/docs/guides/protection) can challenge scripts and
@@ -98,7 +98,7 @@ each service.
   Nextcloud upload large files in chunks, which works.
 - **Requests time out after 125 seconds** if your server doesn't answer (error 524).
 - **Certificates:** the free certificate covers one level of subdomain
-  (`photos.teispace.com`), not `photos.home.teispace.com`.
+  (`photos.yourhost.com`), not `photos.home.yourhost.com`.
 - **Several machines?** Put the same route on each and turn on
   [load balancing](/docs/guides/load-balancing) for failover.
 - **Your home IP stays private:** DNS points at Cloudflare, not at your house.

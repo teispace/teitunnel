@@ -18,24 +18,47 @@ export const commands = {
 	cliInstall: () => __TAURI_INVOKE<CliState>("cli_install"),
 	/**  Removes the command line tool Teitunnel installed. */
 	cliUninstall: () => __TAURI_INVOKE<CliState>("cli_uninstall"),
-	/**  Which browsers can use the extension. */
+	/**  Which browsers are installed, can use the extension, and last used it. */
 	browserHostStatus: () => __TAURI_INVOKE<BrowserHostView>("browser_host_status"),
-	/**  Lets the extension talk to the app, in every installed browser. */
-	browserHostInstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_install"),
-	/**  Stops letting the extension talk to the app. */
-	browserHostUninstall: () => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall"),
-	/**  The AI clients on this computer and whether each is connected. */
+	/**  Lets the extension talk to the app, in every installed browser or `browser` only. */
+	browserHostInstall: (browser: "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox" | null) => __TAURI_INVOKE<BrowserHostView>("browser_host_install", { browser }),
+	/**  Stops letting the extension talk to the app, in every browser or `browser` only. */
+	browserHostUninstall: (browser: "chrome" | "chromium" | "edge" | "brave" | "vivaldi" | "arc" | "firefox" | null) => __TAURI_INVOKE<BrowserHostView>("browser_host_uninstall", { browser }),
+	/**  The AI clients on this computer: installed, connected and last used. */
 	aiClientsStatus: () => __TAURI_INVOKE<AiClientsView>("ai_clients_status"),
+	/**
+	 *  Starts the MCP server exactly as the client's configuration says (or as connecting
+	 *  it would) and checks it answers: the handshake and its tool list, then it's stopped.
+	 */
+	aiClientsTest: (clientId: string) => __TAURI_INVOKE<AiClientCheck>("ai_clients_test", { clientId }),
+	/**
+	 *  Shows the client's MCP configuration file in Finder, Explorer or the file manager (its
+	 *  folder when the file doesn't exist yet). The path is the client's own, never one the
+	 *  page chose.
+	 */
+	aiClientsReveal: (clientId: string) => __TAURI_INVOKE<null>("ai_clients_reveal", { clientId }),
 	/**  Agents connected now, and approvals waiting. */
 	aiAgents: () => __TAURI_INVOKE<AiAgentsView>("ai_agents"),
 	/**  Clients connected with OAuth to MCP servers shared from this computer, newest first. */
 	mcpConnections: () => __TAURI_INVOKE<McpConnection[]>("mcp_connections"),
 	/**
-	 *  Disconnects a client from a shared MCP server: its tokens stop working within 30
-	 *  seconds (at once for servers this app shares).
+	 *  Disconnects a client from a shared MCP server: its tokens stop working at once in
+	 *  the processes sharing it (they hear it on the control connection; one that can't
+	 *  notices within seconds).
 	 */
 	mcpDisconnect: (id: string) => __TAURI_INVOKE<null>("mcp_disconnect", { id }),
-	/**  Connects an AI client: adds Teitunnel to its MCP configuration (merged, with a backup). */
+	/**  The MCP server's settings (defaults when they were never changed). */
+	mcpSettingsGet: () => __TAURI_INVOKE<McpSettings>("mcp_settings_get"),
+	/**
+	 *  Saves the MCP server's settings; returns them as saved. AI tools pick them up when
+	 *  they next start Teitunnel's MCP server.
+	 */
+	mcpSettingsSave: (settings: McpSettings) => __TAURI_INVOKE<McpSettings>("mcp_settings_save", { settings }),
+	/**
+	 *  Connects an AI client (or updates its entry): adds Teitunnel to its MCP configuration
+	 *  (merged, with a backup). Only installed clients: connecting one that isn't would
+	 *  create its folders and look like an install.
+	 */
 	aiClientsConnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_connect", { clientId }),
 	/**  Disconnects an AI client: removes Teitunnel from its MCP configuration. */
 	aiClientsDisconnect: (clientId: string) => __TAURI_INVOKE<AiClientsView>("ai_clients_disconnect", { clientId }),
@@ -885,9 +908,9 @@ export type ActivityKind =
 "removeLogin" | 
 /**  What Teitunnel left on a hostname without routes was removed. */
 "cleanUpHostname" | 
-/**  A private network was shared. */
+/**  A private network (a range or a hostname) was shared. */
 "addNetwork" | 
-/**  A private network stopped being shared. */
+/**  A private network (a range or a hostname) stopped being shared. */
 "removeNetwork" | 
 /**  Another tunnel was created for this Mac. */
 "createTunnel" | 
@@ -998,19 +1021,52 @@ export type AiAgentsView = {
 	approvals: PendingApproval[],
 };
 
-/**  An AI client, as Settings shows it. */
+/**  A working server's answer to "Test connection". */
+export type AiClientCheck = {
+	/**  The server's name and version, e.g. `teitunnel 0.4.1`. */
+	server: string,
+	/**  The protocol version it chose. */
+	protocol: string,
+	/**  How many tools it offers. */
+	tools: number,
+	/**  How long it took, in milliseconds. */
+	millis: number,
+};
+
+/**  Where an AI client stands (see `teitunnel_mcp::clients::State`). */
+export type AiClientState = 
+/**  Its configuration file can't be read (connecting would leave it alone). */
+"unreadable" | 
+/**  Connected, starting this Teitunnel. */
+"connected" | 
+/**  Connected to a Teitunnel that moved, or with other arguments: update it. */
+"needsUpdate" | 
+/**  Teitunnel is in its configuration, but the client isn't installed any more. */
+"leftover" | 
+/**  Installed, not connected. */
+"notConnected" | 
+/**  Not installed on this computer. */
+"notInstalled";
+
+/**  An AI client, as AI & Integrations shows it. */
 export type AiClientView = {
 	/**  Its id, e.g. `claude-code`. */
 	id: string,
 	/**  Its name, e.g. `Claude Code`. */
 	name: string,
+	/**  Where it stands. */
+	state: AiClientState,
 	/**  Its MCP configuration file. */
 	path: string,
-	/**  It seems installed. */
-	detected: boolean,
-	/**  Teitunnel is in its configuration. */
-	connected: boolean,
-	/**  Its configuration couldn't be read (connecting would leave it alone). */
+	/**  Where its app or program was found. */
+	installedAt: string | null,
+	/**  The command its configuration runs for Teitunnel, when connected. */
+	command: string | null,
+	/**  When an agent of this client last used Teitunnel (milliseconds since the epoch). */
+	lastUsedAt: number | null,
+	/**  The entry to add by hand, in its configuration's format. */
+	snippet: string | null,
+	/**  Why its configuration couldn't be read. */
 	problem: string | null,
 };
 
@@ -1018,7 +1074,7 @@ export type AiClientView = {
 export type AiClientsView = {
 	/**  The command clients would run, when there is one. */
 	command: string | null,
-	/**  The clients. */
+	/**  The clients: installed or configured ones first. */
 	clients: AiClientView[],
 };
 
@@ -1300,10 +1356,22 @@ export type BrowserHostStatus = {
 	browser: Browser,
 	/**  Its name. */
 	name: string,
-	/**  It's installed on this computer. */
+	/**  It's installed on this computer (its app was found). */
 	detected: boolean,
-	/**  Teitunnel's manifest is there and points at `exe`. */
+	/**  Where its app was found. */
+	app: string | null,
+	/**
+	 *  Teitunnel's manifest is there and points at `exe` (on Windows, with the
+	 *  registry key naming it): the browser can start the host.
+	 */
 	installed: boolean,
+	/**  Where the manifest is (or goes). */
+	manifest: string,
+	/**
+	 *  When this browser last started the host for the extension (milliseconds since
+	 *  the epoch): the extension is installed and working.
+	 */
+	extensionSeenAt: number | null,
 };
 
 /**
@@ -1438,13 +1506,16 @@ hostname: string }) & { domain?: never; name?: never; network?: never; path?: ne
 ({ type: "importRoutes"; 
 /**  The routes. */
 routes: RouteInput_Deserialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
-/**  Let WARP clients reach a private range through this Mac's tunnel. */
+/**  Let WARP clients reach a private range or hostname through this Mac's tunnel. */
 ({ type: "addNetwork"; 
-/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+/**
+ *  An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+ *  such as `wiki.internal`.
+ */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
-/**  Stop sharing a private range. */
+/**  Stop sharing a private range or hostname. */
 ({ type: "removeNetwork"; 
-/**  The range. */
+/**  The range or hostname. */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
@@ -1528,13 +1599,16 @@ hostname: string }) & { domain?: never; name?: never; network?: never; path?: ne
 ({ type: "importRoutes"; 
 /**  The routes. */
 routes: RouteInput_Serialize[] }) & { domain?: never; hostname?: never; name?: never; network?: never; path?: never; protection?: never; recordId?: never; route?: never; until?: never; zoneId?: never } | 
-/**  Let WARP clients reach a private range through this Mac's tunnel. */
+/**  Let WARP clients reach a private range or hostname through this Mac's tunnel. */
 ({ type: "addNetwork"; 
-/**  An IP address or CIDR range, e.g. `192.168.1.0/24`. */
+/**
+ *  An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+ *  such as `wiki.internal`.
+ */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
-/**  Stop sharing a private range. */
+/**  Stop sharing a private range or hostname. */
 ({ type: "removeNetwork"; 
-/**  The range. */
+/**  The range or hostname. */
 network: string }) & { domain?: never; hostname?: never; name?: never; path?: never; protection?: never; recordId?: never; route?: never; routes?: never; until?: never; zoneId?: never } | 
 /**  Delete one DNS record (an orphan found by the Doctor). */
 ({ type: "deleteRecord"; 
@@ -1821,7 +1895,7 @@ export type DeltaArea =
 "route" | 
 /**  A DNS record. */
 "dns" | 
-/**  A private network route. */
+/**  A private network route (a range or a hostname). */
 "network" | 
 /**  A route's login (Cloudflare Access). */
 "access" | 
@@ -3491,6 +3565,43 @@ export type McpConnection = {
 	createdAt: number | null,
 	/**  When it last got a token. */
 	lastUsedAt: number | null,
+	/**
+	 *  When it ends however it's used, so the person approves it again (milliseconds
+	 *  since the epoch).
+	 */
+	expiresAt: number | null,
+};
+
+/**  What an agent may do through the MCP server. */
+export type McpMode = 
+/**  Look only. */
+"read-only" | 
+/**  Every change waits for the person's approval. */
+"ask" | 
+/**  Changes apply without asking (still through reviewed plans). */
+"full";
+
+/**  The MCP server's settings, as Settings shows them. */
+export type McpSettings = {
+	/**  The mode for AI tools connected without their own (`--mode` wins). */
+	mode: McpMode,
+	/**  Agents see credentials in captured traffic and unredacted logs. */
+	allowSecrets: boolean,
+	/**
+	 *  In `ask` mode, a change needs the person's answer in Teitunnel or in the AI
+	 *  tool's own question; the agent saying the person agreed isn't enough.
+	 */
+	approveInApp: boolean,
+	/**
+	 *  MCP servers shared with OAuth accept clients that register themselves (older
+	 *  clients); clients with a published identity connect either way.
+	 */
+	dynamicRegistration: boolean,
+	/**
+	 *  How many days a connection to a shared MCP server lasts before the person
+	 *  approves it again (1 to 365).
+	 */
+	maxGrantDays: number,
 };
 
 /**  Emitted when a menu-bar item that the webview handles is chosen. */
@@ -3642,6 +3753,13 @@ export type NetworkConfig = {
 	downBytesPerSec?: number | null,
 };
 
+/**  What a private network is. */
+export type NetworkKind = 
+/**  An address or a CIDR range. */
+"range" | 
+/**  A private hostname, resolved by this Mac's DNS. */
+"hostname";
+
 /**  Network presets. */
 export type NetworkPreset = 
 /**  No simulation. */
@@ -3653,13 +3771,15 @@ export type NetworkPreset =
 /**  Satellite latency. */
 "satellite";
 
-/**  A private network shared through this Mac's tunnel. */
+/**  A private network (a range or a hostname) shared through this Mac's tunnel. */
 export type NetworkView = {
-	/**  The range, e.g. `192.168.1.0/24`. */
+	/**  The range, e.g. `192.168.1.0/24`, or the hostname, e.g. `wiki.internal`. */
 	network: string,
+	/**  A range or a hostname. */
+	kind: NetworkKind,
 	/**
-	 *  In private address space (a public range takes those addresses over for WARP
-	 *  clients).
+	 *  In private address space, or a hostname outside the account's domains (a public
+	 *  range or name is taken over for WARP clients).
 	 */
 	private: boolean,
 	/**  Teitunnel added it (otherwise it was added in the dashboard or with cloudflared). */
@@ -4689,8 +4809,8 @@ export type RoutesOverview_Deserialize = {
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
 	/**
-	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
-	 *  credential can't read them.
+	 *  Private networks shared through this Mac's tunnel: ranges sorted, then
+	 *  hostnames sorted; `None` when the credential can't read them.
 	 */
 	networks: NetworkView[] | null,
 };
@@ -4706,8 +4826,8 @@ export type RoutesOverview_Serialize = {
 	/**  Domains routes can use. */
 	zones: ZoneRef[],
 	/**
-	 *  Private networks shared through this Mac's tunnel, sorted; `None` when the
-	 *  credential can't read them.
+	 *  Private networks shared through this Mac's tunnel: ranges sorted, then
+	 *  hostnames sorted; `None` when the credential can't read them.
 	 */
 	networks: NetworkView[] | null,
 };
@@ -5223,7 +5343,7 @@ export type StepKind =
 "loginMethod" | 
 /**  Create, change or remove a route's login. */
 "accessApp" | 
-/**  Route or stop routing a private network. */
+/**  Route or stop routing a private network (a range or a hostname). */
 "networkRoute" | 
 /**  Load balance a route, or stop. */
 "loadBalancer" | 
@@ -5945,6 +6065,13 @@ origin: string } |
 { type: "publicNetwork"; 
 /**  The range. */
 network: string } | 
+/**
+ *  The private hostname is on one of the account's domains: WARP clients would reach
+ *  it through this Mac instead of its public address.
+ */
+{ type: "publicHostname"; 
+/**  The hostname. */
+hostname: string } | 
 /**
  *  Part of the range is already routed to another tunnel; the more specific route
  *  wins for the addresses both cover.

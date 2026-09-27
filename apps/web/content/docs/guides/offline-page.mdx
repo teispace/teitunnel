@@ -24,7 +24,7 @@ Cloudflare account keep answering when this computer is off or asleep."), choose
 **Turn On…** next to **Offline page**.
 </Step>
 <Step>
-In **Offline Page for app.teispace.com**, give it a **Title** (up to 120 characters) and a
+In **Offline Page for app.yourhost.com**, give it a **Title** (up to 120 characters) and a
 **Message** (up to 1,000 characters; each line becomes a paragraph).
 </Step>
 <Step>
@@ -42,10 +42,10 @@ for the page.
 ## From the terminal
 
 ```sh
-teitunnel offline app.teispace.com --title "Back soon" --message "We're updating the demo. Try again in an hour."
-teitunnel offline app.teispace.com --when-app-down      # also for 502/504 from the app
-teitunnel offline app.teispace.com                      # what it has now
-teitunnel offline app.teispace.com --off                # remove it
+teitunnel offline app.yourhost.com --title "Back soon" --message "We're updating the demo. Try again in an hour."
+teitunnel offline app.yourhost.com --when-app-down      # also for 502/504 from the app
+teitunnel offline app.yourhost.com                      # what it has now
+teitunnel offline app.yourhost.com --off                # remove it
 ```
 
 `--title` turns the page on; `--title`, `--message` and `--when-app-down` change only what
@@ -54,11 +54,11 @@ setting. `-a, --account` chooses the account and `-y, --yes` applies without ask
 
 ## What happens on Cloudflare
 
-The plan ("Show an offline page on app.teispace.com") has two steps:
+The plan ("Show an offline page on app.yourhost.com") has two steps:
 
-1. **Upload the offline page Worker for app.teispace.com.** It's named `tt-offline-` and a
+1. **Upload the offline page Worker for app.yourhost.com.** It's named `tt-offline-` and a
    short hash of the hostname.
-2. **Run it for `app.teispace.com/*`** "(fails open past the free daily requests)": a
+2. **Run it for `app.yourhost.com/*`** "(fails open past the free daily requests)": a
    Worker route on the hostname.
 
 Removing it stops running the Worker for the pattern, then deletes the Worker. Undo in
@@ -67,7 +67,7 @@ its recorded settings. Removing a hostname's last route removes its offline page
 
 Teitunnel only changes Workers and Worker routes it created. If another Worker already runs
 on the same pattern, the plan stops with "Another Worker (…) already runs for
-app.teispace.com/*. Teitunnel doesn't change Workers it didn't add." and changes nothing.
+app.yourhost.com/*. Teitunnel doesn't change Workers it didn't add." and changes nothing.
 
 ## How it works
 
@@ -96,7 +96,7 @@ The Worker route is created to fail open (verified on a live Free-plan account o
 day's free requests are used up, requests go straight to your tunnel as if there were no
 Worker; only the offline page is missing until 00:00 UTC. Your site never goes down because
 of the limit. That's why the page is off by default and chosen per route, and why the plan
-warns: "Every request to app.teispace.com/* runs a Worker and counts against your
+warns: "Every request to app.yourhost.com/* runs a Worker and counts against your
 account's 100,000 free Worker requests a day. Past that, the site keeps working without
 it."
 
@@ -119,7 +119,7 @@ Remove that Worker route in the Cloudflare dashboard if you don't need it, then 
 </Accordion>
 <Accordion title="Visitors still see error 1033">
 The day's free Worker requests may be used up (the page is back at 00:00 UTC), or the
-Worker route was removed in the dashboard: check `teitunnel offline app.teispace.com`, and
+Worker route was removed in the dashboard: check `teitunnel offline app.yourhost.com`, and
 turn the page off and on again.
 </Accordion>
 <Accordion title="Give the page a title of at most 120 characters.">

@@ -104,6 +104,9 @@ A new API needs a permission:
   observing must not fail for them either: read the new thing on its own and record whether
   it was readable (`edge::observe` reads the Cache Rules phase this way, `cache_readable`),
   and refuse only the change that needs it (`ObserveError::CacheRulesPermission`);
+  a newer API read alongside an older one gets its own `Want` in `ObserveNeed` and an
+  `Option` in the state, like private hostname routes (`ObserveNeed::hostname_routes`,
+  `NetworkState::hostnames`), so a failed read hides them instead of failing the overview;
 - regenerate the permissions page:
   `UPDATE_DOCS=1 cargo test -p teitunnel-core --test permissions_doc`.
 

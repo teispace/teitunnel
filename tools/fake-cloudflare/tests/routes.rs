@@ -170,6 +170,51 @@ async fn two_domains_verified_then_nothing_left() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_private_range_and_hostname_go_with_the_tunnel() {
+    let (_fake, addr) = spawn_fake().await;
+    let api = Client::with_base(&format!("http://{addr}"), ApiToken::new("e2e")).unwrap();
+    let engine = Engine::new(Local::new(Store::open_in_memory().unwrap()));
+    let conns = Recorder::default();
+
+    for network in ["192.168.1.0/24", "wiki.internal"] {
+        let change = Change::AddNetwork {
+            network: network.into(),
+        };
+        let outcome = apply(&engine, &api, &conns, change).await;
+        assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    }
+    let hostnames = api.hostname_routes("e2e-account").await.unwrap();
+    assert_eq!(hostnames.len(), 1);
+    assert_eq!(hostnames[0].hostname, "wiki.internal");
+    assert_eq!(hostnames[0].tunnel_name.as_deref(), Some("E2E Mac"));
+    let overview = engine.overview(&api, &conns, CTX).await.unwrap();
+    let shared: Vec<String> = overview
+        .networks
+        .unwrap()
+        .into_iter()
+        .map(|n| n.network)
+        .collect();
+    assert_eq!(shared, ["192.168.1.0/24", "wiki.internal"]);
+
+    // Adding it again changes nothing.
+    let ctx = CTX;
+    let again = Change::AddNetwork {
+        network: "Wiki.Internal".into(),
+    };
+    let intent = engine.intent_for(&api, ctx, &again).await.unwrap();
+    assert!(engine.preview(&api, ctx, &intent).await.unwrap().is_empty());
+
+    let outcome = apply(&engine, &api, &conns, Change::RemoveTunnel).await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(api.tunnels("e2e-account").await.unwrap().is_empty());
+    assert!(api.network_routes("e2e-account").await.unwrap().is_empty());
+    assert!(
+        api.hostname_routes("e2e-account").await.unwrap().is_empty(),
+        "no hostname route left pointing at a deleted tunnel"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_protected_route_asks_for_a_login_until_its_removed() {
     let (_fake, addr) = spawn_fake().await;
     let api = Client::with_base(&format!("http://{addr}"), ApiToken::new("e2e")).unwrap();

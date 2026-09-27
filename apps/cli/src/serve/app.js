@@ -257,7 +257,7 @@ function accountCard(account) {
 
   const hostname = el("input", {
     id: `host-${account.id}`,
-    placeholder: `app.${zones[0]?.name ?? "teispace.com"}`,
+    placeholder: `app.${zones[0]?.name ?? "yourhost.com"}`,
     required: true,
   });
   const origin = el("input", {

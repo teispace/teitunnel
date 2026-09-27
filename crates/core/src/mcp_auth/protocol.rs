@@ -42,28 +42,43 @@ pub(crate) fn resource_metadata(host: &str, resource: &str, name: &str) -> Value
 }
 
 /// RFC 8414 metadata (also served as OpenID discovery for clients that try it first).
-pub(crate) fn server_metadata(host: &str) -> Value {
+/// Without `dynamic_registration`, no registration endpoint is advertised: clients use a
+/// Client ID Metadata Document.
+pub(crate) fn server_metadata(host: &str, dynamic_registration: bool) -> Value {
     let base = issuer(host);
-    json!({
+    let mut metadata = json!({
         "issuer": base,
         "authorization_endpoint": format!("{base}{AUTHORIZE}"),
         "token_endpoint": format!("{base}{TOKEN}"),
-        "registration_endpoint": format!("{base}{REGISTER}"),
         "revocation_endpoint": format!("{base}{REVOKE}"),
         "response_types_supported": ["code"],
         "response_modes_supported": ["query"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
+        // Refresh tokens are issued to every connection; clients that ask for them with
+        // this scope find it here (not in the resource metadata or the challenge).
+        "scopes_supported": ["offline_access"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
         "revocation_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
         "client_id_metadata_document_supported": true,
         "authorization_response_iss_parameter_supported": true,
-    })
+    });
+    if dynamic_registration {
+        metadata["registration_endpoint"] = json!(format!("{base}{REGISTER}"));
+    }
+    metadata
 }
 
 /// A hash to store for a high-entropy secret (tokens, codes): SHA-256, URL-safe base64.
 pub(crate) fn hash(secret: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(secret.as_bytes()))
+}
+
+/// Whether `presented` hashes to `expected`, compared in constant time (client secrets).
+pub(crate) fn secret_matches(presented: &str, expected: &str) -> bool {
+    use subtle::ConstantTimeEq as _;
+    let presented = hash(presented);
+    presented.len() == expected.len() && bool::from(presented.as_bytes().ct_eq(expected.as_bytes()))
 }
 
 /// A new random secret: `prefix` and 32 random bytes.
@@ -73,15 +88,35 @@ pub(crate) fn random(prefix: &str) -> Result<String, getrandom::Error> {
     Ok(format!("{prefix}{}", URL_SAFE_NO_PAD.encode(bytes)))
 }
 
+/// How many characters the comparison code has.
+pub(crate) const SHORT_CODE_LEN: usize = 5;
+
 /// A short code the person compares between the browser and the app (no look-alikes).
+/// Every character is equally likely: random bytes that would favour the first letters
+/// (256 isn't a multiple of the alphabet's size) are drawn again.
 pub(crate) fn short_code() -> Result<String, getrandom::Error> {
+    let mut code = String::with_capacity(SHORT_CODE_LEN);
+    while code.len() < SHORT_CODE_LEN {
+        let mut bytes = [0u8; 16];
+        getrandom::fill(&mut bytes)?;
+        for c in bytes.into_iter().filter_map(code_char) {
+            if code.len() == SHORT_CODE_LEN {
+                break;
+            }
+            code.push(c);
+        }
+    }
+    Ok(code)
+}
+
+/// The character a random byte stands for, or `None` for the bytes past the largest
+/// multiple of the alphabet's size (22 × 11 = 242), which would make the first 14
+/// characters more likely.
+fn code_char(byte: u8) -> Option<char> {
     const ALPHABET: &[u8] = b"ACDEFHJKMNPRTUVWXY3479";
-    let mut bytes = [0u8; 4];
-    getrandom::fill(&mut bytes)?;
-    Ok(bytes
-        .iter()
-        .map(|b| char::from(ALPHABET[usize::from(*b) % ALPHABET.len()]))
-        .collect())
+    let limit = 256 - 256 % ALPHABET.len();
+    let byte = usize::from(byte);
+    (byte < limit).then(|| char::from(ALPHABET[byte % ALPHABET.len()]))
 }
 
 /// Whether `verifier` answers `challenge` (S256, RFC 7636 §4.6). Verifiers must be
@@ -164,16 +199,31 @@ pub(crate) fn redirect_is_loopback(uri: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Whether `resource` (RFC 8707) names this server: its origin, with or without a path.
-pub(crate) fn resource_matches(host: &str, resource: &str) -> bool {
-    let Ok(uri) = resource.parse::<http::Uri>() else {
-        return false;
-    };
-    uri.scheme_str()
+/// The audience `resource` (RFC 8707) names, when it names the MCP server on `host` whose
+/// endpoint is `path` (`/mcp`): `https://host` itself, the endpoint, or a path above it
+/// (`https://host/api` for `/api/mcp`). Returned in canonical form
+/// (`https://host/mcp`, lower-case host, no trailing slash) to be stored with the grant;
+/// `None` for anything else, including another path on the same host.
+pub(crate) fn audience(host: &str, path: &str, resource: &str) -> Option<String> {
+    let uri = resource.parse::<http::Uri>().ok()?;
+    let fits = uri
+        .scheme_str()
         .is_some_and(|s| s.eq_ignore_ascii_case("https"))
         && uri.host().is_some_and(|h| h.eq_ignore_ascii_case(host))
         && uri.port_u16().is_none_or(|p| p == 443)
-        && !resource.contains('#')
+        && uri.query().is_none()
+        && !resource.contains('#');
+    if !fits {
+        return None;
+    }
+    let asked = uri.path().trim_end_matches('/');
+    let server = path.trim_end_matches('/');
+    let covers = asked.is_empty()
+        || asked == server
+        || server
+            .strip_prefix(asked)
+            .is_some_and(|rest| rest.starts_with('/'));
+    covers.then(|| format!("{}{asked}", issuer(&host.to_ascii_lowercase())))
 }
 
 /// Whether `client_id` is a Client ID Metadata Document URL: HTTPS with a path.
@@ -284,6 +334,8 @@ pub(crate) struct Registration {
     pub(crate) redirect_uris: Vec<String>,
     /// `none`, `client_secret_post` or `client_secret_basic`.
     pub(crate) auth_method: String,
+    /// `web` or `native` (OpenID Connect registration), when the client said.
+    pub(crate) application_type: Option<String>,
 }
 
 /// Checks a registration request. Clients that don't say how they authenticate are
@@ -328,6 +380,12 @@ pub(crate) fn registration(body: &Value) -> Result<Registration, ClientError> {
         ),
         redirect_uris: redirect_list(body.get("redirect_uris"))?,
         auth_method,
+        // Echoed when it's one of the two known values; anything else is ignored.
+        application_type: body
+            .get("application_type")
+            .and_then(Value::as_str)
+            .filter(|t| matches!(*t, "web" | "native"))
+            .map(str::to_owned),
     })
 }
 
@@ -350,6 +408,9 @@ pub(crate) fn registered(
     if let Some(secret) = secret {
         answer["client_secret"] = json!(secret);
         answer["client_secret_expires_at"] = json!(0);
+    }
+    if let Some(kind) = &registration.application_type {
+        answer["application_type"] = json!(kind);
     }
     answer
 }
@@ -453,18 +514,71 @@ mod tests {
 
     #[test]
     fn a_resource_is_this_server_or_nothing() {
-        assert!(resource_matches("mcp.xyz.com", "https://mcp.xyz.com"));
-        assert!(resource_matches("mcp.xyz.com", "https://MCP.xyz.com/mcp"));
-        assert!(resource_matches(
-            "mcp.xyz.com",
-            "https://mcp.xyz.com:443/mcp"
-        ));
-        assert!(!resource_matches(
-            "mcp.xyz.com",
-            "https://other.xyz.com/mcp"
-        ));
-        assert!(!resource_matches("mcp.xyz.com", "http://mcp.xyz.com/mcp"));
-        assert!(!resource_matches("mcp.xyz.com", "https://mcp.xyz.com:8443"));
+        let on = |resource| audience("mcp.xyz.com", "/mcp", resource);
+        assert_eq!(
+            on("https://mcp.xyz.com").as_deref(),
+            Some("https://mcp.xyz.com")
+        );
+        assert_eq!(
+            on("https://MCP.xyz.com/mcp").as_deref(),
+            Some("https://mcp.xyz.com/mcp")
+        );
+        assert_eq!(
+            on("https://mcp.xyz.com:443/mcp/").as_deref(),
+            Some("https://mcp.xyz.com/mcp")
+        );
+        assert_eq!(
+            audience("mcp.xyz.com", "/api/mcp", "https://mcp.xyz.com/api").as_deref(),
+            Some("https://mcp.xyz.com/api")
+        );
+        for other in [
+            "https://other.xyz.com/mcp",
+            "http://mcp.xyz.com/mcp",
+            "https://mcp.xyz.com:8443",
+            "https://mcp.xyz.com/other",
+            "https://mcp.xyz.com/mc",
+            "https://mcp.xyz.com/mcp/tools",
+            "https://mcp.xyz.com/mcp?x=1",
+            "not a url",
+        ] {
+            assert_eq!(on(other), None, "{other}");
+        }
+    }
+
+    #[test]
+    fn short_codes_are_five_unbiased_characters() {
+        let mut seen = std::collections::HashMap::new();
+        for _ in 0..2000 {
+            let code = short_code().unwrap();
+            assert_eq!(code.len(), SHORT_CODE_LEN);
+            for c in code.chars() {
+                assert!("ACDEFHJKMNPRTUVWXY3479".contains(c), "{code}");
+                *seen.entry(c).or_insert(0u32) += 1;
+            }
+        }
+        // 10,000 characters over 22: about 455 each.
+        assert_eq!(seen.len(), 22);
+        assert!(seen.values().all(|n| (300..650).contains(n)), "{seen:?}");
+        // Each character stands for exactly 11 byte values; the 14 left over are drawn
+        // again.
+        let mut per_char = std::collections::HashMap::new();
+        for byte in 0..=u8::MAX {
+            if let Some(c) = code_char(byte) {
+                *per_char.entry(c).or_insert(0u32) += 1;
+            }
+        }
+        assert!(per_char.values().all(|n| *n == 11), "{per_char:?}");
+        assert_eq!(code_char(241), Some('9'));
+        assert_eq!(code_char(242), None);
+    }
+
+    #[test]
+    fn client_secrets_compare_by_hash() {
+        let stored = hash("ttcs_secret");
+        assert!(secret_matches("ttcs_secret", &stored));
+        assert!(!secret_matches("ttcs_secreT", &stored));
+        assert!(!secret_matches("", &stored));
+        assert!(!secret_matches("ttcs_secret", "short"));
     }
 
     #[test]
@@ -511,6 +625,22 @@ mod tests {
         assert_eq!(secret.name, "An MCP client");
         let answer = registered("tt_client_x", &secret, Some("s3"), 1);
         assert_eq!(answer["client_secret"], "s3");
+        assert!(answer.get("application_type").is_none());
+        let native = registration(&json!({
+            "redirect_uris": ["http://127.0.0.1:53000/callback"],
+            "application_type": "native",
+        }))
+        .unwrap();
+        assert_eq!(
+            registered("tt_client_y", &native, None, 1)["application_type"],
+            "native"
+        );
+        let odd = registration(&json!({
+            "redirect_uris": ["https://a.test/cb"],
+            "application_type": "toaster",
+        }))
+        .unwrap();
+        assert_eq!(odd.application_type, None);
         assert!(registration(&json!({ "redirect_uris": [] })).is_err());
         assert!(
             registration(
@@ -522,8 +652,19 @@ mod tests {
 
     #[test]
     fn metadata_says_what_mcp_clients_look_for() {
-        let server = server_metadata("mcp.xyz.com");
+        let server = server_metadata("mcp.xyz.com", true);
         assert_eq!(server["issuer"], "https://mcp.xyz.com");
+        assert_eq!(server["scopes_supported"], json!(["offline_access"]));
+        assert_eq!(
+            server["registration_endpoint"],
+            "https://mcp.xyz.com/__teitunnel/oauth/register"
+        );
+        assert!(
+            server_metadata("mcp.xyz.com", false)
+                .get("registration_endpoint")
+                .is_none(),
+            "no registration endpoint when registration is off"
+        );
         assert_eq!(server["code_challenge_methods_supported"], json!(["S256"]));
         assert_eq!(server["client_id_metadata_document_supported"], true);
         assert_eq!(
@@ -539,11 +680,14 @@ mod tests {
             resource["authorization_servers"],
             json!(["https://mcp.xyz.com"])
         );
+        assert!(
+            resource.get("scopes_supported").is_none(),
+            "scopes only in the authorization server's metadata"
+        );
         assert_eq!(
             with_query("https://a.test/cb?x=1", &[("code", "a b"), ("state", "s")]),
             "https://a.test/cb?x=1&code=a+b&state=s"
         );
-        assert_eq!(short_code().unwrap().len(), 4);
         assert_eq!(hash("x").len(), 43);
     }
 }

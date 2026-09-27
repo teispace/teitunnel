@@ -24,6 +24,7 @@ Files changed in the working tree:
 | CLI definitions | `UPDATE_DOCS=1 cargo test -p teitunnel-cli --bin teitunnel-cli docs` |
 | Token template, scopes or capabilities | `UPDATE_DOCS=1 cargo test -p teitunnel-core --test permissions_doc` |
 | `locales/en.json` | `pnpm --filter @teitunnel/desktop test -- i18n` and `cargo build -p teitunnel-core` |
+| New UI strings, imports on the startup path, a route's `validateSearch` | `pnpm --filter @teitunnel/desktop build:web && node apps/desktop/scripts/check-bundle-size.ts` (the 250 KB initial JS budget; CI's Web job runs it, `pnpm verify` doesn't). A route file's static imports load with the app: import small helpers from their own module, not a feature's index |
 | Website or docs | `pnpm --filter @teitunnel/web test` and `pnpm --filter @teitunnel/web build` |
 | Flows across app, engine and Cloudflare | `pnpm --filter @teitunnel/desktop e2e:build && pnpm --filter @teitunnel/desktop e2e` |
 | Native look, windows, tray, materials | `pnpm build` and try the packaged app |

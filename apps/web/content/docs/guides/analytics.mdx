@@ -108,9 +108,9 @@ Set them in **Settings ▸ General ▸ Alerts**:
 | **Slow responses** | Off; when enabled, P95 response time through Cloudflare above 3,000 ms over 10 minutes (*Response time that alerts*) |
 | **A connector loses Cloudflare** | On |
 
-An alert fires once when a problem starts (*app.teispace.com is down*, *app.teispace.com
-answers with errors*, *app.teispace.com is slow*, *laptop lost its connection to Cloudflare*)
-and once when it ends (*app.teispace.com is back up. It was down for 4 minutes.*). The same route
+An alert fires once when a problem starts (*app.yourhost.com is down*, *app.yourhost.com
+answers with errors*, *app.yourhost.com is slow*, *laptop lost its connection to Cloudflare*)
+and once when it ends (*app.yourhost.com is back up. It was down for 4 minutes.*). The same route
 notifies at most once every 15 minutes, and several alerts at once are grouped (*3 alerts*).
 
 - Every alert is recorded in **Activity**; filter by **Alerts**, or **Only Problems**.
@@ -122,9 +122,9 @@ notifies at most once every 15 minutes, and several alerts at once are grouped (
 
 ```sh
 teitunnel analytics                              # every route of this computer, last 24 hours
-teitunnel analytics app.teispace.com --range week
-teitunnel analytics api.teispace.com --path /v1 --range hour
-teitunnel analytics app.teispace.com --json
+teitunnel analytics app.yourhost.com --range week
+teitunnel analytics api.yourhost.com --path /v1 --range hour
+teitunnel analytics app.yourhost.com --json
 teitunnel uptime                                 # 24 h, 7 d and 30 d uptime per route
 teitunnel uptime --json
 ```
@@ -133,11 +133,11 @@ teitunnel uptime --json
 $ teitunnel analytics
 Teispace
   HOSTNAME                                   REQUESTS     5XX       P95   UPTIME
-  app.teispace.com                              18204    0.2%     84 ms     100%
-  api.teispace.com                               5530    1.4%    210 ms    99.3%
+  app.yourhost.com                              18204    0.2%     84 ms     100%
+  api.yourhost.com                               5530    1.4%    210 ms    99.3%
 
-$ teitunnel analytics app.teispace.com --range week
-app.teispace.com
+$ teitunnel analytics app.yourhost.com --range week
+app.yourhost.com
   Requests      131840
   Per second    0.22/s average · 3.1/s peak
   Sent          4.2 GB
@@ -150,8 +150,8 @@ app.teispace.com
 
 $ teitunnel uptime
 ROUTE                                             24H       7D      30D       P95  STATUS
-app.teispace.com                                 100%    99.9%    99.8%     92 ms  up
-api.teispace.com                                99.3%    99.7%    99.7%    240 ms  down: The connector can't reach the local service.
+app.yourhost.com                                 100%    99.9%    99.8%     92 ms  up
+api.yourhost.com                                99.3%    99.7%    99.7%    240 ms  down: The connector can't reach the local service.
 ```
 
 `--range` takes `hour`, `day` (the default), `week` or `month`; `--account` (`-a`) picks the

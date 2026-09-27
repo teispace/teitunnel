@@ -42,7 +42,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
         spec::<GetArgs, Exchange>(
             "traffic_get",
             "Inspect a request",
@@ -52,7 +53,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
         spec::<ReplayArgs, ReplayOut>(
             "traffic_replay",
             "Replay a request",
@@ -69,7 +71,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
                 open_world: false,
             },
             Duration::from_secs(120),
-        ),
+        )
+        .with_untrusted(),
         spec::<WaitArgs, WaitResult>(
             "wait_for_request",
             "Wait for a request",
@@ -81,7 +84,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Wait,
             Hints::READ_LOCAL,
             Duration::from_secs(MAX_WAIT + 30),
-        ),
+        )
+        .with_untrusted(),
         spec::<TrafficFilter, TrafficStats>(
             "traffic_stats",
             "Traffic numbers",
@@ -103,7 +107,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
         spec::<ExportArgs, ExportOut>(
             "traffic_export",
             "Export requests",
@@ -113,7 +118,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_LOCAL,
             super::DEFAULT_TIMEOUT,
-        ),
+        )
+        .with_untrusted(),
     ]
 }
 

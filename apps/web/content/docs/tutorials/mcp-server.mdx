@@ -7,7 +7,7 @@ searchDescription: "Put a local MCP server online for claude.ai, ChatGPT and oth
 An MCP server on `localhost` works for AI tools on the same computer. claude.ai, ChatGPT
 and a teammate's Claude Code connect from elsewhere: claude.ai, for example, connects from
 Anthropic's cloud, not from your computer, so the server needs a public HTTPS address. In
-this tutorial you put a local MCP server online at `https://mcp.teispace.com/mcp`, connect
+this tutorial you put a local MCP server online at `https://mcp.yourhost.com/mcp`, connect
 claude.ai to it, and see who's connected.
 
 **You need:** Teitunnel, a Cloudflare account with a domain
@@ -23,7 +23,7 @@ that speaks Streamable HTTP or SSE, here on port 8000.
 ## 1. Share it
 
 ```sh
-teitunnel share 8000 --mcp --on mcp.teispace.com
+teitunnel share 8000 --mcp --on mcp.yourhost.com
 ```
 
 Teitunnel first checks that port 8000 answers MCP (at `/mcp`, then `/sse`, then `/`; set
@@ -31,7 +31,7 @@ another path with `--mcp-path`). Then it shares it with streams kept alive, requ
 bearer token, and prints ready configurations for Claude Code, Cursor and VS Code.
 
 The token is kept in your system's keychain for that hostname, so clients keep working
-the next time you share on it. `teitunnel token mcp.teispace.com` shows it again, and
+the next time you share on it. `teitunnel token mcp.yourhost.com` shows it again, and
 `--new-token` makes a new one.
 
 An AI agent can do the same with the `expose_mcp_server` tool of
@@ -40,7 +40,7 @@ An AI agent can do the same with the `expose_mcp_server` tool of
 ## 2. Connect claude.ai
 
 In claude.ai, **Customize ▸ Connectors**, then **+**. Give it a name and the URL
-`https://mcp.teispace.com/mcp`, and click **Add**. (On Claude's free plan you can add one
+`https://mcp.yourhost.com/mcp`, and click **Add**. (On Claude's free plan you can add one
 custom connector.)
 
 claude.ai can't use a fixed token, so it signs in with OAuth:
@@ -65,7 +65,7 @@ it only with people who should use the server.
 
 ## 4. See who's connected
 
-Approved OAuth connections are listed in **Settings ▸ General ▸ AI Tools**. **Disconnect**
+Approved OAuth connections are listed in **AI & Integrations ▸ Shared Servers**. **Disconnect**
 stops one at once. Their tokens are for this server only, last an hour and renew
 themselves; Teitunnel keeps only their hashes.
 
@@ -82,7 +82,7 @@ reconnect with the same token or sign-in.
 - **"No MCP server answered at …"**: the server isn't running on that port, or its
   endpoint is elsewhere: pass `--mcp-path /your/path`.
 - **The client says it's unauthorized:** a client with a fixed token needs the current
-  one (`teitunnel token mcp.teispace.com`). After `--new-token`, update every client.
+  one (`teitunnel token mcp.yourhost.com`). After `--new-token`, update every client.
 - **Your server has its own sign-in:** it keeps it. Teitunnel adds OAuth only in front of
   servers that don't ask for credentials themselves.
 

@@ -140,6 +140,7 @@ impl Error {
                     | P::NoSuchRecord(_)
                     | P::NoSuchLogin(_)
                     | P::NoSuchNetwork(_)
+                    | P::NoSuchPrivateHostname(_)
                     | P::NotBalanced(_)
                     | P::NotReserved(_)
                     | P::NoSuchServiceToken(_)
@@ -153,6 +154,7 @@ impl Error {
                 | E::Plan(
                     P::AccessAppExists(_)
                     | P::NetworkRouted { .. }
+                    | P::PrivateHostnameRouted { .. }
                     | P::RoutedElsewhere { .. }
                     | P::BalancerExists(_)
                     | P::SnapshotExists(_)

@@ -54,6 +54,15 @@ html {
   border-color: transparent;
 }
 
+/* A before and an after stacked in one place (the use-case scenes swap between them). */
+.tt-swap {
+  display: grid;
+}
+
+.tt-swap > * {
+  grid-area: 1 / 1;
+}
+
 /* ---- Motion -------------------------------------------------------------------------
  * Everything is visible without JavaScript or with Reduce Motion; `html.tt-motion` is set
  * by <Motion> only when animating is welcome, and elements rise in as they're scrolled to.
@@ -105,18 +114,22 @@ html {
   }
 }
 
+/* Hiding again (scrolling back up) is quick and all at once; showing takes its time, in
+   the order each element's `--tt-delay` sets. */
 html.tt-motion [data-reveal] {
   opacity: 0;
   transform: translateY(22px);
   transition:
-    opacity 0.8s var(--tt-ease),
-    transform 0.8s var(--tt-ease);
-  transition-delay: calc(var(--tt-delay, 0) * 1ms);
+    opacity 0.45s var(--tt-ease),
+    transform 0.45s var(--tt-ease),
+    filter 0.45s var(--tt-ease);
 }
 
 html.tt-motion [data-reveal][data-shown] {
   opacity: 1;
   transform: none;
+  transition-duration: 0.8s;
+  transition-delay: calc(var(--tt-delay, 0) * 1ms);
 }
 
 /* The hero plays on load rather than on scroll. */
@@ -135,25 +148,6 @@ html.tt-motion .tt-live-dot {
 
 html.tt-motion .tt-caret {
   animation: tt-caret 1s steps(1) infinite;
-}
-
-/* The hero screenshot leans back and settles as the page scrolls (where supported). */
-@supports (animation-timeline: view()) {
-  @keyframes tt-settle {
-    from {
-      transform: perspective(1600px) rotateX(14deg) scale(0.94);
-    }
-    to {
-      transform: none;
-    }
-  }
-
-  html.tt-motion .tt-settle {
-    transform-origin: 50% 0;
-    animation: tt-settle linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 45%;
-  }
 }
 
 /* Steps of the plan demo: waiting, working, done. */
@@ -177,14 +171,15 @@ html.tt-motion [data-reveal] .tt-line {
   opacity: 0;
   transform: translateY(4px);
   transition:
-    opacity 0.35s var(--tt-ease),
-    transform 0.35s var(--tt-ease);
-  transition-delay: calc(var(--tt-line, 0) * 1ms);
+    opacity 0.25s var(--tt-ease),
+    transform 0.25s var(--tt-ease);
 }
 
 html.tt-motion [data-reveal][data-shown] .tt-line {
   opacity: 1;
   transform: none;
+  transition-duration: 0.35s;
+  transition-delay: calc(var(--tt-line, 0) * 1ms);
 }
 
 /* A new request in the inspector demo. */
@@ -282,12 +277,2465 @@ html.tt-motion .tt-panel {
     transition: none;
   }
 
-  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-settle, .tt-panel, .tt-row-in) {
+  html.tt-motion :is(.tt-glow, .tt-live-dot, .tt-caret, .tt-panel, .tt-row-in) {
     animation: none;
   }
 
   html.tt-motion .tt-wire::after {
     animation: none;
     opacity: 0;
+  }
+}
+
+/* ---- Scroll scenes ------------------------------------------------------------------
+ * <Scenes> gives every `[data-scene]` its progress `--p` (0–1) as the page scrolls; the rules
+ * below turn it into movement, transforms and opacity only. At rest (no JavaScript, Reduce
+ * Motion) `--p` is 1 and pinned sections are ordinary sections.
+ */
+
+[data-scene] {
+  --p: 1;
+}
+
+[data-scene="stack"] {
+  --p: 0;
+}
+
+@property --mx {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --my {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+/* Reveal variants: sharpen from a blur, or grow in. */
+html.tt-motion [data-reveal="blur"] {
+  filter: blur(12px);
+  transform: translateY(10px) scale(0.985);
+}
+
+html.tt-motion [data-reveal="blur"][data-shown] {
+  filter: none;
+  transition-duration: 0.9s;
+}
+
+html.tt-motion [data-reveal="scale"] {
+  transform: scale(0.94);
+}
+
+/* Section titles: each word rises in; eyebrows type themselves. */
+.tt-rise-word {
+  display: inline-block;
+}
+
+html.tt-motion [data-reveal] .tt-rise-word {
+  opacity: 0;
+  transform: translateY(0.55em);
+  transition:
+    opacity 0.3s var(--tt-ease),
+    transform 0.35s var(--tt-ease);
+}
+
+html.tt-motion [data-reveal][data-shown] .tt-rise-word {
+  opacity: 1;
+  transform: none;
+  transition-duration: 0.7s, 0.8s;
+  transition-delay: calc(80ms + var(--i, 0) * 45ms);
+}
+
+html.tt-motion [data-reveal] .tt-type {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.3s var(--tt-ease);
+}
+
+html.tt-motion [data-reveal][data-shown] .tt-type {
+  clip-path: inset(0);
+  transition: clip-path calc(var(--len, 12) * 38ms) steps(var(--len, 12), end);
+}
+
+/* The hero's app window is a picture to click through, not something to select or drag. */
+.tt-hero-shot {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tt-hero-shot img {
+  -webkit-user-drag: none;
+}
+
+/* The hero screenshot starts tipped back and flattens as it rises into view. */
+html.tt-motion .tt-hero-shot > * {
+  transform-origin: 50% 0;
+  transform: perspective(1800px) rotateX(calc((1 - var(--p)) * 20deg))
+    scale(calc(0.9 + var(--p) * 0.1));
+  will-change: transform;
+}
+
+/* A field of stars in three depths: each drifts on its own, the near ones faster and brighter,
+ * some twinkle, and the whole field shifts with the scroll. */
+.tt-stars {
+  position: absolute;
+  inset: -30% -10%;
+  mask-image: radial-gradient(ellipse at center, #000 35%, transparent 78%);
+  transform: translate3d(0, calc(var(--p) * -120px), 0);
+  pointer-events: none;
+}
+
+.tt-stars::before,
+.tt-stars::after,
+.tt-stars > span {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+/* Far: small and dim. */
+.tt-stars::before {
+  background-image:
+    radial-gradient(1.5px 1.5px at 20px 30px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 110px 140px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 190px 70px, var(--color-fd-muted-foreground), transparent),
+    radial-gradient(1.5px 1.5px at 60px 200px, var(--color-fd-muted-foreground), transparent);
+  background-size: 240px 240px;
+  opacity: 0.45;
+}
+
+/* Middle: brighter, some in the accent. */
+.tt-stars::after {
+  background-image:
+    radial-gradient(2.5px 2.5px at 40px 60px, var(--color-fd-foreground), transparent),
+    radial-gradient(2.5px 2.5px at 260px 180px, var(--tt-accent), transparent),
+    radial-gradient(2px 2px at 150px 300px, var(--color-fd-foreground), transparent),
+    radial-gradient(2.5px 2.5px at 330px 90px, var(--color-fd-muted-foreground), transparent);
+  background-size: 380px 380px;
+  opacity: 0.4;
+}
+
+/* Near: large, soft, twinkling. */
+.tt-stars > span {
+  background-image:
+    radial-gradient(4px 4px at 90px 120px, var(--tt-accent), transparent),
+    radial-gradient(3.5px 3.5px at 420px 330px, var(--color-fd-foreground), transparent),
+    radial-gradient(4px 4px at 560px 80px, var(--color-fd-foreground), transparent);
+  background-size: 640px 520px;
+  opacity: 0.55;
+  filter: drop-shadow(0 0 6px var(--tt-accent));
+}
+
+@keyframes tt-drift-far {
+  to {
+    background-position: -240px 240px;
+  }
+}
+
+@keyframes tt-drift-mid {
+  to {
+    background-position: -380px 380px;
+  }
+}
+
+@keyframes tt-drift-near {
+  to {
+    background-position: -640px 520px;
+  }
+}
+
+@keyframes tt-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+html.tt-motion .tt-stars::before {
+  animation: tt-drift-far 120s linear infinite;
+}
+
+html.tt-motion .tt-stars::after {
+  animation: tt-drift-mid 70s linear infinite;
+}
+
+html.tt-motion .tt-stars > span {
+  animation:
+    tt-drift-near 45s linear infinite,
+    tt-twinkle 4.5s ease-in-out infinite;
+}
+
+/* Manifesto: pinned while its words light up. */
+.tt-manifesto-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: clip;
+  padding: 7rem 0;
+}
+
+.tt-word {
+  opacity: calc(0.14 + 0.86 * clamp(0, var(--p) * 1.3 * var(--n) - var(--i), 1));
+  transition: opacity 0.2s linear;
+}
+
+.tt-word-accent {
+  color: var(--tt-accent-text);
+}
+
+html.tt-motion .tt-manifesto {
+  height: 240vh;
+}
+
+html.tt-motion .tt-manifesto-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 0;
+}
+
+/* Journey: a request's way from a visitor to localhost and back. */
+.tt-journey-stage {
+  position: relative;
+  padding: 6rem 0;
+}
+
+html.tt-motion .tt-journey {
+  height: 440vh;
+}
+
+html.tt-motion .tt-journey-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 3.5rem 0 1rem;
+  display: flex;
+  overflow: clip;
+}
+
+.tt-journey-step {
+  display: flex;
+  gap: 0.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  transition:
+    background-color 0.4s var(--tt-ease),
+    opacity 0.4s var(--tt-ease);
+}
+
+.tt-journey-num {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  transition:
+    background-color 0.4s var(--tt-ease),
+    color 0.4s var(--tt-ease),
+    border-color 0.4s var(--tt-ease);
+}
+
+.tt-journey-body {
+  margin-top: 0.25rem;
+}
+
+html.tt-motion .tt-journey-step {
+  opacity: 0.45;
+}
+
+html.tt-motion .tt-journey-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  margin-top: 0;
+  transition:
+    grid-template-rows 0.5s var(--tt-ease),
+    margin-top 0.5s var(--tt-ease);
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"],
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"],
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"],
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"],
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] {
+  opacity: 1;
+  background: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"] .tt-journey-body,
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] .tt-journey-body {
+  grid-template-rows: 1fr;
+  margin-top: 0.25rem;
+}
+
+html.tt-motion .tt-journey-body > * {
+  min-height: 0;
+}
+
+html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"] .tt-journey-num,
+html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] .tt-journey-num {
+  background: var(--tt-accent-fill);
+  border-color: var(--tt-accent-fill);
+  color: white;
+}
+
+/* Phones: only the step being told, so the pinned view fits. */
+@media (max-width: 1023px) {
+  html.tt-motion .tt-journey-step {
+    display: none;
+  }
+
+  html.tt-motion .tt-journey[data-phase="0"] .tt-journey-step[data-index="0"],
+  html.tt-motion .tt-journey[data-phase="1"] .tt-journey-step[data-index="1"],
+  html.tt-motion .tt-journey[data-phase="2"] .tt-journey-step[data-index="2"],
+  html.tt-motion .tt-journey[data-phase="3"] .tt-journey-step[data-index="3"],
+  html.tt-motion .tt-journey[data-phase="4"] .tt-journey-step[data-index="4"] {
+    display: flex;
+  }
+
+  html.tt-motion .tt-journey-steps {
+    margin-top: 1.25rem;
+    min-height: 7.5rem;
+  }
+}
+
+/* The map: a line with the stops on it (vertical on phones, across from tablets up). */
+.tt-journey-map {
+  --pad: 2.25rem;
+  position: relative;
+  height: 25rem;
+  margin: 0;
+}
+
+.tt-journey-line {
+  position: absolute;
+  left: 1.75rem;
+  top: var(--pad);
+  bottom: var(--pad);
+  width: 2px;
+  background: var(--color-fd-border);
+  border-radius: 2px;
+}
+
+.tt-journey-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(var(--t, 1) * 100%);
+  background: var(--tt-accent);
+  border-radius: 2px;
+}
+
+.tt-journey[data-back] .tt-journey-fill {
+  top: calc(var(--t, 1) * 100%);
+  height: auto;
+  bottom: 0;
+}
+
+.tt-journey-packet {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--t, 1) * 100%);
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: -0.45rem;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--tt-accent) 25%, transparent),
+    0 0 24px 6px color-mix(in oklab, var(--tt-accent) 55%, transparent);
+  opacity: 0;
+}
+
+html.tt-motion .tt-journey-packet {
+  opacity: 1;
+}
+
+.tt-journey[data-back] .tt-journey-packet {
+  background: var(--color-fd-background);
+  border: 2px solid var(--tt-accent);
+}
+
+.tt-journey-tunnel {
+  position: absolute;
+  left: -0.45rem;
+  right: -0.45rem;
+  top: 32%;
+  height: 38%;
+  border: 1px dashed color-mix(in oklab, var(--tt-accent) 55%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--tt-accent) 7%, transparent);
+}
+
+.tt-journey-tunnel-label {
+  position: absolute;
+  left: 1.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.7rem;
+  color: var(--tt-accent-text);
+}
+
+.tt-journey-stops {
+  position: absolute;
+  inset: var(--pad) 0 var(--pad) 0;
+}
+
+.tt-journey-stop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--at) * 100%);
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  align-items: center;
+  column-gap: 1rem;
+  transform: translateY(-50%);
+}
+
+.tt-journey-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: var(--tt-window-shadow);
+  transition:
+    transform 0.45s var(--tt-ease),
+    border-color 0.45s var(--tt-ease),
+    box-shadow 0.45s var(--tt-ease),
+    color 0.45s var(--tt-ease);
+}
+
+.tt-journey-shield {
+  position: absolute;
+  right: -0.35rem;
+  top: -0.35rem;
+  color: var(--tt-live);
+  background: var(--color-fd-background);
+  border-radius: 9999px;
+}
+
+.tt-journey-label {
+  min-width: 0;
+}
+
+.tt-journey-note {
+  grid-column: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--tt-accent) 40%, transparent);
+  background: color-mix(in oklab, var(--tt-accent) 10%, var(--color-fd-background));
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+html.tt-motion .tt-journey[data-phase="2"] .tt-journey-tunnel {
+  border-style: solid;
+  background: color-mix(in oklab, var(--tt-accent) 16%, transparent);
+}
+
+html.tt-motion .tt-journey-note {
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transition:
+    opacity 0.35s var(--tt-ease),
+    transform 0.35s var(--tt-ease);
+}
+
+html.tt-motion .tt-journey[data-at="0"] .tt-journey-stop[data-index="0"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="1"] .tt-journey-stop[data-index="1"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="2"] .tt-journey-stop[data-index="2"] .tt-journey-note,
+html.tt-motion .tt-journey[data-at="3"] .tt-journey-stop[data-index="3"] .tt-journey-note {
+  opacity: 1;
+  transform: none;
+}
+
+html.tt-motion .tt-journey[data-at="0"] .tt-journey-stop[data-index="0"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="1"] .tt-journey-stop[data-index="1"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="2"] .tt-journey-stop[data-index="2"] .tt-journey-node,
+html.tt-motion .tt-journey[data-at="3"] .tt-journey-stop[data-index="3"] .tt-journey-node {
+  transform: scale(1.08);
+  border-color: var(--tt-accent);
+  color: var(--tt-accent-text);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--tt-accent) 14%, transparent),
+    var(--tt-window-shadow);
+}
+
+.tt-journey-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1.75rem;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tt-journey-map {
+    height: 24rem;
+  }
+
+  .tt-journey-node {
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 1.25rem;
+  }
+
+  .tt-journey-node svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .tt-journey-line {
+    left: 3.5rem;
+    right: 3.5rem;
+    top: 50%;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+
+  .tt-journey-fill {
+    top: 0;
+    bottom: 0;
+    height: auto;
+    width: calc(var(--t, 1) * 100%);
+    background: var(--tt-accent);
+  }
+
+  .tt-journey[data-back] .tt-journey-fill {
+    top: 0;
+    left: calc(var(--t, 1) * 100%);
+    right: 0;
+    width: auto;
+  }
+
+  .tt-journey-packet {
+    top: 50%;
+    left: calc(var(--t, 1) * 100%);
+  }
+
+  .tt-journey-tunnel {
+    left: 32%;
+    right: 30%;
+    top: -0.45rem;
+    bottom: -0.45rem;
+    height: auto;
+  }
+
+  .tt-journey-tunnel-label {
+    left: 50%;
+    top: calc(100% + 0.5rem);
+    transform: translateX(-50%);
+  }
+
+  .tt-journey-stops {
+    inset: 0 3.5rem;
+  }
+
+  .tt-journey-stop {
+    left: calc(var(--at) * 100%);
+    right: auto;
+    top: 50%;
+    width: 9rem;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+    row-gap: 0.6rem;
+    transform: translate(-50%, -2.125rem);
+  }
+
+  .tt-journey-note {
+    grid-column: 1;
+    justify-self: center;
+    margin-top: 0;
+    position: absolute;
+    top: -2.6rem;
+  }
+
+  .tt-journey-caption {
+    display: block;
+    text-align: center;
+  }
+}
+
+/* Features: cards that stack, each sinking back as the next slides over it. */
+.tt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.tt-card {
+  position: relative;
+  border-radius: 1.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: 0 30px 80px -40px rgb(0 0 0 / 0.35);
+}
+
+.tt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--color-fd-background);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Each card sticks under the chapter rail, or, when it's taller than the window has room
+   for, once its bottom is in view (`--h` is its height, from scenes.tsx), so the whole
+   card is read before the next one covers it, at any window height. */
+@media (min-width: 1024px) {
+  html.tt-motion .tt-stack {
+    gap: 14vh;
+  }
+
+  html.tt-motion .tt-card {
+    position: sticky;
+    top: min(7.75rem, calc(100dvh - var(--h, 0px) - 1.5rem));
+    transform-origin: 50% 0;
+    transform: scale(calc(1 - var(--p) * 0.07)) translateY(calc(var(--p) * -1.25rem));
+  }
+
+  /* A covered card sinks back and dims. */
+  html.tt-motion .tt-card::after {
+    opacity: calc(var(--p) * 0.6);
+  }
+}
+
+/* The live demo floats a little faster than the screenshot under it. */
+html.tt-motion .tt-float {
+  transform: translateY(calc((0.5 - var(--p)) * 5rem));
+}
+
+/* A feature's points: one highlighted at a time, with a line that fills as it's read. */
+.tt-point {
+  position: relative;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--color-fd-border);
+  transition: opacity 0.45s var(--tt-ease);
+}
+
+.tt-point-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 1px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+html.tt-motion .tt-points[data-running] .tt-point {
+  opacity: 0.5;
+}
+
+html.tt-motion .tt-points[data-running] .tt-point[data-active] {
+  opacity: 1;
+}
+
+html.tt-motion .tt-point[data-active] .tt-point-bar {
+  animation: tt-fill var(--dwell, 4s) linear forwards;
+}
+
+html.tt-motion .tt-point[data-held] .tt-point-bar {
+  animation: none;
+  transform: scaleX(1);
+}
+
+@keyframes tt-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* The native app: one window, as each system draws it. */
+.tt-seg {
+  display: inline-flex;
+  margin: 0;
+  min-inline-size: 0;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+}
+
+.tt-seg-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.9rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  color: var(--color-fd-muted-foreground);
+  overflow: hidden;
+  transition:
+    background-color 0.3s var(--tt-ease),
+    color 0.3s var(--tt-ease);
+}
+
+.tt-seg-item:hover {
+  color: var(--color-fd-foreground);
+}
+
+.tt-seg-item[data-active] {
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+}
+
+.tt-seg-bar {
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0.3rem;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.6;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+html.tt-motion .tt-seg-item[data-running] .tt-seg-bar {
+  animation: tt-fill var(--dwell, 4.5s) linear forwards;
+}
+
+.tt-kbd-text kbd {
+  display: inline-block;
+  min-width: 1.35em;
+  padding: 0 0.35em;
+  border: 1px solid var(--color-fd-border);
+  border-bottom-width: 2px;
+  border-radius: 0.35em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.78em;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--color-fd-foreground);
+  background: var(--color-fd-card);
+}
+
+.tt-os-stage {
+  display: grid;
+  margin: 0;
+}
+
+.tt-os-window {
+  grid-area: 1 / 1;
+  align-self: center;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  container-type: inline-size;
+  opacity: 0;
+  transform: translateY(0.75rem) scale(0.975);
+  transition:
+    opacity 0.6s var(--tt-ease),
+    transform 0.7s var(--tt-ease);
+  pointer-events: none;
+}
+
+.tt-os-window[data-shown] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* The frames, to scale with the 1280-pixel-wide screenshot. */
+.tt-os-bar {
+  --bar: #f3f3f3;
+  --ink: #1b1b1b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 2.5cqw;
+  padding-left: 1cqw;
+  font-size: 0.95cqw;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  background: var(--bar);
+  color: var(--ink);
+}
+
+:root.dark .tt-os-bar,
+.tt-os-window[data-scheme="dark"] .tt-os-bar {
+  --bar: #202020;
+  --ink: #f3f3f3;
+}
+
+.tt-os-window[data-scheme="light"] .tt-os-bar {
+  --bar: #f3f3f3;
+  --ink: #1b1b1b;
+}
+
+.tt-os-icon {
+  width: 1.2cqw;
+  height: 1.2cqw;
+  border-radius: 0.25cqw;
+  background: var(--tt-accent-fill);
+}
+
+.tt-os-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6cqw;
+  height: 100%;
+}
+
+.tt-os-caption svg {
+  width: 0.8cqw;
+  height: 0.8cqw;
+}
+
+.tt-os-close:hover {
+  background: #c42b1c;
+  color: white;
+}
+
+.tt-os-linux {
+  --bar: #ebebeb;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  height: 3.6cqw;
+  padding: 0 0.9cqw;
+  font-family: Cantarell, "Adwaita Sans", Inter, system-ui, sans-serif;
+  font-size: 1.1cqw;
+}
+
+:root.dark .tt-os-linux,
+.tt-os-window[data-scheme="dark"] .tt-os-linux {
+  --bar: #303030;
+}
+
+.tt-os-window[data-scheme="light"] .tt-os-linux {
+  --bar: #ebebeb;
+}
+
+.tt-os-gnome-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9cqw;
+  height: 1.9cqw;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--ink) 10%, transparent);
+}
+
+.tt-os-gnome-close svg {
+  width: 0.7cqw;
+  height: 0.7cqw;
+}
+
+/* Security: the promises wired to one core, data flowing along the traces into it. */
+.tt-core-grid {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+}
+
+.tt-core-stage {
+  position: relative;
+  z-index: 1;
+  perspective: 1100px;
+}
+
+.tt-core {
+  position: relative;
+  z-index: 1;
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--tt-ease);
+  padding: 2rem 1.75rem;
+  border-radius: 1.5rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow:
+    0 0 0 6px color-mix(in oklab, var(--color-fd-card) 55%, transparent),
+    var(--tt-window-shadow);
+  text-align: center;
+}
+
+/* Pointing at the core, it turns towards the pointer in 3D, its content floating forward. */
+.tt-core-content {
+  transition: transform 0.6s var(--tt-ease);
+}
+
+html.tt-motion .tt-core:hover {
+  transform: rotateY(calc((var(--px, 0.5) - 0.5) * 16deg))
+    rotateX(calc((0.5 - var(--py, 0.5)) * 12deg));
+  transition-duration: 0.15s;
+}
+
+html.tt-motion .tt-core:hover .tt-core-content {
+  transform: translateZ(28px);
+}
+
+/* Pointing at the core: a streak of light runs around its border, with a soft glow. */
+@property --tt-spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes tt-spin {
+  to {
+    --tt-spin: 360deg;
+  }
+}
+
+.tt-core::before,
+.tt-core::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--tt-spin),
+    transparent 0turn,
+    transparent 0.6turn,
+    color-mix(in oklab, var(--tt-accent) 35%, transparent) 0.82turn,
+    var(--tt-accent) 0.97turn,
+    transparent 1turn
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s var(--tt-ease);
+  pointer-events: none;
+}
+
+.tt-core::after {
+  inset: -3px;
+  padding: 5px;
+  filter: blur(10px);
+}
+
+.tt-core:hover::before,
+.tt-core:hover::after,
+.tt-core:focus-within::before,
+.tt-core:focus-within::after {
+  opacity: 1;
+}
+
+html.tt-motion .tt-core::before,
+html.tt-motion .tt-core::after {
+  animation: tt-spin 2.6s linear infinite;
+  animation-play-state: paused;
+}
+
+html.tt-motion .tt-core:is(:hover, :focus-within)::before,
+html.tt-motion .tt-core:is(:hover, :focus-within)::after {
+  animation-play-state: running;
+}
+
+.tt-pledges {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 1023px) {
+  .tt-core-stage {
+    order: -1;
+  }
+}
+
+.tt-pledge {
+  border-radius: 1.1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  padding: 1.25rem 1.35rem;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .tt-core-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tt-core-stage {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .tt-pledges {
+    align-content: start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tt-core-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem) minmax(0, 1fr);
+    column-gap: 6.5rem;
+    align-items: center;
+    padding: 5rem 0;
+  }
+
+  .tt-pledges {
+    gap: 1.5rem;
+  }
+}
+
+.tt-traces {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tt-trace {
+  fill: none;
+  stroke: color-mix(in oklab, var(--color-fd-muted-foreground) 32%, transparent);
+  stroke-width: 1;
+}
+
+.tt-trace-pulse {
+  fill: none;
+  stroke: var(--c, var(--tt-accent));
+  stroke-linecap: round;
+  stroke-dasharray: var(--len, 20px) 100000px;
+  stroke-dashoffset: var(--len, 20px);
+  opacity: 0;
+}
+
+.tt-trace-head {
+  filter: drop-shadow(0 0 4px var(--c, var(--tt-accent)));
+}
+
+@keyframes tt-trace-run {
+  0% {
+    stroke-dashoffset: var(--len, 20px);
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: var(--alpha, 1);
+  }
+  100% {
+    stroke-dashoffset: calc(var(--total, 400px) * -1);
+    opacity: 0;
+  }
+}
+
+html.tt-motion .tt-trace-pulse {
+  animation: tt-trace-run var(--duration, 3s) cubic-bezier(0.45, 0, 0.35, 1) both;
+}
+
+.tt-trace-dot {
+  fill: var(--color-fd-muted-foreground);
+  opacity: 0.6;
+}
+
+.tt-trace-pin {
+  fill: var(--color-fd-muted-foreground);
+  opacity: 0.8;
+}
+
+/* How it works, timed: the steps play in turn, handing over along a line. */
+.tt-how-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+}
+
+.tt-how-clock-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  animation: tt-pulse 1.2s ease-out infinite;
+}
+
+.tt-how-clock[data-done] .tt-how-clock-dot {
+  background: var(--tt-live);
+  animation: none;
+}
+
+.tt-how-steps {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .tt-how-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+.tt-how-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  transition:
+    opacity 0.5s var(--tt-ease),
+    border-color 0.5s var(--tt-ease),
+    box-shadow 0.5s var(--tt-ease);
+}
+
+.tt-how-card[data-state="waiting"] {
+  opacity: 0.55;
+}
+
+.tt-how-card[data-state="active"] {
+  border-color: color-mix(in oklab, var(--tt-accent) 55%, var(--color-fd-border));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--tt-accent) 10%, transparent);
+}
+
+.tt-how-num {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  transition:
+    background-color 0.4s var(--tt-ease),
+    border-color 0.4s var(--tt-ease),
+    color 0.4s var(--tt-ease);
+}
+
+.tt-how-card[data-state="active"] .tt-how-num {
+  border-color: var(--tt-accent);
+  color: var(--tt-accent-text);
+  animation: tt-pulse 1.4s ease-out infinite;
+}
+
+.tt-how-card[data-state="done"] .tt-how-num {
+  background: var(--tt-accent-fill);
+  border-color: var(--tt-accent-fill);
+  color: white;
+}
+
+/* The handover to the next step: from this step's number across the gap. */
+.tt-how-link {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tt-how-link {
+    display: block;
+    position: absolute;
+    top: 2.5rem;
+    left: 4rem;
+    right: -1.5rem;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--tt-accent);
+    transform-origin: 0 50%;
+    transform: scaleX(var(--link, 0));
+  }
+
+  .tt-how-card:last-child .tt-how-link {
+    display: none;
+  }
+}
+
+.tt-how-stage {
+  margin-top: 1.25rem;
+  min-height: 7.25rem;
+  padding: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-size: 0.8rem;
+}
+
+.tt-how-bar {
+  display: block;
+  margin-top: 0.6rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: var(--color-fd-border);
+  overflow: hidden;
+}
+
+.tt-how-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+}
+
+.tt-how-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-fd-muted-foreground);
+  transition: color 0.3s var(--tt-ease);
+}
+
+.tt-how-line[data-done] {
+  color: var(--color-fd-foreground);
+}
+
+.tt-how-tick {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  transition:
+    background-color 0.3s var(--tt-ease),
+    border-color 0.3s var(--tt-ease);
+}
+
+.tt-how-line[data-done] .tt-how-tick {
+  background: var(--tt-accent-fill);
+  border-color: var(--tt-accent-fill);
+  color: white;
+}
+
+.tt-how-dot {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 9999px;
+  background: var(--color-fd-muted-foreground);
+}
+
+.tt-how-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.8rem;
+  border-radius: 9999px;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition:
+    transform 0.2s var(--tt-ease),
+    opacity 0.2s var(--tt-ease);
+}
+
+.tt-how-button[data-pressed] {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+.tt-how-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  font-size: 0.72rem;
+  opacity: 0.35;
+  transition:
+    opacity 0.3s var(--tt-ease),
+    border-color 0.3s var(--tt-ease),
+    color 0.3s var(--tt-ease);
+}
+
+.tt-how-chip[data-on] {
+  opacity: 1;
+  border-color: color-mix(in oklab, var(--tt-accent) 55%, transparent);
+  color: var(--tt-accent-text);
+}
+
+.tt-how-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--tt-live) 50%, transparent);
+  color: var(--tt-live-text);
+  font-size: 0.75rem;
+  opacity: 0;
+  transform: translateY(4px) scale(0.97);
+  transition:
+    opacity 0.4s var(--tt-ease),
+    transform 0.4s var(--tt-ease);
+}
+
+.tt-how-live[data-on] {
+  opacity: 1;
+  transform: none;
+}
+
+.tt-how-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--tt-live);
+}
+
+/* The closing card: the call to act beside a Quick Share happening. */
+.tt-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: center;
+  padding: 2.5rem 1.75rem;
+  border-radius: 1.75rem;
+  border: 1px solid var(--color-fd-border);
+  background:
+    radial-gradient(
+      26rem circle at var(--mx) var(--my),
+      color-mix(in oklab, var(--tt-accent) 9%, transparent),
+      transparent 70%
+    ),
+    var(--color-fd-card);
+}
+
+@media (min-width: 1024px) {
+  .tt-closing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3.5rem;
+    padding: 3.5rem;
+  }
+}
+
+.tt-share-loop {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  max-width: 30rem;
+  width: 100%;
+  justify-self: center;
+}
+
+.tt-share-end {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+}
+
+.tt-share-live {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--tt-live);
+  transition: background-color 0.3s var(--tt-ease);
+}
+
+.tt-share-line {
+  position: relative;
+  margin-left: 1.45rem;
+  width: 2px;
+  height: 2.75rem;
+  background: var(--color-fd-border);
+}
+
+.tt-share-dot {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: -0.275rem;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow: 0 0 12px 3px color-mix(in oklab, var(--tt-accent) 50%, transparent);
+  opacity: 0;
+}
+
+@keyframes tt-share-travel {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes tt-share-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-dot {
+  animation: tt-share-travel 1.2s var(--tt-ease) forwards;
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-address {
+  opacity: 0.25;
+}
+
+html.tt-motion .tt-share-loop[data-phase="sending"] .tt-share-live {
+  background: var(--color-fd-muted-foreground);
+}
+
+html.tt-motion .tt-share-loop[data-phase="live"] .tt-share-address {
+  animation: tt-share-in 0.5s var(--tt-ease) both;
+}
+
+/* Reduce Motion turned on after the page loaded: every scene at rest. */
+@media (prefers-reduced-motion: reduce) {
+  html.tt-motion :is(.tt-point-bar, .tt-stars > span, .tt-share-dot, .tt-share-address),
+  html.tt-motion .tt-stars::before,
+  html.tt-motion .tt-stars::after {
+    animation: none;
+  }
+}
+
+/* The hero's night sky: behind everything, fading out before the screenshot. */
+.tt-hero-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 78%);
+}
+
+/* Requests crossing the sky are drawn above the screenshot, reaching the inspector card. */
+.tt-hero-front {
+  z-index: 20;
+  mask-image: none;
+}
+
+/* Features: the chapter rail under the header, and screens that settle flat as they arrive. */
+.tt-chapters {
+  position: sticky;
+  top: 4rem;
+  z-index: 30;
+  margin: -1rem auto 3.5rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.3rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: color-mix(in oklab, var(--color-fd-background) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  overflow: hidden;
+}
+
+.tt-chapters-list {
+  display: flex;
+  gap: 0.15rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tt-chapter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  color: var(--color-fd-muted-foreground);
+  transition:
+    background-color 0.35s var(--tt-ease),
+    color 0.35s var(--tt-ease);
+}
+
+.tt-chapter:hover {
+  color: var(--color-fd-foreground);
+}
+
+.tt-chapter[aria-current] {
+  background: var(--color-fd-accent);
+  color: var(--color-fd-foreground);
+}
+
+.tt-chapters-bar {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--progress, 0));
+}
+
+@media (min-width: 768px) {
+  .tt-chapters {
+    margin-bottom: 5rem;
+  }
+}
+
+html.tt-motion .tt-card-media {
+  perspective: 1600px;
+}
+
+html.tt-motion .tt-card-media > * {
+  transform-origin: 50% 100%;
+  transform: rotateX(calc(max(0, 0.42 - var(--p, 1)) * 32deg));
+}
+
+/* AI agents: a session in a terminal, and the app's question over it. */
+.tt-agent {
+  position: relative;
+  padding-bottom: 5.5rem;
+}
+
+.tt-agent-window {
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  overflow: hidden;
+}
+
+@keyframes tt-appear {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+html.tt-motion .tt-agent-line {
+  animation: tt-appear 0.45s var(--tt-ease) both;
+}
+
+.tt-agent-ask {
+  position: absolute;
+  right: -0.5rem;
+  bottom: 0;
+  width: min(24rem, calc(100% - 1rem));
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-size: 0.875rem;
+  box-shadow: var(--tt-window-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: perspective(900px) translateY(1rem) rotateX(-8deg) scale(0.97);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 0.4s var(--tt-ease),
+    transform 0.55s var(--tt-ease),
+    visibility 0s 0.55s;
+}
+
+.tt-agent-ask[data-open] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+html.tt-motion .tt-agent-ask[data-open] .tt-agent-allow {
+  animation: tt-pulse 2s ease-out infinite;
+}
+
+/* Phones: the question sits under the session, overlapping it a little, not over it. */
+@media (max-width: 639px) {
+  .tt-agent {
+    padding-bottom: 0;
+  }
+
+  .tt-agent-ask {
+    position: relative;
+    right: auto;
+    width: auto;
+    margin: -1.25rem 0.5rem 0;
+  }
+}
+
+/* A list beside a stage (tools, use cases): the current item marked, its turn filling. */
+.tt-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .tt-picker {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+}
+
+.tt-pick-list {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .tt-pick-list {
+    flex-direction: column;
+    overflow: visible;
+  }
+}
+
+.tt-pick-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.6rem 0.9rem 0.6rem 0.6rem;
+  border-radius: 0.9rem;
+  border: 1px solid transparent;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    background-color 0.3s var(--tt-ease),
+    border-color 0.3s var(--tt-ease);
+}
+
+.tt-pick-tab:hover {
+  background: color-mix(in oklab, var(--color-fd-accent) 60%, transparent);
+}
+
+.tt-pick-tab[aria-selected="true"] {
+  background: var(--color-fd-card);
+  border-color: var(--color-fd-border);
+}
+
+@media (max-width: 1023px) {
+  .tt-pick-note {
+    display: none;
+  }
+
+  .tt-pick-tab {
+    padding: 0.4rem 0.8rem 0.4rem 0.4rem;
+  }
+}
+
+.tt-pick-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  color: var(--color-fd-muted-foreground);
+  transition: color 0.3s var(--tt-ease);
+}
+
+.tt-pick-icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.tt-pick-tab[aria-selected="true"] .tt-pick-icon {
+  color: var(--tt-accent-text);
+}
+
+.tt-pick-bar {
+  position: absolute;
+  left: 0.9rem;
+  right: 0.9rem;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--tt-accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+/* Pinned, the scroll fills it instead of a timer. */
+.tt-picker[data-scrolled] .tt-pick-tab[aria-selected="true"] .tt-pick-bar {
+  transform: scaleX(var(--fill, 0));
+}
+
+html.tt-motion .tt-picker[data-running] .tt-pick-tab[aria-selected="true"] .tt-pick-bar {
+  animation: tt-fill var(--dwell, 5s) linear forwards;
+}
+
+.tt-pick-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  perspective: 1400px;
+}
+
+.tt-pick-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+html.tt-motion .tt-pick-panel {
+  animation: tt-pick-in 0.6s var(--tt-ease) both;
+  transform-origin: 50% 0;
+}
+
+@keyframes tt-pick-in {
+  from {
+    opacity: 0;
+    transform: rotateX(7deg) translateY(10px);
+  }
+}
+
+/* A pinned picker: the section is as tall as a stretch of scroll per item, and the whole
+   section (heading, list and stage, footer) holds still on one screen, centred under the
+   header and a little more compact, while the scroll picks the item. */
+.tt-pin[data-pinned] {
+  height: calc(var(--n) * 55vh + 100vh);
+}
+
+.tt-pin[data-pinned] .tt-pin-stage {
+  position: sticky;
+  top: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: calc(100dvh - 3.5rem);
+  padding: 1rem 0;
+}
+
+.tt-pin[data-pinned] .tt-pin-head {
+  max-width: none;
+  margin-bottom: 1.75rem;
+}
+
+.tt-pin[data-pinned] .tt-pin-head h2 {
+  font-size: clamp(1.9rem, 5.2dvh, 2.6rem);
+  line-height: 1.1;
+}
+
+.tt-pin[data-pinned] .tt-pin-head p:last-child {
+  max-width: 50rem;
+  margin-top: 0.75rem;
+  font-size: 1rem;
+}
+
+.tt-pin[data-pinned] .tt-pin-foot {
+  max-width: none;
+  margin-top: 1.5rem;
+  font-size: 0.9375rem;
+}
+
+.tt-pin[data-pinned] .tt-pick-tab {
+  padding-block: 0.45rem;
+}
+
+/* Parts of a panel that appear once it has done its job (all at once without motion). */
+html.tt-motion .tt-pick-panel:not([data-done]) .tt-pick-result {
+  display: none;
+}
+
+.tt-pick-before {
+  display: none;
+}
+
+html.tt-motion .tt-pick-panel:not([data-done]) .tt-pick-before {
+  display: block;
+}
+
+html.tt-motion .tt-pick-panel[data-done] .tt-pick-result {
+  animation: tt-appear 0.45s var(--tt-ease) both;
+  animation-delay: calc(var(--tt-delay, 0) * 1ms);
+}
+
+/* The tools' mocks: a small window each. */
+.tt-mock {
+  position: relative;
+  min-height: 19rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  box-shadow: var(--tt-window-shadow);
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+
+/* Pinned, a little shorter, so the whole section fits. */
+.tt-pin[data-pinned] .tt-mock {
+  min-height: 16.5rem;
+}
+
+.tt-mock-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--color-fd-border);
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.tt-mock-bar > :last-child {
+  padding-right: 3.25rem;
+}
+
+.tt-mock-palette {
+  position: absolute;
+  top: 3rem;
+  left: 50%;
+  width: min(24rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  overflow: hidden;
+  font-size: 0.75rem;
+}
+
+.tt-mock-toast {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(22rem, calc(100% - 1.5rem));
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  font-size: 0.75rem;
+}
+
+.tt-mock-toast > :nth-child(2) {
+  flex: 1;
+}
+
+.tt-mock-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  height: 1.6rem;
+  padding: 0 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-fd-border);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.tt-mock-raycast {
+  display: flex;
+  flex-direction: column;
+}
+
+.tt-mock-raycast > :last-child {
+  margin-top: auto;
+}
+
+.tt-mock-hud {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 9999px;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.tt-mock-popup {
+  position: absolute;
+  top: 2.9rem;
+  right: 1rem;
+  width: min(17rem, calc(100% - 2rem));
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+}
+
+/* Use cases: a small scene each, played once when picked (see components/use-cases.tsx). */
+.tt-scene {
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--color-fd-border);
+  background:
+    radial-gradient(
+      circle at 1px 1px,
+      color-mix(in oklab, var(--color-fd-foreground) 9%, transparent) 1px,
+      transparent 0
+    )
+    0 0 / 18px 18px,
+    var(--color-fd-card);
+}
+
+@media (min-width: 640px) {
+  .tt-scene {
+    padding: 1.75rem;
+  }
+}
+
+.tt-scene-window {
+  border-radius: 0.8rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  overflow: hidden;
+  font-size: 0.75rem;
+}
+
+.tt-scene-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--color-fd-border);
+  font-size: 0.6875rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+.tt-scene-bar > :last-child {
+  padding-right: 1.75rem;
+}
+
+.tt-scene-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tt-scene-row > .tt-scene-window {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .tt-scene-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .tt-scene-row > .tt-scene-window {
+    width: auto;
+    min-width: 0;
+  }
+}
+
+.tt-scene-phone {
+  position: relative;
+  flex-shrink: 0;
+  width: 10.75rem;
+  height: 17rem;
+  padding: 0.5rem;
+  border-radius: 1.6rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+}
+
+.tt-scene-phone-url {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.25rem 0.25rem 0.4rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 9999px;
+  background: var(--color-fd-accent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9px;
+  color: var(--color-fd-muted-foreground);
+}
+
+.tt-scene-phone-screen {
+  position: relative;
+  height: calc(100% - 1.9rem);
+  border-radius: 1.1rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+  overflow: hidden;
+}
+
+.tt-scene-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  height: 1.75rem;
+  padding: 0 0.7rem;
+  border-radius: 9999px;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-weight: 500;
+}
+
+.tt-scene-chip-live {
+  background: var(--color-fd-card);
+  border: 1px solid var(--color-fd-border);
+  color: var(--tt-accent-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 400;
+  font-size: 0.6875rem;
+}
+
+/* The link from the laptop to the phone, with a request travelling it. */
+.tt-scene-link {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.5px;
+  height: 2rem;
+  background: repeating-linear-gradient(180deg, var(--tt-accent) 0 4px, transparent 4px 8px);
+}
+
+.tt-scene-packet {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 9999px;
+  background: var(--tt-accent);
+  box-shadow: 0 0 10px var(--tt-accent);
+}
+
+@media (min-width: 640px) {
+  .tt-scene-link {
+    width: 2.5rem;
+    height: 1.5px;
+    background: repeating-linear-gradient(90deg, var(--tt-accent) 0 4px, transparent 4px 8px);
+  }
+
+  .tt-scene-packet {
+    top: 50%;
+    left: 0;
+  }
+}
+
+@keyframes tt-scene-down {
+  from {
+    top: 0;
+  }
+  to {
+    top: 100%;
+  }
+}
+
+@keyframes tt-scene-across {
+  from {
+    left: 0;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+html.tt-motion .tt-scene-packet {
+  animation: tt-scene-down 1.2s linear infinite;
+}
+
+@media (min-width: 640px) {
+  html.tt-motion .tt-scene-packet {
+    animation-name: tt-scene-across;
+  }
+}
+
+.tt-scene-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 0.6rem;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.tt-scene-event {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-fd-border);
+}
+
+.tt-scene-event-fixed {
+  border-color: color-mix(in oklab, var(--tt-live) 45%, var(--color-fd-border));
+}
+
+.tt-scene-replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+  font-family: var(--font-sans, ui-sans-serif, system-ui);
+  font-size: 10px;
+}
+
+.tt-scene-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.55rem;
+  background: var(--color-fd-background);
+  border: 1px solid var(--color-fd-border);
+}
+
+.tt-scene-toggle {
+  position: relative;
+  margin-inline-start: auto;
+  width: 1.5rem;
+  height: 0.85rem;
+  border-radius: 9999px;
+  background: var(--tt-accent-fill);
+}
+
+.tt-scene-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(0.85rem - 4px);
+  height: calc(0.85rem - 4px);
+  border-radius: 9999px;
+  background: white;
+  transform: translateX(0.65rem);
+}
+
+.tt-scene-bulb {
+  color: oklch(0.8 0.15 85);
+}
+
+@keyframes tt-scene-toggle-on {
+  from {
+    background: var(--color-fd-border);
+  }
+}
+
+@keyframes tt-scene-knob-on {
+  from {
+    transform: none;
+  }
+}
+
+@keyframes tt-scene-bulb-on {
+  from {
+    color: var(--color-fd-muted-foreground);
+  }
+}
+
+html.tt-motion .tt-scene-toggle {
+  animation: tt-scene-toggle-on 0.3s var(--tt-ease) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+html.tt-motion .tt-scene-toggle::after {
+  animation: tt-scene-knob-on 0.3s var(--tt-ease) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+html.tt-motion .tt-scene-bulb {
+  animation: tt-scene-bulb-on 0.3s var(--tt-ease) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+.tt-scene-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--color-fd-muted-foreground);
+  counter-reset: note;
+}
+
+.tt-scene-notes > li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  counter-increment: note;
+}
+
+.tt-scene-notes > li::before {
+  content: counter(note);
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--tt-accent-text);
+}
+
+.tt-scene-popover {
+  position: absolute;
+  right: 0.75rem;
+  top: 2.4rem;
+  width: min(15rem, calc(100% - 1.5rem));
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  box-shadow: var(--tt-window-shadow);
+  font-size: 0.75rem;
+}
+
+.tt-scene-container {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.6rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-card);
+}
+
+.tt-scene-container[data-tunnel] {
+  border-color: color-mix(in oklab, var(--tt-accent) 45%, var(--color-fd-border));
+}
+
+.tt-scene-health {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--tt-live);
+}
+
+@keyframes tt-scene-health-on {
+  from {
+    background: var(--color-fd-border);
+  }
+}
+
+html.tt-motion .tt-scene-health {
+  animation: tt-scene-health-on 0.3s var(--tt-ease) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+.tt-scene-type {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+@keyframes tt-scene-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 29ch;
+  }
+}
+
+html.tt-motion .tt-scene-type {
+  animation: tt-scene-type 0.9s steps(29) 0.2s both;
+}
+
+/* The timing: before and after stacked in one place, parts arriving and leaving. */
+.tt-until,
+.tt-between {
+  visibility: hidden;
+}
+
+@keyframes tt-scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+@keyframes tt-scene-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+html.tt-motion .tt-scene .tt-at {
+  animation: tt-scene-in 0.45s var(--tt-ease) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+html.tt-motion .tt-scene .tt-until {
+  visibility: visible;
+  animation: tt-scene-out 0.25s var(--tt-ease) forwards;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+html.tt-motion .tt-scene .tt-between {
+  animation:
+    tt-scene-in 0.45s var(--tt-ease) both,
+    tt-scene-out 0.3s var(--tt-ease) forwards;
+  animation-delay: calc(var(--at, 0) * 1ms), calc(var(--to, 0) * 1ms);
+}
+
+.tt-case-fact {
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fd-border);
+  background: var(--color-fd-background);
+  font-size: 0.75rem;
+  color: var(--color-fd-muted-foreground);
+}
+
+/* FAQ: one answer open at a time, opening smoothly where the browser can. */
+.tt-faq {
+  border-top: 1px solid var(--color-fd-border);
+}
+
+.tt-faq-item {
+  border-bottom: 1px solid var(--color-fd-border);
+  interpolate-size: allow-keywords;
+}
+
+.tt-faq-item::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 0.45s var(--tt-ease),
+    content-visibility 0.45s allow-discrete;
+}
+
+.tt-faq-item[open]::details-content {
+  block-size: auto;
+}
+
+.tt-faq-question {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.35rem 0;
+  font-weight: 500;
+  font-size: 1.0625rem;
+  list-style: none;
+  cursor: pointer;
+  transition: color 0.3s var(--tt-ease);
+}
+
+.tt-faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.tt-faq-item:not([open]) .tt-faq-question:hover {
+  color: var(--tt-accent-text);
+}
+
+.tt-faq-sign {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.75rem;
+  height: 0.75rem;
+  align-self: center;
+}
+
+.tt-faq-sign::before,
+.tt-faq-sign::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform 0.4s var(--tt-ease);
+}
+
+.tt-faq-sign::after {
+  transform: rotate(90deg);
+}
+
+.tt-faq-item[open] .tt-faq-sign::after {
+  transform: rotate(0deg);
+}
+
+.tt-faq-answer {
+  padding: 0 1.75rem 1.5rem 2.2rem;
+  color: var(--color-fd-muted-foreground);
+  max-width: 44rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.tt-motion :is(.tt-scene-packet, .tt-pick-panel, .tt-agent-line),
+  html.tt-motion .tt-picker[data-running] .tt-pick-tab .tt-pick-bar {
+    animation: none;
   }
 }

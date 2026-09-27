@@ -47,6 +47,11 @@ pub(crate) struct CloudState {
     pub(crate) default_vnet: Option<String>,
     /// The token can't read private networks (reads fail with 403).
     pub(crate) networks_forbidden: bool,
+    /// Private hostname routes by id.
+    pub(crate) hostname_routes: BTreeMap<String, cf_api::HostnameRoute>,
+    /// Reading hostname routes fails (a server error), as for an account where they
+    /// aren't available.
+    pub(crate) hostname_routes_broken: bool,
     /// WARP client settings (`None`: can't be read).
     pub(crate) device_settings: Option<cf_api::DeviceSettings>,
     /// The default device profile (`None`: can't be read).
@@ -285,6 +290,14 @@ impl CloudState {
                     r.virtual_network_id.clone(),
                 )
             })
+            .chain(self.hostname_routes.values().map(|r| {
+                (
+                    format!("hostname:{}", r.hostname),
+                    r.tunnel_id.clone(),
+                    r.comment.clone().unwrap_or_default(),
+                    None,
+                )
+            }))
             .collect();
         networks.sort();
         // Workers by what serves (the live version's settings and files), not by ids.
@@ -863,6 +876,69 @@ impl CloudApi for FakeCloud {
             .lock()
             .unwrap()
             .network_routes
+            .remove(id)
+            .map(|_| ())
+            .ok_or_else(not_found)
+    }
+
+    async fn hostname_routes(&self, _account: &str) -> cf_api::Result<Vec<cf_api::HostnameRoute>> {
+        let state = self.state.lock().unwrap();
+        if state.networks_forbidden {
+            return Err(forbidden());
+        }
+        if state.hostname_routes_broken {
+            return Err(cf_api::Error::Api {
+                status: 500,
+                errors: vec![ApiMessage {
+                    code: 1000,
+                    message: "internal error".into(),
+                }],
+            });
+        }
+        Ok(state.hostname_routes.values().cloned().collect())
+    }
+
+    async fn create_hostname_route(
+        &self,
+        _account: &str,
+        hostname: &str,
+        tunnel: &str,
+        comment: &str,
+    ) -> cf_api::Result<cf_api::HostnameRoute> {
+        self.mutate()?;
+        let id = self.next_id("host");
+        let mut state = self.state.lock().unwrap();
+        // Assumed like IP routes: a hostname routes to one tunnel at a time.
+        if state
+            .hostname_routes
+            .values()
+            .any(|r| r.hostname.eq_ignore_ascii_case(hostname))
+        {
+            return Err(cf_api::Error::Api {
+                status: 409,
+                errors: vec![ApiMessage {
+                    code: 1014,
+                    message: "route already exists".into(),
+                }],
+            });
+        }
+        let route = cf_api::HostnameRoute {
+            id: id.clone(),
+            hostname: hostname.to_owned(),
+            tunnel_id: tunnel.to_owned(),
+            tunnel_name: None,
+            comment: Some(comment.to_owned()),
+        };
+        state.hostname_routes.insert(id, route.clone());
+        Ok(route)
+    }
+
+    async fn delete_hostname_route(&self, _account: &str, id: &str) -> cf_api::Result<()> {
+        self.mutate()?;
+        self.state
+            .lock()
+            .unwrap()
+            .hostname_routes
             .remove(id)
             .map(|_| ())
             .ok_or_else(not_found)

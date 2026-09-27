@@ -247,6 +247,58 @@ fn asks_the_person_in_the_app_when_it_runs() {
 }
 
 #[test]
+fn an_agent_cant_approve_its_own_change_and_hears_what_to_do() {
+    let Some(cloudflared) = sibling("fake-cloudflared") else {
+        eprintln!("skipped: build the workspace first (fake-cloudflared)");
+        return;
+    };
+    let data = tempfile::tempdir().unwrap();
+    // Once, so the timing below isn't the first start of a fresh binary.
+    let _ = Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+        .arg("--version")
+        .output();
+    let started = std::time::Instant::now();
+    let mut session = Session::start(
+        Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
+            .args(["mcp", "--mode", "ask"])
+            .env("TEITUNNEL_DATA_DIR", data.path())
+            .env("TEITUNNEL_CLOUDFLARED", &cloudflared)
+            .env_remove("TEITUNNEL_MCP_APPROVE_IN_APP")
+            .env_remove("CLOUDFLARE_API_TOKEN")
+            .env_remove("TEITUNNEL_API_TOKEN"),
+    );
+    // The handshake doesn't wait for anything heavy (a debug build answers in tens of
+    // milliseconds; the bound leaves room for slow CI machines).
+    let handshake = started.elapsed();
+    assert!(handshake < Duration::from_secs(2), "{handshake:?}");
+    // No app, a client that can't ask: `confirmed` from the agent isn't an approval.
+    let result = session.request(
+        "tools/call",
+        json!({ "name": "share_port", "arguments": { "target": "3000", "confirmed": true } }),
+    );
+    assert_eq!(result["isError"], true, "{result}");
+    let text = result["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("open Teitunnel"), "{text}");
+    assert!(teitunnel_core::cli_shares::list(&data.path().join("run-cli")).is_empty());
+    // An unknown tool is a protocol error.
+    let id = session.next_id;
+    session.next_id += 1;
+    session.send(&json!({
+        "jsonrpc": "2.0", "id": id, "method": "tools/call",
+        "params": { "name": "no_such_tool", "arguments": {} }
+    }));
+    let answer: Value = loop {
+        let line = session.lines.recv_timeout(Duration::from_secs(60)).unwrap();
+        let message: Value = serde_json::from_str(&line).unwrap();
+        if message["id"] == json!(id) {
+            break message;
+        }
+    };
+    assert_eq!(answer["error"]["code"], -32602, "{answer}");
+    assert!(session.finish().success());
+}
+
+#[test]
 fn changes_routes_through_reviewed_plans() {
     let (Some(api), Some(cloudflared)) = (sibling("fake-cloudflare"), sibling("fake-cloudflared"))
     else {
@@ -267,7 +319,10 @@ fn changes_routes_through_reviewed_plans() {
             .env("CLOUDFLARE_API_TOKEN", TOKEN)
             .env("TEITUNNEL_API_BASE", format!("http://{addr}"))
             .env("TEITUNNEL_EDGE", &addr)
-            .env("TEITUNNEL_CLOUDFLARED", &cloudflared),
+            .env("TEITUNNEL_CLOUDFLARED", &cloudflared)
+            // The conversation's confirmation counts (`approveInApp` off), as for a
+            // person who turned it off.
+            .env("TEITUNNEL_MCP_APPROVE_IN_APP", "0"),
     );
     let plan = session.call(
         "plan_change",

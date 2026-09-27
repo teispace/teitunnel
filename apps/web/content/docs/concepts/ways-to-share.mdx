@@ -1,0 +1,149 @@
+---
+title: Choose how to share
+description: "Quick Share, a share on your domain, a route, a Snapshot, a local domain or a private network: what each one is, when to use it, what it needs and what it costs, side by side."
+searchDescription: "Quick Share, share on your domain, route, Snapshot, local domain or private network: when to use each in Teitunnel, and what it needs."
+---
+
+Teitunnel has several ways to make something on your computer reachable. They differ in how
+long the address lasts, who can open it, whether your computer has to be on, and what they
+need from Cloudflare. This page helps you pick one; each links to its full guide.
+
+## The short answer
+
+- **Someone should look at it now, and the link can die afterwards:**
+  [Quick Share](/docs/getting-started/quick-share).
+- **The same address every time, for a session** (webhooks, a demo you give often):
+  a [share on your domain](/docs/getting-started/quick-share#on-your-own-domain).
+- **It should stay up**, on this computer or a server: a
+  [route](/docs/getting-started/first-route).
+- **It's a set of files and must stay online while your computer is off:** a
+  [Snapshot](/docs/guides/snapshots).
+- **Only you, on this computer, but over real HTTPS:** a
+  [local domain](/docs/guides/local-domains).
+- **Only your team, and it isn't a website** (a NAS, a database, a whole home network):
+  a [private network](/docs/guides/private-networks), or an [SSH or TCP route](/docs/tutorials/ssh).
+
+## Side by side
+
+| | Quick Share | Share on your domain | Route | Snapshot |
+|---|---|---|---|---|
+| Address | `quiet-river-lamp-orbit.trycloudflare.com`, new each time | `demo.yourhost.com`, yours | `app.yourhost.com`, yours | `preview.yourhost.com` or a `workers.dev` address |
+| Lasts | Until you stop it, its time is up, or Teitunnel quits | The same | Until you remove it | Until you delete it, or its **Delete after** date |
+| Your computer must be on | Yes | Yes | Yes, or run it on a [server](/docs/guides/servers) | No |
+| What it serves | A live service or a folder | A live service or a folder | A live service: HTTP, SSH, RDP, SMB, TCP | Static files |
+| Cloudflare account | Not needed | Needed, with a domain | Needed, with a domain | Needed |
+| Login in front | Password page or secret link, on this computer | [Cloudflare Access](/docs/guides/require-login) | Cloudflare Access | Password or Cloudflare Access |
+| Keeps running after you quit | No | No | With **Keep running when Teitunnel quits** | Always |
+| Cost | Free | Free | Free | Free on the Workers free plan |
+| In a terminal | `teitunnel share 3000` | `teitunnel share 3000 --on demo.yourhost.com` | `teitunnel route add app.yourhost.com 3000` | `teitunnel snapshot publish ./dist` |
+
+Every one of them goes through a reviewed plan when it changes your Cloudflare account, and
+none leaves a DNS record behind when it ends ([how changes work](/docs/concepts/changes)).
+
+## Quick Share
+
+A random `trycloudflare.com` address through one of Cloudflare's free **Quick Tunnels**.
+
+- **Choose it when** you need a link in seconds, you have no Cloudflare account yet, or the
+  address doesn't matter: showing a colleague a branch, opening your site on a phone, a
+  one-off webhook test.
+- **Not when** the address has to stay the same (you'd reconfigure every webhook), the service
+  uses server-sent events (Quick Tunnels don't carry them), or more than a couple hundred
+  requests arrive at once.
+
+[Share a local service](/docs/getting-started/quick-share) · [limits](/docs/reference/limits#quick-shares)
+
+## Share on your domain
+
+A temporary route at a name you choose, removed with its DNS record when the share ends.
+Names can come from your project and branch (`{branch}.dev.yourhost.com`).
+
+- **Choose it when** you'd use a Quick Share, but the address should be the same next time:
+  webhook endpoints you register once, a demo link you send before each meeting, a preview per
+  branch. It can require a login and run on a [schedule](/docs/guides/sharing#on-a-schedule).
+- **Not when** it should keep running without you: make it a route.
+
+[Sharing](/docs/guides/sharing#shares-on-your-domain)
+
+## Route
+
+A hostname on your domain, permanently routed to a service on this computer's tunnel. It
+stays until you remove it and can keep running as a background service after you quit the
+app, or on a server with the `teitunnel` command.
+
+- **Choose it when** people rely on it: a self-hosted app, Home Assistant, a staging site,
+  SSH or Remote Desktop to a machine, an API a mobile app calls.
+- **Add to it** a [login](/docs/guides/require-login), [edge protection](/docs/guides/protection)
+  (bots, rate limits, headers, cache), an [offline page](/docs/guides/offline-page) for when
+  the computer is off, a [webhook inbox](/docs/guides/webhook-inbox) that keeps webhooks until
+  it's back, or [load balancing](/docs/guides/load-balancing) across machines.
+
+[Put a service on your domain](/docs/getting-started/first-route) ·
+[routes and tunnels](/docs/concepts/routes-and-tunnels) · [run modes](/docs/concepts/run-modes)
+
+## Snapshot
+
+A static copy of a folder, a build or a running site, hosted as a Worker on your Cloudflare
+account. It keeps working with your computer off, and you can update it, roll back to an
+earlier version, protect it and let reviewers [comment](/docs/guides/comments) on it.
+
+- **Choose it when** what you show is files (a built site, a prototype, docs, a landing page)
+  and it has to stay up without you: a client review over several days, a pull request
+  preview.
+- **Not when** people need the live app: its API, its database, logging in to it.
+
+[Snapshots](/docs/guides/snapshots) · [previews from CI](/docs/guides/ci-previews)
+
+## Local domain
+
+An HTTPS address such as `https://shop.test` for a service on this computer, with a trusted
+certificate. It never touches Cloudflare and isn't reachable from the internet; `.local`
+names can be opened by phones on the same Wi-Fi.
+
+- **Choose it when** you develop something that needs HTTPS or a proper hostname: secure
+  cookies, OAuth redirects, service workers, several services on subdomains.
+- **Not when** anyone outside your network should open it.
+
+[Local domains](/docs/guides/local-domains)
+
+## Private network or private hostname
+
+People signed in to your Cloudflare Zero Trust organization with the **WARP** client reach
+addresses on this computer's network (`192.168.1.0/24`) or a private name (`wiki.internal`),
+as if they were there. Nothing gets a public address.
+
+- **Choose it when** your team needs many things on a network, or things that aren't web
+  pages, and you don't want any of them public: a NAS, printers, a database, internal tools.
+- **Not when** the people who need it can't install WARP: use a route with a login instead.
+
+[Private networks and SSH](/docs/guides/private-networks) · [SSH to a home machine](/docs/tutorials/ssh)
+
+## Where it runs
+
+Any of the live options (Quick Share, share on your domain, route) is served by a connector
+on the machine where the service runs:
+
+| Where | Use |
+|---|---|
+| The app on your computer | Everything, while the app is open (window closed is fine). |
+| The app, with **Keep running when Teitunnel quits** | Routes that should outlive the app, and start at login. |
+| `teitunnel up` or `teitunnel serve` on a server, in Docker or in CI | Routes that stay up when your laptop is closed. |
+
+See [run modes](/docs/concepts/run-modes) and [servers and containers](/docs/guides/servers).
+
+## Related
+
+<Cards>
+  <Card title="Limits and costs" href="/docs/reference/limits">
+    What each option uses on Cloudflare, and what's free.
+  </Card>
+  <Card title="Permissions" href="/docs/reference/permissions">
+    What each option needs the Cloudflare credential to allow.
+  </Card>
+  <Card title="Expose localhost" href="/docs/tutorials/expose-localhost">
+    The quickest path from localhost to a link.
+  </Card>
+  <Card title="Compare with other tools" href="/docs/compare">
+    ngrok, Tailscale Funnel, Dev Tunnels and others.
+  </Card>
+</Cards>

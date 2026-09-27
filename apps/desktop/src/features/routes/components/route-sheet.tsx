@@ -892,9 +892,11 @@ export function RouteSheet({
                 />
                 {plan.warnings.some((w) => w.type === "publicNetwork")
                   ? t("routeSheet.confirm.publicNetwork")
-                  : plan.warnings.some((w) => w.type === "heldBy")
-                    ? t("routeSheet.confirm.takeOver")
-                    : t("routeSheet.confirm.records")}
+                  : plan.warnings.some((w) => w.type === "publicHostname")
+                    ? t("routeSheet.confirm.publicHostname")
+                    : plan.warnings.some((w) => w.type === "heldBy")
+                      ? t("routeSheet.confirm.takeOver")
+                      : t("routeSheet.confirm.records")}
               </label>
             ) : null}
             {generalError ? (

@@ -13,14 +13,13 @@ import type {
   ShortcutAction,
 } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
-import { BrowserExtensionSection } from "./browser-extension";
 import { acceleratorFromEvent, formatAccelerator } from "./global-shortcut";
 import { useIntegrations, useRevokeClient, useUpdateIntegrations } from "./queries";
 
 const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
 /**
- * Settings ▸ Integrations ▸ Global shortcut: off by default; the keys are recorded by
+ * AI & Integrations ▸ More ▸ Global shortcut: off by default; the keys are recorded by
  * typing them, and the shell registers them (a shortcut another app has is refused).
  */
 function ShortcutSection({
@@ -112,8 +111,11 @@ function ShortcutSection({
   );
 }
 
-/** Settings ▸ Integrations: the control connection, links and always-allowed programs. */
-export function IntegrationsPane() {
+/**
+ * AI & Integrations ▸ More: the control connection other programs use, the programs
+ * always allowed, `teitunnel://` links and the global shortcut.
+ */
+export function MoreTab() {
   const { data } = useIntegrations();
   const update = useUpdateIntegrations();
   const revoke = useRevokeClient();
@@ -193,7 +195,6 @@ export function IntegrationsPane() {
           />
         </GroupedRow>
       </GroupedSection>
-      <BrowserExtensionSection />
       <ShortcutSection
         shortcut={value("shortcut")}
         disabled={update.isPending}

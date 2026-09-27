@@ -37,13 +37,16 @@ Open **Advanced** and turn on **Require a login**.
 <Step>
 Under **Who can sign in**, list:
 
-- an email address, like `team@teispace.com`, to let that person in;
-- `@teispace.com` to let in everyone with an address at that domain;
+- an email address, like `team@yourhost.com`, to let that person in;
+- `@yourhost.com` to let in everyone with an address at that domain;
 - `github:teispace` to let in the members of a GitHub organization, or
   `github:teispace/Developers` for one of its teams (its name as GitHub shows it).
 
 Under **Log in with**, keep **Any Method**, or choose **GitHub** or **Google** so people can
-only log in that way (see [GitHub and Google](#github-and-google)).
+only log in that way (see [GitHub and Google](#github-and-google)). **Paths that skip the
+login** lets webhook senders through (see [below](#let-webhooks-through)).
+
+<Screenshot name="route-login" alt="New Route, Advanced: Require a login turned on, Who can sign in with an email address and a domain, Log in with Any Method, GitHub or Google, and Paths that skip the login" />
 </Step>
 <Step>
 Choose **Review**, read the plan, and choose **Save** (**Add Route** for a new route).
@@ -64,7 +67,7 @@ A login can use a GitHub or Google login method of the account instead of an ema
 - **GitHub teams:** `github:teispace` lets in the members of the organization, and
   `github:teispace/Developers` the members of one team. Visitors go straight to GitHub's
   sign-in, and Cloudflare checks the membership when they come back.
-- **Google:** choose **Log in with ▸ Google** and list `@teispace.com` to let in everyone
+- **Google:** choose **Log in with ▸ Google** and list `@yourhost.com` to let in everyone
   who signs in with a Google (or Google Workspace) account at that domain.
 
 The login method itself is set up once, in the Cloudflare dashboard, because that's where
@@ -93,19 +96,19 @@ safer choice: it lets only them through.
 
 ```sh
 # A new route that only your team can open
-teitunnel route add admin.teispace.com 3000 --allow team@teispace.com --allow @teispace.com
+teitunnel route add admin.yourhost.com 3000 --allow team@yourhost.com --allow @yourhost.com
 
 # A share on your domain with a login, for as long as the command runs
-teitunnel share 5173 --on review.teispace.com --allow @teispace.com
+teitunnel share 5173 --on review.yourhost.com --allow @yourhost.com
 
 # A Snapshot behind a login
-teitunnel snapshot publish ./dist --on preview.teispace.com --allow @teispace.com
+teitunnel snapshot publish ./dist --on preview.yourhost.com --allow @yourhost.com
 
 # Only a GitHub team, logging in with GitHub
-teitunnel route add staging.teispace.com 3000 --allow github:teispace/Developers
+teitunnel route add staging.yourhost.com 3000 --allow github:teispace/Developers
 
 # Everyone at the domain, logging in with Google
-teitunnel route add docs.teispace.com 4000 --allow @teispace.com --sign-in google
+teitunnel route add docs.yourhost.com 4000 --allow @yourhost.com --sign-in google
 ```
 
 `--allow` is repeatable and takes an email address, `@domain`, or `github:org` /
@@ -136,21 +139,21 @@ connect them with an API token instead.
 Like every change, you review the plan before anything happens:
 
 - **Add One-time PIN as a login method:** only when the account has none.
-- **Require a login for admin.teispace.com (team@teispace.com, anyone at @teispace.com):**
-  an Access application named `Teitunnel · admin.teispace.com` with a reusable policy
+- **Require a login for admin.yourhost.com (team@yourhost.com, anyone at @yourhost.com):**
+  an Access application named `Teitunnel · admin.yourhost.com` with a reusable policy
   allowing the people you listed. It's created *before* the route goes live, so the route
   is never reachable without a login.
-- **Let only … into admin.teispace.com:** changing who can sign in updates the policy.
-- **Let everyone reach admin.teispace.com/webhooks without a login (webhooks):** one more
-  application, `Teitunnel · admin.teispace.com/webhooks`, whose policy lets everyone through
+- **Let only … into admin.yourhost.com:** changing who can sign in updates the policy.
+- **Let everyone reach admin.yourhost.com/webhooks without a login (webhooks):** one more
+  application, `Teitunnel · admin.yourhost.com/webhooks`, whose policy lets everyone through
   (Access applies the most specific path). It comes and goes with the login.
-- **Remove the login from admin.teispace.com:** turning the login off, or removing the
+- **Remove the login from admin.yourhost.com:** turning the login off, or removing the
   route, deletes the application once the route is gone (and Teitunnel's policy, unless
   another application uses it).
 
 Undo in Activity puts the previous state back. Teitunnel changes only applications it
 created. If a hostname is already protected by an application made elsewhere, the plan
-stops ("admin.teispace.com is already protected by an Access application Teitunnel didn't
+stops ("admin.yourhost.com is already protected by an Access application Teitunnel didn't
 create. Change who can sign in there, in the Cloudflare dashboard.").
 
 A route with a path (for example `/admin`) protects that path. Access matches plain paths,
@@ -182,7 +185,7 @@ Add **Access: Apps and Policies · Edit** and **Access: Organizations, Identity 
 and Groups · Edit** to the account's API token; the token itself stays the same.
 </Accordion>
 <Accordion title="… isn't an email address. / … isn't an email domain.">
-Use a full address (`team@teispace.com`) or `@` followed by a domain (`@teispace.com`).
+Use a full address (`team@yourhost.com`) or `@` followed by a domain (`@yourhost.com`).
 </Accordion>
 <Accordion title="A login can only protect a plain path like /admin, not the pattern …">
 Remove the path from the route, protect the whole hostname, or use one route per plain

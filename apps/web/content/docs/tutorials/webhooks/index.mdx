@@ -16,7 +16,7 @@ For one provider in detail, with its limits and retries: [Stripe](/docs/tutorial
 **You need:** Teitunnel, a Cloudflare account with a domain
 ([first route](/docs/getting-started/first-route#before-you-start)), and a webhook handler
 you can run. The examples use a handler at `http://localhost:4000/webhooks/stripe` and the
-hostname `hooks.teispace.com`.
+hostname `hooks.yourhost.com`.
 
 ## 1. Get a stable URL
 
@@ -25,13 +25,13 @@ time, so you'd update the provider each session. Share on a subdomain you keep f
 instead:
 
 ```sh
-teitunnel share 4000 --on hooks.teispace.com --watch "/webhooks/*"
+teitunnel share 4000 --on hooks.yourhost.com --watch "/webhooks/*"
 ```
 
-In the app: **Quick Share**, type `4000`, **Address ▸ On teispace.com**, **Subdomain**
+In the app: **Quick Share**, type `4000`, **Address ▸ On yourhost.com**, **Subdomain**
 `hooks`, then **Share**.
 
-`https://hooks.teispace.com` now reaches `localhost:4000` for as long as the share runs, and
+`https://hooks.yourhost.com` now reaches `localhost:4000` for as long as the share runs, and
 it's the same address tomorrow. `--watch` prints a line whenever a request hits that path, so
 you notice deliveries even with a busy terminal. Every request goes through Teitunnel's
 [inspector](/docs/guides/inspector), which records it with its response, credentials
@@ -42,18 +42,18 @@ masked.
 <Tabs items={["Stripe", "GitHub", "Slack", "Others"]}>
   <Tab value="Stripe">
     In the Stripe dashboard, in test mode, **Developers ▸ Webhooks ▸ Add endpoint**, with
-    `https://hooks.teispace.com/webhooks/stripe`. Copy the endpoint's **Signing secret**
+    `https://hooks.yourhost.com/webhooks/stripe`. Copy the endpoint's **Signing secret**
     (`whsec_…`) into your app and verify signatures with it.
   </Tab>
   <Tab value="GitHub">
     In the repository, **Settings ▸ Webhooks ▸ Add webhook**: payload URL
-    `https://hooks.teispace.com/webhooks/github`, content type `application/json`, and a
+    `https://hooks.yourhost.com/webhooks/github`, content type `application/json`, and a
     secret your app checks against `X-Hub-Signature-256`. **Recent Deliveries** shows each
     request and lets you **Redeliver** it.
   </Tab>
   <Tab value="Slack">
     In your app's settings at api.slack.com, set the **Request URL** under *Event
-    Subscriptions* (or *Interactivity*) to `https://hooks.teispace.com/webhooks/slack`.
+    Subscriptions* (or *Interactivity*) to `https://hooks.yourhost.com/webhooks/slack`.
     Slack sends a `url_verification` challenge first; your handler must echo it back.
   </Tab>
   <Tab value="Others">
@@ -88,7 +88,7 @@ In the app, select the request and choose **Add Signing Secret…** under **Webh
 terminal (read from standard input, never from the command line):
 
 ```sh
-teitunnel inbox secret hooks.teispace.com stripe
+teitunnel inbox secret hooks.yourhost.com stripe
 ```
 
 The secret is kept in your system's keychain and never shown again. The inspector knows
@@ -125,25 +125,25 @@ signature. Or send a fresh test event from the provider.
 A share ends when you stop it. For a handler that should always receive:
 
 1. Stop the share (Ctrl-C), then make it a [route](/docs/getting-started/first-route):
-   `teitunnel route add hooks.teispace.com 4000`, and turn on **Keep running when Teitunnel quits** in
+   `teitunnel route add hooks.yourhost.com 4000`, and turn on **Keep running when Teitunnel quits** in
    **Tunnels** so it's up whenever your computer is.
 2. Add a [webhook inbox](/docs/guides/webhook-inbox): webhooks sent while your computer is
    off are kept on your Cloudflare account and delivered in order when it's back.
 
 ```sh
-teitunnel inbox add hooks.teispace.com /webhooks/ --verify stripe
+teitunnel inbox add hooks.yourhost.com /webhooks/ --verify stripe
 ```
 
 ## If deliveries fail
 
 - **The provider says 502:** your handler isn't running on that port. **530** or error
-  1033: the share stopped or the computer is off. Open `https://hooks.teispace.com`
+  1033: the share stopped or the computer is off. Open `https://hooks.yourhost.com`
   yourself to check.
 - **Cloudflare blocks the requests:** if your domain has **Bot Fight Mode**, *I'm Under
   Attack* mode or strict WAF rules, Cloudflare may challenge webhook deliveries, which can't
   solve a challenge. Add a WAF skip rule for the hostname, or use a subdomain on a domain
   without them. Teitunnel's own [edge protection](/docs/guides/protection) is per hostname,
-  so it doesn't affect `hooks.teispace.com` unless you turn it on there.
+  so it doesn't affect `hooks.yourhost.com` unless you turn it on there.
 - **Signature errors:** see step 4.
 - **Slow handlers:** providers time out after a few seconds. Answer `200` right away and do
   the work afterwards.

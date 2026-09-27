@@ -18,8 +18,9 @@ interface NetworksSectionProps {
 }
 
 /**
- * Private networks this Mac's tunnel carries for WARP clients, with the Doctor's findings
- * about each (Split Tunnels, Gateway proxy) inline, since those are why one doesn't work.
+ * Private networks (ranges and hostnames) this Mac's tunnel carries for WARP clients, with
+ * the Doctor's findings about each (Split Tunnels, Gateway proxy, a hostname this Mac can't
+ * resolve) inline, since those are why one doesn't work.
  */
 export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionProps) {
   const overview = useRoutesOverview(accountId);
@@ -75,7 +76,13 @@ export function NetworksSection({ accountId, onAdd, onRemove }: NetworksSectionP
                         <span className="selectable truncate font-mono text-mono">
                           {network.network}
                         </span>
-                        {network.private ? null : <Badge>{t("networks.public")}</Badge>}
+                        {network.private ? null : (
+                          <Badge>
+                            {network.kind === "hostname"
+                              ? t("networks.onDomain")
+                              : t("networks.public")}
+                          </Badge>
+                        )}
                       </div>
                       {problem ? (
                         <p className="flex items-center gap-1 text-callout text-warning">

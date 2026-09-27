@@ -167,6 +167,9 @@ pub struct AccountFacts {
     pub orphan_hosts: Vec<OrphanHost>,
     /// How WARP clients are set up; read only when this Mac shares private networks.
     pub warp: WarpFacts,
+    /// Private hostnames routed to this Mac's tunnel that this Mac's DNS can't resolve
+    /// (the connector looks them up the same way).
+    pub unresolved_hostnames: Vec<String>,
 }
 
 /// The account's WARP client settings that decide whether clients reach a private
@@ -229,6 +232,7 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         None,
         &ObserveNeed {
             networks: Want::IfAllowed,
+            hostname_routes: Want::IfAllowed,
             ..ObserveNeed::none()
         },
         engine.who(),
@@ -288,7 +292,14 @@ pub async fn gather<C: CloudApi, K: Connectors>(
             .collect();
         crate::inspect::routes::orphans(&remembered, &rules, &listening)
     };
-    let warp = if shared_networks(&snapshot).is_empty() {
+    let hostnames = shared_hostnames(&snapshot);
+    let unresolved_hostnames = stream::iter(hostnames.clone())
+        .map(|hostname| async move { (!resolves(&hostname).await).then_some(hostname) })
+        .buffered(4)
+        .filter_map(|h| async move { h })
+        .collect::<Vec<_>>()
+        .await;
+    let warp = if shared_networks(&snapshot).is_empty() && hostnames.is_empty() {
         WarpFacts::default()
     } else {
         let (settings, profile) = tokio::join!(
@@ -317,7 +328,30 @@ pub async fn gather<C: CloudApi, K: Connectors>(
         lens_orphans,
         orphan_hosts,
         warp,
+        unresolved_hostnames,
     })
+}
+
+/// Whether this machine's resolver finds an address for `hostname` within a few seconds.
+async fn resolves(hostname: &str) -> bool {
+    let lookup = tokio::net::lookup_host((hostname, 0));
+    tokio::time::timeout(Duration::from_secs(3), lookup)
+        .await
+        .is_ok_and(|found| found.is_ok_and(|mut addresses| addresses.next().is_some()))
+}
+
+/// The private hostnames routed to this Mac's tunnel, sorted.
+fn shared_hostnames(snapshot: &Snapshot) -> Vec<String> {
+    let (Some(tunnel), Some(networks)) = (&snapshot.tunnel, &snapshot.networks) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = networks
+        .hostnames_of_tunnel(&tunnel.id)
+        .map(|r| r.hostname.to_ascii_lowercase())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 /// The ranges routed to this Mac's tunnel in the default virtual network.
@@ -1069,7 +1103,9 @@ fn diagnose_account(
     }
 
     if let Some(tunnel) = tunnel {
-        let has_routes = !routes.is_empty() || !shared_networks(&facts.snapshot).is_empty();
+        let has_routes = !routes.is_empty()
+            || !shared_networks(&facts.snapshot).is_empty()
+            || !shared_hostnames(&facts.snapshot).is_empty();
         match &facts.connector {
             _ if !has_routes => {}
             None | Some(ConnectorState::Stopped) => found.add(
@@ -1257,7 +1293,8 @@ fn diagnose_account(
     }
 
     let shared = shared_networks(&facts.snapshot);
-    if !shared.is_empty() {
+    let hostnames = shared_hostnames(&facts.snapshot);
+    if !shared.is_empty() || !hostnames.is_empty() {
         if facts
             .warp
             .settings
@@ -1273,6 +1310,7 @@ fn diagnose_account(
                     shared
                         .iter()
                         .map(ToString::to_string)
+                        .chain(hostnames.iter().cloned())
                         .collect::<Vec<_>>()
                         .join(", "),
                 )],
@@ -1309,6 +1347,24 @@ fn diagnose_account(
                 Vec::new(),
             );
         }
+    }
+
+    // Split Tunnels aren't checked for hostnames: WARP sends them to the account's
+    // initial resolved IP range, which this credential can't read.
+    for hostname in facts
+        .unresolved_hostnames
+        .iter()
+        .filter(|h| hostnames.contains(h))
+    {
+        found.add(
+            "network.hostname_unresolved",
+            Severity::Warning,
+            hostname.as_str(),
+            m::hostname_unresolved::title(hostname),
+            m::hostname_unresolved::detail(hostname),
+            Vec::new(),
+            Vec::new(),
+        );
     }
 
     for domain in &facts.orphan_logins {
@@ -1466,6 +1522,7 @@ mod tests {
             orphan_hosts: Vec::new(),
             lens_orphans: Vec::new(),
             warp: WarpFacts::default(),
+            unresolved_hostnames: Vec::new(),
         }
     }
 
@@ -1832,8 +1889,86 @@ mod tests {
                     comment: String::new(),
                 })
                 .collect(),
+            hostnames: None,
         });
         facts
+    }
+
+    fn sharing_hostnames(hostnames: &[&str]) -> AccountFacts {
+        let mut facts = sharing(&[]);
+        if let Some(networks) = facts.snapshot.networks.as_mut() {
+            networks.hostnames = Some(
+                hostnames
+                    .iter()
+                    .enumerate()
+                    .map(|(i, h)| crate::engine::ObservedHostnameRoute {
+                        id: format!("h{i}"),
+                        hostname: (*h).into(),
+                        tunnel_id: T.into(),
+                        tunnel_name: None,
+                        comment: String::new(),
+                    })
+                    .collect(),
+            );
+        }
+        facts
+    }
+
+    #[test]
+    fn private_hostnames_that_warp_clients_cant_reach() {
+        let mut facts = sharing_hostnames(&["nas.home.arpa", "wiki.internal"]);
+        facts.unresolved_hostnames = vec!["wiki.internal".into()];
+        facts.warp.settings = Some(cf_api::DeviceSettings {
+            gateway_proxy_enabled: Some(false),
+            gateway_udp_proxy_enabled: None,
+        });
+        let issues = diagnose(&Facts {
+            binary: BinaryFact::Ok,
+            accounts: vec![facts.clone()],
+            foreign: Vec::new(),
+        });
+        let found: Vec<(&str, &str)> = issues
+            .iter()
+            .map(|i| (i.check.as_str(), i.subject.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("network.proxy_off", "Private networks"),
+                ("network.hostname_unresolved", "wiki.internal"),
+            ]
+        );
+        let proxy = issues
+            .iter()
+            .find(|i| i.check == "network.proxy_off")
+            .unwrap();
+        assert_eq!(
+            proxy.evidence[0].english(),
+            "Shared: nas.home.arpa, wiki.internal"
+        );
+
+        // Everything resolves and the proxy is on: nothing to say.
+        facts.unresolved_hostnames.clear();
+        facts.warp = WarpFacts::default();
+        assert!(checks(facts).is_empty());
+
+        // A name that's no longer shared isn't reported.
+        let mut stale = sharing_hostnames(&[]);
+        stale.unresolved_hostnames = vec!["wiki.internal".into()];
+        assert!(checks(stale).is_empty());
+
+        // A tunnel that only carries a hostname is in use, and needs its connector.
+        let mut hostname_only = sharing_hostnames(&["wiki.internal"]);
+        hostname_only.snapshot.tunnel.as_mut().unwrap().ingress = Vec::new();
+        hostname_only.tunnel_cnames.clear();
+        hostname_only.connector = None;
+        assert_eq!(checks(hostname_only), ["tunnel.no_connections"]);
+    }
+
+    #[tokio::test]
+    async fn resolves_names_with_this_machines_dns() {
+        // Only the positive case: some resolvers answer for every name.
+        assert!(resolves("localhost").await);
     }
 
     fn entry(address: &str, description: Option<&str>) -> cf_api::SplitTunnelEntry {

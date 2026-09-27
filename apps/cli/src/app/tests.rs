@@ -119,6 +119,7 @@ fn describes_shares_and_status() {
             name: "mac-mini".into(),
             is_default: true,
             state: "healthy".into(),
+            metrics_port: Some(20300),
         }],
         shares: Vec::new(),
     };

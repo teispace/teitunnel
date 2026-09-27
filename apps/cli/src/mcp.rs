@@ -158,11 +158,19 @@ pub(crate) fn setup(command: McpCommand) -> Result<ExitCode, String> {
                 )?;
             } else {
                 for s in &all {
+                    let gone = s.program.as_ref().is_some_and(|p| !p.is_file());
                     let state = match (s.connected, s.detected, &s.problem) {
                         (_, _, Some(problem)) => format!("can't read its configuration: {problem}"),
-                        (true, _, None) => "connected".to_owned(),
+                        (true, _, None) if gone => format!(
+                            "connected to a teitunnel that isn't there any more: run `teitunnel mcp install {}`",
+                            s.client.id()
+                        ),
+                        (true, true, None) => "connected".to_owned(),
+                        (true, false, None) => {
+                            "connected, but the app isn't installed any more".to_owned()
+                        }
                         (false, true, None) => "installed, not connected".to_owned(),
-                        (false, false, None) => "not found".to_owned(),
+                        (false, false, None) => "not installed".to_owned(),
                     };
                     out!("{:<15}\t{state}", s.client.id())?;
                 }
@@ -174,6 +182,7 @@ pub(crate) fn setup(command: McpCommand) -> Result<ExitCode, String> {
 
 /// The app's connectors, probed (this process doesn't run them).
 struct Probe {
+    dir: std::path::PathBuf,
     engine: Arc<Engine>,
     accounts: teitunnel_core::accounts::Accounts,
 }
@@ -183,7 +192,6 @@ impl ConnectorSource for Probe {
 
     fn connectors<'a>(&'a self, account: Option<&'a str>) -> BoxFuture<'a, ProbedConnectors> {
         Box::pin(async move {
-            let mut connectors = ProbedConnectors::default();
             let accounts: Vec<String> = match account {
                 Some(account) => vec![account.to_owned()],
                 None => self
@@ -195,20 +203,7 @@ impl ConnectorSource for Probe {
                     .map(|a| a.id)
                     .collect(),
             };
-            for account in accounts {
-                for tunnel in self
-                    .engine
-                    .local()
-                    .tunnels(&account)
-                    .await
-                    .unwrap_or_default()
-                {
-                    connectors
-                        .probe(&tunnel.tunnel_id, tunnel.metrics_port)
-                        .await;
-                }
-            }
-            connectors
+            ProbedConnectors::of(&self.dir, self.engine.local(), &accounts).await
         })
     }
 
@@ -276,6 +271,7 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
     let settings = settings(app.dir(), mode, allow_secrets)?;
     let (machine, supervisor) = app.machine(true).await;
     let source = Probe {
+        dir: app.dir().to_owned(),
         engine: Arc::clone(&app.engine),
         accounts: app.accounts.clone(),
     };
@@ -288,14 +284,30 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         &inspector,
     );
     // Connections to MCP servers an agent shares are approved in the app (stdio has no
-    // terminal to ask in).
-    let oauth = teitunnel_core::mcp_auth::McpAuth::open(
-        app.store().clone(),
-        teitunnel_core::mcp_auth::AskApp::new(app.dir(), None),
-    )
-    .await
-    .map_err(|err| status(&format!("OAuth for shared MCP servers is off: {err}")))
-    .ok();
+    // terminal to ask in). Made when an agent first exposes a server: it watches the
+    // database and the app, which most sessions never need.
+    let oauth: teitunnel_mcp::expose::AuthFactory = {
+        let (store, dir, policy) = (
+            app.store().clone(),
+            app.dir().to_owned(),
+            settings.oauth.policy(),
+        );
+        Arc::new(move || {
+            let (store, dir) = (store.clone(), dir.clone());
+            Box::pin(async move {
+                let auth = teitunnel_core::mcp_auth::McpAuth::open(
+                    store,
+                    teitunnel_core::mcp_auth::AskApp::new(&dir, None),
+                    policy,
+                )
+                .await
+                .map_err(|err| status(&format!("OAuth for shared MCP servers is off: {err}")))
+                .ok()?;
+                auth.follow_app(&dir);
+                Some(auth)
+            })
+        })
+    };
     let server = McpServer::builder(Arc::clone(&backend), settings.clone())
         .traffic(Arc::new(InspectorTraffic::new(
             inspector.clone(),
@@ -307,12 +319,9 @@ pub(crate) async fn serve(mode: Option<Mode>, allow_secrets: bool) -> Result<Exi
         .provider(Arc::new(teitunnel_mcp::CommentsTools::new(Arc::clone(
             &backend,
         ))))
-        .provider(Arc::new(match &oauth {
-            Some(auth) => {
-                ExposeTools::new(Arc::clone(&backend), inspector.clone()).with_oauth(auth.clone())
-            }
-            None => ExposeTools::new(Arc::clone(&backend), inspector.clone()),
-        }))
+        .provider(Arc::new(
+            ExposeTools::new(Arc::clone(&backend), inspector.clone()).with_lazy_oauth(oauth),
+        ))
         .provider(Arc::new(teitunnel_mcp::InspectionTools::new(
             inspector.clone(),
         )))

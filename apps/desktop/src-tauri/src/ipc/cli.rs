@@ -92,41 +92,65 @@ const UNAVAILABLE: BrowserHostView = BrowserHostView {
     browsers: Vec::new(),
 };
 
-/// Which browsers can use the extension.
+/// When browsers last started the host, from the data folder.
+fn seen<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> teitunnel_core::browser_host::Seen {
+    use tauri::Manager as _;
+    app.path()
+        .app_data_dir()
+        .map(|dir| teitunnel_core::browser_host::seen(&dir))
+        .unwrap_or_default()
+}
+
+/// Which browsers are installed, can use the extension, and last used it.
 #[tauri::command]
 #[specta::specta]
-pub async fn browser_host_status() -> Result<BrowserHostView, AppError> {
-    super::off_main(|| {
+pub async fn browser_host_status(app: tauri::AppHandle) -> Result<BrowserHostView, AppError> {
+    let seen = seen(&app);
+    super::off_main(move || {
         browsers().map_or(UNAVAILABLE, |(exe, layout)| BrowserHostView {
             available: true,
-            browsers: layout.status(&exe),
+            browsers: teitunnel_core::browser_host::with_seen(layout.status(&exe), &seen),
         })
     })
     .await
 }
 
-/// Lets the extension talk to the app, in every installed browser.
+/// Lets the extension talk to the app, in every installed browser or `browser` only.
 #[tauri::command]
 #[specta::specta]
-pub async fn browser_host_install() -> Result<BrowserHostView, AppError> {
+pub async fn browser_host_install(
+    app: tauri::AppHandle,
+    browser: Option<teitunnel_core::browser_host::Browser>,
+) -> Result<BrowserHostView, AppError> {
+    let seen = seen(&app);
     let Some((exe, layout)) = browsers() else {
         return Ok(UNAVAILABLE);
     };
+    let browsers = super::off_main(move || layout.install(&exe, browser))
+        .await?
+        .map_err(|err| failed(&err))?;
     Ok(BrowserHostView {
         available: true,
-        browsers: layout.install(&exe).await.map_err(|err| failed(&err))?,
+        browsers: teitunnel_core::browser_host::with_seen(browsers, &seen),
     })
 }
 
-/// Stops letting the extension talk to the app.
+/// Stops letting the extension talk to the app, in every browser or `browser` only.
 #[tauri::command]
 #[specta::specta]
-pub async fn browser_host_uninstall() -> Result<BrowserHostView, AppError> {
+pub async fn browser_host_uninstall(
+    app: tauri::AppHandle,
+    browser: Option<teitunnel_core::browser_host::Browser>,
+) -> Result<BrowserHostView, AppError> {
+    let seen = seen(&app);
     let Some((exe, layout)) = browsers() else {
         return Ok(UNAVAILABLE);
     };
+    let browsers = super::off_main(move || layout.uninstall(&exe, browser))
+        .await?
+        .map_err(|err| failed(&err))?;
     Ok(BrowserHostView {
         available: true,
-        browsers: layout.uninstall(&exe).await.map_err(|err| failed(&err))?,
+        browsers: teitunnel_core::browser_host::with_seen(browsers, &seen),
     })
 }

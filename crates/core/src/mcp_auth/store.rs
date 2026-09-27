@@ -100,11 +100,15 @@ pub(crate) struct Grant {
     pub(crate) access_expires_at: Option<u64>,
     pub(crate) refresh_hash: String,
     pub(crate) refresh_expires_at: u64,
+    /// The server it was granted for (RFC 8707), when the client named one.
+    pub(crate) resource: Option<String>,
+    /// When it ends however it's used (the person approves it again).
+    pub(crate) expires_at: u64,
 }
 
 const GRANT_COLUMNS: &str =
     "id, host, client_id, client_name, redirect_host, created_at, last_used_at,
-     access_hash, access_expires_at, refresh_hash, refresh_expires_at";
+     access_hash, access_expires_at, refresh_hash, refresh_expires_at, resource, expires_at";
 
 fn grant(row: &Row<'_>) -> rusqlite::Result<Grant> {
     Ok(Grant {
@@ -119,6 +123,8 @@ fn grant(row: &Row<'_>) -> rusqlite::Result<Grant> {
         access_expires_at: row.get::<_, Option<i64>>(8)?.map(to_u64),
         refresh_hash: row.get(9)?,
         refresh_expires_at: to_u64(row.get(10)?),
+        resource: row.get(11)?,
+        expires_at: to_u64(row.get(12)?),
     })
 }
 
@@ -129,8 +135,8 @@ pub(crate) async fn insert_grant(store: &Store, grant: &Grant) -> Result<(), Sto
             conn.execute(
                 "INSERT INTO mcp_oauth_grants (id, host, client_id, client_name, redirect_host,
                      created_at, last_used_at, access_hash, access_expires_at, refresh_hash,
-                     previous_refresh_hash, refresh_expires_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11)",
+                     previous_refresh_hash, refresh_expires_at, resource, expires_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?11, ?12, ?13)",
                 params![
                     g.id,
                     g.host,
@@ -143,6 +149,8 @@ pub(crate) async fn insert_grant(store: &Store, grant: &Grant) -> Result<(), Sto
                     g.access_expires_at.map(to_i64),
                     g.refresh_hash,
                     to_i64(g.refresh_expires_at),
+                    g.resource,
+                    to_i64(g.expires_at),
                 ],
             )?;
             Ok(())
@@ -154,7 +162,7 @@ pub(crate) async fn insert_grant(store: &Store, grant: &Grant) -> Result<(), Sto
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Refresh {
     /// The connection it belongs to.
-    Current(Grant),
+    Current(Box<Grant>),
     /// A token that was already exchanged: someone replayed it.
     Reused(String),
     Unknown,
@@ -178,7 +186,7 @@ pub(crate) async fn find_refresh(
                 )
                 .optional()?
             {
-                return Ok(Refresh::Current(found));
+                return Ok(Refresh::Current(Box::new(found)));
             }
             Ok(conn
                 .query_row(
@@ -192,16 +200,24 @@ pub(crate) async fn find_refresh(
         .await
 }
 
-/// New tokens for a connection (the old refresh token is remembered, to catch replays).
+/// New tokens for a connection, in exchange for the refresh token `presented` (its hash):
+/// a compare-and-swap, so of two refreshes with the same token only one wins. The old
+/// refresh token is remembered, to catch replays. `false`: the token was already
+/// exchanged (or the connection ended) in the meantime.
 pub(crate) async fn rotate(
     store: &Store,
     id: &str,
+    presented: &str,
     access: (&str, u64),
     refresh: (&str, u64),
     now_ms: u64,
 ) -> Result<bool, StoreError> {
-    let (id, access_hash, refresh_hash) =
-        (id.to_owned(), access.0.to_owned(), refresh.0.to_owned());
+    let (id, presented, access_hash, refresh_hash) = (
+        id.to_owned(),
+        presented.to_owned(),
+        access.0.to_owned(),
+        refresh.0.to_owned(),
+    );
     let (access_expires, refresh_expires) = (access.1, refresh.1);
     store
         .call(move |conn| {
@@ -209,7 +225,7 @@ pub(crate) async fn rotate(
                 "UPDATE mcp_oauth_grants SET previous_refresh_hash = refresh_hash,
                      refresh_hash = ?2, refresh_expires_at = ?3, access_hash = ?4,
                      access_expires_at = ?5, last_used_at = ?6
-                 WHERE id = ?1",
+                 WHERE id = ?1 AND refresh_hash = ?7",
                 params![
                     id,
                     refresh_hash,
@@ -217,6 +233,7 @@ pub(crate) async fn rotate(
                     access_hash,
                     to_i64(access_expires),
                     to_i64(now_ms),
+                    presented,
                 ],
             )?;
             Ok(changed == 1)
@@ -251,12 +268,12 @@ pub(crate) async fn grants(store: &Store, host: Option<&str>) -> Result<Vec<Gran
         .await
 }
 
-/// Removes connections whose refresh token expired.
+/// Removes connections whose refresh token expired, or that reached their lifetime.
 pub(crate) async fn sweep(store: &Store, now_ms: u64) -> Result<usize, StoreError> {
     store
         .call(move |conn| {
             Ok(conn.execute(
-                "DELETE FROM mcp_oauth_grants WHERE refresh_expires_at <= ?1",
+                "DELETE FROM mcp_oauth_grants WHERE refresh_expires_at <= ?1 OR expires_at <= ?1",
                 params![to_i64(now_ms)],
             )?)
         })

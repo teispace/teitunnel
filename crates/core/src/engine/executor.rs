@@ -266,6 +266,11 @@ enum Undo {
         network: String,
     },
     RecreateNetworkRoute(super::networks::ObservedNetworkRoute),
+    DeleteHostnameRoute {
+        id: String,
+        hostname: String,
+    },
+    RecreateHostnameRoute(super::networks::ObservedHostnameRoute),
     DeleteLbMonitor(String),
     DeleteLbPool(String),
     RestoreLbPool {
@@ -391,6 +396,8 @@ impl Undo {
             Self::RecreateAccessApp(previous) => m::recreate_access_app(&previous.domain),
             Self::DeleteNetworkRoute { network, .. } => m::delete_network_route(network),
             Self::RecreateNetworkRoute(route) => m::recreate_network_route(&route.network),
+            Self::DeleteHostnameRoute { hostname, .. } => m::delete_hostname_route(hostname),
+            Self::RecreateHostnameRoute(route) => m::recreate_hostname_route(&route.hostname),
             Self::DeleteLbMonitor(_) => m::delete_lb_monitor(),
             Self::DeleteLbPool(_) => m::delete_lb_pool(),
             Self::RestoreLbPool { .. } => m::restore_lb_pool(),
@@ -1095,7 +1102,10 @@ impl Engine {
         };
         let serve = matches!(
             intent,
-            Intent::AddRoute { .. } | Intent::UpdateRoute { .. } | Intent::AddNetwork { .. }
+            Intent::AddRoute { .. }
+                | Intent::UpdateRoute { .. }
+                | Intent::AddNetwork { .. }
+                | Intent::AddPrivateHostname { .. }
         );
         // Keep each step's last state for the activity log.
         let mut states: Vec<Option<StepState>> = vec![None; plan.steps.len()];
@@ -1786,6 +1796,24 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     .map_err(|e| e.text())?;
                 Ok(Some(Undo::RecreateNetworkRoute(route.clone())))
             }
+            Step::CreateHostnameRoute { hostname, tunnel } => {
+                let target = self.resolve(tunnel)?;
+                let hostname = hostname.to_string();
+                let route = api
+                    .create_hostname_route(account, &hostname, &target, NETWORK_COMMENT)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::DeleteHostnameRoute {
+                    id: route.id,
+                    hostname,
+                }))
+            }
+            Step::DeleteHostnameRoute { route } => {
+                api.delete_hostname_route(account, &route.id)
+                    .await
+                    .map_err(|e| e.text())?;
+                Ok(Some(Undo::RecreateHostnameRoute(route.clone())))
+            }
             Step::CreateLbMonitor { hostname } => {
                 let monitor = api
                     .create_lb_monitor(account, &super::balance::monitor_for(hostname))
@@ -2471,6 +2499,19 @@ impl<C: CloudApi, K: Connectors> Run<'_, C, K> {
                     &route.tunnel_id,
                     &route.comment,
                     route.virtual_network_id.as_deref(),
+                )
+                .await
+                .map_err(err)?;
+            }
+            Undo::DeleteHostnameRoute { id, .. } => {
+                api.delete_hostname_route(account, id).await.map_err(err)?;
+            }
+            Undo::RecreateHostnameRoute(route) => {
+                api.create_hostname_route(
+                    account,
+                    &route.hostname,
+                    &route.tunnel_id,
+                    &route.comment,
                 )
                 .await
                 .map_err(err)?;

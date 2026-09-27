@@ -5,8 +5,8 @@ description: Add Teitunnel to a Docker Compose stack and route hostnames to the 
 
 Add one service to your Compose file and every container in the stack can have its own
 hostname, with DNS records made for you, without publishing a single port on the host. In
-this tutorial you put a web app and an API online at `app.teispace.com` and
-`api.teispace.com`, check their health, and add a web dashboard behind a login.
+this tutorial you put a web app and an API online at `app.yourhost.com` and
+`api.yourhost.com`, check their health, and add a web dashboard behind a login.
 
 **You need:** Docker with Compose, a Cloudflare account with a domain, and an API token.
 
@@ -62,8 +62,8 @@ container port:
 
 ```sh
 docker compose up -d
-docker compose run --rm teitunnel route add app.teispace.com http://web:80 --yes
-docker compose run --rm teitunnel route add api.teispace.com http://api:8000 --yes
+docker compose run --rm teitunnel route add app.yourhost.com http://web:80 --yes
+docker compose run --rm teitunnel route add api.yourhost.com http://api:8000 --yes
 docker compose restart teitunnel
 ```
 
@@ -80,7 +80,7 @@ docker compose run --rm teitunnel doctor           # problems, with fixes
 
 The container runs `teitunnel up` by default, and its health check (`teitunnel routes
 --check`) fails unless every route is live, so `docker compose ps` tells you when something's
-wrong. Open `https://app.teispace.com`.
+wrong. Open `https://app.yourhost.com`.
 
 ## Things that trip people up
 
@@ -112,8 +112,8 @@ hostname with a login to it:
 ```sh
 docker compose run --rm teitunnel serve --set-password
 docker compose up -d
-docker compose run --rm teitunnel route add admin.teispace.com http://teitunnel:8765 \
-  --allow team@teispace.com --yes
+docker compose run --rm teitunnel route add admin.yourhost.com http://teitunnel:8765 \
+  --allow team@yourhost.com --yes
 ```
 
 `--allow-remote` lets `serve` listen beyond the container's loopback, where only the Compose

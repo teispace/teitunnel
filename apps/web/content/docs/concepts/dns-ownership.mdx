@@ -17,11 +17,11 @@ track of exactly which records it created, and treats every other record as your
   never deleted automatically. When a change would replace or delete one, the plan shows the
   record as it is (type and content) and waits for you to confirm.
 - **Removing a route whose record Teitunnel didn't create** leaves the record in place, and
-  the plan says so: *The DNS record for app.teispace.com wasn't created by Teitunnel, so it's
+  the plan says so: *The DNS record for app.yourhost.com wasn't created by Teitunnel, so it's
   left in place.*
 
 The same rule covers the other things Teitunnel creates in your account: logins (Access
-applications named *Teitunnel · app.teispace.com*), edge rules, service tokens and Workers.
+applications named *Teitunnel · app.yourhost.com*), edge rules, service tokens and Workers.
 A login someone else set up on the same hostname is never changed; the plan stops and says
 to change it in the Cloudflare dashboard.
 
@@ -56,7 +56,7 @@ its own, and could replace or delete them without asking.
 When you add a route on a hostname that already has a record Teitunnel didn't create (an old
 `A` record for a server, a `CNAME` to another service), the plan shows it:
 
-> app.teispace.com already has a DNS record (A 203.0.113.4) that Teitunnel didn't create. It
+> app.yourhost.com already has a DNS record (A 203.0.113.4) that Teitunnel didn't create. It
 > will be replaced.
 
 In the app, tick **Replace the existing records** in the plan before applying. Nothing
@@ -65,14 +65,14 @@ changes until you do; if you'd rather keep the record, pick another hostname.
 From a terminal, the command stops before applying:
 
 ```text
-$ teitunnel route add app.teispace.com 3000
-! app.teispace.com already has an A record (203.0.113.4) that Teitunnel didn't create. It will be replaced.
+$ teitunnel route add app.yourhost.com 3000
+! app.yourhost.com already has an A record (203.0.113.4) that Teitunnel didn't create. It will be replaced.
  1. Update tunnel “laptop” to serve 2 routes
- 2. Point app.teispace.com at tunnel “laptop” (was A 203.0.113.4)
- 3. Check https://app.teispace.com works
+ 2. Point app.yourhost.com at tunnel “laptop” (was A 203.0.113.4)
+ 3. Check https://app.yourhost.com works
 teitunnel: This needs a confirmation (see above). Pass --replace to allow it.
 
-$ teitunnel route add app.teispace.com 3000 --replace
+$ teitunnel route add app.yourhost.com 3000 --replace
 ```
 
 `--replace` works the same on every command that changes Cloudflare (`route add`,
@@ -91,7 +91,7 @@ names who made it, Teitunnel knows when a hostname is **held** by someone else:
 
 - **Another machine's route:** the hostname points at another tunnel, through a record
   another Teitunnel made. Adding the same hostname here would send its visitors to you. The
-  plan says *app.teispace.com is routed by … on another machine. Going ahead takes it over,
+  plan says *app.yourhost.com is routed by … on another machine. Going ahead takes it over,
   and their route stops working.*
 - **A reservation** (below) that hasn't ended.
 
@@ -113,15 +113,15 @@ taken: a feature branch's preview name, a demo you'll run on Friday.
 - **Terminal:**
 
   ```sh
-  teitunnel reserve preview.teispace.com --until 2026-12-31   # end of that day, UTC
+  teitunnel reserve preview.yourhost.com --until 2026-12-31   # end of that day, UTC
   teitunnel reservations                                      # who holds what
-  teitunnel release preview.teispace.com
+  teitunnel release preview.yourhost.com
   ```
 
   ```text
   $ teitunnel reservations
-  preview.teispace.com	you	until 2027-01-01T00:00Z
-  demo.teispace.com	<user>@<computer>	no end date	routes it
+  preview.yourhost.com	you	until 2027-01-01T00:00Z
+  demo.yourhost.com	<user>@<computer>	no end date	routes it
   ```
 
 A reservation is a real DNS record, so everyone on the account sees it, in Teitunnel and in
@@ -141,8 +141,8 @@ serves nothing, costs one record, and Cloudflare refuses a conflicting record on
 The [Doctor](/docs/reference/doctor) looks for records that point at a tunnel but lead
 nowhere:
 
-- *app.teispace.com points at a tunnel that no longer exists.* Visitors get a Cloudflare error.
-- *app.teispace.com points at this Mac's tunnel but has no route.* Visitors get a 404 from the
+- *app.yourhost.com points at a tunnel that no longer exists.* Visitors get a Cloudflare error.
+- *app.yourhost.com points at this Mac's tunnel but has no route.* Visitors get a 404 from the
   tunnel.
 
 A record left pointing at a deleted tunnel is also a risk, so both come with **Delete the

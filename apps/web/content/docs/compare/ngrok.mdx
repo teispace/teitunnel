@@ -40,8 +40,8 @@ browser.
 | ngrok | Teitunnel |
 |---|---|
 | `ngrok http 3000` | `teitunnel share 3000` |
-| `ngrok http 3000 --url app.example.com` | `teitunnel share 3000 --on app.teispace.com` |
-| `ngrok http 3000 --traffic-policy-file policy.yml` with an OAuth action | `teitunnel share 3000 --on app.teispace.com --allow you@teispace.com` |
+| `ngrok http 3000 --url app.yourhost.com` | `teitunnel share 3000 --on app.yourhost.com` |
+| `ngrok http 3000 --traffic-policy-file policy.yml` with an OAuth action | `teitunnel share 3000 --on app.yourhost.com --allow you@yourhost.com` |
 | `localhost:4040`, **Replay** | **Inspector** in the app, or `teitunnel traffic ls` and `teitunnel traffic replay` |
 | `ngrok.yml` endpoints | [`teitunnel.yml`](/docs/guides/project-file) in your repository, or [routes](/docs/getting-started/first-route) |
 | an always-on agent service | **Keep running when Teitunnel quits** ([run modes](/docs/concepts/run-modes)) |

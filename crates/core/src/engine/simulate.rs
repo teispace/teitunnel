@@ -3,7 +3,7 @@
 
 use super::{
     access::{AccessRule, AccessState, ObservedAccessApp},
-    networks::{NETWORK_COMMENT, NetworkState, ObservedNetworkRoute},
+    networks::{NETWORK_COMMENT, NetworkState, ObservedHostnameRoute, ObservedNetworkRoute},
     ownership::route_comment,
     types::{ObservedRecord, ObservedTunnel, Plan, Snapshot, Step, TunnelRef, tunnel_target},
 };
@@ -182,6 +182,7 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
                 let state = next.networks.get_or_insert_with(|| NetworkState {
                     default_vnet: None,
                     routes: Vec::new(),
+                    hostnames: None,
                 });
                 let virtual_network_id = state.default_vnet.clone();
                 state.routes.push(ObservedNetworkRoute {
@@ -196,6 +197,29 @@ pub(crate) fn apply(snapshot: &Snapshot, plan: &Plan) -> Snapshot {
             Step::DeleteNetworkRoute { route } => {
                 if let Some(state) = next.networks.as_mut() {
                     state.routes.retain(|r| r.id != route.id);
+                }
+            }
+            Step::CreateHostnameRoute { hostname, tunnel } => {
+                record_ids += 1;
+                let state = next.networks.get_or_insert_with(|| NetworkState {
+                    default_vnet: None,
+                    routes: Vec::new(),
+                    hostnames: None,
+                });
+                state
+                    .hostnames
+                    .get_or_insert_with(Vec::new)
+                    .push(ObservedHostnameRoute {
+                        id: format!("sim-host-{record_ids}"),
+                        hostname: hostname.to_string(),
+                        tunnel_id: resolve(tunnel),
+                        tunnel_name: None,
+                        comment: NETWORK_COMMENT.into(),
+                    });
+            }
+            Step::DeleteHostnameRoute { route } => {
+                if let Some(list) = next.networks.as_mut().and_then(|s| s.hostnames.as_mut()) {
+                    list.retain(|r| r.id != route.id);
                 }
             }
             Step::CreateLbMonitor { hostname } => {

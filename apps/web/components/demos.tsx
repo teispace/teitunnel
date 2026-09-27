@@ -4,10 +4,17 @@ import { Check, Copy, LoaderCircle, QrCode, TriangleAlert } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 /**
- * Runs `play` once when the element is half in view. Without it (Reduce Motion, no
- * IntersectionObserver, server HTML) the demo stays in its finished state.
+ * Runs `play` when the element is well in view (`threshold` of it, or of the window if it's
+ * taller). `play` returns a stop function: it runs when the element leaves through the
+ * bottom of the window (the reader scrolled back above it), so the demo plays again on the
+ * way down. Without motion (Reduce Motion, no IntersectionObserver, server HTML) the demo
+ * stays in its finished state.
  */
-export function usePlayOnView(ref: RefObject<HTMLElement | null>, play: () => () => void) {
+export function usePlayOnView(
+  ref: RefObject<HTMLElement | null>,
+  play: () => () => void,
+  threshold = 0.5,
+) {
   // The latest `play`, so re-renders (every tick of a demo) don't restart it.
   const latest = useRef(play);
   latest.current = play;
@@ -16,24 +23,31 @@ export function usePlayOnView(ref: RefObject<HTMLElement | null>, play: () => ()
     if (
       !element ||
       !("IntersectionObserver" in window) ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches
+      !document.documentElement.classList.contains("tt-motion")
     )
       return;
     let stop: (() => void) | null = null;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        stop = latest.current();
+        if (!entry) return;
+        const viewport = entry.rootBounds?.height ?? window.innerHeight;
+        const seen =
+          entry.intersectionRect.height /
+          Math.max(1, Math.min(entry.boundingClientRect.height, viewport));
+        if (!stop && seen >= threshold) stop = latest.current();
+        else if (stop && !entry.isIntersecting && entry.boundingClientRect.top > 0) {
+          stop();
+          stop = null;
+        }
       },
-      { threshold: 0.5 },
+      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1] },
     );
     observer.observe(element);
     return () => {
       observer.disconnect();
       stop?.();
     };
-  }, [ref]);
+  }, [ref, threshold]);
 }
 
 export const card =
@@ -149,8 +163,8 @@ export function DoctorDemo() {
         <div className="min-w-0 flex-1">
           <p className="font-medium">
             {state === "fixed"
-              ? "docs.teispace.com is live"
-              : "docs.teispace.com has no DNS record"}
+              ? "docs.yourhost.com is live"
+              : "docs.yourhost.com has no DNS record"}
           </p>
           <p className="mt-1 text-xs text-fd-muted-foreground">
             {state === "fixed"

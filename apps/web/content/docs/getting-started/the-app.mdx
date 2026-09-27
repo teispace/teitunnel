@@ -1,0 +1,121 @@
+---
+title: Find your way around
+description: A tour of the Teitunnel app, section by section, with what each part is for, where its terminal equivalent is, the keyboard shortcuts, the command palette and Settings.
+searchDescription: "A tour of the Teitunnel app: every sidebar section, its teitunnel command, keyboard shortcuts, the command palette and Settings."
+---
+
+Teitunnel's window has a sidebar of sections, each a list on the left and the selected item's
+details on the right. This page says what each section is for, which command does the same in
+a terminal, and how to get around with the keyboard.
+
+<Screenshot name="overview" alt="Teitunnel's Overview: problems to look at, traffic, errors and uptime on this machine, routes with their status and Quick Shares" />
+
+## The sidebar
+
+### Your work
+
+| Section | What it's for | In a terminal |
+|---|---|---|
+| **Overview** | What's running now: problems that need you, traffic, errors and uptime on this computer, your routes and Quick Shares, and recent requests. | `teitunnel status`, `teitunnel top` |
+| **Routes** | Hostnames on your domains and the services they reach. Select one for its address, details, activity, logs, pause and schedule, edge protection, offline page and webhook inbox. [First route](/docs/getting-started/first-route) | `teitunnel routes`, `teitunnel route add` |
+| **Quick Share** | Temporary public addresses, random or on your domain, for a service or a folder. [Sharing](/docs/guides/sharing) | `teitunnel share`, `teitunnel shares` |
+| **Inspector** | Every request to inspected shares and routes: see, replay, edit, compare and export. [Inspector](/docs/guides/inspector) | `teitunnel traffic` |
+| **Snapshots** | Static copies of a site, hosted on your Cloudflare account, that stay online when your computer is off. [Snapshots](/docs/guides/snapshots) | `teitunnel snapshot` |
+| **Projects** | `teitunnel.yml` files: what a repository declares, and whether it's applied. [Project files](/docs/guides/project-file) | `teitunnel project` |
+| **Local Domains** | HTTPS names like `shop.test` for services on this computer, never on the internet. [Local domains](/docs/guides/local-domains) | `teitunnel local-domain` |
+| **Comments** | Feedback visitors pinned on shared pages and Snapshots. [Comments](/docs/guides/comments) | `teitunnel comments` |
+| **AI & Integrations** | AI apps and agents using Teitunnel's MCP server, MCP servers you share, the browser extension, editor extensions and `teitunnel://` links. [AI agents](/docs/guides/ai-agents), [Integrations](/docs/guides/integrations) | `teitunnel mcp` |
+
+### Cloudflare
+
+| Section | What it's for | In a terminal |
+|---|---|---|
+| **Domains** | The domains of your connected accounts: whether each is *Active* or *Waiting for nameservers* (with the nameservers to set), its plan, what the credential may do on it, and its [reservations](/docs/concepts/dns-ownership#reservations). | `teitunnel reservations` |
+| **Tunnels** | This computer's tunnels and others in the account: whether each runs here, **Keep running when Teitunnel quits**, connectors, private networks, traffic and logs. [Run modes](/docs/concepts/run-modes), [Several tunnels](/docs/guides/several-tunnels) | `teitunnel tunnels`, `teitunnel always-on` |
+
+### Health
+
+| Section | What it's for | In a terminal |
+|---|---|---|
+| **Activity** | Every change Teitunnel made to Cloudflare, step by step: its outcome, the agent that asked for it, the same steps as commands, and a check that it still works. [Changes](/docs/concepts/changes#activity) | none |
+| **Doctor** | Problems Teitunnel found, why they happen, and fixes you apply in one click. [Doctor](/docs/reference/doctor) | `teitunnel doctor` |
+| **Analytics** | Requests, errors, response times and countries from Cloudflare's edge, uptime checks and alerts, per route. [Analytics](/docs/guides/analytics) | `teitunnel analytics`, `teitunnel uptime` |
+
+**Settings** is at the bottom of the sidebar (and ⌘, / Ctrl+,). A number next to **Doctor**
+counts problems; one next to **Comments** counts unread comments.
+
+## Keyboard shortcuts
+
+⌘ on macOS is Ctrl on Windows and Linux.
+
+| Keys | Does |
+|---|---|
+| ⌘1 … ⌘9 | Overview, Routes, Quick Share, Snapshots, Domains, Tunnels, Activity, Doctor, Analytics |
+| ⌘N | New Route |
+| ⇧⌘N | New Quick Share |
+| ⌘R | Refresh |
+| ⌘K | Command palette |
+| ⌥⌘S | Show or hide the sidebar |
+| ⌥⌘I | Show or hide the details pane on the right |
+| ⌘, | Settings |
+| ⌘Q (Ctrl+Q) | Quit. If routes would stop, Teitunnel asks first and offers to keep them running. |
+
+Inspector, Projects, Local Domains, Comments and AI & Integrations have no number: open them
+from the sidebar or the command palette.
+
+A **global shortcut** that shares your dev server from any app is off by default; turn it on
+in **AI & Integrations ▸ More** ([menu bar and shortcut](/docs/guides/menu-bar#the-global-shortcut)).
+
+## The command palette
+
+⌘K (Ctrl+K), or **View ▸ Command Palette…** on macOS, opens a search over everything above:
+type a few letters of a section or an action and press Return. Besides the sections, it has
+**New Route**, **New Quick Share**, **Refresh**, **Settings**, **Export Diagnostics**,
+**Toggle Sidebar**, **Toggle Inspector**, and links to this documentation, Cloudflare Tunnel's
+documentation, the release notes and **Report an Issue…**.
+
+## The menu bar or tray icon
+
+Closing the window keeps routes and Quick Shares running. The menu bar icon (the tray icon on
+Windows and Linux) shows whether your routes are live and lists your shares, with
+**Share a Local Port…**, **Pause All Shares** and **Stop Routes on This Mac**. Quitting
+Teitunnel from it, or with ⌘Q, stops what isn't set to keep running. See
+[menu bar and tray](/docs/guides/menu-bar).
+
+## Settings
+
+| Tab | What's in it |
+|---|---|
+| **General** | Appearance, updates, **Open at login**, installing the `teitunnel` **Command line**, notifications and quiet hours, alert rules, the check **Before Sharing**, API descriptions from captured requests, **Move to Another Computer**, and the menu bar icon. |
+| **Accounts** | Connected Cloudflare accounts, what each may do (**Permissions**), and **Connect an Account**. [Accounts](/docs/guides/accounts) |
+| **Inspector** | Defaults for inspection: inspecting Quick Shares, stopping idle shares, what's kept and for how long. [Inspector](/docs/guides/inspector) |
+| **cloudflared** | The connector's version, where it came from, where it is, and its updates. [Run modes](/docs/concepts/run-modes#cloudflared-updates) |
+
+## When something needs you
+
+- **Notifications** say when a route goes down or comes back, when the Doctor finds a problem,
+  when a share stops, and when an alert fires. They only appear when no Teitunnel window is in
+  front. Choose which in **Settings ▸ General ▸ Notifications**
+  ([notifications](/docs/guides/observability#notifications)).
+- **Reviews**: every change to Cloudflare opens a sheet with the plan. Nothing changes until
+  you apply it ([how changes work](/docs/concepts/changes)).
+- **Approvals**: when the `teitunnel` command, an editor extension or an AI agent asks the app
+  to do something, the app asks you first ([integrations](/docs/guides/integrations),
+  [AI agents](/docs/guides/ai-agents#approvals-in-the-app)).
+
+## Related
+
+<Cards>
+  <Card title="Share a local service" href="/docs/getting-started/quick-share">
+    Your first Quick Share.
+  </Card>
+  <Card title="Put a service on your domain" href="/docs/getting-started/first-route">
+    Your first route.
+  </Card>
+  <Card title="Choose how to share" href="/docs/concepts/ways-to-share">
+    Quick Share, a route, a Snapshot, or something else.
+  </Card>
+  <Card title="Command line" href="/docs/reference/cli">
+    Every `teitunnel` command.
+  </Card>
+</Cards>

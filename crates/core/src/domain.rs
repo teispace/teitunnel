@@ -8,6 +8,7 @@ mod hostname;
 mod origin;
 mod origin_options;
 mod path_rule;
+mod private_hostname;
 mod private_network;
 mod route_origin;
 
@@ -16,5 +17,8 @@ pub use hostname::{Hostname, HostnameError};
 pub use origin::{OriginError, OriginUrl};
 pub use origin_options::{KNOWN_KEYS as ORIGIN_OPTION_KEYS, OriginOptions, OriginOptionsError};
 pub use path_rule::{PathError, PathRule};
+pub use private_hostname::{
+    PrivateHostname, PrivateHostnameError, PrivateTarget, PrivateTargetError,
+};
 pub use private_network::{PrivateNetwork, PrivateNetworkError};
 pub use route_origin::{RouteOrigin, RouteOriginError};

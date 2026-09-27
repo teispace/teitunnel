@@ -18,6 +18,7 @@ import type {
   ActivityEntry,
   AiClientView,
   AppInfo,
+  BrowserHostStatus,
   Capabilities,
   Domain,
   LocalService,
@@ -55,23 +56,107 @@ let settings: Settings = {
   ignoredIssues: [],
 };
 
+const cliPath = "/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli";
+
+/** An AI app's entry for the mock: Claude Code connected, Cursor needing an update. */
+function aiClient(
+  id: string,
+  name: string,
+  state: AiClientView["state"],
+  path: string,
+  installedAt: string | null,
+  lastUsedAt: number | null = null,
+): AiClientView {
+  const connected = state === "connected" || state === "needsUpdate";
+  return {
+    id,
+    name,
+    state,
+    path,
+    installedAt,
+    command: connected
+      ? `${state === "needsUpdate" ? "/Volumes/Teitunnel/teitunnel-cli" : cliPath} mcp`
+      : null,
+    lastUsedAt,
+    snippet: JSON.stringify(
+      { mcpServers: { teitunnel: { command: cliPath, args: ["mcp"] } } },
+      null,
+      2,
+    ),
+    problem: null,
+  };
+}
+
 let aiClients: AiClientView[] = [
-  ["claude-code", "Claude Code", true, true],
-  ["claude-desktop", "Claude Desktop", false, false],
-  ["cursor", "Cursor", true, false],
-  ["vscode", "VS Code", true, false],
-  ["codex", "Codex", false, false],
-  ["windsurf", "Windsurf", false, false],
-  ["zed", "Zed", false, false],
-  ["gemini-cli", "Gemini CLI", false, false],
-].map(([id, name, detected, connected]) => ({
-  id: String(id),
-  name: String(name),
-  path: `~/.${String(id)}/mcp.json`,
-  detected: Boolean(detected),
-  connected: Boolean(connected),
-  problem: null,
-}));
+  aiClient(
+    "claude-code",
+    "Claude Code",
+    "connected",
+    "~/.claude.json",
+    "~/.local/bin/claude",
+    now - 12 * 60_000,
+  ),
+  aiClient(
+    "cursor",
+    "Cursor",
+    "needsUpdate",
+    "~/.cursor/mcp.json",
+    "/Applications/Cursor.app",
+    now - 3 * 86_400_000,
+  ),
+  aiClient(
+    "vscode",
+    "VS Code",
+    "notConnected",
+    "~/Library/Application Support/Code/User/mcp.json",
+    "/Applications/Visual Studio Code.app",
+  ),
+  aiClient(
+    "claude-desktop",
+    "Claude Desktop",
+    "notInstalled",
+    "~/Library/Application Support/Claude/claude_desktop_config.json",
+    null,
+  ),
+  aiClient("codex", "Codex", "notInstalled", "~/.codex/config.toml", null),
+  aiClient("windsurf", "Windsurf", "notInstalled", "~/.codeium/windsurf/mcp_config.json", null),
+  aiClient("zed", "Zed", "notInstalled", "~/.config/zed/settings.json", null),
+  aiClient("gemini-cli", "Gemini CLI", "notInstalled", "~/.gemini/settings.json", null),
+];
+
+let browsers: BrowserHostStatus[] = [
+  {
+    browser: "chrome",
+    name: "Google Chrome",
+    detected: true,
+    app: "/Applications/Google Chrome.app",
+    installed: true,
+    manifest:
+      "~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.teispace.teitunnel.json",
+    extensionSeenAt: now - 20 * 60_000,
+  },
+  {
+    browser: "firefox",
+    name: "Firefox",
+    detected: true,
+    app: "/Applications/Firefox.app",
+    installed: false,
+    manifest:
+      "~/Library/Application Support/Mozilla/NativeMessagingHosts/com.teispace.teitunnel.json",
+    extensionSeenAt: null,
+  },
+  ...(["chromium", "edge", "brave", "vivaldi", "arc"] as const).map(
+    (browser): BrowserHostStatus => ({
+      browser,
+      name: browser[0]?.toUpperCase() + browser.slice(1),
+      detected: false,
+      app: null,
+      installed: false,
+      manifest: "",
+      extensionSeenAt: null,
+    }),
+  ),
+];
 
 /** `?update` shows a downloaded update (sidebar notice, Settings). */
 function updateStatus(): UpdateStatus {
@@ -449,7 +534,10 @@ const routesOverview: RoutesOverview = {
     { id: "00000000000000000000000000000a02", name: "teispace.dev" },
     { id: "00000000000000000000000000000a03", name: "teispace.app" },
   ],
-  networks: [{ network: "192.168.1.0/24", private: true, owned: true }],
+  networks: [
+    { network: "192.168.1.0/24", kind: "range", private: true, owned: true },
+    { network: "wiki.internal", kind: "hostname", private: true, owned: true },
+  ],
 };
 
 const protectedPlan: PlanView = {
@@ -684,14 +772,32 @@ export function installMockIpc(): void {
           const id = payload["clientId"];
           if (typeof id === "string") {
             aiClients = aiClients.map((c) =>
-              c.id === id ? { ...c, connected: cmd === "ai_clients_connect" } : c,
+              c.id === id
+                ? {
+                    ...c,
+                    state: cmd === "ai_clients_connect" ? "connected" : "notConnected",
+                    command: cmd === "ai_clients_connect" ? `${cliPath} mcp` : null,
+                  }
+                : c,
             );
           }
-          return {
-            command: "/Applications/Teitunnel.app/Contents/MacOS/teitunnel-cli",
-            clients: aiClients,
-          };
+          return { command: cliPath, clients: aiClients };
         }
+        case "ai_clients_test":
+          return new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  server: "teitunnel 0.4.1",
+                  protocol: "2025-11-25",
+                  tools: 41,
+                  millis: 180,
+                }),
+              500,
+            ),
+          );
+        case "ai_clients_reveal":
+          return null;
         case "settings_set": {
           const patch = payload["patch"] as SettingsPatch;
           settings = {
@@ -751,7 +857,10 @@ export function installMockIpc(): void {
         case "accounts_list":
           return accounts;
         case "accounts_capabilities":
-          return capabilities;
+          // `?access` previews an account that can manage logins (Access).
+          return new URLSearchParams(window.location.search).has("access")
+            ? { ...capabilities, accessEdit: "yes" }
+            : capabilities;
         case "accounts_detect_cert":
           return true;
         case "domains_list":
@@ -1180,15 +1289,17 @@ export function installMockIpc(): void {
           );
         case "browser_host_status":
         case "browser_host_install":
-          return {
-            available: true,
-            browsers: [
-              { browser: "chrome", name: "Google Chrome", detected: true, installed: true },
-              { browser: "firefox", name: "Firefox", detected: true, installed: false },
-            ],
-          };
-        case "browser_host_uninstall":
-          return { available: true, browsers: [] };
+        case "browser_host_uninstall": {
+          const only = payload["browser"];
+          if (cmd !== "browser_host_status") {
+            browsers = browsers.map((b) =>
+              b.detected && (only === null || only === b.browser)
+                ? { ...b, installed: cmd === "browser_host_install" }
+                : b,
+            );
+          }
+          return { available: true, browsers };
+        }
         case "mcp_connections":
           return [
             {
@@ -1198,10 +1309,21 @@ export function installMockIpc(): void {
               redirectHost: "claude.ai",
               createdAt: now - 26 * 3_600_000,
               lastUsedAt: now - 4 * 60_000,
+              expiresAt: now + 89 * 24 * 3_600_000,
             },
           ];
         case "mcp_disconnect":
           return null;
+        case "mcp_settings_get":
+          return {
+            mode: "ask",
+            allowSecrets: false,
+            approveInApp: true,
+            dynamicRegistration: true,
+            maxGrantDays: 90,
+          };
+        case "mcp_settings_save":
+          return payload["settings"];
         case "quick_share_qr":
           return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="4" height="4" fill="currentColor"/><rect x="6" width="4" height="4" fill="currentColor"/><rect y="6" width="4" height="4" fill="currentColor"/></svg>';
         default:

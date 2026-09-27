@@ -49,6 +49,7 @@ chacha20poly1305.workspace = true
 getrandom.workspace = true
 idna.workspace = true
 sha2.workspace = true
+subtle.workspace = true
 listeners.workspace = true
 ipnet.workspace = true
 jiff.workspace = true
@@ -65,6 +66,9 @@ serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-registry.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-core-foundation.workspace = true

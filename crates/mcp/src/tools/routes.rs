@@ -68,11 +68,11 @@ pub(super) fn specs() -> Vec<ToolSpec> {
              - removeRoute {hostname, path?}: remove a route and the DNS record Teitunnel created for it.\n\
              - requireLogin {hostname, path?, allow, signIn?}: put a route behind a login (Cloudflare Access, free with Zero Trust). removeLogin {hostname, path?}: make it public again.\n\
              - balanceRoute / unbalanceRoute {hostname}: load balance a hostname across every machine routing it (Cloudflare Load Balancing, paid).\n\
-             - addNetwork / removeNetwork {network}: let WARP clients reach a private range (e.g. 192.168.1.0/24) through this machine.\n\
+             - addNetwork / removeNetwork {network}: let the account's WARP clients (only them) reach a private range (192.168.1.0/24) or hostname (wiki.internal) through this machine.\n\
              - createTunnel {name}: another tunnel for this machine. deleteTunnel {tunnel}: delete one of this machine's tunnels with its routes.\n\
              - importRoutes {routes: [{hostname, origin, path?}]}: add several routes at once (e.g. from import_scan).\n\
-             - restoreConfig {}: undo an outside edit of this machine's routes (made in the dashboard).\n\
-             - deleteDnsRecord {zoneId, hostname, recordId}: delete one DNS record (orphans the doctor found).\n\
+             - restoreConfig {}: undo an outside (dashboard) edit of this machine's routes.\n\
+             - deleteDnsRecord {zoneId, hostname, recordId}: delete one DNS record (a Doctor orphan).\n\
              \n\
              Example: {\"change\": {\"type\": \"addRoute\", \"hostname\": \"app.teispace.com\", \"origin\": \"3000\", \"allow\": [\"@teispace.com\"]}}",
             ToolClass::Read,
@@ -84,7 +84,7 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             "Apply a plan",
             "Apply a plan from plan_change (by `planId` and `fingerprint`), step by step with progress, then check the affected routes end to end. If anything fails, completed steps are undone. If Cloudflare changed since the plan was made, nothing is applied and a new plan is returned (`stale`) to review again.\n\
              \n\
-             In `ask` mode the person approves first: the client asks them when it can; otherwise the answer is `needsApproval` and you must show them the plan and call again with `confirmed: true` only after they agree. A plan that replaces or deletes DNS records Teitunnel didn't create (`requiresConfirmation`) always needs `confirmed: true` (or the person's approval). Every change is recorded in Teitunnel's Activity with this agent's name.\n\
+             In `ask` mode the person approves first, in Teitunnel or in your client's question; when nobody can ask them, the call says what to do (or answers `needsApproval`: show them the plan and call again with `confirmed: true` only after they agree). A plan that replaces or deletes DNS records Teitunnel didn't create (`requiresConfirmation`) always needs `confirmed: true` (or the person's approval). Every change is recorded in Teitunnel's Activity with this agent's name.\n\
              \n\
              Example: {\"planId\": \"plan_1a2b3c4d5e6f\", \"fingerprint\": \"9f86d081…\"}",
             ToolClass::Destructive,
@@ -107,7 +107,8 @@ pub(super) fn specs() -> Vec<ToolSpec> {
             ToolClass::Read,
             Hints::READ_CLOUD,
             Duration::from_secs(90),
-        ),
+        )
+        .with_untrusted(),
         spec::<UndoArgs, UndoResult>(
             "undo_last",
             "Plan an undo",
@@ -621,14 +622,15 @@ pub(crate) enum ChangeInput {
         /// Hostname.
         hostname: String,
     },
-    /// Let WARP clients reach a private range through this machine.
+    /// Let WARP clients reach a private range or hostname through this machine.
     AddNetwork {
-        /// An IP address or CIDR range, e.g. `192.168.1.0/24`.
+        /// An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+        /// such as `wiki.internal`.
         network: String,
     },
-    /// Stop routing a range through this machine.
+    /// Stop routing a range or hostname through this machine.
     RemoveNetwork {
-        /// The range.
+        /// The range or hostname.
         network: String,
     },
     /// Create another tunnel for this machine.
@@ -743,6 +745,9 @@ pub(crate) fn plan_out(plan: &PendingPlan, ctx: &ToolContext) -> PlanOut {
         Mode::ReadOnly => "impossible: this server is read-only".to_owned(),
         Mode::Ask if ctx.can_ask() => {
             "the person is asked to approve when you call apply_plan".to_owned()
+        }
+        Mode::Ask if ctx.needs_person() => {
+            "show the person the plan; when you call apply_plan, Teitunnel asks them to approve it (its app must be running; your `confirmed` isn't an approval)".to_owned()
         }
         Mode::Ask => "show the person the plan; call apply_plan with \"confirmed\": true only after they agree".to_owned(),
     };
@@ -1289,7 +1294,7 @@ pub(crate) async fn apply_stored(
         })
         .await;
     let by_person = match approval {
-        Approval::Granted { how } => how == "person",
+        Approval::Granted { how } => Approval::by_person(how),
         Approval::NeedsConfirmation => {
             return Ok(ApplyResult::only(
                 "needsApproval",

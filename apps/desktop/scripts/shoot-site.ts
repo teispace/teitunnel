@@ -22,6 +22,9 @@ interface Shot {
 
 const shots: Shot[] = [
   { name: "overview", route: "/" },
+  // The same window on the other systems, for the landing page's native app section.
+  { name: "overview-windows", route: "/?platform=windows" },
+  { name: "overview-linux", route: "/?platform=linux" },
   { name: "routes", route: "/routes" },
   { name: "quick-share", route: "/quick-share" },
   {
@@ -75,12 +78,8 @@ const shots: Shot[] = [
     size: [620, 500],
     steps: ['click:role=tab[name="Accounts"]', "click:text=Permissions"],
   },
-  {
-    name: "integrations",
-    route: "/settings",
-    size: [620, 400],
-    steps: ['click:role=tab[name="Integrations"]'],
-  },
+  { name: "integrations", route: "/integrations?tab=more" },
+  { name: "browser-extension", route: "/integrations?tab=browser" },
   {
     name: "offline-inbox",
     route: "/routes",
@@ -97,11 +96,31 @@ const shots: Shot[] = [
     size: [620, 380],
     steps: ["scroll:text=Move to Another Computer"],
   },
+  { name: "agents", route: "/integrations" },
   {
-    name: "agents",
-    route: "/settings?agents",
-    size: [620, 620],
-    steps: ["scroll:text=AI Tools"],
+    name: "share-on-domain",
+    route: "/quick-share?compose=true",
+    steps: [
+      'fill:input[placeholder^="Port or address"]=>5173',
+      "key:Escape",
+      "click:text=Random address",
+      'click:role=option[name="On teispace.com"]',
+      'fill:role=textbox[name="Subdomain"]=>demo',
+      "click:text=Advanced",
+    ],
+  },
+  {
+    name: "route-login",
+    // The mock's account can't manage Access, which would hold Review back.
+    route: "/routes?add=true&access",
+    steps: [
+      'fill:role=dialog >> input[placeholder^="Port"]=>3000',
+      'fill:role=textbox[name="Subdomain"]=>admin',
+      "click:role=dialog >> text=Advanced",
+      'click:role=checkbox[name="Require a login"]',
+      'fill:role=textbox[name="Who can sign in"]=>ana@teispace.com, @teispace.com',
+      "scroll:text=Who can sign in",
+    ],
   },
 ];
 

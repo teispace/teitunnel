@@ -195,7 +195,7 @@ Planner rules:
 - **Ingress ordering:** rules are sorted by specificity (exact host before wildcard, longer path before shorter). The catch-all `http_status:404` is always last. Manual order is allowed in Advanced mode.
 - **DNS conflicts:** an existing A/AAAA/CNAME on the hostname that we don't own produces `requires_confirmation` with the existing record shown. It is never overwritten silently.
 - **Idempotent:** planning the same intent against an already-converged state yields an empty plan ("Nothing to change").
-- **Private networks:** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed). Removing the tunnel deletes the ranges routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
+- **Private networks:** `CreateNetworkRoute`/`DeleteNetworkRoute` route a CIDR range to this Mac's tunnel in the default virtual network (creating the tunnel first if needed); `CreateHostnameRoute`/`DeleteHostnameRoute` do the same for a private hostname (Zero Trust hostname routes, `…/zerotrust/routes/hostname`), which the connector resolves with this machine's DNS, so it needs no ingress rule and no DNS record. `Change::AddNetwork`/`RemoveNetwork` take either and `PrivateTarget::parse` picks the intent. Hostname routes are read with the network routes but are optional (`ObserveNeed::hostname_routes`): a failed read hides them instead of failing the overview, and only a hostname change requires them. Removing the tunnel deletes the ranges and hostnames routed to it before the connector stops. Only routes to this Mac's tunnel are ever removed.
 - **Text:** steps, warnings and errors carry `Text` (catalog key + arguments), never English sentences; the UI translates them.
 - **Verify** is planned only for routes a browser can open; SSH/RDP/SMB/TCP routes show `cloudflared access` commands instead.
 - Every step has a human description and a "Copy as command" rendering (`cloudflared …` or `curl` for the API).
@@ -321,7 +321,7 @@ Stopped ─start─▶ Starting ─spawned─▶ Connecting ─ready≥1─▶ H
 ```
 
 - **Spawn:** `cloudflared tunnel --no-autoupdate --output json --loglevel info --metrics 127.0.0.1:<port> run`, spawned directly with `tokio::process` (tests use `tools/fake-cloudflared`). The token is passed via the `TUNNEL_TOKEN` environment variable, **never in argv**. `kill_on_drop`, own process group. See `crates/cloudflared/src/command.rs`.
-- **Metrics port:** each tunnel gets a stable port from `20300..20399` (Quick Shares use `20400..20499`), stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide.
+- **Metrics port:** each tunnel gets a stable port from `20300..20399` (Quick Shares use `20400..20499`), stored in SQLite and checked free at start. This avoids cloudflared's default `20241..20245`, so adopted foreign processes don't collide. When the stored port is busy, the connector takes another one without storing it: the busy port is usually the same tunnel's connector in another process (the app, while a `teitunnel share` runs one of its own). The CLI finds the app's connectors on the ports the app reports over its control connection (`TunnelInfo.metrics_port`), and falls back to the stored port without the app.
 - **Health:** poll `GET /ready` every 250 ms until the first connection, then every 2 s (JSON `readyConnections`). `Healthy` needs ≥ 1; `Degraded` is 0 while the process is alive.
 - **Logs:** JSON lines on stderr are parsed into `LogEvent { ts, level, message, fields }`. They go into a per-connector ring buffer (100k events) and are fanned out to subscribers.
 - **Metrics:** scrape `/metrics` every 1 s while a traffic view polls (a 5 s lease per read), otherwise every 10 s. Values go into a ring buffer (3,600 samples), and 1-min rollups are persisted for 7 days.
@@ -454,7 +454,7 @@ App data dir on macOS: `~/Library/Application Support/com.teispace.teitunnel/` (
 
 ### 10.1 Control connection
 
-The app listens (unless Settings ▸ Integrations turns it off) on `<data>/control/sock`
+The app listens (unless AI & Integrations ▸ More turns it off) on `<data>/control/sock`
 (Unix socket, 0600, in a 0700 folder; peers must run as the same uid) or a named pipe with
 a random name recorded in `<data>/control/pipe` (DACL: the current user only; remote
 clients refused; first instance). `<data>/control/token` (0600, made once per install) is
@@ -471,7 +471,7 @@ must come within 5 s; requests are rate-limited per connection (token bucket 40/
 | `open` | `Ui::open` → `OpenView` event → the webview navigates |
 | `doctor.run` | `doctor::run` plus local-domain issues, minus ignored issues |
 | `localDomains.list` / `localDomains.reload` | `LocalDomains::status` / `sync` then `status` (no approval: it only re-reads the app's own database) |
-| `events.subscribe` | notifications from `EntityChanged` (shares, routes) and `requestArrived` (inspector) |
+| `events.subscribe` | notifications from `EntityChanged` (shares, routes), `requestArrived` (inspector) and `mcpConnectionEnded` (the person disconnected an OAuth client in Settings; processes sharing MCP servers follow it with `McpAuth::follow_app` and drop its tokens at once) |
 
 Changes (`shares.start`, `shares.stop`, `routes.apply`) go through the server's gate:
 unless the client's name is in `integrations.clients` ("Always Allow"), the host asks with a
@@ -487,6 +487,41 @@ The CLI connects with `ControlClient` (`apps/cli/src/app.rs`): `share` uses the 
 answers (`--app` requires it, `--here` never), `shares`/`routes`/`status`/`top` read
 through it. Shell completion (`teitunnel __complete`, scripts from `completions`) reads
 names from the database read-only (`core::completion`) and never the network.
+
+### 10.2 MCP server (`crates/mcp`)
+
+`McpServer` (rmcp) speaks MCP 2024-11-05 through 2026-07-28 (`supported_protocol_versions`
+pins the tested set). Clients before 2026-07-28 do the `initialize` handshake and keep a
+session; clients on 2026-07-28 don't: each request carries `_meta`
+`io.modelcontextprotocol/{protocolVersion,clientInfo,clientCapabilities,logLevel}`, which
+rmcp exposes through `RequestContext::client_info()`/`client_capabilities()`, so the
+server reads the caller from every request and introduces the agent to the app on its first
+request of any kind (not `notifications/initialized`).
+
+- **Approvals** (`registry::ToolContext::approve`): the app (`AppApprover`, `agent.approve`
+  on the control connection; "busy" is its own answer), then the client: legacy
+  `elicitation/create` before 2026-07-28, multi round-trip requests from it (`mrtr.rs`:
+  the tool's own `needsApproval` answer is replaced by `resultType: "input_required"` with
+  an `approve` elicitation and a sealed `requestState`; the retry runs the tool again with
+  the answer). When nobody can ask, `approveInApp` (default on) turns the call into an error
+  saying what the person must do; off, `confirmed: true` counts. The server, not the tool,
+  decides what the client sees (`Held`).
+- **Results**: compact JSON text plus `structuredContent`; tools whose results hold outside
+  content (`ToolSpec::with_untrusted`) add `untrusted: true` and fence the text. Unknown
+  tools are JSON-RPC `-32602`; bad arguments stay tool errors (`isError`).
+- **Caching** (SEP-2549): list results and `server/discover` carry `ttlMs` (1 h) and
+  `cacheScope: "private"`; `resources/read` 5 s.
+- **Logging**: from 2026-07-28 only for a request that sets `logLevel` in `_meta`; before,
+  after `logging/setLevel`.
+- **Settings** (`config::Settings`, `<data>/mcp.json`): `mode`, `allowSecrets`,
+  `approveInApp`, and `oauth` (`dynamicRegistration`, `maxGrantDays`) for MCP servers
+  shared with OAuth (`core::mcp_auth::Policy`). Read by `teitunnel mcp`, `teitunnel serve`
+  and `teitunnel share --mcp` when they start; the app reads and writes them with the
+  `mcp_settings_get` / `mcp_settings_save` commands.
+- **HTTP** (`teitunnel serve`, `/mcp`): stateless from 2026-07-28, so shares an agent starts
+  there last `HTTP_SHARE_MINUTES` (60) unless it asks otherwise.
+- `teitunnel mcp` makes the OAuth server (`McpAuth`, with its database watch and app
+  follower) only when an agent first exposes an MCP server (`ExposeTools::with_lazy_oauth`).
 
 ---
 

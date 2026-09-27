@@ -122,4 +122,4 @@ has to fetch it again; if it leaks, do the same at once.
 - **Firefox Add-ons**: upload `dist/firefox`; the id is fixed (`browser@teitunnel.teispace.com`).
 
 The extension only asks for `nativeMessaging` and `activeTab`; the listing explains that it
-works with the Teitunnel app, which must be installed and set up (Settings ▸ Integrations).
+works with the Teitunnel app, which must be installed and set up (AI & Integrations ▸ More).

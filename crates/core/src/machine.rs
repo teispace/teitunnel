@@ -214,6 +214,11 @@ impl MachineTunnels {
         ports
     }
 
+    /// The metrics port of `tunnel_id`'s running connector.
+    pub fn metrics_port(&self, tunnel_id: &str) -> Option<u16> {
+        self.metrics_ports().get(tunnel_id).map(|(port, _)| *port)
+    }
+
     /// The metrics port of each running connector. While switching modes both run;
     /// the service is the one that stays when switching on, and it's out of `services`
     /// when switching off, so it wins.
@@ -787,7 +792,10 @@ impl MachineTunnels {
         }
     }
 
-    /// The remembered metrics port if it's still free, else a new one (remembered).
+    /// The remembered metrics port if it's still free, else a new one. A new port is
+    /// remembered only when none was: a remembered port that's busy is usually the
+    /// tunnel's connector in another process (the app, while `teitunnel share` runs
+    /// one of its own), and overwriting it would hide that connector from the CLI.
     async fn port_for(&self, account: &str, tunnel_id: &str) -> Result<u16, Text> {
         let remembered = self
             .local
@@ -801,7 +809,9 @@ impl MachineTunnels {
             return Ok(port);
         }
         let port = self.ports.allocate().ok_or_else(msg::machine::no_port)?;
-        if let Err(err) = self.local.set_metrics_port(tunnel_id, port).await {
+        if remembered.is_none()
+            && let Err(err) = self.local.set_metrics_port(tunnel_id, port).await
+        {
             tracing::warn!(%err, "couldn't remember the metrics port");
         }
         Ok(port)
@@ -856,7 +866,7 @@ impl Connectors for MachineTunnels {
     }
 
     async fn connector_id(&self, tunnel_id: &str) -> Option<String> {
-        let (port, _) = self.metrics_ports().get(tunnel_id).copied()?;
+        let port = self.metrics_port(tunnel_id)?;
         let endpoints = cloudflared::Endpoints::new(port).ok()?;
         endpoints.ready().await.ok()?.connector_id
     }
@@ -871,5 +881,73 @@ impl Connectors for MachineTunnels {
         if let Err(err) = spawn_blocking(move || secrets.delete(&key)).await {
             tracing::warn!(%err, "couldn't delete the tunnel token from the keychain");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{binary::Locator, runtime::PidRegistry, secrets::MemoryStore, store::Store};
+
+    fn machine(
+        dir: &std::path::Path,
+        local: &Local,
+        ports: std::ops::Range<u16>,
+    ) -> MachineTunnels {
+        let supervisor = Supervisor::new(
+            PidRegistry::new(dir.join("run")),
+            tokio::runtime::Handle::current(),
+        );
+        MachineTunnels::new(
+            supervisor,
+            BinaryManager::new(Locator::new(dir.join("bin"), None, vec![])),
+            PortAllocator::new(ports),
+            Arc::new(MemoryStore::default()),
+            local.clone(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_busy_remembered_port_stays_remembered() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = Local::new(Store::open_in_memory().unwrap());
+        local.set_machine_tunnel("a", "t1", "Mac").await.unwrap();
+        // The app's connector holds the remembered port.
+        let app = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let busy = app.local_addr().unwrap().port();
+        local.set_metrics_port("t1", busy).await.unwrap();
+        let ports = busy..busy.saturating_add(20);
+        let cli = machine(dir.path(), &local, ports);
+
+        let port = cli.port_for("a", "t1").await.unwrap();
+        assert_ne!(port, busy);
+        let remembered = local
+            .machine_tunnel("a")
+            .await
+            .unwrap()
+            .unwrap()
+            .metrics_port;
+        assert_eq!(
+            remembered,
+            Some(busy),
+            "the app's port stays where the CLI finds it"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_first_port_is_remembered() {
+        let dir = tempfile::tempdir().unwrap();
+        let local = Local::new(Store::open_in_memory().unwrap());
+        local.set_machine_tunnel("a", "t1", "Mac").await.unwrap();
+        let app = machine(dir.path(), &local, 24120..24140);
+
+        let port = app.port_for("a", "t1").await.unwrap();
+        let remembered = local
+            .machine_tunnel("a")
+            .await
+            .unwrap()
+            .unwrap()
+            .metrics_port;
+        assert_eq!(remembered, Some(port));
     }
 }

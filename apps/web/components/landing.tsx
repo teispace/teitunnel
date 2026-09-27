@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, Fragment, type ReactNode } from "react";
 import { asset, site } from "@/lib/site";
 import { Logo } from "./logo";
 
@@ -25,6 +25,7 @@ export function Shot({
   name,
   alt,
   priority,
+  eager,
   size = screens.main,
   lights = "main",
   className = "",
@@ -33,13 +34,15 @@ export function Shot({
   name: string;
   alt: string;
   priority?: boolean;
+  /** Load at once (screens that slide into view, which lazy loading notices too late). */
+  eager?: boolean;
   size?: { width: number; height: number };
   /** Where the window buttons sit: the main window's toolbar or a settings window's title. */
   lights?: "main" | "settings" | false;
   className?: string;
   children?: ReactNode;
 }) {
-  const loading = priority ? "eager" : "lazy";
+  const loading = priority || eager ? "eager" : "lazy";
   const image = "block h-auto w-full";
   const top = lights === "settings" ? (14 / size.height) * 2 : (20 / size.height) * 2;
   return (
@@ -87,6 +90,35 @@ export function Shot({
   );
 }
 
+/** A section's label, typed out as it's revealed. */
+export function Eyebrow({ text }: { text: string }) {
+  return (
+    <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--tt-accent)]">
+      <span className="tt-type inline-block" style={{ "--len": text.length } as CSSProperties}>
+        {text}
+      </span>
+    </p>
+  );
+}
+
+/** A title whose words rise in one after another (other content as it is). */
+export function Words({ children }: { children: ReactNode }) {
+  if (typeof children !== "string") return <>{children}</>;
+  return (
+    <>
+      {children.split(" ").map((word, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a fixed title
+        <Fragment key={index}>
+          {index > 0 ? " " : null}
+          <span className="tt-rise-word" style={{ "--i": index } as CSSProperties}>
+            {word}
+          </span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export function Section({
   id,
   eyebrow,
@@ -105,12 +137,10 @@ export function Section({
   return (
     <section id={id} className={`mx-auto w-full max-w-6xl px-6 py-20 md:py-28 ${className}`}>
       <div data-reveal className="mb-12 max-w-3xl">
-        {eyebrow ? (
-          <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--tt-accent)]">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-5xl">{title}</h2>
+        {eyebrow ? <Eyebrow text={eyebrow} /> : null}
+        <h2 className="text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+          <Words>{title}</Words>
+        </h2>
         {lead ? <p className="mt-5 text-lg text-fd-muted-foreground">{lead}</p> : null}
       </div>
       {children}

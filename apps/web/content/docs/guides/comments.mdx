@@ -22,7 +22,7 @@ anything where "the button on the pricing page" is easier to point at than to de
   while the share's requests go through the [inspector](/docs/guides/inspector), which is
   the default; the inspector adds the comment button to the pages.
 - **A share from the terminal:** `teitunnel share 5173 --comments` (or with
-  `--on demo.teispace.com`); the share runs in that terminal.
+  `--on demo.yourhost.com`); the share runs in that terminal.
 - **A Snapshot:** when you publish it or a new version, switch on **Comments** in the
   settings step, or pass `--comments` to `teitunnel snapshot publish` or `update`.
   `--no-comments` turns them off again.
@@ -52,7 +52,7 @@ Policy.
 
 **Comments** in the sidebar lists every share and Snapshot with comments ("Shares with
 comments"), with a badge for unread ones. A notification ("New comment on
-preview.teispace.com") tells you when someone writes, except during quiet hours. Each
+preview.yourhost.com") tells you when someone writes, except during quiet hours. Each
 thread shows its page and the comments, with:
 
 - **Reply**: your answer is marked as the owner's for reviewers.
@@ -69,11 +69,11 @@ every 2 minutes while the app runs.
 
 ```sh
 teitunnel comments ls                                  # what has comments
-teitunnel comments ls preview.teispace.com             # its open threads
+teitunnel comments ls preview.yourhost.com             # its open threads
 teitunnel comments ls "Launch page" --all              # include resolved threads
-teitunnel comments reply preview.teispace.com c1a2b3 "Fixed in the new version, thanks"
-teitunnel comments resolve preview.teispace.com c1a2b3
-teitunnel comments resolve preview.teispace.com c1a2b3 --reopen
+teitunnel comments reply preview.yourhost.com c1a2b3 "Fixed in the new version, thanks"
+teitunnel comments resolve preview.yourhost.com c1a2b3
+teitunnel comments resolve preview.yourhost.com c1a2b3 --reopen
 ```
 
 A subject is a hostname, a Snapshot's name, or a key from `comments ls` (`snapshot:…`,

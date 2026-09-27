@@ -10,7 +10,9 @@ use super::{
     types::{Intent, Plan, RouteSpec, Snapshot, Step, Warning, ZoneRef, tunnel_target},
 };
 use crate::{
-    domain::{ClientAccess, Hostname, OriginOptions, PathRule, PrivateNetwork, RouteOrigin},
+    domain::{
+        ClientAccess, Hostname, OriginOptions, PathRule, PrivateNetwork, PrivateTarget, RouteOrigin,
+    },
     runtime::ConnectorState,
     text::{Text, UserText, english_display},
 };
@@ -99,14 +101,15 @@ pub enum Change {
         /// The routes.
         routes: Vec<RouteInput>,
     },
-    /// Let WARP clients reach a private range through this Mac's tunnel.
+    /// Let WARP clients reach a private range or hostname through this Mac's tunnel.
     AddNetwork {
-        /// An IP address or CIDR range, e.g. `192.168.1.0/24`.
+        /// An IP address, a CIDR range such as `192.168.1.0/24`, or a private hostname
+        /// such as `wiki.internal`.
         network: String,
     },
-    /// Stop sharing a private range.
+    /// Stop sharing a private range or hostname.
     RemoveNetwork {
-        /// The range.
+        /// The range or hostname.
         network: String,
     },
     /// Delete one DNS record (an orphan found by the Doctor).
@@ -298,12 +301,18 @@ pub(crate) fn to_intent(change: &Change, snapshot: &Snapshot) -> Result<Intent, 
             hostname: parse_hostname(hostname)?,
             record_id: record_id.clone(),
         },
-        Change::AddNetwork { network } => Intent::AddNetwork {
-            network: PrivateNetwork::parse(network).map_err(|e| invalid("network", &e))?,
-        },
-        Change::RemoveNetwork { network } => Intent::RemoveNetwork {
-            network: PrivateNetwork::parse(network).map_err(|e| invalid("network", &e))?,
-        },
+        Change::AddNetwork { network } => {
+            match PrivateTarget::parse(network).map_err(|e| invalid("network", &e))? {
+                PrivateTarget::Network(network) => Intent::AddNetwork { network },
+                PrivateTarget::Hostname(hostname) => Intent::AddPrivateHostname { hostname },
+            }
+        }
+        Change::RemoveNetwork { network } => {
+            match PrivateTarget::parse(network).map_err(|e| invalid("network", &e))? {
+                PrivateTarget::Network(network) => Intent::RemoveNetwork { network },
+                PrivateTarget::Hostname(hostname) => Intent::RemovePrivateHostname { hostname },
+            }
+        }
         Change::RemoveLogin { domain } => Intent::RemoveLogin {
             domain: domain.trim().to_ascii_lowercase(),
         },
@@ -379,7 +388,7 @@ pub enum StepKind {
     LoginMethod,
     /// Create, change or remove a route's login.
     AccessApp,
-    /// Route or stop routing a private network.
+    /// Route or stop routing a private network (a range or a hostname).
     NetworkRoute,
     /// Load balance a route, or stop.
     LoadBalancer,
@@ -445,9 +454,10 @@ impl Step {
                 Self::CreateAccessApp { .. }
                 | Self::UpdateAccessApp { .. }
                 | Self::DeleteAccessApp { .. } => StepKind::AccessApp,
-                Self::CreateNetworkRoute { .. } | Self::DeleteNetworkRoute { .. } => {
-                    StepKind::NetworkRoute
-                }
+                Self::CreateNetworkRoute { .. }
+                | Self::DeleteNetworkRoute { .. }
+                | Self::CreateHostnameRoute { .. }
+                | Self::DeleteHostnameRoute { .. } => StepKind::NetworkRoute,
                 Self::CreateLbMonitor { .. }
                 | Self::CreateLbPool { .. }
                 | Self::UpdateLbPool { .. }
@@ -582,20 +592,33 @@ pub struct RoutesOverview {
     pub routes: Vec<RouteView>,
     /// Domains routes can use.
     pub zones: Vec<ZoneRef>,
-    /// Private networks shared through this Mac's tunnel, sorted; `None` when the
-    /// credential can't read them.
+    /// Private networks shared through this Mac's tunnel: ranges sorted, then
+    /// hostnames sorted; `None` when the credential can't read them.
     pub networks: Option<Vec<NetworkView>>,
 }
 
-/// A private network shared through this Mac's tunnel.
+/// What a private network is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub enum NetworkKind {
+    /// An address or a CIDR range.
+    Range,
+    /// A private hostname, resolved by this Mac's DNS.
+    Hostname,
+}
+
+/// A private network (a range or a hostname) shared through this Mac's tunnel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkView {
-    /// The range, e.g. `192.168.1.0/24`.
+    /// The range, e.g. `192.168.1.0/24`, or the hostname, e.g. `wiki.internal`.
     pub network: String,
-    /// In private address space (a public range takes those addresses over for WARP
-    /// clients).
+    /// A range or a hostname.
+    pub kind: NetworkKind,
+    /// In private address space, or a hostname outside the account's domains (a public
+    /// range or name is taken over for WARP clients).
     pub private: bool,
     /// Teitunnel added it (otherwise it was added in the dashboard or with cloudflared).
     pub owned: bool,
@@ -770,6 +793,7 @@ pub(crate) fn overview(
                         range,
                         NetworkView {
                             network: range.to_string(),
+                            kind: NetworkKind::Range,
                             private: range.is_private(),
                             owned: r.comment == NETWORK_COMMENT,
                         },
@@ -778,7 +802,24 @@ pub(crate) fn overview(
                 .collect();
             networks.sort_by_key(|a| a.0);
             networks.dedup_by(|a, b| a.0 == b.0);
-            networks.into_iter().map(|(_, view)| view).collect()
+            let mut hostnames: Vec<NetworkView> = state
+                .hostnames_of_tunnel(&tunnel.id)
+                .map(|r| NetworkView {
+                    network: r.hostname.to_ascii_lowercase(),
+                    kind: NetworkKind::Hostname,
+                    private: !r.name().is_some_and(|name| {
+                        snapshot.zones.iter().any(|z| name.is_in_zone(&z.name))
+                    }),
+                    owned: r.comment == NETWORK_COMMENT,
+                })
+                .collect();
+            hostnames.sort_by(|a, b| a.network.cmp(&b.network));
+            hostnames.dedup_by(|a, b| a.network == b.network);
+            networks
+                .into_iter()
+                .map(|(_, view)| view)
+                .chain(hostnames)
+                .collect()
         }),
     }
 }

@@ -7,13 +7,13 @@ searchDescription: "Share and open things in Teitunnel from VS Code, JetBrains I
 The Teitunnel app can be driven from outside its window: by editor and launcher
 extensions, by `teitunnel://` links, and by the `teitunnel` command, all through a local
 **control connection** to the running app. Nothing listens on the network, and nothing
-changes without your approval. You control all of it in **Settings ▸ Integrations**.
+changes without your approval. You control all of it in **AI & Integrations ▸ More**.
 
 Use it to share the dev server you're working on without leaving your editor, to keep an
 eye on shares from the status bar, or to wire Teitunnel into your own launcher and scripts.
 
 
-<Screenshot name="integrations" alt="Settings, Integrations: Allow connections for the teitunnel command, editor extensions and launchers, and programs that are always allowed" narrow />
+<Screenshot name="integrations" alt="AI & Integrations, More: Allow connections for the teitunnel command, editor extensions and launchers, programs that are always allowed, teitunnel links and the global shortcut" />
 
 ## Editors and launchers
 
@@ -74,7 +74,7 @@ Without the extension, `teitunnel://` links work from Raycast quicklinks and Alf
 The menu bar (tray) icon shares a running dev server in one click, copies recent addresses,
 and pauses or stops every share; see [The menu bar and tray](/docs/guides/menu-bar).
 
-**Settings ▸ Integrations ▸ Global shortcut** shares your dev server from any app. It's off
+**AI & Integrations ▸ More ▸ Global shortcut** shares your dev server from any app. It's off
 until you turn on **Use a global shortcut**. The default keys are ⌘⌥⇧S (Ctrl+Alt+Shift+S on
 Windows and Linux); choose **Change** and type another. **When pressed**:
 
@@ -93,7 +93,7 @@ work in Wayland sessions on Linux.
 |---|---|
 | `teitunnel://share?port=3000` | Asks whether to share `localhost:3000`, then shares it in Quick Share. |
 | `teitunnel://open` | Brings Teitunnel to the front. |
-| `teitunnel://open?route=app.teispace.com` | Opens the route in **Routes**. |
+| `teitunnel://open?route=app.yourhost.com` | Opens the route in **Routes**. |
 | `teitunnel://open?share=<id>` | Opens the share in Quick Share. |
 | `teitunnel://inspect?share=<id>` | Opens the share's requests in the Inspector. |
 
@@ -124,7 +124,7 @@ and `top` (see [Command line](/docs/reference/cli#with-the-app-running)), and
 - **You approve changes:** sharing, stopping, pausing or resuming a share, or changing
   routes shows a dialog naming the program, with **Allow**, **Always Allow** and **Don't
   Allow**. Always Allow skips the question for that program from then on; it's listed under
-  **Always allowed** in Settings ▸ Integrations, where **Remove** undoes it. Replacing or
+  **Always allowed** in AI & Integrations ▸ More, where **Remove** undoes it. Replacing or
   deleting DNS records Teitunnel didn't create is asked about every time and never offers
   Always Allow.
 - **Recorded:** route changes show up in **Activity** with the program's name.
@@ -163,7 +163,7 @@ and events available. A wrong token or protocol version closes the connection.
 | `shares.stop` | `id` (a share's id, URL or hostname) | `{}` |
 | `shares.pause`, `shares.resume` | `id` (a share on your domain or a route: hostname or URL), `account` | `{}` |
 | `routes.list` | `account` (id or name; needed with several) | the account, its tunnels and routes with status |
-| `routes.preview` | `account`, `tunnel`, `change` (e.g. `{"type":"addRoute","route":{"hostname":"app.teispace.com","origin":"3000"}}`) | the plan: steps, warnings, `fingerprint` |
+| `routes.preview` | `account`, `tunnel`, `change` (e.g. `{"type":"addRoute","route":{"hostname":"app.yourhost.com","origin":"3000"}}`) | the plan: steps, warnings, `fingerprint` |
 | `routes.apply` | the same, plus `fingerprint` and `confirmed` | how it ended, and hostnames to check |
 | `open` | `{"view":"route","hostname":"…"}`, `{"view":"share","id":"…"}`, `{"view":"inspector","share":"…"}`, `{"view":"doctor"}` or `{"view":"overview"}` | `{}` |
 | `doctor.run` | none | the problems found |
@@ -196,6 +196,24 @@ to at most 10 events every 250 ms, so treat it as a live feed, not a complete lo
 
 Plus JSON-RPC's own codes (`-32700` parse error, `-32600`, `-32601` no such method,
 `-32602` bad parameters, `-32603` internal error).
+
+## Troubleshooting
+
+Messages from the `teitunnel` command and from extensions that use the control connection:
+
+- **"Teitunnel isn't running. Open it, or leave out --app to use this terminal."** `--app`
+  needs the app. Open it, or run the command without `--app` (it then works on its own).
+- **"Not allowed in Teitunnel. Nothing changed."** Someone chose **Don't Allow** in the
+  dialog, or the program was refused.
+- **"Teitunnel didn't get an answer in time (the question may still be open there)."** The
+  app asked you and nobody answered. Look for the dialog in Teitunnel's window.
+- **"Cloudflare didn't hand out an address within 45 seconds. Check the internet connection
+  and try again."** A share the app started for a program got no address; see
+  [Quick Share](/docs/getting-started/quick-share#if-it-doesnt-work).
+- **"Something changed in Cloudflare since this plan was made. Review the new plan."** The
+  account changed between planning and applying. Plan the change again.
+- **An extension says it can't reach Teitunnel.** Check that the app is running and that
+  **AI & Integrations ▸ More ▸ Allow connections** is on.
 
 ## Related
 

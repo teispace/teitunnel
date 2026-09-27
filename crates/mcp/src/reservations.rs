@@ -278,7 +278,7 @@ async fn change_one(
         })
         .await;
     let by_person = match approval {
-        Approval::Granted { how } => how == "person",
+        Approval::Granted { how } => Approval::by_person(how),
         Approval::NeedsConfirmation => {
             return Ok(ToolOutput::new(&ChangeOut::new(
                 "needsApproval",

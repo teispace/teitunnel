@@ -270,21 +270,15 @@ impl App {
 
     /// Every account's connectors on this Mac, probed.
     pub(crate) async fn all_connectors(&self) -> ProbedConnectors {
-        let mut connectors = ProbedConnectors::default();
-        for account in self.accounts.list().await.unwrap_or_default() {
-            for tunnel in self
-                .engine
-                .local()
-                .tunnels(&account.id)
-                .await
-                .unwrap_or_default()
-            {
-                connectors
-                    .probe(&tunnel.tunnel_id, tunnel.metrics_port)
-                    .await;
-            }
-        }
-        connectors
+        let accounts: Vec<String> = self
+            .accounts
+            .list()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
+        ProbedConnectors::of(&self.dir, self.engine.local(), &accounts).await
     }
 
     /// Doctor issues ignored in the app.
@@ -297,18 +291,11 @@ impl App {
 
     /// This Mac's connectors for `account`, probed.
     pub(crate) async fn connectors(&self, account: &Account) -> ProbedConnectors {
-        let mut connectors = ProbedConnectors::default();
-        for tunnel in self
-            .engine
-            .local()
-            .tunnels(&account.id)
-            .await
-            .unwrap_or_default()
-        {
-            connectors
-                .probe(&tunnel.tunnel_id, tunnel.metrics_port)
-                .await;
-        }
-        connectors
+        ProbedConnectors::of(
+            &self.dir,
+            self.engine.local(),
+            std::slice::from_ref(&account.id),
+        )
+        .await
     }
 }
