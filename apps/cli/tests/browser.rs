@@ -42,16 +42,16 @@ fn answers_the_extension_in_frames_without_the_app() {
     assert_eq!(reply["error"]["code"], "appNotRunning");
 }
 
+/// Which browsers are detected depends on the computer running the test (their apps
+/// are looked for where the system installs them; `teitunnel-core`'s unit tests cover
+/// detection with folders of their own). Whatever is found, `install` sets up exactly the
+/// detected browsers, and `uninstall` removes every manifest again.
 #[test]
 fn installs_for_detected_browsers_only() {
+    if cfg!(windows) {
+        return;
+    }
     let home = tempfile::tempdir().unwrap();
-    let chrome = if cfg!(target_os = "macos") {
-        home.path()
-            .join("Library/Application Support/Google/Chrome")
-    } else {
-        home.path().join(".config/google-chrome")
-    };
-    std::fs::create_dir_all(&chrome).unwrap();
     let run = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_teitunnel-cli"))
             .args(args)
@@ -60,27 +60,21 @@ fn installs_for_detected_browsers_only() {
             .output()
             .unwrap()
     };
-    if cfg!(windows) {
-        return;
-    }
     let installed = run(&["browser", "install"]);
     assert!(installed.status.success(), "{installed:?}");
-    let text = String::from_utf8(installed.stdout).unwrap();
-    assert!(text.contains("Google Chrome: ready"), "{text}");
-    assert!(!text.contains("Firefox"), "not installed there: {text}");
     let status = run(&["browser", "status", "--json"]);
     let status: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
-    assert!(
-        status
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|b| b["browser"] == "chrome" && b["installed"] == true)
-    );
+    let browsers = status.as_array().unwrap();
+    assert!(browsers.iter().any(|b| b["browser"] == "chrome"));
+    for browser in browsers {
+        assert_eq!(browser["installed"], browser["detected"], "{browser}");
+        let manifest = std::path::Path::new(browser["manifest"].as_str().unwrap());
+        assert!(manifest.starts_with(home.path()), "{browser}");
+        assert_eq!(manifest.exists(), browser["detected"] == true, "{browser}");
+    }
     assert!(run(&["browser", "uninstall"]).status.success());
-    assert!(
-        !chrome
-            .join("NativeMessagingHosts/com.teispace.teitunnel.json")
-            .exists()
-    );
+    for browser in browsers {
+        let manifest = std::path::Path::new(browser["manifest"].as_str().unwrap());
+        assert!(!manifest.exists(), "{browser}");
+    }
 }
