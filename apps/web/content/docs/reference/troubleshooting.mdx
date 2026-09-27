@@ -4,7 +4,7 @@ description: Fix Cloudflare Tunnel and Teitunnel errors — Error 1033, 502 Bad 
 searchDescription: "Fix Cloudflare Tunnel errors: 1033, 502 Bad Gateway, 530, 524 timeouts, SSL handshake failures, redirect loops, 9109 and missing permissions."
 ---
 
-Start with the **Doctor** (⌘7 / Ctrl+7, or `teitunnel doctor`): it checks your routes,
+Start with the **Doctor** (⌘8 / Ctrl+8, or `teitunnel doctor`): it checks your routes,
 DNS, connectors, logins and local domains, and most problems below come with a one-click
 fix there. Then **Test** on a route checks it end to end through Cloudflare. If it still
 doesn't work, find what you see below.
@@ -37,7 +37,8 @@ The tunnel is up, but cloudflared **couldn't get an answer from your service**.
   on `::1` (IPv6). Point the route at the exact address, such as `http://127.0.0.1:3000`, or
   make your server listen on both.
 - **HTTP versus HTTPS.** A route to `http://…` on a port that speaks HTTPS (or the reverse)
-  fails. Match the scheme; for a self-signed HTTPS origin, turn on **No TLS verify**.
+  fails. Match the scheme; for a self-signed HTTPS origin, turn on
+  **Origin settings ▸ Accept self-signed certificates** (`--no-tls-verify`).
 - **In Docker**, `localhost` is the container itself; see
   [Docker Compose](/docs/tutorials/docker-compose#things-that-trip-people-up).
 - **A route left pointing at the inspector.** If an app or command that was
