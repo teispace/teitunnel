@@ -111,7 +111,8 @@ const shots: Shot[] = [
   },
   {
     name: "route-login",
-    route: "/routes?add=true",
+    // The mock's account can't manage Access, which would hold Review back.
+    route: "/routes?add=true&access",
     steps: [
       'fill:role=dialog >> input[placeholder^="Port"]=>3000',
       'fill:role=textbox[name="Subdomain"]=>admin',

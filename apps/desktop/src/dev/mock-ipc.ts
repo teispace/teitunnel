@@ -857,7 +857,10 @@ export function installMockIpc(): void {
         case "accounts_list":
           return accounts;
         case "accounts_capabilities":
-          return capabilities;
+          // `?access` previews an account that can manage logins (Access).
+          return new URLSearchParams(window.location.search).has("access")
+            ? { ...capabilities, accessEdit: "yes" }
+            : capabilities;
         case "accounts_detect_cert":
           return true;
         case "domains_list":
