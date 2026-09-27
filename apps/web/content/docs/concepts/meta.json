@@ -2,6 +2,7 @@
   "title": "Concepts",
   "pages": [
     "cloudflare-tunnel",
+    "ways-to-share",
     "routes-and-tunnels",
     "changes",
     "run-modes",
