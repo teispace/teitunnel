@@ -20,6 +20,9 @@ There are two ways, depending on how long the link should last.
 | Logins, keep running as a service | no | yes |
 | Best for | a quick look, a demo | anything longer, webhooks, sharing with a team |
 
+To keep a site online while your computer is off, or for HTTPS on this computer only, see
+[choose how to share](/docs/concepts/ways-to-share).
+
 ## In the app: 30 seconds
 
 <Steps>
@@ -53,13 +56,15 @@ sharing; see [Quick Share on your own domain](/docs/getting-started/quick-share#
 teitunnel share 3000
 ```
 
-The URL is printed first (with a QR code), and the share lasts until you press Ctrl-C.
-Common variations:
+The URL is printed first (with a QR code). When the Teitunnel app is running, the share is
+handed to it and keeps running there (`teitunnel shares --stop <url>` ends it); otherwise, or
+with `--here`, it lasts until you press Ctrl-C. Common variations:
 
 ```sh
 teitunnel share 8080 --for 1h                 # stop by itself after an hour
 teitunnel share 3000 --on demo.yourhost.com   # your own domain, same URL every time
 teitunnel share https://localhost:8443        # an HTTPS dev server
+teitunnel share ./dist                        # a folder of files, no server needed
 ```
 
 ## Make it permanent
