@@ -7,13 +7,7 @@ import { AiAppsTab } from "./ai-apps-tab";
 import { BrowserTab } from "./browser-tab";
 import { MoreTab } from "./more-tab";
 import { ServersTab } from "./servers-tab";
-
-export const integrationTabs = ["apps", "agents", "servers", "browser", "more"] as const;
-export type IntegrationsTab = (typeof integrationTabs)[number];
-
-export function isIntegrationsTab(value: unknown): value is IntegrationsTab {
-  return integrationTabs.includes(value as IntegrationsTab);
-}
+import { type IntegrationsTab, integrationTabs } from "./tabs";
 
 const content: Record<IntegrationsTab, () => ReactNode> = {
   apps: () => <AiAppsTab />,

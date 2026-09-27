@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { IntegrationsPage, isIntegrationsTab } from "@/features/integrations";
+import { IntegrationsPage } from "@/features/integrations";
+import { isIntegrationsTab } from "@/features/integrations/tabs";
 
 interface IntegrationsSearch {
   /** The tab to show (AI Apps when absent). */

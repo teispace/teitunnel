@@ -1,8 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { MotionConfig } from "motion/react";
-import { useEffect, useState } from "react";
-import { Toaster } from "@/components/ui/toaster";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { settingsQuery } from "@/features/settings";
 import { commands } from "@/lib/ipc/bindings";
@@ -12,6 +11,12 @@ import { createQueryClient } from "./query-client";
 import { createAppRouter } from "./router";
 import { applyTheme } from "./theme";
 import { ThemeSync } from "./theme-sync";
+
+// Notices only follow something the person did, so the toaster (and sonner) load after
+// the first screen instead of with it (initial JS budget, ARCHITECTURE §14).
+const Toaster = lazy(() =>
+  import("@/components/ui/toaster").then((module) => ({ default: module.Toaster })),
+);
 
 export function App() {
   const [queryClient] = useState(createQueryClient);
@@ -40,7 +45,9 @@ export function App() {
         <TooltipProvider>
           <RouterProvider router={router} />
           <ThemeSync />
-          <Toaster />
+          <Suspense fallback={null}>
+            <Toaster />
+          </Suspense>
         </TooltipProvider>
       </MotionConfig>
     </QueryClientProvider>

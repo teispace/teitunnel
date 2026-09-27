@@ -1,6 +1,2 @@
-export {
-  IntegrationsPage,
-  type IntegrationsTab,
-  integrationTabs,
-  isIntegrationsTab,
-} from "./integrations-page";
+export { IntegrationsPage } from "./integrations-page";
+export { type IntegrationsTab, integrationTabs, isIntegrationsTab } from "./tabs";
