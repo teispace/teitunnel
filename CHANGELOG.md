@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0](https://github.com/teispace/teitunnel/compare/v0.4.0...v0.5.0) (2026-09-27)
+
+
+### Features
+
+* **integrations:** agents' access and the sign-in policy of shared servers in the app ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+* **integrations:** an AI & Integrations section that shows what really works ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+* **mcp:** support MCP 2026-07-28 and require a person for approvals ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+* **networks:** private hostname routes for WARP users ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+
+
+### Bug Fixes
+
+* **cli:** find the app's connector where it runs, and keep its remembered port ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+* **cli:** mcp status says when an entry's teitunnel is gone or its app was removed ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+* **oauth:** harden OAuth for shared MCP servers ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+
+
+### Performance
+
+* **desktop:** the app's first load is smaller: notices load after the first screen ([8264357](https://github.com/teispace/teitunnel/commit/8264357e897f00de8ac3eab4f13c1eeaf8ed531c))
+
 ## [0.4.0](https://github.com/teispace/teitunnel/compare/v0.3.1...v0.4.0) (2026-09-26)
 
 
