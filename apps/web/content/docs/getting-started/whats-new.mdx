@@ -1,12 +1,29 @@
 ---
-title: What's new in 0.4.0
-description: What Teitunnel 0.4.0 adds — GitHub and Google sign-in for route logins, a cache bypass for dev servers, and faster imports — and what 0.3.0 and 0.2.0 brought before it.
-searchDescription: "What's new in Teitunnel 0.4.0: GitHub and Google sign-in for route logins, a Cloudflare cache bypass for dev servers, and faster imports."
+title: What's new in 0.5.0
+description: What Teitunnel 0.5.0 adds — an AI & Integrations section, private hostnames for WARP users and approvals that need a person — and what 0.4.0, 0.3.0 and 0.2.0 brought before it.
+searchDescription: "What's new in Teitunnel 0.5.0: an AI & Integrations section, private hostname routes for WARP users, and MCP approvals that need a person."
 ---
 
-0.4.0 lets a route's login use GitHub or Google, including GitHub teams, can stop
-Cloudflare caching a dev server's hostname, and imports routes faster. This page groups
-what changed, with a link to each guide; [0.3.0](#030) and [0.2.0](#020) follow below.
+0.5.0 gives AI apps and integrations their own section, shares private hostnames with WARP
+users and makes an agent's changes wait for a person. This page groups what changed, with a
+link to each guide; [0.4.0](#040), [0.3.0](#030) and [0.2.0](#020) follow below.
+
+## 0.5.0
+
+- **AI & Integrations.** AI apps, agents, shared MCP servers, the browser extension and
+  other programs in their own sidebar section. AI apps are found by the installed app and
+  say whether they're connected, need updating or are left over; **Test Connection** lists
+  the tools they'll see. New: GitHub Copilot CLI, opencode, Kiro, LM Studio and Junie.
+  [AI agents](/docs/guides/ai-agents) · [Browser extension](/docs/guides/browser-extension)
+- **Private hostnames.** Share a name such as `wiki.internal` with WARP users, next to
+  private IP ranges. [Share a private hostname](/docs/guides/private-networks#share-a-private-hostname)
+- **Approvals that need a person.** In `ask` mode a change waits for your answer in
+  Teitunnel or your AI tool (`approveInApp`); MCP protocol 2026-07-28; outside content
+  marked as untrusted. [Approvals](/docs/guides/ai-agents#approvals-in-the-app)
+- **Harder OAuth for shared MCP servers:** safe refresh token rotation, disconnecting ends a
+  connection at once, 90-day lifetime, rate-limited sign-ins.
+- **Fixes:** `teitunnel share --on` finds the app's connector instead of starting a second
+  one; `teitunnel mcp status` says when an entry's `teitunnel` is gone.
 
 ## 0.4.0
 
