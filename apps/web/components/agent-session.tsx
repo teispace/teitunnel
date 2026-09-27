@@ -2,6 +2,7 @@
 
 import { Check, LoaderCircle, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePlayOnView } from "./demos";
 import { Logo } from "./logo";
 
 /** A line of the session: what the person asked, a Teitunnel tool the agent called, or its reply. */
@@ -105,28 +106,21 @@ export function AgentSession() {
     );
   }, [clear]);
 
+  // Empty until it's in view, and again after the reader scrolls back above it.
   useEffect(() => {
-    const element = ref.current;
-    if (
-      !element ||
-      !document.documentElement.classList.contains("tt-motion") ||
-      !("IntersectionObserver" in window)
-    )
-      return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        play();
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(element);
+    if (!document.documentElement.classList.contains("tt-motion")) return;
+    setShown(0);
+    setPhase("typing");
+    return clear;
+  }, [clear]);
+  usePlayOnView(ref, () => {
+    play();
     return () => {
-      observer.disconnect();
       clear();
+      setShown(0);
+      setPhase("typing");
     };
-  }, [play, clear]);
+  });
 
   const answered = phase === "allowed" || phase === "denied";
   const lines = [

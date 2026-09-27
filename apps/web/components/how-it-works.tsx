@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePlayOnView } from "./demos";
 
 /** Seconds each step plays, and between steps while the line draws. */
 const STEP = 3.2;
@@ -169,29 +170,23 @@ export function HowItWorks() {
     frame.current = requestAnimationFrame(tick);
   }, []);
 
+  // Waiting at the start until it's in view, and again after the reader scrolls back above it.
   useEffect(() => {
-    const element = ref.current;
-    if (
-      !element ||
-      !document.documentElement.classList.contains("tt-motion") ||
-      !("IntersectionObserver" in window)
-    )
-      return;
-    setTime(0);
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        play();
-      },
-      { threshold: 0.45 },
-    );
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame.current);
-    };
-  }, [play]);
+    if (document.documentElement.classList.contains("tt-motion")) setTime(0);
+    return () => cancelAnimationFrame(frame.current);
+  }, []);
+  usePlayOnView(
+    ref,
+    () => {
+      play();
+      return () => {
+        cancelAnimationFrame(frame.current);
+        setPlaying(false);
+        setTime(0);
+      };
+    },
+    0.45,
+  );
 
   const done = time >= TOTAL;
   return (

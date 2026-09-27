@@ -723,7 +723,7 @@ export default async function Home() {
         lead="Pick one to see the way its requests travel. Each has a step-by-step guide, from a five-minute demo to a home lab."
       >
         <div data-reveal>
-          <Picker label="Use cases" items={useCases} />
+          <Picker label="Use cases" items={useCases} dwell={6500} />
         </div>
       </Section>
 

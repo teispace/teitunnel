@@ -33,7 +33,7 @@ interface Scene {
   track: HTMLElement | null;
   /** How far the track moves: its width beyond its window's content box. */
   room: number;
-  /** `stack`: the card that covers this one, and where both stick. */
+  /** `stack`: the card that covers this one, and where that one sticks. */
   next: HTMLElement | null;
   stickTop: number;
   progress: number;
@@ -120,10 +120,7 @@ export function Scenes() {
           element.dataset.scene === "stack"
             ? (element.nextElementSibling as HTMLElement | null)
             : null,
-        stickTop:
-          element.dataset.scene === "stack"
-            ? Number.parseFloat(getComputedStyle(element).top) || 0
-            : 0,
+        stickTop: 0,
         progress: -1,
         step: -1,
       }),
@@ -147,15 +144,28 @@ export function Scenes() {
     const schedule = () => {
       if (frame === 0) frame = requestAnimationFrame(update);
     };
+    // Stacked cards stick according to their height (`--h`), and a card is covered once
+    // the next one reaches the place where it sticks.
+    const stacks = scenes.filter((scene) => scene.kind === "stack");
+    const measureStacks = () => {
+      for (const scene of stacks) {
+        scene.element.style.setProperty("--h", `${scene.element.offsetHeight}px`);
+      }
+      for (const scene of stacks) {
+        scene.stickTop = scene.next ? Number.parseFloat(getComputedStyle(scene.next).top) || 0 : 0;
+      }
+    };
     const onResize = () => {
+      measureStacks();
       for (const scene of scenes) {
-        if (scene.kind === "stack")
-          scene.stickTop = Number.parseFloat(getComputedStyle(scene.element).top) || 0;
         scene.room = roomOf(scene.track);
         scene.progress = -1;
       }
       schedule();
     };
+    // Cards change height as their screenshots load and as the window narrows.
+    const heights = new ResizeObserver(onResize);
+    for (const scene of stacks) heights.observe(scene.element);
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -210,6 +220,7 @@ export function Scenes() {
     reduce.addEventListener("change", onReduce);
     return () => {
       observer.disconnect();
+      heights.disconnect();
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", onResize);

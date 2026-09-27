@@ -12,16 +12,25 @@ export interface PickerItem {
   panel: ReactNode;
 }
 
-/** How long each item is shown before the next, and how long it takes to "do" its job. */
-const DWELL = 5200;
+/** How long an item takes to "do" its job, and how long each is shown by default. */
 const WORK = 1100;
+const DWELL = 5200;
 
 /**
  * A list beside a stage: pick an item and the stage shows it at work, or let the items take
  * turns while the list is on screen, with a line filling under the current one. Once
  * someone picks, the turns stop. Without motion the stage shows each result at once.
  */
-export function Picker({ items, label }: { items: PickerItem[]; label: string }) {
+export function Picker({
+  items,
+  label,
+  dwell = DWELL,
+}: {
+  items: PickerItem[];
+  label: string;
+  /** Milliseconds each item is shown before the next. */
+  dwell?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const prefix = useId();
   const [active, setActive] = useState(0);
@@ -58,9 +67,9 @@ export function Picker({ items, label }: { items: PickerItem[]; label: string })
   // biome-ignore lint/correctness/useExhaustiveDependencies: each item gets its full turn
   useEffect(() => {
     if (!cycling || picked) return;
-    const timer = window.setTimeout(() => setActive((now) => (now + 1) % items.length), DWELL);
+    const timer = window.setTimeout(() => setActive((now) => (now + 1) % items.length), dwell);
     return () => window.clearTimeout(timer);
-  }, [active, cycling, picked, items.length]);
+  }, [active, cycling, picked, items.length, dwell]);
 
   const pick = (index: number) => {
     setPicked(true);
@@ -83,7 +92,7 @@ export function Picker({ items, label }: { items: PickerItem[]; label: string })
       ref={ref}
       className="tt-picker"
       data-running={cycling && !picked ? "" : undefined}
-      style={{ "--dwell": `${DWELL}ms` } as CSSProperties}
+      style={{ "--dwell": `${dwell}ms` } as CSSProperties}
     >
       <div role="tablist" aria-label={label} className="tt-pick-list" onKeyDown={onKeyDown}>
         {items.map(({ id, icon, name, note }, index) => (

@@ -2,6 +2,7 @@
 
 import { Check, Circle, LoaderCircle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePlayOnView } from "./demos";
 
 export interface PlanStep {
   text: string;
@@ -50,24 +51,22 @@ export function PlanDemo({
     }
   }, [steps.length]);
 
+  const clear = useCallback(() => {
+    for (const timer of timers.current) window.clearTimeout(timer);
+    timers.current = [];
+  }, []);
+
+  // Waiting until it's in view, and again after the reader scrolls back above it.
   useEffect(() => {
-    const element = ref.current;
-    if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    setProgress(0);
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        observer.disconnect();
-        play();
-      },
-      { threshold: 0.5 },
-    );
-    observer.observe(element);
+    if (document.documentElement.classList.contains("tt-motion")) setProgress(0);
+  }, []);
+  usePlayOnView(ref, () => {
+    play();
     return () => {
-      observer.disconnect();
-      for (const timer of timers.current) window.clearTimeout(timer);
+      clear();
+      setProgress(0);
     };
-  }, [play]);
+  });
 
   const state = (index: number): State =>
     index < progress ? "done" : index === progress ? "working" : "waiting";
