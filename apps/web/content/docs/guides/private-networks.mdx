@@ -185,6 +185,16 @@ Combine it with [Require a login](/docs/guides/require-login) so only the people
 can connect: cloudflared opens the browser to sign in the first time. The
 [SSH tutorial](/docs/tutorials/ssh) walks through it end to end.
 
+## Limits, costs and permissions
+
+| | |
+|---|---|
+| Cloudflare plan | Zero Trust, free for up to 50 users; set it up once in the dashboard. Tunnels cost nothing. See [limits](/docs/reference/limits#logins-service-tokens-and-private-networks). |
+| API token | **Account · Cloudflare Tunnel · Edit** covers private network and hostname routes. |
+| Sign in with Cloudflare | `teams-networks.write` for the routes, `teams.read` for the Doctor's WARP checks. Both can be declined; the feature then asks again. See [permissions](/docs/reference/permissions#only-when-signing-in-with-cloudflare). |
+| On this computer | The tunnel's connector running (the app, always-on or `teitunnel up`). WARP users lose access while it's stopped. |
+| For TCP routes | Visitors need cloudflared on their computer, and a [login](/docs/guides/require-login) if the route has one. |
+
 ## Related
 
 <Cards>

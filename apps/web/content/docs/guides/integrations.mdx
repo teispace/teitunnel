@@ -197,6 +197,24 @@ to at most 10 events every 250 ms, so treat it as a live feed, not a complete lo
 Plus JSON-RPC's own codes (`-32700` parse error, `-32600`, `-32601` no such method,
 `-32602` bad parameters, `-32603` internal error).
 
+## Troubleshooting
+
+Messages from the `teitunnel` command and from extensions that use the control connection:
+
+- **"Teitunnel isn't running. Open it, or leave out --app to use this terminal."** `--app`
+  needs the app. Open it, or run the command without `--app` (it then works on its own).
+- **"Not allowed in Teitunnel. Nothing changed."** Someone chose **Don't Allow** in the
+  dialog, or the program was refused.
+- **"Teitunnel didn't get an answer in time (the question may still be open there)."** The
+  app asked you and nobody answered. Look for the dialog in Teitunnel's window.
+- **"Cloudflare didn't hand out an address within 45 seconds. Check the internet connection
+  and try again."** A share the app started for a program got no address; see
+  [Quick Share](/docs/getting-started/quick-share#if-it-doesnt-work).
+- **"Something changed in Cloudflare since this plan was made. Review the new plan."** The
+  account changed between planning and applying. Plan the change again.
+- **An extension says it can't reach Teitunnel.** Check that the app is running and that
+  **AI & Integrations ▸ More ▸ Allow connections** is on.
+
 ## Related
 
 - [Browser extension](/docs/guides/browser-extension): share the local page you're on from your browser
