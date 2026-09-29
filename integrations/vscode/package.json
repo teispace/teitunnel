@@ -235,7 +235,7 @@
   "dependencies": {},
   "devDependencies": {
     "@teitunnel/control-client": "workspace:*",
-    "@types/node": "26.6.2",
+    "@types/node": "26.6.3",
     "@types/vscode": "1.90.0",
     "esbuild": "0.28.2",
     "typescript": "7.0.2"
