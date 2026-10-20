@@ -18,7 +18,7 @@
     "verify": "pnpm check && pnpm test && cargo deny check --hide-inclusion-graph"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.14",
-    "lefthook": "2.1.14"
+    "@biomejs/biome": "2.5.15",
+    "lefthook": "2.2.2"
   }
 }
