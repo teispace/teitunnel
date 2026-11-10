@@ -57,6 +57,37 @@ pub struct Store {
     jobs: mpsc::Sender<Job>,
 }
 
+/// Switches the database to incremental auto-vacuum once (a full `VACUUM`, which on
+/// a large inspector history takes a second or two), so pruned pages can be given
+/// back to the disk instead of keeping the file at its largest size.
+/// Gives free pages back to the disk. The pragma frees one page per step, so it's
+/// stepped to the end (`execute_batch` would free a single page).
+///
+/// # Errors
+/// Fails if SQLite does.
+pub fn release_free_pages(conn: &Connection) -> rusqlite::Result<()> {
+    let mut statement = conn.prepare("PRAGMA incremental_vacuum")?;
+    let mut rows = statement.query([])?;
+    while rows.next()?.is_some() {}
+    Ok(())
+}
+
+/// Best effort: when another Teitunnel process has the database open, it's tried again
+/// at the next start.
+fn incremental_vacuum(conn: &Connection) {
+    let switch = || -> rusqlite::Result<()> {
+        let mode: i64 = conn.pragma_query_value(None, "auto_vacuum", |r| r.get(0))?;
+        if mode != 2 {
+            conn.pragma_update(None, "auto_vacuum", "INCREMENTAL")?;
+            conn.execute_batch("VACUUM")?;
+        }
+        Ok(())
+    };
+    if let Err(err) = switch() {
+        tracing::warn!(%err, "couldn't switch the database to incremental auto-vacuum");
+    }
+}
+
 impl Store {
     /// Opens (creating if needed) the database at `path` and applies pending migrations.
     ///
@@ -80,6 +111,7 @@ impl Store {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        incremental_vacuum(&conn);
         migrations::apply(&mut conn)?;
 
         let (jobs, queue) = mpsc::channel::<Job>();
@@ -145,6 +177,38 @@ fn restrict(_path: &Path, _mode: u32) -> Result<(), StoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn gives_deleted_pages_back_to_the_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        // A database made before incremental auto-vacuum (mode 0).
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE blobs(b BLOB);
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200)
+                 INSERT INTO blobs SELECT randomblob(16384) FROM n;",
+            )
+            .unwrap();
+        }
+        let store = Store::open(&path).unwrap();
+        let (mode, before, after) = store
+            .call(|conn| {
+                let mode: i64 = conn.pragma_query_value(None, "auto_vacuum", |r| r.get(0))?;
+                let pages = |c: &Connection| {
+                    c.pragma_query_value(None, "page_count", |r| r.get::<_, i64>(0))
+                };
+                let before = pages(conn)?;
+                conn.execute("DELETE FROM blobs", [])?;
+                release_free_pages(conn)?;
+                Ok((mode, before, pages(conn)?))
+            })
+            .await
+            .unwrap();
+        assert_eq!(mode, 2, "incremental");
+        assert!(after < before / 10, "{before} → {after} pages");
+    }
 
     #[tokio::test]
     async fn runs_queries_on_the_store_thread() {
