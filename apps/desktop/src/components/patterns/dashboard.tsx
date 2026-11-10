@@ -58,7 +58,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col rounded-card border-hairline border-inset bg-surface-inset",
+        "@container/card flex min-w-0 flex-col rounded-card border-hairline border-inset bg-surface-inset",
         className,
       )}
     >
@@ -189,7 +189,7 @@ export function DistributionBar({
             ))
           : null}
       </div>
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+      <ul className="grid gap-x-4 gap-y-1 @sm/card:grid-cols-2">
         {segments.map((s) => (
           <li key={s.label} className="flex items-center gap-2 text-callout">
             <span aria-hidden className={cn("size-2 shrink-0 rounded-full", toneBar[s.tone])} />
