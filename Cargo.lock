@@ -1798,7 +1798,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cloudflare"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde_json",
  "teitunnel-cf-api",
@@ -1808,7 +1808,7 @@ dependencies = [
 
 [[package]]
 name = "fake-cloudflared"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde_json",
  "sysinfo",
@@ -6725,7 +6725,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cf-api"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
@@ -6741,7 +6741,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -6766,7 +6766,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-cloudflared"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "flate2",
  "insta",
@@ -6786,7 +6786,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-control"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "getrandom 0.4.3",
  "interprocess",
@@ -6805,7 +6805,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -6863,7 +6863,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-desktop"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "jiff",
  "objc2-app-kit",
@@ -6901,7 +6901,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-lens"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -6940,7 +6940,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-localdomains"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.23.1",
  "hickory-proto",
@@ -6967,7 +6967,7 @@ dependencies = [
 
 [[package]]
 name = "teitunnel-mcp"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
