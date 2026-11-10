@@ -2,9 +2,47 @@
 //! Later milestones add tables alongside their features (ARCHITECTURE §9).
 
 use rusqlite::Connection;
-use rusqlite_migration::{M, Migrations};
 
-const MIGRATIONS: &[M<'static>] = &[
+/// One migration: SQL run once, in a transaction. The database's `user_version` is the
+/// number of migrations applied (the same scheme `rusqlite_migration` used, so existing
+/// databases carry on where they are).
+pub(super) struct M {
+    sql: &'static str,
+}
+
+impl M {
+    const fn up(sql: &'static str) -> Self {
+        Self { sql }
+    }
+}
+
+/// A migration that couldn't run, or a database made by a newer Teitunnel.
+#[derive(Debug, thiserror::Error)]
+pub enum MigrationError {
+    /// A migration's SQL failed.
+    #[error("migration {number}: {source}")]
+    Failed {
+        /// Which one (1-based).
+        number: usize,
+        /// What SQLite said.
+        source: rusqlite::Error,
+    },
+    /// The database is at a version this build doesn't know.
+    #[error(
+        "the database is from a newer version of Teitunnel (schema {found}, this one knows {known})"
+    )]
+    Newer {
+        /// The database's version.
+        found: usize,
+        /// The newest this build has.
+        known: usize,
+    },
+    /// Reading or writing the version failed.
+    #[error(transparent)]
+    Sqlite(#[from] rusqlite::Error),
+}
+
+const MIGRATIONS: &[M] = &[
     // 1: settings (key → JSON value)
     M::up(
         "CREATE TABLE settings (
@@ -443,8 +481,34 @@ const MIGRATIONS: &[M<'static>] = &[
     ),
 ];
 
-pub(super) fn apply(conn: &mut Connection) -> Result<(), rusqlite_migration::Error> {
-    Migrations::from_slice(MIGRATIONS).to_latest(conn)
+pub(super) fn apply(conn: &mut Connection) -> Result<(), MigrationError> {
+    to_version(conn, MIGRATIONS.len())
+}
+
+/// Applies the migrations up to `target` (each in its own transaction, with the version).
+fn to_version(conn: &mut Connection, target: usize) -> Result<(), MigrationError> {
+    let found: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let found = usize::try_from(found).unwrap_or(0);
+    if found > MIGRATIONS.len() {
+        return Err(MigrationError::Newer {
+            found,
+            known: MIGRATIONS.len(),
+        });
+    }
+    for (index, migration) in MIGRATIONS.iter().enumerate().take(target).skip(found) {
+        let number = index + 1;
+        let failed = |source| MigrationError::Failed { number, source };
+        let tx = conn.transaction().map_err(failed)?;
+        tx.execute_batch(migration.sql).map_err(failed)?;
+        tx.pragma_update(
+            None,
+            "user_version",
+            i64::try_from(number).unwrap_or(i64::MAX),
+        )
+        .map_err(failed)?;
+        tx.commit().map_err(failed)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -453,15 +517,45 @@ mod tests {
 
     #[test]
     fn migrations_are_valid() {
-        assert!(Migrations::from_slice(MIGRATIONS).validate().is_ok());
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn).unwrap();
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+    }
+
+    #[test]
+    fn refuses_a_database_from_a_newer_version() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "user_version", MIGRATIONS.len() as i64 + 1)
+            .unwrap();
+        assert!(matches!(
+            apply(&mut conn),
+            Err(MigrationError::Newer { .. })
+        ));
+    }
+
+    #[test]
+    fn a_failed_migration_leaves_the_database_as_it_was() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        to_version(&mut conn, 1).unwrap();
+        conn.execute_batch("CREATE TABLE quick_shares (x INTEGER);")
+            .unwrap();
+        assert!(matches!(
+            apply(&mut conn),
+            Err(MigrationError::Failed { number: 2, .. })
+        ));
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 1);
     }
 
     #[test]
     fn moves_the_machine_tunnel_to_local_tunnels() {
         let mut conn = Connection::open_in_memory().unwrap();
-        Migrations::from_slice(MIGRATIONS)
-            .to_version(&mut conn, 7)
-            .unwrap();
+        to_version(&mut conn, 7).unwrap();
         conn.execute(
             "INSERT INTO tunnels_local (account_id, tunnel_id, name, metrics_port, run_mode, created_at)
              VALUES ('a', 't1', 'Mac', 20300, 'alwaysOn', 1)",

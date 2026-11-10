@@ -128,8 +128,7 @@ jsonc-parser = { version = "0.33.2", features = ["cst", "serde_json"] }
 toml_edit = "0.25.15"
 
 # Persistence
-rusqlite = { version = "0.40.2", features = ["bundled"] }
-rusqlite_migration = "2.6.0"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 
 # Observability
 tracing = "0.1.44"

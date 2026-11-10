@@ -6,6 +6,7 @@
 //! locks. The database runs in WAL mode and its file is readable only by the user.
 
 mod migrations;
+pub use migrations::MigrationError;
 
 use std::{
     fs,
@@ -25,7 +26,7 @@ pub enum StoreError {
     /// SQLite reported an error.
     Sqlite(#[from] rusqlite::Error),
     /// A schema migration failed.
-    Migration(#[from] rusqlite_migration::Error),
+    Migration(#[from] MigrationError),
     /// Creating the database directory or file failed.
     Io(#[from] std::io::Error),
     /// A stored value couldn't be decoded.
