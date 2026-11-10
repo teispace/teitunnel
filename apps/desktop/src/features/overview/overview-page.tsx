@@ -1,60 +1,38 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, LayoutGrid, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { LayoutGrid, TriangleAlert } from "lucide-react";
+import { Card, CardLink, DashboardPage, DashboardSkeleton } from "@/components/patterns/dashboard";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { SlowHint } from "@/components/patterns/loading-state";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { type Status, StatusDot } from "@/components/ui/status-dot";
-import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
+import { ConnectSheet, ErrorAction, useAccounts, useActiveAccount } from "@/features/accounts";
+import { useUptimeList } from "@/features/analytics";
 import { BinaryNotice, binaryReady, useBinaryStatus } from "@/features/binary";
 import { useIssues } from "@/features/doctor/queries";
 import { RecentRequests } from "@/features/inspector";
 import { useQuickShares } from "@/features/quick-share";
-import { useRoutesOverview } from "@/features/routes/queries";
-import { routeStatus } from "@/features/routes/status";
+import { useActivity, useLiveTraffic, useRoutesOverview } from "@/features/routes/queries";
 import { CliOffer } from "@/features/settings";
-import { formatDuration, stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import type { QuickShare } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { useNow } from "@/lib/use-now";
-import { Glance } from "./components/glance";
-
-const dots: Record<QuickShare["status"]["status"], Status> = {
-  live: "healthy",
-  starting: "connecting",
-  reconnecting: "warning",
-  failed: "error",
-};
-
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <div className="flex items-baseline justify-between gap-3 px-2.5">
-        <h2 className="text-headline">{title}</h2>
-        {action}
-      </div>
-      <ul className="flex flex-col divide-y-(length:--hairline) divide-inset rounded-card bg-surface-inset px-2.5">
-        {children}
-      </ul>
-    </section>
-  );
-}
+import {
+  ActivityCard,
+  OverviewStats,
+  ResponsesCard,
+  RoutesCard,
+  SharesCard,
+  StatusBanner,
+  TrafficCard,
+} from "./components/sections";
 
 /** Requests the Overview shows. */
-const RECENT = 6;
+const RECENT = 8;
 
-/** What's running right now: health, traffic, errors, uptime and the newest requests. */
+/**
+ * The dashboard: health at the top, the numbers that matter, live traffic, and what's
+ * running (routes, shares, requests, changes), filling the window at any size.
+ */
 export function OverviewPage() {
   const sharesQuery = useQuickShares();
   const shares = sharesQuery.data ?? [];
@@ -70,6 +48,11 @@ export function OverviewPage() {
   const tunnel = overview.data?.tunnel ?? null;
   const { issues } = useIssues();
   const problems = issues.filter((i) => i.severity === "error").length;
+  const warnings = issues.filter((i) => i.severity === "warning").length;
+  const tunnelId = tunnel && routes.length > 0 ? tunnel.id : null;
+  const traffic = useLiveTraffic(tunnelId, 5_000).data ?? undefined;
+  const uptimes = useUptimeList().data ?? [];
+  const activity = useActivity(active?.id ?? null);
 
   if (shares.length === 0 && binary.isSuccess && !binaryReady(binary.data)) {
     return (
@@ -90,34 +73,23 @@ export function OverviewPage() {
     return (
       <>
         <TitlebarToolbar title={t("overview.title")} />
-        <div
-          role="status"
-          aria-busy
-          aria-label={t("overview.loading")}
-          className="mx-auto flex w-full max-w-[680px] flex-col gap-2.5 px-5 pt-2"
-        >
-          <Skeleton className="mx-2.5 h-4 w-24" />
-          <Skeleton className="h-11" />
-          <Skeleton className="h-11" />
-          {/* Local answers are instant; only Cloudflare can take a while. */}
-          {!sharesQuery.isPending && !accounts.isPending ? (
-            <SlowHint className="px-2.5 pt-1">{t("overview.checkingRoutes")}</SlowHint>
-          ) : null}
-        </div>
+        <DashboardSkeleton label={t("overview.loading")} />
+        {/* Local answers are instant; only Cloudflare can take a while. */}
+        {!sharesQuery.isPending && !accounts.isPending ? (
+          <SlowHint className="px-8 pb-4">{t("overview.checkingRoutes")}</SlowHint>
+        ) : null}
       </>
     );
   }
 
   const failed = overview.error ? (
-    <div role="alert" className="flex items-center gap-3 rounded-card bg-surface-inset px-3 py-2.5">
+    <div role="alert" className="flex items-center gap-3 rounded-card bg-surface-inset px-4 py-3">
       <TriangleAlert aria-hidden className="size-4 shrink-0 text-warning" strokeWidth={1.75} />
       <span className="min-w-0 flex-1 text-body">
         {t("overview.routesFailed")}{" "}
         <span className="text-secondary">{toIpcError(overview.error).message}</span>
       </span>
-      <Button size="sm" pending={overview.isFetching} onClick={() => void overview.refetch()}>
-        {t("common.tryAgain")}
-      </Button>
+      <ErrorAction error={overview.error} onRetry={() => void overview.refetch()} />
     </div>
   ) : null;
 
@@ -154,94 +126,47 @@ export function OverviewPage() {
   return (
     <>
       <TitlebarToolbar title={t("overview.title")} />
-      <div className="mx-auto flex w-full max-w-[680px] flex-col gap-6 overflow-y-auto px-5 pt-2 pb-8">
+      <DashboardPage>
         <CliOffer />
         {failed}
-        {problems > 0 ? (
-          <Link
-            to="/doctor"
-            className="flex min-h-11 items-center gap-3 rounded-card bg-error/10 px-3 py-2 outline-offset-0"
-          >
-            <TriangleAlert aria-hidden className="size-4 text-error" strokeWidth={1.75} />
-            <span className="min-w-0 flex-1 text-body">
-              {t("overview.attention", { count: problems })}
-            </span>
-            <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
-          </Link>
-        ) : null}
-        <Glance
-          tunnelId={tunnel && routes.length > 0 ? tunnel.id : null}
-          accountId={active?.id ?? null}
+        <StatusBanner
+          problems={problems}
+          warnings={warnings}
+          connections={traffic ? traffic.connections : null}
+          locations={traffic?.locations ?? []}
+          account={accounts.data && accounts.data.length > 1 ? (active?.name ?? null) : null}
         />
-        {routes.length > 0 ? (
-          <Section title={t("overview.routes")}>
-            {routes.map((route) => {
-              const status = routeStatus(route, tunnel, issues);
-              return (
-                <li key={`${route.hostname}${route.path ?? ""}`}>
-                  <Link
-                    to="/routes"
-                    className="flex min-h-11 items-center gap-3 rounded-row py-2 outline-offset-0"
-                  >
-                    <StatusDot status={status.dot} label={status.label} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-body">
-                        {route.hostname}
-                        {route.path ? ` ${route.path}` : ""}
-                      </div>
-                      <div className="truncate font-mono text-[11px] leading-4 text-secondary">
-                        {stripScheme(route.origin)}
-                      </div>
-                    </div>
-                    <span className="text-callout text-secondary">{status.label}</span>
-                    <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
-                  </Link>
-                </li>
-              );
-            })}
-          </Section>
+        <OverviewStats
+          traffic={traffic}
+          uptimes={uptimes}
+          accountId={active?.id ?? null}
+          routes={routes}
+          tunnel={tunnel}
+          issues={issues}
+          shares={shares}
+        />
+        {tunnelId ? (
+          <div className="grid gap-3 @5xl:grid-cols-3">
+            <TrafficCard traffic={traffic} />
+            <ResponsesCard traffic={traffic} />
+          </div>
         ) : null}
-        {shares.length > 0 ? (
-          <Section title={t("overview.shares")}>
-            {shares.map((share) => (
-              <li key={share.id}>
-                <Link
-                  to="/quick-share"
-                  className="flex min-h-11 items-center gap-3 rounded-row py-2 outline-offset-0"
-                >
-                  <StatusDot status={dots[share.status.status]} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-body">
-                      {share.url ? stripScheme(share.url) : t("overview.gettingUrl")}
-                    </div>
-                    <div className="truncate font-mono text-[11px] leading-4 text-secondary">
-                      {stripScheme(share.origin)}
-                    </div>
-                  </div>
-                  <span className="text-callout text-secondary tabular">
-                    {formatDuration(now - share.startedAt)}
-                  </span>
-                  <ChevronRight aria-hidden className="size-3.5 text-tertiary" strokeWidth={2} />
-                </Link>
-              </li>
-            ))}
-          </Section>
-        ) : null}
-        <RecentRequests limit={RECENT}>
-          {(rows) => (
-            <Section
-              title={t("overview.recent")}
-              action={
-                <Link to="/inspector" className="text-callout text-accent">
-                  {t("overview.showAll")}
-                </Link>
-              }
-            >
-              {rows}
-            </Section>
-          )}
-        </RecentRequests>
-      </div>
+        <div className="grid gap-3 @5xl:grid-cols-2">
+          {active ? <RoutesCard routes={routes} tunnel={tunnel} issues={issues} /> : null}
+          <SharesCard shares={shares} now={now} />
+          <RecentRequests limit={RECENT}>
+            {(rows) => (
+              <Card
+                title={t("overview.recent")}
+                action={<CardLink to="/inspector">{t("overview.showAll")}</CardLink>}
+              >
+                <ul className="flex flex-col divide-y-(length:--hairline) divide-inset">{rows}</ul>
+              </Card>
+            )}
+          </RecentRequests>
+          {active ? <ActivityCard entries={activity.data ?? []} /> : null}
+        </div>
+      </DashboardPage>
     </>
   );
 }

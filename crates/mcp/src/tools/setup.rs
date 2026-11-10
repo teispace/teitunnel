@@ -234,6 +234,9 @@ pub(crate) struct AccountOut {
     credential: String,
     /// For cert.pem: the only domain it works for.
     limited_zone: Option<String>,
+    /// Its sign-in with Cloudflare ended: the person signs in again in Teitunnel
+    /// (Settings → Accounts) before anything in it works.
+    signed_out: bool,
     /// What the credential can do, when asked.
     capabilities: Option<serde_json::Value>,
 }
@@ -268,6 +271,7 @@ pub(super) async fn accounts(backend: &SharedBackend, args: JsonObject) -> ToolR
             id: account.id,
             name: account.name,
             limited_zone: account.limited_zone,
+            signed_out: account.signed_out,
             capabilities,
         });
     }

@@ -136,11 +136,7 @@ impl FakeD1 {
         let mut out = Vec::new();
         for statement in statements {
             let mut stmt = tx.prepare(&statement.sql).map_err(sql_error)?;
-            let names: Vec<String> = stmt
-                .column_names()
-                .iter()
-                .map(|s| (*s).to_owned())
-                .collect();
+            let names: Vec<String> = stmt.column_names().map(str::to_owned).collect();
             let params: Vec<Sql> = statement.params.iter().map(to_sql).collect();
             let mut results = Vec::new();
             if names.is_empty() {

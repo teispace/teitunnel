@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
-import { useAccounts, useActiveAccount } from "@/features/accounts";
+import { ErrorAction, useAccounts, useActiveAccount } from "@/features/accounts";
 import { PlanSteps, useActivity, useRoutesOverview, useVerify } from "@/features/routes";
 import { cn } from "@/lib/cn";
 import { type MessageKey, t, translate } from "@/lib/i18n";
@@ -125,7 +125,7 @@ export function ActivityPage() {
     <ErrorState
       title={t("activity.loadFailed")}
       message={toIpcError(activity.error).message}
-      action={<Button onClick={() => void activity.refetch()}>{t("common.tryAgain")}</Button>}
+      action={<ErrorAction error={activity.error} onRetry={() => void activity.refetch()} />}
     />
   ) : activity.isPending && active ? (
     <div className="flex flex-col gap-2 p-3">

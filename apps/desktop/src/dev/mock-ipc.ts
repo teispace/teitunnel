@@ -300,7 +300,13 @@ const services: LocalService[] = [
 ];
 
 const accounts: Account[] = [
-  { id: "acc-personal", name: "Teispace", credential: "apiToken", limitedZone: null },
+  {
+    id: "acc-personal",
+    name: "Teispace",
+    credential: "apiToken",
+    limitedZone: null,
+    signedOut: false,
+  },
 ];
 
 const domains: Domain[] = [

@@ -91,6 +91,9 @@ pub enum OAuthError {
     StateMismatch,
     /// The token endpoint failed.
     Exchange(String),
+    /// The sign-in ended: Cloudflare no longer accepts its refresh token (revoked,
+    /// expired or replaced). Only signing in again helps, so it isn't retried.
+    SignedOut,
     /// Cloudflare issued no refresh token, so the sign-in can't last.
     NoOfflineAccess,
     /// The callback carried no authorization code.
@@ -109,6 +112,7 @@ impl UserText for OAuthError {
             Self::Denied(reason) => msg::error::oauth::denied(reason),
             Self::StateMismatch => msg::error::oauth::state_mismatch(),
             Self::Exchange(detail) => msg::error::oauth::exchange(detail),
+            Self::SignedOut => msg::error::oauth::signed_out(),
             Self::NoOfflineAccess => msg::error::oauth::no_offline_access(),
             Self::NoCode => msg::error::oauth::no_code(),
             Self::Random => msg::error::oauth::random(),
@@ -415,9 +419,16 @@ async fn token_request(
         .await
         .map_err(|err| OAuthError::Exchange(err.to_string()))?;
     if !status.is_success() {
-        let detail = serde_json::from_slice::<TokenError>(&bytes)
-            .map(|e| e.error_description.unwrap_or(e.error))
-            .unwrap_or_else(|_| format!("HTTP {}", status.as_u16()));
+        let error = serde_json::from_slice::<TokenError>(&bytes).ok();
+        if error.as_ref().is_some_and(|e| e.error == "invalid_grant")
+            && form.contains(&("grant_type", "refresh_token"))
+        {
+            return Err(OAuthError::SignedOut);
+        }
+        let detail = error.map_or_else(
+            || format!("HTTP {}", status.as_u16()),
+            |e| e.error_description.unwrap_or(e.error),
+        );
         return Err(OAuthError::Exchange(detail));
     }
     let tokens: TokenResponse =
@@ -455,7 +466,8 @@ pub async fn exchange(
 /// Gets a new access token (and possibly a rotated refresh token).
 ///
 /// # Errors
-/// [`OAuthError::Exchange`] (e.g. the refresh token was revoked).
+/// [`OAuthError::SignedOut`] if Cloudflare no longer accepts the refresh token,
+/// otherwise [`OAuthError::Exchange`].
 pub async fn refresh(
     http: &reqwest::Client,
     config: &OAuthConfig,
@@ -640,6 +652,25 @@ mod tests {
     async fn refresh_errors_carry_cloudflares_reason() {
         let server = MockServer::start().await;
         Mock::given(path("/oauth2/token"))
+            .respond_with(ResponseTemplate::new(503).set_body_json(serde_json::json!({
+                "error": "temporarily_unavailable", "error_description": "try later"
+            })))
+            .mount(&server)
+            .await;
+        let err = refresh(
+            &reqwest::Client::new(),
+            &config(&server.uri(), vec![]),
+            &Secret::new("r".into()),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("try later"));
+    }
+
+    #[tokio::test]
+    async fn a_refused_refresh_token_means_signing_in_again() {
+        let server = MockServer::start().await;
+        Mock::given(path("/oauth2/token"))
             .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
                 "error": "invalid_grant", "error_description": "refresh token revoked"
             })))
@@ -652,7 +683,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(err.to_string().contains("refresh token revoked"));
+        assert!(matches!(err, OAuthError::SignedOut));
     }
 
     #[test]

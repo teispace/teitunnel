@@ -62,3 +62,30 @@ export function uptimeGlance(
     lowestDay: days.length > 0 ? Math.min(...days) : null,
   };
 }
+
+/** The newest round trip to the edge in the samples (null without one). */
+export function lastRoundTrip(series: TrafficSeries): number | null {
+  for (let i = series.rttMs.length - 1; i >= 0; i--) {
+    const value = series.rttMs[i];
+    if (value !== null && value !== undefined) return value;
+  }
+  return null;
+}
+
+export interface ResponseCounts {
+  ok: number;
+  redirects: number;
+  clientErrors: number;
+  serverErrors: number;
+}
+
+/** Responses by class over the samples. */
+export function responseCounts(series: TrafficSeries): ResponseCounts {
+  const sum = (column: readonly number[]) => column.reduce((a, b) => a + b, 0);
+  return {
+    ok: sum(series.ok),
+    redirects: sum(series.redirects),
+    clientErrors: sum(series.clientErrors),
+    serverErrors: sum(series.serverErrors),
+  };
+}

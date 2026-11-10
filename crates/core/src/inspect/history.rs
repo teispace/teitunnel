@@ -210,6 +210,11 @@ async fn write_batch(
                 prune(&tx, hours)?;
             }
             tx.commit()?;
+            if prune_hours.is_some() {
+                // Give the pages pruned bodies used back to the disk (the database
+                // is in incremental auto-vacuum mode).
+                crate::store::release_free_pages(conn)?;
+            }
             Ok(())
         })
         .await

@@ -309,7 +309,9 @@ describe("QuickSharePage", () => {
   });
 
   it("shares on a subdomain of your own domain, then removes it", async () => {
-    accounts = [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+    accounts = [
+      { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+    ];
     renderPage();
     fireEvent.change(screen.getByRole("combobox", { name: "Port or address" }), {
       target: { value: "3000" },

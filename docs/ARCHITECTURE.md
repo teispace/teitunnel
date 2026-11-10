@@ -376,7 +376,7 @@ At startup and on demand, `sysinfo` finds running `cloudflared` processes not st
   2. **API token.** "Create token" opens the dashboard with a pre-filled template URL (`permissionGroupKeys`, name "Teitunnel"). The pasted token is verified (`/user/tokens/verify`) and stored in the keychain.
   3. **cert.pem import** (from `cloudflared tunnel login`). The PEM `ARGO TUNNEL TOKEN` block is base64 JSON with `zoneID`, `accountID` and `apiToken`. Treated as a **limited** credential (one zone), and labelled as such.
 - **Capability map.** After connecting, Teitunnel probes what the credential can do (`tunnels:edit`, `dns:edit(zone)`, `zones:read`, `access:edit` …). Features the credential can't support are disabled in the UI with a one-line reason and a "Fix permissions" link.
-- Keychain layout: service `com.teispace.teitunnel`, account `cf:<account-id>:<kind>`. Tunnel run tokens use `tunnel:<tunnel-id>`.
+- Keychain layout: service `com.teispace.teitunnel`, account `cf:<account-id>:<kind>`. An OAuth sign-in is stored once for every account it reaches, under `cf:<grant>:oauth` (`accounts.oauth_grant`; rows from before keep their account id as the grant). Tunnel run tokens use `tunnel:<tunnel-id>`.
 
 ---
 

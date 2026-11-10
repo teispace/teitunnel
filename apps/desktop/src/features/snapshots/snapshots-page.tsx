@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
-import { ConnectSheet, useActiveAccount, useDomains } from "@/features/accounts";
+import { ConnectSheet, ErrorAction, useActiveAccount, useDomains } from "@/features/accounts";
 import { stripScheme } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import type { SnapshotView } from "@/lib/ipc/bindings";
@@ -106,7 +106,7 @@ export function SnapshotsPage({ capture, publish = false }: SnapshotsPageProps) 
           title={t("snapshots.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void snapshots.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={snapshots.error} onRetry={() => void snapshots.refetch()} />}
         />
       </>
     );

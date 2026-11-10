@@ -50,7 +50,9 @@ beforeEach(() => {
         return checked ? detail : { ...detail, summary: { ...detail.summary, lastChecked: null } };
       }
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       default:
         return null;
     }

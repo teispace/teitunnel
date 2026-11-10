@@ -43,7 +43,9 @@ beforeEach(() => {
     asked.push({ cmd, range: payload["range"] as AnalyticsRange });
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       case "routes_overview":
         return {
           tunnel: null,
@@ -124,7 +126,8 @@ describe("AnalyticsPage", () => {
     renderPage();
     expect(await screen.findByRole("region", { name: /needs 2 more permissions/ })).toBeTruthy();
     expect(screen.getByText("Zone · Analytics · Read")).toBeTruthy();
-    // Uptime still shows without it.
-    expect(await screen.findByText("99.7%")).toBeTruthy();
+    // Uptime still shows without it, in the table and as the lowest.
+    expect(await within(await screen.findByRole("table")).findByText("99.7%")).toBeTruthy();
+    expect(screen.getByText("Lowest uptime")).toBeTruthy();
   });
 });

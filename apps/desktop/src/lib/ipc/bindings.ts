@@ -859,6 +859,11 @@ export type Account = {
 	credential: CredentialKind,
 	/**  For cert.pem credentials: the only zone the credential works for. */
 	limitedZone: string | null,
+	/**
+	 *  Its OAuth sign-in ended (Cloudflare refused the refresh token): only signing in
+	 *  again brings it back.
+	 */
+	signedOut?: boolean,
 };
 
 /**  An account as the backup names it (reconnect it after restoring). */

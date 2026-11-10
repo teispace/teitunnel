@@ -1,12 +1,34 @@
 ---
-title: What's new in 0.5.0
-description: What Teitunnel 0.5.0 adds — an AI & Integrations section, private hostnames for WARP users and approvals that need a person — and what 0.4.0, 0.3.0 and 0.2.0 brought before it.
-searchDescription: "What's new in Teitunnel 0.5.0: an AI & Integrations section, private hostname routes for WARP users, and MCP approvals that need a person."
+title: What's new in 0.6.0
+description: What Teitunnel 0.6.0 adds — a dashboard Overview and Analytics, sign-ins that stay signed in, visible loading — and what 0.5.0, 0.4.0, 0.3.0 and 0.2.0 brought before it.
+searchDescription: "What's new in Teitunnel 0.6.0: dashboard Overview and Analytics, Cloudflare sign-ins that stay signed in, and a sturdier cloudflared install."
 ---
 
-0.5.0 gives AI apps and integrations their own section, shares private hostnames with WARP
-users and makes an agent's changes wait for a person. This page groups what changed, with a
-link to each guide; [0.4.0](#040), [0.3.0](#030) and [0.2.0](#020) follow below.
+0.6.0 turns Overview and Analytics into dashboards that use the whole window, keeps
+Cloudflare sign-ins working across all their accounts, and shows when Teitunnel is busy. This
+page groups what changed, with a link to each guide; [0.5.0](#050), [0.4.0](#040),
+[0.3.0](#030) and [0.2.0](#020) follow below.
+
+## 0.6.0
+
+- **A dashboard Overview.** Cards for traffic, errors, round trip, uptime, routes and Quick
+  Shares, a live traffic chart, the response mix, routes, shares, recent requests and
+  activity, spread across a wide window instead of a narrow column.
+  [Observability](/docs/guides/observability#traffic)
+- **Analytics at a glance.** The account's totals for the period, requests over time and the
+  top routes above the per-route table. [Analytics](/docs/guides/analytics#in-the-app)
+- **Sign-ins that stay signed in.** Accounts from one Cloudflare sign-in share its refresh
+  token, so Cloudflare no longer ends the sign-in when Teitunnel refreshed them separately.
+  When a sign-in does end, the account says **Signed out** and offers **Sign In Again**, in
+  Settings and on the page that needed it. [Where credentials are kept](/docs/guides/accounts#where-credentials-are-kept)
+- **You can see it working.** Pages show their shape while they load, and a thin bar under the
+  toolbar moves while data loads or a change runs.
+- **Wide windows.** Quick Share's cards go two across; detail panes keep a readable width.
+- **Fixes:** the Doctor no longer lists a severity twice; installing cloudflared retries what
+  GitHub couldn't answer and stops a stalled download instead of waiting forever; the
+  database gives back the space of pruned inspector history; fewer permission checks in
+  the background; dependency security updates.
+  [Install](/docs/getting-started/install#the-first-launch)
 
 ## 0.5.0
 

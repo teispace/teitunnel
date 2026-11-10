@@ -574,7 +574,7 @@ pub async fn run<K: Connectors>(
             let api = accounts.client(&account.id).await.map_err(|e| e.text())?;
             let domains = accounts.domains(&account.id).await.map_err(|e| e.text())?;
             let can_manage = accounts
-                .capabilities(&account.id)
+                .capabilities_recent(&account.id)
                 .await
                 .ok()
                 .map(|c| c.can_manage_routes());

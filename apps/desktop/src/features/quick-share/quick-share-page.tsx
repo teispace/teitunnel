@@ -42,77 +42,84 @@ export function QuickSharePage({ compose = false }: { compose?: boolean }) {
     <LazyMotion features={loadFeatures} strict>
       <TitlebarToolbar title={t("quickShare.title")} separator={scrolled} />
       <ScrollArea onScrolledChange={setScrolled}>
-        <div className="mx-auto flex max-w-[680px] flex-col gap-4 px-5 pt-2 pb-8">
-          <section
-            className={cn(
-              "flex flex-col gap-3 rounded-card bg-surface-inset p-4 outline-offset-2 transition-[outline-color] transition-snappy",
-              dragging ? "outline-2 outline-accent" : "outline-2 outline-transparent",
-            )}
-          >
-            <div>
-              <h2 className="text-headline">{t("quickShare.heading")}</h2>
-              <p className="mt-0.5 text-callout text-secondary" aria-live="polite">
-                {dragging ? t("quickShare.folder.drop") : t("quickShare.headingDetail")}
+        {/* One column of cards in a narrow pane, two side by side in a wide one. */}
+        <div className="@container">
+          <div className="mx-auto grid w-full max-w-[1680px] items-start gap-4 px-5 pt-2 pb-8 @6xl:grid-cols-2">
+            <section
+              className={cn(
+                "col-span-full flex flex-col gap-3 rounded-card bg-surface-inset p-4 outline-offset-2 transition-[outline-color] transition-snappy",
+                dragging ? "outline-2 outline-accent" : "outline-2 outline-transparent",
+              )}
+            >
+              <div>
+                <h2 className="text-headline">{t("quickShare.heading")}</h2>
+                <p className="mt-0.5 text-callout text-secondary" aria-live="polite">
+                  {dragging ? t("quickShare.folder.drop") : t("quickShare.headingDetail")}
+                </p>
+              </div>
+              <ShareComposer
+                disabled={missing}
+                autoFocus={compose}
+                folder={folder}
+                onFolderChange={setFolder}
+              />
+            </section>
+
+            {missing ? (
+              <div className="col-span-full">
+                <BinaryNotice binary={binary.data ?? null} />
+              </div>
+            ) : null}
+
+            <AnimatePresence initial={false}>
+              {domainShares.map((share) => (
+                <m.div
+                  key={`${share.accountId}/${share.hostname}`}
+                  layout
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
+                  transition={spring("smooth")}
+                >
+                  <DomainShareCard share={share} />
+                </m.div>
+              ))}
+              {terminalShares.map((share) => (
+                <m.div
+                  key={`${share.owner}/${share.url}`}
+                  layout
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
+                  transition={spring("smooth")}
+                >
+                  <TerminalShareCard share={share} />
+                </m.div>
+              ))}
+              {shares.map((share) => (
+                <m.div
+                  key={share.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
+                  transition={spring("smooth")}
+                >
+                  <ShareCard share={share} />
+                </m.div>
+              ))}
+            </AnimatePresence>
+
+            {loaded &&
+            shares.length === 0 &&
+            domainShares.length === 0 &&
+            terminalShares.length === 0 &&
+            !missing ? (
+              <p className="col-span-full px-1 text-center text-callout text-tertiary">
+                {t("quickShare.emptyHint")}
               </p>
-            </div>
-            <ShareComposer
-              disabled={missing}
-              autoFocus={compose}
-              folder={folder}
-              onFolderChange={setFolder}
-            />
-          </section>
-
-          {missing ? <BinaryNotice binary={binary.data ?? null} /> : null}
-
-          <AnimatePresence initial={false}>
-            {domainShares.map((share) => (
-              <m.div
-                key={`${share.accountId}/${share.hostname}`}
-                layout
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
-                transition={spring("smooth")}
-              >
-                <DomainShareCard share={share} />
-              </m.div>
-            ))}
-            {terminalShares.map((share) => (
-              <m.div
-                key={`${share.owner}/${share.url}`}
-                layout
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
-                transition={spring("smooth")}
-              >
-                <TerminalShareCard share={share} />
-              </m.div>
-            ))}
-            {shares.map((share) => (
-              <m.div
-                key={share.id}
-                layout
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                {...(visible ? { exit: { opacity: 0, scale: 0.98 } } : {})}
-                transition={spring("smooth")}
-              >
-                <ShareCard share={share} />
-              </m.div>
-            ))}
-          </AnimatePresence>
-
-          {loaded &&
-          shares.length === 0 &&
-          domainShares.length === 0 &&
-          terminalShares.length === 0 &&
-          !missing ? (
-            <p className="px-1 text-center text-callout text-tertiary">
-              {t("quickShare.emptyHint")}
-            </p>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </ScrollArea>
     </LazyMotion>

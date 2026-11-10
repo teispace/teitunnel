@@ -125,7 +125,9 @@ beforeEach(() => {
     calls.push({ cmd, args: payload });
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       case "sharing_schedules":
         return [];
       case "sharing_set_paused":
