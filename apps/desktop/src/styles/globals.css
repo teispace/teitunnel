@@ -164,6 +164,37 @@
     transform: rotate(360deg);
   }
 }
+/* Skeleton shimmer: a soft highlight sweeping across the placeholder. */
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--surface-control);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    light-dark(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.07)),
+    transparent
+  );
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    display: none;
+  }
+}
 @keyframes indeterminate {
   from {
     transform: translateX(-100%);

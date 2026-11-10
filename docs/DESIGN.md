@@ -14,7 +14,7 @@ Every UI PR is reviewed against the **checklist at the bottom**.
 - Pointer (hand) cursor on buttons, rows or toggles. Native apps use the arrow. The hand is only for real hyperlinks.
 - Custom-drawn imitations of native things: menu bar, context menus, file dialogs, notifications. Use the real ones.
 - Raw hex or `rgb()` outside `styles/tokens.css`. Components use semantic tokens only.
-- Layout shift on load. Reserve space; use skeletons only when content takes > 300 ms.
+- Layout shift on load. Reserve space; skeletons (the shape of what's coming, with a soft shimmer) fade in after 150 ms, so fast loads never flash one and slow ones never look stuck.
 - Spinners for local state. Local reads are instant; spinners are for network only, and only after 150 ms.
 - Modals for primary work. Modals are for destructive confirmation and plan review only.
 - Exclamation marks, "Oops", "Awesome", or marketing tone in the product.
@@ -39,6 +39,8 @@ Every UI PR is reviewed against the **checklist at the bottom**.
 | Content | opaque `--surface-content` |
 | Inspector | 320 px (resizable 240–480), toggle ⌘⌥I. List pane min 200, detail min 180, so three panes fit the minimum window |
 | Split | Sidebar │ List │ Inspector (three-pane), like Mail/Finder |
+
+**Wide windows.** Dashboards (Overview, Analytics) fill the content pane up to 1680 px, on a grid driven by container queries (the pane's width, not the window's): stat cards run 2 → 3 → 6 across, charts take two thirds beside a one-third breakdown, lists sit two across. Reading and form pages (Quick Share, Settings, Integrations) keep a centred column of 680–760 px, since long lines are harder to read. While Teitunnel waits on something slow, an accent hairline sweeps along the bottom of the title bar (`ActivityBar`; polls of data already shown don't count).
 
 The window uses `transparent: true` + `windowEffects: { effects: ["sidebar"], state: "followsWindowActiveState" }` + `macOSPrivateApi: true`. Only the sidebar region is transparent; content panes paint opaque backgrounds. When the window is inactive, the vibrancy dims and the accent colour turns grey, as in native apps.
 
@@ -168,7 +170,7 @@ Apple UI motion is **spring-based, interruptible and physically consistent**. It
 - Animate only `transform`, `opacity` and `filter`; never `width/height/top/left`. Use Motion's `layout` for size changes (FLIP). Target 120 Hz on ProMotion displays: no layout thrash, and `will-change` only during animation.
 - **Reduce motion:** springs become 80 ms opacity cross-fades, layout animations become instant, and the pulse stops (a static ring is shown).
 
-**Never:** entrance animations for page content, staggered list cascades, parallax, bouncy navigation, looping decorative motion, skeleton shimmer longer than 1 s.
+**Never:** entrance animations for page content, staggered list cascades, parallax, bouncy navigation, looping decorative motion, skeleton shimmer faster than 1.2 s per sweep or brighter than the `.skeleton` highlight (Reduce Motion stops it).
 
 ---
 
@@ -178,7 +180,7 @@ Apple UI motion is **spring-based, interruptible and physically consistent**. It
 Button (primary / secondary / plain / destructive; `sm`/`md`), IconButton, Input, TextArea, Field (label + help + error), Select, Combobox, Switch, Checkbox, Radio, SegmentedControl, Slider, Tooltip, Popover, Dialog, Sheet (slides from title bar, like macOS sheets), Toast (sonner, restyled), Badge, Kbd, StatusDot, Spinner, ProgressBar, Separator, ScrollArea, Disclosure, Skeleton.
 
 `components/patterns/`:
-AppShell, TitlebarToolbar, Sidebar + SidebarItem, SplitView (resizable, persisted), ListPane + ListRow, Inspector + InspectorSection, KeyValueGrid, CopyField, HostnameInput (subdomain + zone picker + live validation), OriginPicker (detected services + manual), PlanPreview (steps + warnings + command copy), ProgressChecklist, EmptyState (one sentence + one primary action), ErrorState (message + hint + fix button), MetricTile, Sparkline (uPlot), LogViewer (virtualized), CommandPalette (cmdk), QRCode (SVG from Rust).
+AppShell, TitlebarToolbar, Sidebar + SidebarItem, SplitView (resizable, persisted), ListPane + ListRow, Inspector + InspectorSection, KeyValueGrid, CopyField, HostnameInput (subdomain + zone picker + live validation), OriginPicker (detected services + manual), PlanPreview (steps + warnings + command copy), ProgressChecklist, EmptyState (one sentence + one primary action), ErrorState (message + hint + fix button), ActivityBar, dashboard (`DashboardPage`, `Card`, `StatCard` + `StatGrid`, `DistributionBar`, `MetricList`, `DashboardSkeleton`), TimeSeriesChart and Sparkline (uPlot), LogViewer (virtualized), CommandPalette (cmdk), QRCode (SVG from Rust).
 
 Every primitive and pattern is shown in the **in-app dev gallery** (`/dev/gallery`, dev builds only) in light and dark. The gallery runs inside the real WKWebView with real vibrancy, which Storybook in a browser can't do.
 

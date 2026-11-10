@@ -4,6 +4,7 @@ import { useUiStore } from "@/app/ui-store";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
+import { ActivityBar } from "./activity-bar";
 
 interface TitlebarToolbarProps {
   title: ReactNode;
@@ -23,7 +24,7 @@ export function TitlebarToolbar({ title, children, separator = false }: Titlebar
     <header
       data-tauri-drag-region="deep"
       className={cn(
-        "flex h-(--toolbar-height) shrink-0 items-center gap-3 border-b-hairline pr-3 pl-5",
+        "relative flex h-(--toolbar-height) shrink-0 items-center gap-3 border-b-hairline pr-3 pl-5",
         collapsed && "pl-(--traffic-light-inset)",
         "transition-colors transition-smooth",
         separator ? "border-separator" : "border-transparent",
@@ -41,6 +42,7 @@ export function TitlebarToolbar({ title, children, separator = false }: Titlebar
         {title}
       </h1>
       {children ? <div className="ml-auto flex items-center gap-2">{children}</div> : null}
+      <ActivityBar />
     </header>
   );
 }

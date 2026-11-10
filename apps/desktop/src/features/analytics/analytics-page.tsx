@@ -1,6 +1,7 @@
 import { ChartNoAxesColumn, RefreshCw, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useUiStore } from "@/app/ui-store";
+import { Card, DashboardPage, DashboardSkeleton } from "@/components/patterns/dashboard";
 import { EmptyState } from "@/components/patterns/empty-state";
 import { ErrorState } from "@/components/patterns/error-state";
 import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
@@ -8,13 +9,13 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { PermissionFix, useAccounts, useActiveAccount } from "@/features/accounts";
+import { ErrorAction, PermissionFix, useAccounts, useActiveAccount } from "@/features/accounts";
 import { useRoutesOverview } from "@/features/routes/queries";
 import { t } from "@/lib/i18n";
 import type { AnalyticsRange } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
 import { useManualRefetch } from "@/lib/use-manual-refetch";
+import { AnalyticsOverview } from "./components/analytics-overview";
 import { AnalyticsTable } from "./components/analytics-table";
 import {
   buildRows,
@@ -101,27 +102,12 @@ export function AnalyticsPage() {
           title={t("routes.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={
-            <Button pending={overview.isFetching} onClick={() => void overview.refetch()}>
-              {t("common.tryAgain")}
-            </Button>
-          }
+          action={<ErrorAction error={overview.error} onRetry={() => void overview.refetch()} />}
         />
       );
     }
     if (!active || overview.isPending) {
-      return (
-        <div
-          role="status"
-          aria-busy
-          aria-label={t("analytics.title")}
-          className="flex flex-col gap-2 p-5"
-        >
-          <Skeleton className="h-11" />
-          <Skeleton className="h-11" />
-          <Skeleton className="h-11" />
-        </div>
-      );
+      return <DashboardSkeleton label={t("analytics.title")} />;
     }
     if (rows.length === 0) {
       return (
@@ -133,7 +119,7 @@ export function AnalyticsPage() {
       );
     }
     return (
-      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-4 overflow-y-auto px-5 pt-2 pb-8">
+      <DashboardPage>
         {edgeError?.code === "permissionDenied" ? (
           <PermissionFix
             accountId={active.id}
@@ -160,16 +146,27 @@ export function AnalyticsPage() {
             </Button>
           </div>
         ) : null}
-        <AnalyticsTable
+        <AnalyticsOverview
           rows={rows}
+          summary={summary.data}
           range={range}
-          sort={sort}
-          onSort={onSort}
           loading={summary.isPending && !edgeError}
         />
-        <p className="px-2.5 text-callout text-secondary">{t("analytics.edgeNote")}</p>
+        <Card
+          title={t("analytics.allRoutes")}
+          detail={t("analytics.edgeNote")}
+          bodyClassName="px-0 pb-0"
+        >
+          <AnalyticsTable
+            rows={rows}
+            range={range}
+            sort={sort}
+            onSort={onSort}
+            loading={summary.isPending && !edgeError}
+          />
+        </Card>
         {note ? <p className="px-2.5 text-callout text-secondary">{note}</p> : null}
-      </div>
+      </DashboardPage>
     );
   })();
 

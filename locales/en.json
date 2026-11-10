@@ -911,7 +911,53 @@
     "uptimeLowest": "Lowest in 24 h: {percent}",
     "uptimeDownMore": "{hostname} and {count} more",
     "recent": "Recent Requests",
-    "showAll": "Show All"
+    "showAll": "Show All",
+    "healthy": "Everything is running",
+    "healthyDetail": "Routes, shares and the connector are healthy. Nothing needs your attention.",
+    "warnings_one": "{count} thing to look at",
+    "warnings_other": "{count} things to look at",
+    "openDoctor": "Open the Doctor to see what's wrong and fix it.",
+    "connections_one": "{count} edge connection",
+    "connections_other": "{count} edge connections",
+    "notConnected": "Connector offline",
+    "roundTrip": "Edge round trip",
+    "ms": "ms",
+    "roundTripDetail": "To Cloudflare's nearest edge",
+    "roundTripChart": "Round trip to the edge over the last hour",
+    "uptimeNone": "Checked once a route is live",
+    "ofTotal": "{live} of {total}",
+    "routesNone": "No routes in this account yet.",
+    "routesAllLive": "All serving",
+    "routesNeedAttention_one": "{count} needs attention",
+    "routesNeedAttention_other": "{count} need attention",
+    "routesCount_one": "{count} route",
+    "routesCount_other": "{count} routes",
+    "sharesStarting_one": "{count} more starting",
+    "sharesStarting_other": "{count} more starting",
+    "sharesDetail": "Public URLs live now",
+    "sharesCount_one": "{count} running",
+    "sharesCount_other": "{count} running",
+    "sharesNone": "No Quick Shares running.",
+    "trafficChart": "Traffic",
+    "trafficChartDetail": "Requests per second through this Mac, last hour",
+    "trafficChartDetail@windows": "Requests per second through this PC, last hour",
+    "trafficChartDetail@linux": "Requests per second through this computer, last hour",
+    "trafficChartLabel": "Requests and failed requests per second over the last hour",
+    "openAnalytics": "Analytics",
+    "responses": "Responses",
+    "responsesDetail": "By status, last hour",
+    "class": {
+      "ok": "Success (2xx)",
+      "redirects": "Redirects (3xx)",
+      "clientErrors": "Client errors (4xx)",
+      "serverErrors": "Server errors (5xx)"
+    },
+    "requestsTotal": "Requests since start",
+    "failedTotal": "Failed since start",
+    "peakInFlight": "Peak in flight",
+    "edgeConnections": "Edge connections",
+    "activity": "Recent Changes",
+    "activityNone": "No changes yet."
   },
   "accounts": {
     "credential": {
@@ -1721,6 +1767,7 @@
     "viewFailed": "This view couldn't load"
   },
   "shell": {
+    "working": "Working…",
     "resizeSidebar": "Resize sidebar",
     "sidebar": "Sidebar",
     "hideSidebar": "Hide sidebar",
@@ -3193,6 +3240,32 @@
   },
   "analytics": {
     "title": "Analytics",
+    "kpi": {
+      "requests": "Requests",
+      "requestsDetail": "Across {count} routes",
+      "bandwidth": "Data served",
+      "bandwidthDetail": "Sent to visitors",
+      "errorRate": "Server errors",
+      "errorRateDetail": "Share of 5xx answers",
+      "p95": "Slowest P95",
+      "p95Detail": "Origin response time",
+      "uptime": "Lowest uptime",
+      "uptimeDetail": "Checked every minute",
+      "busiest": "Busiest route",
+      "busiestNone": "No traffic yet"
+    },
+    "chart": {
+      "title": "Requests over time",
+      "detail": "Every route, as Cloudflare's edge sees it",
+      "label": "Requests and server errors over the selected range",
+      "requests": "Requests",
+      "errors": "Server errors"
+    },
+    "top": {
+      "title": "Top routes",
+      "detail": "Share of requests"
+    },
+    "allRoutes": "All Routes",
     "range": {
       "hour": "Hour",
       "day": "Day",

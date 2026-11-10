@@ -7,9 +7,9 @@ import { createQueryClient } from "@/app/query-client";
 import { mockUptimeSummary } from "@/dev/mock-analytics";
 import { mockRows } from "@/dev/mock-inspector";
 import { RecentRequests } from "@/features/inspector";
-import type { LiveBatch, Traffic, UptimeSummary } from "@/lib/ipc/bindings";
+import type { LiveBatch, Traffic } from "@/lib/ipc/bindings";
 import { emptySeries } from "@/lib/traffic";
-import { Glance } from "./components/glance";
+import { OverviewStats, ResponsesCard, StatusBanner } from "./components/sections";
 
 vi.mock("@tanstack/react-router", async (original) => ({
   ...(await original<typeof import("@tanstack/react-router")>()),
@@ -22,8 +22,6 @@ vi.mock("@tanstack/react-router", async (original) => ({
   ),
 }));
 
-let traffic: Traffic | null;
-let uptimes: UptimeSummary[];
 let channel: { onmessage: (batch: LiveBatch) => void } | null;
 let limits: unknown[];
 
@@ -41,18 +39,12 @@ function trafficOf(samples: { requests: number; serverErrors: number }[]): Traff
 }
 
 beforeEach(() => {
-  traffic = null;
-  uptimes = [];
   channel = null;
   limits = [];
   mockWindows("main");
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
     switch (cmd) {
-      case "tunnels_traffic":
-        return traffic;
-      case "uptime_list":
-        return uptimes;
       case "inspect_exchanges": {
         const query = payload["query"] as { limit: number };
         limits.push(query.limit);
@@ -70,37 +62,81 @@ beforeEach(() => {
 const wrap = (children: ReactNode) =>
   render(<QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>);
 
-describe("Overview at a glance", () => {
+describe("Overview dashboard", () => {
   it("shows traffic, the share of failed requests and which routes are down", async () => {
-    traffic = trafficOf([
+    const live = trafficOf([
       { requests: 40, serverErrors: 0 },
       { requests: 60, serverErrors: 10 },
     ]);
-    uptimes = [
+    const list = [
       { ...mockUptimeSummary("docs.xyz.com", null), accountId: "acc", up: true, uptimeDay: 0.99 },
       { ...mockUptimeSummary("api.xyz.com", null), accountId: "acc", up: false },
     ];
-    wrap(<Glance tunnelId="t1" accountId="acc" />);
+    wrap(
+      <OverviewStats
+        traffic={live}
+        uptimes={list}
+        accountId="acc"
+        routes={[]}
+        tunnel={null}
+        issues={[]}
+        shares={[]}
+      />,
+    );
     const errors = (await screen.findByText("Errors")).closest("a") as HTMLElement;
     expect(within(errors).getByText("10%").className).toContain("text-error");
     expect(within(errors).getByText("10 of 100 requests in 5 min")).toBeTruthy();
-    expect(await screen.findByText("1 down")).toBeTruthy();
+    expect(screen.getByText("1 down")).toBeTruthy();
     expect(screen.getByText("api.xyz.com")).toBeTruthy();
     expect(screen.getByText("1,234 since start")).toBeTruthy();
+    expect(screen.getByText("18")).toBeTruthy();
   });
 
-  it("says all is well, and shows nothing before there's anything to show", async () => {
-    uptimes = [{ ...mockUptimeSummary("docs.xyz.com", null), accountId: "acc", up: true }];
-    const { unmount } = wrap(<Glance tunnelId={null} accountId="acc" />);
-    expect(await screen.findByText("All up")).toBeTruthy();
-    // No connector here: no traffic or error tiles.
-    expect(screen.queryByText("Errors")).toBeNull();
-    unmount();
+  it("says what isn't known yet instead of guessing", () => {
+    wrap(
+      <OverviewStats
+        traffic={undefined}
+        uptimes={[]}
+        accountId="acc"
+        routes={[]}
+        tunnel={null}
+        issues={[]}
+        shares={[]}
+      />,
+    );
+    expect(screen.getByText("Checked once a route is live")).toBeTruthy();
+    expect(screen.getByText("No routes in this account yet.")).toBeTruthy();
+    expect(screen.getByText("No requests in 5 min")).toBeTruthy();
+  });
 
-    uptimes = [];
-    const { container } = wrap(<Glance tunnelId={null} accountId="acc" />);
-    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
-    expect(container.textContent).toBe("");
+  it("breaks responses down by class", () => {
+    const live = trafficOf([{ requests: 100, serverErrors: 25 }]);
+    live.series.ok.push(75);
+    live.series.redirects.push(0);
+    live.series.clientErrors.push(0);
+    wrap(<ResponsesCard traffic={live} />);
+    expect(
+      screen.getByRole("img", { name: "Responses: Success (2xx) 75%, Server errors (5xx) 25%" }),
+    ).toBeTruthy();
+    expect(screen.getByText("1,234")).toBeTruthy();
+  });
+
+  it("leads with problems, and says when all is well", () => {
+    const { unmount } = wrap(
+      <StatusBanner
+        problems={2}
+        warnings={1}
+        connections={4}
+        locations={["ams01"]}
+        account={null}
+      />,
+    );
+    expect(screen.getByText("2 problems need your attention")).toBeTruthy();
+    expect(screen.getByText("AMS01")).toBeTruthy();
+    unmount();
+    wrap(<StatusBanner problems={0} warnings={0} connections={0} locations={[]} account="Work" />);
+    expect(screen.getByText("Everything is running")).toBeTruthy();
+    expect(screen.getByText("Connector offline")).toBeTruthy();
   });
 
   it("keeps the newest requests live, each opening in the Inspector", async () => {
