@@ -26,7 +26,11 @@ Precise per-tunnel counts from this computer's own connector are in
 
 ## In the app
 
-- **Analytics** in the sidebar lists every route of the account side by side: a sparkline of
+- **Analytics** in the sidebar starts with the account's totals for the period: **Requests**,
+  **Data served**, **Server errors**, the **Slowest P95**, the **Lowest uptime** and the
+  **Busiest route**, then a chart of **Requests over time** (with server errors) and the
+  **Top routes** by share of requests.
+- Below, **All routes** lists every route of the account side by side: a sparkline of
   **Requests**, the share of **Server errors** (5xx), the **P95** response time and the
   **Uptime**. Choose **Hour**, **Day**, **Week** or **Month**, and sort by any column.
   Routes served by other machines show *Not on this Mac* for uptime.
@@ -52,7 +56,7 @@ Precise per-tunnel counts from this computer's own connector are in
   each request's `User-Agent` (search engines, AI crawlers and assistants, link previews,
   monitors, webhook senders, command-line tools), but unlike Cloudflare it can't check the
   claim.
-- The Traffic, Errors and Uptime tiles on **Overview** open Analytics.
+- The Traffic, Errors and Uptime cards on **Overview** open Analytics.
 
 ## Traffic from Cloudflare's edge
 
