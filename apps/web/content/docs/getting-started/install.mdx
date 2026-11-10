@@ -196,6 +196,10 @@ Cloudflare's connector:
   and checks it before use: the download must match the digest GitHub publishes, the binary
   must match the checksum in Cloudflare's release notes, and on macOS its code signature must
   be Cloudflare's.
+  A request GitHub can't answer is tried up to three times, and a download that stalls for 30
+  seconds stops with an error instead of waiting forever. On a CI runner, set `GITHUB_TOKEN`
+  so the release lookup doesn't share GitHub's limit for anonymous requests (the token goes
+  to GitHub's API only).
 
 The managed copy lives in Teitunnel's own folder and is updated from
 **Settings ▸ cloudflared**. When it updates, running connectors move to the new version

@@ -26,6 +26,10 @@ use crate::{Error, Result, Version, locate::read_version};
 pub const CLOUDFLARE_TEAM_ID: &str = "68WVV388M8";
 
 const GITHUB_API: &str = "https://api.github.com/repos/cloudflare/cloudflared/releases/latest";
+/// Tries per request: GitHub answers 5xx or 429 now and then, and networks drop.
+const ATTEMPTS: u32 = 3;
+/// A transfer that receives nothing for this long has stalled (it used to hang for good).
+const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 /// Upper bound for the extracted binary (decompression-bomb guard).
 const MAX_BINARY_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -135,6 +139,17 @@ pub enum Progress {
     Installing,
 }
 
+/// A GitHub token for the release lookup (CI runners share the anonymous rate limit).
+/// Sent only to the release API, never logged.
+#[derive(Clone)]
+struct Token(String);
+
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Token(<redacted>)")
+    }
+}
+
 /// Fetches releases and installs the managed binary.
 #[derive(Debug, Clone)]
 pub struct Installer {
@@ -143,6 +158,9 @@ pub struct Installer {
     dest_dir: PathBuf,
     asset: AssetSpec,
     verify_signature: bool,
+    token: Option<Token>,
+    /// Wait before the first retry; tripled for each one after.
+    backoff: std::time::Duration,
 }
 
 impl Installer {
@@ -152,12 +170,30 @@ impl Installer {
     /// [`Error::UnsupportedPlatform`] if Cloudflare publishes no binary for this machine.
     pub fn new(dest_dir: PathBuf) -> Result<Self> {
         let asset = AssetSpec::current().ok_or(Error::UnsupportedPlatform)?;
-        Self::with_options(
+        let installer = Self::with_options(
             dest_dir,
             asset,
             GITHUB_API.to_owned(),
             cfg!(target_os = "macos"),
-        )
+        )?;
+        Ok(match std::env::var("GITHUB_TOKEN") {
+            Ok(token) if !token.trim().is_empty() => installer.with_token(token.trim().to_owned()),
+            _ => installer,
+        })
+    }
+
+    /// Sends `token` with the release lookup.
+    #[must_use]
+    pub fn with_token(mut self, token: String) -> Self {
+        self.token = Some(Token(token));
+        self
+    }
+
+    /// Waits `backoff` before the first retry (tests use zero).
+    #[must_use]
+    pub fn with_backoff(mut self, backoff: std::time::Duration) -> Self {
+        self.backoff = backoff;
+        self
     }
 
     /// An installer with explicit inputs (tests).
@@ -173,6 +209,7 @@ impl Installer {
         let http = reqwest::Client::builder()
             .user_agent(concat!("Teitunnel/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(READ_TIMEOUT)
             .build()?;
         Ok(Self {
             http,
@@ -180,6 +217,8 @@ impl Installer {
             dest_dir,
             asset,
             verify_signature,
+            token: None,
+            backoff: std::time::Duration::from_secs(1),
         })
     }
 
@@ -193,14 +232,8 @@ impl Installer {
     /// # Errors
     /// Fails on network errors, rate limiting or an unexpected response.
     pub async fn latest(&self) -> Result<Release> {
-        let response = self
-            .http
-            .get(&self.api_url)
-            .header("Accept", "application/vnd.github+json")
-            .send()
-            .await?
-            .error_for_status()?;
-        let release: GhRelease = response.json().await?;
+        let response = self.get(&self.api_url, true).await?;
+        let release: GhRelease = response.json().await.map_err(transfer_error)?;
         let version = release.tag_name.trim_start_matches('v').parse()?;
         Ok(Release {
             version,
@@ -310,13 +343,13 @@ impl Installer {
         path: &Path,
         progress: &mut impl FnMut(Progress),
     ) -> Result<String> {
-        let mut response = self.http.get(&asset.url).send().await?.error_for_status()?;
+        let mut response = self.get(&asset.url, false).await?;
         let total = response.content_length().unwrap_or(asset.size);
         let mut file = tokio::fs::File::create(path).await?;
         let mut hasher = Sha256::new();
         let mut received = 0u64;
         progress(Progress::Downloading { received, total });
-        while let Some(chunk) = response.chunk().await? {
+        while let Some(chunk) = response.chunk().await.map_err(transfer_error)? {
             received += chunk.len() as u64;
             if received > MAX_BINARY_BYTES {
                 return Err(Error::Verification(
@@ -331,6 +364,40 @@ impl Installer {
         Ok(hex(&hasher.finalize()))
     }
 
+    /// A GET that succeeded, retried on network errors, 5xx and 429.
+    async fn get(&self, url: &str, api: bool) -> Result<reqwest::Response> {
+        let mut attempt = 1;
+        loop {
+            let mut request = self.http.get(url);
+            if api {
+                request = request.header("Accept", "application/vnd.github+json");
+                if let Some(Token(token)) = &self.token {
+                    request = request.bearer_auth(token);
+                }
+            }
+            let retry = match request.send().await {
+                Ok(response) if response.status().is_success() => return Ok(response),
+                Ok(response) => {
+                    let status = response.status();
+                    if attempt >= ATTEMPTS
+                        || !(status.is_server_error()
+                            || status == reqwest::StatusCode::TOO_MANY_REQUESTS)
+                    {
+                        return Err(status_error(&response));
+                    }
+                    status.to_string()
+                }
+                Err(err) if attempt < ATTEMPTS && (err.is_connect() || err.is_timeout()) => {
+                    err.without_url().to_string()
+                }
+                Err(err) => return Err(transfer_error(err)),
+            };
+            tracing::debug!(attempt, %retry, "retrying a cloudflared release request");
+            tokio::time::sleep(self.backoff * 3u32.pow(attempt - 1)).await;
+            attempt += 1;
+        }
+    }
+
     /// Moves the staged binary into place, keeping the old one as `.prev`.
     async fn promote(&self, staged: &Path) -> Result<PathBuf> {
         let target = self.binary_path();
@@ -341,6 +408,30 @@ impl Installer {
         }
         tokio::fs::rename(staged, &target).await?;
         Ok(target)
+    }
+}
+
+/// An unsuccessful answer, naming GitHub's rate limit when that's the reason.
+fn status_error(response: &reqwest::Response) -> Error {
+    let status = response.status();
+    let limited = response
+        .headers()
+        .get("x-ratelimit-remaining")
+        .is_some_and(|remaining| remaining.as_bytes() == b"0");
+    if limited && matches!(status.as_u16(), 403 | 429) {
+        Error::Http(
+            "GitHub's limit for anonymous requests was reached; try again within the hour".into(),
+        )
+    } else {
+        Error::Http(format!("GitHub answered {status}"))
+    }
+}
+
+fn transfer_error(err: reqwest::Error) -> Error {
+    if err.is_timeout() {
+        Error::Timeout("downloading cloudflared")
+    } else {
+        Error::Http(err.without_url().to_string())
     }
 }
 
@@ -558,6 +649,65 @@ mod tests {
                 false,
             )
             .unwrap()
+            .with_backoff(std::time::Duration::ZERO)
+        }
+
+        #[tokio::test]
+        async fn retries_a_release_lookup_github_couldnt_answer() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/release"))
+                .respond_with(ResponseTemplate::new(503))
+                .up_to_n_times(2)
+                .expect(2)
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/release"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "tag_name": "2026.9.1", "body": "", "assets": []
+                })))
+                .mount(&server)
+                .await;
+            let dest = tempfile::tempdir().unwrap();
+            let release = installer(&server, dest.path()).latest().await.unwrap();
+            assert_eq!(release.version.to_string(), "2026.9.1");
+        }
+
+        #[tokio::test]
+        async fn says_when_githubs_rate_limit_was_reached() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/release"))
+                .respond_with(
+                    ResponseTemplate::new(403).insert_header("x-ratelimit-remaining", "0"),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+            let dest = tempfile::tempdir().unwrap();
+            let err = installer(&server, dest.path()).latest().await.unwrap_err();
+            assert!(err.to_string().contains("limit"), "{err}");
+        }
+
+        #[tokio::test]
+        async fn sends_a_token_only_to_the_release_lookup() {
+            let archive = tgz(SCRIPT);
+            let server = server(&archive, &sha(&archive), &sha(SCRIPT), "2026.9.1").await;
+            let dest = tempfile::tempdir().unwrap();
+            let installer = installer(&server, dest.path()).with_token("t0ken".into());
+            let release = installer.latest().await.unwrap();
+            installer.install(&release, |_| {}).await.unwrap();
+            let requests = server.received_requests().await.unwrap();
+            let auth = |p: &str| {
+                requests
+                    .iter()
+                    .find(|r| r.url.path() == p)
+                    .and_then(|r| r.headers.get("authorization").cloned())
+            };
+            assert_eq!(auth("/release").unwrap(), "Bearer t0ken");
+            assert!(auth("/download/cloudflared-darwin-arm64.tgz").is_none());
+            assert!(!format!("{installer:?}").contains("t0ken"));
         }
 
         #[tokio::test]
