@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0](https://github.com/teispace/teitunnel/compare/v0.5.0...v0.6.0) (2026-11-10)
+
+
+### Features
+
+* **ui:** dashboard Overview and Analytics that fill the window, visible loading ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+
+
+### Bug Fixes
+
+* **accounts:** keep Cloudflare sign-ins working across all their accounts ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+* **cloudflared:** retry release requests and stop a stalled download ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+* **deps:** update dependencies with security advisories ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+* **doctor:** list each severity once when local domains have findings ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+* **store:** give pruned inspector history's space back to the disk ([9f15386](https://github.com/teispace/teitunnel/commit/9f15386f72f7082f332997f68e1ef62dbf26c055))
+
 ## [0.5.0](https://github.com/teispace/teitunnel/compare/v0.4.0...v0.5.0) (2026-09-27)
 
 
