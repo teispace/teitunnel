@@ -15,6 +15,20 @@ export const doctorQuery = queryOptions({
   refetchOnWindowFocus: true,
 });
 
+const RANK: Record<Issue["severity"], number> = { error: 0, warning: 1, info: 2 };
+
+/**
+ * Problems first, then warnings, then notes, keeping each source's order within a
+ * severity: the app adds local-domain findings after the Cloudflare ones, and the list
+ * groups by severity, so an unsorted list showed a group twice.
+ */
+export function bySeverity(issues: readonly Issue[]): Issue[] {
+  return issues
+    .map((issue, index) => ({ issue, index }))
+    .sort((a, b) => RANK[a.issue.severity] - RANK[b.issue.severity] || a.index - b.index)
+    .map(({ issue }) => issue);
+}
+
 /**
  * Issues, minus the ones the user ignored (kept in settings, so background Doctor runs
  * don't notify about them either).
@@ -25,7 +39,7 @@ export function useIssues() {
   useMoveLocalIgnores(settings !== undefined);
   const query = useQuery(doctorQuery);
   const all: Issue[] = query.data ?? [];
-  const visible = all.filter((issue) => !ignored.includes(issue.id));
+  const visible = bySeverity(all.filter((issue) => !ignored.includes(issue.id)));
   const hidden = all.filter((issue) => ignored.includes(issue.id)).map((issue) => issue.id);
   return { ...query, issues: visible, ignoredCount: hidden.length, ignoredIds: hidden };
 }
