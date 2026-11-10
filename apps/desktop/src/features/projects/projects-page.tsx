@@ -8,6 +8,7 @@ import { TitlebarToolbar } from "@/components/patterns/titlebar-toolbar";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorAction } from "@/features/accounts";
 import { t } from "@/lib/i18n";
 import type { ProjectPlan } from "@/lib/ipc/bindings";
 import { toIpcError } from "@/lib/ipc/client";
@@ -59,7 +60,7 @@ export function ProjectsPage() {
           title={t("project.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void projects.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={projects.error} onRetry={() => void projects.refetch()} />}
         />
       </>
     );

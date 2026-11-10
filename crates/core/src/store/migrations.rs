@@ -479,6 +479,10 @@ const MIGRATIONS: &[M] = &[
         ALTER TABLE mcp_oauth_grants ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0;
         UPDATE mcp_oauth_grants SET expires_at = created_at + 7776000000;",
     ),
+    // 24: the OAuth sign-in an account came from. One sign-in reaches several accounts
+    // and Cloudflare rotates its refresh token on each refresh, so they share one
+    // refresh token (keychain `cf:<grant>:oauth`). NULL: the account's own (older rows).
+    M::up("ALTER TABLE accounts ADD COLUMN oauth_grant TEXT;"),
 ];
 
 pub(super) fn apply(conn: &mut Connection) -> Result<(), MigrationError> {

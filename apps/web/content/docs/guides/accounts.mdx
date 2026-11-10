@@ -267,19 +267,25 @@ KWallet, installed and unlocked) on Linux. They're stored under the service
 | Item | What it holds |
 |---|---|
 | `cf:<account-id>:apiToken` | An API token |
-| `cf:<account-id>:oauth` | The refresh token of a Cloudflare sign-in |
-| `cf:<account-id>:oauth-access` | The current access token of that sign-in, shared (see below) |
+| `cf:<sign-in>:oauth` | The refresh token of a Cloudflare sign-in, shared by every account it reaches |
+| `cf:<sign-in>:oauth-access` | The current access token of that sign-in, shared (see below) |
 | `cf:<account-id>:certPem` | The login copied from a `cert.pem` |
 
-A token that reaches several accounts is stored once per account, so each account can be
-disconnected on its own. The database only holds each account's id, name and how it was
+An API token that reaches several accounts is stored once per account, so each account can
+be disconnected on its own. A Cloudflare sign-in is stored once for all the accounts it
+reaches (older versions kept an item per account, under its id), and it's revoked when the
+last of them is disconnected. The database only holds each account's id, name and how it was
 connected. Credentials are only ever sent to Cloudflare, and never reach the app's window,
 logs or AI agents. See [Security](/docs/reference/security).
 
-Cloudflare gives a sign-in a new refresh token every time it's used, which would cancel
-the access tokens of any other process that refreshed on its own. So the app, the
-`teitunnel` command and the MCP server for AI agents share one access token through the
-keychain, and only one of them refreshes it at a time.
+Cloudflare gives a sign-in a new refresh token every time it's used, and ends the sign-in
+if an old one is used again. So the accounts a sign-in reaches share one refresh token, and
+the app, the `teitunnel` command and the MCP server for AI agents share one access token
+through the keychain; only one of them refreshes it at a time.
+
+If Cloudflare ends a sign-in anyway (you revoked it in the dashboard, or it wasn't used for
+a long time), its accounts show **Signed out** in **Settings → Accounts** with **Sign In
+Again**. Teitunnel stops asking Cloudflare until you do.
 
 ## From the terminal
 

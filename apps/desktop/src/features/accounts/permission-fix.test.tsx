@@ -15,7 +15,13 @@ const opened: string[] = [];
 const sentTokens: string[] = [];
 
 beforeEach(() => {
-  account = { id: "a1", name: "Personal", credential: "apiToken", limitedZone: null };
+  account = {
+    id: "a1",
+    name: "Personal",
+    credential: "apiToken",
+    limitedZone: null,
+    signedOut: false,
+  };
   accessEdit = "no";
   tunnelsEdit = "yes";
   dnsEdit = "yes";
@@ -88,7 +94,13 @@ describe("PermissionFix", () => {
   });
 
   it("offers a new token for credentials that can't gain the permission", async () => {
-    account = { id: "a1", name: "Personal", credential: "certPem", limitedZone: "z1" };
+    account = {
+      id: "a1",
+      name: "Personal",
+      credential: "certPem",
+      limitedZone: "z1",
+      signedOut: false,
+    };
     const onReady = renderFix();
     expect(
       await screen.findByText(/connected with a login whose permissions can't be changed/),

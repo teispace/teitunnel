@@ -125,6 +125,7 @@ export const errorHelp: Record<string, ErrorHelp> = {
   "core.error.oauth.exchange": retry,
   "core.error.oauth.random": retry,
   "core.error.oauth.noPort": retry,
+  "core.error.oauth.signedOut": fix,
   "core.error.oauth.noOfflineAccess": retry,
   "core.error.oauth.noCode": retry,
   "core.error.quickShare.noFreePort": retry,

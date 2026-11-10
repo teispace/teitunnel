@@ -69,7 +69,9 @@ beforeEach(() => {
     const payload = (args ?? {}) as Record<string, unknown>;
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       case "routes_activity":
         return entries;
       case "routes_overview":

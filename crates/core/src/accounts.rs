@@ -1,9 +1,14 @@
 //! Cloudflare accounts: which credentials Teitunnel holds and for which accounts.
 //!
 //! SQLite keeps only metadata (id, name, credential kind). The credential itself goes
-//! to the keychain under `cf:<account-id>:<kind>` (ARCHITECTURE §6). A token that
+//! to the keychain under `cf:<account-id>:<kind>` (ARCHITECTURE §6). An API token that
 //! reaches several accounts is stored once per account, so each account can be removed
 //! on its own and removal provably deletes everything for it.
+//!
+//! An OAuth sign-in is different: Cloudflare rotates its refresh token on every refresh
+//! and refuses the old one (revoking the whole sign-in when it's reused), so the
+//! accounts a sign-in reaches share one refresh token, `cf:<grant>:oauth`, and it goes
+//! (revoked) with the last of them.
 
 pub mod capabilities;
 mod cert;
@@ -103,6 +108,10 @@ pub struct Account {
     pub credential: CredentialKind,
     /// For cert.pem credentials: the only zone the credential works for.
     pub limited_zone: Option<String>,
+    /// Its OAuth sign-in ended (Cloudflare refused the refresh token): only signing in
+    /// again brings it back.
+    #[serde(default)]
+    pub signed_out: bool,
 }
 
 /// Errors from account operations. Messages are shown to the user.
@@ -173,7 +182,7 @@ impl HeldAccess {
     }
 }
 
-/// Access tokens this process holds, by account.
+/// Access tokens this process holds, by OAuth grant.
 type AccessCache = HashMap<String, HeldAccess>;
 
 /// Keychain values this process read or wrote recently, by key, with when.
@@ -182,6 +191,10 @@ type RecentSecrets = HashMap<String, (Secret<String>, Instant)>;
 /// How long a credential read from the keychain is used before it's read again (another
 /// process may have replaced or removed it). Refreshing always reads it afresh.
 const RECHECK: Duration = Duration::from_secs(60);
+
+/// How long a permission check is reused by background work. Permissions rarely change,
+/// and the person's own "check again" (and every sign-in) checks afresh.
+const CHECKED_FOR: Duration = Duration::from_secs(15 * 60);
 
 /// A newly issued access token, marked with the refresh token it goes with.
 fn held(
@@ -200,9 +213,21 @@ fn held(
 }
 
 /// Where the shared access token is kept.
-fn shared_access_key(account: &str) -> String {
-    format!("cf:{account}:oauth-access")
+fn shared_access_key(grant: &str) -> String {
+    format!("cf:{grant}:oauth-access")
 }
+
+/// A new OAuth grant id: `g` and 16 random hex digits (never an account id, which is 32).
+fn new_grant() -> Result<String, AccountError> {
+    let mut bytes = [0u8; 8];
+    getrandom::fill(&mut bytes).map_err(|_| oauth::OAuthError::Random)?;
+    Ok(std::iter::once("g".to_owned())
+        .chain(bytes.iter().map(|b| format!("{b:02x}")))
+        .collect())
+}
+
+/// The grant an account's OAuth credential is under: its own id for older rows.
+const GRANT: &str = "coalesce(oauth_grant, id)";
 
 /// A short hash identifying a refresh token (never the token itself).
 fn fingerprint(token: &Secret<String>) -> String {
@@ -228,6 +253,12 @@ pub struct Accounts {
     oauth: Option<oauth::OAuthConfig>,
     http: reqwest::Client,
     access: Arc<tokio::sync::Mutex<AccessCache>>,
+    /// Grants whose refresh token Cloudflare refused, with that token's hash: they wait
+    /// for a new sign-in instead of asking Cloudflare again on every call.
+    signed_out: Arc<std::sync::Mutex<HashMap<String, String>>>,
+    /// The last permission check of each account, with when: background checks reuse it
+    /// instead of sending a dozen probes per account (and per domain) each time.
+    checked: Arc<std::sync::Mutex<HashMap<String, (Instant, capabilities::Capabilities)>>>,
     /// So API calls don't each read the keychain (slow, and a prompt for an item this
     /// program isn't trusted with yet).
     recent: Arc<std::sync::Mutex<RecentSecrets>>,
@@ -264,6 +295,8 @@ impl Accounts {
             oauth,
             http: reqwest::Client::new(),
             access: Arc::default(),
+            signed_out: Arc::default(),
+            checked: Arc::default(),
             recent: Arc::default(),
         }
     }
@@ -290,25 +323,33 @@ impl Accounts {
     /// # Errors
     /// The database failed.
     pub async fn list(&self) -> Result<Vec<Account>, AccountError> {
-        Ok(self
+        let rows = self
             .store
             .call(|conn| {
-                let mut stmt = conn.prepare(
-                    "SELECT id, name, credential, limited_zone FROM accounts ORDER BY name COLLATE NOCASE",
-                )?;
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT id, name, credential, limited_zone, {GRANT} FROM accounts ORDER BY name COLLATE NOCASE"
+                ))?;
                 let rows = stmt.query_map([], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?))
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, String>(4)?))
                 })?;
-                let mut accounts = Vec::new();
-                for row in rows {
-                    let (id, name, credential, limited_zone) = row?;
-                    if let Some(credential) = CredentialKind::parse(&credential) {
-                        accounts.push(Account { id, name, credential, limited_zone });
-                    }
-                }
-                Ok(accounts)
+                Ok(rows.collect::<Result<Vec<_>, _>>()?)
             })
-            .await?)
+            .await?;
+        let signed_out = self.signed_out_lock();
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, name, credential, limited_zone, grant)| {
+                let credential = CredentialKind::parse(&credential)?;
+                Some(Account {
+                    signed_out: credential == CredentialKind::OAuth
+                        && signed_out.contains_key(&grant),
+                    id,
+                    name,
+                    credential,
+                    limited_zone,
+                })
+            })
+            .collect())
     }
 
     /// Verifies an API token and connects every account it can reach.
@@ -330,8 +371,12 @@ impl Accounts {
             return Err(AccountError::InvalidToken);
         }
         let reachable = reachable_accounts(&client).await?;
-        self.save_all(reachable, CredentialKind::ApiToken, &token)
-            .await
+        let before = self.grants_of(&reachable).await?;
+        let added = self
+            .save_all(reachable, CredentialKind::ApiToken, &token)
+            .await?;
+        self.forget_unused_grants(before).await;
+        Ok(added)
     }
 
     async fn save_all(
@@ -347,6 +392,7 @@ impl Accounts {
                 name,
                 credential,
                 limited_zone: None,
+                signed_out: false,
             };
             self.save(&account, secret).await?;
             added.push(account);
@@ -366,16 +412,113 @@ impl Accounts {
             .ok_or_else(|| AccountError::OAuth(oauth::OAuthError::NoOfflineAccess))?;
         let client = self.client_with(&tokens.access_token)?;
         let reachable = reachable_accounts(&client).await?;
-        let added = self
-            .save_all(reachable, CredentialKind::OAuth, &refresh)
+        let before = self.grants_of(&reachable).await?;
+        // One refresh token for every account the sign-in reaches.
+        let grant = new_grant()?;
+        self.write(secret_key(&grant, CredentialKind::OAuth), refresh.clone())
             .await?;
-        let held = held(&tokens.access_token, tokens.expires_in, &refresh);
-        let mut cache = self.access.lock().await;
-        for account in &added {
-            self.share(&account.id, &held).await;
-            cache.insert(account.id.clone(), held.clone());
+        let mut added = Vec::new();
+        for (id, name) in reachable {
+            let account = Account {
+                id,
+                name,
+                credential: CredentialKind::OAuth,
+                limited_zone: None,
+                signed_out: false,
+            };
+            self.save_row(&account, Some(&grant)).await?;
+            added.push(account);
         }
+        let held = held(&tokens.access_token, tokens.expires_in, &refresh);
+        self.share(&grant, &held).await;
+        self.access.lock().await.insert(grant, held);
+        // The sign-ins these accounts had before, unless another account still uses one.
+        self.forget_unused_grants(before).await;
         Ok(added)
+    }
+
+    /// The grant each of these accounts is under now (connected ones only).
+    async fn grants_of(&self, accounts: &[(String, String)]) -> Result<Vec<String>, AccountError> {
+        let ids: Vec<String> = accounts.iter().map(|(id, _)| id.clone()).collect();
+        Ok(self
+            .store
+            .call(move |conn| {
+                let mut stmt = conn.prepare(&format!(
+                    "SELECT {GRANT} FROM accounts WHERE id = ?1 AND credential = 'oauth'"
+                ))?;
+                let mut grants = Vec::new();
+                for id in ids {
+                    if let Ok(grant) = stmt.query_row(params![id], |row| row.get::<_, String>(0)) {
+                        grants.push(grant);
+                    }
+                }
+                Ok(grants)
+            })
+            .await?)
+    }
+
+    /// The grant an OAuth account's refresh token is under.
+    async fn grant(&self, account_id: &str) -> String {
+        let id = account_id.to_owned();
+        self.store
+            .call(move |conn| {
+                Ok(conn.query_row(
+                    &format!("SELECT {GRANT} FROM accounts WHERE id = ?1"),
+                    params![id],
+                    |row| row.get::<_, String>(0),
+                )?)
+            })
+            .await
+            .unwrap_or_else(|_| account_id.to_owned())
+    }
+
+    /// Revokes and deletes the refresh tokens of these grants that no OAuth account uses
+    /// any more (best effort: a failure leaves an unused keychain item).
+    async fn forget_unused_grants(&self, grants: Vec<String>) {
+        for grant in grants {
+            let check = grant.clone();
+            let used = self
+                .store
+                .call(move |conn| {
+                    Ok(conn.query_row(
+                        &format!(
+                            "SELECT count(*) FROM accounts WHERE credential = 'oauth' AND {GRANT} = ?1"
+                        ),
+                        params![check],
+                        |row| row.get::<_, i64>(0),
+                    )?)
+                })
+                .await
+                .map_or(true, |count| count > 0);
+            if used {
+                continue;
+            }
+            let key = secret_key(&grant, CredentialKind::OAuth);
+            if let (Some(config), Ok(refresh)) = (&self.oauth, self.secret(key.clone()).await) {
+                oauth::revoke(&self.http, config, &refresh).await;
+            }
+            self.access.lock().await.remove(&grant);
+            self.signed_out_lock().remove(&grant);
+            let keys = vec![key, shared_access_key(&grant)];
+            {
+                let mut recent = self.recent_lock();
+                for key in &keys {
+                    recent.remove(key);
+                }
+            }
+            let secrets = Arc::clone(&self.secrets);
+            if let Err(err) =
+                spawn_blocking(move || keys.iter().try_for_each(|key| secrets.delete(key))).await
+            {
+                tracing::warn!(%err, "couldn't delete an unused sign-in");
+            }
+        }
+    }
+
+    fn signed_out_lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
+        self.signed_out
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// A valid OAuth access token for `account_id`, refreshed at 80% of its lifetime.
@@ -383,27 +526,33 @@ impl Accounts {
     /// through the keychain, so one refresh serves every Teitunnel process and none
     /// invalidates another's token.
     async fn access_token(&self, account_id: &str) -> Result<Secret<String>, AccountError> {
+        let grant = self.grant(account_id).await;
+        let grant = grant.as_str();
         let mut cache = self.access.lock().await;
-        let key = secret_key(account_id, CredentialKind::OAuth);
+        let key = secret_key(grant, CredentialKind::OAuth);
         // The current refresh token's hash, from the database every process updates when
         // it refreshes: no keychain read per call.
-        let current = match self.token_source(account_id).await {
+        let current = match self.token_source(grant).await {
             Some(source) => source,
             None => fingerprint(&self.remembered(&key).await?),
         };
         let usable =
             |held: &HeldAccess, source: &str| held.source == source && held.fresh(now_ms());
-        if let Some(held) = cache.get(account_id).filter(|h| usable(h, &current)) {
+        if let Some(held) = cache.get(grant).filter(|h| usable(h, &current)) {
             return Ok(Secret::new(held.access.clone()));
         }
         // Refreshing: read the refresh token afresh, another process may have rotated it.
-        let refresh = self.secret(key).await?;
+        let refresh = self.secret(key.clone()).await?;
         let source = fingerprint(&refresh);
         let usable = |held: &HeldAccess| usable(held, &source);
         // Another process may have refreshed already.
-        if let Some(held) = self.shared(account_id).await.filter(|h| usable(h)) {
-            cache.insert(account_id.to_owned(), held.clone());
+        if let Some(held) = self.shared(grant).await.filter(|h| usable(h)) {
+            cache.insert(grant.to_owned(), held.clone());
             return Ok(Secret::new(held.access));
+        }
+        // Cloudflare already refused this refresh token: asking again won't help.
+        if self.signed_out_lock().get(grant) == Some(&source) {
+            return Err(oauth::OAuthError::SignedOut.into());
         }
         let config = self.oauth.clone().ok_or(AccountError::NotFound)?;
         let tokens = match oauth::refresh(&self.http, &config, &refresh).await {
@@ -411,25 +560,36 @@ impl Accounts {
             Err(err) => {
                 // Refreshed by another process at the same moment: the refresh token we
                 // sent was rotated. Use what that process stored.
-                return match self.refreshed_elsewhere(account_id, &source).await {
+                return match self.refreshed_elsewhere(grant, &source).await {
                     Some(held) => {
-                        cache.insert(account_id.to_owned(), held.clone());
+                        cache.insert(grant.to_owned(), held.clone());
                         Ok(Secret::new(held.access))
                     }
-                    None => Err(err.into()),
+                    None => {
+                        if matches!(err, oauth::OAuthError::SignedOut) {
+                            tracing::warn!(
+                                "Cloudflare ended an OAuth sign-in; waiting for a new one"
+                            );
+                            self.signed_out_lock().insert(grant.to_owned(), source);
+                        }
+                        Err(err.into())
+                    }
                 };
             }
         };
         let current = tokens.refresh_token.unwrap_or(refresh);
-        self.write(
-            secret_key(account_id, CredentialKind::OAuth),
-            current.clone(),
-        )
-        .await?;
+        self.write(key, current.clone()).await?;
         let held = held(&tokens.access_token, tokens.expires_in, &current);
-        self.share(account_id, &held).await;
-        cache.insert(account_id.to_owned(), held);
+        self.share(grant, &held).await;
+        cache.insert(grant.to_owned(), held);
         Ok(tokens.access_token)
+    }
+
+    /// Whether an OAuth account's sign-in ended (Cloudflare refused its refresh token),
+    /// as far as this process knows.
+    pub async fn signed_out(&self, account_id: &str) -> bool {
+        let grant = self.grant(account_id).await;
+        self.signed_out_lock().contains_key(&grant)
     }
 
     /// A keychain item as last read or written, if that was within [`RECHECK`].
@@ -479,30 +639,30 @@ impl Accounts {
     }
 
     /// The access token another process shared, if any.
-    async fn shared(&self, account_id: &str) -> Option<HeldAccess> {
-        let raw = self.secret(shared_access_key(account_id)).await.ok()?;
+    async fn shared(&self, grant: &str) -> Option<HeldAccess> {
+        let raw = self.secret(shared_access_key(grant)).await.ok()?;
         serde_json::from_str(raw.expose()).ok()
     }
 
     /// Shares a new access token with the other processes (best effort: without it
     /// they refresh on their own).
-    async fn share(&self, account_id: &str, held: &HeldAccess) {
+    async fn share(&self, grant: &str, held: &HeldAccess) {
         let Ok(json) = serde_json::to_string(held) else {
             return;
         };
         if let Err(err) = self
-            .write(shared_access_key(account_id), Secret::new(json))
+            .write(shared_access_key(grant), Secret::new(json))
             .await
         {
             tracing::warn!(%err, "couldn't share the access token");
         }
-        let (id, source) = (account_id.to_owned(), held.source.clone());
+        let (grant, source) = (grant.to_owned(), held.source.clone());
         if let Err(err) = self
             .store
             .call(move |conn| {
                 Ok(conn.execute(
-                    "UPDATE accounts SET token_source = ?2 WHERE id = ?1",
-                    params![id, source],
+                    &format!("UPDATE accounts SET token_source = ?2 WHERE {GRANT} = ?1"),
+                    params![grant, source],
                 )?)
             })
             .await
@@ -512,13 +672,13 @@ impl Accounts {
     }
 
     /// The hash of the refresh token the shared access token came from, as last recorded.
-    async fn token_source(&self, account_id: &str) -> Option<String> {
-        let id = account_id.to_owned();
+    async fn token_source(&self, grant: &str) -> Option<String> {
+        let grant = grant.to_owned();
         self.store
             .call(move |conn| {
                 Ok(conn.query_row(
-                    "SELECT token_source FROM accounts WHERE id = ?1",
-                    params![id],
+                    &format!("SELECT token_source FROM accounts WHERE {GRANT} = ?1 LIMIT 1"),
+                    params![grant],
                     |row| row.get::<_, Option<String>>(0),
                 )?)
             })
@@ -529,15 +689,15 @@ impl Accounts {
 
     /// After a failed refresh: the token another process got with a newer refresh token
     /// (waiting briefly for it to be stored).
-    async fn refreshed_elsewhere(&self, account_id: &str, stale: &str) -> Option<HeldAccess> {
+    async fn refreshed_elsewhere(&self, grant: &str, stale: &str) -> Option<HeldAccess> {
         for _ in 0..5 {
             let refresh = self
-                .secret(secret_key(account_id, CredentialKind::OAuth))
+                .secret(secret_key(grant, CredentialKind::OAuth))
                 .await
                 .ok()?;
             let source = fingerprint(&refresh);
             if source != stale
-                && let Some(held) = self.shared(account_id).await
+                && let Some(held) = self.shared(grant).await
                 && held.source == source
                 && held.fresh(now_ms())
             {
@@ -573,6 +733,7 @@ impl Accounts {
             name,
             credential: CredentialKind::CertPem,
             limited_zone: Some(cert.zone_id.clone()),
+            signed_out: false,
         };
         self.save(&account, &cert.api_token).await?;
         Ok(account)
@@ -581,23 +742,32 @@ impl Accounts {
     async fn save(&self, account: &Account, secret: &Secret<String>) -> Result<(), AccountError> {
         self.write(secret_key(&account.id, account.credential), secret.clone())
             .await?;
+        self.save_row(account, None).await
+    }
+
+    /// Records an account (an OAuth one with its grant).
+    async fn save_row(&self, account: &Account, grant: Option<&str>) -> Result<(), AccountError> {
+        self.checked_lock().remove(&account.id);
         let row = account.clone();
+        let grant = grant.map(str::to_owned);
         let added_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         self.store
             .call(move |conn| {
                 conn.execute(
-                    "INSERT INTO accounts (id, name, credential, limited_zone, added_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)
+                    "INSERT INTO accounts (id, name, credential, limited_zone, added_at, oauth_grant)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                      ON CONFLICT(id) DO UPDATE SET name = excluded.name,
-                        credential = excluded.credential, limited_zone = excluded.limited_zone",
+                        credential = excluded.credential, limited_zone = excluded.limited_zone,
+                        oauth_grant = excluded.oauth_grant, token_source = NULL",
                     params![
                         row.id,
                         row.name,
                         row.credential.as_str(),
                         row.limited_zone,
-                        i64::try_from(added_at).unwrap_or(i64::MAX)
+                        i64::try_from(added_at).unwrap_or(i64::MAX),
+                        grant
                     ],
                 )?;
                 Ok(())
@@ -606,34 +776,19 @@ impl Accounts {
         Ok(())
     }
 
-    /// Disconnects an account and deletes every credential stored for it (OAuth grants
-    /// are revoked first, best effort).
+    /// Disconnects an account and deletes every credential stored for it. Its OAuth
+    /// sign-in is revoked (best effort) once no other account uses it.
     ///
     /// # Errors
     /// [`AccountError::NotFound`], or keychain/database failures.
     pub async fn remove(&self, account_id: &str) -> Result<(), AccountError> {
-        if let Some(config) = &self.oauth {
-            let secrets = Arc::clone(&self.secrets);
-            let key = secret_key(account_id, CredentialKind::OAuth);
-            if let Ok(Some(refresh)) = spawn_blocking(move || secrets.get(&key)).await {
-                oauth::revoke(&self.http, config, &refresh).await;
-            }
-        }
-        self.access.lock().await.remove(account_id);
+        let grant = self.grant(account_id).await;
         let id = account_id.to_owned();
-        let secrets = Arc::clone(&self.secrets);
         let keys: Vec<String> = CredentialKind::ALL
             .iter()
             .map(|kind| secret_key(&id, *kind))
             .chain(std::iter::once(shared_access_key(&id)))
             .collect();
-        {
-            let mut recent = self.recent_lock();
-            for key in &keys {
-                recent.remove(key);
-            }
-        }
-        spawn_blocking(move || keys.iter().try_for_each(|key| secrets.delete(key))).await?;
         let removed = self
             .store
             .call(move |conn| {
@@ -650,11 +805,21 @@ impl Accounts {
                 Ok(removed)
             })
             .await?;
-        if removed == 0 {
-            Err(AccountError::NotFound)
-        } else {
-            Ok(())
+        self.checked_lock().remove(account_id);
+        // Before its own items go: an older account's sign-in is stored under its id.
+        self.forget_unused_grants(vec![grant]).await;
+        {
+            let mut recent = self.recent_lock();
+            for key in &keys {
+                recent.remove(key);
+            }
         }
+        let secrets = Arc::clone(&self.secrets);
+        spawn_blocking(move || keys.iter().try_for_each(|key| secrets.delete(key))).await?;
+        if removed == 0 {
+            return Err(AccountError::NotFound);
+        }
+        Ok(())
     }
 
     /// Probes what the account's credential can do (read-only, no side effects).
@@ -672,7 +837,38 @@ impl Accounts {
             .find(|a| a.id == account_id)
             .ok_or(AccountError::NotFound)?;
         let client = self.client(account_id).await?;
-        Ok(capabilities::probe(&client, account_id, account.limited_zone.as_deref()).await)
+        let found = capabilities::probe(&client, account_id, account.limited_zone.as_deref()).await;
+        self.checked_lock()
+            .insert(account_id.to_owned(), (Instant::now(), found.clone()));
+        Ok(found)
+    }
+
+    /// What the account's credential can do, as checked within [`CHECKED_FOR`] (checked
+    /// now otherwise). For background work; [`Self::capabilities`] always checks.
+    ///
+    /// # Errors
+    /// As [`Self::capabilities`].
+    pub async fn capabilities_recent(
+        &self,
+        account_id: &str,
+    ) -> Result<capabilities::Capabilities, AccountError> {
+        let recent = self
+            .checked_lock()
+            .get(account_id)
+            .filter(|(at, _)| at.elapsed() < CHECKED_FOR)
+            .map(|(_, found)| found.clone());
+        match recent {
+            Some(found) => Ok(found),
+            None => self.capabilities(account_id).await,
+        }
+    }
+
+    fn checked_lock(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<String, (Instant, capabilities::Capabilities)>> {
+        self.checked
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Domains in an account, by name. One-zone credentials see only their zone.
@@ -801,10 +997,16 @@ mod tests {
         }
     }
 
+    /// Where an account's OAuth refresh token is kept.
+    async fn refresh_key(accounts: &Accounts, account: &str) -> String {
+        secret_key(&accounts.grant(account).await, CredentialKind::OAuth)
+    }
+
     /// Makes the held access token (in this process and the shared one) stale.
     async fn expire(accounts: &Accounts, secrets: &MemoryStore, account: &str) {
+        let grant = accounts.grant(account).await;
         let refresh = secrets
-            .get(&format!("cf:{account}:oauth"))
+            .get(&secret_key(&grant, CredentialKind::OAuth))
             .unwrap()
             .unwrap();
         let stale = HeldAccess {
@@ -817,8 +1019,8 @@ mod tests {
             .access
             .lock()
             .await
-            .insert(account.into(), stale.clone());
-        accounts.share(account, &stale).await;
+            .insert(grant.clone(), stale.clone());
+        accounts.share(&grant, &stale).await;
     }
 
     #[tokio::test]
@@ -885,16 +1087,18 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
+        let key = refresh_key(&app, "a1").await;
+        let grant = app.grant("a1").await;
         let other = async {
             tokio::time::sleep(std::time::Duration::from_millis(150)).await;
             let winner = Secret::new("refresh-2".to_owned());
-            secrets.set("cf:a1:oauth", &winner).unwrap();
+            secrets.set(&key, &winner).unwrap();
             let theirs = held(
                 &Secret::new("access-2".into()),
                 std::time::Duration::from_secs(3600),
                 &winner,
             );
-            app.share("a1", &theirs).await;
+            app.share(&grant, &theirs).await;
         };
         let (ours, ()) = tokio::join!(app.access_token("a1"), other);
         assert_eq!(ours.unwrap().expose(), "access-2");
@@ -940,11 +1144,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(added[0].credential, CredentialKind::OAuth);
-        assert_eq!(secrets.keys(), ["cf:a1:oauth", "cf:a1:oauth-access"]);
-        assert_eq!(
-            secrets.get("cf:a1:oauth").unwrap().unwrap().expose(),
-            "refresh-1"
-        );
+        let grant = accounts.grant("a1").await;
+        let key = secret_key(&grant, CredentialKind::OAuth);
+        assert_eq!(secrets.keys(), [key.clone(), shared_access_key(&grant)]);
+        assert_eq!(secrets.get(&key).unwrap().unwrap().expose(), "refresh-1");
 
         // Fresh access token: no refresh needed.
         assert!(accounts.client("a1").await.is_ok());
@@ -967,10 +1170,7 @@ mod tests {
             "access-2",
             "single-flight: one refresh"
         );
-        assert_eq!(
-            secrets.get("cf:a1:oauth").unwrap().unwrap().expose(),
-            "refresh-2"
-        );
+        assert_eq!(secrets.get(&key).unwrap().unwrap().expose(), "refresh-2");
 
         Mock::given(path("/oauth2/revoke"))
             .respond_with(ResponseTemplate::new(200))
@@ -979,6 +1179,180 @@ mod tests {
             .await;
         accounts.remove("a1").await.unwrap();
         assert!(secrets.keys().is_empty());
+    }
+
+    /// One sign-in that reaches two accounts.
+    async fn two_accounts_one_sign_in() -> (MockServer, Accounts, MemoryStore) {
+        let (server, accounts, secrets) = setup().await;
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(serde_json::json!([
+                {"id": "a1", "name": "Personal"}, {"id": "a2", "name": "Work"}
+            ])))
+            .mount(&server)
+            .await;
+        accounts
+            .add_oauth(tokens("access-1", Some("refresh-1"), 3600))
+            .await
+            .unwrap();
+        (server, accounts, secrets)
+    }
+
+    #[tokio::test]
+    async fn accounts_from_one_sign_in_share_its_rotating_refresh_token() {
+        let (server, accounts, secrets) = two_accounts_one_sign_in().await;
+        assert_eq!(accounts.grant("a1").await, accounts.grant("a2").await);
+        // One refresh token in the keychain, not a copy per account that the first
+        // refresh would leave stale (and Cloudflare would refuse, ending the sign-in).
+        assert_eq!(secrets.keys().len(), 2, "{:?}", secrets.keys());
+
+        expire(&accounts, &secrets, "a1").await;
+        Mock::given(path("/oauth2/token"))
+            .and(body_string_contains("refresh_token=refresh-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "access-2", "refresh_token": "refresh-2", "expires_in": 3600
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        assert_eq!(
+            accounts.access_token("a1").await.unwrap().expose(),
+            "access-2"
+        );
+        // The other account uses the same new token: no second refresh with refresh-1.
+        assert_eq!(
+            accounts.access_token("a2").await.unwrap().expose(),
+            "access-2"
+        );
+        assert_eq!(
+            secrets
+                .get(&refresh_key(&accounts, "a2").await)
+                .unwrap()
+                .unwrap()
+                .expose(),
+            "refresh-2"
+        );
+    }
+
+    #[tokio::test]
+    async fn disconnecting_one_account_keeps_the_others_signed_in() {
+        let (server, accounts, secrets) = two_accounts_one_sign_in().await;
+        Mock::given(path("/oauth2/revoke"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        accounts.remove("a1").await.unwrap();
+        // Not revoked: Work still uses it.
+        assert_eq!(
+            accounts.access_token("a2").await.unwrap().expose(),
+            "access-1"
+        );
+        assert_eq!(secrets.keys().len(), 2);
+        // The last one revokes it (the one expected call) and deletes it.
+        accounts.remove("a2").await.unwrap();
+        assert!(secrets.keys().is_empty(), "{:?}", secrets.keys());
+    }
+
+    #[tokio::test]
+    async fn an_ended_sign_in_isnt_retried_until_signing_in_again() {
+        let (server, accounts, secrets) = two_accounts_one_sign_in().await;
+        expire(&accounts, &secrets, "a1").await;
+        Mock::given(path("/oauth2/token"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalid_grant", "error_description": "The refresh token is malformed or not valid."
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        for account in ["a1", "a2", "a1"] {
+            assert!(matches!(
+                accounts.access_token(account).await,
+                Err(AccountError::OAuth(oauth::OAuthError::SignedOut))
+            ));
+        }
+        assert!(accounts.signed_out("a2").await);
+        assert!(accounts.list().await.unwrap().iter().all(|a| a.signed_out));
+
+        // Signing in again works at once.
+        accounts
+            .add_oauth(tokens("access-3", Some("refresh-3"), 3600))
+            .await
+            .unwrap();
+        assert!(!accounts.signed_out("a1").await);
+        assert_eq!(
+            accounts.access_token("a2").await.unwrap().expose(),
+            "access-3"
+        );
+        assert_eq!(secrets.keys().len(), 2, "the ended sign-in is deleted");
+    }
+
+    #[tokio::test]
+    async fn signing_in_again_moves_older_accounts_to_one_shared_token() {
+        let (server, accounts, secrets) = setup().await;
+        // As an earlier version stored them: a copy per account under its own id.
+        for (id, name) in [("a1", "Personal"), ("a2", "Work")] {
+            let account = Account {
+                id: id.into(),
+                name: name.into(),
+                credential: CredentialKind::OAuth,
+                limited_zone: None,
+                signed_out: false,
+            };
+            accounts.save_row(&account, None).await.unwrap();
+            secrets
+                .set(&format!("cf:{id}:oauth"), &Secret::new("old".into()))
+                .unwrap();
+        }
+        assert_eq!(accounts.grant("a1").await, "a1");
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(serde_json::json!([
+                {"id": "a1", "name": "Personal"}, {"id": "a2", "name": "Work"}
+            ])))
+            .mount(&server)
+            .await;
+        Mock::given(path("/oauth2/revoke"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(2)
+            .mount(&server)
+            .await;
+        accounts
+            .add_oauth(tokens("access-1", Some("refresh-1"), 3600))
+            .await
+            .unwrap();
+        let grant = accounts.grant("a1").await;
+        assert!(grant.starts_with('g'));
+        assert_eq!(accounts.grant("a2").await, grant);
+        let mut expected = vec![
+            secret_key(&grant, CredentialKind::OAuth),
+            shared_access_key(&grant),
+        ];
+        expected.sort();
+        assert_eq!(secrets.keys(), expected);
+    }
+
+    #[tokio::test]
+    async fn background_checks_reuse_a_recent_permission_check() {
+        let (server, accounts, _) = setup().await;
+        mount_verify(&server, true).await;
+        Mock::given(path("/accounts"))
+            .respond_with(envelope(
+                serde_json::json!([{"id": "a1", "name": "Personal"}]),
+            ))
+            .mount(&server)
+            .await;
+        accounts.add_token(Secret::new("tok".into())).await.unwrap();
+        Mock::given(path("/accounts/a1/cfd_tunnel"))
+            .respond_with(envelope(serde_json::json!([])))
+            .expect(2)
+            .mount(&server)
+            .await;
+        // A background check probes once, then reuses it.
+        for _ in 0..3 {
+            accounts.capabilities_recent("a1").await.unwrap();
+        }
+        // The person's own check always asks Cloudflare.
+        accounts.capabilities("a1").await.unwrap();
+        accounts.capabilities_recent("a1").await.unwrap();
     }
 
     #[tokio::test]

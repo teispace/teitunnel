@@ -12,6 +12,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TextArea } from "@/components/ui/text-area";
+import { ErrorAction } from "@/features/accounts";
 import { relativeTime } from "@/lib/format";
 import { type MessageKey, t } from "@/lib/i18n";
 import type { SubjectKind, SubjectView, Thread_Serialize as Thread } from "@/lib/ipc/bindings";
@@ -160,7 +161,7 @@ function Threads({ subject }: { subject: SubjectView }) {
         title={t("comments.loadFailed")}
         message={error.message}
         hint={error.hint}
-        action={<Button onClick={() => void threads.refetch()}>{t("common.tryAgain")}</Button>}
+        action={<ErrorAction error={threads.error} onRetry={() => void threads.refetch()} />}
       />
     );
   }
@@ -246,7 +247,7 @@ export function CommentsPage({ subject: requested }: { subject?: string | undefi
           title={t("comments.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void subjects.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={subjects.error} onRetry={() => void subjects.refetch()} />}
         />
       </>
     );

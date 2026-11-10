@@ -31,7 +31,15 @@ beforeEach(() => {
             field: "credential",
           };
         }
-        accounts = [{ id: "a1", name: "Personal", credential: "apiToken", limitedZone: null }];
+        accounts = [
+          {
+            id: "a1",
+            name: "Personal",
+            credential: "apiToken",
+            limitedZone: null,
+            signedOut: false,
+          },
+        ];
         return accounts;
       }
       case "accounts_remove":
@@ -60,6 +68,19 @@ function renderPane() {
 }
 
 describe("Accounts", () => {
+  it("says when a sign-in ended and offers to sign in again", async () => {
+    accounts = [
+      { id: "a1", name: "Personal", credential: "oauth", limitedZone: null, signedOut: true },
+      { id: "a2", name: "Work", credential: "oauth", limitedZone: null, signedOut: false },
+    ];
+    renderPane();
+    expect(await screen.findByText("Signed out")).toBeTruthy();
+    expect(screen.getAllByText("Signed out")).toHaveLength(1);
+    expect(screen.getByText(/^Cloudflare ended this sign-in\./)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Sign In Again/ }));
+    expect(await screen.findByRole("dialog", { name: "Connect Cloudflare" })).toBeTruthy();
+  });
+
   it("rejects a bad token inline, then connects with a good one", async () => {
     renderPane();
     fireEvent.click(await screen.findByRole("button", { name: /Connect an Account/ }));
@@ -79,7 +100,9 @@ describe("Accounts", () => {
   });
 
   it("disconnects after confirmation", async () => {
-    accounts = [{ id: "a1", name: "Personal", credential: "certPem", limitedZone: "z1" }];
+    accounts = [
+      { id: "a1", name: "Personal", credential: "certPem", limitedZone: "z1", signedOut: false },
+    ];
     renderPane();
     expect(await screen.findByText("cloudflared login · one domain only")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));

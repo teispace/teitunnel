@@ -70,7 +70,15 @@ beforeEach(() => {
     calls.push({ cmd, args: payload });
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "a1", name: "Personal", credential: "apiToken", limitedZone: null }];
+        return [
+          {
+            id: "a1",
+            name: "Personal",
+            credential: "apiToken",
+            limitedZone: null,
+            signedOut: false,
+          },
+        ];
       case "accounts_capabilities":
         return {
           zonesRead: "yes",

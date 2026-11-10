@@ -159,6 +159,7 @@ fn account() -> Account {
         name: "Personal".into(),
         credential: CredentialKind::ApiToken,
         limited_zone: None,
+        signed_out: false,
     }
 }
 

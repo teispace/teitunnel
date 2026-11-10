@@ -1,6 +1,7 @@
-import { Plus } from "lucide-react";
+import { LogIn, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { GroupedRow, GroupedSection, SkeletonSection } from "@/components/patterns/grouped-list";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { t } from "@/lib/i18n";
@@ -50,13 +51,31 @@ export function AccountsPane() {
         <div key={account.id} className="flex flex-col gap-1 py-2">
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-body">{account.name}</div>
-              <div className="text-callout text-secondary">{credentialLabel(account)}</div>
+              <div className="flex items-center gap-2">
+                <span className="truncate text-body">{account.name}</span>
+                {account.signedOut ? <Badge tone="warning">{t("accounts.signedOut")}</Badge> : null}
+              </div>
+              <div className="text-callout text-secondary">
+                {account.signedOut ? t("accounts.signedOutDetail") : credentialLabel(account)}
+              </div>
             </div>
+            {account.signedOut ? (
+              <ConnectSheet
+                trigger={
+                  <Button size="sm" variant="primary">
+                    <LogIn /> {t("accounts.signInAgain")}
+                  </Button>
+                }
+              />
+            ) : null}
             <RemoveButton account={account} />
           </div>
           <Disclosure
-            title={<span className="text-callout font-normal text-secondary">Permissions</span>}
+            title={
+              <span className="text-callout font-normal text-secondary">
+                {t("accounts.permissions")}
+              </span>
+            }
           >
             <CapabilityList accountId={account.id} />
           </Disclosure>
@@ -66,7 +85,7 @@ export function AccountsPane() {
         <ConnectSheet
           trigger={
             <Button size="sm">
-              <Plus /> Connect an Account
+              <Plus /> {t("accounts.connect")}
             </Button>
           }
         />

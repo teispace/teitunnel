@@ -43,7 +43,9 @@ beforeEach(() => {
     asked.push({ cmd, range: payload["range"] as AnalyticsRange });
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       case "routes_overview":
         return {
           tunnel: null,

@@ -19,6 +19,7 @@ import {
   CapabilityList,
   ConnectSheet,
   credentialLabel,
+  ErrorAction,
   useAccounts,
   useActiveAccount,
   useDomains,
@@ -142,7 +143,7 @@ export function DomainsPage() {
           title={t("domains.loadFailed")}
           message={toIpcError(domains.error).message}
           hint={toIpcError(domains.error).hint}
-          action={<Button onClick={() => void domains.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={domains.error} onRetry={() => void domains.refetch()} />}
         />
       ) : (
         <SplitView

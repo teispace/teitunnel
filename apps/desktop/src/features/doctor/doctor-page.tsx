@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Status, StatusDot } from "@/components/ui/status-dot";
-import { ConnectSheet, PermissionFix } from "@/features/accounts";
+import { ConnectSheet, ErrorAction, PermissionFix } from "@/features/accounts";
 import { useInstallBinary } from "@/features/binary/queries";
 import { useLocalFix } from "@/features/local-domains/queries";
 import { RouteSheet, type SheetMode, useKeepTheirs, useTunnelAction } from "@/features/routes";
@@ -247,7 +247,7 @@ export function DoctorPage({ initialIssue = null }: { initialIssue?: string | nu
           title={t("doctor.runFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void doctor.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={doctor.error} onRetry={() => void doctor.refetch()} />}
         />
       );
     }

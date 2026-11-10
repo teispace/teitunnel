@@ -26,7 +26,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/ui/status-dot";
-import { ConnectSheet, useAccounts, useActiveAccount } from "@/features/accounts";
+import { ConnectSheet, ErrorAction, useAccounts, useActiveAccount } from "@/features/accounts";
 import { summaryOf } from "@/features/activity/model";
 import { RouteAnalytics } from "@/features/analytics";
 import { CheckNotes, HostRejectionFix, useSendHostOnRoute } from "@/features/dev-server";
@@ -459,7 +459,7 @@ export function RoutesPage({
           title={t("routes.loadFailed")}
           message={error.message}
           hint={error.hint}
-          action={<Button onClick={() => void overview.refetch()}>{t("common.tryAgain")}</Button>}
+          action={<ErrorAction error={overview.error} onRetry={() => void overview.refetch()} />}
         />
       );
     }

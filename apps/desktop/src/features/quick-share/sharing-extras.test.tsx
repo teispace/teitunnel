@@ -37,7 +37,9 @@ beforeEach(() => {
     calls.push({ cmd, args: payload });
     switch (cmd) {
       case "accounts_list":
-        return [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+        return [
+          { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+        ];
       case "domains_list":
         return [
           {

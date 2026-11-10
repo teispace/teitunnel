@@ -21,7 +21,9 @@ let release: () => void;
 let overviewFails: boolean;
 
 beforeEach(() => {
-  accounts = [{ id: "acc", name: "Me", credential: "apiToken", limitedZone: null }];
+  accounts = [
+    { id: "acc", name: "Me", credential: "apiToken", limitedZone: null, signedOut: false },
+  ];
   overviewGate = new Promise((resolve) => {
     release = resolve;
   });
