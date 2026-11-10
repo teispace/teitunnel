@@ -432,7 +432,7 @@ jobs:
     steps:
       # Opens the pull request for the new version in microsoft/winget-pkgs (Komac reads the
       # installers and carries over the rest of the manifest). Needs WINGET_TOKEN, a classic
-      # token with public_repo from a maintainer (docs/RELEASING.md, "winget").
+      # token with public_repo and workflow from a maintainer (docs/RELEASING.md, "winget").
       - name: Submit the new version to winget
         run: |
           if [ -z "$WINGET_TOKEN" ]; then
