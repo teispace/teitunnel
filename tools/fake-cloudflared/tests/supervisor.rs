@@ -94,7 +94,7 @@ fn wrapper(dir: &Path, scenario: &str) -> PathBuf {
 }
 
 fn alive(pid: u32) -> bool {
-    let mut system = sysinfo::System::new();
+    let mut system = sysinfo::System::new().expect("process list");
     let pid = sysinfo::Pid::from_u32(pid);
     system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
     system

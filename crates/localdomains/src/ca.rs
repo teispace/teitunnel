@@ -92,6 +92,7 @@ impl CaIdentity {
             .find_map(|var| std::env::var(var).ok().filter(|v| !v.is_empty()))
             .unwrap_or_else(|| "user".to_owned());
         let host = sysinfo::System::host_name()
+            .ok()
             .filter(|h| !h.is_empty())
             .unwrap_or_else(|| "localhost".to_owned());
         Self { user, host }

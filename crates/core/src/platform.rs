@@ -5,7 +5,7 @@
 pub fn os_description() -> String {
     format!(
         "{} ({})",
-        sysinfo::System::long_os_version().unwrap_or_else(|| std::env::consts::OS.to_owned()),
+        sysinfo::System::long_os_version().unwrap_or_else(|_| std::env::consts::OS.to_owned()),
         std::env::consts::ARCH
     )
 }

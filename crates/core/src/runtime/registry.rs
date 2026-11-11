@@ -178,7 +178,7 @@ pub fn is_running(identity: &str) -> bool {
 }
 
 fn start_time(pid: u32) -> Option<u64> {
-    let mut system = System::new();
+    let mut system = System::new().ok()?;
     let pid = Pid::from_u32(pid);
     system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
     system.process(pid).map(sysinfo::Process::start_time)

@@ -34,10 +34,12 @@ if (typeof HTMLElement !== "undefined") {
   for (const [prop, value] of [
     ["offsetHeight", 480],
     ["offsetWidth", 640],
+    // @tanstack/virtual-core measures its scroller with these.
+    ["clientHeight", 480],
+    ["clientWidth", 640],
   ] as const) {
-    if (
-      Object.getOwnPropertyDescriptor(HTMLElement.prototype, prop)?.get?.call(document.body) === 0
-    ) {
+    const owner = prop.startsWith("client") ? Element.prototype : HTMLElement.prototype;
+    if (Object.getOwnPropertyDescriptor(owner, prop)?.get?.call(document.body) === 0) {
       Object.defineProperty(HTMLElement.prototype, prop, { configurable: true, get: () => value });
     }
   }

@@ -59,7 +59,7 @@
 /* Navigation selection: a neutral fill, as in Windows 11 and GNOME (an accent fill with
    white text is a macOS sidebar). Windows adds its accent pill. */
 :root:is([data-platform="windows"], [data-platform="linux"])
-[data-sidebar-item][data-status="active"] {
+  [data-sidebar-item][data-status="active"] {
   position: relative;
   background: var(--surface-sidebar-selected);
   color: var(--text-primary);

@@ -53,7 +53,7 @@ export function onSceneProgress(element: Element, listener: Listener): () => voi
   };
 }
 
-const clamp = (value: number) => (value < 0 ? 0 : value > 1 ? 1 : value);
+const clamp = (value: number) => Math.min(Math.max(value, 0), 1);
 
 function measure(scene: Scene, height: number): number {
   if (scene.kind === "stack") {

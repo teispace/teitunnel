@@ -45,7 +45,9 @@ fn send(pid: u32, signal: nix::sys::signal::Signal, group: bool) {
 // `Child::start_kill`, and orphans with `sysinfo`.
 #[cfg(not(unix))]
 pub(crate) fn signal_process(pid: u32, _force: bool) {
-    let mut system = sysinfo::System::new();
+    let Ok(mut system) = sysinfo::System::new() else {
+        return;
+    };
     let pid = sysinfo::Pid::from_u32(pid);
     system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
     if let Some(process) = system.process(pid) {

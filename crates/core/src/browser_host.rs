@@ -596,7 +596,7 @@ pub fn record_started(dir: &Path, args: &[String], layout: &Layout, now: u64) {
 /// The browser whose app started this process, looking up to three processes up.
 fn starting_browser(layout: &Layout) -> Option<Browser> {
     use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-    let mut system = System::new();
+    let mut system = System::new().ok()?;
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,

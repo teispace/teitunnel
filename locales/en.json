@@ -251,7 +251,8 @@
     "requiresLogin": "Requires a login",
     "importLabel": "Import Routes",
     "logs": {
-      "empty": "No failed requests. Successful ones aren't logged."
+      "empty": "No failed requests. Successful ones aren't logged.",
+      "saved": "Saved the log to Downloads"
     },
     "viaTunnel": "→ {origin} · {tunnel}",
     "temporary": "Temporary",

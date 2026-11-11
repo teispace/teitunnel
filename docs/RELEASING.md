@@ -79,8 +79,10 @@ The first version of `Teispace.Teitunnel` is a pull request to
 days. Unsigned installers are accepted; SmartScreen still warns until the installers are signed.
 
 After it's merged, for automatic updates: create a **classic** personal access token with
-only the `public_repo` scope (Komac forks winget-pkgs into that account and opens the pull
-request from there), then
+the `public_repo` and `workflow` scopes (Komac forks winget-pkgs into that account and opens
+the pull request from there; it branches from upstream's latest commit, which usually changes
+winget-pkgs' own workflows, and GitHub refuses that branch without `workflow`: "does not have
+the correct permissions to execute `CreateRef`"), then
 
 ```sh
 gh secret set WINGET_TOKEN --env release
