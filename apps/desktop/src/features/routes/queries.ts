@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 import {
   type Change,
   commands,
@@ -192,7 +193,7 @@ export function useStopForeign() {
 export function useSaveLog() {
   const { mutate } = useMutation({
     mutationFn: (lines: string[]) => call(commands.appSaveLog(lines)),
-    onSuccess: () => toast.success("Saved the log to Downloads"),
+    onSuccess: () => toast.success(t("routes.logs.saved")),
     onError: (error) => toast.error(toIpcError(error).message),
   });
   return mutate;
