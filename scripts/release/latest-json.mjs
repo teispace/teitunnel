@@ -57,5 +57,5 @@ const notes = notesFile && existsSync(notesFile) ? readFileSync(notesFile, "utf8
 const manifest = { version, notes, pub_date: new Date().toISOString(), platforms };
 writeFileSync(join(dir, "latest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 process.stdout.write(
-  `latest.json: ${Object.keys(platforms).length} platform keys for ${version}` + "\n",
+  `latest.json: ${Object.keys(platforms).length} platform keys for ${version}\n`,
 );

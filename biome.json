@@ -31,6 +31,8 @@
   "css": {
     "parser": { "tailwindDirectives": true }
   },
+  "markdown": { "formatter": { "enabled": false } },
+  "yaml": { "formatter": { "enabled": false } },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
@@ -42,7 +44,8 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "useExhaustiveDependencies": "error"
+        "useExhaustiveDependencies": "error",
+        "usePlaywrightValidDescribeCallback": "off"
       },
       "style": {
         "noNonNullAssertion": "error",
