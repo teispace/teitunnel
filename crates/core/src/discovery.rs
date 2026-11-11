@@ -149,19 +149,24 @@ pub fn list_services() -> Vec<LocalService> {
         .values()
         .map(|(l, _)| Pid::from_u32(l.process.pid))
         .collect();
-    let mut system = System::new();
-    system.refresh_processes_specifics(
-        ProcessesToUpdate::Some(&pids),
-        true,
-        ProcessRefreshKind::nothing()
-            .with_cmd(UpdateKind::Always)
-            .with_cwd(UpdateKind::Always),
-    );
+    // Without process details, services are still listed (by port only).
+    let mut system = System::new().ok();
+    if let Some(system) = system.as_mut() {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&pids),
+            true,
+            ProcessRefreshKind::nothing()
+                .with_cmd(UpdateKind::Always)
+                .with_cwd(UpdateKind::Always),
+        );
+    }
 
     let mut services: Vec<LocalService> = by_port
         .into_iter()
         .map(|(port, (listener, all_interfaces))| {
-            let process = system.process(Pid::from_u32(listener.process.pid));
+            let process = system
+                .as_ref()
+                .and_then(|s| s.process(Pid::from_u32(listener.process.pid)));
             let cmd: Vec<String> = process
                 .map(|p| {
                     p.cmd()

@@ -327,7 +327,8 @@ mod platform {
     fn current_user_sid() -> io::Result<String> {
         use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
         let pid = Pid::from_u32(std::process::id());
-        let mut system = System::new();
+        let mut system =
+            System::new().map_err(|_| io::Error::other("couldn't read this user's SID"))?;
         system.refresh_processes_specifics(
             ProcessesToUpdate::Some(&[pid]),
             true,

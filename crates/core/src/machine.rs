@@ -53,6 +53,7 @@ pub fn machine_name() -> String {
         return name.trim().to_owned();
     }
     sysinfo::System::host_name()
+        .ok()
         .map(|host| host.trim_end_matches(".local").to_owned())
         .filter(|host| !host.is_empty())
         .unwrap_or_else(|| "My Mac".to_owned())

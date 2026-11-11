@@ -162,7 +162,9 @@ pub async fn foreign() -> Vec<ForeignConnector> {
 }
 
 fn scan() -> Vec<ForeignConnector> {
-    let mut system = System::new();
+    let Ok(mut system) = System::new() else {
+        return Vec::new();
+    };
     system.refresh_processes_specifics(
         ProcessesToUpdate::All,
         true,
