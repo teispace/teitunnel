@@ -62,7 +62,7 @@ Cloudflare account, with no Teitunnel servers in between and no telemetry.
 | Platform | |
 |---|---|
 | **macOS** 14 or later | [Download](https://teitunnel.teispace.com/download/) the signed, notarized app, or `brew install --cask teispace/tap/teitunnel` |
-| **Windows** 10 and 11 | [Download](https://teitunnel.teispace.com/download/) the installer (x64 or Arm64) |
+| **Windows** 10 and 11 | [Download](https://teitunnel.teispace.com/download/) the installer (x64 or Arm64), or `winget install Teispace.Teitunnel` |
 | **Linux** | `.deb`, `.rpm` and AppImage from the [download page](https://teitunnel.teispace.com/download/), or the [apt and dnf repositories](https://teitunnel.teispace.com/docs/getting-started/install/) |
 | **Servers and CI** | `brew install teispace/tap/teitunnel-cli`, the [release archives](https://github.com/teispace/teitunnel/releases/latest), or `docker run teispace/teitunnel` |
 

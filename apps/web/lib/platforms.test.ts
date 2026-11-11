@@ -79,6 +79,10 @@ describe("download panels", () => {
       get(list, "macos").commands.map((c) => c.command),
       ["brew install --cask teispace/tap/teitunnel"],
     );
+    assert.deepEqual(
+      get(list, "windows").commands.map((c) => c.command),
+      ["winget install Teispace.Teitunnel"],
+    );
   });
 
   it("has no files and no commands before a release", () => {

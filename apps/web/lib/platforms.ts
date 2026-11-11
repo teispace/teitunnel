@@ -56,6 +56,7 @@ const archOrder: Arch[] = ["universal", "x64", "arm64"];
 const channels = {
   cask: "brew install --cask teispace/tap/teitunnel",
   formula: "brew install teispace/tap/teitunnel-cli",
+  winget: "winget install Teispace.Teitunnel",
   docker: "docker run -d -e CLOUDFLARE_API_TOKEN -v teitunnel:/data teispace/teitunnel",
   // The signed repositories at teitunnel.teispace.com/linux/.
   apt: [
@@ -140,7 +141,7 @@ export function panels(downloads: readonly Download[], platform: Platform): Pane
       variants: [variant(of("windows", "setup"), "Installer", "Windows 10 and 11")].filter(
         (v): v is Variant => v !== null,
       ),
-      commands: [],
+      commands: setup ? [{ label: "winget", command: channels.winget }] : [],
     },
     {
       id: "linux",
