@@ -1,7 +1,7 @@
 ---
 title: Install Teitunnel
-description: Download and install Teitunnel on macOS, Windows or Linux, with Homebrew, apt or dnf, or install the teitunnel command on a server or in Docker. Verify, update and uninstall.
-searchDescription: "Install Teitunnel on macOS, Windows or Linux, with Homebrew, apt, dnf or Docker, plus the teitunnel command. How to verify, update and uninstall."
+description: Download and install Teitunnel on macOS, Windows or Linux, with Homebrew, winget, apt or dnf, or install the teitunnel command on a server or in Docker. Verify, update and uninstall.
+searchDescription: "Install Teitunnel on macOS, Windows or Linux, with Homebrew, winget, apt, dnf or Docker, plus the teitunnel command. How to verify, update and uninstall."
 ---
 
 Teitunnel runs on **macOS 14 or later**, **Windows 10 and 11** and **Linux** (GNOME, KDE and
@@ -84,6 +84,12 @@ further down, and every file is also on the [download page](/download/).
     The installer also puts the `teitunnel` command on your PATH (a copy in your user's
     `WindowsApps` folder), so it works in a new terminal right away. Credentials are kept in
     Windows Credential Manager, and routes can keep running with Task Scheduler.
+
+    **With winget**, the same installer, for your user:
+
+    ```powershell
+    winget install Teispace.Teitunnel
+    ```
   </Tab>
   <Tab value="Linux">
     The easiest way is Teitunnel's package repository: your system then installs updates
@@ -280,6 +286,7 @@ The `teitunnel` command that came with the app updates with it. Elsewhere:
 | Installed with | Update with |
 |---|---|
 | Homebrew | `brew upgrade teitunnel` (cask) or `brew upgrade teitunnel-cli` (formula) |
+| winget | `winget upgrade Teispace.Teitunnel` |
 | apt or dnf repository | `sudo apt upgrade` or `sudo dnf upgrade` |
 | Docker | `docker pull teispace/teitunnel`, then recreate the container |
 | A downloaded archive | Download the new one and replace the file |
