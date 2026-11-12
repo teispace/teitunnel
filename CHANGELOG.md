@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/teispace/teitunnel/compare/v0.6.0...v0.6.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** dependency updates with security fixes (rustls, minimatch, glob, sysinfo 0.40 and the app and website toolchain) ([e4ec931](https://github.com/teispace/teitunnel/commit/e4ec931f672ff9b84efa903287b80131f7a8393b))
+* **ui:** the saved-log message is translated like every other message ([e4ec931](https://github.com/teispace/teitunnel/commit/e4ec931f672ff9b84efa903287b80131f7a8393b))
+
 ## [0.6.0](https://github.com/teispace/teitunnel/compare/v0.5.0...v0.6.0) (2026-11-10)
 
 
