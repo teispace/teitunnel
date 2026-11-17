@@ -1,0 +1,4 @@
+# The Nightly workflow's real-world tests: a test that hangs fails after ten minutes
+# instead of running into the job's timeout.
+[profile.nightly]
+slow-timeout = { period = "120s", terminate-after = 5 }

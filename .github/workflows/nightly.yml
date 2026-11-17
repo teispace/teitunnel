@@ -25,7 +25,14 @@ jobs:
           tool: cargo-nextest
       - run: mkdir -p apps/desktop/dist
       - name: Real install and Quick Share
-        run: cargo nextest run --workspace --locked --run-ignored only
+        # The token lifts GitHub's anonymous rate limit on the cloudflared release lookup.
+        # real_store_round_trip changes the real OS trust store and can open a password
+        # dialog, so it is run by hand only.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          cargo nextest run --workspace --locked --run-ignored only --profile nightly
+          -E 'not test(real_store_round_trip)'
       - name: Always-on connector through the real launchd
         env:
           TEITUNNEL_TEST_LAUNCHD: "1"
