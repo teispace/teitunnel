@@ -54,7 +54,7 @@ tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "ti
 tokio-util = "0.7"
 ipnet = "2.12"
 # Time zones for scheduled shares (the system's tz database; bundled on Windows)
-jiff = "0.2.37"
+jiff = "1.0.2"
 # Localization
 intl_pluralrules = "7.0.2"
 unic-langid = "0.9.6"
@@ -71,11 +71,11 @@ serde-saphyr = "2.1"
 sha2 = "0.11.0"
 flate2 = "1.1.10"
 tar = { version = "0.4.46", default-features = false }
-qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+qrcode = { version = "0.15.0", default-features = false, features = ["svg"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "http2", "json", "stream"] }
 
 # Processes
-nix = { version = "0.31.3", default-features = false, features = ["signal", "process"] }
+nix = { version = "0.32.0", default-features = false, features = ["signal", "process"] }
 windows-registry = "0.100"
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 listeners = "0.6.1"
@@ -111,7 +111,7 @@ rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs
 time = "0.3.44"
 zeroize = "1.8"
 hickory-proto = { version = "0.26.3", default-features = false, features = ["std"] }
-mdns-sd = "0.21.4"
+mdns-sd = "0.22.0"
 plist = "1.10"
 x509-parser = "0.18.1"
 sha1 = "0.11"
@@ -128,7 +128,7 @@ jsonc-parser = { version = "0.34.0", features = ["cst", "serde_json"] }
 toml_edit = "0.25.15"
 
 # Persistence
-rusqlite = { version = "0.41.1", features = ["bundled"] }
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 
 # Observability
 tracing = "0.1.44"
